@@ -2,13 +2,18 @@
 
 A conversation whose context window does not grow.
 
-Open `index.html` over any static server and talk to a small model running in
-your own browser. Every finished turn is folded to one line of about a hundred
+Open `index.html` over any static server, paste an Anthropic API key, and talk
+to Claude. Every finished turn is folded to one line of about a hundred
 characters; a running summary tracks how the discourse evolved; and what gets
 sent on turn four hundred is the summary, a bounded list of folds, and the last
 two exchanges. The raw transcript is never resent. The right-hand panel shows
 the exact message array going to the model each turn next to the size of the
 transcript it is standing in for.
+
+The key is held in this browser's local storage and is sent to no host but
+`api.anthropic.com`. There is no server in this design to hide it behind, which
+is why the SDK is constructed with `dangerouslyAllowBrowser` — appropriate for a
+page you serve to yourself on localhost, not for one you deploy.
 
 ## Two folds, not one fold at two resolutions
 
@@ -37,7 +42,7 @@ paraphrase's disclaimer and a paraphrase would inherit the record's authority.
 | --- | --- |
 | `fold.js` | the fold: summary, folds, records, prompt assembly. Pure — no IO, no model calls, no imports. |
 | `source.js` | the address half: paragraph chunking with byte ranges, mechanical term-overlap retrieval, citation checking, read-back. Also pure. |
-| `app.js` | the page: WebLLM engine, turn loop, rendering. The only file that touches the network. |
+| `app.js` | the page: Claude client, turn loop, rendering. The only file that touches the network. |
 | `fold.test.mjs` | `node --test` over both pure modules. No engine, no network. |
 
 Two model calls per turn — the answer, and the summary refresh — and neither
@@ -67,18 +72,21 @@ one is ever handed the transcript.
 python3 -m http.server 8811 --directory the-fold
 ```
 
-Then open `http://localhost:8811` in a WebGPU browser, pick a model, and load
-it. The first load downloads weights and caches them; later loads are fast.
+Then open `http://localhost:8811`, paste a key, pick a model, and connect.
 
-Tests:
+Two model calls per turn: the answer, and the summary refresh. The refresh runs
+at `effort: "low"` — it is bookkeeping over lines that are already written, and
+spending the answer's effort on it would double the turn's latency for nothing.
+
+Tests — no engine, no network, no install:
 
 ```bash
-node --test the-fold
+cd the-fold && npm test
 ```
 
 ## Testing it honestly
 
-Small models are extremely good at plausible, so "did it give a reasonable
+Models are extremely good at plausible, so "did it give a reasonable
 answer" proves nothing. Paste material containing a specific invented fact — a
 fictional name, a made-up number — into the Material tab, ask about it, and
 check the literal answer against the literal text. Then keep talking for

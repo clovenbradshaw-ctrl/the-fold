@@ -14,8 +14,14 @@
 //
 // Two model calls per turn, both bounded, and neither one ever sees the
 // transcript.
+//
+// The model is Claude, called straight from the page with the official SDK.
+// The key lives in this browser's local storage and is sent to no host but
+// api.anthropic.com — which is also why `dangerouslyAllowBrowser` is honest
+// here rather than reckless: there is no server in this design to hide it
+// behind, and the page is served from localhost to its own author.
 
-import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.84";
+import Anthropic from "https://esm.run/@anthropic-ai/sdk";
 
 import {
   RECENCY_WINDOW,
@@ -44,8 +50,12 @@ const BASE_PROMPT =
 
 const $ = (id) => document.getElementById(id);
 
+const KEY_STORAGE = "the-fold.anthropic-key";
+const MAX_TOKENS = 4096;
+
 const state = {
-  engine: null,
+  client: null,
+  model: "claude-opus-5",
   busy: false,
   summary: emptySummary(),
   /** The raw transcript. Kept only so the page can show what it is NOT sending. */
@@ -59,63 +69,51 @@ const state = {
 
 // ── model ────────────────────────────────────────────────────────────────────
 
-function smallModels() {
-  const all = webllm.prebuiltAppConfig.model_list.map((m) => m.model_id);
-  // Small on purpose. The fold's whole argument is that a modest model with a
-  // bounded context beats a large one drowning in transcript; a 1B that stays
-  // coherent over forty turns is the demonstration.
-  const wanted = all.filter((id) => /-(0\.5B|1B|1\.5B|1_5B|2B|3B)-/i.test(id));
-  const preferred = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
-  const list = wanted.includes(preferred)
-    ? [preferred, ...wanted.filter((id) => id !== preferred)]
-    : wanted;
-  return list.length ? list : all;
-}
-
-function fillModels() {
-  const sel = $("model");
-  for (const id of smallModels()) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = id.replace(/-MLC$/, "");
-    sel.append(opt);
+function connect() {
+  const key = $("key").value.trim();
+  if (!key) {
+    $("status").textContent = "paste a key first";
+    $("key").focus();
+    return;
   }
+  localStorage.setItem(KEY_STORAGE, key);
+  state.model = $("model").value;
+  state.client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+  $("status").textContent = "ready";
+  $("send").disabled = false;
+  $("input").focus();
 }
 
-async function loadModel() {
-  const id = $("model").value;
-  $("load").disabled = true;
-  $("model").disabled = true;
-  try {
-    state.engine = await webllm.CreateMLCEngine(id, {
-      initProgressCallback: (p) => {
-        $("status").textContent = p.text;
-      },
-    });
-    $("status").textContent = "ready";
-    $("send").disabled = false;
-    $("input").focus();
-  } catch (err) {
-    $("status").textContent = `load failed: ${err.message || err}`;
-    $("load").disabled = false;
-    $("model").disabled = false;
-  }
-}
+/**
+ * One request. `messages` arrives in the shape fold.js assembles — a single
+ * system message at index 0, then the turns — and is split here, because the
+ * Messages API carries the system prompt in its own field rather than as a
+ * message. The fold's own invariant (exactly one system block, everything
+ * older folded into it) is unchanged by the split.
+ */
+async function complete(messages, { onDelta, effort } = {}) {
+  const system = messages[0]?.role === "system" ? messages[0].content : undefined;
+  const turns = messages.filter((m) => m.role !== "system");
 
-async function complete(messages, onDelta) {
-  const stream = await state.engine.chat.completions.create({
-    messages,
-    stream: true,
-    temperature: 0.6,
+  const stream = state.client.messages.stream({
+    model: state.model,
+    max_tokens: MAX_TOKENS,
+    ...(system ? { system } : {}),
+    ...(effort ? { output_config: { effort } } : {}),
+    messages: turns,
   });
+
   let out = "";
-  for await (const chunk of stream) {
-    const delta = chunk.choices?.[0]?.delta?.content || "";
-    if (!delta) continue;
+  stream.on("text", (delta) => {
     out += delta;
     onDelta?.(out);
-  }
-  return out;
+  });
+  const message = await stream.finalMessage();
+  if (message.stop_reason === "refusal") throw new Error("the model declined");
+  return message.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
 }
 
 // ── the turn ─────────────────────────────────────────────────────────────────
@@ -145,12 +143,14 @@ async function send(question) {
   let answer = "";
   try {
     $("status").textContent = "answering…";
-    answer = await complete(messages, (partial) => {
-      node.querySelector(".body").textContent = partial;
-      node.scrollIntoView({ block: "end" });
+    answer = await complete(messages, {
+      onDelta: (partial) => {
+        node.querySelector(".body").textContent = partial;
+        node.scrollIntoView({ block: "end" });
+      },
     });
   } catch (err) {
-    answer = `[engine error: ${err.message || err}]`;
+    answer = `[api error: ${err.message || err}]`;
     node.querySelector(".body").textContent = answer;
   }
 
@@ -182,16 +182,22 @@ async function send(question) {
   state.turnFolds.push(fold);
   try {
     $("status").textContent = "folding…";
-    const raw = await complete([
-      { role: "system", content: FOLD_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: buildSummaryUpdatePrompt(state.summary, [
-          ...(state.summary.folds || []),
-          fold,
-        ]),
-      },
-    ]);
+    const raw = await complete(
+      [
+        { role: "system", content: FOLD_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: buildSummaryUpdatePrompt(state.summary, [
+            ...(state.summary.folds || []),
+            fold,
+          ]),
+        },
+      ],
+      // The fold is bookkeeping, not reasoning: a short JSON object read off
+      // lines that are already written. Spending the answer's effort on it
+      // would double the turn's latency for nothing.
+      { effort: "low" },
+    );
     state.summary = updateSummaryWithFold(state.summary, fold, raw);
   } catch {
     state.summary = updateSummaryWithFold(state.summary, fold);
@@ -351,11 +357,15 @@ function ingest() {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-fillModels();
 renderState();
 renderPrompt();
 
-$("load").onclick = loadModel;
+$("key").value = localStorage.getItem(KEY_STORAGE) || "";
+$("connect").onclick = connect;
+$("model").onchange = () => {
+  state.model = $("model").value;
+  if (state.client) $("status").textContent = `ready · ${state.model}`;
+};
 $("ingest").onclick = ingest;
 
 for (const tab of document.querySelectorAll('[role="tab"]')) {
@@ -370,7 +380,7 @@ for (const tab of document.querySelectorAll('[role="tab"]')) {
 $("composer").onsubmit = (e) => {
   e.preventDefault();
   const q = $("input").value.trim();
-  if (!q || state.busy || !state.engine) return;
+  if (!q || state.busy || !state.client) return;
   $("input").value = "";
   send(q);
 };

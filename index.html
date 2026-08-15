@@ -5,32 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>The Fold</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
+    <link rel="preconnect" href="https://fonts.bunny.net" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.bunny.net/css?family=inter:400,500,600,700|jetbrains-mono:400,500"
+    />
     <style>
       :root {
-        --bg: #f6f5f2;
+        --bg: #ffffff;
         --panel: #ffffff;
-        --ink: #1a1a19;
-        --muted: #6b6a65;
-        --line: #e2e0da;
-        --accent: #7a5c3e;
-        --accent-soft: #f0e9e0;
-        --record: #2f5d50;
-        --record-soft: #e6efeb;
-        --warn: #a3402c;
-        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        --ink: #111113;
+        --muted: #5f5f68;
+        --line: #dcdce3;
+        --accent: #6d28d9;
+        --accent-soft: #f3eeff;
+        --record: #6d28d9;
+        --record-soft: #faf7ff;
+        --warn: #b42318;
+        --sans: "Inter", "SF Pro Text", -apple-system, "Segoe UI Variable Text",
+          "Segoe UI", Roboto, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+          monospace;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #16161a;
-          --panel: #1e1e23;
-          --ink: #e9e7e2;
-          --muted: #97948d;
-          --line: #32323a;
-          --accent: #c9a37a;
-          --accent-soft: #2b2620;
-          --record: #7fc0a9;
-          --record-soft: #1e2a27;
-          --warn: #e08a76;
+          --bg: #0f0f12;
+          --panel: #15151a;
+          --ink: #ecebf0;
+          --muted: #9b9aa5;
+          --line: #2b2b34;
+          --accent: #a78bfa;
+          --accent-soft: #1e1932;
+          --record: #a78bfa;
+          --record-soft: #17141f;
+          --warn: #f0857a;
         }
       }
       * { box-sizing: border-box; }
@@ -38,7 +46,9 @@
         margin: 0;
         background: var(--bg);
         color: var(--ink);
-        font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font: 400 15px/1.5 var(--sans);
+        font-feature-settings: "cv05", "ss01";
+        -webkit-font-smoothing: antialiased;
       }
       header {
         display: flex;
@@ -49,7 +59,13 @@
         background: var(--panel);
         flex-wrap: wrap;
       }
-      header h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
+      header h1 {
+        font-size: 17px;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: -0.015em;
+        color: var(--accent);
+      }
       header .tag { color: var(--muted); font-size: 13px; }
       header .spacer { flex: 1; }
       select, button, textarea, input {
@@ -129,13 +145,17 @@
       .pane { display: none; }
       .pane.on { display: block; }
       h2 {
-        font-size: 11px;
+        font-size: 12.5px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-        margin: 18px 0 8px;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        margin: 22px 0 10px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid var(--accent);
       }
       h2:first-child { margin-top: 0; }
+      h2 .tag { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
       .meter { margin-bottom: 14px; }
       .meter .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
       .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 4px 0 2px; }
@@ -209,6 +229,7 @@
       dialog h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
       #status { font-size: 12.5px; color: var(--muted); }
+      #key { width: 190px; font-family: var(--mono); font-size: 12px; }
       .note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
     </style>
   </head>
@@ -217,8 +238,13 @@
       <h1>The Fold</h1>
       <span class="tag">a conversation whose context window does not grow</span>
       <span class="spacer"></span>
-      <select id="model" title="Model"></select>
-      <button id="load" class="primary">Load model</button>
+      <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
+      <select id="model" title="Model">
+        <option value="claude-opus-5">Opus 5</option>
+        <option value="claude-sonnet-5">Sonnet 5</option>
+        <option value="claude-haiku-4-5">Haiku 4.5</option>
+      </select>
+      <button id="connect" class="primary">Connect</button>
       <span id="status">idle</span>
     </header>
 
@@ -226,10 +252,11 @@
       <section class="col">
         <div class="scroll" id="chat">
           <p class="note">
-            Load a model, then talk. Every finished turn is folded to one line;
-            only the folds, the running summary, and the last two exchanges are
-            ever resent. Watch the right-hand panel — the transcript grows, the
-            prompt does not.
+            Paste an Anthropic API key, connect, then talk. Every finished turn
+            is folded to one line; only the folds, the running summary, and the
+            last two exchanges are ever resent. Watch the right-hand panel — the
+            transcript grows, the prompt does not. The key stays in this
+            browser's local storage and goes nowhere but api.anthropic.com.
           </p>
         </div>
         <form class="composer" id="composer">

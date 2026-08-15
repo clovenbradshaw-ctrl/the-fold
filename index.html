@@ -80,14 +80,115 @@
       button:hover:not(:disabled) { border-color: var(--accent); }
       button:disabled { opacity: 0.5; cursor: default; }
       button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+      .controls { display: flex; gap: 8px; align-items: center; }
+      /* Collapsing is a narrow-screen behavior; on a wide one the controls
+         cost nothing, so the hidden attribute set on connect is overridden
+         rather than special-cased in the script. */
+      @media (min-width: 901px) {
+        .controls[hidden] { display: flex; }
+      }
+      #settings-toggle { display: none; }
+      .tabs .chat-tab { display: none; }
+      .tabs .short { display: none; }
+
       main {
         display: grid;
         grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
         gap: 0;
-        height: calc(100vh - 53px);
+        /* Measured, not assumed — the header is one row or two depending on
+           width, and a wrong constant here scrolls the composer off-screen. */
+        height: calc(100dvh - var(--header-h, 53px));
       }
+
+      /* Narrow: one thing at a time. Stacking the chat above the panels put
+         the panels a full conversation's scroll below the composer, which on a
+         phone means they may as well not exist — so the panel tabs take over
+         the whole view and Chat becomes one of them. */
       @media (max-width: 900px) {
-        main { grid-template-columns: 1fr; height: auto; }
+        main {
+          grid-template-columns: 1fr;
+          /* Chat fills, the tab bar takes what it needs. In a panel view the
+             chat column is out of flow and the panel takes the 1fr row. */
+          grid-template-rows: 1fr auto;
+          height: calc(100dvh - var(--header-h, 46px));
+        }
+        .col + .col { border-left: none; }
+        header {
+          padding: 8px 14px;
+          gap: 8px;
+          position: sticky;
+          top: 0;
+          z-index: 20;
+        }
+        header .tag { display: none; }
+        /* The chip already says it. */
+        #status { display: none; }
+        #settings-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          max-width: 62vw;
+          font-size: 12.5px;
+          padding: 5px 10px;
+          color: var(--accent);
+          border-color: var(--accent);
+          background: var(--accent-soft);
+        }
+        #settings-label {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        #settings-toggle[aria-expanded="false"] .caret { transform: rotate(-90deg); }
+        .caret { transition: transform 0.15s; }
+        /* The controls are a first-run affordance. Once connected they fold
+           into the chip above and give the screen back. */
+        .controls {
+          order: 10;
+          width: 100%;
+          flex-wrap: wrap;
+        }
+        .controls[hidden] { display: none; }
+        .controls select,
+        .controls input { flex: 1 1 38%; min-width: 0; font-size: 13px; }
+        .controls #connect { flex: 0 0 auto; }
+
+        /* Panes become views. The tab bar sits at the bottom, in reach — and
+           stays there in chat view, which is the only way back to the panels,
+           so the panel column collapses to just its tabs rather than hiding. */
+        #col-chat { display: none; }
+        body[data-view="chat"] #col-chat { display: flex; }
+        body[data-view="chat"] #col-panel > .scroll { display: none; }
+        .tabs {
+          order: 2;
+          position: sticky;
+          bottom: 0;
+          padding: 0;
+          border-bottom: none;
+          border-top: 1px solid var(--line);
+          justify-content: space-around;
+          flex-wrap: nowrap;
+        }
+        .tabs button {
+          flex: 1;
+          padding: 11px 4px;
+          font-size: 12.5px;
+          border-bottom: none;
+          border-top: 2px solid transparent;
+        }
+        .tabs button[aria-selected="true"] {
+          border-top-color: var(--accent);
+          background: var(--accent-soft);
+        }
+        .tabs .chat-tab { display: block; }
+        .tabs .long { display: none; }
+        .tabs .short { display: inline; }
+        #col-panel { flex-direction: column; }
+        #col-panel .scroll { order: 1; }
+        .composer { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+        .scroll { padding: 14px; }
+        .sources-strip { padding: 8px 14px 0; }
+        textarea#material { min-height: 160px; }
       }
       .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
       .col + .col { border-left: 1px solid var(--line); }
@@ -310,28 +411,37 @@
       <h1>The Fold</h1>
       <span class="tag">a conversation whose context window does not grow</span>
       <span class="spacer"></span>
-      <select id="provider" title="Where the model runs">
-        <option value="ollama">Ollama · local</option>
-        <option value="claude">Claude API</option>
-      </select>
-      <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" hidden />
-      <select id="model" title="Model"></select>
-      <button id="connect" class="primary">Connect</button>
+      <button id="settings-toggle" type="button" aria-expanded="true">
+        <span id="settings-label">not connected</span>
+        <span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="controls" id="controls">
+        <select id="provider" title="Where the model runs">
+          <option value="ollama">Ollama · local</option>
+          <option value="claude">Claude API</option>
+        </select>
+        <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" hidden />
+        <select id="model" title="Model"></select>
+        <button id="connect" class="primary">Connect</button>
+      </div>
       <span id="status">idle</span>
     </header>
 
     <main>
-      <section class="col">
+      <section class="col" id="col-chat">
         <div class="scroll" id="chat">
+          <div id="intro">
           <p class="note">
             Pick a model and connect — Ollama on this machine, or Claude with a
             key you paste. Then talk. Every finished turn is folded to one line;
             only the folds, the running summary, and the last two exchanges are
-            ever resent. Watch the right-hand panel — the transcript grows, the
+            ever resent. Watch the other panels — the transcript grows, the
             prompt does not.
           </p>
           <p class="note">
             To ground the answers, drop a text file anywhere on this page.
+          </p>
+          </div>
           </p>
         </div>
         <div class="sources-strip" id="sources-strip" hidden></div>
@@ -339,16 +449,21 @@
           <button type="button" id="attach" title="Add material (or drop a file anywhere)">
             <span aria-hidden="true">＋</span> Material
           </button>
-          <textarea id="input" placeholder="Ask something. Enter to send, Shift+Enter for a newline." rows="1"></textarea>
+          <textarea id="input" placeholder="Ask something…" title="Enter to send, Shift+Enter for a newline" rows="1"></textarea>
           <button type="submit" class="primary" id="send" disabled>Send</button>
         </form>
         <input type="file" id="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,text/*" hidden />
       </section>
 
-      <section class="col">
+      <section class="col" id="col-panel">
         <nav class="tabs" role="tablist">
-          <button role="tab" data-pane="prompt" aria-selected="true">What the model sees</button>
-          <button role="tab" data-pane="state" aria-selected="false">Fold state</button>
+          <button role="tab" data-pane="chat" aria-selected="false" class="chat-tab">Chat</button>
+          <button role="tab" data-pane="prompt" aria-selected="true">
+            <span class="long">What the model sees</span><span class="short">Sent</span>
+          </button>
+          <button role="tab" data-pane="state" aria-selected="false">
+            <span class="long">Fold state</span><span class="short">Fold</span>
+          </button>
           <button role="tab" data-pane="material" aria-selected="false">Material</button>
         </nav>
         <div class="scroll">

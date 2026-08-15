@@ -139,6 +139,10 @@ async function connect() {
   state.ready = true;
   $("status").textContent = `ready · ${state.model}`;
   $("send").disabled = false;
+  // Connected is the moment the controls stop earning their space, and the
+  // moment the chat is what you want to be looking at.
+  openSettings(false);
+  showView("chat");
   $("input").focus();
 }
 
@@ -217,6 +221,9 @@ async function completeOllama(messages, { onDelta }) {
 async function send(question) {
   state.busy = true;
   $("send").disabled = true;
+  // The intro has done its job the moment there is a conversation, and on a
+  // phone it is otherwise a screenful sitting above the first message.
+  $("intro")?.remove();
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   const passages = state.chunks.length
@@ -652,14 +659,69 @@ $("material").addEventListener("paste", (e) => {
 });
 $("material").addEventListener("change", addPasted);
 
-for (const tab of document.querySelectorAll('[role="tab"]')) {
-  tab.onclick = () => {
-    for (const t of document.querySelectorAll('[role="tab"]'))
-      t.setAttribute("aria-selected", String(t === tab));
-    for (const p of document.querySelectorAll(".pane"))
-      p.classList.toggle("on", p.id === `pane-${tab.dataset.pane}`);
-  };
+// ── views ────────────────────────────────────────────────────────────────────
+//
+// Wide, the chat and the panels sit side by side and the tabs switch only the
+// panels. Narrow, there is room for one at a time, so Chat joins the tab bar
+// and the same click does both jobs.
+
+function showView(name) {
+  document.body.dataset.view = name;
+  for (const t of document.querySelectorAll('[role="tab"]'))
+    t.setAttribute("aria-selected", String(t.dataset.pane === name));
+  if (name === "chat") return; // the panels keep whichever pane they had
+  for (const p of document.querySelectorAll(".pane"))
+    p.classList.toggle("on", p.id === `pane-${name}`);
 }
+
+for (const tab of document.querySelectorAll('[role="tab"]'))
+  tab.onclick = () => showView(tab.dataset.pane);
+
+// Narrow, the first thing to see is the conversation and the composer; wide,
+// the panels are already beside it, so start them on the prompt.
+showView(matchMedia("(max-width: 900px)").matches ? "chat" : "prompt");
+
+// ── the settings chip ────────────────────────────────────────────────────────
+//
+// Provider, model, and Connect are a first-run affordance that then sits at the
+// top of a phone screen forever. Once connected they fold into one chip and
+// give the space back; tapping it brings them out again.
+
+const settingsToggle = $("settings-toggle");
+const controls = $("controls");
+
+function openSettings(open) {
+  controls.hidden = !open;
+  settingsToggle.setAttribute("aria-expanded", String(open));
+}
+
+settingsToggle.onclick = () =>
+  openSettings(settingsToggle.getAttribute("aria-expanded") === "false");
+
+// The chip mirrors whatever the status line says, so every existing status
+// update reaches it without threading a setter through the turn loop.
+const statusEl = $("status");
+const syncChip = () => {
+  $("settings-label").textContent = state.ready
+    ? `${state.model} · ${statusEl.textContent.replace(`ready · ${state.model}`, "ready")}`
+    : statusEl.textContent;
+};
+new MutationObserver(syncChip).observe(statusEl, {
+  childList: true,
+  characterData: true,
+  subtree: true,
+});
+syncChip();
+
+// Keep the layout's height math honest when the header wraps to two rows.
+const header = document.querySelector("header");
+const trackHeader = () =>
+  document.documentElement.style.setProperty(
+    "--header-h",
+    `${header.offsetHeight}px`,
+  );
+new ResizeObserver(trackHeader).observe(header);
+trackHeader();
 
 $("composer").onsubmit = (e) => {
   e.preventDefault();

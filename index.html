@@ -230,6 +230,78 @@
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
       #status { font-size: 12.5px; color: var(--muted); }
       #key { width: 190px; font-family: var(--mono); font-size: 12px; }
+
+      /* Material: a strip of what's loaded, sitting right on top of the
+         composer, so the material is visible where the question is typed
+         rather than parked behind a tab. */
+      .sources-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 20px 0;
+        background: var(--panel);
+        border-top: 1px solid var(--line);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        border: 1px solid var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 3px 6px 3px 10px;
+      }
+      .chip .count { color: var(--muted); }
+      .chip button {
+        border: none;
+        background: none;
+        padding: 0 4px;
+        line-height: 1;
+        font-size: 14px;
+        color: var(--muted);
+        border-radius: 999px;
+      }
+      .chip button:hover { color: var(--warn); }
+      #attach {
+        white-space: nowrap;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      #dropzone {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        backdrop-filter: blur(2px);
+      }
+      #dropzone[hidden] { display: none; }
+      .dropzone-card {
+        display: grid;
+        gap: 4px;
+        justify-items: center;
+        padding: 28px 44px;
+        border: 2px dashed var(--accent);
+        border-radius: 14px;
+        background: var(--panel);
+        color: var(--accent);
+        font-size: 15px;
+      }
+      .dropzone-card span { color: var(--muted); font-size: 13px; }
+      .source-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .source-row .name { font-family: var(--mono); font-size: 12px; }
+      .source-row .count { color: var(--muted); font-size: 12px; margin-left: auto; }
       .note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
     </style>
   </head>
@@ -238,12 +310,12 @@
       <h1>The Fold</h1>
       <span class="tag">a conversation whose context window does not grow</span>
       <span class="spacer"></span>
-      <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
-      <select id="model" title="Model">
-        <option value="claude-opus-5">Opus 5</option>
-        <option value="claude-sonnet-5">Sonnet 5</option>
-        <option value="claude-haiku-4-5">Haiku 4.5</option>
+      <select id="provider" title="Where the model runs">
+        <option value="ollama">Ollama · local</option>
+        <option value="claude">Claude API</option>
       </select>
+      <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" hidden />
+      <select id="model" title="Model"></select>
       <button id="connect" class="primary">Connect</button>
       <span id="status">idle</span>
     </header>
@@ -252,17 +324,25 @@
       <section class="col">
         <div class="scroll" id="chat">
           <p class="note">
-            Paste an Anthropic API key, connect, then talk. Every finished turn
-            is folded to one line; only the folds, the running summary, and the
-            last two exchanges are ever resent. Watch the right-hand panel — the
-            transcript grows, the prompt does not. The key stays in this
-            browser's local storage and goes nowhere but api.anthropic.com.
+            Pick a model and connect — Ollama on this machine, or Claude with a
+            key you paste. Then talk. Every finished turn is folded to one line;
+            only the folds, the running summary, and the last two exchanges are
+            ever resent. Watch the right-hand panel — the transcript grows, the
+            prompt does not.
+          </p>
+          <p class="note">
+            To ground the answers, drop a text file anywhere on this page.
           </p>
         </div>
+        <div class="sources-strip" id="sources-strip" hidden></div>
         <form class="composer" id="composer">
+          <button type="button" id="attach" title="Add material (or drop a file anywhere)">
+            <span aria-hidden="true">＋</span> Material
+          </button>
           <textarea id="input" placeholder="Ask something. Enter to send, Shift+Enter for a newline." rows="1"></textarea>
           <button type="submit" class="primary" id="send" disabled>Send</button>
         </form>
+        <input type="file" id="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,text/*" hidden />
       </section>
 
       <section class="col">
@@ -300,17 +380,26 @@
           <div class="pane" id="pane-material">
             <h2>Material</h2>
             <p class="note">
-              Paste text with blank lines between paragraphs. Retrieval is
-              mechanical term overlap — no model decides what to fetch — and
-              every passage handed to the model carries the byte range it came
-              from, which is what a record's refs point back at.
+              Drop a text file anywhere on this page, or paste below — either
+              way it is addressable the moment it lands. Retrieval is mechanical
+              term overlap; no model decides what to fetch. Every passage handed
+              to the model carries the byte range it came from, which is what a
+              record's refs point back at.
             </p>
-            <textarea id="material" spellcheck="false"></textarea>
-            <p><button id="ingest">Ingest</button> <span id="material-status" class="tag"></span></p>
+            <div id="source-list"></div>
+            <h2>Paste text</h2>
+            <textarea id="material" spellcheck="false" placeholder="Paste anything. Blank lines separate passages. It is added as soon as you paste."></textarea>
           </div>
         </div>
       </section>
     </main>
+
+    <div id="dropzone" hidden>
+      <div class="dropzone-card">
+        <strong>Drop it anywhere</strong>
+        <span>text files become addressable material</span>
+      </div>
+    </div>
 
     <dialog id="reopen">
       <h3 id="reopen-ref"></h3>

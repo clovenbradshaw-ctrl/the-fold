@@ -76,6 +76,7 @@ const state = {
   sources: {},
   chunks: [],
   lastMessages: [],
+  lastMaterialChars: 0,
 };
 
 // ── model ────────────────────────────────────────────────────────────────────
@@ -222,14 +223,19 @@ async function send(question) {
     ? retrieve(state.chunks, question, 3, foldedRefs)
     : [];
 
+  const sourceBlock = buildSourceBlock(passages);
   const messages = buildTurnMessages({
     basePrompt: BASE_PROMPT,
     summary: state.summary,
     history: state.history,
     question,
-    sourceBlock: buildSourceBlock(passages),
+    sourceBlock,
   });
   state.lastMessages = messages;
+  // Material is retrieved fresh for the question and has nothing to do with
+  // how long the conversation is. Tracked separately so the meter measures the
+  // fold's actual claim rather than crediting it with the corpus.
+  state.lastMaterialChars = sourceBlock?.length ?? 0;
 
   addMessage("user", question);
   const node = addMessage("assistant", "");
@@ -337,18 +343,40 @@ function renderPrompt() {
   if (!state.lastMessages.length)
     dump.innerHTML = '<p class="empty">Nothing sent yet.</p>';
 
+  // The comparison that means something is conversation against conversation:
+  // everything the transcript holds, against what stands in for it this turn.
+  // Retrieved material and the base prompt are the same size on turn 1 and
+  // turn 400, so counting them here would flatter the fold on a short
+  // conversation and tell you nothing about a long one.
   const transcript = charCount(state.history);
   const prompt = charCount(state.lastMessages);
-  const max = Math.max(transcript, prompt, 1);
+  const carried = Math.max(
+    prompt - state.lastMaterialChars - BASE_PROMPT.length - lastQuestionChars(),
+    0,
+  );
+  const max = Math.max(transcript, carried, 1);
   $("m-transcript").textContent = `${transcript.toLocaleString()} chars`;
-  $("m-prompt").textContent = `${prompt.toLocaleString()} chars`;
+  $("m-prompt").textContent = `${carried.toLocaleString()} chars`;
   $("bar-transcript").style.width = `${(transcript / max) * 100}%`;
-  $("bar-prompt").style.width = `${(prompt / max) * 100}%`;
+  $("bar-prompt").style.width = `${(carried / max) * 100}%`;
   $("m-ratio").textContent = transcript
-    ? `the prompt is ${((prompt / transcript) * 100).toFixed(0)}% of the transcript · ${
-        state.history.length
-      } messages exist, ${Math.min(state.history.length, RECENCY_WINDOW)} sent raw`
+    ? `${state.history.length} messages exist; ${Math.min(state.history.length, RECENCY_WINDOW)} sent raw, the rest folded` +
+      (state.lastMaterialChars
+        ? ` · plus ${state.lastMaterialChars.toLocaleString()} chars of material retrieved for this question`
+        : "") +
+      // Said out loud rather than hidden, because the first few turns look
+      // like the fold losing: its two framing blocks are a fixed cost, paid in
+      // full on turn one. What is flat is what happens after — the transcript
+      // climbs without limit and this number does not.
+      (carried > transcript
+        ? " — the fold's framing is a fixed cost, and the transcript hasn't outgrown it yet"
+        : "")
     : "";
+}
+
+function lastQuestionChars() {
+  const last = state.lastMessages[state.lastMessages.length - 1];
+  return last && last.role === "user" ? last.content.length : 0;
 }
 
 function renderState() {

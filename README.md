@@ -48,6 +48,20 @@ paraphrase's disclaimer and a paraphrase would inherit the record's authority.
 Two model calls per turn — the answer, and the summary refresh — and neither
 one is ever handed the transcript.
 
+## What the meter is measuring
+
+Conversation against conversation: everything the transcript holds, against what
+stands in for it this turn. Retrieved material and the base prompt are counted
+separately, because they are the same size on turn 1 and on turn 400 — folding
+them in would flatter the fold on a short conversation and say nothing about a
+long one.
+
+The first several turns look like the fold losing. Its two framing blocks are a
+fixed cost of roughly a kilobyte, paid in full on turn one, and a two-turn
+transcript hasn't outgrown that yet. What is flat is everything after: the
+transcript climbs without limit and the carried number does not. `fold.test.mjs`
+pins that at 400 turns.
+
 ## Rules the code is holding to
 
 - **The model does not get tools.** Whether a turn retrieves is a deterministic

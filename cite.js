@@ -18,7 +18,7 @@
 //
 // Pure: no DOM, no IO, no model. `attribute` is the whole surface.
 
-import { tokenize } from "./source.js";
+import { retrieve, tokenize } from "./source.js";
 
 /**
  * Sentence-ish. Splits on terminal punctuation and on newlines, because a
@@ -45,11 +45,38 @@ export function splitSentences(text) {
  */
 export const MIN_RUN = 2;
 
-export function overlap(sentenceTerms, chunk) {
-  const a = sentenceTerms;
+/**
+ * Tokens that appear in most of the corpus, which therefore cannot tell you
+ * which passage a claim came from.
+ *
+ * Measured, not listed. On prose this catches almost nothing. On a spreadsheet
+ * it catches the format — the agency name repeated on every row, the word
+ * "lookup", the shape of a timestamp — and that matters, because rows are
+ * mostly boilerplate and a run of shared boilerplate is not a quotation.
+ *
+ * The cutoff is "present more often than absent". That is not a tuned knob: a
+ * term in more than half the passages is, on balance, telling you about the
+ * corpus rather than about a passage.
+ */
+/** Below this, a frequency is not a frequency and nothing counts as common. */
+export const CORPUS_MINIMUM = 10;
+
+export function commonTerms(pool) {
+  if (pool.length < CORPUS_MINIMUM) return new Set();
+  const df = new Map();
+  for (const c of pool) for (const t of c.terms) df.set(t, (df.get(t) ?? 0) + 1);
+  const cut = pool.length / 2;
+  const common = new Set();
+  for (const [t, n] of df) if (n > cut) common.add(t);
+  return common;
+}
+
+export function overlap(sentenceTerms, chunk, common) {
+  const a = common?.size ? sentenceTerms.filter((t) => !common.has(t)) : sentenceTerms;
   // Ordered, with duplicates — the Set on a chunk has neither, and a run
   // needs the sequence the words actually appear in.
-  const b = chunk.termList ?? (chunk.termList = tokenize(chunk.text));
+  const all = chunk.termList ?? (chunk.termList = tokenize(chunk.text));
+  const b = common?.size ? all.filter((t) => !common.has(t)) : all;
   // Standard longest-common-substring DP over token arrays, one row at a time.
   let prev = new Uint16Array(b.length + 1);
   let best = 0;
@@ -67,25 +94,35 @@ export function overlap(sentenceTerms, chunk) {
 }
 
 /**
- * The null: the same sentence, scored against material this turn never
- * retrieved. Drawn by striding the pool rather than at random, so the answer
- * is the same every time it is computed — a citation that changes between two
- * runs over identical inputs is not evidence of anything.
+ * The null: the best score this sentence gets from a passage the turn did not
+ * offer it.
+ *
+ * The first version of this strided the corpus at random, and it was the wrong
+ * comparison. Measured on 16MB of search records, a row scored against its own
+ * immediate neighbours was falsely warranted 35% of the time: adjacent rows
+ * share dates, formats and repeated values, so both the score and the random
+ * null were large and the margin between them survived.
+ *
+ * The question is not "does this passage beat an unrelated one" — nearly
+ * anything does. It is "does this passage beat the best *other* passage in the
+ * corpus", and answering it means looking where a competitor would actually
+ * be. So the null is drawn by retrieval on the sentence itself: the hardest
+ * available comparison rather than an easy one. When the true source is not
+ * among the offered passages it turns up here instead, outscores them, and the
+ * claim is refused — which is the behaviour that was missing.
  */
-function nullBest(sentenceTerms, pool, offered, samples) {
+function nullBest(sentence, sentenceTerms, pool, offered, samples, common) {
   const skip = new Set(offered.map((c) => c.ref));
-  const candidates = pool.filter((c) => !skip.has(c.ref));
-  if (!candidates.length) return 0;
-  const stride = Math.max(1, Math.floor(candidates.length / samples));
+  const rivals = retrieve(pool, sentence, samples).filter((c) => !skip.has(c.ref));
   let best = 0;
-  for (let i = 0; i < candidates.length; i += stride) {
-    const score = overlap(sentenceTerms, candidates[i]);
+  for (const c of rivals) {
+    const score = overlap(sentenceTerms, c, common);
     if (score > best) best = score;
   }
   return best;
 }
 
-export const NULL_SAMPLES = 60;
+export const NULL_SAMPLES = 12;
 
 /** An address the model wrote for itself, in the shape source.js emits. */
 const ALREADY_CITED = /\[[^\]\s]+#\d+-\d+\]/;
@@ -138,6 +175,8 @@ function namesSupported(text, chunk) {
  */
 export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES } = {}) {
   if (!offered?.length) return [];
+  // What the corpus says everywhere cannot say where anything came from.
+  const common = commonTerms(pool.length ? pool : offered);
   return splitSentences(answer).map((text) => {
     // A sentence that already carries an address is not attributed. Measuring
     // it again would put two tags on one claim — the model's and this app's,
@@ -152,7 +191,7 @@ export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES }
       // A passage that contradicts the sentence's own names cannot be its
       // source, however much phrasing they share.
       if (!namesSupported(text, c)) continue;
-      const s = overlap(terms, c);
+      const s = overlap(terms, c, common);
       if (s > score) {
         score = s;
         ref = c.ref;
@@ -162,7 +201,7 @@ export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES }
     // The floor this sentence has to clear is the best score the same words
     // get from material the turn never saw. Beating it means the passage
     // carried something the corpus at large does not.
-    const floor = nullBest(terms, pool.length ? pool : offered, offered, samples);
+    const floor = nullBest(text, terms, pool.length ? pool : offered, offered, samples, common);
     // Both tests: a phrase rather than a word, and better than the corpus
     // at large gives the same words for free.
     const attributed = score >= MIN_RUN && score > floor;

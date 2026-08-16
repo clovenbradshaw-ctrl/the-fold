@@ -414,6 +414,9 @@ export function extractAtoms(sentence, absoluteStart = 0) {
 
 const MAX_FINDINGS = 40;
 
+/** An address as source.js writes it — bytes, not a claim about quantities. */
+const ADDRESS = /\[?[^\s\]]+#\d+-\d+\]?/g;
+
 /**
  * Every figure and name in the answer, checked against everything the turn was
  * handed.
@@ -430,7 +433,11 @@ export function checkGrounding(answer, passages, { question = "" } = {}) {
   }
   const index = buildUnionIndex(passages);
   const questionWords = wordSet(question);
-  const sentences = splitSentences(answer);
+  // An address is not a claim. `kessington.txt#80-174` carries two numbers
+  // that are byte offsets this app asked for, and checking them against the
+  // material flagged the citation itself as an unsupported figure — the check
+  // accusing the answer of inventing the very thing it was told to write.
+  const sentences = splitSentences(answer.replace(ADDRESS, " "));
   const findings = [];
   let atomsChecked = 0;
 

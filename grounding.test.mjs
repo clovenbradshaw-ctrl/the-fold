@@ -108,3 +108,16 @@ test("row-group column names count as material", () => {
   const r = checkGrounding("The case_number column lists 24-0011 for Gary IN PD.", rows);
   assert.ok(r.clean, unsupportedClaims(r).join("; "));
 });
+
+test("an address is not a claim about quantities", () => {
+  // Live bug: the byte offsets in `kess.txt#80-174` were read as figures and
+  // flagged as unsupported — the check accusing the answer of inventing the
+  // very citation it was asked to write.
+  const r = checkGrounding(
+    "The report put the silting figure at 12 percent per decade. [kess.txt#80-174]",
+    passages,
+  );
+  assert.ok(r.clean, unsupportedClaims(r).join("; "));
+  const bare = checkGrounding("Per kess.txt#80-174, the figure was 12 percent.", passages);
+  assert.ok(bare.clean, unsupportedClaims(bare).join("; "));
+});

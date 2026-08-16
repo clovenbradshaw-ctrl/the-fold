@@ -511,7 +511,7 @@ async function send(question) {
   renderAnswer(node.querySelector(".body"), answer, passages, attributions);
   renderFold(node, { fold, record, sent: messages });
   renderThreads();
-  renderEvidence(node, question, passages, grounded);
+  renderEvidence(node, question, passages, grounded, grounding);
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;

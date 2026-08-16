@@ -25,10 +25,20 @@ import { retrieve, tokenize } from "./source.js";
  * model writing a list puts one claim per line and never a full stop.
  */
 export function splitSentences(text) {
-  return String(text ?? "")
+  const pieces = String(text ?? "")
     .split(/(?<=[.!?])\s+|\n+/)
     .map((s) => s.trim())
     .filter(Boolean);
+  // An address written after the full stop still belongs to the sentence it
+  // follows. Observed live: a model ended with "...per decade. [kess#80-174]",
+  // the address split off as its own piece, the sentence before it looked
+  // uncited, and attribution attached a second tag saying the same thing.
+  const out = [];
+  for (const piece of pieces) {
+    if (out.length && /^\[[^\]\s]+#\d+-\d+\]/.test(piece)) out[out.length - 1] += " " + piece;
+    else out.push(piece);
+  }
+  return out;
 }
 
 /**

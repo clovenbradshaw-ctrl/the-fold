@@ -476,7 +476,7 @@
         </div>
         <div class="sources-strip" id="sources-strip" hidden></div>
         <form class="composer" id="composer">
-          <button type="button" id="attach" title="Add material (or drop a file anywhere)">
+          <button type="button" class="attach" id="attach" title="Add material (or drop a file anywhere)">
             <span aria-hidden="true">＋</span> Material
           </button>
           <textarea id="input" placeholder="Ask something…" title="Enter to send, Shift+Enter for a newline" rows="1"></textarea>
@@ -531,6 +531,7 @@
               to the model carries the byte range it came from, which is what a
               record's refs point back at.
             </p>
+            <p><button type="button" class="attach primary">＋ Add files</button></p>
             <div id="source-list"></div>
             <h2>Paste text</h2>
             <textarea id="material" spellcheck="false" placeholder="Paste anything. Blank lines separate passages. It is added as soon as you paste."></textarea>

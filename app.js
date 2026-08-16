@@ -28,6 +28,8 @@ import {
   RECENCY_WINDOW,
   FOLD_SYSTEM_PROMPT,
   addWarrantRecord,
+  buildRecordSystemMessage,
+  buildSummarySystemMessage,
   buildSummaryUpdatePrompt,
   buildTurnMessages,
   buildWarrantRecord,
@@ -375,11 +377,10 @@ function renderPrompt() {
   // turn 400, so counting them here would flatter the fold on a short
   // conversation and tell you nothing about a long one.
   const transcript = charCount(state.history);
-  const prompt = charCount(state.lastMessages);
-  const carried = Math.max(
-    prompt - state.lastMaterialChars - BASE_PROMPT.length - lastQuestionChars(),
-    0,
-  );
+  const carried =
+    (buildSummarySystemMessage(state.summary)?.length ?? 0) +
+    (buildRecordSystemMessage(state.summary)?.length ?? 0) +
+    charCount(state.history.slice(-RECENCY_WINDOW));
   const max = Math.max(transcript, carried, 1);
   $("m-transcript").textContent = `${transcript.toLocaleString()} chars`;
   $("m-prompt").textContent = `${carried.toLocaleString()} chars`;
@@ -398,11 +399,6 @@ function renderPrompt() {
         ? " — the fold's framing is a fixed cost, and the transcript hasn't outgrown it yet"
         : "")
     : "";
-}
-
-function lastQuestionChars() {
-  const last = state.lastMessages[state.lastMessages.length - 1];
-  return last && last.role === "user" ? last.content.length : 0;
 }
 
 function renderState() {
@@ -551,7 +547,7 @@ function renderSources() {
   list.textContent = "";
   if (!names.length) {
     list.innerHTML =
-      '<p class="empty">Nothing loaded. Drop a text file anywhere on the page.</p>';
+      '<p class="empty">Nothing loaded yet — add files above, drop one anywhere on the page, or paste below.</p>';
     return;
   }
   for (const name of names) {
@@ -638,7 +634,11 @@ $("model").onchange = () => {
   if (state.ready) $("status").textContent = `ready · ${state.model}`;
 };
 
-$("attach").onclick = () => $("file").click();
+// Both add buttons are the same door: the one beside the composer, and the one
+// in the Material panel — which is where you end up when you already have
+// material and want more of it.
+for (const b of document.querySelectorAll(".attach"))
+  b.onclick = () => $("file").click();
 $("file").onchange = (e) => {
   addFiles(e.target.files);
   e.target.value = "";

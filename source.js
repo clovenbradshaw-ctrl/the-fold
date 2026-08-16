@@ -46,8 +46,36 @@ export function tokenize(text) {
  * original string. Ranges are half-open [start, end) and index the exact
  * string readRange is given back, which is what makes a ref re-openable.
  */
+/**
+ * Container boilerplate, dropped before anything is addressed.
+ *
+ * READING-POLICY P5.3: "Project Gutenberg front and back matter parses
+ * cleanly and will dominate a belief graph with license prose if left in."
+ * Measured here on War and Peace: 47 of 11,190 passages were the licence, the
+ * donation appeal and the header — retrievable, quotable, citable, and not
+ * the book. The offset is carried forward, because a strip that forgot to
+ * move it would silently shift every address in the reader (P5.2).
+ */
+export function stripContainer(text) {
+  const s = String(text ?? "");
+  const start = s.match(/\*\*\*\s*START OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i);
+  const offset = start ? start.index + start[0].length : 0;
+  let body = s.slice(offset);
+  const end = body.match(/\*\*\*\s*END OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i);
+  if (end) body = body.slice(0, end.index);
+  return { text: body, offset };
+}
+
 export function chunkSource(name, text) {
   if (looksDelimited(name, text)) return chunkRows(name, text);
+  // The addresses stay true to the file as it sits on disk: the container is
+  // skipped, not renumbered.
+  const { text: body, offset } = stripContainer(text);
+  if (offset) return chunkProse(name, body, offset);
+  return chunkProse(name, text, 0);
+}
+
+function chunkProse(name, text, base) {
   const chunks = [];
   const re = /\n\s*\n/g;
   let start = 0;
@@ -55,12 +83,16 @@ export function chunkSource(name, text) {
   const push = (from, to) => {
     const body = text.slice(from, to);
     if (body.trim().length < 20) return;
+    // Offsets are the file's, not the stripped body's — a ref must read back
+    // from the file the reader actually has (READING-POLICY P5.2).
+    const start = base + from;
+    const end = base + to;
     chunks.push({
       source: name,
-      start: from,
-      end: to,
+      start,
+      end,
       text: body.trim(),
-      ref: `${name}#${from}-${to}`,
+      ref: `${name}#${start}-${end}`,
       terms: new Set(tokenize(body)),
     });
   };

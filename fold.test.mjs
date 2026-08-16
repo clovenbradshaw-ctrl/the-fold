@@ -305,3 +305,20 @@ test("the material block carries every address it offers", () => {
   const block = buildSourceBlock(offered);
   for (const c of offered) assert.ok(block.includes(`[${c.ref}]`));
 });
+
+test("container boilerplate is not material", () => {
+  // READING-POLICY P5.3. Measured on War and Peace: 47 of 11,190 passages
+  // were the Gutenberg licence, the donation appeal and the header —
+  // retrievable, quotable, citable, and not the book.
+  const doc =
+    "The Project Gutenberg eBook of Something\n\nLicence prose about donations and trademark.\n\n" +
+    "*** START OF THE PROJECT GUTENBERG EBOOK SOMETHING ***\n\n" +
+    "The real first paragraph of the book, long enough to be admitted.\n\n" +
+    "*** END OF THE PROJECT GUTENBERG EBOOK SOMETHING ***\n\n" +
+    "More licence prose about donations, trademark and the Foundation.";
+  const chunks = chunkSource("book.txt", doc);
+  assert.equal(chunks.length, 1);
+  assert.match(chunks[0].text, /^The real first paragraph/);
+  // P5.2: the address still names bytes in the file as it sits on disk.
+  assert.equal(readRange({ "book.txt": doc }, chunks[0].ref).trim(), chunks[0].text);
+});

@@ -8,6 +8,7 @@
     "test": "node --test *.test.mjs"
   },
   "dependencies": {
-    "@viselect/vanilla": "^3.9.0"
+    "@viselect/vanilla": "^3.9.0",
+    "monaco-editor": "^0.56.0"
   }
 }

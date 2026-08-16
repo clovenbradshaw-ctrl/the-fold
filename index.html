@@ -360,6 +360,113 @@
       .run-console.bad { color: var(--warn); }
       .build-entry.current .artifact { border-color: var(--accent); }
 
+      /* The editor: a build opened at working width, VS Code-ish. Zero
+         dependencies — a gutter of line numbers over a monospace textarea. */
+      #pane-editor {
+        display: none;
+        height: 100%;
+        margin: -16px -20px;
+        flex-direction: column;
+      }
+      #pane-editor.on { display: flex; }
+      .editor-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+        flex: none;
+      }
+      .editor-head h2 { margin: 0; padding: 0; border: 0; }
+      .editor-head .spacer { flex: 1; }
+      .editor-head .back,
+      .editor-head .editor-plain {
+        font-size: 11px;
+        padding: 2px 10px;
+        border-radius: 20px;
+        color: var(--muted);
+        border-color: var(--line);
+        background: var(--panel);
+        cursor: pointer;
+      }
+      .editor-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+      .code-wrap {
+        flex: 1;
+        min-height: 120px;
+        display: flex;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.55;
+        background: var(--bg);
+        overflow: hidden;
+      }
+      #editor-host {
+        flex: 1;
+        min-width: 0;
+        min-height: 120px;
+        background: var(--bg);
+      }
+      #editor-preview {
+        height: 38%;
+        border: 0;
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+        flex: none;
+      }
+
+      /* The terminal: one live command at a time, its output up top, input
+         below. While a command runs, Enter feeds it stdin (so `python` is a
+         REPL); otherwise Enter runs a new command. */
+      #pane-terminal {
+        display: none;
+        height: 100%;
+        margin: -16px -20px;
+        flex-direction: column;
+      }
+      #pane-terminal.on { display: flex; }
+      #term-out {
+        flex: 1;
+        margin: 0;
+        padding: 12px 14px;
+        overflow: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #0b0e14;
+        color: #d8dee9;
+      }
+      #term-out .term-mute { color: var(--muted); }
+      #term-out .term-cmd { color: #a7c7ff; }
+      #term-out .term-exit { color: var(--muted); }
+      #term-out .term-exit.bad { color: var(--warn); }
+      .term-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+        flex: none;
+      }
+      .term-prompt {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--accent);
+      }
+      #term-in {
+        flex: 1;
+        font-family: var(--mono);
+        font-size: 13px;
+        background: transparent;
+        color: var(--ink);
+        border: 0;
+        outline: none;
+      }
+      #term-kill { flex: none; }
+
       /* Artifacts: the answer rendered as the format it turned out to be. */
       .msg .body .prose { margin: 0 0 10px; white-space: pre-wrap; }
       .msg .body .prose:last-child { margin-bottom: 0; }
@@ -514,16 +621,45 @@
         color: var(--muted);
         font-size: 12.5px;
         padding: 6px 10px;
-        max-width: 22ch;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
-      .threads button[aria-current="true"] {
-        color: var(--ink);
+      .threads .thread-tab {
+        display: inline-flex;
+        align-items: center;
+        max-width: 26ch;
+        border-radius: 7px 7px 0 0;
+        border-bottom: 2px solid transparent;
+        flex: 0 0 auto;
+      }
+      .threads .thread-tab[aria-current="true"] {
         border-bottom-color: var(--accent);
         background: var(--accent-soft);
       }
+      .threads .thread-tab[aria-current="true"] .thread-title { color: var(--ink); }
+      .threads .thread-title {
+        flex: 1;
+        min-width: 0;
+        border: none;
+        border-radius: 7px 7px 0 0;
+        background: none;
+        color: var(--muted);
+        font-size: 12.5px;
+        padding: 6px 2px 6px 10px;
+        max-width: 22ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .threads .thread-close {
+        border: none;
+        border-radius: 0 7px 0 0;
+        background: none;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1;
+        padding: 8px 9px 6px 5px;
+      }
+      .threads .thread-close:hover:not(:disabled) { color: var(--warn); }
+      .threads .thread-close:disabled { opacity: 0.35; cursor: default; }
       .threads .new {
         color: var(--accent);
         font-size: 15px;
@@ -777,6 +913,7 @@
                Dropping a file anywhere on the page still adds material —
                the pane below stays wired for that flow, just not fronted. -->
           <button role="tab" data-pane="explore" aria-selected="false" title="The document explorer — needs explore-server.mjs (node explore-server.mjs)">Explore</button>
+          <button role="tab" data-pane="terminal" aria-selected="false" title="A shell on this machine — install what a build needs, run anything">Terminal</button>
         </nav>
         <div class="scroll">
           <div class="pane on" id="pane-builds">
@@ -801,12 +938,24 @@
               <button type="button" class="artifact-run" id="editor-run">▶ run</button>
               <button type="button" class="editor-plain" id="editor-reset" title="restore the original code">reset</button>
             </div>
-            <div class="editor-body">
-              <div class="code-wrap">
-                <pre id="editor-gutter" aria-hidden="true"></pre>
-                <textarea id="editor-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+              <div class="editor-body">
+                <div class="code-wrap">
+                  <div id="editor-host"></div>
+                </div>
+                <iframe id="editor-preview" hidden title="preview"></iframe>
+                <pre id="editor-console" class="run-console" hidden></pre>
               </div>
-              <pre id="editor-console" class="run-console" hidden></pre>
+          </div>
+
+          <div class="pane" id="pane-terminal">
+            <pre id="term-out" aria-live="polite"><span class="term-mute">a shell on this machine. pip install and npm install here land where builds import from — the same .venv and node_modules.</span>
+
+</pre>
+            <div class="term-row">
+              <span class="term-prompt" id="term-prompt">$</span>
+              <input id="term-in" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+                placeholder="run a command — or, while one runs, type into it" />
+              <button type="button" class="editor-plain" id="term-kill" title="send Ctrl-C to the running command" disabled>✕</button>
             </div>
           </div>
 
@@ -867,6 +1016,7 @@
       </form>
     </dialog>
 
+    <script src="/node_modules/monaco-editor/min/vs/loader.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

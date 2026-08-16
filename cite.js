@@ -188,9 +188,6 @@ export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES }
     let score = 0;
     let best = null;
     for (const c of offered) {
-      // A passage that contradicts the sentence's own names cannot be its
-      // source, however much phrasing they share.
-      if (!namesSupported(text, c)) continue;
       const s = overlap(terms, c, common);
       if (s > score) {
         score = s;
@@ -198,6 +195,16 @@ export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES }
         best = c;
       }
     }
+    // The names check vetoes the winner; it does not choose one.
+    //
+    // As a filter it inverted a live attribution: a claim about a figure was
+    // attached to the paragraph naming the report rather than the paragraph
+    // stating the figure, because only the first said "Kessington" — the
+    // second says "The report". Screening candidates by name let a passage
+    // that merely mentions the subject beat the one the claim came from.
+    // Judging by evidence and then refusing on a name mismatch cannot do
+    // that: the worst it does is decline.
+    if (best && !namesSupported(text, best)) return { text, ref: null, score, floor: 0, vetoed: true };
     // The floor this sentence has to clear is the best score the same words
     // get from material the turn never saw. Beating it means the passage
     // carried something the corpus at large does not.

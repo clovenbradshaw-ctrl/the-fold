@@ -6,5 +6,8 @@
   "description": "A conversation whose context window does not grow.",
   "scripts": {
     "test": "node --test *.test.mjs"
+  },
+  "dependencies": {
+    "@viselect/vanilla": "^3.9.0"
   }
 }

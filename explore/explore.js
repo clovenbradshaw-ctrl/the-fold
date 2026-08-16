@@ -16,6 +16,9 @@
 // byteCharIndex() converts, built once per source, measured not guessed.
 
 import { renderBlocksInto, parseInline } from "../render.js";
+// Viselect (MIT, vendored — the page loads nothing remote): the rubber-band
+// selection engine that makes the files view feel like a desktop, not a list.
+import SelectionArea from "./vendor/viselect.mjs";
 
 const $ = (id) => document.getElementById(id);
 const api = async (path, init) => {
@@ -546,8 +549,24 @@ async function renderBrowse(surface) {
   const listing = await api(`/api/tree?path=${encodeURIComponent(dir)}`);
   if ((state.browseDir ?? "") !== dir || (state.source && state.terrain !== "Desk")) return; // navigated away while fetching
 
-  // the desk pivots: the same listing as icons or as a table, and the
-  // ordering rule is always named (re-anchoring is a supported operation)
+  state.deskSel ??= new Set();
+  const entriesByPath = new Map(listing.entries.map((e) => [e.path, e]));
+
+  const open = (entry) => {
+    closeCtx();
+    if (entry.dir) {
+      state.browseDir = entry.path;
+      state.deskSel = new Set();
+      renderAll();
+    } else openSource(entry.path);
+  };
+  const goUp = () => {
+    state.browseDir = dir.split("/").slice(0, -1).join("/");
+    state.deskSel = new Set();
+    renderAll();
+  };
+
+  // ── the top bar: view pivot + breadcrumb ─────────────────────────────────
   const modeRow = el("div", "desk-bar");
   for (const [mode, label] of [["icons", "▦ icons"], ["table", "☰ table"]]) {
     const btn = el("button", (state.deskMode ?? "icons") === mode ? "on" : "", label);
@@ -557,12 +576,11 @@ async function renderBrowse(surface) {
     };
     modeRow.appendChild(btn);
   }
-  surface.appendChild(modeRow);
-
-  const crumbs = el("div", "desk-crumbs");
+  const crumbs = el("span", "desk-crumbs");
   const rootBtn = el("button", "linkish", "3.0");
   rootBtn.onclick = () => {
     state.browseDir = "";
+    state.deskSel = new Set();
     renderAll();
   };
   crumbs.appendChild(rootBtn);
@@ -574,25 +592,15 @@ async function renderBrowse(surface) {
     const target = walked;
     b.onclick = () => {
       state.browseDir = target;
+      state.deskSel = new Set();
       renderAll();
     };
     crumbs.appendChild(b);
   }
-  surface.appendChild(crumbs);
+  modeRow.appendChild(crumbs);
+  surface.appendChild(modeRow);
 
-  const open = (entry) => {
-    if (entry.dir) {
-      state.browseDir = entry.path;
-      renderAll();
-    } else openSource(entry.path);
-  };
-  const goUp = () => {
-    state.browseDir = dir.split("/").slice(0, -1).join("/");
-    renderAll();
-  };
-
-  // ordering: the server's declared rule by default; a clicked column is a
-  // declared re-anchoring, named in the note below
+  // ── ordering: the declared rule, or a declared re-anchoring ──────────────
   const sort = state.deskSort;
   let entries = listing.entries;
   let orderNote = listing.order;
@@ -606,7 +614,78 @@ async function renderBrowse(surface) {
     orderNote = `folders first, then ${sort.key} ${sort.dir > 0 ? "ascending" : "descending"} — your re-anchoring`;
   }
 
+  // ── the context menu: right-click, like a desktop ────────────────────────
+  const closeCtx = () => document.querySelector(".ctx")?.remove();
+  const isImage = (name) => /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i.test(name);
+  const looksTextual = (name) => !/\.(png|jpe?g|gif|webp|avif|bmp|ico|tiff?|pdf|mp3|wav|ogg|oga|m4a|flac|mp4|m4v|webm|mov|zip|gz|tgz|dmg|DS_Store)$/i.test(name);
+  const showCtx = (ev, entry) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    closeCtx();
+    // right-click on an unselected item selects it alone — desktop semantics
+    if (!state.deskSel.has(entry.path)) {
+      state.deskSel = new Set([entry.path]);
+      paintSelection();
+    }
+    const sel = [...state.deskSel].map((p) => entriesByPath.get(p)).filter(Boolean);
+    const menu = el("div", "ctx");
+    const item = (label, fn, enabled = true) => {
+      const it = el("button", `ctx-item${enabled ? "" : " off"}`, label);
+      if (enabled)
+        it.onclick = () => {
+          closeCtx();
+          fn();
+        };
+      menu.appendChild(it);
+    };
+    if (sel.length === 1) {
+      item("open", () => open(sel[0]));
+      if (!sel[0].dir && looksTextual(sel[0].name)) {
+        item("open and fold", async () => {
+          await openSource(sel[0].path);
+          requestFold({});
+        });
+      }
+    } else {
+      item(`open ${sel.length} — the first leads`, () => open(sel[0]));
+    }
+    if (document.body.classList.contains("embed")) {
+      const textual = sel.filter((e) => !e.dir && looksTextual(e.name));
+      item(`use in chat (${textual.length})`, async () => {
+        for (const e of textual) {
+          const res = await fetch(`/api/raw?path=${encodeURIComponent(e.path)}`);
+          const text = await res.text();
+          parent.postMessage({ type: "fold:material:add", name: e.name, path: e.path, text }, "*");
+        }
+      }, textual.length > 0);
+    }
+    item(sel.length > 1 ? `copy ${sel.length} paths` : "copy path", () => {
+      navigator.clipboard?.writeText(sel.map((e) => e.path).join("\n"));
+    });
+    menu.style.left = `${ev.clientX}px`;
+    menu.style.top = `${ev.clientY}px`;
+    document.body.appendChild(menu);
+    const away = (e2) => {
+      if (!menu.contains(e2.target)) {
+        closeCtx();
+        document.removeEventListener("pointerdown", away, true);
+      }
+    };
+    document.addEventListener("pointerdown", away, true);
+  };
+
+  const paintSelection = () => {
+    for (const n of surface.querySelectorAll("[data-path]")) n.classList.toggle("sel", state.deskSel.has(n.dataset.path));
+    const st = surface.querySelector(".desk-status");
+    if (st) st.textContent = statusLine();
+  };
+  const statusLine = () =>
+    `${entries.length.toLocaleString()} item${entries.length === 1 ? "" : "s"}${state.deskSel.size ? ` · ${state.deskSel.size} selected` : ""} · double-click opens · drag selects · right-click acts · ${orderNote}${listing.truncated ? ` · ${listing.shown} of ${listing.total} shown — ${listing.total - listing.shown} beyond the page cap` : ""}`;
+
+  // ── the two faces of the same listing ────────────────────────────────────
+  let selectablesSel;
   if ((state.deskMode ?? "icons") === "table") {
+    selectablesSel = ".desk-tbl tr[data-path]";
     const tbl = el("table", "tbl desk-tbl");
     const trh = el("tr");
     for (const [key, label] of [["name", "name"], ["size", "size"], ["mtime", "modified"]]) {
@@ -625,44 +704,81 @@ async function renderBrowse(surface) {
       const td = el("td", null, "↩ ..");
       td.colSpan = 3;
       td.style.cursor = "pointer";
+      td.ondblclick = goUp;
       td.onclick = goUp;
       tr.appendChild(td);
       tbl.appendChild(tr);
     }
     for (const entry of entries) {
       const tr = el("tr");
-      tr.style.cursor = "pointer";
+      tr.dataset.path = entry.path;
       const nameTd = el("td");
       nameTd.append(`${entry.dir ? "▸ " : glyphOf(entry.name) + " "}${entry.name}`);
       tr.appendChild(nameTd);
       tr.appendChild(el("td", null, entry.dir ? "—" : fmtBytes(entry.size)));
       tr.appendChild(el("td", null, entry.mtime ? new Date(entry.mtime).toISOString().slice(0, 16).replace("T", " ") : "—"));
-      tr.onclick = () => open(entry);
+      tr.ondblclick = () => open(entry);
+      tr.oncontextmenu = (ev) => showCtx(ev, entry);
       tbl.appendChild(tr);
     }
     surface.appendChild(tbl);
   } else {
+    selectablesSel = ".tiles .tile[data-path]";
     const grid = el("div", "tiles");
     if (dir) {
       const up = el("button", "tile dir");
       up.appendChild(el("span", "glyph", "↩"));
       up.appendChild(el("span", "nm", ".."));
+      up.ondblclick = goUp;
       up.onclick = goUp;
       grid.appendChild(up);
     }
     for (const entry of entries) {
       const tile = el("button", `tile${entry.dir ? " dir" : ""}`);
-      tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
+      tile.dataset.path = entry.path;
+      if (!entry.dir && isImage(entry.name)) {
+        // a Drive-like thumbnail: the image itself is its own icon
+        const img = el("img", "thumb");
+        img.loading = "lazy";
+        img.src = `/api/raw?path=${encodeURIComponent(entry.path)}`;
+        tile.appendChild(img);
+      } else {
+        tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
+      }
       tile.appendChild(el("span", "nm", entry.name));
       if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
-      tile.onclick = () => open(entry);
+      tile.ondblclick = () => open(entry);
+      tile.oncontextmenu = (ev) => showCtx(ev, entry);
       grid.appendChild(tile);
     }
     surface.appendChild(grid);
   }
-  const notes = [orderNote];
-  if (listing.truncated) notes.push(`${listing.shown} of ${listing.total} entries shown — ${listing.total - listing.shown} beyond the page cap not drawn`);
-  surface.appendChild(el("div", "surface-note", notes.join(" · ")));
+
+  surface.appendChild(el("div", "desk-status", statusLine()));
+
+  // ── the selection engine (Viselect, vendored): drag a rubber band across
+  // items, ctrl/cmd-click toggles, single click selects — the desktop's own
+  // grammar. Selection is presentation state; it claims nothing.
+  state._selArea?.destroy();
+  state._selArea = new SelectionArea({
+    selectables: [selectablesSel],
+    boundaries: ["#surface"],
+    features: { touch: true, range: true, singleTap: { allow: true, intersect: "native" } },
+  })
+    .on("beforestart", ({ event }) => {
+      if (event?.target?.closest(".ctx, .desk-bar, .desk-crumbs, th")) return false;
+      return true;
+    })
+    .on("start", ({ event }) => {
+      if (!event?.ctrlKey && !event?.metaKey) state.deskSel = new Set();
+    })
+    .on("move", ({ store }) => {
+      for (const n of store.changed.added) state.deskSel.add(n.dataset.path);
+      for (const n of store.changed.removed) state.deskSel.delete(n.dataset.path);
+      paintSelection();
+    })
+    .on("stop", () => paintSelection());
+  paintSelection();
 }
 
 // ---- Field — Structure·Ground: the raw layout, zero inference -------------
@@ -1266,7 +1382,7 @@ function renderNetwork(surface) {
   const tiesDrawn = new Set(
     view.edges.map((e) => {
       const [s, , o] = e.edge.split("|");
-      return [s, o].sort().join(" ");
+      return [s, o].sort().join("\u0000");
     }),
   ).size;
   const compact = `${view.nodeCount.toLocaleString()} words · ${tiesDrawn.toLocaleString()} ties — from ${sources.length ? sources.join(", ") : "nothing that survived"} · strongest ${view.nodes.length} words drawn`;
@@ -1300,7 +1416,7 @@ function renderNetwork(surface) {
   const pairs = new Map();
   for (const e of view.edges) {
     const [s, verb, o] = e.edge.split("|");
-    const pk = [s, o].sort().join(" ");
+    const pk = [s, o].sort().join("\u0000");
     if (!pairs.has(pk)) pairs.set(pk, { s, o, w: 0, verbs: [] });
     const pr = pairs.get(pk);
     pr.w = Math.max(pr.w, e.weight);

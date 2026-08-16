@@ -137,10 +137,12 @@ function normalizeSummary(parsed, prev, folds) {
     ),
     language:
       typeof parsed.language === "string" ? parsed.language : prev.language,
-    turnCount:
-      typeof parsed.turnCount === "number" && Number.isFinite(parsed.turnCount)
-        ? parsed.turnCount
-        : prev.turnCount + 1,
+    // Counted here, never read back from the response. The prompt states the
+    // number and a model will still return a different one — observed on the
+    // very first fold of a conversation, which came back as turn two. A count
+    // is mechanical; nothing is gained by letting the summary call revise it,
+    // and what is lost is that turnCount and the fold list stop agreeing.
+    turnCount: prev.turnCount + 1,
     folds,
   };
 }

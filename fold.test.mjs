@@ -170,6 +170,19 @@ test("records stay bounded", () => {
   assert.equal(s.records.at(-1).turn, 39);
 });
 
+test("the summary call cannot revise the turn count", () => {
+  // Observed live: the first fold of a conversation came back claiming turn 2.
+  let s = updateSummaryWithFold(
+    emptySummary(),
+    "f1",
+    JSON.stringify({ topic: "t", turnCount: 2 }),
+  );
+  assert.equal(s.turnCount, 1);
+  s = updateSummaryWithFold(s, "f2", JSON.stringify({ topic: "t", turnCount: 99 }));
+  assert.equal(s.turnCount, 2);
+  assert.equal(s.turnCount, s.folds.length);
+});
+
 test("a malformed summary response leaves the summary intact", () => {
   const before = updateSummaryWithFold(
     emptySummary(),

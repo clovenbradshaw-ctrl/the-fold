@@ -28,6 +28,7 @@ import {
   RECENCY_WINDOW,
   FOLD_SYSTEM_PROMPT,
   addWarrantRecord,
+  advanceSummaryFold,
   buildRecordSystemMessage,
   buildSummarySystemMessage,
   buildSummaryUpdatePrompt,
@@ -39,7 +40,9 @@ import {
   updateSummaryWithFold,
 } from "./fold.js";
 
-import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
+import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
+
+import { NOTHING, buildTable, detectTable, toMarkdown } from "./tables.js";
 
 import {
   buildSourceBlock,
@@ -48,6 +51,7 @@ import {
   openQuestions,
   readRange,
   retrieve,
+  tokenize,
 } from "./source.js";
 
 const BASE_PROMPT =
@@ -245,12 +249,59 @@ async function completeOllama(messages, { onDelta, maxTokens, json }) {
 
 // ── the turn ─────────────────────────────────────────────────────────────────
 
+/**
+ * A turn with no model in it. The rows already exist; the only work is drawing
+ * them and folding the turn like any other, so the conversation's own history
+ * records that the question was asked and answered.
+ */
+async function mechanicalTurn(question, kind) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const built = buildTable(kind, state);
+  const answer = built ? toMarkdown(built.table) : NOTHING[kind];
+  body.textContent = "";
+  if (built) body.append(artifactNode(built.table, built.caption));
+  else {
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = answer;
+    body.append(p);
+  }
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: answer },
+  );
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  // No summary refresh either: this turn spent no tokens and there is no
+  // reason for the bookkeeping to cost more than the answer did.
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  node.querySelector(".fold p").textContent = fold;
+  $("status").textContent = `ready · ${state.model}`;
+  renderState();
+  renderPrompt();
+  state.busy = false;
+  $("send").disabled = false;
+  $("input").focus();
+}
+
 async function send(question) {
   state.busy = true;
   $("send").disabled = true;
   // The intro has done its job the moment there is a conversation, and on a
   // phone it is otherwise a screenful sitting above the first message.
   $("intro")?.remove();
+
+  // A question about the app's own state is answered from that state. Nothing
+  // is gained by handing a model rows it would have to paraphrase, and a
+  // paraphrase of a data structure drops a row, rounds a number, or invents a
+  // file — the three failures the rest of this design exists to refuse.
+  const wanted = detectTable(question);
+  if (wanted) return mechanicalTurn(question, wanted);
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   const live = state.chunks.filter((c) => !state.muted.has(c.source));
@@ -342,6 +393,7 @@ async function send(question) {
   // answer is whole, because a half-written table is not a table yet.
   renderAnswer(node.querySelector(".body"), answer);
   node.querySelector(".fold p").textContent = fold;
+  renderEvidence(node, question, passages, used);
   $("status").textContent = `ready · ${state.model}`;
   renderState();
   renderPrompt();
@@ -362,7 +414,10 @@ function addMessage(role, text) {
   el.innerHTML =
     `<div class="who"></div><div class="body"></div>` +
     (role === "assistant"
-      ? `<details class="fold"><summary>fold</summary><p></p></details>`
+      ? `<div class="turn-meta">` +
+        `<details class="fold"><summary>fold</summary><p></p></details>` +
+        `<details class="fold evidence" hidden><summary>material</summary><div></div></details>` +
+        `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
   el.querySelector(".body").textContent = text;
@@ -390,52 +445,94 @@ function renderAnswer(body, answer) {
       body.append(p);
       continue;
     }
-
-    const art = document.createElement("figure");
-    art.className = "artifact";
-    const cap = document.createElement("figcaption");
-    cap.textContent =
-      seg.type === "table"
-        ? `table · ${seg.rows.length} row${seg.rows.length === 1 ? "" : "s"}`
-        : seg.lang || "code";
-    art.append(cap);
-
-    if (seg.type === "table") {
-      const table = document.createElement("table");
-      const thead = table.createTHead().insertRow();
-      for (const h of seg.head) {
-        const th = document.createElement("th");
-        th.textContent = h;
-        thead.append(th);
-      }
-      const tbody = table.createTBody();
-      for (const row of seg.rows) {
-        const tr = tbody.insertRow();
-        for (const cell of row) tr.insertCell().textContent = cell;
-      }
-      const wrap = document.createElement("div");
-      wrap.className = "table-wrap";
-      wrap.append(table);
-      art.append(wrap);
-    } else if (RENDERABLE.has(seg.lang)) {
-      const frame = document.createElement("iframe");
-      frame.sandbox = "";
-      frame.srcdoc = toDocument(seg);
-      frame.loading = "lazy";
-      art.append(frame);
-      const src = document.createElement("details");
-      src.innerHTML = "<summary>source</summary>";
-      const pre = document.createElement("pre");
-      pre.textContent = seg.code;
-      src.append(pre);
-      art.append(src);
-    } else {
-      const pre = document.createElement("pre");
-      pre.textContent = seg.code;
-      art.append(pre);
-    }
-    body.append(art);
+    body.append(artifactNode(seg));
   }
+}
+
+/**
+ * The evidence for a turn, as a table, built from the retrieval result itself.
+ *
+ * This is the case the artifact parser cannot cover: the rows exist before the
+ * model says anything, so there is nothing to read them out of. Which passages
+ * were handed over, which of the question's terms each one matched, and
+ * whether the answer actually cited it — all of it is known mechanically, and
+ * a turn's evidence should not depend on the model having chosen to tabulate
+ * it.
+ */
+function renderEvidence(node, question, passages, used) {
+  const box = node.querySelector(".evidence");
+  if (!box || !passages.length) return;
+  const terms = [...new Set(tokenize(question))];
+  const cited = new Set(used);
+
+  const seg = tableFrom(passages, [
+    { label: "address", get: (p) => p.ref },
+    {
+      label: "matched",
+      get: (p) => terms.filter((t) => p.terms.has(t)).join(", "),
+    },
+    { label: "chars", get: (p) => p.text.length.toLocaleString() },
+    { label: "cited", get: (p) => (cited.has(p.ref) ? "yes" : "—") },
+  ]);
+
+  box.hidden = false;
+  box.querySelector("div").replaceChildren(
+    artifactNode(seg, `material · ${passages.length} retrieved, ${cited.size} cited`),
+  );
+}
+
+/**
+ * One renderer for both kinds of artifact — the ones read out of an answer and
+ * the ones this app builds from its own rows. A table assembled mechanically
+ * and a table the model happened to write arrive here in the same shape, and
+ * there is no reason for them to look different.
+ */
+function artifactNode(seg, caption) {
+  const art = document.createElement("figure");
+  art.className = "artifact";
+  const cap = document.createElement("figcaption");
+  cap.textContent =
+    caption ??
+    (seg.type === "table"
+      ? `table · ${seg.rows.length} row${seg.rows.length === 1 ? "" : "s"}`
+      : seg.lang || "code");
+  art.append(cap);
+
+  if (seg.type === "table") {
+    const table = document.createElement("table");
+    const thead = table.createTHead().insertRow();
+    for (const h of seg.head) {
+      const th = document.createElement("th");
+      th.textContent = h;
+      thead.append(th);
+    }
+    const tbody = table.createTBody();
+    for (const row of seg.rows) {
+      const tr = tbody.insertRow();
+      for (const cell of row) tr.insertCell().textContent = cell;
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    wrap.append(table);
+    art.append(wrap);
+  } else if (RENDERABLE.has(seg.lang)) {
+    const frame = document.createElement("iframe");
+    frame.sandbox = "";
+    frame.srcdoc = toDocument(seg);
+    frame.loading = "lazy";
+    art.append(frame);
+    const src = document.createElement("details");
+    src.innerHTML = "<summary>source</summary>";
+    const pre = document.createElement("pre");
+    pre.textContent = seg.code;
+    src.append(pre);
+    art.append(src);
+  } else {
+    const pre = document.createElement("pre");
+    pre.textContent = seg.code;
+    art.append(pre);
+  }
+  return art;
 }
 
 function renderPrompt() {
@@ -506,16 +603,25 @@ function renderState() {
   if (!dl.children.length)
     dl.innerHTML = '<p class="empty">No turns folded yet.</p>';
 
+  // The folds are numbered rows, not a list of sentences — turn against what
+  // that turn left behind, which is the comparison the panel exists to invite.
   const ol = $("folds");
   ol.textContent = "";
-  for (const f of s.folds || []) {
-    const li = document.createElement("li");
-    li.textContent = f;
-    ol.append(li);
+  const kept = s.folds || [];
+  if (kept.length) {
+    const firstTurn = s.turnCount - kept.length + 1;
+    ol.append(
+      artifactNode(
+        tableFrom(kept, [
+          { label: "turn", get: (_, i) => firstTurn + i },
+          { label: "fold", get: (f) => f },
+        ]),
+        `system 1 · ${kept.length} fold${kept.length === 1 ? "" : "s"} kept of ${s.turnCount} turns`,
+      ),
+    );
   }
-  $("fold-count").textContent = s.folds?.length
-    ? `${s.folds.length} kept of ${state.turnFolds.length} turns`
-    : "";
+  // The count rides the table's caption now.
+  $("fold-count").textContent = "";
 
   // The panel above parses the fold into fields; this is the fold itself, in
   // the words the model actually receives. Nothing is elided — if a claim is

@@ -96,8 +96,35 @@ function splitRow(line) {
   // pipes it needs at least two cells, so a lone pipe mid-sentence is prose.
   // Either way the delimiter row is what finally decides.
   const wrapped = t.length > 1 && t.startsWith("|") && t.endsWith("|");
-  const cells = t.replace(/^\|/, "").replace(/\|$/, "").split("|");
+  // Split on unescaped pipes only, then unescape. A cell is allowed to contain
+  // a pipe — a fold line or a gist can hold anything — and without this a
+  // single pipe in a value silently shifts every column after it.
+  const cells = t
+    .replace(/^\|/, "")
+    .replace(/(?<!\\)\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((c) => c.replace(/\\\|/g, "|"));
   return wrapped || cells.length > 1 ? cells : null;
+}
+
+/**
+ * Build a table segment from data the caller already holds — the same shape
+ * `parseSegments` produces from text, so both paths render identically.
+ *
+ * This is the half that does not go through a model at all. Retrieval results,
+ * records, sources: these are rows before anything is said about them, and
+ * asking a model to format rows it was handed is a round trip that can only
+ * lose. `columns` is a list of {label, get}; every cell is coerced to a string
+ * here so the renderer never has to think about types.
+ */
+export function tableFrom(items, columns) {
+  const rows = [...items].map((item, i) =>
+    columns.map((c) => {
+      const v = c.get(item, i);
+      return v == null ? "" : String(v);
+    }),
+  );
+  return { type: "table", head: columns.map((c) => c.label), rows };
 }
 
 /** Languages whose artifact is the thing itself, rendered. */

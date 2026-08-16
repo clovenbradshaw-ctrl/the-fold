@@ -3,7 +3,48 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
+import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
+
+test("a table can be built from rows, without a model", () => {
+  const seg = tableFrom(
+    [
+      { ref: "a.txt#0-10", hits: 2 },
+      { ref: "a.txt#11-40", hits: 1 },
+    ],
+    [
+      { label: "address", get: (p) => p.ref },
+      { label: "matched", get: (p) => p.hits },
+      { label: "n", get: (_, i) => i + 1 },
+    ],
+  );
+  assert.deepEqual(seg.head, ["address", "matched", "n"]);
+  assert.deepEqual(seg.rows, [
+    ["a.txt#0-10", "2", "1"],
+    ["a.txt#11-40", "1", "2"],
+  ]);
+});
+
+test("a built table is the same shape a parsed one is", () => {
+  // Both paths reach one renderer; if these ever diverge it breaks silently.
+  const built = tableFrom([{ a: 1 }], [{ label: "a", get: (r) => r.a }]);
+  const parsed = parseSegments("| a |\n| - |\n| 1 |")[0];
+  assert.deepEqual(Object.keys(built).sort(), Object.keys(parsed).sort());
+  assert.deepEqual(built, parsed);
+});
+
+test("null and undefined cells become empty strings, not 'null'", () => {
+  const seg = tableFrom([{}], [
+    { label: "x", get: (r) => r.missing },
+    { label: "y", get: () => null },
+    { label: "z", get: () => 0 },
+  ]);
+  assert.deepEqual(seg.rows, [["", "", "0"]]);
+});
+
+test("an empty row set still yields a table with its header", () => {
+  const seg = tableFrom([], [{ label: "address", get: (p) => p.ref }]);
+  assert.deepEqual(seg, { type: "table", head: ["address"], rows: [] });
+});
 
 test("plain prose is one segment", () => {
   const segs = parseSegments("The report put the figure at 12 percent.");

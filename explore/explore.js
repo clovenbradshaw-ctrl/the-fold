@@ -297,6 +297,7 @@ function renderHeaderline() {
 // show, as a quiet word in a row. The nine-fold canon behind them lives in
 // the legend for whoever wants it — it never fronts the instrument.
 const VIEW_LABEL = {
+  Desk: "files",
   Field: "source",
   Entity: "cast",
   Link: "relations",
@@ -311,7 +312,7 @@ const VIEW_LABEL = {
 /** The views that have earned a place right now, in reveal order, with counts. */
 function visibleViews() {
   const T = state.read?.terrains;
-  const out = [];
+  const out = [{ id: "Desk" }]; // the files view is always a place to stand
   if (state.source) out.push({ id: "Field" });
   if (T?.Entity?.referents?.length) out.push({ id: "Entity", n: T.Entity.referents.length });
   if (T?.Link?.total) out.push({ id: "Link", n: T.Link.total });
@@ -466,8 +467,26 @@ function foldCard(holderState, into) {
   head.appendChild(x);
   card.appendChild(head);
   for (const l of holderState.lines ?? []) {
-    const line = el("button", "fold-line", l.text.length > 400 ? `${l.text.slice(0, 399)}…` : l.text);
-    line.title = `chars ${l.charStart}–${l.charEnd} · ${l.microbits.toFixed(0)} microbits — click to land there in the source`;
+    const line = el("button", "fold-line");
+    // display face: leading list markers trimmed, inline marks rendered —
+    // the ADDRESS stays the verbatim source; only the clothes change here.
+    const shown = (l.text.length > 400 ? `${l.text.slice(0, 399)}…` : l.text).replace(/^\s*[-*•]\s+/, "");
+    for (const part of parseInline(shown)) {
+      if (!part.marks.length) line.append(part.text);
+      else {
+        let outer = null;
+        let inner = null;
+        for (const mk of part.marks) {
+          const e = el({ strong: "strong", em: "em", code: "code" }[mk]);
+          if (inner) inner.appendChild(e);
+          else outer = e;
+          inner = e;
+        }
+        inner.append(part.text);
+        line.appendChild(outer);
+      }
+    }
+    line.title = `chars ${l.charStart}–${l.charEnd} · carries: ${(l.covers ?? []).join(", ")} — click to land there in the source`;
     line.onclick = () => {
       state.focus = { c0: l.charStart, c1: l.charEnd, why: "fold line" };
       state.terrain = "Field";
@@ -475,7 +494,9 @@ function foldCard(holderState, into) {
     };
     card.appendChild(line);
   }
-  card.appendChild(el("div", "fold-foot", "verbatim lines in document order, each at its address — a change of resolution, not a paraphrase"));
+  if (holderState.forms) {
+    card.appendChild(el("div", "fold-foot", `together these carry ${holderState.forms.covered} of the scope's ${holderState.forms.of} recurring words — verbatim lines in document order, each at its address; a change of resolution, not a paraphrase`));
+  }
   return card;
 }
 
@@ -497,7 +518,7 @@ function renderSurface() {
   // A lens restores the view it was saved FROM — saving while looking at the
   // lens list must not save "the lens list" as the destination.
   if (state.terrain !== "Lens") state.lastContentTerrain = state.terrain;
-  if (!state.source) {
+  if (!state.source || state.terrain === "Desk") {
     renderBrowse(surface);
     return;
   }
@@ -523,7 +544,20 @@ const glyphOf = (name) => TILE_GLYPH.find(([re]) => re.test(name))?.[1] ?? "≡"
 async function renderBrowse(surface) {
   const dir = state.browseDir ?? "";
   const listing = await api(`/api/tree?path=${encodeURIComponent(dir)}`);
-  if ((state.browseDir ?? "") !== dir || state.source) return; // navigated away while fetching
+  if ((state.browseDir ?? "") !== dir || (state.source && state.terrain !== "Desk")) return; // navigated away while fetching
+
+  // the desk pivots: the same listing as icons or as a table, and the
+  // ordering rule is always named (re-anchoring is a supported operation)
+  const modeRow = el("div", "desk-bar");
+  for (const [mode, label] of [["icons", "▦ icons"], ["table", "☰ table"]]) {
+    const btn = el("button", (state.deskMode ?? "icons") === mode ? "on" : "", label);
+    btn.onclick = () => {
+      state.deskMode = mode;
+      renderAll();
+    };
+    modeRow.appendChild(btn);
+  }
+  surface.appendChild(modeRow);
 
   const crumbs = el("div", "desk-crumbs");
   const rootBtn = el("button", "linkish", "3.0");
@@ -546,34 +580,89 @@ async function renderBrowse(surface) {
   }
   surface.appendChild(crumbs);
 
-  const grid = el("div", "tiles");
-  if (dir) {
-    const up = el("button", "tile dir");
-    up.appendChild(el("span", "glyph", "↩"));
-    up.appendChild(el("span", "nm", ".."));
-    up.onclick = () => {
-      state.browseDir = dir.split("/").slice(0, -1).join("/");
+  const open = (entry) => {
+    if (entry.dir) {
+      state.browseDir = entry.path;
       renderAll();
-    };
-    grid.appendChild(up);
+    } else openSource(entry.path);
+  };
+  const goUp = () => {
+    state.browseDir = dir.split("/").slice(0, -1).join("/");
+    renderAll();
+  };
+
+  // ordering: the server's declared rule by default; a clicked column is a
+  // declared re-anchoring, named in the note below
+  const sort = state.deskSort;
+  let entries = listing.entries;
+  let orderNote = listing.order;
+  if (sort) {
+    entries = [...entries].sort((a, b) => {
+      if (a.dir !== b.dir) return b.dir - a.dir;
+      const va = a[sort.key] ?? (sort.key === "name" ? a.name : 0);
+      const vb = b[sort.key] ?? (sort.key === "name" ? b.name : 0);
+      return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * sort.dir;
+    });
+    orderNote = `folders first, then ${sort.key} ${sort.dir > 0 ? "ascending" : "descending"} — your re-anchoring`;
   }
-  for (const entry of listing.entries) {
-    const tile = el("button", `tile${entry.dir ? " dir" : ""}`);
-    tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
-    tile.appendChild(el("span", "nm", entry.name));
-    if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
-    tile.onclick = () => {
-      if (entry.dir) {
-        state.browseDir = entry.path;
+
+  if ((state.deskMode ?? "icons") === "table") {
+    const tbl = el("table", "tbl desk-tbl");
+    const trh = el("tr");
+    for (const [key, label] of [["name", "name"], ["size", "size"], ["mtime", "modified"]]) {
+      const th = el("th", null, label + (sort?.key === key ? (sort.dir > 0 ? " ↑" : " ↓") : ""));
+      th.style.cursor = "pointer";
+      th.title = "sort by this column";
+      th.onclick = () => {
+        state.deskSort = sort?.key === key ? { key, dir: -sort.dir } : { key, dir: 1 };
         renderAll();
-      } else openSource(entry.path);
-    };
-    grid.appendChild(tile);
+      };
+      trh.appendChild(th);
+    }
+    tbl.appendChild(trh);
+    if (dir) {
+      const tr = el("tr");
+      const td = el("td", null, "↩ ..");
+      td.colSpan = 3;
+      td.style.cursor = "pointer";
+      td.onclick = goUp;
+      tr.appendChild(td);
+      tbl.appendChild(tr);
+    }
+    for (const entry of entries) {
+      const tr = el("tr");
+      tr.style.cursor = "pointer";
+      const nameTd = el("td");
+      nameTd.append(`${entry.dir ? "▸ " : glyphOf(entry.name) + " "}${entry.name}`);
+      tr.appendChild(nameTd);
+      tr.appendChild(el("td", null, entry.dir ? "—" : fmtBytes(entry.size)));
+      tr.appendChild(el("td", null, entry.mtime ? new Date(entry.mtime).toISOString().slice(0, 16).replace("T", " ") : "—"));
+      tr.onclick = () => open(entry);
+      tbl.appendChild(tr);
+    }
+    surface.appendChild(tbl);
+  } else {
+    const grid = el("div", "tiles");
+    if (dir) {
+      const up = el("button", "tile dir");
+      up.appendChild(el("span", "glyph", "↩"));
+      up.appendChild(el("span", "nm", ".."));
+      up.onclick = goUp;
+      grid.appendChild(up);
+    }
+    for (const entry of entries) {
+      const tile = el("button", `tile${entry.dir ? " dir" : ""}`);
+      tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
+      tile.appendChild(el("span", "nm", entry.name));
+      if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
+      tile.onclick = () => open(entry);
+      grid.appendChild(tile);
+    }
+    surface.appendChild(grid);
   }
-  surface.appendChild(grid);
-  if (listing.truncated) {
-    surface.appendChild(el("div", "surface-note", `${listing.shown} of ${listing.total} entries shown — ${listing.total - listing.shown} beyond the page cap not drawn`));
-  }
+  const notes = [orderNote];
+  if (listing.truncated) notes.push(`${listing.shown} of ${listing.total} entries shown — ${listing.total - listing.shown} beyond the page cap not drawn`);
+  surface.appendChild(el("div", "surface-note", notes.join(" · ")));
 }
 
 // ---- Field — Structure·Ground: the raw layout, zero inference -------------

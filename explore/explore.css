@@ -340,7 +340,12 @@ body.embed .page-tabs { display: none; }
 .paradigm .mono { font-family: var(--mono); font-size: 11px; }
 .paradigm h3 { margin: 22px 0 8px; font-size: 14px; }
 
-/* ── the desk: folder-as-surface when nothing is in focus ────────────────── */
+/* ── the desk: the files view, icons or table ────────────────────────────── */
+.desk-bar { display: flex; gap: 4px; margin-bottom: 12px; }
+.desk-bar button { font-size: 12px; padding: 3px 11px; border-radius: 12px; color: var(--muted); }
+.desk-bar button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.desk-tbl { width: 100%; max-width: 860px; }
+.desk-tbl tr:hover td { background: var(--accent-soft); }
 .desk-crumbs { font-size: 13px; margin-bottom: 14px; color: var(--muted); }
 .desk-crumbs .linkish { font-size: 13px; text-decoration: none; }
 .desk-crumbs .linkish:hover { text-decoration: underline; }

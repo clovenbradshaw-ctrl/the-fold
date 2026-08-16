@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { classifySentences } from "./provenance.js";
+import { classifySentences, stripScaffoldNarration } from "./provenance.js";
 import { chunkSource } from "./source.js";
 import { attribute } from "./cite.js";
 import { checkGrounding } from "./grounding.js";
@@ -58,4 +58,43 @@ test("a cited sentence can still carry an absent claim — the stripe is orthogo
   const classified = classifySentences(answer, attributions, grounding.findings);
   assert.equal(classified[0].ground, "material", "it cited an offered address");
   assert.ok(classified[0].absent.some((t) => t.includes("47")), "and drifted from it — both facts shown");
+});
+
+test("meta-narration in brackets is stripped, hidden, and disclosed by count", () => {
+  // The exact live leak: a real citation address alongside a multi-sentence
+  // narration about the act of answering.
+  const answer =
+    "What event led to their meeting? " +
+    "[Answering the prompt, I have searched through the provided text and have not found the event. The text only describes them interacting at a reception. ]";
+  const { text, removed } = stripScaffoldNarration(answer);
+  assert.equal(removed.length, 1);
+  assert.ok(!text.includes("Answering the prompt"));
+  assert.ok(!text.includes("I have searched"));
+  assert.equal(text, "What event led to their meeting?");
+});
+
+test("a real citation address survives untouched", () => {
+  const answer = "The figure was 12%. [notes.txt#0-74]";
+  const { text, removed } = stripScaffoldNarration(answer);
+  assert.equal(removed.length, 0);
+  assert.equal(text, answer);
+});
+
+test("a short bracketed aside is content, not narration — one sentence, left alone", () => {
+  // A stage direction or editorial insertion inside quoted prose is a
+  // phrase, never a full extra sentence — the structural line this test
+  // must not cross.
+  const answer = 'He said, "we are wrong to fight [said ironically] for the king."';
+  const { text, removed } = stripScaffoldNarration(answer);
+  assert.equal(removed.length, 0);
+  assert.equal(text, answer);
+});
+
+test("multiple narration spans are all removed; the gap they leave collapses cleanly", () => {
+  const answer =
+    "[Let me think about this. I will search the text now.] The figure was 12%. [notes.txt#0-74] " +
+    "[In conclusion, I have reviewed everything. There is nothing more to add.]";
+  const { text, removed } = stripScaffoldNarration(answer);
+  assert.equal(removed.length, 2);
+  assert.equal(text, "The figure was 12%. [notes.txt#0-74]");
 });

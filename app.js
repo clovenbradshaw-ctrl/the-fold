@@ -276,6 +276,14 @@ function addConvo() {
 }
 
 function renderThreads() {
+  // Turns, top right beside the model — updated here because every turn and
+  // every conversation switch already lands in this function.
+  const total = $("turn-total");
+  if (total) {
+    const turns = state.summary.turnCount ?? 0;
+    total.hidden = !turns;
+    total.textContent = `turn ${turns}`;
+  }
   const bar = $("threads");
   bar.textContent = "";
   state.convos.forEach((c, i) => {
@@ -420,7 +428,21 @@ async function complete(messages, { onDelta, maxTokens, json } = {}) {
       const delta = chunk.message?.content || "";
       if (!delta) continue;
       out += delta;
-      onDelta?.(out);
+      // A caller's onDelta may return `true` to cancel the generation early
+      // — predictive error correction: holon.js's runPart checks the
+      // completed sentences so far against the offered passages, and a
+      // draft already provably heading toward pure reproduction is stopped
+      // before it burns the rest of its decode budget confirming what is
+      // already known. The socket is cancelled, not just abandoned, so
+      // Ollama stops computing tokens nobody will read.
+      if (onDelta?.(out) === true) {
+        try {
+          await reader.cancel();
+        } catch {
+          // already closed — nothing to do
+        }
+        return out;
+      }
     }
   }
   return out;
@@ -1159,8 +1181,12 @@ function addMessage(role, text) {
     `<div class="who"></div><div class="body"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
+        // ONE affordance per turn. Everything the turn left behind — the
+        // fold line, the summary, the record, the material it was checked
+        // against, how a task ran — opens from the same word. Two
+        // disclosures asked the reader to know the taxonomy before opening;
+        // one asks only curiosity.
         `<details class="fold"><summary>fold</summary><p></p></details>` +
-        `<details class="fold evidence" hidden><summary>material</summary><div></div></details>` +
         `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
@@ -1180,6 +1206,23 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings);
+  // One chip per RUN of sentences standing on the same address — a verbatim
+  // stretch attributed sentence-by-sentence to one passage drew fourteen
+  // identical chips through the prose (measured live; the reader called it
+  // obstruction, and it was). The first sentence of a run carries the chip;
+  // the underline carries the ground for the rest; the chip reappears only
+  // when the address changes.
+  let lastRef = null;
+  for (const e of classified) {
+    if (e.ref) {
+      e.showChip = e.ref !== lastRef;
+      lastRef = e.ref;
+    } else if (e.ground === "material") {
+      // A model-cited sentence has its own inline address; it also resets
+      // the run so a following attributed sentence names its source again.
+      lastRef = null;
+    }
+  }
   const segments = parseSegments(answer);
   body.textContent = "";
   for (const seg of segments) {
@@ -1197,6 +1240,25 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       continue;
     }
     body.append(publishArtifact(seg));
+  }
+
+  // The turn's epistemic state, at a glance: how much of what was just said
+  // stands on the material, how much on the model, and how much states
+  // facts nothing backs. Counted from the same classification the marks
+  // were drawn from — one measurement, two renderings.
+  if (classified.length) {
+    // A cited-but-drifted sentence counts under claims — the drift is the
+    // salient fact — so the three buckets partition cleanly.
+    const claims = classified.filter((e) => e.absent.length).length;
+    const m = classified.filter((e) => e.ground === "material" && !e.absent.length).length;
+    const voice = classified.filter((e) => e.ground === "model" && !e.absent.length).length;
+    const tally = document.createElement("p");
+    tally.className = `fold-note grounds${claims ? " bad" : ""}`;
+    tally.textContent =
+      `standing on the material: ${m} sentence(s)` +
+      (voice > 0 ? ` · the model's voice: ${voice}` : "") +
+      (claims ? ` · stating unbacked facts: ${claims}` : "");
+    body.append(tally);
   }
 }
 
@@ -1229,6 +1291,67 @@ function findSentence(hay, sentence) {
   return m ? { at: m.index, len: m[0].length } : null;
 }
 
+/**
+ * The mark as an instrument: press an unaddressed sentence and the app
+ * searches the material on that sentence's own words, opening the best
+ * passage in context — or saying plainly that nothing matches. The reader
+ * verifies with one click instead of taking either the model's word or
+ * this app's.
+ */
+function groundHunt(text) {
+  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+  const hits = live.length ? retrieve(live, text, 1) : [];
+  if (!hits.length) {
+    $("status").textContent = "no material matches that sentence's words";
+    return;
+  }
+  reopen(hits[0].ref);
+}
+
+/**
+ * A ref's label, when the document's own structure gave it one. Boundaries
+ * discovered by form (segments.js — a short line, blank after, substance
+ * beneath) carry through `chunkSource` into every chunk's `.label`
+ * (source.js::makeChunk), so a chapter is addressed by the name the
+ * document itself gave that stretch. Falls back to the byte address for a
+ * source with no discovered structure, or a ref this app never chunked
+ * (a self-ref, or a citation the model invented) — never invented here.
+ */
+function refLabel(ref) {
+  const chunk = state.chunks.find((c) => c.ref === ref);
+  if (!chunk?.label) return null;
+  // Composed from CONTAINMENT, never from typography — the engine's own
+  // outlineOfIndex is deliberately flat ("no nesting is inferred from
+  // typography, ever," segments.js's own law), so this app must not guess a
+  // book/chapter hierarchy from heading text. What it CAN do honestly: a
+  // container heading with genuine substance under it before the first
+  // heading beneath it (a "BOOK TWO" divider with real text, not just a
+  // chapter number) survives as its OWN boundary, and its byte range then
+  // literally contains every chapter under it — a geometric fact already
+  // sitting in state.chunks, not an inference. Where no such container
+  // survived, the chapter's own label stands alone, which is the honest
+  // answer for a document with one level of discovered structure.
+  const ancestors = state.chunks
+    .filter((c) => c.source === chunk.source && c.label && c.label !== chunk.label)
+    .filter((c) => c.start <= chunk.start && c.end >= chunk.end)
+    // Smallest containing range first — the immediate parent, then its own
+    // parent, outward.
+    .sort((a, b) => a.end - a.start - (b.end - b.start));
+  const path = [];
+  const seen = new Set();
+  for (const c of [...ancestors, chunk]) {
+    if (seen.has(c.label)) continue;
+    seen.add(c.label);
+    path.push(c.label);
+  }
+  return path.join(" · ");
+}
+
+/** What a ref shows: structure over bytes, bytes when there is no structure. */
+function chipText(ref) {
+  return refLabel(ref) ?? ref;
+}
+
 /** Bracketed addresses in a run of text become controls; everything else
  * stays text. The mechanical half of taggedProse, shared by the
  * sentence-provenance wrapper below. */
@@ -1241,15 +1364,16 @@ function refNodes(text, known) {
     if (known.has(ref)) {
       const b = document.createElement("button");
       b.className = "ref";
-      b.textContent = ref;
-      b.title = "Read these bytes back out of the material";
+      const label = refLabel(ref);
+      b.textContent = chipText(ref);
+      b.title = label ? `${ref} — read these bytes back out of the material` : "Read these bytes back out of the material";
       b.onclick = () => reopen(ref);
       out.push(b);
     } else {
       const s = document.createElement("span");
       s.className = "ref bad";
-      s.textContent = ref;
-      s.title = "Not among the passages retrieved for this turn";
+      s.textContent = chipText(ref);
+      s.title = `${ref} — not among the passages retrieved for this turn`;
       out.push(s);
     }
     last = m.index + m[0].length;
@@ -1282,20 +1406,29 @@ function taggedProse(text, offered, classified = []) {
     const sent = document.createElement("span");
     sent.className = `sent${entry.absent.length ? " claims" : ""}`;
     sent.dataset.ground = entry.ground;
-    if (entry.absent.length)
-      sent.title = `Not in the material: ${entry.absent.join("; ")} — this stands on the model, said as fact.`;
-    else if (entry.ground === "model")
-      sent.title = "No address — this stands on the model's own voice, not the material.";
+    if (entry.absent.length) {
+      sent.title = `States facts the material does not back: ${entry.absent.join("; ")}. You are trusting the model here. Click to search the material yourself.`;
+      sent.onclick = () => groundHunt(entry.absent.join(" ") || entry.text);
+    } else if (entry.ground === "model") {
+      sent.title =
+        "The model's own voice — no address stands behind this sentence. Click to search the material for ground.";
+      sent.onclick = () => groundHunt(entry.text);
+    }
     sent.append(...refNodes(matched, known));
 
     // Where this app attached the address itself, say so in the tag. A
     // citation the model wrote and one this app measured are different
     // kinds of claim, and drawing them identically would hide which is which.
-    if (entry.ref) {
+    // Runs of same-address sentences carry ONE chip (showChip; undefined
+    // means show, for callers that never set it).
+    if (entry.ref && entry.showChip !== false) {
       const b = document.createElement("button");
       b.className = "ref attached";
-      b.textContent = entry.ref;
-      b.title = "Attached by this app against a measured null. Press to read the bytes.";
+      const label = refLabel(entry.ref);
+      b.textContent = chipText(entry.ref);
+      b.title = label
+        ? `${entry.ref} — attached by this app against a measured null. Press to read the bytes.`
+        : "Attached by this app against a measured null. Press to read the bytes.";
       b.onclick = () => reopen(entry.ref);
       sent.append(b);
     }
@@ -1385,13 +1518,15 @@ function renderArtifacts(highlight) {
  * it.
  */
 function renderEvidence(node, question, passages, used, grounding, label = "material") {
-  const box = node.querySelector(".evidence");
+  // Into the turn's ONE disclosure, as its section — the same affordance
+  // everything else the turn left behind opens from.
+  const box = node.querySelector(".turn-meta > .fold p");
   if (!box || !passages.length) return;
   const terms = [...new Set(tokenize(question))];
   const cited = new Set(used);
 
   const seg = tableFrom(passages, [
-    { label: "address", get: (p) => p.ref },
+    { label: "address", get: (p) => chipText(p.ref) },
     {
       label: "matched",
       get: (p) => terms.filter((t) => p.terms.has(t)).join(", "),
@@ -1400,9 +1535,9 @@ function renderEvidence(node, question, passages, used, grounding, label = "mate
     { label: "cited", get: (p) => (cited.has(p.ref) ? "yes" : "—") },
   ]);
 
-  box.hidden = false;
   const parts = [
-    artifactNode(seg, `${label} · ${passages.length} retrieved, ${cited.size} cited`),
+    section(`${label} · ${passages.length} retrieved, ${cited.size} cited`),
+    artifactNode(seg, null),
   ];
   // What the answer said that the material does not: the check that catches an
   // invented figure, which neither the address check nor attribution can see.
@@ -1414,7 +1549,7 @@ function renderEvidence(node, question, passages, used, grounding, label = "mate
       : `not in the ${label}: ${unsupportedClaims(grounding).join("; ")}`;
     parts.push(note);
   }
-  box.querySelector("div").replaceChildren(...parts);
+  box.append(...parts);
 }
 
 /**
@@ -1611,7 +1746,9 @@ function recordNode(r) {
     for (const ref of r.refs) {
       const b = document.createElement("button");
       b.className = "ref";
-      b.textContent = ref;
+      const label = refLabel(ref);
+      b.textContent = chipText(ref);
+      if (label) b.title = ref;
       b.onclick = () => reopen(ref);
       line.append(b);
     }
@@ -1638,7 +1775,14 @@ function recordNode(r) {
 const REOPEN_CONTEXT_CHARS = 1500;
 
 function reopen(ref) {
-  $("reopen-ref").textContent = ref;
+  // The structural name carries the heading; the byte address stays
+  // visible underneath — the one place both belong together, since this
+  // dialog exists to show exactly which bytes back a claim.
+  const label = refLabel(ref);
+  $("reopen-ref").textContent = label ?? ref;
+  $("reopen-address").textContent = label
+    ? `${ref} — read back from the material, live`
+    : "read back from the material, live — the cited span, inside its source";
   const pre = $("reopen-body");
   pre.textContent = "";
   // A self ref re-opens from the ledger, rebuilt from the entries alone —
@@ -1973,6 +2117,15 @@ const settingsDialog = $("settings");
 function openSettings(open) {
   if (open) settingsDialog.showModal();
   else settingsDialog.close();
+}
+
+// A dialog closes the way it opened — from anywhere around it. Click the
+// backdrop (or press Escape, which <dialog> gives natively) and it goes.
+for (const id of ["reopen", "settings"]) {
+  const dlg = $(id);
+  dlg?.addEventListener("click", (e) => {
+    if (e.target === dlg) dlg.close();
+  });
 }
 
 $("settings-toggle").onclick = () => openSettings(true);

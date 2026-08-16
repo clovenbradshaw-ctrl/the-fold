@@ -16,8 +16,10 @@
 //
 // WHAT THIS SERVER NEVER DOES: write inside the browse root except the
 // places it owns (append-only record/ and materials/; the clearable web/
-// store); accept absolute paths; follow a path outside the root; call a
-// model. Remote fetching exists ONLY inside the /api/web/* organ — the one
+// store; library/, "My files" — its OWN ledger append-only, its files
+// unlisted on remove and never byte-deleted); accept absolute paths; follow
+// a path outside the root; call a model. Remote fetching exists ONLY inside
+// the /api/web/* organ — the one
 // sanctioned egress (POLICIES P13, amending P1): the page or search the
 // user explicitly asked for, plus web.archive.org when the archive setting
 // is on. Every crossing is recorded before or as it resolves; nothing is
@@ -31,6 +33,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { foldExtract } from "../eoreader6/packages/host/index.js";
+import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 import {
   extractReadable,
   looksLikeChallenge,
@@ -67,6 +70,13 @@ const WEB_DIR = path.join(ROOT, "web");
 const WEB_PAGES_DIR = path.join(WEB_DIR, "pages");
 const WEB_HISTORY_PATH = path.join(WEB_DIR, "history.jsonl");
 const WEB_SETTINGS_PATH = path.join(WEB_DIR, "settings.json");
+// "My files" — the flat index of what a reader explicitly added, and
+// nothing else (library.js's own header). files/ holds uploaded bytes,
+// content-addressed; library.jsonl is the append-only add/remove ledger
+// library.js::foldLibrary reads.
+const LIBRARY_DIR = path.join(ROOT, "library");
+const LIBRARY_FILES_DIR = path.join(LIBRARY_DIR, "files");
+const LIBRARY_LEDGER_PATH = path.join(LIBRARY_DIR, "library.jsonl");
 
 // ── declared numbers, each with its giver ───────────────────────────────────
 // Tree pages and hex pages are caps on a response, not on the data; every
@@ -143,10 +153,41 @@ const CODE_EXTS = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".py", 
 // ── the record ──────────────────────────────────────────────────────────────
 mkdirSync(RECORD_DIR, { recursive: true });
 mkdirSync(MATERIALS_DIR, { recursive: true });
+mkdirSync(LIBRARY_FILES_DIR, { recursive: true });
 function record(event, fields = {}) {
   const line = JSON.stringify({ at: new Date().toISOString(), event, ...fields });
   appendFileSync(RECORD_PATH, line + "\n");
   return line;
+}
+
+// ── the library ──────────────────────────────────────────────────────────────
+function appendLibrary(entry) {
+  mkdirSync(LIBRARY_FILES_DIR, { recursive: true });
+  appendFileSync(LIBRARY_LEDGER_PATH, JSON.stringify(entry) + "\n");
+}
+function readLibrary() {
+  const jsonl = existsSync(LIBRARY_LEDGER_PATH) ? readFileSync(LIBRARY_LEDGER_PATH, "utf8") : "";
+  return foldLibrary(jsonl);
+}
+
+/** The raw-bytes half of the body reader — POST /api/library/upload arrives
+ * as one file's bytes, not JSON, so it does not go through readJsonBody. */
+function readRawBody(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(Object.assign(new Error(`upload exceeds the declared cap of ${maxBytes} bytes`), { code: "TOO_LARGE" }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
 }
 
 // ── the web organ's I/O half ────────────────────────────────────────────────
@@ -728,6 +769,107 @@ const server = http.createServer(async (req, res) => {
         record("deposit", { path: rel, bytes: Buffer.byteLength(text), from: "converse" });
       }
       return send(res, 200, { path: rel, deduped: existed });
+    }
+
+    // ---- library: "My files" — starts empty, holds only what a reader
+    // explicitly added (library.js's own header). Three writes, one read.
+
+    // list: the current fold, newest-added first.
+    if (req.method === "GET" && p === "/api/library") {
+      const { entries, skipped } = readLibrary();
+      return send(res, 200, { entries, skipped, total: entries.length });
+    }
+
+    // add-ref: index something ALREADY on disk under the browse root — no
+    // copy, no bytes moved. A folder may be referenced; browsing into it
+    // afterward is a live view of the real contents (the tree endpoints,
+    // unchanged), not a second copy of this index.
+    if (req.method === "POST" && p === "/api/library/add-ref") {
+      const body = await readJsonBody(req);
+      const abs = confine(body.path ?? "");
+      if (!abs) return send(res, 400, { error: "path escapes the browse root" });
+      let st;
+      try {
+        st = statSync(abs);
+      } catch (e) {
+        return send(res, 404, { error: e.message });
+      }
+      const id = crypto.randomUUID();
+      const entry = {
+        id,
+        event: "add",
+        kind: "ref",
+        name: path.basename(abs),
+        path: relOf(abs),
+        dir: st.isDirectory(),
+        size: st.isFile() ? st.size : null,
+        mtime: st.mtimeMs,
+        addedAt: new Date().toISOString(),
+      };
+      appendLibrary(entry);
+      record("library-add", { id, kind: "ref", path: entry.path, dir: entry.dir });
+      return send(res, 200, { entry });
+    }
+
+    // upload: real bytes from anywhere on the reader's OS — the browser's
+    // own native file picker or a drag-drop, which never touches the
+    // confined browse root until the bytes are already here. One file per
+    // request (no multipart parser; a dependency this server has declared
+    // it will not carry), named by X-File-Name, stored content-addressed
+    // under library/files/ — itself inside the browse root, so every
+    // existing read path (raw/peek/source) already knows how to serve it.
+    if (req.method === "POST" && p === "/api/library/upload") {
+      const rawName = req.headers["x-file-name"];
+      if (!rawName) return send(res, 400, { error: "X-File-Name header is required" });
+      let buf;
+      try {
+        buf = await readRawBody(req, LIBRARY_UPLOAD_MAX_BYTES);
+      } catch (e) {
+        return send(res, e.code === "TOO_LARGE" ? 413 : 400, { error: e.message });
+      }
+      if (!buf.length) return send(res, 400, { error: "empty upload" });
+      let decodedName;
+      try {
+        decodedName = decodeURIComponent(String(rawName));
+      } catch {
+        decodedName = String(rawName);
+      }
+      const name = sanitizeFileName(decodedName);
+      const hash = crypto.createHash("sha256").update(buf).digest("hex").slice(0, 16);
+      const ext = path.extname(name);
+      const base = ext ? name.slice(0, -ext.length) : name;
+      const fileAbs = path.join(LIBRARY_FILES_DIR, `${base}.${hash}${ext}`);
+      mkdirSync(LIBRARY_FILES_DIR, { recursive: true });
+      const existed = existsSync(fileAbs);
+      if (!existed) writeFileSync(fileAbs, buf);
+      const id = crypto.randomUUID();
+      const entry = {
+        id,
+        event: "add",
+        kind: "upload",
+        name,
+        path: relOf(fileAbs),
+        dir: false,
+        size: buf.length,
+        mtime: Date.now(),
+        addedAt: new Date().toISOString(),
+      };
+      appendLibrary(entry);
+      record("library-upload", { id, path: entry.path, bytes: buf.length, deduped: existed });
+      return send(res, 200, { entry });
+    }
+
+    // remove: unlist an entry. Never deletes the underlying bytes — a
+    // reference never owned them, and an upload's bytes may be exactly the
+    // ones a still-open read is showing; the one deliberate deletion this
+    // server performs is /api/web/clear, a different store with a
+    // different, explicit "empty my history" contract.
+    if (req.method === "POST" && p === "/api/library/remove") {
+      const body = await readJsonBody(req);
+      if (typeof body.id !== "string" || !body.id) return send(res, 400, { error: "id (string) is required" });
+      appendLibrary({ id: body.id, event: "remove", removedAt: new Date().toISOString() });
+      record("library-remove", { id: body.id });
+      return send(res, 200, { removed: body.id });
     }
 
     // ---- web search: one query, one request to the no-key endpoint. The

@@ -321,6 +321,66 @@ test("the discourse slice reaches the part prompt, and only as one line", async 
   assert.ok(sawDiscourse);
 });
 
+test("a verbatim reproduction fails as not-answering, and the correction can save it", async () => {
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1].content;
+    const refs = offeredRefs(user);
+    if (user.includes("copies the passage word for word")) {
+      corrected = true;
+      return `The report gives the harbor figure as 12% for the spring quarter. [${refs[0]}]`;
+    }
+    // First draft: the passage, photocopied — grounded to perfection and
+    // answering nothing.
+    return "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.";
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(corrected, "the reproduction must trigger the tailored rewrite");
+  assert.ok(!result.open.some((o) => o.includes("reproduces the material")), "the corrected draft answers");
+  assert.ok(result.refs.length >= 1);
+});
+
+test("a stubborn reproduction fails the part: typed open, no refs", async () => {
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    return "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.";
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(result.open.some((o) => o.includes("reproduces the material verbatim; it does not answer")));
+  assert.deepEqual(result.refs, [], "a photocopy earns nothing, however grounded");
+  assert.deepEqual(result.channels, []);
+});
+
+test("an echo answer establishes nothing: typed open, no refs granted", async () => {
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    // The model restates the question — with the offered ref attached, which
+    // is exactly how a live echo slipped through as "grounded".
+    const refs = offeredRefs(messages[1].content);
+    return `What was the harbor figure for the spring quarter? [${refs[0] ?? "x#0-1"}]`;
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure for the spring quarter?",
+    chunks,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(result.open.some((o) => o.includes("restates the question")));
+  assert.deepEqual(result.refs, [], "circular support is not support");
+  assert.deepEqual(result.channels, []);
+});
+
 test("a plan that fails to parse is itself a typed gap", async () => {
   const call = async (messages) =>
     messages[0].content === PLAN_SYSTEM_PROMPT

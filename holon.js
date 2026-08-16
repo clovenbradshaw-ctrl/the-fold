@@ -34,9 +34,10 @@
 // (refs, channels, unsupported, open), so the app can fold the whole task as
 // one turn without re-checking anything.
 
-import { buildSourceBlock, checkCitations, openQuestions, retrieve, tokenize } from "./source.js";
+import { buildSourceBlock, checkCitations, foldDiacritics, openQuestions, retrieve, tokenize } from "./source.js";
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
-import { attribute, attributedRefs } from "./cite.js";
+import { attribute, attributedRefs, splitSentences } from "./cite.js";
+import { stripScaffoldNarration } from "./provenance.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -302,6 +303,14 @@ export const PASSAGES_PER_PART = 3;
 export const MAX_PARTS = 6;
 /** Rewrite passes per part. A correction budget, not a quality threshold. */
 export const MAX_CORRECTIONS = 1;
+/**
+ * Decode budget per part answer. A part is turn-sized; without a bound the
+ * default 4096-token allowance is a standing permit to transcribe a whole
+ * chapter (measured live: a "who is Dolokhov" part reproduced the Christmas
+ * dinner chapter wholesale). A part that genuinely needs more length is more
+ * parts — that is what decomposition is for.
+ */
+export const EXECUTE_MAX_TOKENS = 512;
 /** The plan is a short JSON array; anything longer is the model talking. */
 export const PLAN_MAX_TOKENS = 400;
 
@@ -345,8 +354,15 @@ export function buildPlanPrompt(task, maxParts = MAX_PARTS) {
   );
 }
 
+// The shape of a good answer, declared before the model writes a word — not
+// because a prompt is trusted (L5: it never is; judge() below enforces this
+// mechanically regardless), but because a model that has never been told
+// what "answered" looks like has no way to aim for it. Two shapes named
+// because they are the two failures measured live: restating the question
+// back (echo), and transcribing the passage instead of answering from it
+// (reproduction) — a photocopy that grounds perfectly and answers nothing.
 export const EXECUTE_SYSTEM_PROMPT =
-  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part. When material is supplied, write from it and cite the address in square brackets exactly as it appears. Where the material does not cover the part, say so plainly instead of filling the gap.";
+  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the question — do not copy sentences from it, and do not just restate the question back. When material is supplied, write from it and cite the address in square brackets exactly as it appears. Where the material does not cover the part, say so plainly instead of filling the gap.";
 
 export function buildExecutePrompt(part, sourceBlock, discourse = "") {
   const head = `Write this part: ${part.label}. ${part.description}`;
@@ -360,7 +376,23 @@ export function buildExecutePrompt(part, sourceBlock, discourse = "") {
     : `${head}${context}\n\nNo material matched this part. Say what the part would need and stop; do not invent content.`;
 }
 
-export function buildCorrectionPrompt(part, sourceBlock, draft, failures) {
+export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode = "unsupported") {
+  // Three failures, three rewrite instructions — each names exactly what
+  // went wrong, because "try again" teaches nothing.
+  if (mode === "reproduction") {
+    return (
+      `Your draft for "${part.label}" copies the passage word for word. Copying is not answering. ` +
+      `Answer the question in your own words — a short paragraph saying what the passage shows about it, ` +
+      `quoting at most one sentence, and cite the address in square brackets.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+    );
+  }
+  if (mode === "echo") {
+    return (
+      `Your draft for "${part.label}" restates the question instead of answering it. ` +
+      `Answer it from the material in your own words, citing the address in square brackets; ` +
+      `if the material does not answer it, say so plainly.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+    );
+  }
   return (
     `Your draft for the part "${part.label}" contains statements the supplied material does not support:\n` +
     failures.map((f) => `- ${f}`).join("\n") +
@@ -510,10 +542,100 @@ export async function runPart({
     };
   };
 
+  // Grounded is necessary; ANSWERING is the requirement. Two ways a draft
+  // can be perfectly grounded and still fail the question, both measured
+  // live and both threshold-free set/substring containment — SENTENCE-wise,
+  // not whole-draft: a draft that opens by echoing the question and THEN
+  // transcribes the passage is neither a whole-draft echo nor a whole-draft
+  // substring, and the first version of this check missed it live (2026,
+  // "Who is Anna Pávlovna Schérer?" followed by the entire chapter). Each
+  // sentence is classified on its own; a sentence whose every content word
+  // is already in the question is FRAMING, set aside; what remains is the
+  // draft's actual content, and IT is what gets judged:
+  //   echoed       — no content sentences survive framing: the question,
+  //                  restated and nothing else. Run 6: 8/50 turns.
+  //   reproduced   — either the content, rejoined, is one contiguous
+  //                  verbatim stretch of an offered passage (the simple
+  //                  whole-copy case), OR MORE OF THE ANSWER'S OWN
+  //                  SENTENCES ARE VERBATIM COPIES THAN ARE NOT — the same
+  //                  "present more often than absent" cut cite.js's
+  //                  commonTerms already uses for terms (`cut =
+  //                  pool.length / 2`), applied here to sentences. The
+  //                  second test is the one the first version of this check
+  //                  missed live: real commentary sentences interleaved
+  //                  between long verbatim quotations break contiguity, but
+  //                  an answer that is mostly quotation with a little
+  //                  commentary stitched between the quotes has still not
+  //                  answered the question — it has annotated a photocopy.
+  // Either verdict is a FAILURE that triggers the same bounded correction
+  // pass as an unsupported claim, with the rewrite told exactly which
+  // failure it is fixing. A draft still failing when the budget runs out
+  // fails the part: no refs, typed open — an answer that does not answer
+  // earns nothing.
+  const questionWords = new Set(tokenize(`${task} ${question}`));
+  const ADDRESS_RE = /\[?[^\s\]]+#\d+-\d+\]?/g;
+  const foldWs = (s) => foldDiacritics(String(s).toLowerCase()).replace(/\s+/g, " ").trim();
+  const passagesFolded = passages.map((p) => foldWs(p.text));
+  const isFraming = (sentence) => {
+    const toks = tokenize(sentence);
+    return toks.length > 0 && toks.every((w) => questionWords.has(w));
+  };
+  /** Sentences of `t` with addresses stripped, framing (question-echo) sentences removed. */
+  const contentSentencesOf = (t) =>
+    splitSentences(String(t ?? "").replace(ADDRESS_RE, " "))
+      .map((s) => s.replace(ADDRESS_RE, " ").trim())
+      .filter(Boolean)
+      .filter((s) => !isFraming(s));
+  // A sentence needs SOME content to count as evidence either way — the
+  // same magnitude of floor MIN_CLAUSE_WORDS and MIN_RUN already use
+  // elsewhere in this codebase for "enough to mean something."
+  const MIN_CONTENT_TOKENS = 3;
+  const isVerbatimSentence = (sentence) => {
+    if (tokenize(sentence).length < MIN_CONTENT_TOKENS) return false;
+    const sf = foldWs(sentence);
+    return sf.length > 0 && passagesFolded.some((pf) => pf.includes(sf));
+  };
+  /** Reproduction, from an already-extracted list of non-framing sentences. */
+  const reproducedFromContent = (content) => {
+    if (!content.length) return false;
+    const contentText = foldWs(content.join(" "));
+    const wholeBlockCopied = contentText.length > 0 && passagesFolded.some((pf) => pf.includes(contentText));
+    const verbatimCount = content.filter(isVerbatimSentence).length;
+    return wholeBlockCopied || verbatimCount > content.length / 2;
+  };
+  const judge = (t) => {
+    const all = splitSentences(String(t ?? "").replace(ADDRESS_RE, " ")).filter(Boolean);
+    if (!all.length) return { echoed: false, reproduced: false };
+    const content = contentSentencesOf(t);
+    if (!content.length) return { echoed: true, reproduced: false };
+    return { echoed: false, reproduced: reproducedFromContent(content) };
+  };
+
   // The draft streams out through progress events, so the page can show the
-  // part being written instead of dead air — the model's partial text is
-  // display-only until the checks run on the whole.
-  const streaming = { onDelta: (partial) => onProgress?.("draft", part, { partial }) };
+  // part being written instead of dead air. Predictive error correction:
+  // periodically — not on every token, which would spend more on checking
+  // than on writing — the sentences COMPLETED so far are judged by the same
+  // majority test the finished draft will face. A generation already
+  // provably dominated by verbatim copying is stopped there rather than
+  // left to spend its whole decode budget confirming what the completed
+  // sentences already show; the caller (below) treats the cancelled
+  // partial exactly like a finished draft that failed the same test.
+  let lastPredicted = 0;
+  const PREDICT_EVERY_CHARS = 200;
+  const streaming = {
+    onDelta: (partial) => {
+      onProgress?.("draft", part, { partial });
+      if (partial.length - lastPredicted < PREDICT_EVERY_CHARS) return false;
+      lastPredicted = partial.length;
+      // Only sentences the stream has actually FINISHED — splitSentences on
+      // a partial always risks judging an in-progress last sentence that
+      // has not yet had the chance to diverge from the passage.
+      const finished = splitSentences(partial.replace(ADDRESS_RE, " ")).slice(0, -1);
+      if (!finished.length) return false;
+      const content = finished.map((s) => s.trim()).filter((s) => s && !isFraming(s));
+      return reproducedFromContent(content);
+    },
+  };
 
   const executeMessages = [
     { role: "system", content: EXECUTE_SYSTEM_PROMPT },
@@ -524,26 +646,59 @@ export async function runPart({
     // into an expected duration.
     promptChars: executeMessages.reduce((n, m) => n + m.content.length, 0),
   });
-  draft = await call(executeMessages, { effort: "low", ...streaming });
-  check = inspect(draft);
+  // Meta-cognition is not content. A model's brackets mean one thing here —
+  // a citation — so any bracketed span that is not one, and that itself
+  // runs more than one sentence, is the model narrating its own act of
+  // answering rather than answering. Stripped mechanically, immediately,
+  // before inspect() or judge() ever see it: hidden from render because it
+  // was never an answer, and kept out of the checks because it is not a
+  // claim to verify. What was hidden is disclosed once, below — the fact
+  // that it happened is on the record; its content is not.
+  const scaffoldRemoved = [];
+  const clean = (raw) => {
+    const { text: t, removed } = stripScaffoldNarration(raw);
+    scaffoldRemoved.push(...removed);
+    return t;
+  };
 
-  while (check.unsupported.length && passages.length && corrections < maxCorrections) {
+  draft = clean(await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
+  check = inspect(draft);
+  let verdict = judge(draft);
+
+  while (
+    (check.unsupported.length || verdict.echoed || verdict.reproduced) &&
+    passages.length &&
+    corrections < maxCorrections
+  ) {
     corrections++;
+    const mode = verdict.reproduced ? "reproduction" : verdict.echoed ? "echo" : "unsupported";
     const correctionMessages = [
       { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-      { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, check.unsupported) },
+      { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, check.unsupported, mode) },
     ];
     onProgress?.("correct", part, {
       failures: check.unsupported,
+      mode,
       promptChars: correctionMessages.reduce((n, m) => n + m.content.length, 0),
     });
-    draft = await call(correctionMessages, { effort: "low", ...streaming });
+    draft = clean(await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
     check = inspect(draft);
+    verdict = judge(draft);
   }
 
   const text = String(draft ?? "").trim();
+  if (verdict.echoed || verdict.reproduced) {
+    check = { ...check, refs: [], used: [], attributed: [], channels: [] };
+  }
   const open = [
     ...(strayed ? [`part searched on words the task never used: ${part.label}`] : []),
+    ...(verdict.echoed ? [`answer restates the question; nothing established: ${part.label}`] : []),
+    ...(verdict.reproduced
+      ? [`answer reproduces the material verbatim; it does not answer the question: ${part.label}`]
+      : []),
+    ...(scaffoldRemoved.length
+      ? [`model narrated its own answering process; ${scaffoldRemoved.length} span(s) hidden: ${part.label}`]
+      : []),
     ...openQuestions(question, passages, check.refs),
     ...(text ? [] : [`part produced no text: ${part.label}`]),
   ];

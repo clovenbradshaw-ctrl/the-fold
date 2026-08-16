@@ -10,9 +10,11 @@
 //
 //   node serve.mjs [port]
 //
-// Beyond static files, three API endpoints live here, all loopback-only:
+// Beyond static files, the API endpoints live here, all loopback-only:
 //
 //   POST /api/run/<lang>       run a build's code as a throwaway process
+//   POST /api/build-record     mirror one build-log entry to the durable
+//                              record (record/build-record.jsonl, append-only)
 //   POST /api/exec/<id>        start a terminal command under a PTY and
 //                              stream its output back until it exits
 //   POST /api/exec/<id>/stdin  write one line to a running command
@@ -25,8 +27,9 @@
 
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { appendFileSync, createReadStream, existsSync, mkdirSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const ROOT = resolve(import.meta.dirname);
 const ENGINE = resolve(ROOT, "..", "eoreader6", "packages", "engine");
@@ -72,6 +75,31 @@ if (!existsSync(VENV_PYTHON)) {
     else console.error(`venv creation exited ${code}; builds fall back to system python3`);
   });
 }
+
+// ── the build record ─────────────────────────────────────────────────────────
+//
+// Anything built is an append-only log (build-log.js owns the act→entry
+// mapping; the page holds each build's log and mirrors every entry here the
+// moment it is appended). record/build-record.jsonl is append-only — never
+// truncated, never rewritten, same standing as explore's record
+// (FOLD-CONSTITUTION I.5). Validation is the engine's own wall, not a local
+// restatement: each mirrored entry must pass task-log.js's `append` on a
+// fresh log, so an entry the engine would refuse to bring into being is
+// refused here too — and the refusal itself lands on the record, typed,
+// with the engine's own reason.
+const RECORD_DIR = join(ROOT, "record");
+const BUILD_RECORD_PATH = join(RECORD_DIR, "build-record.jsonl");
+mkdirSync(RECORD_DIR, { recursive: true });
+let buildVocab = null;
+try {
+  buildVocab = await import(pathToFileURL(join(ENGINE, "holon", "task-log.js")).href);
+} catch (e) {
+  // The engine mount is this server's own hard dependency for the page; if
+  // the module is unreachable the record still lands, disclosed as
+  // unchecked rather than silently trusted-as-valid.
+  console.error(`build record: engine task-log unavailable (${e.message}); entries land with vocab:"unchecked"`);
+}
+const recordBuild = (row) => appendFileSync(BUILD_RECORD_PATH, JSON.stringify(row) + "\n");
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -172,6 +200,37 @@ createServer((req, res) => {
         finish();
       });
       proc.on("close", finish);
+    })();
+    return;
+  }
+
+  // POST /api/build-record — mirror one build-log entry to the durable
+  // record. The body limit is above /api/run's output cap because a result
+  // entry legitimately carries up to 64KB of stdout and stderr each.
+  if (req.method === "POST" && rel === "/api/build-record") {
+    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
+    (async () => {
+      const params = await readJsonBody(req, res, 256 * 1024);
+      if (params === null) return json(res, 413, { error: "body too large" });
+      if (params === false) return json(res, 400, { error: "bad json" });
+      const { conv = null, build = null, entry } = params ?? {};
+      const at = new Date().toISOString();
+      if (!entry || typeof entry !== "object") {
+        recordBuild({ at, event: "build-entry-refused", conv, build, reason: "no entry" });
+        return json(res, 400, { error: "no entry" });
+      }
+      if (buildVocab) {
+        try {
+          buildVocab.append(buildVocab.createTaskLog(), entry);
+        } catch (e) {
+          recordBuild({ at, event: "build-entry-refused", conv, build, reason: e.message });
+          return json(res, 400, { error: e.message });
+        }
+        recordBuild({ at, event: "build-entry", conv, build, entry });
+      } else {
+        recordBuild({ at, event: "build-entry", conv, build, entry, vocab: "unchecked" });
+      }
+      json(res, 200, { ok: true });
     })();
     return;
   }

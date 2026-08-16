@@ -87,6 +87,9 @@ function nullBest(sentenceTerms, pool, offered, samples) {
 
 export const NULL_SAMPLES = 60;
 
+/** An address the model wrote for itself, in the shape source.js emits. */
+const ALREADY_CITED = /\[[^\]\s]+#\d+-\d+\]/;
+
 /**
  * The names a sentence commits to: runs of two or more capitalised words, and
  * bare acronyms. "Kansas Highway Patrol", "Bryan TX PD", "MNPD", "TBI".
@@ -136,6 +139,11 @@ function namesSupported(text, chunk) {
 export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES } = {}) {
   if (!offered?.length) return [];
   return splitSentences(answer).map((text) => {
+    // A sentence that already carries an address is not attributed. Measuring
+    // it again would put two tags on one claim — the model's and this app's,
+    // saying the same thing twice — and attribution exists to fill the gap
+    // where the model said nothing, not to sign its work.
+    if (ALREADY_CITED.test(text)) return { text, ref: null, score: 0, floor: 0, cited: true };
     const terms = tokenize(text);
     let ref = null;
     let score = 0;

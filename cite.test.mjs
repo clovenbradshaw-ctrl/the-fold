@@ -93,6 +93,17 @@ test("names are runs of capitals and bare acronyms, not sentence starts", () => 
   assert.deepEqual(namesIn("MNPD and TBI both did."), ["MNPD", "TBI"]);
 });
 
+test("a sentence the model already cited is not attributed again", () => {
+  // Live bug: the model cited a passage, the app attributed the same sentence
+  // to the same passage, and the answer rendered the address twice.
+  const passage = chunks.find((c) => c.text.includes("12 percent"));
+  const answer = `The report put the silting figure at 12 percent per decade [${passage.ref}].`;
+  const [entry] = attribute(answer, chunks, pool);
+  assert.equal(entry.ref, null);
+  assert.equal(entry.cited, true);
+  assert.deepEqual(attributedRefs(attribute(answer, chunks, pool)), []);
+});
+
 test("attribution is deterministic across runs", () => {
   const answer = "The report put the silting figure at 12 percent per decade. Ferries declined.";
   const a = attribute(answer, chunks, pool);

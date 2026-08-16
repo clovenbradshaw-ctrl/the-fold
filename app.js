@@ -487,7 +487,7 @@ async function send(question) {
 
   // Streaming shows raw text as it arrives; the artifact is built once the
   // answer is whole, because a half-written table is not a table yet.
-  renderAnswer(node.querySelector(".body"), answer);
+  renderAnswer(node.querySelector(".body"), answer, passages);
   renderFold(node, { fold, record, sent: messages });
   renderThreads();
   renderEvidence(node, question, passages, used);
@@ -527,21 +527,62 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer) {
+function renderAnswer(body, answer, offered = []) {
   const segments = parseSegments(answer);
-  if (!segments.some((s) => s.type !== "prose")) return; // plain text as-is
-
   body.textContent = "";
   for (const seg of segments) {
     if (seg.type === "prose") {
       const p = document.createElement("p");
       p.className = "prose";
-      p.textContent = seg.text;
+      p.append(...taggedProse(seg.text, offered));
       body.append(p);
       continue;
     }
     body.append(publishArtifact(seg));
   }
+}
+
+/** An address, exactly as source.js writes and checkCitations reads it. */
+const REF_IN_TEXT = /\[([^\]\s]+#\d+-\d+)\]/g;
+
+/**
+ * Turn every bracketed address in an answer into the thing it names.
+ *
+ * The model writes `[kessington.txt#80-174]` because it was told to, and a
+ * reader looking at that has a byte range and no way to check it. It is a
+ * mechanical fact — the same pattern the citation check already parses — so
+ * it is rendered as a control that reads those bytes back.
+ *
+ * A tag naming material the turn was never given is drawn differently and
+ * does not open. That is not a rendering nicety: the mechanical check already
+ * calls it unsupported, and a citation the model invented should not look
+ * identical to one it was handed.
+ */
+function taggedProse(text, offered) {
+  const known = new Set(offered.map((p) => p.ref ?? p));
+  const out = [];
+  let last = 0;
+  for (const m of String(text).matchAll(REF_IN_TEXT)) {
+    if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));
+    const ref = m[1];
+    if (known.has(ref)) {
+      const b = document.createElement("button");
+      b.className = "ref";
+      b.textContent = ref;
+      b.title = "Read these bytes back out of the material";
+      b.onclick = () => reopen(ref);
+      out.push(b);
+    } else {
+      const s = document.createElement("span");
+      s.className = "ref bad";
+      s.textContent = ref;
+      s.title = "Not among the passages retrieved for this turn";
+      out.push(s);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  return out;
 }
 
 /**

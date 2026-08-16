@@ -506,16 +506,31 @@
       .record .line { margin-top: 4px; font-size: 12px; }
       .record .label { color: var(--muted); }
       .record .bad { color: var(--warn); }
+      /* A tag naming material the turn was never handed: same shape, plainly
+         not the same thing, and it does not open. */
+      span.ref.bad {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 5px;
+        border: 1px dashed var(--warn);
+        color: var(--warn);
+        margin: 0 2px;
+        cursor: help;
+      }
       button.ref {
         font-family: var(--mono);
         font-size: 11px;
         padding: 1px 6px;
         border-radius: 5px;
         border: 1px solid var(--record);
-        background: none;
+        background: var(--record-soft);
         color: var(--record);
-        margin: 2px 4px 0 0;
+        margin: 0 2px;
+        vertical-align: baseline;
       }
+      button.ref:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
       .empty { color: var(--muted); font-size: 13px; font-style: italic; }
       textarea#material { width: 100%; min-height: 260px; font-family: var(--mono); font-size: 12px; }
       dialog {

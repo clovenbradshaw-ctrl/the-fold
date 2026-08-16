@@ -39,6 +39,8 @@ import {
   updateSummaryWithFold,
 } from "./fold.js";
 
+import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
+
 import {
   buildSourceBlock,
   checkCitations,
@@ -83,6 +85,12 @@ const state = {
   turnFolds: [],
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
+  /**
+   * Sources switched off. They stay loaded — their text is still here, so a
+   * record's refs still re-open — but retrieval does not see them. Removing a
+   * source and silencing it are different acts and this is the second one.
+   */
+  muted: new Set(),
   chunks: [],
   lastMessages: [],
   lastMaterialChars: 0,
@@ -245,9 +253,8 @@ async function send(question) {
   $("intro")?.remove();
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
-  const passages = state.chunks.length
-    ? retrieve(state.chunks, question, 3, foldedRefs)
-    : [];
+  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+  const passages = live.length ? retrieve(live, question, 3, foldedRefs) : [];
 
   const sourceBlock = buildSourceBlock(passages);
   const messages = buildTurnMessages({
@@ -331,6 +338,9 @@ async function send(question) {
     state.summary = updateSummaryWithFold(state.summary, fold);
   }
 
+  // Streaming shows raw text as it arrives; the artifact is built once the
+  // answer is whole, because a half-written table is not a table yet.
+  renderAnswer(node.querySelector(".body"), answer);
   node.querySelector(".fold p").textContent = fold;
   $("status").textContent = `ready · ${state.model}`;
   renderState();
@@ -359,6 +369,73 @@ function addMessage(role, text) {
   $("chat").append(el);
   el.scrollIntoView({ block: "end" });
   return el;
+}
+
+/**
+ * Render a finished answer as what it is. Prose stays prose; a table becomes a
+ * table; code becomes code; an HTML or SVG block becomes the page it describes,
+ * inside a sandboxed frame with scripts and same-origin access withheld —
+ * model output is content, not code this app has agreed to run.
+ */
+function renderAnswer(body, answer) {
+  const segments = parseSegments(answer);
+  if (!segments.some((s) => s.type !== "prose")) return; // plain text as-is
+
+  body.textContent = "";
+  for (const seg of segments) {
+    if (seg.type === "prose") {
+      const p = document.createElement("p");
+      p.className = "prose";
+      p.textContent = seg.text;
+      body.append(p);
+      continue;
+    }
+
+    const art = document.createElement("figure");
+    art.className = "artifact";
+    const cap = document.createElement("figcaption");
+    cap.textContent =
+      seg.type === "table"
+        ? `table · ${seg.rows.length} row${seg.rows.length === 1 ? "" : "s"}`
+        : seg.lang || "code";
+    art.append(cap);
+
+    if (seg.type === "table") {
+      const table = document.createElement("table");
+      const thead = table.createTHead().insertRow();
+      for (const h of seg.head) {
+        const th = document.createElement("th");
+        th.textContent = h;
+        thead.append(th);
+      }
+      const tbody = table.createTBody();
+      for (const row of seg.rows) {
+        const tr = tbody.insertRow();
+        for (const cell of row) tr.insertCell().textContent = cell;
+      }
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      wrap.append(table);
+      art.append(wrap);
+    } else if (RENDERABLE.has(seg.lang)) {
+      const frame = document.createElement("iframe");
+      frame.sandbox = "";
+      frame.srcdoc = toDocument(seg);
+      frame.loading = "lazy";
+      art.append(frame);
+      const src = document.createElement("details");
+      src.innerHTML = "<summary>source</summary>";
+      const pre = document.createElement("pre");
+      pre.textContent = seg.code;
+      src.append(pre);
+      art.append(src);
+    } else {
+      const pre = document.createElement("pre");
+      pre.textContent = seg.code;
+      art.append(pre);
+    }
+    body.append(art);
+  }
 }
 
 function renderPrompt() {
@@ -535,6 +612,7 @@ function removeSource(name) {
   // and re-opening one now says so rather than quietly returning nothing —
   // which is the honest failure for an address whose material is gone.
   delete state.sources[name];
+  state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
   renderSources();
 }
@@ -545,32 +623,6 @@ function countFor(name) {
 
 function renderSources() {
   const names = Object.keys(state.sources);
-  const strip = $("sources-strip");
-  strip.textContent = "";
-  strip.hidden = !names.length;
-
-  // One line, whatever is loaded. A chip per file was fine for one file and
-  // unreadable for ten — and a raw passage count belongs where you manage the
-  // material, not above the box you type questions into.
-  if (names.length) {
-    const total = names.reduce((n, k) => n + state.sources[k].length, 0);
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "chip";
-    chip.title = "Manage material";
-    chip.append(
-      document.createTextNode(
-        names.length === 1 ? names[0] : `${names.length} files`,
-      ),
-    );
-    const count = document.createElement("span");
-    count.className = "count";
-    count.textContent = fmtBytes(total);
-    chip.append(count);
-    chip.onclick = () => showView("material");
-    strip.append(chip);
-  }
-
   const list = $("source-list");
   list.textContent = "";
   if (!names.length) {
@@ -579,19 +631,38 @@ function renderSources() {
     return;
   }
   for (const name of names) {
-    const row = document.createElement("div");
-    row.className = "source-row";
+    const on = !state.muted.has(name);
+    const row = document.createElement("label");
+    row.className = `source-row${on ? "" : " off"}`;
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = on;
+    box.onchange = () => {
+      if (box.checked) state.muted.delete(name);
+      else state.muted.add(name);
+      renderSources();
+    };
+
     const n = document.createElement("span");
     n.className = "name";
     n.textContent = name;
+
     const c = document.createElement("span");
     c.className = "count";
-    c.textContent = `${countFor(name)} passages · ${state.sources[name].length.toLocaleString()} chars`;
+    c.textContent = on
+      ? `${countFor(name).toLocaleString()} passages · ${fmtBytes(state.sources[name].length)}`
+      : "off";
+
     const x = document.createElement("button");
     x.type = "button";
     x.textContent = "remove";
-    x.onclick = () => removeSource(name);
-    row.append(n, c, x);
+    x.onclick = (e) => {
+      e.preventDefault();
+      removeSource(name);
+    };
+
+    row.append(box, n, c, x);
     list.append(row);
   }
 }
@@ -652,7 +723,7 @@ $("connect").onclick = connect;
 $("provider").onchange = () => {
   state.provider = $("provider").value;
   state.ready = false;
-  $("key").hidden = state.provider !== "claude";
+  $("key-row").hidden = state.provider !== "claude";
   $("send").disabled = true;
   $("status").textContent = "idle";
   fillModels();
@@ -741,16 +812,18 @@ showView(matchMedia("(max-width: 900px)").matches ? "chat" : "prompt");
 // top of a phone screen forever. Once connected they fold into one chip and
 // give the space back; tapping it brings them out again.
 
-const settingsToggle = $("settings-toggle");
-const controls = $("controls");
+const settingsDialog = $("settings");
 
 function openSettings(open) {
-  controls.hidden = !open;
-  settingsToggle.setAttribute("aria-expanded", String(open));
+  if (open) settingsDialog.showModal();
+  else settingsDialog.close();
 }
 
-settingsToggle.onclick = () =>
-  openSettings(settingsToggle.getAttribute("aria-expanded") === "false");
+$("settings-toggle").onclick = () => openSettings(true);
+$("settings-close").onclick = () => openSettings(false);
+// Nothing is connected yet, so the first thing to do is the only thing on
+// offer — open it rather than making the chip a scavenger hunt.
+if (!state.ready) openSettings(true);
 
 // The chip mirrors whatever the status line says, so every existing status
 // update reaches it without threading a setter through the turn loop.

@@ -80,14 +80,36 @@
       button:hover:not(:disabled) { border-color: var(--accent); }
       button:disabled { opacity: 0.5; cursor: default; }
       button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-      .controls { display: flex; gap: 8px; align-items: center; }
-      /* Collapsing is a narrow-screen behavior; on a wide one the controls
-         cost nothing, so the hidden attribute set on connect is overridden
-         rather than special-cased in the script. */
-      @media (min-width: 901px) {
-        .controls[hidden] { display: flex; }
+      /* The model is a setting, not a fixture. It gets one line in the header
+         saying what is answering, and everything else lives in a dialog. */
+      #settings-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        max-width: 46vw;
+        font-size: 12.5px;
+        padding: 5px 10px;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
       }
-      #settings-toggle { display: none; }
+      #settings-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #settings .controls { display: grid; gap: 10px; margin-bottom: 16px; }
+      #settings label { display: grid; gap: 4px; }
+      #settings label[hidden] { display: none; }
+      #settings label span {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+      }
+      #settings select,
+      #settings input { width: 100%; }
+      .settings-actions { display: flex; gap: 8px; margin: 0; }
       .tabs .chat-tab { display: none; }
       .tabs .short { display: none; }
 
@@ -212,6 +234,65 @@
         padding: 8px 12px;
         display: inline-block;
       }
+      /* Artifacts: the answer rendered as the format it turned out to be. */
+      .msg .body .prose { margin: 0 0 10px; white-space: pre-wrap; }
+      .msg .body .prose:last-child { margin-bottom: 0; }
+      .artifact {
+        margin: 0 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--panel);
+      }
+      .artifact figcaption {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--line);
+        background: var(--accent-soft);
+      }
+      .artifact pre {
+        margin: 0;
+        padding: 12px;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.5;
+      }
+      .artifact iframe {
+        display: block;
+        width: 100%;
+        height: 320px;
+        border: 0;
+        background: var(--bg);
+      }
+      .artifact details summary {
+        cursor: pointer;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 7px 12px;
+        border-top: 1px solid var(--line);
+      }
+      .table-wrap { overflow-x: auto; }
+      .artifact table { border-collapse: collapse; width: 100%; font-size: 13px; }
+      .artifact th,
+      .artifact td {
+        text-align: left;
+        padding: 7px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      .artifact th {
+        font-weight: 600;
+        color: var(--accent);
+        white-space: nowrap;
+      }
+      .artifact tbody tr:last-child td { border-bottom: none; }
+
       /* Quiet until asked for: one muted word under the turn, which opens to
          the ~100 chars that turn actually left behind. */
       details.fold { margin-top: 5px; }
@@ -362,39 +443,6 @@
       #status { font-size: 12.5px; color: var(--muted); }
       #key { width: 190px; font-family: var(--mono); font-size: 12px; }
 
-      /* Material: a strip of what's loaded, sitting right on top of the
-         composer, so the material is visible where the question is typed
-         rather than parked behind a tab. */
-      .sources-strip {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        padding: 8px 20px 0;
-        background: var(--panel);
-        border-top: 1px solid var(--line);
-      }
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        border: 1px solid var(--accent);
-        background: var(--accent-soft);
-        color: var(--accent);
-        border-radius: 999px;
-        padding: 3px 6px 3px 10px;
-      }
-      .chip .count { color: var(--muted); }
-      .chip button {
-        border: none;
-        background: none;
-        padding: 0 4px;
-        line-height: 1;
-        font-size: 14px;
-        color: var(--muted);
-        border-radius: 999px;
-      }
-      .chip button:hover { color: var(--warn); }
       #attach {
         white-space: nowrap;
         color: var(--accent);
@@ -425,14 +473,21 @@
       .dropzone-card span { color: var(--muted); font-size: 13px; }
       .source-row {
         display: flex;
-        align-items: baseline;
-        gap: 8px;
-        padding: 7px 0;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 0;
         border-bottom: 1px solid var(--line);
         font-size: 13px;
+        cursor: pointer;
       }
+      .source-row input { accent-color: var(--accent); width: 15px; height: 15px; }
       .source-row .name { font-family: var(--mono); font-size: 12px; }
       .source-row .count { color: var(--muted); font-size: 12px; margin-left: auto; }
+      /* Off is visibly off, and still listed — the file is loaded, just not
+         being read from. */
+      .source-row.off .name { color: var(--muted); text-decoration: line-through; }
+      .source-row button { font-size: 11.5px; padding: 3px 8px; color: var(--muted); }
+      .source-row button:hover { color: var(--warn); border-color: var(--warn); }
       .note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
     </style>
   </head>
@@ -441,20 +496,11 @@
       <h1>The Fold</h1>
       <span class="tag">a conversation whose context window does not grow</span>
       <span class="spacer"></span>
-      <button id="settings-toggle" type="button" aria-expanded="true">
+      <button id="settings-toggle" type="button" title="Model settings">
         <span id="settings-label">not connected</span>
-        <span class="caret" aria-hidden="true">▾</span>
+        <span aria-hidden="true">⚙</span>
       </button>
-      <div class="controls" id="controls">
-        <select id="provider" title="Where the model runs">
-          <option value="ollama">Ollama · local</option>
-          <option value="claude">Claude API</option>
-        </select>
-        <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" hidden />
-        <select id="model" title="Model"></select>
-        <button id="connect" class="primary">Connect</button>
-      </div>
-      <span id="status">idle</span>
+      <span id="status" hidden>idle</span>
     </header>
 
     <main>
@@ -474,7 +520,6 @@
           </div>
           </p>
         </div>
-        <div class="sources-strip" id="sources-strip" hidden></div>
         <form class="composer" id="composer">
           <button type="button" class="attach" id="attach" title="Add material (or drop a file anywhere)">
             <span aria-hidden="true">＋</span> Material
@@ -546,6 +591,32 @@
         </div>
       </section>
     </main>
+
+    <dialog id="settings">
+      <h3>Model</h3>
+      <p class="sub">Where the answers come from. Nothing else lives up top.</p>
+      <div class="controls" id="controls">
+        <label>
+          <span>Runs on</span>
+          <select id="provider">
+            <option value="ollama">Ollama · this machine</option>
+            <option value="claude">Claude API</option>
+          </select>
+        </label>
+        <label id="key-row" hidden>
+          <span>API key</span>
+          <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
+        </label>
+        <label>
+          <span>Model</span>
+          <select id="model"></select>
+        </label>
+      </div>
+      <p class="settings-actions">
+        <button id="connect" class="primary">Connect</button>
+        <button id="settings-close" type="button">Close</button>
+      </p>
+    </dialog>
 
     <div id="dropzone" hidden>
       <div class="dropzone-card">

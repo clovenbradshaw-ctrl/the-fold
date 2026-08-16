@@ -60,10 +60,23 @@ export function makeCastHandles({ splitSentences, extractSurfaces, discoverRefer
   };
 }
 
-export function makeCastResolver({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm }) {
-  return function castFor(passages) {
+/**
+ * The referent index: the same discovery as the resolver below, exposed as
+ * IDENTITIES rather than a boolean. `makeReferentIndex(organs)` →
+ * `indexFor(passages)` → `{ events, referents, resolve, represent }`, where
+ * `resolve(name)` answers WHICH referents a name points at (a Set of
+ * referent ids, empty when none) and `represent(id)` is the referent's
+ * most-individuated established surface. The relation tier (hypergraph.js)
+ * needs identities, not booleans: an edge's endpoints must key on WHO,
+ * so that "Bezukhov" and "Pierre Bezúkhov" land on the same node. One
+ * implementation of "the same name" — the resolver is a projection of this
+ * index, so support and identity cannot drift apart.
+ */
+export function makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm }) {
+  return function indexFor(passages) {
     const text = (passages ?? []).map((p) => p?.text ?? "").join("\n\n");
-    if (!text.trim()) return () => false;
+    const empty = { events: [], referents: new Set(), resolve: () => new Set(), represent: () => null };
+    if (!text.trim()) return empty;
     let events;
     try {
       const sentences = splitSentences(text);
@@ -71,11 +84,31 @@ export function makeCastResolver({ splitSentences, extractSurfaces, discoverRefe
       events = discoverReferents(surfaces, { minSentences: 0 }).events;
     } catch {
       // An organ refusing (script it doesn't apply to, empty material) means
-      // no cast — the resolver declines and the byte check stands alone.
-      return () => false;
+      // no cast — the index is empty and the byte check stands alone.
+      return empty;
     }
-    if (!events.length) return () => false;
-    return function resolveName(name) {
+    if (!events.length) return empty;
+
+    const best = new Map(); // referent_id -> longest established surface
+    for (const e of events) {
+      const prev = best.get(e.referent_id);
+      if (!prev || e.surface.length > prev.length) best.set(e.referent_id, e.surface);
+    }
+
+    // Prefix tolerance exists for stems and inflections, and four
+    // characters is the shortest thing that can be a stem rather than a
+    // coincidence — the same MIN_STEM grounding.js earned. Without the
+    // floor, a bare initial covered a whole surname: material writing
+    // only "Pierre B." supported "Pierre Bezukhov", crediting the model
+    // with a surname the material never wrote. Found by asking the gate
+    // the abbreviation question directly (II.10: a check is verified
+    // against what it must reject).
+    const MIN_STEM = 4;
+    const covers = (s, p) =>
+      s === p ||
+      (Math.min(s.length, p.length) >= MIN_STEM && (s.startsWith(p) || p.startsWith(s)));
+
+    function resolve(name) {
       // Two tests, both required, because they answer different questions.
       // namesCorefer — the engine's own sameness test, so what counts as
       // "the same name" cannot drift between discovery and support. But
@@ -93,25 +126,31 @@ export function makeCastResolver({ splitSentences, extractSurfaces, discoverRefe
       // itself, and closes only when a received prior with a named giver
       // supplies it. This resolver is the seam where that prior will plug
       // in; it does not pretend to be the prior.
+      const ids = new Set();
       const parts = diaNorm(name).split(/\s+/).filter((t) => t.length > 2);
-      if (!parts.length) return false;
-      // Prefix tolerance exists for stems and inflections, and four
-      // characters is the shortest thing that can be a stem rather than a
-      // coincidence — the same MIN_STEM grounding.js earned. Without the
-      // floor, a bare initial covered a whole surname: material writing
-      // only "Pierre B." supported "Pierre Bezukhov", crediting the model
-      // with a surname the material never wrote. Found by asking the gate
-      // the abbreviation question directly (II.10: a check is verified
-      // against what it must reject).
-      const MIN_STEM = 4;
-      const covers = (s, p) =>
-        s === p ||
-        (Math.min(s.length, p.length) >= MIN_STEM && (s.startsWith(p) || p.startsWith(s)));
-      return events.some((e) => {
-        if (!namesCorefer(name, e.surface)) return false;
+      if (!parts.length) return ids;
+      for (const e of events) {
+        if (!namesCorefer(name, e.surface)) continue;
         const surfaceTokens = diaNorm(e.surface).split(/\s+/);
-        return parts.every((p) => surfaceTokens.some((s) => covers(s, p)));
-      });
+        if (parts.every((p) => surfaceTokens.some((s) => covers(s, p)))) ids.add(e.referent_id);
+      }
+      return ids;
+    }
+
+    return { events, referents: new Set(best.keys()), resolve, represent: (id) => best.get(id) ?? null };
+  };
+}
+
+export function makeCastResolver(organs) {
+  const indexFor = makeReferentIndex(organs);
+  return function castFor(passages) {
+    const index = indexFor(passages);
+    if (!index.events.length) return () => false;
+    // The resolver is the index's boolean face: a name is supported exactly
+    // when it resolves to at least one referent. One implementation, two
+    // projections — support and identity cannot drift.
+    return function resolveName(name) {
+      return index.resolve(name).size > 0;
     };
   };
 }

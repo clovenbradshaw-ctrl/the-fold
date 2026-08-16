@@ -389,6 +389,64 @@ same server that runs builds); a page served from explore-server's 8812
 reports the miss to the console, the same posture `/api/run` already has
 there.
 
+## The grounding ladder (added 2026-08-16, fifth pass) — what was decided, so it is not re-derived
+
+The P12 amendment (hypergraph wired) and the P13 amendment (proof-seeking)
+are the law; this is the map. The organizing idea, from the user directly:
+grounding is not about never being wrong — it is the visible EFFORT of
+reading the output against objective phenomena, where objectivity is the
+asymptotic approach toward truth from different perspectives. So support is
+never a bit anywhere in this ladder: it is counted perspectives, typed
+verdicts, and disclosed limits.
+
+**The ladder, bottom to top.** (1) address tier — `checkCitations` /
+`attribute` (unchanged); (2) atom tier — `checkGrounding` for absence,
+`corroborateAtoms` (grounding.js) for STRENGTH: every checkable atom with
+the passages that state it, refs and distinct sources counted apart because
+two chunks of one file are one perspective; (3) relation tier —
+`hypergraph.js`, NEW: the material's own edges (engine organs, injected —
+`discoverRelationVocab` / `extractRelations` / the referent index) versus
+the answer read with the SAME organs, five typed verdicts (bound /
+contradicted / unbound / beyond-reach / unheard — the field's own
+convergence: FEVER, SAFE, AIS all keep ≥3 verdicts plus a refusal); (4) the
+world — `proof.js` pure + the P13 egress: flagged claims searched on their
+own words, pages judged by the same containment fold, verdicts as counted
+hosts with the syndication residue named.
+
+**Files.** `hypergraph.js` (+9-case `hypergraph.test.mjs`, against the
+REAL engine organs); `proof.js` (+`proof.test.mjs`, offline, with the seam
+test extended to app.js/index.html); `cast.js` grew `makeReferentIndex`
+(identity face of the resolver — ONE implementation of "the same name",
+the resolver is now its boolean projection); `grounding.js` grew
+`blankStructure` (shared furniture-blanking, length-preserving) and
+`corroborateAtoms`; `provenance.js::classifySentences` takes relation
+claims as a fourth argument and rides them on each sentence as `edges`;
+holon.js injects the reader per part (`makeRelationReader`), merges
+contradicted/unbound into `unsupported` (driving the existing bounded
+correction), and returns the report per section; app.js draws badges
+(`⇄ contradicted` / `∅ never bound`, click → the passage the material DOES
+bind), the tally line's relation counts, and the grounding disclosure
+(claim rows with click-through chips, corroboration counts, per-claim
+"seek proof online", auto-seek behind the default-off settings toggle).
+
+**Decisions that cost something, kept here.** The closed class for the
+relation vocabulary is measured from the POOL via cite.js's `commonTerms`
+(CORPUS_MINIMUM floor), NOT material.js's `functionWordSet` at turn scale —
+its token-share threshold degenerates on excerpts (measured: "married"
+classified as a function word on a three-passage set). `minSurfaces` is 1,
+justified structurally (a wider vocabulary can only widen what the reader
+HEARS, never fabricate an edge) — never walked against a golden.
+Beyond-reach and unheard stay OFF the record's unsupported list: limits of
+the instrument must not punish the answer. A verb that only ever appears
+negated never enters the vocabulary (the candidate slot holds "never") —
+it enters through an affirmative use elsewhere; the extractor is the
+engine's declared heuristic and its residues (subordinate "that" clauses
+consuming an edge, a colon overrunning the polarity window) are engine
+territory, not silently patched here. Proof-seeking is sequential, never a
+fan-out burst; the per-claim click is its own authorization and the toggle
+is the standing one; nothing anywhere phrases a web verdict stronger than
+"stated by N of M pages (K distinct hosts)".
+
 ## Skills (added 2026-08-16, third pass) — procedures kept as code
 
 P14 in POLICIES.md is the law; this is the map. The ask this answers: when

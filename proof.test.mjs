@@ -1,0 +1,164 @@
+// node --test proof.test.mjs
+//
+// The pure half of proof-seeking, tested offline — the web.js discipline:
+// no fixture here ever came from a live call inside a test, and no test
+// ever touches the network. The one seam test at the bottom pins that the
+// chat page's own files still name no non-local host (P13's wall).
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+import {
+  PROOF_PAGES_CONSULTED,
+  PROOF_TARGETS_PER_TURN,
+  assessPage,
+  foldProof,
+  proofQuery,
+  proofTargets,
+} from "./proof.js";
+import { checkGrounding } from "./grounding.js";
+
+test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
+  const q = proofQuery({
+    kind: "name",
+    text: "Kessington Report",
+    tokens: ["Kessington", "Report"],
+    sentence: "The Kessington Report was commissioned by the Marrowfen Harbour Board in 1974.",
+  });
+  assert.ok(q.startsWith('"Kessington Report"'), q);
+  assert.ok(/Marrowfen|Harbour|commissioned/.test(q), q);
+  // Stopwords and the atom's own words do not repeat in the tail.
+  assert.ok(!/\bthe\b/.test(q.replace(/"[^"]*"/, "")), q);
+  // A single-token atom is not quoted — there is no phrase to hold together.
+  assert.ok(!proofQuery({ kind: "number", text: "1974", tokens: ["1974"], sentence: "" }).includes('"'));
+});
+
+test("a page states a claim by the same containment rule the local check uses", () => {
+  const claim = {
+    kind: "name",
+    text: "Marrowfen Harbour Board",
+    tokens: ["Marrowfen", "Harbour", "Board"],
+    sentence: "The Marrowfen Harbour Board commissioned the report in 1974.",
+  };
+  const page = "The harbour works at Marrowfen were overseen by the Harbour Board from 1974 onward.";
+  const a = assessPage(claim, page);
+  assert.equal(a.stated, true, JSON.stringify(a));
+  assert.ok(a.context.shared > 0);
+  assert.ok(a.context.of >= a.context.shared);
+
+  // Absent stays absent, and the fold applies on both sides — an accented
+  // page supports a plain-typed claim (P11's first consequence).
+  const miss = assessPage(claim, "Nothing about harbours here at all.");
+  assert.equal(miss.stated, false);
+  assert.ok(miss.absent.includes("Marrowfen"));
+  const folded = assessPage(
+    { kind: "name", text: "Helene", tokens: ["Helene"], sentence: "" },
+    "Pierre married Hélène in Petersburg.",
+  );
+  assert.equal(folded.stated, true);
+
+  // A figure is a figure: matched as a number, not a word.
+  const fig = assessPage({ kind: "number", text: "12", tokens: ["12"], sentence: "" }, "The rate was 12 percent.");
+  assert.equal(fig.stated, true);
+  assert.equal(assessPage({ kind: "number", text: "21", tokens: ["21"], sentence: "" }, "The rate was 12 percent.").stated, false);
+});
+
+test("the fold counts perspectives and never says true", () => {
+  const claim = { kind: "name", text: "Marrowfen", tokens: ["Marrowfen"], sentence: "" };
+  const page = (url, stated, gap = null) =>
+    gap
+      ? { url, gap }
+      : { url, assessment: { stated, absent: stated ? [] : ["Marrowfen"], context: { shared: 1, of: 2 } } };
+  const out = foldProof(claim, {
+    query: "Marrowfen",
+    pages: [
+      page("https://en.wikipedia.org/wiki/Marrowfen", true),
+      page("https://www.example.org/marrowfen-history", true),
+      page("https://other.net/unrelated", false),
+      page("https://blocked.site/x", false, { silence: "not-present", detail: "timeout" }),
+    ],
+  });
+  assert.equal(out.verdict, "web-corroborated");
+  assert.equal(out.consulted, 3);
+  assert.equal(out.failed, 1);
+  assert.equal(out.stating.length, 2);
+  // Independence is distinct hosts, and the residue is NAMED on the result.
+  assert.equal(out.independence.hosts, 2);
+  assert.match(out.independence.basis, /syndication/);
+  // Natural-frequency phrasing: counted perspectives, no verdict of truth.
+  assert.match(out.sentence, /2 of 3 page/);
+  assert.ok(!/\btrue\b/i.test(out.sentence));
+
+  // Zero statings is uncorroborated — a counted fact, not falsity.
+  const none = foldProof(claim, { query: "q", pages: [page("https://a.com/1", false), page("https://b.com/2", false)] });
+  assert.equal(none.verdict, "web-uncorroborated");
+  assert.match(none.sentence, /0 of 2/);
+});
+
+test("a failed crossing is a gap, not a zero", () => {
+  const claim = { kind: "name", text: "Marrowfen", tokens: ["Marrowfen"], sentence: "" };
+  const refused = foldProof(claim, { query: "q", gap: { silence: "refused-upstream", detail: "bot challenge" } });
+  assert.equal(refused.verdict, "refused-upstream");
+  assert.equal(refused.consulted, 0);
+  assert.ok(refused.gap);
+  const allFailed = foldProof(claim, {
+    query: "q",
+    pages: [{ url: "https://a.com", gap: { silence: "not-present", detail: "timeout" } }],
+  });
+  assert.equal(allFailed.verdict, "not-consulted");
+  assert.equal(allFailed.failed, 1);
+});
+
+test("proof targets come from the turn's own checks, ordered by need, deduplicated", () => {
+  const passages = [{ ref: "k.txt#0-90", text: "The report put the silting figure at 12 percent per decade." }];
+  const grounding = checkGrounding(
+    "The Kessington Report said 21 percent. Bryan TX PD cited the Kessington Report too.",
+    passages,
+    {},
+  );
+  const relationReport = {
+    claims: [
+      { sentence: "Pierre married Dolokhov.", subject: "Pierre", verb: "married", object: "Dolokhov", verdict: "unbound" },
+      { sentence: "Pierre loved Helene.", subject: "Pierre", verb: "loved", object: "Helene", verdict: "contradicted" },
+      { sentence: "He spoke.", subject: "He", verb: "spoke", object: "x", verdict: "beyond-reach" },
+    ],
+  };
+  const targets = proofTargets({ findings: grounding.findings, relationReport });
+  // Contradicted first — the material actively disagrees, so a second
+  // perspective matters most there.
+  assert.equal(targets[0].why, "contradicted");
+  assert.ok(targets.some((t) => t.why === "unsupported"));
+  assert.ok(targets.some((t) => t.why === "unbound"));
+  // beyond-reach is a limit of the instrument, never a crossing.
+  assert.ok(!targets.some((t) => /spoke/.test(t.text)));
+  // The Kessington Report appears in two sentences and is ONE thing to look up.
+  const kess = targets.filter((t) => /Kessington/.test(t.text));
+  assert.equal(kess.length, 1);
+  // Every target carries the sentence it stood in, for the query's context.
+  assert.ok(targets.every((t) => t.why !== "unsupported" || typeof t.sentence === "string"));
+});
+
+test("the declared budgets are declarations", () => {
+  assert.equal(PROOF_PAGES_CONSULTED, 3);
+  assert.equal(PROOF_TARGETS_PER_TURN, 4);
+});
+
+test("seam: the chat page's own files still fetch nothing remote", () => {
+  // The same wall web.test.mjs pins for the Explore files, held here for
+  // the files proof-seeking touches: every host named is localhost. The
+  // egress stays in explore-server.mjs, where P13 put it.
+  for (const file of ["proof.js", "app.js", "index.html"]) {
+    const text = readFileSync(new URL(file, import.meta.url), "utf8");
+    const hosts = [...text.matchAll(/https?:\/\/([^\s"'`/<)]+)/g)].map((m) => m[1]);
+    for (const h of hosts) {
+      assert.ok(
+        // www.w3.org appears only inside SVG xmlns attributes — a namespace
+        // identifier, never fetched (the same exception II.13's own scan
+        // makes in constitution.test.mjs).
+        /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h) || h === "www.w3.org",
+        `${file} names a non-local host: ${h}`,
+      );
+    }
+  }
+});

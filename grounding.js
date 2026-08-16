@@ -25,7 +25,7 @@
 
 import { foldDiacritics } from "./source.js";
 
-const CLAIM_STOPWORDS = new Set([
+export const CLAIM_STOPWORDS = new Set([
   "the",
   "a",
   "an",
@@ -442,6 +442,70 @@ const MAX_FINDINGS = 40;
 const ADDRESS = /\[?[^\s\]]+#\d+-\d+\]?/g;
 
 /**
+ * The answer with its structure blanked, length preserved: headings,
+ * line-initial bold labels, and bracketed addresses are the model's own
+ * scaffolding, not claims (the measured cases live in checkGrounding's
+ * comment below). Exported because every organ that reads CLAIMS out of an
+ * answer must skip the same furniture — the relation tier (hypergraph.js)
+ * shares this, or a Title-Case heading would read as a subject and a byte
+ * address as a figure. Length-preserving so every offset an extractor
+ * reports lands in the original answer's own coordinate space.
+ */
+export function blankStructure(answer) {
+  const blank = (m) => " ".repeat(m.length);
+  return String(answer)
+    .replace(/^[ \t]*#{1,6}[^\n]*$/gm, blank)
+    .replace(/^[ \t]*\*\*[^\n*]+\*\*[ \t]*:?[ \t]*$/gm, blank)
+    // A line-initial bold phrase with a colon is a heading even when prose
+    // follows on the same line ("**Anatole's Effect:** she felt…").
+    .replace(/^([ \t]*)\*\*[^\n*]+:\*\*|^([ \t]*)\*\*[^\n*]+\*\*:/gm, blank)
+    .replace(ADDRESS, blank);
+}
+
+/**
+ * Every checkable atom in the answer with the passages that STATE it — the
+ * corroboration face of the same walk checkGrounding does. Where
+ * checkGrounding asks "is anything absent from the union", this asks "how
+ * many of the offered passages, across how many distinct sources, state each
+ * atom" — because support is not a bit. A figure one passage states and a
+ * figure four passages from three sources state are different strengths of
+ * ground, and the difference is the whole methodology: the approach toward
+ * truth is asymptotic, through agreeing perspectives that are actually
+ * independent. `sources` counts distinct source files (the ref before `#`),
+ * which is this instrument's honest independence test for local material —
+ * two chunks of one file are one perspective, not two.
+ *
+ * Read-only companion to checkGrounding, never a replacement: an atom with
+ * empty `refs` here is the same fact as a finding there.
+ */
+export function corroborateAtoms(answer, passages) {
+  if (!passages?.length) return { examined: false, atoms: [] };
+  const per = passages.map((p) => ({
+    ref: p.ref ?? null,
+    source: String(p.ref ?? "").split("#")[0] || null,
+    index: buildUnionIndex([p]),
+  }));
+  const atoms = [];
+  for (const s of splitSentences(blankStructure(answer))) {
+    for (const atom of extractAtoms(s.text, s.start)) {
+      const supporters = per.filter(({ index }) =>
+        atom.tokens.every((t) => tokenSupported(index, atom.kind === "number", t)),
+      );
+      atoms.push({
+        kind: atom.kind,
+        text: atom.text,
+        start: atom.start,
+        end: atom.end,
+        sentence: s.text,
+        refs: supporters.map((x) => x.ref).filter(Boolean),
+        sources: [...new Set(supporters.map((x) => x.source).filter(Boolean))],
+      });
+    }
+  }
+  return { examined: true, atoms };
+}
+
+/**
  * Every figure and name in the answer, checked against everything the turn was
  * handed.
  *
@@ -469,17 +533,10 @@ export function checkGrounding(answer, passages, { question = "", resolveName = 
   // invention while the real drift (an invented novel title) sits in the
   // noise. Heading lines — # markers, and lines that are entirely a bold
   // phrase — are the model's own scaffolding and are blanked (length
-  // preserved) before atoms are extracted. A name INSIDE a body sentence is
-  // still checked; only the furniture is exempt.
-  const deHeaded = String(answer)
-    .replace(/^[ \t]*#{1,6}[^\n]*$/gm, (m) => " ".repeat(m.length))
-    .replace(/^[ \t]*\*\*[^\n*]+\*\*[ \t]*:?[ \t]*$/gm, (m) => " ".repeat(m.length))
-    // A line-initial bold phrase with a colon is a heading even when prose
-    // follows on the same line ("**Anatole's Effect:** she felt…" — measured
-    // in run 2, turn 38). Only the bold span is blanked; a bold NAME inside
-    // a sentence has no colon and is untouched.
-    .replace(/^([ \t]*)\*\*[^\n*]+:\*\*|^([ \t]*)\*\*[^\n*]+\*\*:/gm, (m) => " ".repeat(m.length));
-  const sentences = splitSentences(deHeaded.replace(ADDRESS, " "));
+  // preserved) before atoms are extracted (blankStructure, above — shared
+  // with the relation tier, hypergraph.js). A name INSIDE a body sentence
+  // is still checked; only the furniture is exempt.
+  const sentences = splitSentences(blankStructure(answer));
   const findings = [];
   let atomsChecked = 0;
 
@@ -504,6 +561,10 @@ export function checkGrounding(answer, passages, { question = "", resolveName = 
         absent,
         start: atom.start,
         end: atom.end,
+        // The sentence the claim stands in, carried so a proof-seeker can
+        // search on the claim's own context (proof.js) without re-locating
+        // it — the same words, no paraphrase.
+        sentence: s.text,
         // A name the question itself supplied is the model repeating the
         // asker, not inventing a source — worth knowing when reading a finding.
         echoesQuestion: atom.tokens.every((t) => questionWords.has(t.toLowerCase())),

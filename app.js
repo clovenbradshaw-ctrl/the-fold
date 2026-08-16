@@ -100,6 +100,34 @@ import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
 import { makeCastResolver, makeCastHandles } from "./cast.js";
 
+// The relation tier — the answer read against the edges the material itself
+// binds (hypergraph.js; the P12 amendment). Same mount, same injection
+// pattern: the engine's relation organs arrive as arguments and the module
+// stays pure and node-testable.
+// NOT material.js: it imports "fs" at top level (Node-only load()), and this
+// page has no bundler to stub it — the tokenizer the reader needs is this
+// repo's own folded one (source.js), which is also the fold retrieval and
+// commonTerms already share, so the closed-class measure and the corpus's
+// own term sets stay one alphabet.
+import { discoverRelationVocab, extractRelations } from "/engine/perceiver/text/relations.js";
+import { makeRelationReader } from "./hypergraph.js";
+import { corroborateAtoms } from "./grounding.js";
+
+// Proof-seeking: a flagged claim taken to the world through the one
+// sanctioned egress (P13, explore-server's /api/web/*). proof.js is the
+// pure half — queries from the claim's own words, verdicts as counted
+// perspectives; this page only carries bytes between the two.
+import {
+  PROOF_PAGES_CONSULTED,
+  PROOF_TARGETS_PER_TURN,
+  assessPage,
+  foldProof,
+  proofQuery,
+  proofTargets,
+} from "./proof.js";
+import { hostOf } from "./web.js";
+import { EXPLORE_BASE } from "./explore-bridge.js";
+
 // The engine's surprise ladder — the measured answer to "what is most
 // surprising", and the only licensed one. Same mount, plus /nul for the
 // null module tiers.js stands on (serve.mjs carries both).
@@ -134,6 +162,20 @@ const handlesFor = makeCastHandles({
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
+});
+
+// The relation reader's factory — one per passage set, pool = the live
+// corpus (the closed-class measure needs the corpus's scale, not the
+// turn's; hypergraph.js says why).
+const relationsFor = makeRelationReader({
+  splitSentences: engineSentences,
+  extractSurfaces,
+  discoverReferents,
+  namesCorefer,
+  diaNorm,
+  discoverRelationVocab,
+  extractRelations,
+  tokenize,
 });
 
 // One meter per conversation, built on the engine's own tiers. reflex.js
@@ -173,6 +215,16 @@ const state = {
   offeredModels: [],
   ready: false,
   busy: false,
+
+  /**
+   * Proof-seeking consent (P13's amendment): when on, a turn's flagged
+   * claims are taken to the web automatically, up to the declared budget
+   * (PROOF_TARGETS_PER_TURN), through the explore server's recorded egress.
+   * DEFAULT OFF — turning it on is the explicit standing act that
+   * authorizes the crossings, and it is the user's, never inferred. The
+   * per-claim button works either way: a click is its own authorization.
+   */
+  webProof: localStorage.getItem("fold-web-proof") === "on",
 
   /**
    * The pace ledger and the model's declared window. The ledger is fed by
@@ -1072,6 +1124,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       call: (messages, opts) => complete(messages, { ...opts, model: turnModel }),
       foldedRefs,
       makeNameResolver: castFor,
+      makeRelationReader: relationsFor,
       planMode,
       // The discourse slice: one line, not the carried block. Topic, flow,
       // entities — what a part needs to resolve "he" and "the report";
@@ -1223,7 +1276,9 @@ async function holonicTurn(task, typed = task, planMode = "model") {
 
   // The answer renders before the summary refresh so an artifact built from
   // it is stamped with THIS turn's number, not the next one's.
-  renderAnswer(body, result.output, offered, attributions, result.sections.flatMap((s) => s.grounding?.findings ?? []));
+  const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
+  const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
+  renderAnswer(body, result.output, offered, attributions, findings, relationClaims);
   await refreshSummary(fold);
   renderFold(node, { fold, record, ran: log });
   renderThreads();
@@ -1231,6 +1286,16 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   // description, so the task's terms alone would call honest matches misses.
   const evidenceQuestion = `${task} ${result.plan.parts.map((p) => `${p.label} ${p.description}`).join(" ")}`;
   renderEvidence(node, evidenceQuestion, offered, result.refs, null);
+  // The grounding inspector: every claim with its typed verdict, its
+  // corroboration counted across passages and sources, its click-through
+  // addresses, and its door to the world (proof-seeking). Read off the
+  // checks the parts already ran — drawn, never re-measured.
+  renderGrounding(node, {
+    answer: result.output,
+    offered,
+    findings,
+    relations: result.sections.map((s) => s.relations).filter(Boolean),
+  });
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;
@@ -1271,10 +1336,10 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = [], findings = []) {
+function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = []) {
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
-  const classified = classifySentences(answer, attributions, findings);
+  const classified = classifySentences(answer, attributions, findings, relationClaims);
   // One chip per RUN of sentences standing on the same address — a verbatim
   // stretch attributed sentence-by-sentence to one passage drew fourteen
   // identical chips through the prose (measured live; the reader called it
@@ -1321,12 +1386,19 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
     const claims = classified.filter((e) => e.absent.length).length;
     const m = classified.filter((e) => e.ground === "material" && !e.absent.length).length;
     const voice = classified.filter((e) => e.ground === "model" && !e.absent.length).length;
+    // The relation tier's counts, from the same classification. Bound edges
+    // are quiet support; contradicted and unbound are the news.
+    const edges = classified.flatMap((e) => e.edges ?? []);
+    const bound = edges.filter((c) => c.verdict === "bound").length;
+    const broken = edges.filter((c) => c.verdict === "contradicted" || c.verdict === "unbound").length;
     const tally = document.createElement("p");
-    tally.className = `fold-note grounds${claims ? " bad" : ""}`;
+    tally.className = `fold-note grounds${claims || broken ? " bad" : ""}`;
     tally.textContent =
       `standing on the material: ${m} sentence(s)` +
       (voice > 0 ? ` · the model's voice: ${voice}` : "") +
-      (claims ? ` · stating unbacked facts: ${claims}` : "");
+      (claims ? ` · stating unbacked facts: ${claims}` : "") +
+      (bound ? ` · relations the material binds: ${bound}` : "") +
+      (broken ? ` · relations it does not: ${broken}` : "");
     body.append(tally);
   }
 }
@@ -1549,6 +1621,31 @@ function taggedProse(text, offered, classified = []) {
         : "Attached by this app against a measured null. Press to read the bytes.";
       b.onclick = () => reopen(entry.ref);
       sent.append(b);
+    }
+
+    // The relation tier's verdicts, in-line: a contradicted or unbound edge
+    // gets a badge on the sentence that states it — the verdict must be
+    // readable WITHOUT clicking anything (measured in the field: ~1% of
+    // readers ever click a citation, so a flag that lives behind a click
+    // does not exist). Bound edges stay quiet here — support is the normal
+    // case, counted in the tally and detailed in the grounding disclosure.
+    for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || c.verdict === "unbound")) {
+      const badge = document.createElement("button");
+      badge.className = `edge-badge ${c.verdict}`;
+      badge.textContent = c.verdict === "contradicted" ? "⇄ contradicted" : "∅ never bound";
+      const near = c.verdict === "contradicted" ? c.bound?.[0] : c.nearest?.[0];
+      badge.title =
+        `${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}: ` +
+        (c.verdict === "contradicted"
+          ? `the material binds this edge with the OPPOSITE polarity.`
+          : `every word is in the material, but the text never binds this edge.`) +
+        (near ? ` It binds: ${near.subject} —${near.verb}→ ${near.object}. Press to read that passage.` : " Press to search the material.");
+      badge.onclick = () => {
+        const ref = near?.refs?.[0];
+        if (ref) reopen(ref);
+        else groundHunt(`${c.subject} ${c.verb} ${c.object}`);
+      };
+      sent.append(badge);
     }
     out.push(sent);
     rest = rest.slice(at + len);
@@ -2193,6 +2290,235 @@ function renderEvidence(node, question, passages, used, grounding, label = "mate
   box.append(...parts);
 }
 
+// ── the grounding inspector, and the door to the world ──────────────────────
+
+/** One POST to the explore server's recorded egress (P13). The page carries
+ * bytes; the server owns the network and the record. */
+async function webApi(path, payload) {
+  const res = await fetch(`${EXPLORE_BASE}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`${path} answered ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Take one flagged claim to the world: search on the claim's own words,
+ * read the top pages through the recorded fetch, judge each saved text
+ * face by the same containment rule the claim failed locally, and fold
+ * the result into counted perspectives. Every step that fails arrives as
+ * a typed gap; nothing is dropped.
+ */
+async function seekProof(target) {
+  const query = proofQuery(target);
+  let search;
+  try {
+    search = await webApi("/api/web/search", { query });
+  } catch (e) {
+    return foldProof(target, {
+      query,
+      gap: { silence: "not-present", detail: `the explore server is not reachable: ${e.message}` },
+    });
+  }
+  if (search.gap) return foldProof(target, { query, gap: search.gap });
+  const picks = (search.results ?? []).slice(0, PROOF_PAGES_CONSULTED);
+  if (!picks.length)
+    return foldProof(target, { query, gap: { silence: "not-present", detail: "the search returned no results" } });
+  const pages = [];
+  for (const r of picks) {
+    try {
+      const f = await webApi("/api/web/fetch", { url: r.url });
+      if (f.gap || !f.entry?.textPath) {
+        pages.push({ url: r.url, gap: f.gap ?? { silence: "not-present", detail: "the page has no text face" } });
+        continue;
+      }
+      const url = f.entry.finalUrl ?? r.url;
+      const text = await (await fetch(`${EXPLORE_BASE}/${f.entry.textPath}`)).text();
+      pages.push({
+        url,
+        host: hostOf(url),
+        title: f.entry.title ?? r.title ?? null,
+        textPath: f.entry.textPath,
+        ...(f.entry.challenge ? { challenge: true } : {}),
+        assessment: assessPage(target, text),
+      });
+    } catch (e) {
+      pages.push({ url: r.url, gap: { silence: "not-present", detail: e.message } });
+    }
+  }
+  const out = foldProof(target, { query, pages });
+  logAct("proofed", {
+    claim: target.text,
+    verdict: out.verdict,
+    consulted: out.consulted,
+    hosts: out.independence?.hosts ?? 0,
+  });
+  return out;
+}
+
+/** Draw a proof verdict into its slot: the counted sentence, then one line
+ * per stating page — the live address as a user-followed anchor, the saved
+ * text face beside it (the bytes this verdict was actually judged on). */
+function renderProofResult(slot, out) {
+  slot.textContent = "";
+  const line = document.createElement("span");
+  line.className = `proof-verdict ${out.verdict}`;
+  line.textContent = out.sentence;
+  slot.append(line);
+  for (const p of out.stating ?? []) {
+    const row = document.createElement("span");
+    row.className = "proof-page";
+    const a = document.createElement("a");
+    a.href = p.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = p.host + (p.title ? ` — ${p.title}` : "");
+    row.append(a);
+    if (p.textPath) {
+      const saved = document.createElement("a");
+      saved.href = `${EXPLORE_BASE}/${p.textPath}`;
+      saved.target = "_blank";
+      saved.rel = "noopener";
+      saved.textContent = "saved bytes";
+      saved.title = "The text face this verdict was judged against, as kept by the fetch record.";
+      row.append(saved);
+    }
+    if (p.context) {
+      const ctx = document.createElement("em");
+      ctx.textContent = `shares ${p.context.shared} of ${p.context.of} of the sentence's words`;
+      row.append(ctx);
+    }
+    slot.append(row);
+  }
+}
+
+/**
+ * The grounding disclosure for a finished turn — the same single fold
+ * affordance everything else opens from. Three parts, all read off checks
+ * the turn already ran: the relation tier's verdicts (with click-through
+ * to the addresses that bind or contradict each edge), the corroboration
+ * count for every checkable atom (support graded by independent
+ * perspectives, never a bit), and — for what the material does not back —
+ * the door to the world: proof-seeking per claim, automatic up to the
+ * declared budget when the consent toggle is on.
+ */
+function renderGrounding(node, { answer, offered, findings = [], relations = [] }) {
+  const box = node.querySelector(".turn-meta > .fold p");
+  if (!box) return;
+  const parts = [];
+
+  // The relation tier's own state, disclosed either way: what it measured,
+  // or that it could not run — an omitted tier must stay visible.
+  const reports = relations.filter((r) => r?.examined);
+  const claims = reports.flatMap((r) => r.claims ?? []);
+  const measured = reports.filter((r) => !r.vocabulary?.gap);
+  if (reports.length) {
+    const edgeCount = new Set(measured.flatMap((r) => (r.edges ?? []).map((e) => `${e.subject}|${e.verb}|${e.object}`))).size;
+    parts.push(
+      section(
+        measured.length
+          ? `relations · ${edgeCount} edge(s) the material binds · ${claims.length} claim(s) read against them`
+          : `relations · ${reports[0].vocabulary.gap}`,
+      ),
+    );
+  }
+  const verdictOrder = { contradicted: 0, unbound: 1, bound: 2, unheard: 3, "beyond-reach": 4 };
+  for (const c of [...claims].sort((a, b) => (verdictOrder[a.verdict] ?? 9) - (verdictOrder[b.verdict] ?? 9))) {
+    const row = document.createElement("p");
+    row.className = `fold-note claim-row ${c.verdict}${c.verdict === "contradicted" || c.verdict === "unbound" ? " bad" : ""}`;
+    const mark = { bound: "✓", contradicted: "⇄", unbound: "∅", unheard: "…", "beyond-reach": "…" }[c.verdict] ?? "·";
+    const head = document.createElement("span");
+    head.textContent = `${mark} ${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object} · ${c.verdict}`;
+    row.append(head);
+    if (c.verdict === "bound") {
+      const cor = document.createElement("em");
+      cor.textContent = ` stated by ${c.corroboration.passages} passage(s) across ${c.corroboration.sources} source(s)`;
+      row.append(cor);
+    }
+    if (c.reason) {
+      const why = document.createElement("em");
+      why.textContent = ` ${c.reason}`;
+      row.append(why);
+    }
+    for (const ref of c.refs ?? []) {
+      const b = document.createElement("button");
+      b.className = "ref";
+      b.textContent = chipText(ref);
+      b.title = `${ref} — read the passage this verdict stands on`;
+      b.onclick = () => reopen(ref);
+      row.append(b);
+    }
+    const near = c.verdict === "contradicted" ? c.bound : c.nearest;
+    for (const n of near ?? []) {
+      const nb = document.createElement("button");
+      nb.className = "ref attached";
+      nb.textContent = `binds: ${n.subject} —${n.verb}→ ${n.object}`;
+      nb.title = n.refs?.[0] ? `${n.refs[0]} — what the material states instead` : "what the material states instead";
+      if (n.refs?.[0]) nb.onclick = () => reopen(n.refs[0]);
+      row.append(nb);
+    }
+    parts.push(row);
+  }
+
+  // Atom corroboration: support as counted perspectives. The summary line
+  // carries the distribution; the strongest and the unsupported are named.
+  const cor = corroborateAtoms(answer, offered);
+  if (cor.examined && cor.atoms.length) {
+    const multi = cor.atoms.filter((a) => a.sources.length >= 2).length;
+    const single = cor.atoms.filter((a) => a.refs.length >= 1 && a.sources.length < 2).length;
+    const none = cor.atoms.filter((a) => !a.refs.length).length;
+    parts.push(
+      section(
+        `corroboration · of ${cor.atoms.length} checkable atom(s): ${multi} stated by ≥2 sources, ${single} by one, ${none} by none`,
+      ),
+    );
+  }
+
+  // The door to the world, one row per flagged claim. A click is its own
+  // authorization; the toggle (default off) authorizes the automatic pass,
+  // bounded by PROOF_TARGETS_PER_TURN with the bound visible.
+  const targets = proofTargets({ findings, relationReport: { claims } });
+  if (targets.length) {
+    parts.push(
+      section(
+        `proof-seeking · ${targets.length} claim(s) the material does not back` +
+          (state.webProof
+            ? ` · seeking automatically (first ${Math.min(targets.length, PROOF_TARGETS_PER_TURN)})`
+            : " · off — press per claim, or turn on seeking in settings"),
+      ),
+    );
+  }
+  const autorun = [];
+  targets.forEach((t, i) => {
+    const row = document.createElement("p");
+    row.className = "fold-note proof-row";
+    const label = document.createElement("span");
+    label.textContent = `${t.kind === "number" ? "figure" : t.kind === "edge" ? "edge" : "name"} ${t.text} (${t.why}) `;
+    row.append(label);
+    const slot = document.createElement("span");
+    slot.className = "proof-slot";
+    const go = document.createElement("button");
+    go.className = "ref";
+    go.textContent = "seek proof online";
+    go.title = `Searches the web on this claim's own words through the recorded egress: ${proofQuery(t)}`;
+    go.onclick = async () => {
+      go.disabled = true;
+      slot.textContent = "consulting…";
+      renderProofResult(slot, await seekProof(t));
+    };
+    row.append(go, slot);
+    parts.push(row);
+    if (state.webProof && i < PROOF_TARGETS_PER_TURN) autorun.push(() => go.onclick());
+  });
+
+  box.append(...parts);
+  // Sequential, not parallel: the egress is one server doing recorded
+  // crossings, and a turn must not fan out a burst of them.
+  if (autorun.length) (async () => { for (const run of autorun) await run(); })();
+}
+
 /**
  * One renderer for both kinds of artifact — the ones read out of an answer and
  * the ones this app builds from its own rows. A table assembled mechanically
@@ -2821,6 +3147,23 @@ for (const id of ["reopen", "settings"]) {
 
 $("settings-toggle").onclick = () => openSettings(true);
 $("settings-close").onclick = () => openSettings(false);
+
+// Proof-seeking consent: the checkbox IS the standing authorization (P13's
+// amendment), persisted so the choice survives a reload, changeable any
+// time. The state it writes is read per turn — never mid-crossing.
+{
+  const box = $("web-proof");
+  if (box) {
+    box.checked = state.webProof;
+    box.onchange = () => {
+      state.webProof = box.checked;
+      localStorage.setItem("fold-web-proof", box.checked ? "on" : "off");
+      $("status").textContent = box.checked
+        ? "proof-seeking on — flagged claims will be searched through the recorded egress"
+        : "proof-seeking off — the per-claim button still works, one click per crossing";
+    };
+  }
+}
 // Nothing is connected yet, so the first thing to do is the only thing on
 // offer — open it rather than making the chip a scavenger hunt.
 if (!state.ready) openSettings(true);

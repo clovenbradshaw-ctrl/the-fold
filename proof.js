@@ -1,0 +1,222 @@
+// proof.js — the pure half of proof-seeking: turning a flagged claim into a
+// search of the world, and a fetched page into a typed corroboration verdict.
+//
+// The philosophy this implements, stated once: the instrument is never
+// asked to be RIGHT — it is asked to make the effort of grounding visible,
+// and objectivity here is the asymptotic approach toward truth from
+// DIFFERENT PERSPECTIVES. A claim the local material does not back is not
+// therefore false; it is unproven, and the honest next move is to go look —
+// through the one sanctioned egress (P13), with every crossing recorded —
+// and to report what was found as counted perspectives, never as a verdict
+// of truth. "Stated by 2 of 3 pages consulted, from 2 distinct hosts" is a
+// measurement; "true" is not something this module can say, and it never
+// does.
+//
+// THIS MODULE OWNS NO NETWORK — the web.js discipline exactly: everything
+// here is a function from a claim and bytes-already-fetched to structure.
+// The fetching lives where P13 put it (explore-server.mjs /api/web/*); the
+// page calls those endpoints and hands the saved text face back in here.
+//
+// Independence is counted, not assumed, and its limit is disclosed: two
+// pages from one host are one perspective (the same fold cite.js's
+// distinct-sources rule makes locally). Two hosts syndicating one wire
+// story are ALSO one perspective, and this module cannot see that — the
+// `independence` field says "distinct hosts", names the residue, and no
+// caller may phrase it stronger (the Tow Center measured exactly this
+// inflation in the wild: engines citing syndicated copies as if they
+// were independent sources).
+
+import { wordSet, numberSet, hasWord, hasNumber, CLAIM_STOPWORDS } from "./grounding.js";
+import { hostOf } from "./web.js";
+
+// ── declared numbers, each with its giver ───────────────────────────────────
+// Budgets with names and stated duties (P9), not quality thresholds. None
+// was chosen by checking an outcome.
+export const PROOF_PAGES_CONSULTED = 3; // pages read per claim — one perspective is anecdote, three is the smallest count where "2 of 3" can disagree with "3 of 3"
+export const PROOF_QUERY_MAX_TERMS = 8; // a search query, not a document — DDG serves short queries; the claim's own most specific words go first
+export const PROOF_TARGETS_PER_TURN = 4; // automatic seeking per turn is bounded and the bound is visible; every further claim keeps its manual button
+
+/**
+ * The search query for a claim, built from the claim's own words — never
+ * paraphrased, never enriched: retrieval is a function of the question's
+ * own words (READING-POLICY), and here the question is the claim. The
+ * atom's exact text is quoted (a name or figure is the thing to find
+ * verbatim); the sentence's remaining content words follow, most specific
+ * first — longer words carry more identity than shorter ones in the absence
+ * of any corpus statistics about the web, which this module honestly does
+ * not have.
+ */
+export function proofQuery(claim) {
+  const atom = String(claim?.text ?? "").trim();
+  const sentence = String(claim?.sentence ?? "");
+  const atomWords = new Set(
+    atom.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean),
+  );
+  const rest = [
+    ...new Set(
+      sentence
+        .split(/[^\p{L}\p{N}'’]+/u)
+        .map((w) => w.replace(/['’]s$/, ""))
+        .filter(
+          (w) =>
+            w.length > 2 &&
+            !atomWords.has(w.toLowerCase()) &&
+            !CLAIM_STOPWORDS.has(w.toLowerCase()),
+        ),
+    ),
+  ]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, Math.max(0, PROOF_QUERY_MAX_TERMS - (atom ? 1 : 0)));
+  const quoted = atom && /\s/.test(atom) ? `"${atom}"` : atom;
+  return [quoted, ...rest].filter(Boolean).join(" ").trim();
+}
+
+/**
+ * One page, one assessment: does this page's saved text face state the
+ * claim's tokens? The same containment discipline as the local check
+ * (grounding.js's wordSet/hasWord for names, numberSet/hasNumber for
+ * figures — the SAME fold on both sides, P11's first consequence), so a
+ * claim is judged against the web by exactly the rule it failed locally.
+ * `context` counts how many of the claim sentence's content words the page
+ * also carries — a page that states the name but shares nothing else with
+ * the sentence is a weaker perspective than one discussing the same
+ * subject, and the count says so without pretending to be a score.
+ */
+export function assessPage(claim, pageText) {
+  const text = String(pageText ?? "");
+  if (!text.trim()) return { stated: false, absent: [...(claim?.tokens ?? [])], context: { shared: 0, of: 0 } };
+  const words = wordSet(text);
+  const numbers = numberSet(text);
+  const isNumber = claim?.kind === "number";
+  const tokens = (claim?.tokens ?? []).map(String);
+  const absent = tokens.filter((t) => (isNumber ? !hasNumber(numbers, t) : !hasWord(words, t)));
+
+  const sentenceWords = [
+    ...new Set(
+      String(claim?.sentence ?? "")
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}'’]+/u)
+        .map((w) => w.replace(/['’]s$/, ""))
+        .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w)),
+    ),
+  ];
+  const shared = sentenceWords.filter((w) => hasWord(words, w)).length;
+
+  return {
+    stated: tokens.length > 0 && absent.length === 0,
+    absent,
+    context: { shared, of: sentenceWords.length },
+  };
+}
+
+/**
+ * The verdict across everything consulted, typed and phrased in natural
+ * frequencies. `pages` is what the caller actually fetched: each entry
+ * `{ url, host?, title?, challenge?, gap?, assessment?, context? }` — a
+ * fetch the server refused rides through as its typed gap, never dropped
+ * (a failed fetch is not a page that said nothing).
+ *
+ * Verdicts:
+ *   web-corroborated   — at least one consulted page states the claim.
+ *                        `independence` counts DISTINCT HOSTS among them,
+ *                        with the syndication residue named.
+ *   web-uncorroborated — pages were consulted and none states it. NOT
+ *                        falsity: the counted fact is "0 of N pages", and
+ *                        the phrasing never exceeds it.
+ *   refused-upstream / not-consulted — the crossing itself failed or never
+ *                        ran; a gap, not a zero.
+ */
+export function foldProof(claim, { query, pages = [], gap = null } = {}) {
+  const consulted = pages.filter((p) => p && !p.gap);
+  const failed = pages.filter((p) => p && p.gap);
+  if (gap || !consulted.length) {
+    return {
+      verdict: gap?.silence === "refused-upstream" ? "refused-upstream" : "not-consulted",
+      claim: claim?.text ?? null,
+      query: query ?? null,
+      consulted: 0,
+      failed: failed.length,
+      gap: gap ?? failed[0]?.gap ?? { silence: "not-present", detail: "no page could be consulted" },
+      sentence: "the web was not consulted for this claim — the crossing failed, which is a gap, not a zero",
+    };
+  }
+  const stating = consulted.filter((p) => p.assessment?.stated);
+  const hosts = [...new Set(stating.map((p) => p.host ?? hostOf(p.url)))];
+  const phrase =
+    `${claim?.kind === "number" ? "the figure" : "the name"} ${claim?.text ?? ""}`.trim() +
+    ` appears on ${stating.length} of ${consulted.length} page(s) consulted` +
+    (stating.length ? ` (${hosts.length} distinct host(s))` : "") +
+    (failed.length ? `; ${failed.length} fetch(es) refused, counted apart` : "");
+  return {
+    verdict: stating.length ? "web-corroborated" : "web-uncorroborated",
+    claim: claim?.text ?? null,
+    query: query ?? null,
+    consulted: consulted.length,
+    failed: failed.length,
+    stating: stating.map((p) => ({
+      url: p.url,
+      host: p.host ?? hostOf(p.url),
+      title: p.title ?? null,
+      textPath: p.textPath ?? null,
+      context: p.assessment?.context ?? null,
+      ...(p.challenge ? { challenge: true } : {}),
+    })),
+    independence: {
+      hosts: hosts.length,
+      basis: "distinct hosts; syndication between hosts is not tested and two hosts may carry one upstream story",
+    },
+    sentence: phrase,
+  };
+}
+
+/** The proof targets a turn's checks yield, in the order worth spending the
+ * bounded automatic budget on: contradicted edges first (the material
+ * actively disagrees — the reader most needs a second perspective), then
+ * unsupported atoms that are not question echoes, then unbound edges. Every
+ * target carries its own words; nothing is paraphrased. */
+export function proofTargets({ findings = [], relationReport = null } = {}) {
+  const targets = [];
+  for (const c of relationReport?.claims ?? []) {
+    if (c.verdict === "contradicted") {
+      targets.push({
+        kind: "edge",
+        text: `${c.subject} ${c.verb} ${c.object}`,
+        tokens: [c.subject, c.verb, c.object].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
+        sentence: c.sentence,
+        why: "contradicted",
+      });
+    }
+  }
+  for (const f of findings) {
+    if (f.echoesQuestion) continue;
+    targets.push({
+      kind: f.atomKind,
+      text: f.text,
+      tokens: f.atomKind === "number" ? [String(f.text).replace(/[,%]/g, "")] : (f.absent?.length ? f.absent : [f.text]),
+      sentence: f.sentence ?? null,
+      why: "unsupported",
+    });
+  }
+  for (const c of relationReport?.claims ?? []) {
+    if (c.verdict === "unbound") {
+      targets.push({
+        kind: "edge",
+        text: `${c.subject} ${c.verb} ${c.object}`,
+        tokens: [c.subject, c.verb, c.object].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
+        sentence: c.sentence,
+        why: "unbound",
+      });
+    }
+  }
+  // One target per distinct claim — a name flagged in three sentences is
+  // one thing to look up, not three crossings. Keyed on the claim's TOKENS,
+  // not its surface text: "The Kessington Report" opening a sentence and
+  // "Kessington Report" mid-sentence are the same thing to look up.
+  const seen = new Set();
+  return targets.filter((t) => {
+    const key = (t.tokens?.length ? t.tokens : [t.text]).join(" ").toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

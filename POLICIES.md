@@ -185,6 +185,28 @@ legitimate sentences attributed to Pierre's actual introduction chapter.
 **Enforced:** `provenance.test.mjs`, including the orthogonality case
 (cited AND striped), and the IV.4 row in `constitution.js`'s map.
 
+*Amended (2026-08-16, appended): the hypergraph tier is WIRED —
+`hypergraph.js`, on the engine's own organs (`discoverRelationVocab` /
+`extractRelations` / the referent index cast.js projects), injected so the
+module stays pure. The material's edges are read per passage, each carrying
+every address that states it; the answer is read with the SAME vocabulary
+and organs; every relation claim gets one of five typed verdicts — bound
+(with corroboration counted as passages × distinct sources), contradicted
+(opposite polarity), unbound (the flagship case, carrying the nearest edges
+the material does bind), beyond-reach and unheard (the instrument's limits,
+disclosed, never judged and never on the record as unsupported). Support is
+never a bit: a claim's ground is graded by how many independent perspectives
+state it, because the approach toward truth is asymptotic, through agreeing
+perspectives — the same discipline `corroborateAtoms` now applies at atom
+tier. Contradicted and unbound edges join the unsupported list and drive
+the same bounded correction pass. The closed-class measure runs over the
+POOL through cite.js's own `commonTerms` (its CORPUS_MINIMUM floor), never
+over the turn's excerpt — measured while wiring: material.js's token-share
+threshold degenerates at turn scale and classified "married" as a function
+word. Enforced: `hypergraph.test.mjs` (against the engine's real organs,
+including the flagship case, the polarity flip, and the typed limits) and
+the relation-claims case in `provenance.test.mjs`.*
+
 ## P13 — The web organ: one sanctioned egress, recorded, with a clearable store
 
 P1's "no request leaves the machine" is amended, not repealed: the model
@@ -221,6 +243,26 @@ off-endpoint refusals, the history fold's patch-by-id and clear semantics,
 archive-address naming, and the seam test: `explore/explore.js`,
 `explore.html`, and `explore-bridge.js` still reference no non-local host,
 same rule II.13 pins for the Converse page.
+
+*Amended (2026-08-16, appended): proof-seeking. A claim the turn's checks
+flag — an unsupported atom, a contradicted or unbound edge — may be taken
+to the world through this same egress: a search on THE CLAIM'S OWN WORDS
+(never a paraphrase), the top pages read through the recorded fetch, each
+saved text face judged by the same containment rule the claim failed
+locally, the result folded to counted perspectives ("stated by 2 of 3
+pages consulted, 2 distinct hosts") with the syndication residue named on
+the verdict — never "true", which this instrument cannot say. Authorization
+is two-tier and stays explicit: the per-claim button is one click, one
+crossing; the settings toggle (default OFF, persisted, the user's alone) is
+the standing consent that lets a turn seek automatically, bounded by
+PROOF_TARGETS_PER_TURN with the bound visible in the disclosure. The page
+still owns no network — search, fetch, and record stay in
+explore-server.mjs; failures arrive as the typed gaps this policy already
+names, and a failed crossing renders as a gap, never as "the web had
+nothing". Enforced: `proof.test.mjs` — query-from-own-words, same-fold
+containment, perspective counting with the never-"true" assertion, gap
+typing, target ordering and dedup, the declared budgets, and the seam test
+extended to proof.js, app.js, and index.html.*
 
 ## P14 — Work done twice becomes code; the model proposes, the gate disposes
 

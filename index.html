@@ -175,6 +175,37 @@
         text-decoration-thickness: 1px;
         text-underline-offset: 3px;
       }
+      /* The relation tier's verdicts ride the sentence as a small typed
+         badge — readable without a click, clickable for the passage the
+         material does bind. Bound edges stay quiet; only contradiction and
+         never-bound are news. */
+      .edge-badge {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        padding: 0 5px;
+        margin-left: 5px;
+        border-radius: 8px;
+        border: 1px solid var(--warn);
+        color: var(--warn);
+        background: transparent;
+        cursor: pointer;
+        vertical-align: baseline;
+      }
+      .edge-badge.contradicted { font-weight: 600; }
+      .claim-row .ref, .proof-row .ref { margin-left: 6px; }
+      .proof-slot { margin-left: 8px; }
+      .proof-verdict.web-corroborated { color: var(--accent); }
+      .proof-page { display: block; margin-left: 18px; }
+      .proof-page a { margin-right: 8px; }
+      .proof-page em { color: var(--muted); font-style: normal; font-size: 11px; }
+      #settings label.check .check-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      #settings label.check input { width: auto; margin-top: 2px; }
       /* The turn's preparation, shown while the first token is still coming:
          what was read, on which terms, what is carried. Mechanical, and
          replaced by the stream. */
@@ -1009,6 +1040,16 @@
         <label>
           <span>Model · Ollama on this machine</span>
           <select id="model"></select>
+        </label>
+        <label class="check">
+          <span>Seek proof online</span>
+          <span class="check-row">
+            <input type="checkbox" id="web-proof" />
+            when a turn states something the material does not back, search the
+            web on the claim's own words through the Explore server's recorded
+            egress and report how many independent pages state it. Off by
+            default — a fetch is a crossing, and turning this on is yours to do.
+          </span>
         </label>
       </div>
       <p class="settings-actions">

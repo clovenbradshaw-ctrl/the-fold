@@ -38,6 +38,7 @@ import { buildSourceBlock, checkCitations, foldDiacritics, openQuestions, retrie
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripScaffoldNarration } from "./provenance.js";
+import { relationFindings } from "./hypergraph.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -500,6 +501,7 @@ export async function runPart({
   passagesPerPart = PASSAGES_PER_PART,
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
+  makeRelationReader = null,
   onProgress = null,
 }) {
   const question = `${part.label} ${part.description}`;
@@ -524,6 +526,12 @@ export async function runPart({
   // cast the material itself establishes (cast.js), never a wider corpus.
   const resolveName = makeNameResolver?.(passages) ?? null;
 
+  // The relation tier (hypergraph.js), built the same way: the material's
+  // own edges from this part's passages, the closed-class measure from the
+  // live corpus. Injected — this module stays pure and the page supplies
+  // the engine's organs.
+  const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
+
   const inspect = (text) => {
     // The label is model-authored output that ships as a heading, so it is
     // checked with the draft — a figure invented in a label is the same
@@ -536,6 +544,12 @@ export async function runPart({
     });
     const attributions = attribute(text, passages, live);
     const attributed = attributedRefs(attributions);
+    // The answer read against the material's own edges. Contradicted and
+    // unbound edges are claims of fact the material does not make — they
+    // join the unsupported list and drive the same bounded correction;
+    // beyond-reach and unheard stay disclosure-only (limits of the
+    // instrument, not failures of the answer).
+    const relationReport = relations ? relations.read(shipped) : null;
     return {
       used,
       attributed,
@@ -543,10 +557,12 @@ export async function runPart({
       channels: [
         ...(used.length ? ["cited"] : []),
         ...(attributed.length ? ["attributed"] : []),
+        ...(relationReport?.examined && !relationReport.vocabulary?.gap ? ["relations"] : []),
       ],
-      unsupported: [...unsupported, ...unsupportedClaims(grounding)],
+      unsupported: [...unsupported, ...unsupportedClaims(grounding), ...relationFindings(relationReport)],
       attributions,
       grounding,
+      relations: relationReport,
     };
   };
 
@@ -797,6 +813,7 @@ export async function runHolonicTask({
   passagesPerPart = PASSAGES_PER_PART,
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
+  makeRelationReader = null,
   discourse = "",
   planMode = "model",
   onProgress = null,
@@ -888,6 +905,7 @@ export async function runHolonicTask({
       passagesPerPart,
       maxCorrections,
       makeNameResolver,
+      makeRelationReader,
       onProgress,
     });
     seenRefs.push(...result.refs);

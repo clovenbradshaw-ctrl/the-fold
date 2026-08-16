@@ -16,11 +16,12 @@
 // built from the same checks. It is the same evidence at sentence
 // resolution, for drawing on the prose itself.
 //
-// The tier above this is relation-level reading — the hypergraph: an edge
+// The tier above this — relation-level reading, the hypergraph: an edge
 // like "Pierre married Dolokhov" whose every token is present but which the
-// text never bound. The engine owns those organs (extractRelations, the
-// binding nulls); wiring them here is named future work in POLICIES.md,
-// not quietly implied by the word "grounded".
+// text never bound — is WIRED (hypergraph.js, on the engine's own organs;
+// the P12 amendment says so). Its verdicts arrive here as `relationClaims`
+// and ride each sentence as `edges`, read off the report exactly as
+// `absent` is read off checkGrounding — classified, never re-measured.
 
 import { splitSentences } from "./cite.js";
 
@@ -107,8 +108,17 @@ export function stripScaffoldNarration(text) {
   return { text: out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim(), removed };
 }
 
-export function classifySentences(answer, attributions = [], findings = []) {
+export function classifySentences(answer, attributions = [], findings = [], relationClaims = []) {
   const byText = new Map(attributions.map((a) => [a.text, a]));
+  // A relation claim anchors to the sentence that carries its subject AND
+  // its verb — the relation reader splits sentences with the engine's own
+  // splitter, which need not agree with cite.js's, so the words are the
+  // identity, never the split (the findSentence lesson, at claim scale).
+  const norm = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ");
+  const carries = (text, c) => {
+    const t = norm(text);
+    return t.includes(norm(c.subject)) && t.includes(norm(c.verb));
+  };
   return splitSentences(answer).map((text) => {
     const a = byText.get(text);
     const absent = findings
@@ -119,6 +129,10 @@ export function classifySentences(answer, attributions = [], findings = []) {
       ground: a && (a.cited || a.ref) ? "material" : "model",
       ref: a?.ref ?? null,
       absent: [...new Set(absent)],
+      // The edge verdicts standing in this sentence (hypergraph.js) — read
+      // off the relation report, measured nowhere here, same discipline as
+      // every other field.
+      edges: relationClaims.filter((c) => carries(text, c)),
     };
   });
 }

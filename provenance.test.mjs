@@ -98,3 +98,28 @@ test("multiple narration spans are all removed; the gap they leave collapses cle
   assert.equal(removed.length, 2);
   assert.equal(text, "The figure was 12%. [notes.txt#0-74]");
 });
+
+test("relation verdicts ride the sentence that carries subject and verb, read off, never re-measured", async () => {
+  const { classifySentences } = await import("./provenance.js");
+  const answer = "Pierre Bezukhov married Dolokhov. The winter was long.";
+  const claims = [
+    {
+      sentence: "Pierre Bezukhov married Dolokhov.",
+      subject: "Pierre Bezukhov",
+      verb: "married",
+      object: "Dolokhov",
+      polarity: "+",
+      verdict: "unbound",
+      nearest: [],
+    },
+  ];
+  const entries = classifySentences(answer, [], [], claims);
+  const first = entries.find((e) => /married/.test(e.text));
+  assert.equal(first.edges.length, 1);
+  assert.equal(first.edges[0].verdict, "unbound");
+  const second = entries.find((e) => /winter/.test(e.text));
+  assert.equal(second.edges.length, 0);
+  // Backward compatible: the fourth argument omitted means no edges, never a throw.
+  const bare = classifySentences(answer, [], []);
+  assert.ok(bare.every((e) => Array.isArray(e.edges) && e.edges.length === 0));
+});

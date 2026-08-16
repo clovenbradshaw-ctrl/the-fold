@@ -311,7 +311,7 @@ async function send(question) {
     state.summary = updateSummaryWithFold(state.summary, fold);
   }
 
-  node.querySelector(".fold").textContent = `fold ▸ ${fold}`;
+  node.querySelector(".fold p").textContent = fold;
   $("status").textContent = `ready · ${state.model}`;
   renderState();
   renderPrompt();
@@ -325,9 +325,15 @@ async function send(question) {
 function addMessage(role, text) {
   const el = document.createElement("div");
   el.className = `msg ${role}`;
-  el.innerHTML = `<div class="who"></div><div class="body"></div>${
-    role === "assistant" ? '<div class="fold"></div>' : ""
-  }`;
+  // The fold is disclosed, not displayed. Printed under every turn it just
+  // repeated the exchange you had already read; kept behind a one-word
+  // affordance, it is there the moment you want to ask "what did this turn
+  // actually leave behind?" — which is the question the fold answers.
+  el.innerHTML =
+    `<div class="who"></div><div class="body"></div>` +
+    (role === "assistant"
+      ? `<details class="fold"><summary>fold</summary><p></p></details>`
+      : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
   el.querySelector(".body").textContent = text;
   $("chat").append(el);

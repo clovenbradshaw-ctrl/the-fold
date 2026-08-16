@@ -178,6 +178,8 @@ async function openSource(relPath, opts = {}) {
   state.netVB = null;
   state.netSearch = "";
   state.sentCache = null;
+  state.fold = null;
+  state.wordFold = null;
   if (!opts.keepTerrain) state.terrain = "Field";
   document.body.classList.remove("rail-open"); // in embed, picking a source closes the rail
   markCurrentInRail();
@@ -421,6 +423,62 @@ function gapFace(surface, kind, text) {
   surface.appendChild(g);
 }
 
+// ── the fold: an extractive summary of wherever you are looking ─────────────
+// The house's one operation, without a mouth: the scope's most novel
+// sentences (engine surprisal against the document's own table), verbatim
+// and addressed. Server-computed; the result states kept-of-N.
+async function requestFold(scope, into = "fold") {
+  const body = { path: state.path, ...scope };
+  state[into] = { busy: true };
+  renderAll();
+  try {
+    const out = await api("/api/fold", { method: "POST", body: JSON.stringify(body) });
+    state[into] = { ...out, scopeAsked: scope };
+  } catch (e) {
+    state[into] = { gap: { reason: "fold_failed", detail: e.message } };
+  }
+  renderAll();
+}
+
+function foldCard(holderState, into) {
+  const card = el("div", "fold-card");
+  const head = el("div", "fold-head");
+  const chip = el("span", "standing shown", "shown");
+  head.appendChild(chip);
+  if (holderState.busy) {
+    head.append(" folding…");
+    card.appendChild(head);
+    return card;
+  }
+  if (holderState.gap) {
+    head.append(` ${holderState.gap.silence ?? holderState.gap.reason}: ${holderState.gap.detail ?? ""}`);
+    card.appendChild(head);
+    return card;
+  }
+  const scopeWord = holderState.scope?.word ? `"${holderState.scope.word}" — its arrival sentences` : holderState.scope?.whole ? "the whole source" : `chars ${holderState.scope?.charStart?.toLocaleString()}–${holderState.scope?.charEnd?.toLocaleString()}`;
+  head.append(` a fold of ${scopeWord} · kept ${holderState.kept} of ${holderState.of} sentences`);
+  head.title = holderState.method ?? "";
+  const x = el("button", "fold-x", "✕");
+  x.onclick = () => {
+    state[into] = null;
+    renderAll();
+  };
+  head.appendChild(x);
+  card.appendChild(head);
+  for (const l of holderState.lines ?? []) {
+    const line = el("button", "fold-line", l.text.length > 400 ? `${l.text.slice(0, 399)}…` : l.text);
+    line.title = `chars ${l.charStart}–${l.charEnd} · ${l.microbits.toFixed(0)} microbits — click to land there in the source`;
+    line.onclick = () => {
+      state.focus = { c0: l.charStart, c1: l.charEnd, why: "fold line" };
+      state.terrain = "Field";
+      renderAll();
+    };
+    card.appendChild(line);
+  }
+  card.appendChild(el("div", "fold-foot", "verbatim lines in document order, each at its address — a change of resolution, not a paraphrase"));
+  return card;
+}
+
 const surfaceRenderers = {
   Field: renderField,
   Entity: renderEntity,
@@ -523,6 +581,13 @@ function renderField(surface) {
   const s = state.source;
   if (TEXTUAL.has(s.modality) && state.text != null) {
     note(surface, "shown", `the bytes as they sit on disk, decoded as UTF-8 — nothing interpreted. ${s.bytes.toLocaleString()} bytes.`);
+    const foldRow = el("div", "run-row");
+    const foldBtn = el("button", null, state.focus ? "fold this range" : "fold the source");
+    foldBtn.title = "an extractive summary: the most novel sentences here, verbatim and addressed — no model";
+    foldBtn.onclick = () => requestFold(state.focus ? { c0: state.focus.c0, c1: state.focus.c1 } : {});
+    foldRow.appendChild(foldBtn);
+    surface.appendChild(foldRow);
+    if (state.fold) surface.appendChild(foldCard(state.fold, "fold"));
     if (s.modality === "markdown") return renderMarkdownField(surface);
     if (s.modality === "table") return renderTableField(surface);
     if (s.modality === "html") return renderHtmlField(surface);
@@ -1401,6 +1466,11 @@ function renderNetwork(surface) {
       renderAll();
     };
     aside.appendChild(inSource);
+    const foldWordBtn = el("button", null, "fold its sentences");
+    foldWordBtn.title = "an extractive summary of every sentence this word arrives in — verbatim, no model";
+    foldWordBtn.onclick = () => requestFold({ word: focus }, "wordFold");
+    aside.appendChild(foldWordBtn);
+    if (state.wordFold) aside.appendChild(foldCard(state.wordFold, "wordFold"));
     const mine = pairList
       .filter((pr) => pr.s === focus || pr.o === focus)
       .map((pr) => ({ ...pr, other: pr.s === focus ? pr.o : pr.s }))

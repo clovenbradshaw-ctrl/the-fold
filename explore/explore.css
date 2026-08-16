@@ -380,6 +380,25 @@ body.embed.rail-open #rail {
 }
 body.embed main { position: relative; }
 
+/* ── the fold card: an extractive summary, verbatim and addressed ────────── */
+.fold-card {
+  max-width: 74ch; margin: 0 auto 18px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--panel);
+  padding: 10px 14px 8px;
+}
+.net-inspector .fold-card { max-width: none; margin: 10px 0; padding: 8px 10px 6px; }
+.fold-head { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.fold-x { margin-left: auto; border: none; background: none; padding: 0 2px; color: var(--muted); }
+.fold-x:hover { color: var(--ink); }
+.fold-line {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  font: 14px/1.55 var(--serif); color: var(--ink); padding: 4px 6px; border-radius: 6px;
+}
+.net-inspector .fold-line { font-size: 12px; }
+.fold-line:hover { background: var(--accent-soft); }
+.fold-line + .fold-line { border-top: 1px solid var(--line); }
+.fold-foot { font-size: 10.5px; color: var(--muted); margin-top: 6px; font-style: italic; }
+
 /* record dialog */
 dialog {
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink);

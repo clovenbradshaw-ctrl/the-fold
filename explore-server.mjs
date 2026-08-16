@@ -20,10 +20,11 @@
 
 import http from "node:http";
 import { Worker } from "node:worker_threads";
-import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync } from "node:fs";
+import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { foldExtract } from "../eoreader6/packages/host/index.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
@@ -54,6 +55,11 @@ const DEPOSIT_MAX_BYTES = 25_000_000; // same bound terrain-explorer/server.mjs 
 // render provisional until it lands) — declining it is not offered here.
 const KINDS_QUICK = { minPrevalence: 0.03, minKindSize: 5, permutations: 20, quantile: 0.95, seed: 42, reseeds: 2, nullArmDraws: 1 };
 const KINDS_THOROUGH = { minPrevalence: 0.02, minKindSize: 8, permutations: 50, quantile: 0.95, seed: 42, reseeds: 2, nullArmDraws: 5 };
+
+// The fold's resolution — how many sentences an extractive fold keeps. A
+// declared interactive dial (the result always states kept-of-N); giver:
+// this file, engineering starting point.
+const FOLD_BUDGET_SENTENCES = 7;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -473,6 +479,30 @@ const server = http.createServer(async (req, res) => {
       const opts = body.quick === false ? KINDS_THOROUGH : KINDS_QUICK;
       const jobId = startJob("kinds", { mode: "kinds", filePath: abs, rel: relOf(abs), opts }, { path: relOf(abs), bytes: st.size, opts });
       return send(res, 200, { jobId, opts });
+    }
+
+    // ---- fold: an extractive summary of an arbitrary place — whole source,
+    // char range, or a word's arrival sentences. Engine-computed, verbatim,
+    // addressed; no model. Synchronous (milliseconds) and recorded.
+    if (req.method === "POST" && p === "/api/fold") {
+      const body = await readJsonBody(req);
+      const abs = confine(body.path ?? "");
+      if (!abs) return send(res, 400, { error: "path escapes the browse root" });
+      let text;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(abs));
+      } catch (e) {
+        return send(res, 400, { error: `not foldable: ${e.code === "ENOENT" ? e.message : "not valid UTF-8"}` });
+      }
+      const out = foldExtract({
+        text,
+        charStart: Number.isInteger(body.c0) ? body.c0 : undefined,
+        charEnd: Number.isInteger(body.c1) ? body.c1 : undefined,
+        word: typeof body.word === "string" && body.word ? body.word : undefined,
+        budgetSentences: FOLD_BUDGET_SENTENCES,
+      });
+      record("fold", { path: relOf(abs), scope: out.scope ?? null, kept: out.kept ?? 0, of: out.of ?? 0, gap: out.gap ?? null });
+      return send(res, 200, { ...out, budget: FOLD_BUDGET_SENTENCES });
     }
 
     // ---- job poll.

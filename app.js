@@ -105,6 +105,14 @@ import { makeCastResolver, makeCastHandles } from "./cast.js";
 // null module tiers.js stands on (serve.mjs carries both).
 import { createTierStack, foldThrough } from "/engine/emergence/tiers.js";
 
+// The engine's own append-only task log, same mount — anything built here is
+// a thread on it, with EO notation on the constitutive entries. build-log.js
+// injects it (cast.js pattern) so the mapping stays pure and node-testable.
+import * as engineTaskLog from "/engine/holon/task-log.js";
+import { makeBuildLog } from "./build-log.js";
+
+const buildLog = makeBuildLog(engineTaskLog);
+
 import {
   BOUND_SYSTEM_PROMPT,
   buildBoundPrompt,
@@ -1559,16 +1567,24 @@ function taggedProse(text, offered, classified = []) {
  * output wants; the chip is the sentence the conversation wants.
  */
 function publishBuild(seg, caption) {
+  const n = state.builds.length + 1;
+  const turn = state.summary.turnCount + 1;
+  const cap = caption ?? defaultCaption(seg);
   const entry = {
-    n: state.builds.length + 1,
-    turn: state.summary.turnCount + 1,
-    seg,
-    caption: caption ?? defaultCaption(seg),
-    // The working code. Starts as what the model wrote; the editor edits
-    // THIS, never seg — the original stays on the record for reset.
-    code: seg.type === "code" ? seg.code : null,
+    n,
+    turn,
+    // The build IS its log — an append-only thread on the engine's task log
+    // (build-log.js). Nothing here mutates: the working code, the last run,
+    // the caption are all answers to "fold the entries", at whatever cursor
+    // the reader has scrubbed to. `cursor: null` means live head.
+    log: buildLog.proposeBuild({ n, turn, seg, caption: cap }),
+    cursor: null,
+    // Editor keystrokes not yet committed by a run. A draft is not an act —
+    // it becomes a SUPERSEDE entry when it runs, not per keypress.
+    draft: null,
   };
   state.builds.push(entry);
+  mirrorBuild(entry, 0);
   persistBuilds();
   renderBuilds(entry.n);
   // Wide, the panel is already on screen and switching it to the thing just
@@ -1581,7 +1597,7 @@ function publishBuild(seg, caption) {
   chip.type = "button";
   chip.className = "build-chip";
   chip.innerHTML = `<span aria-hidden="true">▤</span> `;
-  chip.append(document.createTextNode(entry.caption));
+  chip.append(document.createTextNode(cap));
   chip.onclick = () => {
     showView("builds");
     renderBuilds(entry.n);
@@ -1602,30 +1618,102 @@ function defaultCaption(seg) {
  * A code build without a runner here is shown, never run. */
 const RUNNERS = new Set(["python", "javascript", "js", "node", "shell", "bash"]);
 
-const buildCode = (entry) => entry.code ?? entry.seg.code;
-const buildRunnable = (entry) =>
-  entry.seg.type === "code" && (RUNNERS.has(entry.seg.lang) || RENDERABLE.has(entry.seg.lang));
+/** The projected build: the fold over the entry's log, at the reader's
+ * cursor by default, at the live head with `at = null`. */
+const buildFold = (entry, at = entry.cursor) => buildLog.foldBuild(entry.log, at ?? Infinity);
+const buildCode = (entry) => buildFold(entry, null)?.code;
+const buildRunnable = (entry) => {
+  const seg = buildFold(entry, null)?.seg;
+  return seg?.type === "code" && (RUNNERS.has(seg.lang) || RENDERABLE.has(seg.lang));
+};
+
+/** The run's declared caps — serve.mjs's own numbers, named here so the
+ * result entry states what bounds it ran under. */
+const RUN_PARAMS = (lang) => ({ lang, timeoutMs: 10_000, maxOutput: 64 * 1024 });
+
+/**
+ * Mirror every entry appended since `fromLen` to the durable record
+ * (record/build-record.jsonl, via serve.mjs — validated there through the
+ * engine's own append). One batch per append-set, chained per build, so rows
+ * land in the record in log order — an append-only record that could
+ * interleave out of seq order would not be one. The in-page log is primary;
+ * a mirror miss is reported to the console, never a crash.
+ */
+function mirrorBuild(entry, fromLen) {
+  const batch = entry.log.entries.slice(fromLen);
+  if (!batch.length) return;
+  const conv = state.convos[state.active]?.id ?? null;
+  const post = () =>
+    fetch("/api/build-record", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ conv, build: entry.n, entries: batch }),
+    }).catch((err) => console.warn(`build record not reachable (is serve.mjs running?): ${err.message}`));
+  entry.mirror = (entry.mirror ?? Promise.resolve()).then(post);
+}
+
+/** A download is a crossing — the fold leaving for the user's disk — and
+ * crossings are recorded (the same posture Explore's record holds). */
+function recordExport(entry, file, atSeq) {
+  const conv = state.convos[state.active]?.id ?? null;
+  fetch("/api/build-record", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ conv, build: entry.n, export: { name: file.name, atSeq } }),
+  }).catch(() => {
+    /* the download itself already succeeded; the record miss is the loss */
+  });
+}
+
+/**
+ * Commit the editor's draft: leaving the editor is an act, and an edit the
+ * log never saw would be a second, hidden truth — the builds panel and the
+ * download would show older bytes than the newest work. Keystrokes stay a
+ * draft only while the editor is the live pane; identical code just clears
+ * the draft (churn is refused one level down).
+ */
+function commitDraft(entry) {
+  if (!entry || entry.draft == null) return;
+  const draft = entry.draft;
+  entry.draft = null;
+  const before = entry.log.entries.length;
+  entry.log = buildLog.reviseBuild(entry.log, { code: draft, reason: "edit" });
+  if (entry.log.entries.length > before) {
+    entry.cursor = null;
+    mirrorBuild(entry, before);
+    renderBuilds(entry.n);
+  }
+  persistBuilds();
+}
 
 async function runBuild(entry) {
   entry.running = true;
   renderBuilds(entry.n);
-  const lang = entry.seg.lang;
+  // A run always runs the LIVE code — scrubbing the cursor is viewing, and
+  // running snaps back to the head so the result attaches to what ran.
+  const fold = buildFold(entry, null);
+  const lang = fold.seg.lang;
+  const before = entry.log.entries.length;
+  let outcome;
   try {
     if (RENDERABLE.has(lang)) {
-      entry.lastRun = { ok: true, data: { rendered: true } };
+      outcome = { ok: true, data: { rendered: true } };
     } else {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ lang, code: buildCode(entry) }),
+        body: JSON.stringify({ lang, code: fold.code }),
       });
       const data = await res.json().catch(() => null);
-      entry.lastRun = { ok: res.ok, data };
+      outcome = { ok: res.ok, data };
     }
   } catch (e) {
-    entry.lastRun = { ok: false, error: e.message };
+    outcome = { ok: false, error: e.message };
   } finally {
+    entry.log = buildLog.attachRun(entry.log, { params: RUN_PARAMS(lang), outcome });
+    entry.cursor = null;
     entry.running = false;
+    mirrorBuild(entry, before);
     persistBuilds();
     renderBuilds(entry.n);
   }
@@ -1643,14 +1731,23 @@ function renderBuilds(highlight) {
     return;
   }
   for (const entry of [...state.builds].reverse()) {
+    // Everything drawn below is a FOLD of the entry's log — at the reader's
+    // cursor. The live head is the default; a scrubbed cursor shows the
+    // build as it stood at that point, downloadable there.
+    const live = buildFold(entry, null);
+    const shown = buildFold(entry) ?? live;
+    if (!shown) continue;
+    const seqMax = entry.log.nextSeq - 1;
+    const atLive = entry.cursor == null || entry.cursor >= seqMax;
+
     const wrap = document.createElement("div");
     wrap.id = `build-${entry.n}`;
     wrap.className = `build-entry${entry.n === highlight ? " current" : ""}`;
     const from = document.createElement("p");
     from.className = "build-from";
-    from.textContent = `turn ${entry.turn}`;
+    from.textContent = `turn ${entry.turn} · v${shown.version}`;
     wrap.append(from);
-    if (entry.seg.type === "code") {
+    if (shown.seg.type === "code" && atLive) {
       const edit = document.createElement("button");
       edit.type = "button";
       edit.className = "build-run";
@@ -1666,9 +1763,78 @@ function renderBuilds(highlight) {
         from.append(run);
       }
     }
-    wrap.append(artifactNode(entry.seg, entry.caption, buildCode(entry)));
-    if (entry.running || entry.lastRun) {
-      const data = entry.lastRun?.data ?? {};
+    // Scrubbed back to a version whose code differs from the head: offer to
+    // restore it — a SUPERSEDE carrying the old bytes forward, never a
+    // rewind. The log only ever grows.
+    if (!atLive && shown.seg.type === "code" && live && shown.code !== live.code) {
+      const restore = document.createElement("button");
+      restore.type = "button";
+      restore.className = "build-run";
+      restore.textContent = "↩ restore";
+      restore.title = `Bring v${shown.version}'s code forward as a new version — the log keeps everything between.`;
+      restore.onclick = () => {
+        const before = entry.log.entries.length;
+        entry.log = buildLog.reviseBuild(entry.log, { code: shown.code, reason: "restore" });
+        entry.cursor = null;
+        mirrorBuild(entry, before);
+        persistBuilds();
+        renderBuilds(entry.n);
+      };
+      from.append(restore);
+    }
+    // Downloadable at any cursor: the file is the fold at this position,
+    // named by its address (build-N@seq).
+    const dl = document.createElement("button");
+    dl.type = "button";
+    dl.className = "build-run";
+    dl.textContent = "⬇";
+    dl.title = `Download this build as of log position ${entry.cursor ?? seqMax}.`;
+    dl.onclick = () => {
+      const file = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
+      if (!file) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([file.text], { type: file.mime }));
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      recordExport(entry, file, entry.cursor ?? seqMax);
+    };
+    from.append(dl);
+
+    // The cursor: one position per log entry, labelled mechanically from the
+    // entry itself. Same semantics as the graph's reading cursor — scrubbing
+    // shows the build AS OF that point; nothing is recomputed or invented.
+    if (seqMax > 0) {
+      const tl = buildLog.timeline(entry.log);
+      const row = document.createElement("div");
+      row.className = "build-cursor";
+      const scrub = document.createElement("input");
+      scrub.type = "range";
+      scrub.min = "0";
+      scrub.max = String(seqMax);
+      scrub.step = "1";
+      scrub.value = String(entry.cursor ?? seqMax);
+      const label = document.createElement("span");
+      label.className = "cursor-label";
+      const labelAt = (s) => `${s}/${seqMax} · ${tl[s].label}${s < seqMax ? " · as of" : ""}`;
+      label.textContent = labelAt(Number(scrub.value));
+      scrub.setAttribute("aria-label", "log position");
+      scrub.oninput = () => {
+        label.textContent = labelAt(Number(scrub.value));
+      };
+      scrub.onchange = () => {
+        const v = Number(scrub.value);
+        entry.cursor = v >= seqMax ? null : v;
+        renderBuilds(entry.n);
+      };
+      row.append(scrub, label);
+      wrap.append(row);
+    }
+
+    wrap.append(artifactNode(shown.seg, shown.caption, shown.code));
+    const lastRun = shown.lastRun;
+    if (entry.running || lastRun) {
+      const data = lastRun?.data ?? {};
       if (entry.running) {
         const out = document.createElement("pre");
         out.className = "run-console";
@@ -1677,11 +1843,11 @@ function renderBuilds(highlight) {
       } else if (!data.rendered) {
         const out = document.createElement("pre");
         out.className = "run-console";
-        if (!entry.lastRun.ok) {
+        if (!lastRun.ok) {
           out.classList.add("bad");
-          out.textContent = entry.lastRun.error
-            ? `could not reach the fold server (is serve.mjs running?): ${entry.lastRun.error}`
-            : `the fold server refused: ${entry.lastRun.data?.error ?? ""}`;
+          out.textContent = lastRun.error
+            ? `could not reach the fold server (is serve.mjs running?): ${lastRun.error}`
+            : `the fold server refused: ${lastRun.data?.error ?? ""}`;
         } else {
           const parts = [];
           if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
@@ -1708,13 +1874,19 @@ function renderBuilds(highlight) {
 let editorBuild = null;
 
 async function openBuild(entry) {
+  // Switching builds while another's draft is uncommitted: that draft is
+  // committed first — the same leaving-is-an-act rule showView enforces.
+  if (editorBuild && editorBuild !== entry) commitDraft(editorBuild);
   editorBuild = entry;
   await ensureEditor($("editor-host"));
-  editorSet(buildCode(entry));
-  editorLanguage(entry.seg.lang ?? "code");
-  $("editor-title").textContent = `build ${entry.n} · turn ${entry.turn}`;
-  $("editor-lang").textContent = entry.seg.lang ?? "code";
-  const renderable = RENDERABLE.has(entry.seg.lang);
+  const fold = buildFold(entry, null);
+  // An uncommitted draft survives leaving and re-entering the editor (and a
+  // reload); the committed code is the fold's answer.
+  editorSet(entry.draft ?? fold.code);
+  editorLanguage(fold.seg.lang ?? "code");
+  $("editor-title").textContent = `build ${entry.n} · v${fold.version} · turn ${entry.turn}`;
+  $("editor-lang").textContent = fold.seg.lang ?? "code";
+  const renderable = RENDERABLE.has(fold.seg.lang);
   $("editor-run").textContent = renderable ? "▶ render" : "▶ run";
   $("editor-run").disabled = false;
   $("editor-preview").hidden = true;
@@ -1730,19 +1902,26 @@ async function openBuild(entry) {
 async function runFromEditor() {
   if (!editorBuild) return;
   const code = editorGet();
-  editorBuild.code = code;
-  persistBuilds();
-  const lang = editorBuild.seg.lang;
+  // Running commits the draft: if the code changed, a SUPERSEDE lands (the
+  // prior version stays on the log); identical code appends nothing. The
+  // run's outcome then attaches to the version that actually ran.
+  const before = editorBuild.log.entries.length;
+  editorBuild.log = buildLog.reviseBuild(editorBuild.log, { code, reason: "edit" });
+  editorBuild.draft = null;
+  editorBuild.cursor = null;
+  const fold = buildFold(editorBuild, null);
+  const lang = fold.seg.lang;
   const renderable = RENDERABLE.has(lang);
   const console = $("editor-console");
   const preview = $("editor-preview");
   $("editor-run").disabled = true;
+  let outcome = null;
   try {
     if (renderable) {
-      preview.srcdoc = toDocument({ ...editorBuild.seg, code });
+      preview.srcdoc = toDocument({ ...fold.seg, code });
       preview.hidden = false;
       console.hidden = true;
-      editorBuild.lastRun = { ok: true, data: { rendered: true } };
+      outcome = { ok: true, data: { rendered: true } };
     } else {
       preview.hidden = true;
       console.hidden = false;
@@ -1754,12 +1933,10 @@ async function runFromEditor() {
         body: JSON.stringify({ lang, code }),
       });
       const data = await res.json().catch(() => null);
-      editorBuild.lastRun = { ok: res.ok, data };
-      if (!editorBuild.lastRun.ok) {
+      outcome = { ok: res.ok, data };
+      if (!outcome.ok) {
         console.classList.add("bad");
-        console.textContent = editorBuild.lastRun.error
-          ? `could not reach the fold server (is serve.mjs running?): ${editorBuild.lastRun.error}`
-          : `the fold server refused: ${data?.error ?? ""}`;
+        console.textContent = `the fold server refused: ${data?.error ?? ""}`;
       } else {
         const parts = [];
         if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
@@ -1771,10 +1948,14 @@ async function runFromEditor() {
       }
     }
   } catch (e) {
+    outcome = { ok: false, error: e.message };
     console.hidden = false;
     console.classList.add("bad");
     console.textContent = `could not reach the fold server (is serve.mjs running?): ${e.message}`;
   } finally {
+    editorBuild.log = buildLog.attachRun(editorBuild.log, { params: RUN_PARAMS(lang), outcome });
+    mirrorBuild(editorBuild, before);
+    persistBuilds();
     $("editor-run").disabled = false;
     renderBuilds(editorBuild.n);
   }
@@ -1782,12 +1963,19 @@ async function runFromEditor() {
 
 function resetBuild() {
   if (!editorBuild) return;
-  editorBuild.code = editorBuild.seg.code;
-  editorBuild.lastRun = null;
-  editorSet(editorBuild.seg.code);
+  // Reset is not an erasure: it appends a SUPERSEDE carrying the original
+  // code — every intermediate version stays on the log, reachable at its
+  // cursor position.
+  const fold = buildFold(editorBuild, null);
+  const before = editorBuild.log.entries.length;
+  editorBuild.log = buildLog.reviseBuild(editorBuild.log, { code: fold.seg.code, reason: "reset" });
+  editorBuild.draft = null;
+  editorBuild.cursor = null;
+  editorSet(fold.seg.code);
   $("editor-console").hidden = true;
   $("editor-preview").hidden = true;
   $("editor-preview").srcdoc = "";
+  mirrorBuild(editorBuild, before);
   persistBuilds();
   renderBuilds(editorBuild.n);
 }
@@ -1903,25 +2091,28 @@ async function submitTerm() {
 }
 
 // ── builds persist across reloads ───────────────────────────────────────────
-// The conversation's builds and the code worked on inside them are kept, so
-// an iteration is not lost to a refresh. Same key shape as explore's own
-// localStorage use: the instrument keeps its own settings.
+// What persists is the LOG — the entries alone, replayed through the
+// engine's own append on restore, so a stored row that violates the
+// vocabulary fails loudly instead of loading as state (the same resumption
+// property P3 pins for plans). The uncommitted editor draft rides alongside,
+// so an iteration is not lost to a refresh; it is not an entry because it is
+// not yet an act.
 const BUILDS_KEY = "fold-builds";
 
 function persistBuilds() {
   try {
     const conv = state.convos[state.active];
-    const data = state.builds.map(({ n, turn, seg, caption, code, lastRun }) => ({
+    const data = state.builds.map(({ n, turn, log, draft }) => ({
       n,
       turn,
-      seg,
-      caption,
-      code,
-      lastRun,
+      entries: log.entries,
+      draft: draft ?? null,
     }));
     localStorage.setItem(BUILDS_KEY, JSON.stringify({ id: conv?.id, builds: data }));
-  } catch {
-    /* storage full or blocked — a build is not worth a crash */
+  } catch (e) {
+    // Not worth a crash, but never silent either: from here on a reload
+    // would lose builds, and that has to be visible somewhere.
+    console.warn(`builds not persisted (storage full or blocked): ${e.message}`);
   }
 }
 
@@ -1932,14 +2123,25 @@ function restoreBuilds() {
     const { builds } = JSON.parse(raw);
     if (!Array.isArray(builds)) return;
     for (const b of builds) {
-      state.builds.push({
-        n: b.n,
-        turn: b.turn ?? 0,
-        seg: b.seg,
-        caption: b.caption,
-        code: b.code,
-        lastRun: b.lastRun,
-      });
+      try {
+        // Pre-log builds ({seg, code, lastRun} — the mutable shape this
+        // replaced) migrate to the honest floor: what was known becomes
+        // entries; history that was never kept is not invented.
+        const log = Array.isArray(b.entries)
+          ? buildLog.replayEntries(b.entries)
+          : buildLog.fromLegacy({
+              n: b.n,
+              turn: b.turn ?? 0,
+              seg: b.seg,
+              caption: b.caption ?? defaultCaption(b.seg),
+              code: b.code,
+              lastRun: b.lastRun,
+            });
+        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null });
+      } catch {
+        /* a row that violates the vocabulary does not load silently — this
+           build is skipped, the rest are kept */
+      }
     }
   } catch {
     /* corrupted storage — start clean */
@@ -2536,6 +2738,10 @@ $("material").addEventListener("change", addPasted);
 // with no tab of their own — they open from a build or from its control.
 
 function showView(name) {
+  // Leaving the editor is an act: an uncommitted draft becomes a SUPERSEDE
+  // on the way out, so the builds panel and the download never show older
+  // bytes than the newest work (commitDraft is a no-op when there is none).
+  if (name !== "editor") commitDraft(editorBuild);
   document.body.dataset.view = name;
   for (const t of document.querySelectorAll('[role="tab"]'))
     t.setAttribute("aria-selected", String(t.dataset.pane === name));
@@ -2565,7 +2771,10 @@ $("editor-reset").onclick = resetBuild;
 $("editor-run").onclick = runFromEditor;
 editorOnChange((value) => {
   if (editorBuild) {
-    editorBuild.code = value;
+    // Keystrokes are a draft, not an act — the SUPERSEDE entry lands when
+    // the draft runs, never per keypress. The draft still persists so a
+    // refresh loses nothing.
+    editorBuild.draft = value === buildCode(editorBuild) ? null : value;
     persistBuilds();
   }
 });

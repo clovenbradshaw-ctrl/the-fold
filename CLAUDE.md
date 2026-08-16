@@ -335,6 +335,60 @@ not geography. Soft breaks in markdown paragraphs join as spaces
 (CommonMark); blockquotes keep their lines; pipe tables are explore.js's own
 pass (render.js stays table-free per the app.js contract).
 
+## The build log (added 2026-08-16, fourth pass) — what was decided, so it is not re-derived
+
+P16 in POLICIES.md is the law; this is the map. The idea, verbatim from the
+user: **all builds are append-only logs with EO notation — anything being
+built, folded into the projected app, downloadable at any cursor.**
+
+**Files.** `build-log.js` (pure; the engine's `holon/task-log.js` injected —
+cast.js pattern — so the page loads it from `/engine` and the tests by
+relative path); `build-log.test.mjs` (13 conformance tests against the REAL
+engine module); app.js's builds/editor sections consume the fold;
+serve.mjs's `POST /api/build-record` writes `record/build-record.jsonl`.
+
+**The shape.** One log per build, one thread: PROPOSE (birth, from the
+turn's parsed segment) → SUPERSEDE per committed edit/reset/restore (past
+kept) → RESULT per run (attached to the version that ran). `foldBuild(log,
+atSeq)` is the projection; the builds panel renders THAT, at the cursor the
+reader scrubbed to, and `exportAt` downloads the fold as a file named by its
+address (`build-3@5.py`). Restore is a forward SUPERSEDE carrying old bytes,
+never a rewind.
+
+**The EO typing is from the act, never the content** (the cube stays refuted
+as a content classifier): PROPOSE = SEG·Figure·produced — task-log.js's own
+`proposeDiscovered` cell, reused, because artifact.js literally snips the
+segment out of the turn's answer; SUPERSEDE = SYN·Figure·produced; RESULT =
+no operator (results attach, they never re-type — `produce()`'s own
+discipline). SEG→SYN→… never runs the algebra backward; the engine's
+`checkCubeProgression` is the pinned referee, not a local restatement.
+
+**The disclosed amendment.** "The cube/operator half of that module is
+deliberately NOT carried" (holonic layer, above) is now amended FOR BUILDS
+ONLY, by user direction (2026-08-16). holon.js's plan log is untouched and
+still carries no operators.
+
+**Edges decided, not implied:** editor keystrokes are a persisted DRAFT
+(`entry.draft`), committed to a SUPERSEDE when the draft runs OR when the
+editor is left (`commitDraft` in showView/openBuild) — per-keypress entries
+would make the log a keylogger, but a draft that never entered the log
+would be a second, hidden truth the panel and the download silently
+disagree with. The one residue: a reload mid-edit keeps the draft
+uncommitted until the editor is next left. Identical code is churn, refused
+by `reviseBuild` (the entry would change no state). Result entries keep run
+output to a declared budget (16K chars/stream, `kept/of` stated on the
+entry) because unbounded results would fail localStorage persistence
+silently. localStorage persists `log.entries` alone and restore REPLAYS
+them through the engine's `append` (a corrupt row throws and skips that
+build, never loads silently); the pre-log mutable shape migrates via
+`fromLegacy` to the honest floor — history that was never kept is not
+invented. The mirror batches each append-set in ONE request and chains
+batches per build, so record rows land in log order; downloads are recorded
+as `build-export` crossings. The record mirror lives on serve.mjs only (the
+same server that runs builds); a page served from explore-server's 8812
+reports the miss to the console, the same posture `/api/run` already has
+there.
+
 ## Skills (added 2026-08-16, third pass) — procedures kept as code
 
 P14 in POLICIES.md is the law; this is the map. The ask this answers: when

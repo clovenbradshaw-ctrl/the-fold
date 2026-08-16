@@ -359,6 +359,24 @@
       }
       .run-console.bad { color: var(--warn); }
       .build-entry.current .artifact { border-color: var(--accent); }
+      /* The build's log cursor: scrub to any entry, the card shows the fold
+         as of that point (and downloads it). One tick per log entry. */
+      .build-cursor {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 6px;
+      }
+      .build-cursor input[type="range"] {
+        flex: 0 1 160px;
+        accent-color: var(--accent);
+      }
+      .cursor-label {
+        font-size: 10.5px;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        white-space: nowrap;
+      }
 
       /* The editor: a build opened at working width, VS Code-ish. Zero
          dependencies — a gutter of line numbers over a monospace textarea. */

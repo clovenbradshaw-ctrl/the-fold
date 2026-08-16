@@ -311,6 +311,61 @@ measurement and mechanical ranking against the engine's real organs, and the
 door tests (detectReflex requires the second-person tell; the material
 always wins).
 
+## P16 — Anything built is an append-only log with EO notation, projected, downloadable at any cursor
+
+P3 extended from plans to the things built. A build — a code artifact, a
+table, an html/svg render, anything the conversation produces and keeps — is
+never a mutable object. It is a thread on the engine's own task log
+(eoreader6 `engine/holon/task-log.js`, used through the `/engine` mount,
+injected so `build-log.js` stays pure — the cast.js pattern): its birth is a
+PROPOSE, every edit and reset a SUPERSEDE that keeps the past, every run a
+RESULT attached to the version that actually ran. What the app shows is a
+FOLD over the entries — the projected build — and a cursor scrubs that fold
+to any entry (the graph cursor's semantics: the build AS OF that point),
+where it is downloadable as a file named by its address (`build-3@5.py`).
+
+The EO notation is mechanical, from the ACT, never from the content — the
+cube stays refuted as a content classifier. Constitutive entries carry it:
+PROPOSE is SEG · Figure · produced (the artifact snipped out of the turn's
+own answer and named — `proposeDiscovered`'s exact cell, reused); SUPERSEDE
+is SYN · Figure · produced (a new whole compiled from the prior version and
+the edit); RESULT carries no operator, because a result attaches an answer
+to a task that already exists and stamping it would re-type the task —
+task-log.js's own `produce()` discipline, carried rather than re-derived.
+This is the one disclosed amendment to "this repo is not a cube consumer":
+for builds, and builds only, the operator half of the vocabulary is carried,
+by user direction (2026-08-16). holon.js's plan log is unchanged.
+
+Further walls: editor keystrokes are a DRAFT, not an act — the SUPERSEDE
+lands when the draft is committed, never per keypress, and LEAVING the
+editor commits it (an edit the log never saw would be a second, hidden
+truth: the panel and the download showing older bytes than the newest
+work). Identical code is churn and appends nothing. A result entry keeps
+run output to a declared budget with the drop stated on the entry
+(`kept: {stdout: {kept, of}}`) — the alternative is the browser store's
+quota failing persistence SILENTLY a few dozen runs in. Persistence is the
+entries alone, replayed through the engine's own `append` on restore, so a
+stored row that violates the vocabulary fails loudly instead of loading as
+state. Every entry is mirrored, as appended, to
+`record/build-record.jsonl` (append-only, FOLD-CONSTITUTION I.5) through
+serve.mjs — batched per append-set and chained per build so rows land in
+log order — where the engine's `append` is the validation gate: a refused
+entry lands on the record as a typed refusal with the engine's own reason,
+and never blocks the valid entries around it. A download is a crossing and
+is recorded (`build-export`), the posture Explore's record already holds.
+
+**Evidence:** the mutable shape this replaced lost history by construction —
+`entry.code` overwritten on every editor keystroke, `lastRun` on every run,
+reset discarding the path that led anywhere; none of it addressable after
+the fact. The log shape reproduces every historical state byte-identically
+at its cursor position (pinned), and the engine's own `checkCubeProgression`
+stays silent on build threads — the typing never runs the algebra backward.
+**Enforced:** `build-log.test.mjs` — the EO cells on constitutive entries,
+the past kept on revise, churn refused, cursor folds byte-identical at every
+seq, rebuild from serialized entries alone, vocabulary violations thrown on
+replay, the engine's own progression checker silent, exports per artifact
+type (code/csv/html/svg) named by address, and the legacy migration floor.
+
 ---
 
 *Established 2026-08-16, alongside the holonic layer, the constitution

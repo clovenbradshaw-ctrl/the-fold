@@ -52,6 +52,13 @@ const BASE_PROMPT =
 const KEY_STORAGE = "the-fold.anthropic-key";
 const OLLAMA = "http://localhost:11434";
 const MAX_TOKENS = 4096;
+/**
+ * The summary refresh returns one short JSON object. Left uncapped, a small
+ * model will happily spend a thousand tokens explaining it — which on a local
+ * 3B is a minute of wall clock per turn, spent on the cheapest part of the
+ * design. The cap is the bound the fold already claims to have.
+ */
+const FOLD_MAX_TOKENS = 300;
 
 const CLAUDE_MODELS = [
   ["claude-opus-5", "Opus 5"],
@@ -153,19 +160,19 @@ async function connect() {
  * out there. The fold's own invariant (exactly one system block, everything
  * older folded into it) is untouched either way.
  */
-async function complete(messages, { onDelta, effort } = {}) {
+async function complete(messages, { onDelta, effort, maxTokens } = {}) {
   return state.provider === "claude"
-    ? completeClaude(messages, { onDelta, effort })
-    : completeOllama(messages, { onDelta });
+    ? completeClaude(messages, { onDelta, effort, maxTokens })
+    : completeOllama(messages, { onDelta, maxTokens });
 }
 
-async function completeClaude(messages, { onDelta, effort }) {
+async function completeClaude(messages, { onDelta, effort, maxTokens }) {
   const system = messages[0]?.role === "system" ? messages[0].content : undefined;
   const turns = messages.filter((m) => m.role !== "system");
 
   const stream = state.claude.messages.stream({
     model: state.model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens ?? MAX_TOKENS,
     ...(system ? { system } : {}),
     ...(effort ? { output_config: { effort } } : {}),
     messages: turns,
@@ -184,11 +191,16 @@ async function completeClaude(messages, { onDelta, effort }) {
     .join("");
 }
 
-async function completeOllama(messages, { onDelta }) {
+async function completeOllama(messages, { onDelta, maxTokens }) {
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: state.model, messages, stream: true }),
+    body: JSON.stringify({
+      model: state.model,
+      messages,
+      stream: true,
+      options: { num_predict: maxTokens ?? MAX_TOKENS },
+    }),
   });
   if (!res.ok) throw new Error(`ollama ${res.status}: ${await res.text()}`);
 
@@ -302,9 +314,10 @@ async function send(question) {
         },
       ],
       // The fold is bookkeeping, not reasoning: a short JSON object read off
-      // lines that are already written. Spending the answer's effort on it
-      // would double the turn's latency for nothing.
-      { effort: "low" },
+      // lines that are already written. Spending the answer's effort — or the
+      // answer's token headroom — on it would double the turn's latency for
+      // nothing, which is exactly what a local 3B did until it was capped.
+      { effort: "low", maxTokens: FOLD_MAX_TOKENS },
     );
     state.summary = updateSummaryWithFold(state.summary, fold, raw);
   } catch {
@@ -511,19 +524,26 @@ function renderSources() {
   const strip = $("sources-strip");
   strip.textContent = "";
   strip.hidden = !names.length;
-  for (const name of names) {
-    const chip = document.createElement("span");
+
+  // One line, whatever is loaded. A chip per file was fine for one file and
+  // unreadable for ten — and a raw passage count belongs where you manage the
+  // material, not above the box you type questions into.
+  if (names.length) {
+    const total = names.reduce((n, k) => n + state.sources[k].length, 0);
+    const chip = document.createElement("button");
+    chip.type = "button";
     chip.className = "chip";
-    chip.append(document.createTextNode(name));
+    chip.title = "Manage material";
+    chip.append(
+      document.createTextNode(
+        names.length === 1 ? names[0] : `${names.length} files`,
+      ),
+    );
     const count = document.createElement("span");
     count.className = "count";
-    count.textContent = `${countFor(name)} passages`;
-    const x = document.createElement("button");
-    x.type = "button";
-    x.title = `Remove ${name}`;
-    x.textContent = "×";
-    x.onclick = () => removeSource(name);
-    chip.append(count, x);
+    count.textContent = fmtBytes(total);
+    chip.append(count);
+    chip.onclick = () => showView("material");
     strip.append(chip);
   }
 

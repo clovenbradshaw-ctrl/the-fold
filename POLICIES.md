@@ -182,6 +182,51 @@ legitimate sentences attributed to Pierre's actual introduction chapter.
 **Enforced:** `provenance.test.mjs`, including the orthogonality case
 (cited AND striped), and the IV.4 row in `constitution.js`'s map.
 
+## P13 — Work done twice becomes code; the model proposes, the gate disposes
+
+L5 extended from facts to work. A procedure the instrument has performed once
+may be deposited as a SKILL — executable code with declared slots, declared
+anchors, declared organ needs, and its own check — and from then on the model
+does as little as possible, in a ladder whose every descent is a typed `open`
+entry: (1) a saved skill claims the task mechanically (all anchors in the
+task's own words, most-specific wins, ties refused as ambiguous) and its
+slots fill from the task's own words — zero model calls; (2) slots the task
+does not determine are filled by ONE grammar-constrained call and validated
+mechanically before anything runs; (3) no claim, and the task runs the way it
+always did. Five walls hold this up:
+
+- **The body is code the model never executes, sees at runtime, or edits in
+  place.** The model touches a skill at two seams only: slot values
+  (validated, basis-tagged "task" or "model" — a model-filled slot is a
+  disclosed authority, P7's class) and candidate authoring.
+- **Admission is P10 made mechanical.** A candidate without its own check is
+  refused as a wish; a check that fails against the candidate's own body in
+  the real sandbox refuses admission; the refusal lands ON the log with its
+  reason, because "tried and refused" is evidence.
+- **Authority is granted, never ambient.** A body runs in an empty vm context
+  with exactly the organs it declared and was granted; the forbidden-token
+  scan refuses at admission what the sandbox would not hand over. Stated
+  honestly: this is an authority wall by construction, not a hardened
+  security boundary — P1 is the outer wall.
+- **The library is a log** (P3's discipline): admit / supersede / retract /
+  invoke / refuse, folded to a live library, rebuilt from the record alone;
+  bodies live content-addressed in `skills/<digest>.json`, identity is the
+  digest of the mechanism (provenance rides the entry, not the identity),
+  and bytes that stop matching their digest drop from the live fold as a
+  typed defect, never trusted silently.
+- **Provenance is measured, not claimed.** A run's refs are harvested from
+  what its granted organs actually returned; budgets (run, check, stack
+  depth) are named backstops whose overrun is a typed refusal.
+
+**Evidence:** the session of 2026-08-16 — two models ignoring the cite
+instruction (L5's own record) generalizes: anything reusable left as prose
+instructions is re-derived or drifted on every use, while the same procedure
+as gated code runs identically forever and costs zero tokens.
+**Enforced:** `skills.test.mjs` — the wish refusal, the token scan, the
+check-must-pass gate, the ambiguity refusal, the zero-model-call skill path,
+the typed descent, organ-grant denial, budget overruns, stacking with
+dependency-order admission, and the digest-mismatch drop on reload.
+
 ---
 
 *Established 2026-08-16, alongside the holonic layer, the constitution

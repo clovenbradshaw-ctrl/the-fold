@@ -101,9 +101,15 @@ Do not rebuild these. `eoreader6/packages/host/` is the assembled reader:
   kept apart, provably identical only at full commitment. This is the measured
   answer to "what is most interesting", and the only licensed one.
 
-One measured gap found while wiring: `searchSpans` does not fold diacritics —
-`Natásha` returns three spans, `Natasha` returns zero. This repo's `tokenize`
-does fold them. Same bug class, opposite state.
+One measured gap found while wiring — `searchSpans` did not fold diacritics
+(`Natásha` returned three spans, `Natasha` zero, while this repo's `tokenize`
+folds; same bug class, opposite state) — was CLOSED upstream 2026-08-16:
+eoreader6's READING-POLICY A23 records it, `searchSpans` now folds both
+sides through the session's one `diaNorm`, and the cross-organ agreement
+fixture its P7.1 demanded exists (`conformance/fold-agreement.test.js`).
+Admission also now strips the container at the door (A20's container half),
+so `wp:chunk-0` is no longer the PG header — spans are body-only, with byte
+addresses still naming the received file.
 
 ---
 

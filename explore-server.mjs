@@ -14,17 +14,37 @@
 // file never truncates or rewrites it. The record is itself a file inside
 // the browse root, so Explore can open its own record.
 //
-// WHAT THIS SERVER NEVER DOES: write inside the browse root except the two
-// append-only places it owns (record/, materials/); accept absolute paths;
-// follow a path outside the root; call a model; fetch anything remote.
+// WHAT THIS SERVER NEVER DOES: write inside the browse root except the
+// places it owns (append-only record/ and materials/; the clearable web/
+// store); accept absolute paths; follow a path outside the root; call a
+// model. Remote fetching exists ONLY inside the /api/web/* organ — the one
+// sanctioned egress (POLICIES P13, amending P1): the page or search the
+// user explicitly asked for, plus web.archive.org when the archive setting
+// is on. Every crossing is recorded before or as it resolves; nothing is
+// fetched that a request did not name; the BROWSER page still fetches
+// nothing remote (web.test.mjs pins that seam).
 
 import http from "node:http";
 import { Worker } from "node:worker_threads";
-import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { foldExtract } from "../eoreader6/packages/host/index.js";
+import {
+  extractReadable,
+  looksLikeChallenge,
+  parseSearchResults,
+  foldWebHistory,
+  normalizeUrl,
+  archiveUrlFrom,
+  extForContentType,
+  WEB_FETCH_MAX_BYTES,
+  WEB_FETCH_TIMEOUT_MS,
+  WEB_SEARCH_MAX_RESULTS,
+  WEB_ARCHIVE_TIMEOUT_MS,
+  WEB_UA,
+} from "./web.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
@@ -40,6 +60,13 @@ const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
 const RECORD_PATH = path.join(RECORD_DIR, "explore-record.jsonl");
 const MATERIALS_DIR = path.join(ROOT, "materials");
+// The web store — history the user may clear, unlike record/ which no one
+// may. pages/ holds full content, addressed by sha256 of the bytes as they
+// arrived; history.jsonl is the index the Explore tab's web view folds.
+const WEB_DIR = path.join(ROOT, "web");
+const WEB_PAGES_DIR = path.join(WEB_DIR, "pages");
+const WEB_HISTORY_PATH = path.join(WEB_DIR, "history.jsonl");
+const WEB_SETTINGS_PATH = path.join(WEB_DIR, "settings.json");
 
 // ── declared numbers, each with its giver ───────────────────────────────────
 // Tree pages and hex pages are caps on a response, not on the data; every
@@ -111,6 +138,70 @@ function record(event, fields = {}) {
   const line = JSON.stringify({ at: new Date().toISOString(), event, ...fields });
   appendFileSync(RECORD_PATH, line + "\n");
   return line;
+}
+
+// ── the web organ's I/O half ────────────────────────────────────────────────
+// The pure half (extraction, parsing, the history fold) lives in web.js and
+// is tested offline; this half is the P13 egress itself. Three destinations
+// only, each by explicit user action: the search endpoint for a typed query,
+// the page a request names, web.archive.org when the archive setting is on.
+
+function webSettings() {
+  try {
+    return { archiveOrg: false, ...JSON.parse(readFileSync(WEB_SETTINGS_PATH, "utf8")) };
+  } catch {
+    return { archiveOrg: false };
+  }
+}
+
+function appendWebHistory(line) {
+  mkdirSync(WEB_DIR, { recursive: true });
+  appendFileSync(WEB_HISTORY_PATH, JSON.stringify(line) + "\n");
+}
+
+/** Fetch with the declared byte cap enforced on the stream, not after it. */
+async function fetchCapped(url, { timeoutMs = WEB_FETCH_TIMEOUT_MS, maxBytes = WEB_FETCH_MAX_BYTES } = {}) {
+  const res = await fetch(url, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: { "user-agent": WEB_UA, accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8" },
+  });
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of res.body ?? []) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      res.body?.cancel?.().catch(() => {});
+      throw Object.assign(new Error(`response exceeds the declared bound of ${maxBytes} bytes`), { code: "CENSORED_ABOVE" });
+    }
+    chunks.push(Buffer.from(chunk));
+  }
+  return { res, buf: Buffer.concat(chunks) };
+}
+
+/**
+ * Save Page Now, DEFERRED — the history entry ships with archive "pending"
+ * and this lands as a patch line carrying the same id (the fold in web.js
+ * merges them), because SPN routinely takes a minute the fetch response
+ * must not wait for. Success and failure both land; pending never silently
+ * evaporates.
+ */
+async function archivePage(id, url) {
+  try {
+    const { res } = await fetchCapped(`https://web.archive.org/save/${url}`, { timeoutMs: WEB_ARCHIVE_TIMEOUT_MS });
+    const archiveUrl = archiveUrlFrom({ contentLocation: res.headers.get("content-location"), finalUrl: res.url });
+    if (archiveUrl) {
+      appendWebHistory({ id, archive: { status: "saved", url: archiveUrl, at: new Date().toISOString() } });
+      record("web-archive", { id, archiveUrl });
+    } else {
+      const detail = `save-page-now answered ${res.status} without naming a snapshot`;
+      appendWebHistory({ id, archive: { status: "failed", detail, at: new Date().toISOString() } });
+      record("web-archive-error", { id, error: detail });
+    }
+  } catch (e) {
+    appendWebHistory({ id, archive: { status: "failed", detail: e.message, at: new Date().toISOString() } });
+    record("web-archive-error", { id, error: e.message });
+  }
 }
 
 // ── path confinement ────────────────────────────────────────────────────────
@@ -546,6 +637,199 @@ const server = http.createServer(async (req, res) => {
         record("deposit", { path: rel, bytes: Buffer.byteLength(text), from: "converse" });
       }
       return send(res, 200, { path: rel, deduped: existed });
+    }
+
+    // ---- web search: one query, one request to the no-key endpoint. The
+    // endpoint's bot-challenge page is a typed refusal (P4: gaps are
+    // results), never an empty success. Found vs shown is reported.
+    if (req.method === "POST" && p === "/api/web/search") {
+      const body = await readJsonBody(req);
+      const query = String(body.query ?? "").trim();
+      if (!query) return send(res, 400, { error: "query (string) is required" });
+      const endpoints = [
+        `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+        `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`,
+      ];
+      let blocked = false;
+      let results = null;
+      let failure = null;
+      for (const ep of endpoints) {
+        try {
+          const { res: r, buf } = await fetchCapped(ep);
+          const parsed = parseSearchResults(buf.toString("utf8"));
+          if (parsed.blocked) {
+            blocked = true;
+            continue;
+          }
+          if (parsed.offEndpoint || r.status >= 400) {
+            failure = `the endpoint answered ${r.status} with something other than its results page`;
+            continue;
+          }
+          results = parsed.results;
+          break;
+        } catch (e) {
+          failure = e.message;
+        }
+      }
+      if (!results) {
+        const gap = blocked
+          ? { silence: "refused-upstream", detail: "the search endpoint answered with its bot-challenge page — it declined this machine; the organ did not fail and the query was not silently empty" }
+          : { silence: "not-present", detail: failure ?? "no search endpoint answered" };
+        record("web-search", { query, gap: gap.silence });
+        return send(res, 200, { query, engine: "duckduckgo html/lite (no key)", gap });
+      }
+      const shown = results.slice(0, WEB_SEARCH_MAX_RESULTS);
+      record("web-search", { query, found: results.length, shown: shown.length });
+      return send(res, 200, {
+        query,
+        engine: "duckduckgo html/lite (no key)",
+        found: results.length,
+        shown: shown.length,
+        truncated: results.length > shown.length,
+        results: shown,
+      });
+    }
+
+    // ---- web fetch: read ONE page the request names. The whole response is
+    // kept (content-addressed under web/pages/), the readable face is
+    // extracted and kept beside it, salience is the fold over that face
+    // (kept-of-N declared), and the visit lands in web/history.jsonl with
+    // its retrieval date — a browser history that actually holds the pages.
+    // With the archive setting on, Save Page Now runs deferred and patches
+    // the entry when the snapshot has a name.
+    if (req.method === "POST" && p === "/api/web/fetch") {
+      const body = await readJsonBody(req);
+      const url = normalizeUrl(body.url);
+      if (!url) return send(res, 400, { error: "url must be http(s), not loopback — the tree already serves local files" });
+      const retrievedAt = new Date().toISOString();
+      let fetched;
+      try {
+        fetched = await fetchCapped(url);
+      } catch (e) {
+        record("web-fetch-error", { url, error: e.message });
+        const gap = e.code === "CENSORED_ABOVE"
+          ? { silence: "censored-above", detail: `${e.message} — giver: web.js WEB_FETCH_MAX_BYTES, engineering starting point` }
+          : { silence: "not-present", detail: e.message };
+        return send(res, 200, { url, gap });
+      }
+      const { res: r, buf } = fetched;
+      const contentType = r.headers.get("content-type") ?? "";
+      const sha = crypto.createHash("sha256").update(buf).digest("hex");
+      const ext = extForContentType(contentType);
+      mkdirSync(WEB_PAGES_DIR, { recursive: true });
+      const rawFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}${ext}`);
+      if (!existsSync(rawFile)) writeFileSync(rawFile, buf);
+
+      // the readable face — ALL of it, extraction is not a summary
+      let title = null;
+      let text = null;
+      let textFile = null;
+      if (ext === ".html" || ext === ".xml") {
+        const readable = extractReadable(buf.toString("utf8"));
+        title = readable.title || null;
+        text = readable.text;
+        textFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}.txt`);
+        if (!existsSync(textFile)) writeFileSync(textFile, text);
+      } else {
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+          textFile = rawFile; // the raw face IS the text face
+        } catch {
+          /* binary — raw is kept, there is no text face */
+        }
+      }
+
+      // salience — the fold over the whole saved text, never a paraphrase
+      let fold = null;
+      if (text?.length) {
+        try {
+          fold = { ...foldExtract({ text, budgetSentences: FOLD_BUDGET_SENTENCES }), budget: FOLD_BUDGET_SENTENCES };
+        } catch (e) {
+          fold = { gap: { reason: "fold_failed", detail: e.message } };
+        }
+      }
+
+      const settings = webSettings();
+      const entry = {
+        id: crypto.randomUUID(),
+        url,
+        finalUrl: r.url || url,
+        status: r.status,
+        contentType,
+        title,
+        retrievedAt,
+        bytes: buf.length,
+        textChars: text?.length ?? null,
+        sha256: sha,
+        rawPath: relOf(rawFile),
+        textPath: textFile ? relOf(textFile) : null,
+        ...(looksLikeChallenge({ title, textChars: text?.length }) ? { challenge: true } : {}),
+        archive: settings.archiveOrg ? { status: "pending", askedAt: retrievedAt } : null,
+      };
+      appendWebHistory(entry);
+      record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: !!settings.archiveOrg });
+      if (settings.archiveOrg) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
+      return send(res, 200, { entry, fold });
+    }
+
+    // ---- web history: the fold over history.jsonl, newest first, with the
+    // settings riding along so the view needs one call. Reading it is
+    // display, not computation — like /api/tree, it is not a record event.
+    if (req.method === "GET" && p === "/api/web/history") {
+      const jsonl = existsSync(WEB_HISTORY_PATH) ? readFileSync(WEB_HISTORY_PATH, "utf8") : "";
+      const { entries, skipped } = foldWebHistory(jsonl);
+      return send(res, 200, { path: relOf(WEB_HISTORY_PATH), total: entries.length, skipped, settings: webSettings(), entries });
+    }
+
+    // ---- web settings: today one switch — submit each fetched page to
+    // archive.org's Save Page Now for a stable public snapshot. Off by
+    // default: the fetch itself is private; the archive crossing is not.
+    if (req.method === "POST" && p === "/api/web/settings") {
+      const body = await readJsonBody(req);
+      const next = { ...webSettings(), ...(typeof body.archiveOrg === "boolean" ? { archiveOrg: body.archiveOrg } : {}) };
+      mkdirSync(WEB_DIR, { recursive: true });
+      writeFileSync(WEB_SETTINGS_PATH, JSON.stringify(next, null, 2) + "\n");
+      record("web-settings", next);
+      return send(res, 200, next);
+    }
+
+    // ---- web clear: the one deliberate deletion this server performs —
+    // the user emptying their own page history (one entry by id, or all of
+    // it). Saved content is content-addressed and may be shared between
+    // visits, so a file is removed only when no kept entry still names it.
+    // The clearing itself is recorded in record/ — the history store is
+    // clearable, the fact that it was cleared is not.
+    if (req.method === "POST" && p === "/api/web/clear") {
+      const body = await readJsonBody(req);
+      const jsonl = existsSync(WEB_HISTORY_PATH) ? readFileSync(WEB_HISTORY_PATH, "utf8") : "";
+      const { entries } = foldWebHistory(jsonl);
+      const victims = body.id ? entries.filter((e) => e.id === body.id) : entries;
+      if (body.id && !victims.length) return send(res, 404, { error: "no such history entry" });
+      const kept = body.id ? entries.filter((e) => e.id !== body.id) : [];
+      const keptFiles = new Set(kept.flatMap((e) => [e.rawPath, e.textPath].filter(Boolean)));
+      const removed = new Set();
+      let bytes = 0;
+      for (const e of victims) {
+        for (const relFile of [e.rawPath, e.textPath]) {
+          if (!relFile || keptFiles.has(relFile) || removed.has(relFile)) continue;
+          const abs = confine(relFile);
+          if (!abs || !abs.startsWith(WEB_PAGES_DIR + path.sep)) continue; // the organ deletes only inside its own store
+          removed.add(relFile);
+          try {
+            bytes += statSync(abs).size;
+            rmSync(abs);
+          } catch {
+            /* already gone */
+          }
+        }
+      }
+      if (kept.length) {
+        writeFileSync(WEB_HISTORY_PATH, kept.map((e) => JSON.stringify(e)).join("\n") + "\n");
+      } else {
+        rmSync(WEB_HISTORY_PATH, { force: true });
+      }
+      record("web-clear", { scope: body.id ?? "all", entries: victims.length, files: removed.size, bytes });
+      return send(res, 200, { cleared: victims.length, files: removed.size, bytes, remaining: kept.length });
     }
 
     // ---- the record's tail, for the UI affordance; the full file is in the tree.

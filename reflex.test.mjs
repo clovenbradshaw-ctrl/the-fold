@@ -1,4 +1,4 @@
-// reflex.test.mjs — the self plane's assay (P13).
+// reflex.test.mjs — the self plane's assay (P15).
 //
 // What must hold: the ledger is append-only and rebuilds byte-identically
 // from its entries alone; every self address self-verifies and lives on the

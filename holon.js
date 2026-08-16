@@ -358,11 +358,19 @@ export function buildPlanPrompt(task, maxParts = MAX_PARTS) {
 // because a prompt is trusted (L5: it never is; judge() below enforces this
 // mechanically regardless), but because a model that has never been told
 // what "answered" looks like has no way to aim for it. Two shapes named
-// because they are the two failures measured live: restating the question
+// because they are the two failures measured live: restating the prompt
 // back (echo), and transcribing the passage instead of answering from it
 // (reproduction) — a photocopy that grounds perfectly and answers nothing.
 export const EXECUTE_SYSTEM_PROMPT =
-  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the question — do not copy sentences from it, and do not just restate the question back. When material is supplied, write from it and cite the address in square brackets exactly as it appears. Where the material does not cover the part, say so plainly instead of filling the gap.";
+  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the prompt — do not copy sentences from it, and do not just restate the prompt back. When material is supplied, write from it and cite the address in square brackets exactly as it appears. Where the material does not cover the part, say so plainly instead of filling the gap.";
+
+// The no-material reply's other face. A prompt that matched no material is
+// not necessarily a research gap — a greeting, a question of taste, a joke —
+// and a model ordered to "say what the part would need" on "hi" says "the
+// question is: hi". This prompt is the one place chat is allowed to be chat:
+// no material framing, no citation grammar, just a reply to a person.
+export const CHAT_SYSTEM_PROMPT =
+  "A friendly conversation with no source material. The user's message matched no document to cite, so reply to it directly, briefly, and naturally, as a person would. Do not restate the message back; say something new in response.";
 
 export function buildExecutePrompt(part, sourceBlock, discourse = "") {
   const head = `Write this part: ${part.label}. ${part.description}`;
@@ -388,7 +396,7 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
   }
   if (mode === "echo") {
     return (
-      `Your draft for "${part.label}" restates the question instead of answering it. ` +
+      `Your draft for "${part.label}" restates the prompt instead of answering it. ` +
       `Answer it from the material in your own words, citing the address in square brackets; ` +
       `if the material does not answer it, say so plainly.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
@@ -552,7 +560,7 @@ export async function runPart({
   // sentence is classified on its own; a sentence whose every content word
   // is already in the question is FRAMING, set aside; what remains is the
   // draft's actual content, and IT is what gets judged:
-  //   echoed       — no content sentences survive framing: the question,
+  //   echoed       — no content sentences survive framing: the prompt,
   //                  restated and nothing else. Run 6: 8/50 turns.
   //   reproduced   — either the content, rejoined, is one contiguous
   //                  verbatim stretch of an offered passage (the simple
@@ -576,9 +584,21 @@ export async function runPart({
   const ADDRESS_RE = /\[?[^\s\]]+#\d+-\d+\]?/g;
   const foldWs = (s) => foldDiacritics(String(s).toLowerCase()).replace(/\s+/g, " ").trim();
   const passagesFolded = passages.map((p) => foldWs(p.text));
+  // A sentence that only NAMES the act of prompting is framing, not content:
+  // "The question is: …", "You asked about …", "To answer your question …".
+  // The tell is structural and closed-set — every surviving content token is
+  // either the prompt's own word or one of a tiny set of act-naming words.
+  // The set is the reason "The question is: hi." is caught at all: tokenize
+  // drops "hi" (two letters) and the sentence survives as {"question"} alone.
+  // This is a judgement in code, never a vocabulary list planted in a prompt
+  // — the same L5/L2 discipline as grounding.js's stoplist and cite.js's veto.
+  const ACT_WORDS = new Set([
+    "question", "answer", "ask", "asked", "asks", "asking", "reply", "replied",
+    "responding", "respond", "referring", "regarding", "concerning", "about",
+  ]);
   const isFraming = (sentence) => {
     const toks = tokenize(sentence);
-    return toks.length > 0 && toks.every((w) => questionWords.has(w));
+    return toks.length > 0 && toks.every((w) => questionWords.has(w) || ACT_WORDS.has(w));
   };
   /** Sentences of `t` with addresses stripped, framing (question-echo) sentences removed. */
   const contentSentencesOf = (t) =>
@@ -637,10 +657,22 @@ export async function runPart({
     },
   };
 
-  const executeMessages = [
-    { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-    { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
-  ];
+  // A part with no material is plain chat, not a research gap. The
+  // research-framed prompt over nothing produces either an echo of the
+  // prompt or a diagnosis of it ("The prompt needs a clear, specific
+  // question") — both measured live — because a model told to "say what
+  // the part would need" on "hi" has nothing to say but that. The first
+  // draft for a passage-less part is therefore ONE neutral conversational
+  // call: the prompt is a prompt, answered as a person would answer it.
+  const executeMessages = passages.length
+    ? [
+        { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+        { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
+      ]
+    : [
+        { role: "system", content: CHAT_SYSTEM_PROMPT },
+        { role: "user", content: task },
+      ];
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.
@@ -665,8 +697,34 @@ export async function runPart({
   check = inspect(draft);
   let verdict = judge(draft);
 
+  // A prompt that matched no material and whose draft only restates it is
+  // plain chat, not a research gap: "hi" should be greeted, not diagnosed.
+  // The material correction loop below has nothing to correct against — no
+  // passages — and a material-framed rewrite of a greeting just echoes the
+  // greeting again, so it is skipped in favour of ONE neutral conversational
+  // call. Whatever a material-framed prompt cannot answer as a finding it
+  // may still answer as a person.
+  if (verdict.echoed && !passages.length) {
+    const chat = clean(
+      await call(
+        [
+          { role: "system", content: CHAT_SYSTEM_PROMPT },
+          { role: "user", content: task },
+        ],
+        { effort: "low", maxTokens: EXECUTE_MAX_TOKENS },
+      ),
+    );
+    const chatVerdict = judge(chat);
+    if (!chatVerdict.echoed && !chatVerdict.reproduced) draft = chat;
+    else verdict = chatVerdict;
+  }
+
   while (
     (check.unsupported.length || verdict.echoed || verdict.reproduced) &&
+    // The correction prompt answers "from the material" — with no passages
+    // it cannot, and a material-framed rewrite of a passage-less echo just
+    // produces a diagnosis of the prompt. The chat path above is the whole
+    // answer to a passage-less echo; nothing in this loop fixes it.
     passages.length &&
     corrections < maxCorrections
   ) {
@@ -686,15 +744,26 @@ export async function runPart({
     verdict = judge(draft);
   }
 
-  const text = String(draft ?? "").trim();
+  // The output ships without its framing: a sentence that names the act of
+  // prompting is never an answer, and a draft that opens by echoing the
+  // prompt must not carry that echo to the page, the fold, or the record.
+  // The SAME sentences judge() already classified are the ones shipped, so
+  // what was judged is what leaves. A draft that is nothing but framing
+  // ships nothing — the typed gap below says why.
+  const raw = String(draft ?? "").trim();
+  const sentences = splitSentences(raw.replace(ADDRESS_RE, " "))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const firstContent = sentences.findIndex((s) => !isFraming(s));
+  const text = firstContent < 0 ? "" : firstContent > 0 ? sentences.slice(firstContent).join(" ") : raw;
   if (verdict.echoed || verdict.reproduced) {
     check = { ...check, refs: [], used: [], attributed: [], channels: [] };
   }
   const open = [
     ...(strayed ? [`part searched on words the task never used: ${part.label}`] : []),
-    ...(verdict.echoed ? [`answer restates the question; nothing established: ${part.label}`] : []),
+    ...(verdict.echoed ? [`answer restates the prompt; nothing established: ${part.label}`] : []),
     ...(verdict.reproduced
-      ? [`answer reproduces the material verbatim; it does not answer the question: ${part.label}`]
+      ? [`answer reproduces the material verbatim; it does not answer the prompt: ${part.label}`]
       : []),
     ...(scaffoldRemoved.length
       ? [`model narrated its own answering process; ${scaffoldRemoved.length} span(s) hidden: ${part.label}`]

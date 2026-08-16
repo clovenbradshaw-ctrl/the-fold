@@ -11,6 +11,7 @@
   --line: #dcdce3;
   --accent: #6d28d9;
   --accent-soft: #f3eeff;
+  --on-accent: #ffffff;
   --lit: #6d28d9;
   --warn: #b42318;
   --ok: #0e7a4f;
@@ -18,6 +19,18 @@
   --sans: ui-sans-serif, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+  /* file-kind chips — a color per kind, not per file: the same distinction
+     Drive draws with icon color so a folder of mixed kinds reads at a glance. */
+  --chip-image-bg: #f3e8fd; --chip-image-fg: #9334e6;
+  --chip-audio-bg: #fef7e0; --chip-audio-fg: #b06000;
+  --chip-video-bg: #fce8e6; --chip-video-fg: #c5221f;
+  --chip-pdf-bg: #fce8e6; --chip-pdf-fg: #d93025;
+  --chip-markdown-bg: #e8f0fe; --chip-markdown-fg: #1a73e8;
+  --chip-table-bg: #e6f4ea; --chip-table-fg: #188038;
+  --chip-json-bg: #f1f3f4; --chip-json-fg: #5f6368;
+  --chip-code-bg: #f1f3f4; --chip-code-fg: #5f6368;
+  --chip-archive-bg: #fef7e0; --chip-archive-fg: #b06000;
+  --chip-file-bg: #f1f3f4; --chip-file-fg: #5f6368;
 }
 /* Dark is the OS's choice unless the reader has said otherwise, and the
    reader's choice wins in both directions — a named cursor on the page's
@@ -31,10 +44,21 @@
     --line: #2b2b34;
     --accent: #a78bfa;
     --accent-soft: #1e1932;
+    --on-accent: #1e1932;
     --lit: #a78bfa;
     --warn: #f0857a;
     --ok: #4cc38a;
     --mark: #4a3f13;
+    --chip-image-bg: #2a1a3d; --chip-image-fg: #d7aefb;
+    --chip-audio-bg: #3a2f0a; --chip-audio-fg: #fdd663;
+    --chip-video-bg: #3c1e1c; --chip-video-fg: #f28b82;
+    --chip-pdf-bg: #3c1e1c; --chip-pdf-fg: #f28b82;
+    --chip-markdown-bg: #1a2a4a; --chip-markdown-fg: #8ab4f8;
+    --chip-table-bg: #173829; --chip-table-fg: #81c995;
+    --chip-json-bg: #2a2b2f; --chip-json-fg: #9aa0a6;
+    --chip-code-bg: #2a2b2f; --chip-code-fg: #9aa0a6;
+    --chip-archive-bg: #3a2f0a; --chip-archive-fg: #fdd663;
+    --chip-file-bg: #2a2b2f; --chip-file-fg: #9aa0a6;
   }
 }
 :root[data-theme="dark"] {
@@ -45,10 +69,21 @@
   --line: #2b2b34;
   --accent: #a78bfa;
   --accent-soft: #1e1932;
+  --on-accent: #1e1932;
   --lit: #a78bfa;
   --warn: #f0857a;
   --ok: #4cc38a;
   --mark: #4a3f13;
+  --chip-image-bg: #2a1a3d; --chip-image-fg: #d7aefb;
+  --chip-audio-bg: #3a2f0a; --chip-audio-fg: #fdd663;
+  --chip-video-bg: #3c1e1c; --chip-video-fg: #f28b82;
+  --chip-pdf-bg: #3c1e1c; --chip-pdf-fg: #f28b82;
+  --chip-markdown-bg: #1a2a4a; --chip-markdown-fg: #8ab4f8;
+  --chip-table-bg: #173829; --chip-table-fg: #81c995;
+  --chip-json-bg: #2a2b2f; --chip-json-fg: #9aa0a6;
+  --chip-code-bg: #2a2b2f; --chip-code-fg: #9aa0a6;
+  --chip-archive-bg: #3a2f0a; --chip-archive-fg: #fdd663;
+  --chip-file-bg: #2a2b2f; --chip-file-fg: #9aa0a6;
 }
 
 * { box-sizing: border-box; }
@@ -414,6 +449,26 @@ body.embed .page-tabs { display: none; }
 .tile.dir { flex-direction: row; align-items: center; gap: 10px; padding: 12px 14px; }
 .tile .glyph { font-size: 20px; line-height: 1; color: var(--muted); font-family: var(--mono); flex: none; }
 .tile.dir .glyph { color: var(--accent); font-size: 15px; }
+/* a file's kind chip — the colored square Drive uses so mixed contents
+   read at a glance, not the file browser's plain mono icon */
+.tile .glyph[class*="chip-"] {
+  width: 100%; height: 60px; display: flex; align-items: center; justify-content: center;
+  border-radius: 7px; font-size: 22px; font-family: var(--sans);
+}
+.desk-tbl .glyph[class*="chip-"], .picker-row .glyph[class*="chip-"] {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 5px; font-size: 12px; margin-right: 4px; vertical-align: -4px;
+}
+.glyph.chip-image { background: var(--chip-image-bg); color: var(--chip-image-fg); }
+.glyph.chip-audio { background: var(--chip-audio-bg); color: var(--chip-audio-fg); }
+.glyph.chip-video { background: var(--chip-video-bg); color: var(--chip-video-fg); }
+.glyph.chip-pdf { background: var(--chip-pdf-bg); color: var(--chip-pdf-fg); }
+.glyph.chip-markdown { background: var(--chip-markdown-bg); color: var(--chip-markdown-fg); }
+.glyph.chip-table { background: var(--chip-table-bg); color: var(--chip-table-fg); }
+.glyph.chip-json { background: var(--chip-json-bg); color: var(--chip-json-fg); }
+.glyph.chip-code { background: var(--chip-code-bg); color: var(--chip-code-fg); }
+.glyph.chip-archive { background: var(--chip-archive-bg); color: var(--chip-archive-fg); }
+.glyph.chip-file { background: var(--chip-file-bg); color: var(--chip-file-fg); }
 .tile .nm { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .tile .sz { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
 .tile .thumb {
@@ -489,6 +544,47 @@ body.embed main { position: relative; }
 .fold-line:hover { background: var(--accent-soft); }
 .fold-line + .fold-line { border-top: 1px solid var(--line); }
 .fold-foot { font-size: 10.5px; color: var(--muted); margin-top: 6px; font-style: italic; }
+
+/* ── "+ New", the empty "My files", and adding things ────────────────────── */
+.new-btn {
+  background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  font-weight: 600; padding: 6px 16px; border-radius: 18px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+}
+.new-btn:hover { filter: brightness(1.08); border-color: var(--accent); }
+.crumb-here { font-size: 15px; font-weight: 600; color: var(--ink); }
+.desk-main.drag-over { outline: 2px dashed var(--accent); outline-offset: -6px; background: var(--accent-soft); border-radius: 10px; }
+.desk-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 64px 20px; color: var(--muted); max-width: 420px; margin: 20px auto 0;
+}
+.desk-empty-glyph { font-size: 40px; color: var(--line); margin-bottom: 14px; }
+.desk-empty h2 { margin: 0 0 6px; font-size: 17px; color: var(--ink); }
+.desk-empty p { margin: 0 0 18px; font-size: 13.5px; line-height: 1.5; }
+.desk-empty-actions { display: flex; gap: 8px; }
+
+/* the "add from this computer" picker */
+.picker-dialog {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink);
+  max-width: 640px; width: 92vw; padding: 0; overflow: hidden;
+}
+.picker-dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+.picker-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.picker-head h2 { margin: 0; font-size: 15px; }
+.picker-crumbs { padding: 8px 18px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 2px; }
+.picker-crumbs .linkish { font-size: 12.5px; text-decoration: none; }
+.picker-crumbs .linkish:hover { color: var(--accent); }
+.picker-crumbs .sep { color: var(--muted); }
+.picker-list { max-height: 46vh; overflow-y: auto; padding: 6px 8px; }
+.picker-row { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 7px; font-size: 13px; }
+.picker-row:hover { background: var(--panel); }
+.picker-row.picked { background: var(--accent-soft); }
+.picker-check { border: none; background: none; padding: 0 6px 0 0; font-size: 14px; color: var(--accent); flex: none; }
+.picker-name { flex: 1; text-align: left; font-size: 13px; text-decoration: none; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-row .sz { font-size: 11px; color: var(--muted); font-family: var(--mono); flex: none; }
+.picker-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button.primary:disabled { opacity: 0.45; }
 
 /* record dialog */
 dialog {

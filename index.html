@@ -311,7 +311,7 @@
       }
       /* In the conversation an artifact is one line you can press; the thing
          itself is in the panel, at the width it wants. */
-      .artifact-chip {
+      .build-chip {
         display: inline-flex;
         align-items: center;
         gap: 7px;
@@ -322,20 +322,57 @@
         background: var(--accent-soft);
         text-align: left;
       }
-      .artifact-entry { margin-bottom: 18px; }
-      .artifact-entry .artifact { margin-bottom: 0; }
-      .artifact-from {
+      .build-entry { margin-bottom: 18px; }
+      .build-entry .artifact { margin-bottom: 0; }
+      .build-from {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         margin: 0 0 5px;
         font-size: 10.5px;
         text-transform: uppercase;
         letter-spacing: 0.07em;
         color: var(--muted);
       }
-      .artifact-entry.current .artifact { border-color: var(--accent); }
+      .build-run {
+        margin-left: auto;
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        padding: 2px 10px;
+        border-radius: 20px;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        cursor: pointer;
+      }
+      .build-run:disabled { opacity: 0.55; cursor: default; }
+      .run-console {
+        margin: 0;
+        padding: 12px;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        background: #0b0e14;
+        border-top: 1px solid var(--line);
+      }
+      .run-console.bad { color: var(--warn); }
+      .build-entry.current .artifact { border-color: var(--accent); }
 
       /* Artifacts: the answer rendered as the format it turned out to be. */
       .msg .body .prose { margin: 0 0 10px; white-space: pre-wrap; }
       .msg .body .prose:last-child { margin-bottom: 0; }
+      .msg .body .prose strong { font-weight: 700; }
+      .msg .body .prose em { font-style: italic; }
+      .msg .body .prose code {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--accent-soft);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 4px;
+      }
       .artifact {
         margin: 0 0 12px;
         border: 1px solid var(--line);
@@ -721,43 +758,7 @@
              text stays loaded and records still re-open; retrieval just
              stops seeing it. -->
         <div id="source-strip" aria-label="Material in play" hidden></div>
-        <div class="scroll" id="chat">
-          <div id="intro">
-          <p class="note">
-            Pick a model and connect — Ollama, on this machine; nothing leaves
-            it. Then talk. Every finished turn is folded to one line; only the
-            folds, the running summary, and the last two exchanges are ever
-            resent. Watch the other panels — the transcript grows, the prompt
-            does not.
-          </p>
-          <p class="note">
-            Material has three doors: drop a text file anywhere on this page,
-            paste into the ＋ Material box, or send a source over from
-            Explore. Loaded sources appear as chips above the conversation —
-            click one to toggle whether the chat can see it.
-          </p>
-          <p class="note">
-            The instrument can also be asked about itself. Its own acts —
-            what it retrieved, checked, folded, and how far each arrival
-            moved its belief — are recorded on a separate plane from the
-            material, addressed and re-openable like any source but never
-            confusable with one. Try <b>/self</b> for the ladder, ask
-            “what surprised you most” (measured, not asked), or
-            <b>/reflect</b> how do you think — a turn that reads the
-            ledger itself.
-          </p>
-          <p class="note">
-            Every sentence shows who is standing behind it. Plain with an
-            address chip: the material is — press the chip and read the bytes.
-            <span class="sent" data-ground="model">Dotted: only the model is —
-            click the sentence to search the material for ground</span>.
-            <span class="sent claims">Wavy: the model stated a fact the
-            material does not back</span> — hover to see exactly what, click
-            to hunt for it. The line under each answer counts the three.
-          </p>
-          </div>
-          </p>
-        </div>
+        <div class="scroll" id="chat"></div>
         <form class="composer" id="composer">
           <button type="button" class="attach" id="attach" title="Add material (or drop a file anywhere)">
             <span aria-hidden="true">＋</span> Material
@@ -771,23 +772,41 @@
       <section class="col" id="col-panel">
         <nav class="tabs" role="tablist">
           <button role="tab" data-pane="chat" aria-selected="false" class="chat-tab">Chat</button>
-          <button role="tab" data-pane="views" aria-selected="true">Views</button>
+          <button role="tab" data-pane="builds" aria-selected="true">Builds</button>
           <!-- Material's tab is gone: Explore is the data explorer now.
                Dropping a file anywhere on the page still adds material —
                the pane below stays wired for that flow, just not fronted. -->
           <button role="tab" data-pane="explore" aria-selected="false" title="The document explorer — needs explore-server.mjs (node explore-server.mjs)">Explore</button>
         </nav>
         <div class="scroll">
-          <div class="pane on" id="pane-views">
-            <h2>Views <span id="artifact-count" class="tag"></span></h2>
+          <div class="pane on" id="pane-builds">
+            <h2>Builds <span id="builds-count" class="tag"></span></h2>
             <p class="note">
-              Output that isn't prose, kept at full size instead of squeezed
-              into the conversation. Whatever a turn produced — a table it
-              wrote, a table this app computed, code, a page — is here, newest
-              first.
+              Output that isn't prose, spun up at full size instead of squeezed
+              into the conversation. Code builds open in the editor and run.
+              Whatever a turn produced — a table it wrote, a table this app
+              computed, code, a page — is here, newest first.
             </p>
-            <div id="artifact-list">
+            <div id="builds-list">
               <p class="empty">Nothing but prose so far.</p>
+            </div>
+          </div>
+
+          <div class="pane" id="pane-editor">
+            <div class="editor-head">
+              <button type="button" class="back" id="editor-back">← builds</button>
+              <h2 id="editor-title">build</h2>
+              <span id="editor-lang" class="tag"></span>
+              <span class="spacer"></span>
+              <button type="button" class="artifact-run" id="editor-run">▶ run</button>
+              <button type="button" class="editor-plain" id="editor-reset" title="restore the original code">reset</button>
+            </div>
+            <div class="editor-body">
+              <div class="code-wrap">
+                <pre id="editor-gutter" aria-hidden="true"></pre>
+                <textarea id="editor-code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+              </div>
+              <pre id="editor-console" class="run-console" hidden></pre>
             </div>
           </div>
 

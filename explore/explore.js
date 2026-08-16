@@ -54,6 +54,12 @@ const state = {
   grid: null, // TERRAIN_GRID from the read's Paradigm surface
   bcIndex: null, // Uint32Array: byte offset of each char index
   lenses: JSON.parse(localStorage.getItem("fold-explore-lenses") ?? "[]"),
+  // "My files" starts empty. browseDir === "" && libraryOrigin === null IS
+  // the library root (library.js's flat added-index); libraryOrigin, once
+  // set, names the added folder a browseDir descends from — the boundary
+  // "up" may not climb past, back to real-filesystem browsing at large.
+  libraryOrigin: null,
+  deskQuery: "", // initialized, not left undefined — read unguarded in several places
   // the web view's own state — q survives view switches; history/settings
   // are server truth, reloaded whenever set back to null
   web: { q: "", settings: null, results: null, busy: null, fetched: null, history: null, historyLoading: false },
@@ -121,50 +127,21 @@ function* wordOccurrences(lowerHaystack, lowerNeedle) {
   }
 }
 
-// ── the rail ────────────────────────────────────────────────────────────────
 // ── the sidebar ─────────────────────────────────────────────────────────────
-// A Drive sidebar, not an ornament: clicking a folder NAVIGATES the files
-// view to it (and expands it in place), the current location stays lit, and
-// recents come from the record — real history, never invented.
-async function loadTree(container, relPath, depth = 0) {
-  const listing = await api(`/api/tree?path=${encodeURIComponent(relPath)}`);
-  const frag = document.createDocumentFragment();
-  for (const entry of listing.entries) {
-    const row = el("button", "tree-entry");
-    row.style.paddingLeft = `${8 + depth * 14}px`;
-    row.appendChild(el("span", "twist", entry.dir ? "▸" : ""));
-    row.appendChild(el("span", "nm", entry.name));
-    if (!entry.dir) row.appendChild(el("span", "sz", fmtBytes(entry.size)));
-    row.dataset.path = entry.path;
-    if (entry.dir) row.dataset.dir = "1";
-    if (entry.dir) {
-      let open = false;
-      let sub = null;
-      row.onclick = async () => {
-        // navigate first — that is what a sidebar folder means
-        state.browseDir = entry.path;
-        state.deskSel = new Set();
-        state.terrain = "Desk";
-        renderAll();
-        open = !open;
-        row.querySelector(".twist").textContent = open ? "▾" : "▸";
-        if (open && !sub) {
-          sub = el("div");
-          row.after(sub);
-          await loadTree(sub, entry.path, depth + 1);
-        } else if (sub) sub.hidden = !open;
-        markCurrentInRail();
-      };
-    } else {
-      row.onclick = () => openSource(entry.path);
-    }
-    frag.appendChild(row);
-  }
-  container.appendChild(frag);
-  if (listing.truncated) {
-    container.appendChild(el("div", "rail-note", `${listing.shown} of ${listing.total} shown`));
-  }
-  return listing;
+// Not a filesystem tree. "My files" is the one destination, and it holds
+// nothing until a reader adds something — library.js's own header. Recents
+// come from the record — real history, never invented.
+
+/** The one nav target the sidebar has, besides Recent. */
+function renderFilesNav() {
+  const box = $("tree");
+  box.textContent = "";
+  const b = el("button", "tree-entry");
+  b.id = "my-files-nav";
+  b.appendChild(el("span", "twist", "▤"));
+  b.appendChild(el("span", "nm", "My files"));
+  b.onclick = () => goToLibraryRoot();
+  box.appendChild(b);
 }
 
 /** Recents, from the append-only record — what was actually opened, in order. */
@@ -203,14 +180,31 @@ async function renderRecents() {
     b.onclick = () => openSource(r.path);
     box.appendChild(b);
   }
-  box.appendChild(el("div", "rail-hd", "All files"));
 }
 
 function markCurrentInRail() {
-  const here = state.browseDir ?? "";
-  for (const b of document.querySelectorAll(".tree-entry")) {
-    b.classList.toggle("current", b.dataset.path === state.path || (b.dataset.dir === "1" && b.dataset.path === here && here !== ""));
+  const atRoot = !(state.browseDir ?? "") && !state.libraryOrigin;
+  const myFilesBtn = document.getElementById("my-files-nav");
+  if (myFilesBtn) myFilesBtn.classList.toggle("current", atRoot && state.terrain === "Desk" && !state.source);
+  for (const b of document.querySelectorAll(".tree-entry.recent")) {
+    b.classList.toggle("current", b.dataset.path === state.path);
   }
+}
+
+/** The one way back to an empty-if-you-haven't-added-anything start. */
+function goToLibraryRoot() {
+  state.path = null;
+  state.source = null;
+  state.read = null;
+  state.readPhase = null;
+  state.sel = null;
+  state.focus = null;
+  state.browseDir = "";
+  state.libraryOrigin = null;
+  state.deskSel = new Set();
+  state.terrain = "Desk";
+  renderAll();
+  markCurrentInRail();
 }
 
 // ── opening a source ────────────────────────────────────────────────────────
@@ -605,21 +599,198 @@ const TILE_GLYPH = [
   [/\.(zip|gz|tgz|dmg)$/i, "⬡", "archive"],
 ];
 const glyphOf = (name) => TILE_GLYPH.find(([re]) => re.test(name))?.[1] ?? "≡";
+const kindOf = (name) => TILE_GLYPH.find(([re]) => re.test(name))?.[2] ?? "file";
+/** A directory's glyph stays accent-colored inline (no chip square — the
+ * folder tile has its own row layout); a file's gets its kind's chip. */
+const chipClassOf = (entry) => `glyph${entry.dir ? "" : ` chip-${kindOf(entry.name)}`}`;
+
+// A single hidden native file input, reused across renders — the browser's
+// own picker, which reaches anywhere on the reader's OS and is never
+// confined to the browse root the way /api/tree is.
+const FILE_INPUT = (() => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.style.display = "none";
+  document.body.appendChild(input);
+  return input;
+})();
+
+/** One file per request (no multipart parser this server carries), named via X-File-Name. */
+async function uploadFiles(fileList) {
+  for (const file of fileList) {
+    const buf = await file.arrayBuffer();
+    await fetch("/api/library/upload", {
+      method: "POST",
+      headers: { "content-type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(file.name) },
+      body: buf,
+    });
+  }
+}
+
+/** The "+ New" dropdown: upload, or reference something already on disk. */
+function openNewMenu(ev, anchor) {
+  ev.stopPropagation();
+  document.querySelector(".new-menu")?.remove();
+  const menu = el("div", "ctx new-menu");
+  const uploadItem = el("button", "ctx-item", "Upload files");
+  uploadItem.onclick = () => {
+    menu.remove();
+    FILE_INPUT.click();
+  };
+  const addRefItem = el("button", "ctx-item", "Add from this computer…");
+  addRefItem.onclick = () => {
+    menu.remove();
+    openPickerDialog();
+  };
+  menu.appendChild(uploadItem);
+  menu.appendChild(addRefItem);
+  const rect = anchor.getBoundingClientRect();
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+  document.body.appendChild(menu);
+  const away = (e2) => {
+    if (!menu.contains(e2.target) && e2.target !== anchor) {
+      menu.remove();
+      document.removeEventListener("pointerdown", away, true);
+    }
+  };
+  setTimeout(() => document.addEventListener("pointerdown", away, true), 0);
+}
+
+/**
+ * "Add from this computer…" — a small, self-contained browser over the
+ * confined tree (the OS-native picker above is what actually reaches the
+ * whole machine; this one references what this instrument can already
+ * see, without copying it). Its own local state, not the app's — closing
+ * without adding leaves nothing behind.
+ */
+function openPickerDialog() {
+  let pDir = "";
+  const picked = new Map();
+  const dlg = document.createElement("dialog");
+  dlg.className = "picker-dialog";
+  document.body.appendChild(dlg);
+  dlg.addEventListener("close", () => dlg.remove());
+
+  const renderPicker = async () => {
+    const listing = await api(`/api/tree?path=${encodeURIComponent(pDir)}`);
+    if (!dlg.isConnected) return; // closed while the fetch was in flight
+    dlg.textContent = "";
+    const head = el("div", "picker-head");
+    head.appendChild(el("h2", null, "Add from this computer"));
+    const closeBtn = el("button", "linkish", "✕");
+    closeBtn.onclick = () => dlg.close();
+    head.appendChild(closeBtn);
+    dlg.appendChild(head);
+
+    const crumbs = el("div", "picker-crumbs");
+    const rootBtn = el("button", "linkish", "Everything this instrument can see");
+    rootBtn.onclick = () => {
+      pDir = "";
+      renderPicker();
+    };
+    crumbs.appendChild(rootBtn);
+    let walked = "";
+    for (const part of pDir.split("/").filter(Boolean)) {
+      walked = walked ? `${walked}/${part}` : part;
+      crumbs.appendChild(el("span", "sep", "›"));
+      const target = walked;
+      const b = el("button", "linkish", part);
+      b.onclick = () => {
+        pDir = target;
+        renderPicker();
+      };
+      crumbs.appendChild(b);
+    }
+    dlg.appendChild(crumbs);
+
+    const list = el("div", "picker-list");
+    if (pDir) {
+      const up = el("div", "picker-row");
+      const upBtn = el("button", "linkish", "↩ ..");
+      upBtn.onclick = () => {
+        pDir = pDir.split("/").slice(0, -1).join("/");
+        renderPicker();
+      };
+      up.appendChild(upBtn);
+      list.appendChild(up);
+    }
+    for (const entry of listing.entries) {
+      const row = el("div", `picker-row${picked.has(entry.path) ? " picked" : ""}`);
+      const check = el("button", "picker-check", picked.has(entry.path) ? "☑" : "☐");
+      check.title = entry.dir ? "add this whole folder as a reference" : "add this file";
+      check.onclick = () => {
+        if (picked.has(entry.path)) picked.delete(entry.path);
+        else picked.set(entry.path, entry);
+        renderPicker();
+      };
+      row.appendChild(check);
+      row.appendChild(el("span", chipClassOf(entry), entry.dir ? "▸" : glyphOf(entry.name)));
+      const nameBtn = el("button", "linkish picker-name", entry.name);
+      nameBtn.onclick = entry.dir ? () => { pDir = entry.path; renderPicker(); } : () => check.click();
+      row.appendChild(nameBtn);
+      if (!entry.dir) row.appendChild(el("span", "sz", fmtBytes(entry.size)));
+      list.appendChild(row);
+    }
+    if (!listing.entries.length) list.appendChild(el("div", "surface-note", "this folder is empty"));
+    dlg.appendChild(list);
+
+    const foot = el("div", "picker-foot");
+    const cancel = el("button", null, "Cancel");
+    cancel.onclick = () => dlg.close();
+    const addBtn = el("button", "primary", picked.size ? `Add ${picked.size}` : "Add");
+    addBtn.disabled = picked.size === 0;
+    addBtn.onclick = async () => {
+      addBtn.disabled = true;
+      addBtn.textContent = "Adding…";
+      for (const path of picked.keys()) {
+        try {
+          await api("/api/library/add-ref", { method: "POST", body: JSON.stringify({ path }) });
+        } catch {
+          /* one failed add should not block the rest */
+        }
+      }
+      dlg.close();
+      if (state.terrain === "Desk") renderAll();
+    };
+    foot.appendChild(cancel);
+    foot.appendChild(addBtn);
+    dlg.appendChild(foot);
+  };
+
+  renderPicker();
+  dlg.showModal();
+}
 
 async function renderBrowse(surface) {
   const dir = state.browseDir ?? "";
+  const origin = state.libraryOrigin; // captured — must not shift under an in-flight fetch
+  const atLibraryRoot = !dir && !origin;
   const searching = (state.deskQuery ?? "").trim().length >= 2;
-  const listing = searching
-    ? await api(`/api/find?q=${encodeURIComponent(state.deskQuery.trim())}&path=${encodeURIComponent(dir)}`).then((r) => ({
-        entries: r.results,
-        total: r.results.length,
-        shown: r.results.length,
-        truncated: r.truncated,
-        order: "best guess: name match, in walk order",
-        find: r,
-      }))
-    : await api(`/api/tree?path=${encodeURIComponent(dir)}`);
-  if ((state.browseDir ?? "") !== dir || (state.source && state.terrain !== "Desk")) return; // navigated away while fetching
+  const listing = atLibraryRoot
+    ? await api("/api/library").then((r) => {
+        const q = state.deskQuery.trim().toLowerCase();
+        const entries = searching ? r.entries.filter((e) => e.name.toLowerCase().includes(q)) : r.entries;
+        return {
+          entries,
+          total: entries.length,
+          shown: entries.length,
+          truncated: false,
+          order: searching ? "matching what you added, most recently added first" : "most recently added first",
+        };
+      })
+    : searching
+      ? await api(`/api/find?q=${encodeURIComponent(state.deskQuery.trim())}&path=${encodeURIComponent(dir)}`).then((r) => ({
+          entries: r.results,
+          total: r.results.length,
+          shown: r.results.length,
+          truncated: r.truncated,
+          order: "best guess: name match, in walk order",
+          find: r,
+        }))
+      : await api(`/api/tree?path=${encodeURIComponent(dir)}`);
+  if ((state.browseDir ?? "") !== dir || state.libraryOrigin !== origin || (state.source && state.terrain !== "Desk")) return; // navigated away while fetching
 
   state.deskSel ??= new Set();
   const entriesByPath = new Map(listing.entries.map((e) => [e.path, e]));
@@ -629,6 +800,10 @@ async function renderBrowse(surface) {
     closeCtx();
     if (entry.dir) {
       state.browseDir = entry.path;
+      // Entering a folder from the library root means you are now inside
+      // something you ADDED — libraryOrigin is that boundary; "up" may
+      // walk back through its real subfolders but never past it.
+      if (atLibraryRoot) state.libraryOrigin = entry.path;
       state.deskSel = new Set();
       state.deskQuery = "";
       renderAll();
@@ -636,7 +811,8 @@ async function renderBrowse(surface) {
     } else openSource(entry.path);
   };
   const goUp = () => {
-    state.browseDir = dir.split("/").slice(0, -1).join("/");
+    state.browseDir = dir === state.libraryOrigin ? "" : dir.split("/").slice(0, -1).join("/");
+    if (dir === state.libraryOrigin) state.libraryOrigin = null;
     state.deskSel = new Set();
     renderAll();
     markCurrentInRail();
@@ -646,7 +822,7 @@ async function renderBrowse(surface) {
   const searchRow = el("div", "desk-search");
   const q = el("input");
   q.type = "search";
-  q.placeholder = dir ? `Search in ${dir.split("/").pop()}` : "Search all files";
+  q.placeholder = atLibraryRoot ? "Search My files" : `Search in ${dir.split("/").pop()}`;
   q.value = state.deskQuery ?? "";
   q.oninput = () => {
     state.deskQuery = q.value;
@@ -699,11 +875,30 @@ async function renderBrowse(surface) {
         }, textual.length > 0);
       }
       act("Copy path", () => navigator.clipboard?.writeText(chosen.map((e) => e.path).join("\n")));
+      if (atLibraryRoot) {
+        act("Remove", async () => {
+          const ids = chosen.map((e) => e.id).filter(Boolean);
+          for (const id of ids) {
+            try {
+              await api("/api/library/remove", { method: "POST", body: JSON.stringify({ id }) });
+            } catch {
+              /* the next render will show it still there if this failed */
+            }
+          }
+          state.deskSel = new Set();
+          renderAll();
+        });
+      }
       act("Clear", () => {
         state.deskSel = new Set();
         paintSelection();
       });
       return;
+    }
+    if (atLibraryRoot) {
+      const newBtn = el("button", "new-btn", "+ New");
+      newBtn.onclick = (ev) => openNewMenu(ev, newBtn);
+      bar.appendChild(newBtn);
     }
     for (const [mode, label] of [["icons", "▦"], ["table", "☰"]]) {
       const btn = el("button", (state.deskMode ?? "icons") === mode ? "on" : "", label);
@@ -716,25 +911,31 @@ async function renderBrowse(surface) {
     }
     const crumbs = el("span", "desk-crumbs");
     const rootBtn = el("button", "linkish", "My files");
-    rootBtn.onclick = () => {
-      state.browseDir = "";
-      state.deskSel = new Set();
-      renderAll();
-      markCurrentInRail();
-    };
+    rootBtn.onclick = () => goToLibraryRoot();
     crumbs.appendChild(rootBtn);
-    let walked = "";
-    for (const part of dir.split("/").filter(Boolean)) {
+    // Crumbs walk from libraryOrigin onward, never above it — there is no
+    // path back to unrestricted browsing from inside something you added.
+    // (origin === null falls back to the full real path, which cannot
+    // happen by construction but costs nothing to leave safe.)
+    const originParts = origin ? origin.split("/").filter(Boolean) : [];
+    const allParts = dir.split("/").filter(Boolean);
+    const startAt = origin ? originParts.length - 1 : 0;
+    let walked = origin ? originParts.slice(0, -1).join("/") : "";
+    for (let i = startAt; i < allParts.length; i++) {
+      const part = allParts[i];
       walked = walked ? `${walked}/${part}` : part;
       crumbs.appendChild(el("span", "sep", "›"));
-      const b = el("button", "linkish", part);
       const target = walked;
-      b.onclick = () => {
-        state.browseDir = target;
-        state.deskSel = new Set();
-        renderAll();
-        markCurrentInRail();
-      };
+      const isLast = i === allParts.length - 1;
+      const b = el(isLast ? "span" : "button", isLast ? "crumb-here" : "linkish", part);
+      if (!isLast) {
+        b.onclick = () => {
+          state.browseDir = target;
+          state.deskSel = new Set();
+          renderAll();
+          markCurrentInRail();
+        };
+      }
       crumbs.appendChild(b);
     }
     if (searching) {
@@ -748,7 +949,7 @@ async function renderBrowse(surface) {
   // ── ordering ─────────────────────────────────────────────────────────────
   const sort = state.deskSort;
   let entries = listing.entries;
-  let orderNote = searching ? "matches by name, in the order the walk found them" : "folders first, then name";
+  let orderNote = listing.order ?? (searching ? "matches by name, in the order the walk found them" : "folders first, then name");
   if (sort) {
     entries = [...entries].sort((a, b) => {
       if (a.dir !== b.dir) return b.dir - a.dir;
@@ -854,6 +1055,19 @@ async function renderBrowse(surface) {
       }, textual.length > 0);
     }
     item(chosen.length > 1 ? `Copy ${chosen.length} paths` : "Copy path", () => navigator.clipboard?.writeText(chosen.map((e) => e.path).join("\n")));
+    if (atLibraryRoot) {
+      item(chosen.length > 1 ? `Remove ${chosen.length}` : "Remove", async () => {
+        for (const id of chosen.map((e) => e.id).filter(Boolean)) {
+          try {
+            await api("/api/library/remove", { method: "POST", body: JSON.stringify({ id }) });
+          } catch {
+            /* the next render shows it still there if this failed */
+          }
+        }
+        state.deskSel = new Set();
+        renderAll();
+      });
+    }
     menu.style.left = `${ev.clientX}px`;
     menu.style.top = `${ev.clientY}px`;
     document.body.appendChild(menu);
@@ -886,14 +1100,14 @@ async function renderBrowse(surface) {
             card.textContent = r.peek.slice(0, 220);
           } else {
             // not text after all — the file's own face, not a blank card
-            const g = el("span", "glyph", glyphOf(entry.name));
+            const g = el("span", chipClassOf(entry), glyphOf(entry.name));
             card.replaceWith(g);
           }
         })
-        .catch(() => card.replaceWith(el("span", "glyph", glyphOf(entry.name))));
+        .catch(() => card.replaceWith(el("span", chipClassOf(entry), glyphOf(entry.name))));
       tile.appendChild(card);
     } else {
-      tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
+      tile.appendChild(el("span", chipClassOf(entry), entry.dir ? "▸" : glyphOf(entry.name)));
     }
     tile.appendChild(el("span", "nm", entry.name));
     if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
@@ -963,13 +1177,68 @@ async function renderBrowse(surface) {
     }
     if (!entries.length) main.appendChild(el("div", "surface-note", searching ? "nothing here matches that name" : "this folder is empty"));
   }
-  main.appendChild(el("div", "desk-status", statusLine()));
+
+  // My files starts empty (library.js's own header) — nothing to browse
+  // until a reader adds something, so the empty case gets its own face
+  // instead of a "0 items" table nobody asked to see.
+  if (atLibraryRoot && !searching && !entries.length) {
+    main.textContent = "";
+    const empty = el("div", "desk-empty");
+    empty.appendChild(el("div", "desk-empty-glyph", "▤"));
+    empty.appendChild(el("h2", null, "Nothing here yet"));
+    empty.appendChild(el("p", null, "Files and folders you add appear here. Drag them in, or use the buttons below."));
+    const row = el("div", "desk-empty-actions");
+    const up = el("button", "primary", "Upload files");
+    up.onclick = () => FILE_INPUT.click();
+    const add = el("button", null, "Add from this computer…");
+    add.onclick = () => openPickerDialog();
+    row.appendChild(up);
+    row.appendChild(add);
+    empty.appendChild(row);
+    main.appendChild(empty);
+  } else {
+    main.appendChild(el("div", "desk-status", statusLine()));
+  }
   body.appendChild(main);
   body.appendChild(details);
   surface.appendChild(body);
 
   rebuildBar();
   renderDetails();
+
+  // Uploading: the native file picker (X-File-Name per request; no
+  // multipart parser this server has declared it will not carry) and
+  // drag-and-drop, both landing in the library at root only — writing into
+  // a folder you merely REFERENCE would mean writing into your own real
+  // project files, which this instrument never does uninvited.
+  FILE_INPUT.onchange = async () => {
+    if (!FILE_INPUT.files?.length) return;
+    await uploadFiles(FILE_INPUT.files);
+    FILE_INPUT.value = "";
+    if (state.terrain === "Desk") renderAll();
+  };
+  if (atLibraryRoot) {
+    let dragDepth = 0;
+    main.addEventListener("dragenter", (ev) => {
+      ev.preventDefault();
+      dragDepth++;
+      main.classList.add("drag-over");
+    });
+    main.addEventListener("dragover", (ev) => ev.preventDefault());
+    main.addEventListener("dragleave", () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) main.classList.remove("drag-over");
+    });
+    main.addEventListener("drop", async (ev) => {
+      ev.preventDefault();
+      dragDepth = 0;
+      main.classList.remove("drag-over");
+      if (ev.dataTransfer?.files?.length) {
+        await uploadFiles(ev.dataTransfer.files);
+        if (state.terrain === "Desk") renderAll();
+      }
+    });
+  }
 
   // Viselect: rubber-band drag, click-select, ctrl/cmd-toggle
   state._selArea?.destroy();
@@ -2684,7 +2953,8 @@ function renderAll() {
     toggle.onclick = () => document.body.classList.toggle("rail-open");
   }
   await renderRecents();
-  await loadTree($("tree"), "");
+  renderFilesNav();
+  markCurrentInRail();
   const src = q.get("src");
   if (src) {
     state.pendingFocus = {

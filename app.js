@@ -261,7 +261,7 @@ function switchConvo(index) {
   for (const k of PER_CONVO) state[k] = to[k];
   to.el.classList.add("on");
   renderThreads();
-  renderArtifacts();
+  renderBuilds();
   showView("chat");
   $("input").focus();
 }
@@ -520,7 +520,7 @@ async function mechanicalTurn(question, kind) {
   const built = buildTable(kind, state);
   const answer = built ? toMarkdown(built.table) : NOTHING[kind];
   body.textContent = "";
-  if (built) body.append(publishArtifact(built.table, built.caption));
+  if (built) body.append(publishBuild(built.table, built.caption));
   else {
     const p = document.createElement("p");
     p.className = "prose";
@@ -557,9 +557,6 @@ async function mechanicalTurn(question, kind) {
 async function send(question) {
   state.busy = true;
   $("send").disabled = true;
-  // The intro has done its job the moment there is a conversation, and on a
-  // phone it is otherwise a screenful sitting above the first message.
-  $("intro")?.remove();
 
   // A task rather than a question. Two doors, per the canon in eochatX's
   // eo-holonic-plan.ts: `/task` is the explicit one, and the mechanical gate
@@ -1239,7 +1236,7 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    body.append(publishArtifact(seg));
+    body.append(publishBuild(seg));
   }
 
   // The turn's epistemic state, at a glance: how much of what was just said
@@ -1344,12 +1341,61 @@ function refLabel(ref) {
     seen.add(c.label);
     path.push(c.label);
   }
-  return path.join(" · ");
+  let text = path.join(" · ");
+  // A chapter longer than the segment limit is split into several chunks
+  // that all carry the SAME label (source.js::chunkByBoundaries — "every
+  // piece keeps the segment's label so a reader can still tell which
+  // chapter a fragment came from"). Two genuinely different addresses then
+  // read identically, which is worse than the byte range they replaced:
+  // the whole point of an address is that a reader can tell one citation
+  // from another, and a label that cannot is a regression dressed as an
+  // improvement. Disambiguated by the piece's own position among its
+  // same-label siblings — a structural fact read off state.chunks, not an
+  // invented number.
+  const siblings = state.chunks
+    .filter((c) => c.source === chunk.source && c.label === chunk.label)
+    .sort((a, b) => a.start - b.start);
+  if (siblings.length > 1) {
+    const index = siblings.findIndex((c) => c.ref === chunk.ref);
+    text += ` · ${index + 1}/${siblings.length}`;
+  }
+  return text;
 }
 
 /** What a ref shows: structure over bytes, bytes when there is no structure. */
 function chipText(ref) {
   return refLabel(ref) ?? ref;
+}
+
+/** Bold, italic, and inline code in a run of prose, nothing more. The model
+ * writes markdown because it was told to; the reader should see bold as bold.
+ * Refs were already split out before this runs (refNodes splits first), and a
+ * code span is taken literally — its content is shown as written, `**` inside
+ * it included. */
+const INLINE_MD = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
+function inlineMarkdown(text) {
+  const out = [];
+  let last = 0;
+  for (const m of text.matchAll(INLINE_MD)) {
+    if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));
+    const tok = m[0];
+    if (tok[0] === "`") {
+      const code = document.createElement("code");
+      code.textContent = tok.slice(1, -1);
+      out.push(code);
+    } else if (tok.startsWith("**")) {
+      const strong = document.createElement("strong");
+      strong.textContent = tok.slice(2, -2);
+      out.push(strong);
+    } else {
+      const em = document.createElement("em");
+      em.textContent = tok.slice(1, -1);
+      out.push(em);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  return out;
 }
 
 /** Bracketed addresses in a run of text become controls; everything else
@@ -1359,7 +1405,7 @@ function refNodes(text, known) {
   const out = [];
   let last = 0;
   for (const m of String(text).matchAll(REF_IN_TEXT)) {
-    if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));
+    if (m.index > last) out.push(...inlineMarkdown(text.slice(last, m.index)));
     const ref = m[1];
     if (known.has(ref)) {
       const b = document.createElement("button");
@@ -1378,7 +1424,7 @@ function refNodes(text, known) {
     }
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  if (last < text.length) out.push(...inlineMarkdown(text.slice(last)));
   return out;
 }
 
@@ -1448,31 +1494,31 @@ function taggedProse(text, offered, classified = []) {
  * a scrollbar and the conversation gets a wall. The panel is the width the
  * output wants; the chip is the sentence the conversation wants.
  */
-function publishArtifact(seg, caption) {
+function publishBuild(seg, caption) {
   const entry = {
-    n: state.artifacts.length + 1,
+    n: state.builds.length + 1,
     turn: state.summary.turnCount + 1,
     seg,
     caption: caption ?? defaultCaption(seg),
   };
-  state.artifacts.push(entry);
-  renderArtifacts(entry.n);
+  state.builds.push(entry);
+  renderBuilds(entry.n);
   // Wide, the panel is already on screen and switching it to the thing just
   // made costs nothing. Narrow, the panel IS the screen, and yanking someone
   // out of the conversation to show them a table they can reach with one tap
   // is the wrong trade — the chip is enough.
-  if (!matchMedia("(max-width: 900px)").matches) showView("views");
+  if (!matchMedia("(max-width: 900px)").matches) showView("builds");
 
   const chip = document.createElement("button");
   chip.type = "button";
-  chip.className = "artifact-chip";
+  chip.className = "build-chip";
   chip.innerHTML = `<span aria-hidden="true">▤</span> `;
   chip.append(document.createTextNode(entry.caption));
   chip.onclick = () => {
-    showView("views");
-    renderArtifacts(entry.n);
+    showView("builds");
+    renderBuilds(entry.n);
     document
-      .getElementById(`artifact-${entry.n}`)
+      .getElementById(`build-${entry.n}`)
       ?.scrollIntoView({ block: "start" });
   };
   return chip;
@@ -1484,25 +1530,79 @@ function defaultCaption(seg) {
     : seg.lang || "code";
 }
 
+/** Languages the fold server will actually run — the same map serve.mjs owns.
+ * A code artifact without a runner here is shown, never run. */
+const RUNNERS = new Set(["python", "javascript", "js", "node", "shell", "bash"]);
+
+async function runBuild(entry) {
+  entry.running = true;
+  renderBuilds(entry.n);
+  try {
+    const res = await fetch("/api/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lang: entry.seg.lang, code: entry.seg.code }),
+    });
+    const data = await res.json().catch(() => null);
+    entry.lastRun = { ok: res.ok, data };
+  } catch (e) {
+    entry.lastRun = { ok: false, error: e.message };
+  } finally {
+    entry.running = false;
+    renderBuilds(entry.n);
+  }
+}
+
 /** Newest first — the thing just produced is the thing being looked at. */
-function renderArtifacts(highlight) {
-  const list = $("artifact-list");
+function renderBuilds(highlight) {
+  const list = $("builds-list");
   list.textContent = "";
-  $("artifact-count").textContent = state.artifacts.length
-    ? `${state.artifacts.length}`
+  $("builds-count").textContent = state.builds.length
+    ? `${state.builds.length}`
     : "";
-  if (!state.artifacts.length) {
+  if (!state.builds.length) {
     list.innerHTML = '<p class="empty">Nothing but prose so far.</p>';
     return;
   }
-  for (const entry of [...state.artifacts].reverse()) {
+  for (const entry of [...state.builds].reverse()) {
     const wrap = document.createElement("div");
-    wrap.id = `artifact-${entry.n}`;
-    wrap.className = `artifact-entry${entry.n === highlight ? " current" : ""}`;
+    wrap.id = `build-${entry.n}`;
+    wrap.className = `build-entry${entry.n === highlight ? " current" : ""}`;
     const from = document.createElement("p");
-    from.className = "artifact-from";
+    from.className = "build-from";
     from.textContent = `turn ${entry.turn}`;
-    wrap.append(from, artifactNode(entry.seg, entry.caption));
+    wrap.append(from);
+    if (entry.seg.type === "code" && RUNNERS.has(entry.seg.lang)) {
+      const run = document.createElement("button");
+      run.type = "button";
+      run.className = "build-run";
+      run.textContent = entry.running ? "running…" : "▶ run";
+      run.onclick = () => runBuild(entry);
+      from.append(run);
+    }
+    wrap.append(artifactNode(entry.seg, entry.caption));
+    if (entry.running || entry.lastRun) {
+      const out = document.createElement("pre");
+      out.className = "run-console";
+      if (entry.running) {
+        out.textContent = "running…";
+      } else if (!entry.lastRun.ok) {
+        out.classList.add("bad");
+        out.textContent = entry.lastRun.error
+          ? `could not reach the fold server (is serve.mjs running?): ${entry.lastRun.error}`
+          : `the fold server refused: ${entry.lastRun.data?.error ?? ""}`;
+      } else {
+        const data = entry.lastRun.data ?? {};
+        const parts = [];
+        if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
+        if (data.stderr) parts.push(data.stderr.replace(/\n$/, ""));
+        if (!parts.length) parts.push(data.timedOut ? "(timed out — killed after 10s)" : "(no output)");
+        out.textContent = parts.join("\n");
+        out.classList.toggle("bad", !!data.stderr);
+        out.title = `exit ${data.code} · ${data.durationMs}ms${data.timedOut ? " · timed out" : ""}`;
+      }
+      wrap.append(out);
+    }
     list.append(wrap);
   }
 }
@@ -2104,7 +2204,7 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
 // the panels are already beside it, so start them on the prompt.
-showView(matchMedia("(max-width: 900px)").matches ? "chat" : "views");
+showView(matchMedia("(max-width: 900px)").matches ? "chat" : "artifacts");
 
 // ── the settings chip ────────────────────────────────────────────────────────
 //

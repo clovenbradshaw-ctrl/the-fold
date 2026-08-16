@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  CHAT_SYSTEM_PROMPT,
   EXECUTE_SYSTEM_PROMPT,
   MAX_CORRECTIONS,
   PLAN_ENTRY_KINDS,
@@ -54,7 +55,9 @@ function fakeModel({ stubborn = false } = {}) {
       ]);
     }
 
-    assert.equal(system, EXECUTE_SYSTEM_PROMPT);
+    // No material is its own branch (CHAT_SYSTEM_PROMPT) — a friendly reply,
+    // not a diagnosis dressed up as one. Every other call is a real part.
+    assert.ok(system === EXECUTE_SYSTEM_PROMPT || system === CHAT_SYSTEM_PROMPT);
     const refs = offeredRefs(user);
     const isCorrection = user.startsWith("Your draft");
 
@@ -376,9 +379,42 @@ test("an echo answer establishes nothing: typed open, no refs granted", async ()
     call,
     planMode: "flat",
   });
-  assert.ok(result.open.some((o) => o.includes("restates the question")));
+  assert.ok(result.open.some((o) => o.includes("restates the prompt")));
   assert.deepEqual(result.refs, [], "circular support is not support");
   assert.deepEqual(result.channels, []);
+});
+
+test("a prompt that matched no material gets one plain-chat reply, not a diagnosis", async () => {
+  const calls = [];
+  const call = async (messages) => {
+    calls.push(messages[0].content);
+    // The execute call (material framing) restates the prompt; the plain-chat
+    // fallback answers like a person.
+    return messages[0].content === CHAT_SYSTEM_PROMPT
+      ? "Hi there! How can I help you today?"
+      : "The question is: hi.";
+  };
+  const result = await runHolonicTask({ task: "hi", chunks: [], call, planMode: "flat" });
+  // The echo never ships: the part answered with a real greeting.
+  assert.equal(result.output, "Hi there! How can I help you today?");
+  assert.ok(calls.includes(CHAT_SYSTEM_PROMPT), "the chat fallback ran");
+  assert.ok(result.open.every((o) => !o.includes("restates")), "no typed echo on the record");
+});
+
+test("a draft that opens by restating the prompt ships without its framing", async () => {
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `The question is about the harbor figure. The Kessington report puts the harbor figure at 12% for the spring quarter. [${refs[0] ?? "x#0-1"}]`;
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure for the spring quarter?",
+    chunks,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(!result.output.includes("The question is about"), "the framing sentence was stripped");
+  assert.ok(result.output.includes("Kessington report"), "the content survives");
 });
 
 test("a plan that fails to parse is itself a typed gap", async () => {

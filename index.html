@@ -531,6 +531,13 @@
         vertical-align: baseline;
       }
       button.ref:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+      /* An address this app attached, rather than one the model wrote. Same
+         affordance, visibly a different claim. */
+      button.ref.attached {
+        border-style: dotted;
+        background: none;
+      }
+      button.ref.attached::before { content: "≈ "; opacity: 0.7; }
       .empty { color: var(--muted); font-size: 13px; font-style: italic; }
       textarea#material { width: 100%; min-height: 260px; font-family: var(--mono); font-size: 12px; }
       dialog {

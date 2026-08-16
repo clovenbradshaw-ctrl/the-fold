@@ -34,6 +34,10 @@ export function tokenize(text) {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .split(/[^a-z0-9%.\-]+/)
+    // Dots and dashes are kept inside a token so "12.5" and "hit-and-run"
+    // survive, which means the last word of a sentence arrives as "bolo." and
+    // matches nothing. Trim them at the edges only.
+    .map((t) => t.replace(/^[.\-]+|[.\-]+$/g, ""))
     .filter((t) => t.length > 2 && !STOPWORDS.has(t));
 }
 

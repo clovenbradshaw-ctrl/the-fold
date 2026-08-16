@@ -44,6 +44,8 @@ import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js"
 
 import { NOTHING, buildTable, detectTable, toMarkdown } from "./tables.js";
 
+import { attribute, attributedRefs } from "./cite.js";
+
 import {
   buildSourceBlock,
   checkCitations,
@@ -445,16 +447,28 @@ async function send(question) {
   // System 2 first: the record is built from this turn's own mechanical check,
   // so it cannot disagree with what the check found.
   const { used, unsupported } = checkCitations(answer, passages);
+  // What the model wrote is one channel; what the answer demonstrably took
+  // from the material is another, and the second does not depend on the model
+  // having cooperated. Both are mechanical: one parses the brackets, one
+  // measures shared phrases against a null.
+  const attributions = attribute(answer, passages, live);
+  const attributed = attributedRefs(attributions);
+  const carriedBy = [
+    ...(used.length ? ["cited"] : []),
+    ...(attributed.length ? ["attributed"] : []),
+  ];
+  const grounded = [...new Set([...used, ...attributed])];
+
   const turn = state.summary.turnCount + 1;
   const fold = mechanicalFoldLine(question, answer);
   const record = passages.length
     ? buildWarrantRecord({
         turn,
         gist: fold,
-        channels: used.length ? ["source"] : [],
-        refs: used,
+        channels: carriedBy,
+        refs: grounded,
         unsupported,
-        open: openQuestions(question, passages, used),
+        open: openQuestions(question, passages, grounded),
       })
     : null;
   if (record) state.summary = addWarrantRecord(state.summary, record);
@@ -487,10 +501,10 @@ async function send(question) {
 
   // Streaming shows raw text as it arrives; the artifact is built once the
   // answer is whole, because a half-written table is not a table yet.
-  renderAnswer(node.querySelector(".body"), answer, passages);
+  renderAnswer(node.querySelector(".body"), answer, passages, attributions);
   renderFold(node, { fold, record, sent: messages });
   renderThreads();
-  renderEvidence(node, question, passages, used);
+  renderEvidence(node, question, passages, grounded);
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;
@@ -527,14 +541,18 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = []) {
+function renderAnswer(body, answer, offered = [], attributions = []) {
+  // Sentence → the address this app attached to it, if it attached one.
+  const attached = new Map(
+    attributions.filter((a) => a.ref).map((a) => [a.text, a]),
+  );
   const segments = parseSegments(answer);
   body.textContent = "";
   for (const seg of segments) {
     if (seg.type === "prose") {
       const p = document.createElement("p");
       p.className = "prose";
-      p.append(...taggedProse(seg.text, offered));
+      p.append(...taggedProse(seg.text, offered, attached));
       body.append(p);
       continue;
     }
@@ -558,9 +576,24 @@ const REF_IN_TEXT = /\[([^\]\s]+#\d+-\d+)\]/g;
  * calls it unsupported, and a citation the model invented should not look
  * identical to one it was handed.
  */
-function taggedProse(text, offered) {
+function taggedProse(text, offered, attached = new Map()) {
   const known = new Set(offered.map((p) => p.ref ?? p));
   const out = [];
+  // Where this app attached the address itself, say so in the tag. A citation
+  // the model wrote and one this app measured are different kinds of claim,
+  // and drawing them identically would hide which is which.
+  for (const [sentence, a] of attached) {
+    if (!text.includes(sentence)) continue;
+    const i = text.indexOf(sentence) + sentence.length;
+    const b = document.createElement("button");
+    b.className = "ref attached";
+    b.textContent = a.ref;
+    b.title = `Attached by this app: ${a.score} consecutive terms shared with these bytes, against a corpus best of ${a.floor}. Press to read them.`;
+    b.onclick = () => reopen(a.ref);
+    out.push(document.createTextNode(text.slice(0, i)), b);
+    text = text.slice(i);
+    break;
+  }
   let last = 0;
   for (const m of String(text).matchAll(REF_IN_TEXT)) {
     if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));

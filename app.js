@@ -44,6 +44,8 @@ import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js"
 
 import { NOTHING, buildTable, detectTable, toMarkdown } from "./tables.js";
 
+import { checkGrounding, unsupportedClaims } from "./grounding.js";
+
 import { attribute, attributedRefs } from "./cite.js";
 
 import {
@@ -447,6 +449,11 @@ async function send(question) {
   // System 2 first: the record is built from this turn's own mechanical check,
   // so it cannot disagree with what the check found.
   const { used, unsupported } = checkCitations(answer, passages);
+  // Three different questions, asked mechanically. checkCitations: did it cite
+  // an address it was handed. attribute: where does an uncited sentence come
+  // from. checkGrounding: are the figures and names in the sentence in the
+  // bytes at all — the one that catches an invented number.
+  const grounding = checkGrounding(answer, passages, { question });
   // What the model wrote is one channel; what the answer demonstrably took
   // from the material is another, and the second does not depend on the model
   // having cooperated. Both are mechanical: one parses the brackets, one
@@ -467,7 +474,7 @@ async function send(question) {
         gist: fold,
         channels: carriedBy,
         refs: grounded,
-        unsupported,
+        unsupported: [...unsupported, ...unsupportedClaims(grounding)],
         open: openQuestions(question, passages, grounded),
       })
     : null;
@@ -695,7 +702,7 @@ function renderArtifacts(highlight) {
  * a turn's evidence should not depend on the model having chosen to tabulate
  * it.
  */
-function renderEvidence(node, question, passages, used) {
+function renderEvidence(node, question, passages, used, grounding) {
   const box = node.querySelector(".evidence");
   if (!box || !passages.length) return;
   const terms = [...new Set(tokenize(question))];
@@ -712,9 +719,20 @@ function renderEvidence(node, question, passages, used) {
   ]);
 
   box.hidden = false;
-  box.querySelector("div").replaceChildren(
+  const parts = [
     artifactNode(seg, `material · ${passages.length} retrieved, ${cited.size} cited`),
-  );
+  ];
+  // What the answer said that the material does not: the check that catches an
+  // invented figure, which neither the address check nor attribution can see.
+  if (grounding?.examined) {
+    const note = document.createElement("p");
+    note.className = grounding.clean ? "fold-note" : "fold-note bad";
+    note.textContent = grounding.clean
+      ? `every figure and name in the answer appears in the material (${grounding.atomsChecked} checked)`
+      : `not in the material: ${unsupportedClaims(grounding).join("; ")}`;
+    parts.push(note);
+  }
+  box.querySelector("div").replaceChildren(...parts);
 }
 
 /**

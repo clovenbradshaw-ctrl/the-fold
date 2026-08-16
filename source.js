@@ -28,10 +28,23 @@ const STOPWORDS = new Set(
  * the retrieval working and the material lacking, which is the worst shape a
  * bug can take here.
  */
-export function tokenize(text) {
-  return String(text || "")
+/**
+ * Diacritic folding, the same fold everywhere: a corpus that writes Bezúkhov
+ * must answer a question that writes Bezukhov, in RETRIEVAL and in the CHECKS
+ * alike. Measured live on War and Peace: tokenize folded (so the right
+ * chapters were retrieved) while the grounding index did not (so every
+ * accented name in them was flagged "not in the material"). The engine had
+ * the same bug in the opposite state (CLAUDE.md); one shared fold is the fix
+ * for the class, not the instance.
+ */
+export function foldDiacritics(s) {
+  return String(s || "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+export function tokenize(text) {
+  return foldDiacritics(text)
     .toLowerCase()
     .split(/[^a-z0-9%.\-]+/)
     // Dots and dashes are kept inside a token so "12.5" and "hit-and-run"

@@ -1,6 +1,130 @@
 // node --test grounding.test.mjs
 
 import { test } from "node:test";
+
+// Measured live on War and Peace, 2026-08-16: retrieval folds diacritics and
+// found the right chapters; the grounding index did not fold, so "Pierre
+// Bezukhov" and "Helene" — both plainly in the retrieved bytes as Bezúkhov
+// and Hélène — were flagged "not in the material". The fold now runs on both
+// sides of every containment — and the fold is only the orthographic slice
+// of the real principle, tested next: names point to REFERENTS.
+test("names resolve against the material's own cast, via the engine's organs", async () => {
+  const { makeCastResolver } = await import("./cast.js");
+  const { checkGrounding } = await import("./grounding.js");
+  // The REAL organs, not stand-ins — what counts as "the same name" must be
+  // the engine's own answer, or discovery and support drift apart.
+  const { splitSentences } = await import("../eoreader6/packages/engine/perceiver/text/spans.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
+    "../eoreader6/packages/engine/perceiver/text/surfaces.js"
+  );
+  const castFor = makeCastResolver({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+
+  const passages = [
+    {
+      ref: "wp.txt#0-200",
+      text:
+        "That evening Pierre Bezúkhov spoke first. Later Pierre Bezúkhov rose, and the whole table turned. " +
+        "No one interrupted Pierre Bezúkhov again.",
+    },
+  ];
+  const resolveName = castFor(passages);
+
+  // Sub-forms of an established name resolve to its referent: the passage
+  // establishes "Pierre Bezúkhov"; the surname alone and the given name
+  // alone both point at that referent, by the engine's own coreference.
+  assert.equal(resolveName("Bezukhov"), true);
+  assert.equal(resolveName("Pierre"), true);
+  assert.equal(resolveName("Pierre Bezukhov"), true);
+
+  // Support is ASYMMETRIC where coreference is not: an answer may not
+  // EXTEND an established name with tokens the material never wrote — the
+  // extension would be model-supplied content wearing a resolved name.
+  const onlyPierre = castFor([{ ref: "x#0-9", text: "Then Pierre spoke. Then Pierre rose. Then Pierre left." }]);
+  assert.equal(onlyPierre("Pierre"), true);
+  assert.equal(onlyPierre("Pierre Bezukhov"), false, "the surname was never in the material");
+
+  // The abbreviated form points at the referent — "Pierre B." resolves where
+  // "Pierre Bezúkhov" is established — but an initial is not a stem: material
+  // writing ONLY "Pierre B." must not support the full surname it never wrote.
+  assert.equal(resolveName("Pierre B."), true);
+  const onlyInitial = castFor([{ ref: "y#0-9", text: "Then Pierre B. spoke. Then Pierre B. rose. Then Pierre B. left." }]);
+  assert.equal(onlyInitial("Pierre B."), true);
+  assert.equal(onlyInitial("Pierre"), true);
+  assert.equal(onlyInitial("Pierre Bezukhov"), false, "a bare initial cannot cover a surname");
+
+  // Rescue, never veto: an unknown name resolves to nothing and the byte
+  // check's finding stands.
+  assert.equal(resolveName("Countess Marlborough"), false);
+  const invented = checkGrounding("Countess Marlborough spoke first.", passages, { resolveName });
+  assert.equal(invented.clean, false);
+
+  // Through checkGrounding: possessive form of an established name, clean.
+  const possessive = checkGrounding("Bezukhov's words carried.", passages, { resolveName });
+  assert.equal(possessive.clean, true, JSON.stringify(possessive.findings));
+});
+
+test("a question-echoed name stays out of the record's unsupported list", async () => {
+  const { checkGrounding, unsupportedClaims } = await import("./grounding.js");
+  const passages = [{ ref: "n.txt#0-40", text: "The prisoners marched east through the night." }];
+  const report = checkGrounding("The prisoners marched beside Karataev nightly.", passages, {
+    question: "What was Karataev's role among the prisoners?",
+  });
+  // The finding exists — the stripe can draw it — but the record line does not.
+  assert.ok(report.findings.some((f) => /Karataev/.test(f.text) && f.echoesQuestion));
+  assert.ok(!unsupportedClaims(report).some((l) => /Karataev/.test(l)));
+  // A name NOBODY supplied still reaches the record.
+  const invented = checkGrounding("They followed Marlborough east.", passages, { question: "who marched?" });
+  assert.ok(unsupportedClaims(invented).some((l) => /Marlborough/.test(l)));
+});
+
+test("headings are structure, not claims — but a name in a body sentence still is", async () => {
+  const { checkGrounding } = await import("./grounding.js");
+  const passages = [{ ref: "n.txt#0-50", text: "The committee met on the quay and adjourned early." }];
+  const answer =
+    "## Clash of Ideals\n\n**A Catalyst:**\n\n**Her Reaction:** the committee met on the quay. " +
+    "Isn't that early? Countess Marlborough adjourned it.";
+  const report = checkGrounding(answer, passages, {});
+  const flagged = report.findings.map((f) => f.text);
+  assert.ok(!flagged.some((t) => /Clash|Catalyst/.test(t)), `heading furniture flagged: ${flagged}`);
+  assert.ok(!flagged.some((t) => /Reaction/.test(t)), "line-initial bold heading with trailing prose is furniture too");
+  assert.ok(!flagged.some((t) => /Isn/.test(t)), "a capitalized contraction is grammar, never a name");
+  assert.ok(flagged.some((t) => /Marlborough/.test(t)), "the body-sentence invention must still be caught");
+});
+
+test("a lone capitalized word opening a sentence is position, not namehood", async () => {
+  const { checkGrounding } = await import("./grounding.js");
+  const passages = [{ ref: "n.txt#0-40", text: "The column marched east before dawn broke." }];
+  // "Shock" and "Anxiety" open their sentences — position. "Kutuzov" recurs
+  // mid-sentence — evidence, and absent from the bytes it stays flagged.
+  const report = checkGrounding(
+    "Shock ran through the ranks. Anxiety followed. The men trusted Kutuzov entirely.",
+    passages,
+    {},
+  );
+  const flagged = report.findings.map((f) => f.text);
+  assert.ok(!flagged.includes("Shock"));
+  assert.ok(!flagged.includes("Anxiety"));
+  assert.ok(flagged.includes("Kutuzov"));
+
+  // A list marker is part of the lead: "1. Social standing…" capitalizes
+  // "Social" by position, same as a sentence start.
+  const listed = checkGrounding("1. Social standing mattered. 2. Rank mattered more.", passages, {});
+  const listedFlags = listed.findings.map((f) => f.text);
+  assert.ok(!listedFlags.includes("Social"), JSON.stringify(listedFlags));
+  assert.ok(!listedFlags.includes("Rank"));
+});
+
+test("diacritics fold on both sides of the grounding check", async () => {
+  const { checkGrounding } = await import("./grounding.js");
+  const passages = [{ ref: "wp.txt#0-99", text: "Pierre Bezúkhov married Hélène in Petersburg." }];
+  const plain = checkGrounding("Pierre Bezukhov married Helene.", passages, {});
+  assert.equal(plain.clean, true, JSON.stringify(plain.findings));
+  const accented = checkGrounding("Pierre Bezúkhov married Hélène.", passages, {});
+  assert.equal(accented.clean, true, JSON.stringify(accented.findings));
+  // An actually absent name still fails — the fold widened the alphabet, not the test.
+  const invented = checkGrounding("Pierre Bezukhov married Countess Marlborough.", passages, {});
+  assert.equal(invented.clean, false);
+});
 import assert from "node:assert/strict";
 
 import {

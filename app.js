@@ -15,24 +15,22 @@
 // Two model calls per turn, both bounded, and neither one ever sees the
 // transcript.
 //
-// Two places the model can live. Ollama on localhost needs no credential and
-// keeps the whole thing on the machine. Claude is called straight from the page
-// with the official SDK; the key is held in this browser's local storage and
-// sent to no host but api.anthropic.com — which is why
-// `dangerouslyAllowBrowser` is honest here rather than reckless: there is no
-// server in this design to hide it behind.
-
-import Anthropic from "https://esm.run/@anthropic-ai/sdk";
+// The model lives in one place: Ollama on this machine. No credential, no
+// hosted API, no request that leaves localhost — for the corpora this app is
+// for, that is not a convenience but the arrangement. The network tab is the
+// proof: everything the page loads and every call it makes names localhost.
 
 import {
   RECENCY_WINDOW,
+  RECORD_OPEN_MAX,
+  RECORD_REFS_MAX,
+  FOLD_SCHEMA,
   FOLD_SYSTEM_PROMPT,
   addWarrantRecord,
   advanceSummaryFold,
   buildRecordSystemMessage,
   buildSummarySystemMessage,
   buildSummaryUpdatePrompt,
-  buildTurnMessages,
   buildWarrantRecord,
   charCount,
   emptySummary,
@@ -48,25 +46,66 @@ import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
 import { attribute, attributedRefs } from "./cite.js";
 
+import { needsDecomposition, runHolonicTask } from "./holon.js";
+
+import { renderBlocksInto } from "./render.js";
+
+import { openInExplore, refContext } from "./explore-bridge.js";
+
+import { classifySentences } from "./provenance.js";
+
+import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
+
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
 // Boundaries are found by form there and received here — this app does not
 // know what a chapter is and must not learn.
 import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 
+// The engine's referent organs, same mount: names in a check resolve against
+// the cast the material itself establishes — a name is a reference to a
+// referent, not a byte sequence, and the engine owns what "the same name"
+// means. cast.js injects these so it stays pure and node-testable.
+import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
+import { makeCastResolver, makeCastHandles } from "./cast.js";
+
+import {
+  BOUND_SYSTEM_PROMPT,
+  buildBoundPrompt,
+  buildBoundSchema,
+  extractCells,
+  flattenBound,
+  parseBound,
+} from "./bound.js";
+
+const castFor = makeCastResolver({
+  splitSentences: engineSentences,
+  extractSurfaces,
+  discoverReferents,
+  namesCorefer,
+  diaNorm,
+});
+
+const handlesFor = makeCastHandles({
+  splitSentences: engineSentences,
+  extractSurfaces,
+  discoverReferents,
+});
+
 import {
   buildSourceBlock,
   checkCitations,
   chunkSource,
-  openQuestions,
-  readRange,
   retrieve,
   tokenize,
 } from "./source.js";
 
-const BASE_PROMPT =
-  "You are a careful assistant. Answer the question you were asked, in plain prose. When material is supplied, answer from it and cite the address in square brackets exactly as it appears. When it does not cover the question, say so plainly instead of filling the gap.";
+// The base prompt is the constitution's fold — the one bounded paragraph of
+// it a mouth can honor. Everything else in that document binds this app's
+// code, not the model; constitution.js carries the article→organ map and the
+// assay walks it.
+import { CONSTITUTION_PROMPT as BASE_PROMPT } from "./constitution.js";
 
-const KEY_STORAGE = "the-fold.anthropic-key";
 const OLLAMA = "http://localhost:11434";
 const MAX_TOKENS = 4096;
 /**
@@ -77,20 +116,22 @@ const MAX_TOKENS = 4096;
  */
 const FOLD_MAX_TOKENS = 300;
 
-const CLAUDE_MODELS = [
-  ["claude-opus-5", "Opus 5"],
-  ["claude-sonnet-5", "Sonnet 5"],
-  ["claude-haiku-4-5", "Haiku 4.5"],
-];
-
 const $ = (id) => document.getElementById(id);
 
 const state = {
-  provider: "ollama",
   model: null,
-  claude: null,
   ready: false,
   busy: false,
+
+  /**
+   * The pace ledger and the model's declared window. The ledger is fed by
+   * Ollama's own telemetry (real tokens, real durations) on every completed
+   * call; the window comes from /api/show at connect. Both are the ground
+   * for latency awareness — predictions in the thinking block, and the
+   * disclosed trim when a prompt would not fit.
+   */
+  paceLog: emptyPaceLog(),
+  contextTokens: null,
 
   /**
    * Conversations. The fold is per conversation — its own summary, its own
@@ -162,6 +203,11 @@ function convoTitle(c) {
 }
 
 function switchConvo(index) {
+  // A turn in flight writes its fold, record, and history into whichever
+  // conversation is active when its awaits resolve. Switching mid-turn would
+  // file a task's record into the wrong conversation — so the switch waits,
+  // exactly as the composer does.
+  if (state.busy) return;
   const from = state.convos[state.active];
   if (from) {
     for (const k of PER_CONVO) from[k] = state[k];
@@ -178,6 +224,7 @@ function switchConvo(index) {
 }
 
 function addConvo() {
+  if (state.busy) return; // same reasoning as switchConvo
   // Write the current one back before the new element steals the pointer.
   const from = state.convos[state.active];
   if (from) for (const k of PER_CONVO) from[k] = state[k];
@@ -211,15 +258,6 @@ function renderThreads() {
 async function fillModels() {
   const sel = $("model");
   sel.textContent = "";
-  if (state.provider === "claude") {
-    for (const [id, label] of CLAUDE_MODELS) {
-      const opt = document.createElement("option");
-      opt.value = id;
-      opt.textContent = label;
-      sel.append(opt);
-    }
-    return;
-  }
   try {
     const res = await fetch(`${OLLAMA}/api/tags`);
     const { models } = await res.json();
@@ -251,19 +289,23 @@ async function fillModels() {
 }
 
 async function connect() {
-  state.provider = $("provider").value;
   state.model = $("model").value;
-  if (state.provider === "claude") {
-    const key = $("key").value.trim();
-    if (!key) {
-      $("status").textContent = "paste a key first";
-      $("key").focus();
-      return;
-    }
-    localStorage.setItem(KEY_STORAGE, key);
-    state.claude = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
-  }
   state.ready = true;
+  // The model's declared window, from the runtime's own mouth. The one
+  // non-arbitrary meaning of "this prompt is too long" is this number.
+  state.contextTokens = null;
+  try {
+    const res = await fetch(`${OLLAMA}/api/show`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: state.model }),
+    });
+    const info = (await res.json())?.model_info ?? {};
+    for (const [k, v] of Object.entries(info))
+      if (k.endsWith(".context_length") && Number.isFinite(v)) state.contextTokens = v;
+  } catch {
+    // No window declared is a gap, not a default — nothing will be trimmed.
+  }
   $("status").textContent = `ready · ${state.model}`;
   $("send").disabled = false;
   // Connected is the moment the controls stop earning their space, and the
@@ -274,44 +316,14 @@ async function connect() {
 }
 
 /**
- * One request. `messages` arrives in the shape fold.js assembles — a single
- * system message at index 0, then the turns. Ollama takes that array as-is;
- * the Messages API carries the system prompt in its own field, so it is split
- * out there. The fold's own invariant (exactly one system block, everything
- * older folded into it) is untouched either way.
+ * One request, to the one place a model lives. `messages` arrives in the
+ * shape fold.js assembles — a single system message at index 0, then the
+ * turns — and Ollama takes that array as-is. Callers may pass options this
+ * endpoint has no use for (holon.js passes `effort`); they are ignored here
+ * rather than policed, because the seam's shape is the contract, not the
+ * host behind it.
  */
-async function complete(messages, { onDelta, effort, maxTokens, json } = {}) {
-  return state.provider === "claude"
-    ? completeClaude(messages, { onDelta, effort, maxTokens })
-    : completeOllama(messages, { onDelta, maxTokens, json });
-}
-
-async function completeClaude(messages, { onDelta, effort, maxTokens }) {
-  const system = messages[0]?.role === "system" ? messages[0].content : undefined;
-  const turns = messages.filter((m) => m.role !== "system");
-
-  const stream = state.claude.messages.stream({
-    model: state.model,
-    max_tokens: maxTokens ?? MAX_TOKENS,
-    ...(system ? { system } : {}),
-    ...(effort ? { output_config: { effort } } : {}),
-    messages: turns,
-  });
-
-  let out = "";
-  stream.on("text", (delta) => {
-    out += delta;
-    onDelta?.(out);
-  });
-  const message = await stream.finalMessage();
-  if (message.stop_reason === "refusal") throw new Error("the model declined");
-  return message.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-}
-
-async function completeOllama(messages, { onDelta, maxTokens, json }) {
+async function complete(messages, { onDelta, maxTokens, json } = {}) {
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -323,7 +335,10 @@ async function completeOllama(messages, { onDelta, maxTokens, json }) {
       // for JSON in prose, a small model writes the object and then keeps
       // talking until the cap — 300 tokens at 6/s is fifty seconds of a turn
       // spent on nothing. Told the grammar, it closes the brace and stops.
-      ...(json ? { format: "json" } : {}),
+      // `json` may be `true` (plain JSON mode) or a JSON schema — Ollama's
+      // structured outputs constrain decoding to the schema, which is how a
+      // caller gets a SHAPE by physics instead of by asking the model nicely.
+      ...(json ? { format: json === true ? "json" : json } : {}),
       options: { num_predict: maxTokens ?? MAX_TOKENS },
     }),
   });
@@ -344,6 +359,21 @@ async function completeOllama(messages, { onDelta, maxTokens, json }) {
     for (const line of lines) {
       if (!line.trim()) continue;
       const chunk = JSON.parse(line);
+      // The final chunk carries the runtime's own telemetry: real tokens,
+      // real durations. That is the pace ledger's only source — the system's
+      // sense of its own speed is measured, never assumed.
+      if (chunk.done) {
+        state.paceLog = recordCall(state.paceLog, {
+          model: state.model,
+          promptChars: messages.reduce((n, m) => n + m.content.length, 0),
+          promptTokens: chunk.prompt_eval_count,
+          promptNs: chunk.prompt_eval_duration,
+          outTokens: chunk.eval_count,
+          outNs: chunk.eval_duration,
+        });
+        const pace = foldPace(state.paceLog, state.model);
+        if (pace.decodeTps) $("status").textContent = `ready · ${state.model} · ${Math.round(pace.decodeTps)} tok/s`;
+      }
       const delta = chunk.message?.content || "";
       if (!delta) continue;
       out += delta;
@@ -360,6 +390,27 @@ async function completeOllama(messages, { onDelta, maxTokens, json }) {
  * them and folding the turn like any other, so the conversation's own history
  * records that the question was asked and answered.
  */
+/** A command that arrived without its argument gets its usage line back — a
+ * turn with no model in it, folded like any other so the exchange is on the
+ * conversation's own record. */
+function usageTurn(question, usage) {
+  addMessage("user", question);
+  const node = addMessage("assistant", usage);
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: usage },
+  );
+  const fold = mechanicalFoldLine(question, usage);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  state.busy = false;
+  $("send").disabled = false;
+  $("input").focus();
+}
+
 async function mechanicalTurn(question, kind) {
   addMessage("user", question);
   const node = addMessage("assistant", "");
@@ -404,6 +455,24 @@ async function send(question) {
   // phone it is otherwise a screenful sitting above the first message.
   $("intro")?.remove();
 
+  // A task rather than a question. Two doors, per the canon in eochatX's
+  // eo-holonic-plan.ts: `/task` is the explicit one, and the mechanical gate
+  // is the SHAPE of the request — several substantive clauses each pinning
+  // its own anchor — decided from the question's own words, never by a model
+  // and never by whether a corpus happens to be loaded. The explicit door is
+  // checked FIRST: a typed command must never be hijacked by a heuristic
+  // that happens to match its wording.
+  const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
+  if (task) return holonicTurn(task, question, "model");
+  if (/^\/task\s*$/.test(question)) return usageTurn(question, "/task <what to produce> — plans the task into parts and runs each one against the material.");
+
+  // The bound experiment: the same question answered twice — once free and
+  // audited, once with the decoding grammar holding every name to the cast
+  // and every figure to the material's own cells — side by side, measured.
+  const boundQ = question.match(/^\/bound\s+(\S[\s\S]*)/)?.[1];
+  if (boundQ) return boundTurn(boundQ, question);
+  if (/^\/bound\s*$/.test(question)) return usageTurn(question, "/bound <question> — answers twice: a free audited draft, and one where the grammar binds names to the cast and figures to the material's cells.");
+
   // A question about the app's own state is answered from that state. Nothing
   // is gained by handing a model rows it would have to paraphrase, and a
   // paraphrase of a data structure drops a row, rounds a number, or invents a
@@ -411,81 +480,173 @@ async function send(question) {
   const wanted = detectTable(question);
   if (wanted) return mechanicalTurn(question, wanted);
 
-  const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
-  const live = state.chunks.filter((c) => !state.muted.has(c.source));
-  const passages = live.length ? retrieve(live, question, 3, foldedRefs) : [];
+  // Every remaining turn runs as a task — 100% of the time. The one big
+  // prompt that carried summary + records + material together is gone; a
+  // turn is a plan log whose fold projects into small part-scoped calls,
+  // and the log is the thought: what the turn believed the work was, how
+  // the belief was amended, what each part established — appended, folded,
+  // never mutated. A flat question is a one-part thought that spends no
+  // plan call; a many-anchored question plans under grammar. Recall is
+  // retrieval: parts carry a one-line discourse slice and re-retrieve what
+  // they need, never the whole carried block.
+  return holonicTurn(question, question, needsDecomposition(question) ? "model" : "flat");
+}
 
-  const sourceBlock = buildSourceBlock(passages);
-  const messages = buildTurnMessages({
-    basePrompt: BASE_PROMPT,
-    summary: state.summary,
-    history: state.history,
-    question,
-    sourceBlock,
-  });
-  state.lastMessages = messages;
-  // Material is retrieved fresh for the question and has nothing to do with
-  // how long the conversation is. Tracked separately so the meter measures the
-  // fold's actual claim rather than crediting it with the corpus.
-  state.lastMaterialChars = sourceBlock?.length ?? 0;
-
-  addMessage("user", question);
+/**
+ * The bound experiment, live: the same question answered twice against the
+ * same passages. A — a free draft, audited and drawn with its grounds
+ * (P12). B — bound generation: the answer's name field can only decode to a
+ * cast handle, its figure field only to a cell the material states, each
+ * with the empty escape; the model points at facts and phrases around
+ * them. The prose field is still audited — the grammar cannot yet forbid a
+ * leak there, so leaks render striped and the comparison line counts them.
+ * The record is built from the BOUND answer: it is the candidate
+ * instrument; A is its control.
+ */
+async function boundTurn(question, typed) {
+  addMessage("user", typed);
   const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
 
-  let answer = "";
+  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+  const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
+  const passages = live.length ? retrieve(live, question, 3, foldedRefs) : [];
+  const sourceBlock = buildSourceBlock(passages);
+  const handles = handlesFor(passages);
+  const cells = extractCells(passages);
+  const resolveName = castFor(passages);
+
+  const prep = `offer: ${handles.length} name(s), ${cells.length} figure(s), from ${passages.length} passage(s)`;
+  body.textContent = `${prep}\nA · free draft…`;
+
+  let free = "";
   try {
-    $("status").textContent = "answering…";
-    answer = await complete(messages, {
-      onDelta: (partial) => {
-        node.querySelector(".body").textContent = partial;
-        node.scrollIntoView({ block: "end" });
-      },
-    });
+    $("status").textContent = "free draft…";
+    free = await complete(
+      [
+        { role: "system", content: BASE_PROMPT },
+        { role: "user", content: sourceBlock ? `${question}\n\n${sourceBlock}` : question },
+      ],
+      {},
+    );
   } catch (err) {
-    answer = `[engine error: ${err.message || err}]`;
-    node.querySelector(".body").textContent = answer;
+    free = `[engine error: ${err.message || err}]`;
   }
+  const freeGrounding = checkGrounding(free, passages, { question, resolveName });
+  const freeAttr = attribute(free, passages, live);
 
-  state.history.push(
-    { role: "user", content: question },
-    { role: "assistant", content: answer },
+  body.textContent = `${prep}\nA · done\nB · bound…`;
+  let boundRaw = "";
+  try {
+    $("status").textContent = "bound…";
+    boundRaw = await complete(
+      [
+        { role: "system", content: BOUND_SYSTEM_PROMPT },
+        { role: "user", content: buildBoundPrompt(question, sourceBlock) },
+      ],
+      { json: buildBoundSchema({ handles, cells }) },
+    );
+  } catch (err) {
+    boundRaw = "";
+  }
+  const parsed = parseBound(boundRaw);
+  const flat = parsed.degraded ? boundRaw || "(bound reply unusable — typed degradation)" : flattenBound(parsed);
+  const boundGrounding = checkGrounding(flat, passages, { question, resolveName });
+  const boundAttr = attribute(flat, passages, live);
+
+  // Render both, same organs drawing both.
+  body.textContent = "";
+  const sec = (label) => {
+    const h = document.createElement("p");
+    h.className = "fold-section";
+    h.textContent = label;
+    return h;
+  };
+  const divA = document.createElement("div");
+  divA.className = "prose";
+  renderBlocksInto(divA, free, (chunk) =>
+    taggedProse(chunk, passages, classifySentences(free, freeAttr, freeGrounding.findings).filter((e) => findSentence(chunk, e.text))),
   );
 
-  // System 2 first: the record is built from this turn's own mechanical check,
-  // so it cannot disagree with what the check found.
-  const { used, unsupported } = checkCitations(answer, passages);
-  // Three different questions, asked mechanically. checkCitations: did it cite
-  // an address it was handed. attribute: where does an uncited sentence come
-  // from. checkGrounding: are the figures and names in the sentence in the
-  // bytes at all — the one that catches an invented number.
-  const grounding = checkGrounding(answer, passages, { question });
-  // What the model wrote is one channel; what the answer demonstrably took
-  // from the material is another, and the second does not depend on the model
-  // having cooperated. Both are mechanical: one parses the brackets, one
-  // measures shared phrases against a null.
-  const attributions = attribute(answer, passages, live);
-  const attributed = attributedRefs(attributions);
-  const carriedBy = [
-    ...(used.length ? ["cited"] : []),
-    ...(attributed.length ? ["attributed"] : []),
-  ];
-  const grounded = [...new Set([...used, ...attributed])];
+  const divB = document.createElement("div");
+  divB.className = "prose";
+  if (parsed.degraded) divB.textContent = flat;
+  else
+    for (const s of parsed.sentences) {
+      const p = document.createElement("p");
+      p.className = "para";
+      p.append(
+        ...taggedProse(s.prose, passages, classifySentences(s.prose, boundAttr, boundGrounding.findings).filter((e) => findSentence(s.prose, e.text))),
+      );
+      for (const [val, kind] of [[s.name, "name"], [s.figure, "figure"]]) {
+        if (!val) continue;
+        const chip = document.createElement("button");
+        chip.className = "ref attached";
+        chip.textContent = val;
+        const ref =
+          kind === "figure"
+            ? cells.find((c) => c.value === val)?.ref
+            : passages.find((pp) => diaNorm(pp.text).includes(diaNorm(val)))?.ref;
+        chip.title =
+          kind === "figure"
+            ? "Bound figure — decodable only from the material's own cells. Press to read the bytes."
+            : "Bound name — decodable only from the material's cast. Press to read the bytes.";
+        if (ref) chip.onclick = () => reopen(ref);
+        p.append(document.createTextNode(" "), chip);
+      }
+      divB.append(p);
+    }
 
+  const compare = document.createElement("p");
+  compare.className = "fold-note";
+  compare.textContent =
+    `free: ${unsupportedClaims(freeGrounding).length} claim(s) not in the material · ` +
+    `bound: ${unsupportedClaims(boundGrounding).length} leak(s) in prose` +
+    (parsed.degraded ? " · bound reply degraded" : "") +
+    ` · offer: ${handles.length} names, ${cells.length} figures`;
+
+  body.append(sec("A · free draft, audited"), divA, sec(`B · bound by grammar${parsed.degraded ? " (degraded)" : ""}`), divB, compare);
+
+  // One turn on the conversation's record — the bound answer is the turn's
+  // content; the free draft was its control.
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: flat });
   const turn = state.summary.turnCount + 1;
-  const fold = mechanicalFoldLine(question, answer);
+  const fold = mechanicalFoldLine(question, flat);
+  const boundUsed = checkCitations(flat, passages).used;
   const record = passages.length
     ? buildWarrantRecord({
         turn,
         gist: fold,
-        channels: carriedBy,
-        refs: grounded,
-        unsupported: [...unsupported, ...unsupportedClaims(grounding)],
-        open: openQuestions(question, passages, grounded),
+        channels: [
+          ...(boundUsed.length ? ["cited"] : []),
+          ...(attributedRefs(boundAttr).length ? ["attributed"] : []),
+          ...(parsed.degraded ? [] : ["bound"]),
+        ],
+        refs: [...new Set([...boundUsed, ...attributedRefs(boundAttr), ...(parsed.degraded ? [] : cells.filter((c) => parsed.sentences.some((s) => s.figure === c.value)).map((c) => c.ref))])],
+        unsupported: unsupportedClaims(boundGrounding),
+        open: [...(parsed.degraded ? ["bound reply did not parse; raw shown as the model's own voice"] : [])],
       })
     : null;
   if (record) state.summary = addWarrantRecord(state.summary, record);
 
-  // System 1: the one model call the fold spends.
+  await refreshSummary(fold);
+  renderFold(node, { fold, record });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  state.busy = false;
+  $("send").disabled = false;
+  $("input").focus();
+}
+
+/**
+ * The summary refresh, shared by every kind of turn that spends tokens.
+ *
+ * The fold is bookkeeping, not reasoning: a short JSON object read off lines
+ * that are already written. Spending the answer's effort — or the answer's
+ * token headroom — on it would double the turn's latency for nothing, which
+ * is exactly what a local 3B did until it was capped.
+ */
+async function refreshSummary(fold) {
   state.turnFolds.push(fold);
   try {
     $("status").textContent = "folding…";
@@ -500,23 +661,220 @@ async function send(question) {
           ]),
         },
       ],
-      // The fold is bookkeeping, not reasoning: a short JSON object read off
-      // lines that are already written. Spending the answer's effort — or the
-      // answer's token headroom — on it would double the turn's latency for
-      // nothing, which is exactly what a local 3B did until it was capped.
-      { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: true },
+      { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA },
     );
     state.summary = updateSummaryWithFold(state.summary, fold, raw);
   } catch {
     state.summary = updateSummaryWithFold(state.summary, fold);
   }
+}
 
-  // Streaming shows raw text as it arrives; the artifact is built once the
-  // answer is whole, because a half-written table is not a table yet.
-  renderAnswer(node.querySelector(".body"), answer, passages, attributions);
-  renderFold(node, { fold, record, sent: messages });
+/**
+ * A task rather than a question: plan into parts, run each part as its own
+ * turn-sized cycle, assemble with provenance. All of it in holon.js, which is
+ * pure — this function is only the page around it: progress lines while it
+ * runs, the same renderers as any turn when it lands, and ONE fold and ONE
+ * record for the whole task, built from work the parts already did. Nothing
+ * is re-checked at fold time; a holonic turn that re-measured its own output
+ * could disagree with itself, and then one of the two answers would be lying.
+ *
+ * The model in the loop is whatever complete() points at. On Ollama the whole
+ * task — plan, every part, every correction — runs on the machine.
+ */
+async function holonicTurn(task, typed = task, planMode = "model") {
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
+  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+
+  // The run narrates itself while it works — the thinking, live, in three
+  // layers: the log lines (what the turn decided and found), a ticker (what
+  // phase it is in and for how long, against the measured pace), and the
+  // draft streaming in as the model writes it. The log is kept and
+  // disclosed under the answer afterward; the draft area is display-only
+  // and is replaced by the checked rendering when the turn lands.
+  const log = [];
+  const logEl = document.createElement("div");
+  logEl.className = "thinking";
+  const tickEl = document.createElement("div");
+  tickEl.className = "thinking";
+  const draftEl = document.createElement("div");
+  draftEl.className = "prose";
+  body.replaceChildren(logEl, tickEl, draftEl);
+
+  const show = (line) => {
+    log.push(line);
+    logEl.textContent = log.join("\n");
+    node.scrollIntoView({ block: "end" });
+  };
+
+  let phaseLabel = "planning";
+  let phaseStart = performance.now();
+  let phasePromptChars = 0;
+  const setPhase = (label, promptChars = 0) => {
+    phaseLabel = label;
+    phaseStart = performance.now();
+    phasePromptChars = promptChars;
+  };
+  const ticker = setInterval(() => {
+    const secs = Math.round((performance.now() - phaseStart) / 1000);
+    const pace = foldPace(state.paceLog, state.model);
+    // Expected duration from the measured pace: prefill for what this call
+    // carries, decode for what this conversation's calls have averaged.
+    // Unmeasured pace says so instead of inventing a number.
+    let expect = "";
+    if (phasePromptChars && pace.calls) {
+      const p = predictCall(pace, phasePromptChars, pace.meanOutTokens ?? 0);
+      if (p.ms) expect = ` / ~${Math.round(p.ms / 1000)}s expected (${p.basis})`;
+    }
+    tickEl.textContent =
+      `⋯ ${phaseLabel} · ${secs}s${expect}` +
+      (pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : " · pace unmeasured");
+  }, 1000);
+
+  let lastDraftPaint = 0;
+
+  let result;
+  try {
+    $("status").textContent = "planning…";
+    const s = state.summary;
+    result = await runHolonicTask({
+      task,
+      chunks: live,
+      call: complete,
+      foldedRefs,
+      makeNameResolver: castFor,
+      planMode,
+      // The discourse slice: one line, not the carried block. Topic, flow,
+      // entities — what a part needs to resolve "he" and "the report";
+      // anything more it retrieves.
+      discourse: [s.topic, s.flow, (s.entities || []).join(", ")]
+        .filter(Boolean)
+        .join(" · ")
+        .slice(0, 300),
+      onProgress: (phase, part, info) => {
+        if (phase === "plan") {
+          setPhase("planning");
+          show("planning…");
+        } else if (phase === "planned")
+          show(
+            `plan: ${info.parts.length} part(s)` +
+              (info.degraded ? " — plan did not parse, running the task flat" : "") +
+              ` · ${info.parts.map((p) => p.label).join(" · ")}`,
+          );
+        else if (phase === "research") {
+          setPhase(`reading for ${part.label}`);
+          show(`${part.label}: ${info.passages.length} passage(s) retrieved`);
+        } else if (phase === "execute") {
+          setPhase(`writing ${part.label}`, info.promptChars ?? 0);
+          $("status").textContent = `writing: ${part.label}…`;
+        } else if (phase === "draft") {
+          // The part being written, streamed as blocks — display-only until
+          // the checks run on the whole.
+          const now = performance.now();
+          if (now - lastDraftPaint > 200) {
+            lastDraftPaint = now;
+            const d = document.createElement("div");
+            renderBlocksInto(d, info.partial, (chunk) => [document.createTextNode(chunk)]);
+            draftEl.replaceChildren(...d.childNodes);
+            node.scrollIntoView({ block: "end" });
+          }
+        } else if (phase === "correct") {
+          setPhase(`rewriting ${part.label}`, info.promptChars ?? 0);
+          show(`${part.label}: ${info.failures.length} unsupported claim(s), rewriting`);
+        } else if (phase === "checked") {
+          draftEl.replaceChildren();
+          show(
+            `${part.label}: ${info.refs.length} address(es)` +
+              (info.unsupported.length ? `, ${info.unsupported.length} unsupported` : "") +
+              (info.open.length ? `, ${info.open.length} open` : ""),
+          );
+        } else if (phase === "production")
+          show(`production: ${info.halted_by} after ${info.steps} step(s)`);
+      },
+    });
+    clearInterval(ticker);
+  } catch (err) {
+    clearInterval(ticker);
+    const answer = `[engine error: ${err.message || err}]`;
+    body.textContent = answer;
+    state.history.push(
+      { role: "user", content: typed },
+      { role: "assistant", content: answer },
+    );
+    // An errored turn is still a turn: folded mechanically, no model call —
+    // the same accounting mechanicalTurn does — so history and the summary's
+    // turn count cannot silently diverge.
+    const fold = mechanicalFoldLine(task, answer);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { fold, ran: log });
+    renderThreads();
+    $("status").textContent = `ready · ${state.model}`;
+    state.busy = false;
+    $("send").disabled = false;
+    return;
+  }
+
+  state.history.push(
+    { role: "user", content: typed },
+    { role: "assistant", content: result.output },
+  );
+
+  // The record is the union of what each part's own check established —
+  // read off, never re-derived — and it exists only when something WAS
+  // checked: a task that retrieved nothing anywhere had no check run, and an
+  // unchecked turn must not acquire ON RECORD authority. Same guard send()
+  // holds (`passages.length ? buildWarrantRecord(...) : null`), one level up.
+  const offered = [...new Map(result.sections.flatMap((s) => s.passages).map((p) => [p.ref, p])).values()];
+  const attributions = result.sections.flatMap((s) => s.attributions);
+  const turn = state.summary.turnCount + 1;
+  const fold = mechanicalFoldLine(task, result.output);
+  // The record is turn-sized and a task is not: overflow past the record's
+  // own caps is compressed into a visible count, never dropped silently —
+  // the full detail stays in the run log disclosure. P4: a capped list says
+  // it was capped.
+  const capped = (list, max, where) =>
+    list.length > max
+      ? [...list.slice(0, max - 1), `+${list.length - (max - 1)} more — see ${where}`]
+      : list;
+  const record = offered.length
+    ? buildWarrantRecord({
+        turn,
+        gist: fold,
+        channels: result.channels,
+        refs: result.refs,
+        unsupported: capped(result.unsupported, RECORD_REFS_MAX, "the run log"),
+        open: capped(result.open, RECORD_OPEN_MAX, "the run log"),
+      })
+    : null;
+  if (record && result.refs.length > record.refs.length)
+    record.open = capped(
+      [...record.open, `+${result.refs.length - record.refs.length} more address(es) in the run log`],
+      RECORD_OPEN_MAX,
+      "the run log",
+    );
+  if (record) state.summary = addWarrantRecord(state.summary, record);
+  // The meter counts material against the task's parts, not the fold: what
+  // was retrieved here was retrieved for the parts and does not grow with
+  // the conversation.
+  state.lastMaterialChars = result.sections.reduce(
+    (n, s) => n + (buildSourceBlock(s.passages)?.length ?? 0),
+    0,
+  );
+
+  // The answer renders before the summary refresh so an artifact built from
+  // it is stamped with THIS turn's number, not the next one's.
+  renderAnswer(body, result.output, offered, attributions, result.sections.flatMap((s) => s.grounding?.findings ?? []));
+  await refreshSummary(fold);
+  renderFold(node, { fold, record, ran: log });
   renderThreads();
-  renderEvidence(node, question, passages, grounded, grounding);
+  // Evidence terms are the plan's own words — each part retrieved on its own
+  // description, so the task's terms alone would call honest matches misses.
+  const evidenceQuestion = `${task} ${result.plan.parts.map((p) => `${p.label} ${p.description}`).join(" ")}`;
+  renderEvidence(node, evidenceQuestion, offered, result.refs, null);
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;
@@ -553,19 +911,24 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = []) {
-  // Sentence → the address this app attached to it, if it attached one.
-  const attached = new Map(
-    attributions.filter((a) => a.ref).map((a) => [a.text, a]),
-  );
+function renderAnswer(body, answer, offered = [], attributions = [], findings = []) {
+  // Every sentence of the whole answer classified onto its ground once;
+  // each rendered chunk then draws the sentences it contains.
+  const classified = classifySentences(answer, attributions, findings);
   const segments = parseSegments(answer);
   body.textContent = "";
   for (const seg of segments) {
     if (seg.type === "prose") {
-      const p = document.createElement("p");
-      p.className = "prose";
-      p.append(...taggedProse(seg.text, offered, attached));
-      body.append(p);
+      // A flow container, not a <p>: render.js emits headings and lists, and
+      // a browser silently relocates those out of a paragraph. Every inline
+      // run comes back through taggedProse, so the address chips, attribution
+      // tags, and provenance grounds survive the markdown structure.
+      const d = document.createElement("div");
+      d.className = "prose";
+      renderBlocksInto(d, seg.text, (chunk) =>
+        taggedProse(chunk, offered, classified.filter((e) => findSentence(chunk, e.text))),
+      );
+      body.append(d);
       continue;
     }
     body.append(publishArtifact(seg));
@@ -588,24 +951,24 @@ const REF_IN_TEXT = /\[([^\]\s]+#\d+-\d+)\]/g;
  * calls it unsupported, and a citation the model invented should not look
  * identical to one it was handed.
  */
-function taggedProse(text, offered, attached = new Map()) {
-  const known = new Set(offered.map((p) => p.ref ?? p));
+/** Locate a sentence inside a rendered run, whitespace-flexibly: render.js
+ * splits paragraphs into per-line runs, so a sentence that wraps a line
+ * never matches by strict inclusion — measured live as most sentences
+ * rendering unclassified. The words are the identity; the whitespace is the
+ * renderer's. */
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function findSentence(hay, sentence) {
+  const words = String(sentence).trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const m = hay.match(new RegExp(words.map(escapeRe).join("\\s+")));
+  return m ? { at: m.index, len: m[0].length } : null;
+}
+
+/** Bracketed addresses in a run of text become controls; everything else
+ * stays text. The mechanical half of taggedProse, shared by the
+ * sentence-provenance wrapper below. */
+function refNodes(text, known) {
   const out = [];
-  // Where this app attached the address itself, say so in the tag. A citation
-  // the model wrote and one this app measured are different kinds of claim,
-  // and drawing them identically would hide which is which.
-  for (const [sentence, a] of attached) {
-    if (!text.includes(sentence)) continue;
-    const i = text.indexOf(sentence) + sentence.length;
-    const b = document.createElement("button");
-    b.className = "ref attached";
-    b.textContent = a.ref;
-    b.title = `Attached by this app: ${a.score} consecutive terms shared with these bytes, against a corpus best of ${a.floor}. Press to read them.`;
-    b.onclick = () => reopen(a.ref);
-    out.push(document.createTextNode(text.slice(0, i)), b);
-    text = text.slice(i);
-    break;
-  }
   let last = 0;
   for (const m of String(text).matchAll(REF_IN_TEXT)) {
     if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));
@@ -627,6 +990,55 @@ function taggedProse(text, offered, attached = new Map()) {
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  return out;
+}
+
+/**
+ * Prose with every sentence standing on its named ground (provenance.js):
+ * material-ground sentences read plain and carry their address; model-ground
+ * sentences carry a quiet dotted underline — the model's own voice, typed as
+ * such, never blocked (IV.4) and never dressed as measurement; a sentence
+ * whose figures or names the material does not hold carries the warning
+ * stripe, whichever ground it stands on. All of it read off checks the turn
+ * already ran — this function draws, it does not measure.
+ */
+function taggedProse(text, offered, classified = []) {
+  const known = new Set(offered.map((p) => p.ref ?? p));
+  const out = [];
+  let rest = String(text);
+
+  for (const entry of classified) {
+    const hit = findSentence(rest, entry.text);
+    if (!hit) continue;
+    const { at, len } = hit;
+    if (at > 0) out.push(...refNodes(rest.slice(0, at), known));
+    const matched = rest.slice(at, at + len);
+
+    const sent = document.createElement("span");
+    sent.className = `sent${entry.absent.length ? " claims" : ""}`;
+    sent.dataset.ground = entry.ground;
+    if (entry.absent.length)
+      sent.title = `Not in the material: ${entry.absent.join("; ")} — this stands on the model, said as fact.`;
+    else if (entry.ground === "model")
+      sent.title = "No address — this stands on the model's own voice, not the material.";
+    sent.append(...refNodes(matched, known));
+
+    // Where this app attached the address itself, say so in the tag. A
+    // citation the model wrote and one this app measured are different
+    // kinds of claim, and drawing them identically would hide which is which.
+    if (entry.ref) {
+      const b = document.createElement("button");
+      b.className = "ref attached";
+      b.textContent = entry.ref;
+      b.title = "Attached by this app against a measured null. Press to read the bytes.";
+      b.onclick = () => reopen(entry.ref);
+      sent.append(b);
+    }
+    out.push(sent);
+    rest = rest.slice(at + len);
+  }
+
+  if (rest) out.push(...refNodes(rest, known));
   return out;
 }
 
@@ -823,8 +1235,11 @@ function measure() {
  * — and that question is asked while looking at the turn. So the disclosure
  * carries all of it, and the fold is not a tab.
  */
-function renderFold(node, { fold, record, sent }) {
-  const box = node.querySelector(".fold");
+function renderFold(node, { fold, record, sent, ran }) {
+  // Scoped to the turn-meta: the body can contain anything an answer wants,
+  // including things that happen to share a class name, and the fold box must
+  // not be findable through it.
+  const box = node.querySelector(".turn-meta > .fold");
   if (!box) return;
   const out = box.querySelector("p");
   out.textContent = "";
@@ -856,6 +1271,20 @@ function renderFold(node, { fold, record, sent }) {
 
   if (record) {
     out.append(section("system 2 · on record"), recordNode(record));
+  }
+
+  // A holonic turn's run log — which part retrieved what, what failed its
+  // check — disclosed alongside the fold, because it is the same kind of
+  // answer to the same question: what did this turn actually do?
+  if (ran?.length) {
+    const det = document.createElement("details");
+    det.className = "fold";
+    det.innerHTML = "<summary>how the task ran</summary>";
+    const pre = document.createElement("pre");
+    pre.className = "block";
+    pre.textContent = ran.join("\n");
+    det.append(pre);
+    out.append(det);
   }
 
   if (sent?.length) {
@@ -933,12 +1362,53 @@ function recordNode(r) {
 }
 
 
+/** Context shown on each side of the cited span. A bounded window, with the
+ * withheld counts NAMED — a dialog rendering a 3 MB novel whole would jank,
+ * and a silent truncation would claim completeness it doesn't have. */
+const REOPEN_CONTEXT_CHARS = 1500;
+
 function reopen(ref) {
-  const body = readRange(state.sources, ref);
   $("reopen-ref").textContent = ref;
-  $("reopen-body").textContent =
-    body ?? "That material is no longer loaded — the address outlived it.";
+  const pre = $("reopen-body");
+  pre.textContent = "";
+  const ctx = refContext(state.sources, ref);
+  if (!ctx) {
+    pre.textContent = "That material is no longer loaded — the address outlived it.";
+    $("reopen-explore").hidden = true;
+    $("reopen").showModal();
+    return;
+  }
+
+  // The cited span inside its source: before / mark / after, windowed.
+  const beforeCut = Math.max(0, ctx.before.length - REOPEN_CONTEXT_CHARS);
+  const afterKeep = Math.min(ctx.after.length, REOPEN_CONTEXT_CHARS);
+  if (beforeCut) {
+    const note = document.createElement("span");
+    note.className = "muted";
+    note.textContent = `… ${beforeCut.toLocaleString()} chars above …\n`;
+    pre.append(note);
+  }
+  pre.append(document.createTextNode(ctx.before.slice(beforeCut)));
+  const mark = document.createElement("mark");
+  mark.textContent = ctx.cited;
+  pre.append(mark);
+  pre.append(document.createTextNode(ctx.after.slice(0, afterKeep)));
+  if (afterKeep < ctx.after.length) {
+    const note = document.createElement("span");
+    note.className = "muted";
+    note.textContent = `\n… ${(ctx.after.length - afterKeep).toLocaleString()} chars below …`;
+    pre.append(note);
+  }
+
+  const explore = $("reopen-explore");
+  explore.hidden = false;
+  explore.onclick = () =>
+    openInExplore(state.sources, ref).catch((err) => {
+      $("status").textContent = `explore: ${err.message || err}`;
+    });
+
   $("reopen").showModal();
+  mark.scrollIntoView({ block: "center" });
 }
 
 // ── material ─────────────────────────────────────────────────────────────────
@@ -989,9 +1459,38 @@ function countFor(name) {
   return state.chunks.filter((c) => c.source === name).length;
 }
 
+/** The chip strip above the conversation: what the answers stand on, always
+ * in view. Click silences or restores; silenced is struck through, never
+ * hidden — silenced and gone must not look alike. */
+function renderSourceStrip() {
+  const strip = $("source-strip");
+  if (!strip) return;
+  const names = Object.keys(state.sources);
+  strip.hidden = !names.length;
+  strip.textContent = "";
+  for (const name of names) {
+    const on = !state.muted.has(name);
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = on ? "" : "off";
+    chip.textContent = `${name} · ${countFor(name).toLocaleString()}`;
+    chip.title = on
+      ? "In play — click to silence (the text stays loaded; retrieval stops seeing it)"
+      : "Silenced — click to restore";
+    chip.onclick = () => {
+      if (on) state.muted.add(name);
+      else state.muted.delete(name);
+      renderSources();
+    };
+    strip.append(chip);
+  }
+}
+
 function renderSources() {
+  renderSourceStrip();
   const names = Object.keys(state.sources);
   const list = $("source-list");
+  if (!list) return;
   list.textContent = "";
   if (!names.length) {
     list.innerHTML =
@@ -1088,20 +1587,23 @@ fillModels();
 state.convos.push(newConvo());
 switchConvo(0);
 
-$("key").value = localStorage.getItem(KEY_STORAGE) || "";
 $("connect").onclick = connect;
-$("provider").onchange = () => {
-  state.provider = $("provider").value;
-  state.ready = false;
-  $("key-row").hidden = state.provider !== "claude";
-  $("send").disabled = true;
-  $("status").textContent = "idle";
-  fillModels();
-};
 $("model").onchange = () => {
   state.model = $("model").value;
   if (state.ready) $("status").textContent = `ready · ${state.model}`;
 };
+
+// Material sent over from the Explore pane. The origin check is the whole
+// security model of a message listener — inbound "*" is never trusted, and
+// anything not from the explore server's own origin is ignored unread.
+window.addEventListener("message", (e) => {
+  if (e.origin !== "http://localhost:8812") return;
+  const d = e.data;
+  if (d?.type !== "fold:material:add") return;
+  if (typeof d.name !== "string" || typeof d.text !== "string") return;
+  addSource(d.name, d.text);
+  $("status").textContent = `${d.name} · from Explore`;
+});
 
 // Both add buttons are the same door: the one beside the composer, and the one
 // in the Material panel — which is where you end up when you already have
@@ -1178,7 +1680,7 @@ showView(matchMedia("(max-width: 900px)").matches ? "chat" : "views");
 
 // ── the settings chip ────────────────────────────────────────────────────────
 //
-// Provider, model, and Connect are a first-run affordance that then sits at the
+// Model and Connect are a first-run affordance that then sits at the
 // top of a phone screen forever. Once connected they fold into one chip and
 // give the space back; tapping it brings them out again.
 

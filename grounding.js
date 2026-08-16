@@ -23,6 +23,8 @@
 //
 // Pure: no DOM, no IO, no model.
 
+import { foldDiacritics } from "./source.js";
+
 const CLAIM_STOPWORDS = new Set([
   "the",
   "a",
@@ -261,13 +263,16 @@ const CLAIM_STOPWORDS = new Set([
   "response",
 ]);
 
-const NUMBER_RE = /\b\d[\d,]*(?:\.\d+)?%?\b/g;
+export const NUMBER_RE = /\b\d[\d,]*(?:\.\d+)?%?\b/g;
 const PROPER_RE =
   /\p{Lu}[\p{L}]*(?:['\u2019][\p{L}]+)?(?:[ -](?:of|the|de|von|van|del|la|le)?[ ]?\p{Lu}[\p{L}]*(?:['\u2019][\p{L}]+)?)*/gu;
 
 export function wordSet(s) {
   const set = new Set();
-  for (const w of String(s || "").toLowerCase().split(/[^\p{L}\p{N}]+/u)) if (w) set.add(w);
+  // Folded the same way retrieval folds (source.js::foldDiacritics): the
+  // check must judge the same alphabet the search searched, or every
+  // accented name in a found passage reads as invented.
+  for (const w of foldDiacritics(String(s || "").toLowerCase()).split(/[^\p{L}\p{N}]+/u)) if (w) set.add(w);
   return set;
 }
 
@@ -289,7 +294,10 @@ export function numberSet(s) {
  */
 const MIN_STEM = 4;
 export function hasWord(words, word) {
-  const w = String(word).toLowerCase();
+  // Both sides of the containment pass through the same fold — an answer
+  // that copies the source's own accents must not fail against an index
+  // that folded them.
+  const w = foldDiacritics(String(word).toLowerCase());
   if (words.has(w)) return true;
   if (w.length < MIN_STEM) return false;
   for (const hw of words) {
@@ -393,11 +401,27 @@ export function extractAtoms(sentence, absoluteStart = 0) {
     });
   }
   PROPER_RE.lastIndex = 0;
+  // The lead includes a list marker: "1. Social standing…" capitalizes
+  // "Social" by position exactly as a sentence start does (run 5 flagged it
+  // as an invented referent through the bare-whitespace lead).
+  const sentenceLead = sentence.match(/^\s*(?:[-*>]\s+|\d+[.)]\s+)?\s*/)[0].length;
   while ((m = PROPER_RE.exec(sentence)) !== null) {
     const phrase = m[0].trim();
     const words = phrase.split(/[\s-]+/).filter(Boolean);
+    // A single capitalized word at the sentence's own start is capitalized
+    // by position — the engine's measured principle (surfaces.js skips
+    // sentence-initial tokens for cap evidence), applied here after run 3
+    // flagged list-lead emotion words ("Shock", "Anxiety") as invented
+    // referents. The trade is disclosed: a single-token invented name that
+    // only ever opens sentences escapes; multi-token names and any
+    // mid-sentence recurrence are still caught.
+    if (words.length === 1 && m.index === sentenceLead) continue;
     const contentWords = words.filter(
-      (w) => !CLAIM_STOPWORDS.has(w.toLowerCase().replace(/['\u2019]s$/, "")),
+      (w) =>
+        !CLAIM_STOPWORDS.has(w.toLowerCase().replace(/['\u2019]s$/, "")) &&
+        // A capitalized contraction is grammar, never a name \u2014 "Isn't" opening
+        // a sentence was flagged as an invented referent (run 2, turn 37).
+        !/^[A-Z][a-z]*['\u2019]t$/.test(w),
     );
     if (!contentWords.length) continue;
     atoms.push({
@@ -427,7 +451,7 @@ const ADDRESS = /\[?[^\s\]]+#\d+-\d+\]?/g;
  * clean" reads `examined && clean`. A capped list says it was capped for the
  * same reason: a truncated report that looks complete is a lie of omission.
  */
-export function checkGrounding(answer, passages, { question = "" } = {}) {
+export function checkGrounding(answer, passages, { question = "", resolveName = null } = {}) {
   if (!passages?.length) {
     return { sentences: 0, atomsChecked: 0, findings: [], clean: true, examined: false, truncated: null };
   }
@@ -437,7 +461,25 @@ export function checkGrounding(answer, passages, { question = "" } = {}) {
   // that are byte offsets this app asked for, and checking them against the
   // material flagged the citation itself as an unsupported figure — the check
   // accusing the answer of inventing the very thing it was told to write.
-  const sentences = splitSentences(answer.replace(ADDRESS, " "));
+  //
+  // A heading is not a claim either. Measured on the live dialogue run: a
+  // model that structures its answer with markdown headings writes Title
+  // Case phrases ("Clash of Ideals", "A Catalyst") that the proper-name
+  // extractor reads as names, and the record drowns in structure flagged as
+  // invention while the real drift (an invented novel title) sits in the
+  // noise. Heading lines — # markers, and lines that are entirely a bold
+  // phrase — are the model's own scaffolding and are blanked (length
+  // preserved) before atoms are extracted. A name INSIDE a body sentence is
+  // still checked; only the furniture is exempt.
+  const deHeaded = String(answer)
+    .replace(/^[ \t]*#{1,6}[^\n]*$/gm, (m) => " ".repeat(m.length))
+    .replace(/^[ \t]*\*\*[^\n*]+\*\*[ \t]*:?[ \t]*$/gm, (m) => " ".repeat(m.length))
+    // A line-initial bold phrase with a colon is a heading even when prose
+    // follows on the same line ("**Anatole's Effect:** she felt…" — measured
+    // in run 2, turn 38). Only the bold span is blanked; a bold NAME inside
+    // a sentence has no colon and is untouched.
+    .replace(/^([ \t]*)\*\*[^\n*]+:\*\*|^([ \t]*)\*\*[^\n*]+\*\*:/gm, (m) => " ".repeat(m.length));
+  const sentences = splitSentences(deHeaded.replace(ADDRESS, " "));
   const findings = [];
   let atomsChecked = 0;
 
@@ -446,6 +488,15 @@ export function checkGrounding(answer, passages, { question = "" } = {}) {
       atomsChecked++;
       const absent = atom.tokens.filter((t) => !tokenSupported(index, atom.kind === "number", t));
       if (!absent.length) continue;
+      // A name is a reference to a REFERENT, not a byte sequence, and the
+      // byte test above cannot see that "Bezukhov" and "Pierre Bezúkhov"
+      // point at the same being. When the caller supplies a resolver built
+      // from the material's own cast (cast.js, on the engine's organs), a
+      // name the cast covers is supported — rescue only, never veto: a
+      // resolver can save a finding from being raised, it cannot raise one.
+      // The content tokens go, not the raw phrase, so a possessive or a
+      // connective in the phrase cannot spoil the resolution.
+      if (atom.kind === "name" && resolveName?.(atom.tokens.join(" "))) continue;
       findings.push({
         kind: "unsupported_claim",
         atomKind: atom.kind,
@@ -475,9 +526,18 @@ export function checkGrounding(answer, passages, { question = "" } = {}) {
   };
 }
 
-/** The findings as short lines, for a record's `unsupported`. */
+/** The findings as short lines, for a record's `unsupported`.
+ *
+ * A name the question itself supplied is the model repeating the asker, not
+ * inventing a source — the finding stays in the report (and in the drawn
+ * stripe, where mildness is cheap), but it does not enter the RECORD's
+ * unsupported list, where it reads as invention and drowns the real drift.
+ * Measured live: a question naming Karatáev produced "Karataev's not in the
+ * material" on the record of an answer that merely stayed on topic. */
 export function unsupportedClaims(report) {
-  return report.findings.map((f) =>
-    f.atomKind === "number" ? `figure ${f.text} not in the material` : `${f.text} not in the material`,
-  );
+  return report.findings
+    .filter((f) => !f.echoesQuestion)
+    .map((f) =>
+      f.atomKind === "number" ? `figure ${f.text} not in the material` : `${f.text} not in the material`,
+    );
 }

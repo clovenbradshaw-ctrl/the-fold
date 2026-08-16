@@ -104,6 +104,26 @@ Update the summary to include the latest turn. Track DISCOURSE FLOW — how the 
 export const FOLD_SYSTEM_PROMPT =
   "You track a running discourse summary for an ongoing conversation. Follow the user message's instructions exactly and reply with a JSON object only -- no prose, no code fences.";
 
+/**
+ * The refresh reply's shape, as grammar for a runtime that can enforce one
+ * (Ollama structured outputs). The prompt above stays a request;
+ * normalizeSummary still treats whatever arrives as untrusted — the schema
+ * only makes the common case arrive well-formed instead of nearly-so.
+ * turnCount is deliberately absent: it is counted mechanically and nothing
+ * the model returns for it is read.
+ */
+export const FOLD_SCHEMA = {
+  type: "object",
+  properties: {
+    topic: { type: "string" },
+    flow: { type: "string" },
+    entities: { type: "array", items: { type: "string" } },
+    context: { type: "string" },
+    language: { type: "string" },
+  },
+  required: ["topic", "flow", "entities", "context", "language"],
+};
+
 function parseSummaryResponse(response) {
   try {
     const jsonMatch = String(response).match(/\{[\s\S]*\}/);

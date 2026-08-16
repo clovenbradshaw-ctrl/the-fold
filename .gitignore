@@ -2,3 +2,9 @@
 node_modules/
 pg2600.txt
 mnpd/
+node_modules/
+
+# runtime artifacts of the local instrument — the I.5 record and deposited
+# materials live with the machine that produced them, not with the code
+record/
+materials/

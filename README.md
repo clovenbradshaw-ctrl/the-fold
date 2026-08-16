@@ -1,19 +1,20 @@
 # The Fold
 
-A conversation whose context window does not grow.
+A conversation whose context window does not grow, on a machine nothing leaves.
 
-Open `index.html` over any static server, paste an Anthropic API key, and talk
-to Claude. Every finished turn is folded to one line of about a hundred
-characters; a running summary tracks how the discourse evolved; and what gets
-sent on turn four hundred is the summary, a bounded list of folds, and the last
-two exchanges. The raw transcript is never resent. The right-hand panel shows
-the exact message array going to the model each turn next to the size of the
-transcript it is standing in for.
+Open `index.html` over `serve.mjs`, pick an Ollama model, and talk. Every
+finished turn is folded to one line of about a hundred characters; a running
+summary tracks how the discourse evolved; and what gets sent on turn four
+hundred is the summary, a bounded list of folds, and the last two exchanges.
+The raw transcript is never resent. The right-hand panel shows the exact
+message array going to the model each turn next to the size of the transcript
+it is standing in for.
 
-The key is held in this browser's local storage and is sent to no host but
-`api.anthropic.com`. There is no server in this design to hide it behind, which
-is why the SDK is constructed with `dangerouslyAllowBrowser` — appropriate for a
-page you serve to yourself on localhost, not for one you deploy.
+Local only, and checked: the model is Ollama on localhost, the fonts are the
+system's, and `constitution.test.mjs` fails if any file the page loads names a
+host that is not localhost. There is no API-key path — for the corpora this
+instrument is for, nothing leaving the machine is not a preference but the
+arrangement.
 
 ## Two folds, not one fold at two resolutions
 
@@ -42,11 +43,29 @@ paraphrase's disclaimer and a paraphrase would inherit the record's authority.
 | --- | --- |
 | `fold.js` | the fold: summary, folds, records, prompt assembly. Pure — no IO, no model calls, no imports. |
 | `source.js` | the address half: paragraph chunking with byte ranges, mechanical term-overlap retrieval, citation checking, read-back. Also pure. |
-| `app.js` | the page: Claude client, turn loop, rendering. The only file that touches the network. |
-| `fold.test.mjs` | `node --test` over both pure modules. No engine, no network. |
+| `holon.js` | the task layer: a plan as inserts on an append-only log (propose / supersede / evidence / result / retract — `task-log.js` lineage), folded into live parts; per-part research → write → mechanical check → bounded correction; assembly with provenance. Pure — the model arrives as an injected function. |
+| `constitution.js` | the constitution's channel: the one folded paragraph the model receives, and the article→organ map saying which code enforces which article. |
+| `app.js` | the page: Ollama client, turn loop, rendering. The only file that touches the network. |
+| `*.test.mjs` | `node --test` over the pure modules, plus `constitution.test.mjs` — the assay that walks the enforcement map. No engine, no network. |
 
-Two model calls per turn — the answer, and the summary refresh — and neither
-one is ever handed the transcript.
+Two model calls per ordinary turn — the answer, and the summary refresh — and
+neither one is ever handed the transcript.
+
+## Tasks
+
+A turn that is a task rather than a question — typed as `/task …`, or detected
+mechanically when the question's own shape is several separately-anchored
+parts (`needsDecomposition`, ported from eochatX) — runs the holonic loop:
+one plan call whose SHAPE is enforced by decoding grammar (a JSON schema
+passed to Ollama, physics rather than a request), then per part: mechanical
+retrieval, one write call, the same citation/grounding/attribution checks an
+ordinary turn gets, and one bounded correction pass when the checks fail.
+The whole task folds to ONE line and ONE record, built from the parts' own
+checks — nothing re-measured at assembly. The plan itself is an append-only
+log; a part that retrieved nothing, produced nothing, or strayed from the
+task's vocabulary is a typed entry in the record, never a silent drop. A plan
+reply that parses to nothing degrades to the task-as-single-part, and says so
+on the record.
 
 ## What the meter is measuring
 
@@ -83,14 +102,17 @@ pins that at 400 turns.
 ## Running it
 
 ```bash
-python3 -m http.server 8811 --directory the-fold
+node the-fold/serve.mjs 8811
 ```
 
-Then open `http://localhost:8811`, paste a key, pick a model, and connect.
+Then open `http://localhost:8811`, pick an Ollama model, and connect. (The
+server must be `serve.mjs`, not a generic static server: it mounts eoreader6's
+engine at `/engine` and serves everything no-store.)
 
-Two model calls per turn: the answer, and the summary refresh. The refresh runs
-at `effort: "low"` — it is bookkeeping over lines that are already written, and
-spending the answer's effort on it would double the turn's latency for nothing.
+Two model calls per ordinary turn: the answer, and the summary refresh. The
+refresh runs constrained to JSON at a 300-token cap — it is bookkeeping over
+lines that are already written, and spending the answer's effort on it would
+double the turn's latency for nothing.
 
 Tests — no engine, no network, no install:
 

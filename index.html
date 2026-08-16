@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>The Fold</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
-    <link rel="preconnect" href="https://fonts.bunny.net" />
-    <link
-      rel="stylesheet"
-      href="https://fonts.bunny.net/css?family=inter:400,500,600,700|jetbrains-mono:400,500"
-    />
+    <!-- No webfonts: the system stacks below are the whole typography, so the
+         page makes no request that leaves the machine — same rule as the model. -->
     <style>
       :root {
         --bg: #ffffff;
@@ -22,9 +19,9 @@
         --record: #6d28d9;
         --record-soft: #faf7ff;
         --warn: #b42318;
-        --sans: "Inter", "SF Pro Text", -apple-system, "Segoe UI Variable Text",
+        --sans: -apple-system, "SF Pro Text", "Segoe UI Variable Text",
           "Segoe UI", Roboto, sans-serif;
-        --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
           monospace;
       }
       @media (prefers-color-scheme: dark) {
@@ -110,6 +107,54 @@
       #settings select,
       #settings input { width: 100%; }
       .settings-actions { display: flex; gap: 8px; margin: 0; }
+      /* The cited span inside its source: the mark is the address made
+         visible, the muted lines are the counts of what the window withheld. */
+      #reopen-body mark { background: var(--accent-soft); color: var(--accent); border-radius: 3px; }
+      #reopen-body .muted { color: var(--muted); }
+      /* The material strip: what the answers stand on, one chip per source.
+         A silenced source stays visible, struck through — silenced and gone
+         must not look alike. */
+      #source-strip {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      #source-strip button {
+        font-size: 12px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      #source-strip button.off {
+        color: var(--muted);
+        border-color: var(--line);
+        background: transparent;
+        text-decoration: line-through;
+      }
+      /* Every sentence stands on a named ground, and the two grounds never
+         render alike (IV.4). Material ground reads plain and carries its
+         address; the model's own voice carries a quiet dotted line; a claim
+         of fact the material does not hold carries the warning stripe. */
+      .sent[data-ground="model"] { border-bottom: 1px dotted var(--muted); }
+      .sent.claims {
+        text-decoration: underline wavy var(--warn);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+      }
+      /* The turn's preparation, shown while the first token is still coming:
+         what was read, on which terms, what is carried. Mechanical, and
+         replaced by the stream. */
+      .msg .body .thinking {
+        white-space: pre-wrap;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
       .tabs .chat-tab { display: none; }
       .tabs .short { display: none; }
 
@@ -208,6 +253,7 @@
         .tabs .chat-tab { display: block; }
         .tabs .long { display: none; }
         .tabs .short { display: inline; }
+        #pane-explore iframe { height: calc(100dvh - var(--header-h, 46px) - 42px); }
         #col-panel { flex-direction: column; }
         #col-panel .scroll { order: 1; }
         .composer { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
@@ -444,6 +490,16 @@
         font-size: 13px;
       }
       .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+      /* The Explore pane is an app, not a document: it gets the panel's full
+         box, no reading padding, and the frame fills it. */
+      #pane-explore { height: 100%; margin: -16px -20px; }
+      #pane-explore iframe {
+        display: block;
+        width: 100%;
+        height: calc(100dvh - var(--header-h, 53px) - 37px);
+        border: none;
+        background: var(--bg);
+      }
       .pane { display: none; }
       .pane.on { display: block; }
       h2 {
@@ -553,7 +609,6 @@
       dialog h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
       #status { font-size: 12.5px; color: var(--muted); }
-      #key { width: 190px; font-family: var(--mono); font-size: 12px; }
 
       #attach {
         white-space: nowrap;
@@ -618,17 +673,25 @@
     <main>
       <section class="col" id="col-chat">
         <nav class="threads" id="threads" aria-label="Conversations"></nav>
+        <!-- What the answers stand on, always in view: one chip per source,
+             click to silence or restore it. Toggling is not removal — the
+             text stays loaded and records still re-open; retrieval just
+             stops seeing it. -->
+        <div id="source-strip" aria-label="Material in play" hidden></div>
         <div class="scroll" id="chat">
           <div id="intro">
           <p class="note">
-            Pick a model and connect — Ollama on this machine, or Claude with a
-            key you paste. Then talk. Every finished turn is folded to one line;
-            only the folds, the running summary, and the last two exchanges are
-            ever resent. Watch the other panels — the transcript grows, the
-            prompt does not.
+            Pick a model and connect — Ollama, on this machine; nothing leaves
+            it. Then talk. Every finished turn is folded to one line; only the
+            folds, the running summary, and the last two exchanges are ever
+            resent. Watch the other panels — the transcript grows, the prompt
+            does not.
           </p>
           <p class="note">
-            To ground the answers, drop a text file anywhere on this page.
+            Material has three doors: drop a text file anywhere on this page,
+            paste into the ＋ Material box, or send a source over from
+            Explore. Loaded sources appear as chips above the conversation —
+            click one to toggle whether the chat can see it.
           </p>
           </div>
           </p>
@@ -647,7 +710,10 @@
         <nav class="tabs" role="tablist">
           <button role="tab" data-pane="chat" aria-selected="false" class="chat-tab">Chat</button>
           <button role="tab" data-pane="views" aria-selected="true">Views</button>
-          <button role="tab" data-pane="material" aria-selected="false">Material</button>
+          <!-- Material's tab is gone: Explore is the data explorer now.
+               Dropping a file anywhere on the page still adds material —
+               the pane below stays wired for that flow, just not fronted. -->
+          <button role="tab" data-pane="explore" aria-selected="false" title="The document explorer — needs explore-server.mjs (node explore-server.mjs)">Explore</button>
         </nav>
         <div class="scroll">
           <div class="pane on" id="pane-views">
@@ -663,6 +729,13 @@
             </div>
           </div>
 
+          <div class="pane" id="pane-explore">
+            <!-- The whole Explore instrument, in-pane. Absolute localhost src
+                 so it works whichever static server rendered this page;
+                 loading=lazy so it costs nothing until the tab is opened.
+                 ?embed=1 tells the page to drop its own chrome. -->
+            <iframe id="explore-frame" src="http://localhost:8812/explore.html?embed=1" loading="lazy" title="Explore"></iframe>
+          </div>
           <div class="pane" id="pane-material">
             <h2>Material</h2>
             <p class="note">
@@ -686,18 +759,7 @@
       <p class="sub">Where the answers come from. Nothing else lives up top.</p>
       <div class="controls" id="controls">
         <label>
-          <span>Runs on</span>
-          <select id="provider">
-            <option value="ollama">Ollama · this machine</option>
-            <option value="claude">Claude API</option>
-          </select>
-        </label>
-        <label id="key-row" hidden>
-          <span>API key</span>
-          <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
-        </label>
-        <label>
-          <span>Model</span>
+          <span>Model · Ollama on this machine</span>
           <select id="model"></select>
         </label>
       </div>
@@ -716,9 +778,12 @@
 
     <dialog id="reopen">
       <h3 id="reopen-ref"></h3>
-      <p class="sub">read back from the material, live</p>
+      <p class="sub">read back from the material, live — the cited span, inside its source</p>
       <pre class="block" id="reopen-body"></pre>
-      <form method="dialog"><button>Close</button></form>
+      <form method="dialog" class="settings-actions">
+        <button id="reopen-explore" type="button">Open in Explore</button>
+        <button>Close</button>
+      </form>
     </dialog>
 
     <script type="module" src="./app.js"></script>

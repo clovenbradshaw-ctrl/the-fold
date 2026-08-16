@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Fold — Explore</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▚</text></svg>" />
+    <link rel="stylesheet" href="explore/explore.css" />
+  </head>
+  <body>
+    <header>
+      <h1>The Fold</h1>
+      <button id="rail-toggle" hidden title="sources">☰</button>
+      <div id="source-line" class="source-line">
+        <span class="muted">no source in focus — pick one from the rail</span>
+      </div>
+      <div class="spacer"></div>
+      <button id="record-toggle" title="The append-only record under everything shown here (record/explore-record.jsonl)">record</button>
+    </header>
+
+    <main>
+      <aside id="rail" aria-label="sources">
+        <div id="tree"></div>
+        <div id="tree-note" class="rail-note"></div>
+      </aside>
+
+      <section id="stage">
+        <div id="stagebar">
+          <div id="views" role="tablist" aria-label="surfaces of this source"></div>
+          <div id="stage-meta">
+            <div id="crumbs"></div>
+            <div id="pivot-chip"></div>
+          </div>
+        </div>
+        <div id="surface"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>tree ordered folders-first, then name — a declared rule</span>
+      <span>·</span>
+      <span>the default surface is Field, the zero-inference one — a declared rule, not a reading of the content</span>
+      <span>·</span>
+      <span id="engine-line"></span>
+    </footer>
+    <!-- The same bottom bar the Converse page has — one app, one bar.
+         Hidden in embed mode (the host page already carries it). -->
+    <nav class="page-tabs" aria-label="pages">
+      <a href="index.html">Chat</a>
+      <a href="index.html">Views</a>
+      <a href="explore.html" class="active" aria-current="page">Explore</a>
+    </nav>
+
+    <dialog id="record-dialog">
+      <h2>The record</h2>
+      <p class="muted">
+        Append-only, one line per computed event — what ran, against what, with
+        what declared numbers. Deleting the interface changes no line of it.
+        The file itself is <button class="linkish" id="open-record-file">record/explore-record.jsonl</button>.
+      </p>
+      <pre id="record-tail"></pre>
+      <form method="dialog"><button>close</button></form>
+    </dialog>
+
+    <script type="module" src="explore/explore.js"></script>
+  </body>
+</html>

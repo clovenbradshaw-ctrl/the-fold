@@ -18,7 +18,7 @@
 //
 // Pure: no DOM, no IO, no model. `attribute` is the whole surface.
 
-import { retrieve, tokenize } from "./source.js";
+import { foldDiacritics, retrieve, tokenize } from "./source.js";
 
 /**
  * Sentence-ish. Splits on terminal punctuation and on newlines, because a
@@ -164,12 +164,15 @@ export function namesIn(text) {
  * would have been a warrant for a thing that never happened.
  */
 function namesSupported(text, chunk) {
-  const hay = chunk.text.toLowerCase();
+  // Folded on both sides — the veto must not refuse "Helene" against a
+  // passage that writes "Hélène" (measured live on War and Peace; same fold
+  // retrieval already applies).
+  const hay = foldDiacritics(chunk.text.toLowerCase());
   return namesIn(text).every((n) => {
     // A multi-word name counts as present if its distinctive parts are — the
     // material writes "Kansas Highway Patrol", a sentence may write "the
     // Kansas Highway Patrol's search" — but every part must be there.
-    const parts = n.toLowerCase().split(/\s+/).filter((p) => p.length > 1);
+    const parts = foldDiacritics(n.toLowerCase()).split(/\s+/).filter((p) => p.length > 1);
     return parts.every((p) => hay.includes(p));
   });
 }

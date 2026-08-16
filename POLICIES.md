@@ -267,6 +267,50 @@ check-must-pass gate, the ambiguity refusal, the zero-model-call skill path,
 the typed descent, organ-grant denial, budget overruns, stacking with
 dependency-order admission, and the digest-mismatch drop on reload.
 
+## P15 — The instrument's cognition is a second plane, never mixed with the material
+
+The chat's own acts — what each turn asked, retrieved, checked, corrected,
+folded, recorded, and how far each arrival moved its belief — are themselves
+a record: an append-only ledger per conversation (`reflex.js`, the pace.js
+discipline — entries appended, never mutated, seq not clock), rendered to an
+addressed text on the reserved `self:` namespace and re-openable like any
+source. Four mechanical walls keep the planes apart: a loaded source may not
+claim the `self:` namespace; the ledger never enters material retrieval's
+store; self passages reach the model only under their own SELF block, which
+declares what it cannot support; and a record earned on the self plane is
+typed `plane: "self"` at birth (`fold.js`), marked in ON RECORD, and said in
+the renderer — introspection never wears the authority of a check that ran
+against the world. The levels are answered on request, cheapest first: the
+computed tables (`/self` — acts, surprise, pace, plus the app-plane levels
+tables.js already had) spend no model call; `/reflect` is a model turn whose
+material IS the ledger, audited by the same organs as any turn.
+
+"What is most surprising" is measured, never asked — L5 applied to
+introspection: a model asked to report its own surprise is a
+compliance-critical fact left to instruction-following. The meter is the
+engine's own tier stack (eoreader6 `emergence/tiers.js`,
+`createTierStack`/`foldThrough` over `surprise.js`), used, never copied
+(organs injected, the cast.js pattern; served via the `/engine` and `/nul`
+mounts). Every message the conversation hears is one arrival, placed against
+the reader's own continuation null. The numbers name their givers and none
+was tuned here: window = `RECENCY_WINDOW` (the fold's own declared present —
+one declaration, not a second knob), gamma derived by the engine's own
+`gammaFor(window)`, draws = 200 (read-frankenstein's declared resolution of
+testimony), alpha = 1 (same giver). The first arrival seeds belief and is a
+typed gap, never a number (SEED.md #1).
+
+**Evidence:** the engine organs' own conformance (the surprise boundary
+invariant; tiers' decay-mass assertions); the live browser run of
+2026-08-16 — the meter measuring real arrivals against the null with the
+declared numbers in the caption, zero page errors.
+**Enforced:** `reflex.test.mjs` — append-only ledger, byte-identical rebuild
+and offset self-verification, reserved namespace, plane-typed records with
+the ON RECORD marker and the II.5 firewall across planes, typed first-ground
+gap, declared numbers checked against their givers, deterministic
+measurement and mechanical ranking against the engine's real organs, and the
+door tests (detectReflex requires the second-person tell; the material
+always wins).
+
 ---
 
 *Established 2026-08-16, alongside the holonic layer, the constitution

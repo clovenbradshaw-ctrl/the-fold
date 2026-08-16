@@ -51,6 +51,10 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
 const ENGINE = path.resolve(ROOT, "..", "eoreader6", "packages", "engine");
+// serve.mjs's nul mount, carried here for the same reason as /engine:
+// tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
+// browser, and this server also serves the chat page whole.
+const NUL = path.resolve(ROOT, "..", "eoreader6", "nul");
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -363,10 +367,13 @@ function serveStatic(req, res, pathname) {
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
   const file = rel.startsWith("/engine/") || rel.startsWith("engine/")
     ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
-    : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+    : rel.startsWith("/nul/") || rel.startsWith("nul/")
+      ? path.join(NUL, rel.replace(/^\/?nul\//, ""))
+      : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
   const withinRoot = file === ROOT || file.startsWith(ROOT + path.sep);
   const withinEngine = file === ENGINE || file.startsWith(ENGINE + path.sep);
-  if (!withinRoot && !withinEngine) {
+  const withinNul = file === NUL || file.startsWith(NUL + path.sep);
+  if (!withinRoot && !withinEngine && !withinNul) {
     res.writeHead(403);
     return res.end("forbidden");
   }

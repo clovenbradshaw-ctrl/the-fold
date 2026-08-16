@@ -94,7 +94,7 @@ test("II.9 mouth: attribution is null-gated, never a guess with a tag", () => {
 });
 
 test("II.13 local: no host but localhost appears anywhere the page can reach", () => {
-  for (const file of ["app.js", "index.html", "holon.js", "constitution.js", "fold.js", "source.js", "cite.js", "grounding.js", "tables.js", "artifact.js"]) {
+  for (const file of ["app.js", "index.html", "holon.js", "constitution.js", "fold.js", "source.js", "cite.js", "grounding.js", "tables.js", "artifact.js", "reflex.js"]) {
     const src = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
     const hosts = [...src.matchAll(/https?:\/\/([^/"'` )>]+)/g)].map((m) => m[1]);
     for (const h of hosts)

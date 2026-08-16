@@ -16,6 +16,11 @@ import { createReadStream, statSync } from "node:fs";
 
 const ROOT = resolve(import.meta.dirname);
 const ENGINE = resolve(ROOT, "..", "eoreader6", "packages", "engine");
+// The engine's own null module. tiers.js (the surprise ladder) imports it as
+// ../../../nul/index.js, which resolves above the /engine mount — so nul gets
+// its own mount at the path that import lands on. Used, never copied, same as
+// the engine itself.
+const NUL = resolve(ROOT, "..", "eoreader6", "nul");
 const PORT = Number(process.argv[2] ?? 8811);
 
 const TYPES = {
@@ -35,9 +40,9 @@ createServer((req, res) => {
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
   let file = join(ROOT, rel === "/" ? "index.html" : rel);
 
-  // Never serve outside the directory (or the engine mount), whatever the
-  // path claims to be.
-  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE)) {
+  // Never serve outside the directory (or the engine/nul mounts), whatever
+  // the path claims to be.
+  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(NUL)) {
     res.writeHead(403).end("no");
     return;
   }
@@ -48,6 +53,13 @@ createServer((req, res) => {
   if (rel.startsWith("/engine/")) {
     file = join(ENGINE, rel.slice("/engine/".length));
     if (!file.startsWith(ENGINE)) {
+      res.writeHead(403).end("no");
+      return;
+    }
+  }
+  if (rel.startsWith("/nul/")) {
+    file = join(NUL, rel.slice("/nul/".length));
+    if (!file.startsWith(NUL)) {
       res.writeHead(403).end("no");
       return;
     }

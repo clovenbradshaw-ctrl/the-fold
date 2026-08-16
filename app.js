@@ -40,6 +40,17 @@ import {
 
 import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
 
+import {
+  ensureEditor,
+  editorGet,
+  editorSet,
+  editorLanguage,
+  editorLayout,
+  editorFocus,
+  editorOnChange,
+  editorRunShortcut,
+} from "./editor.js";
+
 import { NOTHING, buildTable, detectTable, toMarkdown } from "./tables.js";
 
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
@@ -47,6 +58,8 @@ import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs } from "./cite.js";
 
 import { needsDecomposition, runHolonicTask } from "./holon.js";
+
+import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
@@ -148,6 +161,8 @@ const $ = (id) => document.getElementById(id);
 
 const state = {
   model: null,
+  /** The picker rungs Ollama actually has, fastest first — what routing may name. */
+  offeredModels: [],
   ready: false,
   busy: false,
 
@@ -189,8 +204,12 @@ const state = {
    */
   muted: new Set(),
   chunks: [],
-  /** Everything a turn produced that wasn't prose, oldest first. */
-  artifacts: [],
+  /**
+   * Everything a turn produced that wasn't prose, oldest first. One list
+   * app-wide — a build belongs to the instrument, not to one conversation
+   * (persisted under whichever conversation is active, but rendered for all).
+   */
+  builds: [],
   lastMessages: [],
   lastMaterialChars: 0,
 
@@ -213,7 +232,6 @@ const PER_CONVO = [
   "summary",
   "history",
   "turnFolds",
-  "artifacts",
   "lastMessages",
   "lastMaterialChars",
   "reflexLog",
@@ -230,7 +248,6 @@ function newConvo() {
     summary: emptySummary(),
     history: [],
     turnFolds: [],
-    artifacts: [],
     lastMessages: [],
     lastMaterialChars: 0,
     reflexLog: emptyReflexLog(),
@@ -275,6 +292,31 @@ function addConvo() {
   switchConvo(state.convos.length - 1);
 }
 
+function closeConvo(index) {
+  // Closing is a switch with the destination deleted: the same guard, and
+  // never the last conversation — the strip keeps one at all times.
+  if (state.busy || state.convos.length < 2) return;
+  const wasActive = index === state.active;
+  state.convos[index].el.remove();
+  state.convos.splice(index, 1);
+  if (wasActive) {
+    // The active conversation is gone. Its per-convo fields leave with it —
+    // no write-back, that is the point — and the neighbour becomes active:
+    // the one just before if any, else the one that slid into its place.
+    state.active = Math.min(index, state.convos.length - 1);
+    const to = state.convos[state.active];
+    for (const k of PER_CONVO) state[k] = to[k];
+    to.el.classList.add("on");
+    renderBuilds();
+    showView("chat");
+    $("input").focus();
+  } else if (index < state.active) {
+    // A conversation before the active one went; everything after shifted.
+    state.active -= 1;
+  }
+  renderThreads();
+}
+
 function renderThreads() {
   // Turns, top right beside the model — updated here because every turn and
   // every conversation switch already lands in this function.
@@ -287,13 +329,28 @@ function renderThreads() {
   const bar = $("threads");
   bar.textContent = "";
   state.convos.forEach((c, i) => {
+    const tab = document.createElement("div");
+    tab.className = "thread-tab";
+    tab.setAttribute("aria-current", String(i === state.active));
     const b = document.createElement("button");
     b.type = "button";
+    b.className = "thread-title";
     b.textContent = convoTitle(c);
     b.title = convoTitle(c);
-    b.setAttribute("aria-current", String(i === state.active));
     b.onclick = () => switchConvo(i);
-    bar.append(b);
+    tab.append(b);
+    // One conversation may be closed, never the last one — and never while a
+    // turn is in flight, which would file its record into a conversation that
+    // is about to not exist.
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "thread-close";
+    close.textContent = "✕";
+    close.title = "Close this conversation";
+    close.disabled = state.convos.length < 2 || state.busy;
+    close.onclick = () => closeConvo(i);
+    tab.append(close);
+    bar.append(tab);
   });
   const add = document.createElement("button");
   add.type = "button";
@@ -306,34 +363,27 @@ function renderThreads() {
 
 // ── model ────────────────────────────────────────────────────────────────────
 
+// The picker and the routing ladder live in model-routing.js (the same file
+// the eval harness imports). Here the page just tracks which picker rungs
+// Ollama actually has, so routing never names a model that would fail on use.
+
 async function fillModels() {
   const sel = $("model");
   sel.textContent = "";
   try {
     const res = await fetch(`${OLLAMA}/api/tags`);
     const { models } = await res.json();
-    // Small first. The fold's argument is that a modest model with a bounded
-    // context beats a large one drowning in transcript, so the default should
-    // be the one that makes that argument.
-    const sorted = models
-      // An embedding model has no chat endpoint to speak of; listing one is
-      // just an option that fails on first use.
-      .filter((m) => !/embed/i.test(m.name))
-      // Small first, but a general instruct model ahead of a same-size coder
-      // or vision model — the default should be able to hold a conversation.
-      .sort(
-        (a, b) =>
-          Number(/coder|vision|moondream/i.test(a.name)) -
-            Number(/coder|vision|moondream/i.test(b.name)) ||
-          a.size - b.size,
-      );
-    for (const m of sorted) {
+    const byName = new Map(models.map((m) => [m.name, m]));
+    const offered = MODEL_PICKER.map((name) => byName.get(name)).filter(Boolean);
+    state.offeredModels = offered.map((m) => m.name);
+    for (const m of offered) {
       const opt = document.createElement("option");
       opt.value = m.name;
       opt.textContent = `${m.name} · ${(m.size / 1e9).toFixed(1)}GB`;
       sel.append(opt);
     }
-    if (!sorted.length) $("status").textContent = "ollama has no models pulled";
+    sel.value = MODEL_PICKER[MODEL_PICKER.length - 1];
+    if (!offered.length) $("status").textContent = "ollama has no models pulled";
   } catch {
     $("status").textContent = "ollama not reachable on :11434";
   }
@@ -374,12 +424,17 @@ async function connect() {
  * rather than policed, because the seam's shape is the contract, not the
  * host behind it.
  */
-async function complete(messages, { onDelta, maxTokens, json } = {}) {
+async function complete(messages, { onDelta, maxTokens, json, model } = {}) {
+  // One request, to the one place a model lives. `model` is routed: plain
+  // turns and the summary refresh spend the fastest rung; deep work (task,
+  // bound, reflect) spends the model the user chose. Whatever it is, the
+  // request, the pace ledger, and the status line all name the SAME model.
+  const modelName = model ?? state.model;
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      model: state.model,
+      model: modelName,
       messages,
       stream: true,
       // A token cap bounds the damage; constrained decoding removes it. Asked
@@ -415,15 +470,15 @@ async function complete(messages, { onDelta, maxTokens, json } = {}) {
       // sense of its own speed is measured, never assumed.
       if (chunk.done) {
         state.paceLog = recordCall(state.paceLog, {
-          model: state.model,
+          model: modelName,
           promptChars: messages.reduce((n, m) => n + m.content.length, 0),
           promptTokens: chunk.prompt_eval_count,
           promptNs: chunk.prompt_eval_duration,
           outTokens: chunk.eval_count,
           outNs: chunk.eval_duration,
         });
-        const pace = foldPace(state.paceLog, state.model);
-        if (pace.decodeTps) $("status").textContent = `ready · ${state.model} · ${Math.round(pace.decodeTps)} tok/s`;
+        const pace = foldPace(state.paceLog, modelName);
+        if (pace.decodeTps) $("status").textContent = `ready · ${modelName} · ${Math.round(pace.decodeTps)} tok/s`;
       }
       const delta = chunk.message?.content || "";
       if (!delta) continue;
@@ -659,7 +714,7 @@ async function boundTurn(question, typed) {
         { role: "system", content: BASE_PROMPT },
         { role: "user", content: sourceBlock ? `${question}\n\n${sourceBlock}` : question },
       ],
-      {},
+      { model: state.model },
     );
   } catch (err) {
     free = `[engine error: ${err.message || err}]`;
@@ -676,7 +731,7 @@ async function boundTurn(question, typed) {
         { role: "system", content: BOUND_SYSTEM_PROMPT },
         { role: "user", content: buildBoundPrompt(question, sourceBlock) },
       ],
-      { json: buildBoundSchema({ handles, cells }) },
+      { json: buildBoundSchema({ handles, cells }), model: state.model },
     );
   } catch (err) {
     boundRaw = "";
@@ -819,7 +874,7 @@ async function reflectTurn(question, typed) {
         { role: "system", content: sys },
         { role: "user", content: question },
       ],
-      { onDelta: (out) => { body.textContent = out; } },
+      { onDelta: (out) => { body.textContent = out; }, model: state.model },
     );
   } catch (err) {
     answer = `[engine error: ${err.message || err}]`;
@@ -896,7 +951,8 @@ async function reflectTurn(question, typed) {
  * The fold is bookkeeping, not reasoning: a short JSON object read off lines
  * that are already written. Spending the answer's effort — or the answer's
  * token headroom — on it would double the turn's latency for nothing, which
- * is exactly what a local 3B did until it was capped.
+ * is exactly what a local 3B did until it was capped. It routes to the
+ * fastest rung for the same reason.
  */
 async function refreshSummary(fold) {
   state.turnFolds.push(fold);
@@ -913,7 +969,7 @@ async function refreshSummary(fold) {
           ]),
         },
       ],
-      { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA },
+      { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }) },
     );
     state.summary = updateSummaryWithFold(state.summary, fold, raw);
   } catch {
@@ -939,6 +995,14 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   const body = node.querySelector(".body");
 
   logAct("asked", { text: task });
+
+  // The model this turn spends. A flat turn (the common little question) is
+  // the fastest rung; a decomposed task is the model the user chose. The
+  // same name feeds the call, the ticker's pace, and the status line.
+  const turnModel = routeModel(planMode === "model" ? ROUTE_KINDS.DEEP : ROUTE_KINDS.FLAT, {
+    offered: state.offeredModels,
+    selected: state.model,
+  });
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   const live = state.chunks.filter((c) => !state.muted.has(c.source));
@@ -974,7 +1038,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   };
   const ticker = setInterval(() => {
     const secs = Math.round((performance.now() - phaseStart) / 1000);
-    const pace = foldPace(state.paceLog, state.model);
+    const pace = foldPace(state.paceLog, turnModel);
     // Expected duration from the measured pace: prefill for what this call
     // carries, decode for what this conversation's calls have averaged.
     // Unmeasured pace says so instead of inventing a number.
@@ -997,7 +1061,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     result = await runHolonicTask({
       task,
       chunks: live,
-      call: complete,
+      call: (messages, opts) => complete(messages, { ...opts, model: turnModel }),
       foldedRefs,
       makeNameResolver: castFor,
       planMode,
@@ -1500,8 +1564,12 @@ function publishBuild(seg, caption) {
     turn: state.summary.turnCount + 1,
     seg,
     caption: caption ?? defaultCaption(seg),
+    // The working code. Starts as what the model wrote; the editor edits
+    // THIS, never seg — the original stays on the record for reset.
+    code: seg.type === "code" ? seg.code : null,
   };
   state.builds.push(entry);
+  persistBuilds();
   renderBuilds(entry.n);
   // Wide, the panel is already on screen and switching it to the thing just
   // made costs nothing. Narrow, the panel IS the screen, and yanking someone
@@ -1531,24 +1599,34 @@ function defaultCaption(seg) {
 }
 
 /** Languages the fold server will actually run — the same map serve.mjs owns.
- * A code artifact without a runner here is shown, never run. */
+ * A code build without a runner here is shown, never run. */
 const RUNNERS = new Set(["python", "javascript", "js", "node", "shell", "bash"]);
+
+const buildCode = (entry) => entry.code ?? entry.seg.code;
+const buildRunnable = (entry) =>
+  entry.seg.type === "code" && (RUNNERS.has(entry.seg.lang) || RENDERABLE.has(entry.seg.lang));
 
 async function runBuild(entry) {
   entry.running = true;
   renderBuilds(entry.n);
+  const lang = entry.seg.lang;
   try {
-    const res = await fetch("/api/run", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lang: entry.seg.lang, code: entry.seg.code }),
-    });
-    const data = await res.json().catch(() => null);
-    entry.lastRun = { ok: res.ok, data };
+    if (RENDERABLE.has(lang)) {
+      entry.lastRun = { ok: true, data: { rendered: true } };
+    } else {
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lang, code: buildCode(entry) }),
+      });
+      const data = await res.json().catch(() => null);
+      entry.lastRun = { ok: res.ok, data };
+    }
   } catch (e) {
     entry.lastRun = { ok: false, error: e.message };
   } finally {
     entry.running = false;
+    persistBuilds();
     renderBuilds(entry.n);
   }
 }
@@ -1572,38 +1650,299 @@ function renderBuilds(highlight) {
     from.className = "build-from";
     from.textContent = `turn ${entry.turn}`;
     wrap.append(from);
-    if (entry.seg.type === "code" && RUNNERS.has(entry.seg.lang)) {
-      const run = document.createElement("button");
-      run.type = "button";
-      run.className = "build-run";
-      run.textContent = entry.running ? "running…" : "▶ run";
-      run.onclick = () => runBuild(entry);
-      from.append(run);
+    if (entry.seg.type === "code") {
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "build-run";
+      edit.textContent = "✎ edit";
+      edit.onclick = () => openBuild(entry);
+      from.append(edit);
+      if (buildRunnable(entry)) {
+        const run = document.createElement("button");
+        run.type = "button";
+        run.className = "build-run";
+        run.textContent = entry.running ? "running…" : "▶ run";
+        run.onclick = () => runBuild(entry);
+        from.append(run);
+      }
     }
-    wrap.append(artifactNode(entry.seg, entry.caption));
+    wrap.append(artifactNode(entry.seg, entry.caption, buildCode(entry)));
     if (entry.running || entry.lastRun) {
-      const out = document.createElement("pre");
-      out.className = "run-console";
+      const data = entry.lastRun?.data ?? {};
       if (entry.running) {
+        const out = document.createElement("pre");
+        out.className = "run-console";
         out.textContent = "running…";
-      } else if (!entry.lastRun.ok) {
-        out.classList.add("bad");
-        out.textContent = entry.lastRun.error
-          ? `could not reach the fold server (is serve.mjs running?): ${entry.lastRun.error}`
-          : `the fold server refused: ${entry.lastRun.data?.error ?? ""}`;
+        wrap.append(out);
+      } else if (!data.rendered) {
+        const out = document.createElement("pre");
+        out.className = "run-console";
+        if (!entry.lastRun.ok) {
+          out.classList.add("bad");
+          out.textContent = entry.lastRun.error
+            ? `could not reach the fold server (is serve.mjs running?): ${entry.lastRun.error}`
+            : `the fold server refused: ${entry.lastRun.data?.error ?? ""}`;
+        } else {
+          const parts = [];
+          if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
+          if (data.stderr) parts.push(data.stderr.replace(/\n$/, ""));
+          if (!parts.length) parts.push(data.timedOut ? "(timed out — killed after 10s)" : "(no output)");
+          out.textContent = parts.join("\n");
+          out.classList.toggle("bad", !!data.stderr);
+          out.title = `exit ${data.code} · ${data.durationMs}ms${data.timedOut ? " · timed out" : ""}`;
+        }
+        wrap.append(out);
+      }
+    }
+    list.append(wrap);
+  }
+}
+
+// ── the editor ──────────────────────────────────────────────────────────────
+//
+// A code build opened at working width. The gutter is line numbers over the
+// same monospace grid as the textarea; scrolling one moves the other. Run
+// sends the CURRENT text, so a build is worked on iteratively: edit, run,
+// read the console, edit again. html/svg builds render live instead.
+
+let editorBuild = null;
+
+async function openBuild(entry) {
+  editorBuild = entry;
+  await ensureEditor($("editor-host"));
+  editorSet(buildCode(entry));
+  editorLanguage(entry.seg.lang ?? "code");
+  $("editor-title").textContent = `build ${entry.n} · turn ${entry.turn}`;
+  $("editor-lang").textContent = entry.seg.lang ?? "code";
+  const renderable = RENDERABLE.has(entry.seg.lang);
+  $("editor-run").textContent = renderable ? "▶ render" : "▶ run";
+  $("editor-run").disabled = false;
+  $("editor-preview").hidden = true;
+  $("editor-preview").srcdoc = "";
+  $("editor-console").hidden = true;
+  $("editor-console").textContent = "";
+  $("editor-console").classList.remove("bad");
+  showView("editor");
+  editorLayout();
+  editorFocus();
+}
+
+async function runFromEditor() {
+  if (!editorBuild) return;
+  const code = editorGet();
+  editorBuild.code = code;
+  persistBuilds();
+  const lang = editorBuild.seg.lang;
+  const renderable = RENDERABLE.has(lang);
+  const console = $("editor-console");
+  const preview = $("editor-preview");
+  $("editor-run").disabled = true;
+  try {
+    if (renderable) {
+      preview.srcdoc = toDocument({ ...editorBuild.seg, code });
+      preview.hidden = false;
+      console.hidden = true;
+      editorBuild.lastRun = { ok: true, data: { rendered: true } };
+    } else {
+      preview.hidden = true;
+      console.hidden = false;
+      console.classList.remove("bad");
+      console.textContent = "running…";
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lang, code }),
+      });
+      const data = await res.json().catch(() => null);
+      editorBuild.lastRun = { ok: res.ok, data };
+      if (!editorBuild.lastRun.ok) {
+        console.classList.add("bad");
+        console.textContent = editorBuild.lastRun.error
+          ? `could not reach the fold server (is serve.mjs running?): ${editorBuild.lastRun.error}`
+          : `the fold server refused: ${data?.error ?? ""}`;
       } else {
-        const data = entry.lastRun.data ?? {};
         const parts = [];
         if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
         if (data.stderr) parts.push(data.stderr.replace(/\n$/, ""));
         if (!parts.length) parts.push(data.timedOut ? "(timed out — killed after 10s)" : "(no output)");
-        out.textContent = parts.join("\n");
-        out.classList.toggle("bad", !!data.stderr);
-        out.title = `exit ${data.code} · ${data.durationMs}ms${data.timedOut ? " · timed out" : ""}`;
+        console.textContent = parts.join("\n");
+        console.classList.toggle("bad", !!data.stderr);
+        console.title = `exit ${data.code} · ${data.durationMs}ms`;
       }
-      wrap.append(out);
     }
-    list.append(wrap);
+  } catch (e) {
+    console.hidden = false;
+    console.classList.add("bad");
+    console.textContent = `could not reach the fold server (is serve.mjs running?): ${e.message}`;
+  } finally {
+    $("editor-run").disabled = false;
+    renderBuilds(editorBuild.n);
+  }
+}
+
+function resetBuild() {
+  if (!editorBuild) return;
+  editorBuild.code = editorBuild.seg.code;
+  editorBuild.lastRun = null;
+  editorSet(editorBuild.seg.code);
+  $("editor-console").hidden = true;
+  $("editor-preview").hidden = true;
+  $("editor-preview").srcdoc = "";
+  persistBuilds();
+  renderBuilds(editorBuild.n);
+}
+
+// ── the terminal ────────────────────────────────────────────────────────────
+//
+// One command at a time. A command streams its PTY output back live; while it
+// runs, Enter feeds it stdin, so `python` is a REPL. pip/npm installs land in
+// the same .venv / node_modules the build runner imports from. `cd` is
+// handled by the server and moves the session's working directory.
+
+const term = {
+  id: crypto.randomUUID ? crypto.randomUUID() : `fold-${Date.now().toString(16)}`,
+  cwd: null,
+  busy: false,
+  exitCode: null,
+};
+
+function termLine(text, cls) {
+  const pre = $("term-out");
+  const line = document.createElement("span");
+  if (cls) line.className = cls;
+  line.textContent = text;
+  pre.append(line, document.createTextNode("\n"));
+  pre.scrollTop = pre.scrollHeight;
+}
+function termText(text) {
+  const pre = $("term-out");
+  pre.append(document.createTextNode(text));
+  pre.scrollTop = pre.scrollHeight;
+}
+
+/** Strip what a dumb TERM still emits: colour codes, cursor moves, and any
+ * stray OSC title that was not ours. */
+function cleanTerm(s) {
+  return s
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
+    .replace(/\x1b\][^\x1b\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+}
+
+async function startCommand(text) {
+  term.busy = true;
+  term.exitCode = null;
+  $("term-kill").disabled = false;
+  termLine(`$ ${text}`, "term-cmd");
+  let moved = false;
+  try {
+    const res = await fetch(`/api/exec/${term.id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: text, cwd: term.cwd }),
+    });
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => null);
+      termLine(body?.error ?? `server ${res.status}`, "term-exit bad");
+      return;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let pending = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      pending += dec.decode(value, { stream: true });
+      let buf = pending;
+      let m;
+      while ((m = buf.match(/\x1b\]0;fold-exit:([^\x1b]*)\x1b\\/))) {
+        term.exitCode = m[1];
+        termText(cleanTerm(buf.slice(0, m.index)));
+        buf = buf.slice(m.index + m[0].length);
+      }
+      const cd = buf.match(/\x1b\]0;fold-cwd:([^\x1b]*)\x1b\\/);
+      if (cd) {
+        term.cwd = cd[1];
+        moved = true;
+        buf = buf.slice(0, cd.index) + buf.slice(cd.index + cd[0].length);
+      }
+      // A sentinel that arrived mid-sequence is held back, not printed.
+      const partial = buf.match(/\x1b\]0;fold-(?:exit|cwd):[^\x1b]*$/);
+      pending = partial ? partial[0] : "";
+      if (!partial) termText(cleanTerm(buf));
+    }
+    if (moved && term.cwd) termLine(term.cwd, "term-exit");
+    if (term.exitCode != null)
+      termLine(`exit ${term.exitCode}`, term.exitCode === "0" ? "term-exit" : "term-exit bad");
+  } catch (e) {
+    termLine(`could not reach the fold server (is serve.mjs running?): ${e.message}`, "term-exit bad");
+  } finally {
+    term.busy = false;
+    $("term-kill").disabled = true;
+    $("term-in").focus();
+  }
+}
+
+async function submitTerm() {
+  const input = $("term-in");
+  const text = input.value;
+  if (!text.trim()) return;
+  input.value = "";
+  if (term.busy) {
+    // A command is running: this line goes to IT (the REPL case). The PTY
+    // echoes it, so the terminal shows what was typed the way it always does.
+    fetch(`/api/exec/${term.id}/stdin`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ data: text + "\n" }),
+    });
+    return;
+  }
+  startCommand(text);
+}
+
+// ── builds persist across reloads ───────────────────────────────────────────
+// The conversation's builds and the code worked on inside them are kept, so
+// an iteration is not lost to a refresh. Same key shape as explore's own
+// localStorage use: the instrument keeps its own settings.
+const BUILDS_KEY = "fold-builds";
+
+function persistBuilds() {
+  try {
+    const conv = state.convos[state.active];
+    const data = state.builds.map(({ n, turn, seg, caption, code, lastRun }) => ({
+      n,
+      turn,
+      seg,
+      caption,
+      code,
+      lastRun,
+    }));
+    localStorage.setItem(BUILDS_KEY, JSON.stringify({ id: conv?.id, builds: data }));
+  } catch {
+    /* storage full or blocked — a build is not worth a crash */
+  }
+}
+
+function restoreBuilds() {
+  try {
+    const raw = localStorage.getItem(BUILDS_KEY);
+    if (!raw) return;
+    const { builds } = JSON.parse(raw);
+    if (!Array.isArray(builds)) return;
+    for (const b of builds) {
+      state.builds.push({
+        n: b.n,
+        turn: b.turn ?? 0,
+        seg: b.seg,
+        caption: b.caption,
+        code: b.code,
+        lastRun: b.lastRun,
+      });
+    }
+  } catch {
+    /* corrupted storage — start clean */
   }
 }
 
@@ -1658,7 +1997,7 @@ function renderEvidence(node, question, passages, used, grounding, label = "mate
  * and a table the model happened to write arrive here in the same shape, and
  * there is no reason for them to look different.
  */
-function artifactNode(seg, caption) {
+function artifactNode(seg, caption, code) {
   const art = document.createElement("figure");
   art.className = "artifact";
   const cap = document.createElement("figcaption");
@@ -1689,18 +2028,18 @@ function artifactNode(seg, caption) {
   } else if (RENDERABLE.has(seg.lang)) {
     const frame = document.createElement("iframe");
     frame.sandbox = "";
-    frame.srcdoc = toDocument(seg);
+    frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code });
     frame.loading = "lazy";
     art.append(frame);
     const src = document.createElement("details");
     src.innerHTML = "<summary>source</summary>";
     const pre = document.createElement("pre");
-    pre.textContent = seg.code;
+    pre.textContent = code ?? seg.code;
     src.append(pre);
     art.append(src);
   } else {
     const pre = document.createElement("pre");
-    pre.textContent = seg.code;
+    pre.textContent = code ?? seg.code;
     art.append(pre);
   }
   return art;
@@ -2115,6 +2454,11 @@ fillModels();
 state.convos.push(newConvo());
 switchConvo(0);
 
+// Builds from a previous session come back — with the code that was being
+// worked on — so an iteration survives a reload.
+restoreBuilds();
+renderBuilds();
+
 $("connect").onclick = connect;
 $("model").onchange = () => {
   state.model = $("model").value;
@@ -2188,7 +2532,8 @@ $("material").addEventListener("change", addPasted);
 //
 // Wide, the chat and the panels sit side by side and the tabs switch only the
 // panels. Narrow, there is room for one at a time, so Chat joins the tab bar
-// and the same click does both jobs.
+// and the same click does both jobs. The editor and the terminal are panes
+// with no tab of their own — they open from a build or from its control.
 
 function showView(name) {
   document.body.dataset.view = name;
@@ -2197,6 +2542,8 @@ function showView(name) {
   if (name === "chat") return; // the panels keep whichever pane they had
   for (const p of document.querySelectorAll(".pane"))
     p.classList.toggle("on", p.id === `pane-${name}`);
+  if (name === "terminal") $("term-in").focus();
+  if (name === "editor") editorLayout();
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
@@ -2204,7 +2551,42 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
 // the panels are already beside it, so start them on the prompt.
-showView(matchMedia("(max-width: 900px)").matches ? "chat" : "artifacts");
+showView(matchMedia("(max-width: 900px)").matches ? "chat" : "builds");
+
+// ── the editor's controls ────────────────────────────────────────────────────
+//
+// A build's code is edited in the browser's own editor — VS Code's Monaco,
+// vendored locally in node_modules and loaded same-origin (no CDN). Tab
+// indents and Cmd/Ctrl+Enter runs the current text natively; ← builds leaves
+// the editor without losing the edit.
+
+$("editor-back").onclick = () => showView("builds");
+$("editor-reset").onclick = resetBuild;
+$("editor-run").onclick = runFromEditor;
+editorOnChange((value) => {
+  if (editorBuild) {
+    editorBuild.code = value;
+    persistBuilds();
+  }
+});
+editorRunShortcut(runFromEditor);
+
+// ── the terminal's controls ──────────────────────────────────────────────────
+
+$("term-in").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    submitTerm();
+  }
+});
+$("term-kill").onclick = () => {
+  if (!term.busy) return;
+  fetch(`/api/exec/${term.id}/signal`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ signal: "SIGINT" }),
+  });
+};
 
 // ── the settings chip ────────────────────────────────────────────────────────
 //

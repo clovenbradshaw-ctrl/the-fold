@@ -223,6 +223,47 @@ test("an accented corpus answers an unaccented question", () => {
   assert.equal(retrieve(plain, "Natásha").length, 1);
 });
 
+const CSV = `org_id,organization_name,reason,case_number
+3982,Murfreesboro PD,stolen vehicle,24-0011
+3499,Metro Nashville PD,missing person,24-0042
+5334,Franklin PD,hit and run,24-0107
+3982,Murfreesboro PD,MNPD assist burglary,24-0155
+3499,Metro Nashville PD,homicide investigation,24-0198
+5334,Franklin PD,stolen tag,24-0231
+3982,Murfreesboro PD,welfare check,24-0244
+3499,Metro Nashville PD,armed robbery,24-0287
+5334,Franklin PD,MNPD narcotics,24-0301
+`;
+
+test("a spreadsheet is admitted by row, not as one lump", () => {
+  // Paragraph chunking would make this whole file a single passage: nothing
+  // retrievable, nothing citable.
+  const chunks = chunkSource("mnpd.csv", CSV);
+  assert.ok(chunks.length > 1, `got ${chunks.length} chunks`);
+  assert.ok(chunks.every((c) => c.header.startsWith("org_id,")));
+});
+
+test("a row group's ref reads back exactly the rows, header excluded", () => {
+  const chunks = chunkSource("mnpd.csv", CSV);
+  for (const c of chunks) {
+    assert.equal(readRange({ "mnpd.csv": CSV }, c.ref), c.text + "\n");
+    assert.ok(!readRange({ "mnpd.csv": CSV }, c.ref).includes("org_id,"));
+  }
+});
+
+test("a row is retrievable by what is in it, and by its column names", () => {
+  const chunks = chunkSource("mnpd.csv", CSV);
+  const hit = retrieve(chunks, "which searches mention narcotics?");
+  assert.ok(hit.length && hit[0].text.includes("narcotics"));
+  // Column names ride along as terms, so a question phrased in the schema's
+  // own words finds rows too.
+  assert.ok(retrieve(chunks, "list the case_number values").length > 0);
+});
+
+test("a header-only file yields nothing rather than a phantom row", () => {
+  assert.deepEqual(chunkSource("empty.csv", "a,b,c\n"), []);
+});
+
 test("retrieval is mechanical and returns nothing when nothing matches", () => {
   const chunks = chunkSource("kess.txt", DOC);
   assert.equal(retrieve(chunks, "what figure did the report give").length > 0, true);

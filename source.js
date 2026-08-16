@@ -43,6 +43,7 @@ export function tokenize(text) {
  * string readRange is given back, which is what makes a ref re-openable.
  */
 export function chunkSource(name, text) {
+  if (looksDelimited(name, text)) return chunkRows(name, text);
   const chunks = [];
   const re = /\n\s*\n/g;
   let start = 0;
@@ -64,6 +65,71 @@ export function chunkSource(name, text) {
     start = re.lastIndex;
   }
   push(start, text.length);
+  return chunks;
+}
+
+/** Rows per addressable passage, unless the rows are long enough to fill it. */
+const ROWS_PER_CHUNK = 8;
+const ROW_CHUNK_CHARS = 1200;
+
+/**
+ * A spreadsheet has no blank lines, so paragraph chunking makes the whole file
+ * one passage: nothing can be retrieved from it and nothing in it can be
+ * cited. Delimited files are admitted by row instead.
+ */
+function looksDelimited(name, text) {
+  if (/\.(csv|tsv)$/i.test(name)) return true;
+  const first = text.slice(0, text.indexOf("\n") + 1 || 400);
+  const second = text.slice(first.length, first.length + 400).split("\n")[0];
+  const count = (s, ch) => s.split(ch).length - 1;
+  for (const ch of [",", "\t", ";"]) {
+    const a = count(first, ch);
+    if (a >= 3 && a === count(second, ch)) return true;
+  }
+  return false;
+}
+
+/**
+ * Row groups, with the byte range covering exactly the rows and nothing else —
+ * so a ref still reads back precisely what it names. The header travels beside
+ * the passage rather than inside it: the model needs the column names to read
+ * the rows, and splicing them into the text would make the passage disagree
+ * with the bytes at its own address.
+ */
+function chunkRows(name, text) {
+  const nl = text.indexOf("\n");
+  const header = nl === -1 ? text : text.slice(0, nl);
+  const headerTerms = tokenize(header);
+  const chunks = [];
+
+  let start = nl + 1;
+  let rows = 0;
+  let cursor = start;
+  const flush = (end) => {
+    const body = text.slice(start, end);
+    if (body.trim()) {
+      chunks.push({
+        source: name,
+        start,
+        end,
+        text: body.replace(/\n$/, ""),
+        header,
+        ref: `${name}#${start}-${end}`,
+        terms: new Set([...tokenize(body), ...headerTerms]),
+      });
+    }
+    start = end;
+    rows = 0;
+  };
+
+  while (cursor < text.length) {
+    const next = text.indexOf("\n", cursor);
+    const lineEnd = next === -1 ? text.length : next + 1;
+    rows++;
+    if (rows >= ROWS_PER_CHUNK || lineEnd - start >= ROW_CHUNK_CHARS) flush(lineEnd);
+    cursor = lineEnd;
+  }
+  if (cursor > start) flush(cursor);
   return chunks;
 }
 
@@ -109,7 +175,10 @@ export function buildSourceBlock(chunks) {
   const parts = [
     "MATERIAL — the passages retrieved for this turn, each with the address it was read from. Answer from these when they cover the question, and cite the address in brackets exactly as written. If they do not cover it, say so rather than filling the gap.",
   ];
-  for (const c of chunks) parts.push(`[${c.ref}]\n${c.text}`);
+  for (const c of chunks)
+    parts.push(
+      c.header ? `[${c.ref}]\ncolumns: ${c.header}\n${c.text}` : `[${c.ref}]\n${c.text}`,
+    );
   return parts.join("\n\n");
 }
 

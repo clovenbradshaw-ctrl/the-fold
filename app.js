@@ -82,6 +82,21 @@ const state = {
   claude: null,
   ready: false,
   busy: false,
+
+  /**
+   * Conversations. The fold is per conversation — its own summary, its own
+   * folds, its own record — because a running summary of two subjects at once
+   * is a summary of neither. Material is deliberately NOT per conversation:
+   * the corpus is a thing you loaded, and asking about it from two angles at
+   * once is the normal case, not a reason to load it twice.
+   *
+   * The active conversation's fields are held directly on `state` and written
+   * back on every switch, so the turn loop never has to reach through an
+   * index to find out whose conversation it is in.
+   */
+  convos: [],
+  active: 0,
+
   summary: emptySummary(),
   /** The raw transcript. Kept only so the page can show what it is NOT sending. */
   history: [],
@@ -101,6 +116,86 @@ const state = {
   lastMessages: [],
   lastMaterialChars: 0,
 };
+
+// ── conversations ────────────────────────────────────────────────────────────
+
+/** The fields that belong to a conversation rather than to the app. */
+const PER_CONVO = [
+  "summary",
+  "history",
+  "turnFolds",
+  "artifacts",
+  "lastMessages",
+  "lastMaterialChars",
+];
+
+function newConvo() {
+  const el = document.createElement("div");
+  el.className = "thread";
+  $("chat").append(el);
+  return {
+    id: state.convos.length + 1,
+    el,
+    summary: emptySummary(),
+    history: [],
+    turnFolds: [],
+    artifacts: [],
+    lastMessages: [],
+    lastMaterialChars: 0,
+  };
+}
+
+/** A conversation is named by what it turned out to be about. */
+function convoTitle(c) {
+  if (c.summary.topic) return c.summary.topic;
+  const first = c.history.find((m) => m.role === "user");
+  return first ? first.content : `Conversation ${c.id}`;
+}
+
+function switchConvo(index) {
+  const from = state.convos[state.active];
+  if (from) {
+    for (const k of PER_CONVO) from[k] = state[k];
+    from.el.classList.remove("on");
+  }
+  state.active = index;
+  const to = state.convos[index];
+  for (const k of PER_CONVO) state[k] = to[k];
+  to.el.classList.add("on");
+  renderThreads();
+  renderArtifacts();
+  showView("chat");
+  $("input").focus();
+}
+
+function addConvo() {
+  // Write the current one back before the new element steals the pointer.
+  const from = state.convos[state.active];
+  if (from) for (const k of PER_CONVO) from[k] = state[k];
+  state.convos.push(newConvo());
+  switchConvo(state.convos.length - 1);
+}
+
+function renderThreads() {
+  const bar = $("threads");
+  bar.textContent = "";
+  state.convos.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = convoTitle(c);
+    b.title = convoTitle(c);
+    b.setAttribute("aria-current", String(i === state.active));
+    b.onclick = () => switchConvo(i);
+    bar.append(b);
+  });
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "new";
+  add.textContent = "＋";
+  add.title = "New conversation — same material, its own fold";
+  add.onclick = addConvo;
+  bar.append(add);
+}
 
 // ── model ────────────────────────────────────────────────────────────────────
 
@@ -286,6 +381,7 @@ async function mechanicalTurn(question, kind) {
   state.summary = advanceSummaryFold(state.summary, fold);
 
   renderFold(node, { fold });
+  renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;
@@ -393,6 +489,7 @@ async function send(question) {
   // answer is whole, because a half-written table is not a table yet.
   renderAnswer(node.querySelector(".body"), answer);
   renderFold(node, { fold, record, sent: messages });
+  renderThreads();
   renderEvidence(node, question, passages, used);
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
@@ -419,7 +516,7 @@ function addMessage(role, text) {
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
   el.querySelector(".body").textContent = text;
-  $("chat").append(el);
+  state.convos[state.active].el.append(el);
   el.scrollIntoView({ block: "end" });
   return el;
 }
@@ -872,6 +969,10 @@ function looksBinary(text) {
 renderSources();
 fillModels();
 
+// One conversation to start; more on demand, each with its own fold.
+state.convos.push(newConvo());
+switchConvo(0);
+
 $("key").value = localStorage.getItem(KEY_STORAGE) || "";
 $("connect").onclick = connect;
 $("provider").onchange = () => {
@@ -958,7 +1059,7 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
 // the panels are already beside it, so start them on the prompt.
-showView(matchMedia("(max-width: 900px)").matches ? "chat" : "prompt");
+showView(matchMedia("(max-width: 900px)").matches ? "chat" : "views");
 
 // ── the settings chip ────────────────────────────────────────────────────────
 //

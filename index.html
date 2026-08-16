@@ -377,6 +377,46 @@
       details.fold details.fold { margin-top: 12px; }
       details.fold details.fold > div { border-left: none; padding-left: 0; }
 
+      /* One conversation per tab. Material is shared; the fold is not — each
+         conversation carries its own summary, folds, and record. */
+      .threads {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 20px 0;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .threads::-webkit-scrollbar { display: none; }
+      .threads button {
+        border: none;
+        border-radius: 7px 7px 0 0;
+        border-bottom: 2px solid transparent;
+        background: none;
+        color: var(--muted);
+        font-size: 12.5px;
+        padding: 6px 10px;
+        max-width: 22ch;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .threads button[aria-current="true"] {
+        color: var(--ink);
+        border-bottom-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .threads .new {
+        color: var(--accent);
+        font-size: 15px;
+        padding: 4px 10px;
+        flex: 0 0 auto;
+      }
+      .thread { display: none; }
+      .thread.on { display: block; }
+
       .composer {
         border-top: 1px solid var(--line);
         padding: 12px 20px;
@@ -555,6 +595,7 @@
 
     <main>
       <section class="col" id="col-chat">
+        <nav class="threads" id="threads" aria-label="Conversations"></nav>
         <div class="scroll" id="chat">
           <div id="intro">
           <p class="note">

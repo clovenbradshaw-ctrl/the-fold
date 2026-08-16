@@ -92,6 +92,15 @@ const KINDS_THOROUGH = { minPrevalence: 0.02, minKindSize: 8, permutations: 50, 
 // this file, engineering starting point.
 const FOLD_BUDGET_SENTENCES = 7;
 
+// Search: a filename walk under the browse root. The skip list is a
+// declared rule (dependency and build trees are machinery, not material),
+// the caps bound one response, and every truncation is counted. Givers:
+// this file, engineering starting points.
+const FIND_SKIP = new Set(["node_modules", ".git", ".next", "dist", "out", "build", ".cache"]);
+const FIND_MAX_RESULTS = 200;
+const FIND_MAX_VISITED = 60_000;
+const PEEK_CHARS = 400;
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -577,6 +586,88 @@ const server = http.createServer(async (req, res) => {
       const opts = body.quick === false ? KINDS_THOROUGH : KINDS_QUICK;
       const jobId = startJob("kinds", { mode: "kinds", filePath: abs, rel: relOf(abs), opts }, { path: relOf(abs), bytes: st.size, opts });
       return send(res, 200, { jobId, opts });
+    }
+
+    // ---- find: filename search under the browse root (or a subtree).
+    if (req.method === "GET" && p === "/api/find") {
+      const q = (url.searchParams.get("q") ?? "").toLowerCase().trim();
+      if (q.length < 2) return send(res, 400, { error: "query needs at least 2 characters" });
+      const startAbs = confine(url.searchParams.get("path") ?? "") ?? BROWSE_ROOT;
+      const results = [];
+      let visited = 0;
+      let truncated = false;
+      const walk = (d) => {
+        if (results.length >= FIND_MAX_RESULTS || visited >= FIND_MAX_VISITED) {
+          truncated = true;
+          return;
+        }
+        let names;
+        try {
+          names = readdirSync(d, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const ent of names) {
+          if (results.length >= FIND_MAX_RESULTS || ++visited >= FIND_MAX_VISITED) {
+            truncated = true;
+            return;
+          }
+          const abs = path.join(d, ent.name);
+          if (ent.isDirectory()) {
+            if (!FIND_SKIP.has(ent.name)) walk(abs);
+            continue;
+          }
+          if (ent.name.toLowerCase().includes(q)) {
+            let st = null;
+            try {
+              st = statSync(abs);
+            } catch {
+              /* dangling */
+            }
+            results.push({ name: ent.name, path: relOf(abs), dir: false, size: st?.size ?? null, mtime: st?.mtimeMs ?? null });
+          }
+        }
+      };
+      walk(startAbs);
+      record("find", { q, results: results.length, truncated });
+      return send(res, 200, {
+        q,
+        results,
+        truncated,
+        visitedCap: FIND_MAX_VISITED,
+        skipRule: [...FIND_SKIP].join(", ") + " — a declared rule, dependency and build trees are machinery",
+      });
+    }
+
+    // ---- peek: the opening characters of a textual file, for preview cards.
+    if (req.method === "GET" && p === "/api/peek") {
+      const abs = confine(url.searchParams.get("path") ?? "");
+      if (!abs) return send(res, 400, { error: "path escapes the browse root" });
+      let st;
+      try {
+        st = statSync(abs);
+      } catch (e) {
+        return send(res, 404, { error: e.message });
+      }
+      if (!st.isFile()) return send(res, 400, { error: "not a file" });
+      const head = Buffer.alloc(Math.min(st.size, PEEK_CHARS * 4));
+      if (head.length) {
+        const fd = openSync(abs, "r");
+        try {
+          readSync(fd, head, 0, head.length, 0);
+        } finally {
+          closeSync(fd);
+        }
+      }
+      try {
+        // lenient tail: a multi-byte char cut at the buffer edge is not binary
+        let text = new TextDecoder("utf-8", { fatal: true }).decode(head.subarray(0, head.length - 3));
+        if (text.includes(" ")) throw new Error("binary");
+        text = text.slice(0, PEEK_CHARS);
+        return send(res, 200, { peek: text, of: st.size, truncated: st.size > text.length });
+      } catch {
+        return send(res, 200, { peek: null, binary: true, of: st.size });
+      }
     }
 
     // ---- fold: an extractive summary of an arbitrary place — whole source,

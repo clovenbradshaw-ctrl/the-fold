@@ -15,13 +15,14 @@
         <span class="muted">no source in focus — pick one from the rail</span>
       </div>
       <div class="spacer"></div>
+      <button id="theme-toggle" title="appearance: follow the system, or choose">◐ system</button>
       <button id="record-toggle" title="The append-only record under everything shown here (record/explore-record.jsonl)">record</button>
     </header>
 
     <main>
       <aside id="rail" aria-label="sources">
+        <div id="recents"></div>
         <div id="tree"></div>
-        <div id="tree-note" class="rail-note"></div>
       </aside>
 
       <section id="stage">
@@ -37,11 +38,7 @@
     </main>
 
     <footer>
-      <span>tree ordered folders-first, then name — a declared rule</span>
-      <span>·</span>
-      <span>the default surface is Field, the zero-inference one — a declared rule, not a reading of the content</span>
-      <span>·</span>
-      <span id="engine-line"></span>
+      <span id="engine-line">reading locally with eoreader6</span>
     </footer>
     <!-- The same bottom bar the Converse page has — one app, one bar.
          Hidden in embed mode (the host page already carries it). -->

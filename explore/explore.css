@@ -19,8 +19,11 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
 }
+/* Dark is the OS's choice unless the reader has said otherwise, and the
+   reader's choice wins in both directions — a named cursor on the page's
+   own appearance, not a guess. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f0f12;
     --panel: #15151a;
     --ink: #ecebf0;
@@ -33,6 +36,19 @@
     --ok: #4cc38a;
     --mark: #4a3f13;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f12;
+  --panel: #15151a;
+  --ink: #ecebf0;
+  --muted: #9b9aa5;
+  --line: #2b2b34;
+  --accent: #a78bfa;
+  --accent-soft: #1e1932;
+  --lit: #a78bfa;
+  --warn: #f0857a;
+  --ok: #4cc38a;
+  --mark: #4a3f13;
 }
 
 * { box-sizing: border-box; }
@@ -108,6 +124,11 @@ body.embed .page-tabs { display: none; }
 .tree-entry .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-entry .sz { margin-left: auto; color: var(--muted); font-size: 11px; font-family: var(--mono); flex: none; }
 .rail-note { padding: 6px 12px; font-size: 11.5px; color: var(--muted); }
+.rail-hd {
+  padding: 10px 12px 4px; font-size: 10.5px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.07em;
+}
+.tree-entry.recent .nm { color: var(--ink); }
 
 /* ── stagebar: the views of this source, revealed as they earn a place ──── */
 #stagebar {
@@ -340,32 +361,70 @@ body.embed .page-tabs { display: none; }
 .paradigm .mono { font-family: var(--mono); font-size: 11px; }
 .paradigm h3 { margin: 22px 0 8px; font-size: 14px; }
 
-/* ── the desk: the files view, icons or table ────────────────────────────── */
-.desk-bar { display: flex; gap: 4px; margin-bottom: 12px; }
-.desk-bar button { font-size: 12px; padding: 3px 11px; border-radius: 12px; color: var(--muted); }
+/* ── the files view ──────────────────────────────────────────────────────── */
+.desk-search { display: flex; gap: 8px; margin-bottom: 12px; }
+.desk-search input {
+  flex: 1; max-width: 620px; font-size: 14px; padding: 9px 16px;
+  border-radius: 22px; background: var(--panel);
+}
+.desk-search input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+.desk-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; min-height: 30px; flex-wrap: wrap; }
+.desk-bar button { font-size: 13px; padding: 4px 12px; border-radius: 16px; color: var(--muted); }
 .desk-bar button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-.desk-tbl { width: 100%; max-width: 860px; }
+.desk-count { font-size: 13px; font-weight: 600; color: var(--accent); margin-right: 6px; }
+.desk-crumbs { font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.desk-crumbs .linkish { font-size: 15px; text-decoration: none; color: var(--ink); }
+.desk-crumbs .linkish:hover { color: var(--accent); }
+.desk-crumbs .sep { color: var(--muted); }
+.desk-section { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 4px 0 8px; }
+.desk-body { display: flex; gap: 18px; align-items: flex-start; }
+.desk-main { flex: 1; min-width: 0; }
+.desk-tbl { width: 100%; }
 .desk-tbl tr:hover td { background: var(--accent-soft); }
-.desk-crumbs { font-size: 13px; margin-bottom: 14px; color: var(--muted); }
+.desk-details {
+  flex: none; width: 260px; position: sticky; top: 0;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  padding: 14px; font-size: 13px;
+}
+.desk-details[hidden] { display: none; }
+.dt-name { font-weight: 650; font-size: 14px; margin-bottom: 10px; overflow-wrap: break-word; }
+.dt-thumb { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 10px; }
+.dt-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0 0 10px; font-size: 12px; }
+.dt-meta dt { color: var(--muted); }
+.dt-meta dd { margin: 0; overflow-wrap: break-word; }
+.dt-peek {
+  font: 11.5px/1.5 var(--mono); color: var(--muted); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 190px;
+  overflow: hidden; white-space: pre-wrap; margin-bottom: 8px;
+}
 .desk-crumbs .linkish { font-size: 13px; text-decoration: none; }
 .desk-crumbs .linkish:hover { text-decoration: underline; }
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 8px;
-  max-width: 980px;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
 }
 .tile {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 16px 8px 12px; border: 1px solid transparent; border-radius: 10px;
-  background: none; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  padding: 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); text-align: left; cursor: pointer;
 }
-.tile:hover { background: var(--panel); border-color: var(--line); }
-.tile .glyph { font-size: 26px; line-height: 1; color: var(--muted); font-family: var(--mono); }
-.tile.dir .glyph { color: var(--accent); }
-.tile .nm { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile:hover { border-color: var(--accent); }
+.tile.dir { flex-direction: row; align-items: center; gap: 10px; padding: 12px 14px; }
+.tile .glyph { font-size: 20px; line-height: 1; color: var(--muted); font-family: var(--mono); flex: none; }
+.tile.dir .glyph { color: var(--accent); font-size: 15px; }
+.tile .nm { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .tile .sz { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
-.tile .thumb { width: 76px; height: 58px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+.tile .thumb {
+  width: 100%; height: 104px; object-fit: cover;
+  border-radius: 7px; border: 1px solid var(--line); background: var(--bg);
+}
+.tile .thumb.card {
+  font: 9px/1.35 var(--mono); color: var(--muted); padding: 7px;
+  overflow: hidden; white-space: pre-wrap; word-break: break-word; display: block;
+}
+.tile .thumb.card.empty { opacity: 0.35; }
 .tile.sel, .desk-tbl tr.sel td { background: var(--accent-soft); }
 .tile.sel { border-color: var(--accent); }
 .desk-tbl tr[data-path] { cursor: default; user-select: none; }

@@ -122,6 +122,10 @@ function* wordOccurrences(lowerHaystack, lowerNeedle) {
 }
 
 // ── the rail ────────────────────────────────────────────────────────────────
+// ── the sidebar ─────────────────────────────────────────────────────────────
+// A Drive sidebar, not an ornament: clicking a folder NAVIGATES the files
+// view to it (and expands it in place), the current location stays lit, and
+// recents come from the record — real history, never invented.
 async function loadTree(container, relPath, depth = 0) {
   const listing = await api(`/api/tree?path=${encodeURIComponent(relPath)}`);
   const frag = document.createDocumentFragment();
@@ -132,10 +136,16 @@ async function loadTree(container, relPath, depth = 0) {
     row.appendChild(el("span", "nm", entry.name));
     if (!entry.dir) row.appendChild(el("span", "sz", fmtBytes(entry.size)));
     row.dataset.path = entry.path;
+    if (entry.dir) row.dataset.dir = "1";
     if (entry.dir) {
       let open = false;
       let sub = null;
       row.onclick = async () => {
+        // navigate first — that is what a sidebar folder means
+        state.browseDir = entry.path;
+        state.deskSel = new Set();
+        state.terrain = "Desk";
+        renderAll();
         open = !open;
         row.querySelector(".twist").textContent = open ? "▾" : "▸";
         if (open && !sub) {
@@ -143,6 +153,7 @@ async function loadTree(container, relPath, depth = 0) {
           row.after(sub);
           await loadTree(sub, entry.path, depth + 1);
         } else if (sub) sub.hidden = !open;
+        markCurrentInRail();
       };
     } else {
       row.onclick = () => openSource(entry.path);
@@ -151,13 +162,55 @@ async function loadTree(container, relPath, depth = 0) {
   }
   container.appendChild(frag);
   if (listing.truncated) {
-    container.appendChild(el("div", "rail-note", `${listing.shown} of ${listing.total} entries shown — ${listing.total - listing.shown} not listed (page cap)`));
+    container.appendChild(el("div", "rail-note", `${listing.shown} of ${listing.total} shown`));
   }
   return listing;
 }
 
+/** Recents, from the append-only record — what was actually opened, in order. */
+async function renderRecents() {
+  const box = $("recents");
+  if (!box) return;
+  box.textContent = "";
+  let tail = [];
+  try {
+    tail = (await api("/api/record?tail=200")).tail ?? [];
+  } catch {
+    return;
+  }
+  const seen = new Set();
+  const recents = [];
+  for (let i = tail.length - 1; i >= 0 && recents.length < 6; i--) {
+    try {
+      const e = JSON.parse(tail[i]);
+      if (e.event !== "source-open" || seen.has(e.path)) continue;
+      seen.add(e.path);
+      recents.push(e);
+    } catch {
+      /* a line we cannot parse is not a recent */
+    }
+  }
+  if (!recents.length) return;
+  box.appendChild(el("div", "rail-hd", "Recent"));
+  for (const r of recents) {
+    const b = el("button", "tree-entry recent");
+    b.appendChild(el("span", "twist", ""));
+    // deposits are content-addressed (name.<hash>.ext) — the hash is
+    // machinery, not a name; it stays in the tooltip
+    const base = r.path.split("/").pop().replace(/\.[0-9a-f]{8,}(\.[^.]+)$/, "$1");
+    b.appendChild(el("span", "nm", base));
+    b.title = r.path;
+    b.onclick = () => openSource(r.path);
+    box.appendChild(b);
+  }
+  box.appendChild(el("div", "rail-hd", "All files"));
+}
+
 function markCurrentInRail() {
-  for (const b of document.querySelectorAll(".tree-entry")) b.classList.toggle("current", b.dataset.path === state.path);
+  const here = state.browseDir ?? "";
+  for (const b of document.querySelectorAll(".tree-entry")) {
+    b.classList.toggle("current", b.dataset.path === state.path || (b.dataset.dir === "1" && b.dataset.path === here && here !== ""));
+  }
 }
 
 // ── opening a source ────────────────────────────────────────────────────────
@@ -555,64 +608,147 @@ const glyphOf = (name) => TILE_GLYPH.find(([re]) => re.test(name))?.[1] ?? "≡"
 
 async function renderBrowse(surface) {
   const dir = state.browseDir ?? "";
-  const listing = await api(`/api/tree?path=${encodeURIComponent(dir)}`);
+  const searching = (state.deskQuery ?? "").trim().length >= 2;
+  const listing = searching
+    ? await api(`/api/find?q=${encodeURIComponent(state.deskQuery.trim())}&path=${encodeURIComponent(dir)}`).then((r) => ({
+        entries: r.results,
+        total: r.results.length,
+        shown: r.results.length,
+        truncated: r.truncated,
+        order: "best guess: name match, in walk order",
+        find: r,
+      }))
+    : await api(`/api/tree?path=${encodeURIComponent(dir)}`);
   if ((state.browseDir ?? "") !== dir || (state.source && state.terrain !== "Desk")) return; // navigated away while fetching
 
   state.deskSel ??= new Set();
   const entriesByPath = new Map(listing.entries.map((e) => [e.path, e]));
+  const closeCtx = () => document.querySelector(".ctx")?.remove();
 
   const open = (entry) => {
     closeCtx();
     if (entry.dir) {
       state.browseDir = entry.path;
       state.deskSel = new Set();
+      state.deskQuery = "";
       renderAll();
+      markCurrentInRail();
     } else openSource(entry.path);
   };
   const goUp = () => {
     state.browseDir = dir.split("/").slice(0, -1).join("/");
     state.deskSel = new Set();
     renderAll();
+    markCurrentInRail();
   };
 
-  // ── the top bar: view pivot + breadcrumb ─────────────────────────────────
-  const modeRow = el("div", "desk-bar");
-  for (const [mode, label] of [["icons", "▦ icons"], ["table", "☰ table"]]) {
-    const btn = el("button", (state.deskMode ?? "icons") === mode ? "on" : "", label);
-    btn.onclick = () => {
-      state.deskMode = mode;
+  // ── row 1: search across everything under here ───────────────────────────
+  const searchRow = el("div", "desk-search");
+  const q = el("input");
+  q.type = "search";
+  q.placeholder = dir ? `Search in ${dir.split("/").pop()}` : "Search all files";
+  q.value = state.deskQuery ?? "";
+  q.oninput = () => {
+    state.deskQuery = q.value;
+    clearTimeout(state._deskDebounce);
+    state._deskDebounce = setTimeout(() => {
+      renderSurface();
+      const again = surface.querySelector(".desk-search input");
+      if (again) {
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }
+    }, 260);
+  };
+  searchRow.appendChild(q);
+  if (searching) {
+    const clear = el("button", null, "clear");
+    clear.onclick = () => {
+      state.deskQuery = "";
       renderAll();
     };
-    modeRow.appendChild(btn);
+    searchRow.appendChild(clear);
   }
-  const crumbs = el("span", "desk-crumbs");
-  const rootBtn = el("button", "linkish", "3.0");
-  rootBtn.onclick = () => {
-    state.browseDir = "";
-    state.deskSel = new Set();
-    renderAll();
-  };
-  crumbs.appendChild(rootBtn);
-  let walked = "";
-  for (const part of dir.split("/").filter(Boolean)) {
-    walked = walked ? `${walked}/${part}` : part;
-    crumbs.appendChild(el("span", "sep", " / "));
-    const b = el("button", "linkish", part);
-    const target = walked;
-    b.onclick = () => {
-      state.browseDir = target;
+  surface.appendChild(searchRow);
+
+  // ── row 2: breadcrumb + view pivot, or contextual actions on a selection ──
+  const bar = el("div", "desk-bar");
+  const sel = () => [...state.deskSel].map((x) => entriesByPath.get(x)).filter(Boolean);
+  const looksTextual = (name) => !/\.(png|jpe?g|gif|webp|avif|bmp|ico|tiff?|pdf|mp3|wav|ogg|oga|m4a|flac|mp4|m4v|webm|mov|zip|gz|tgz|dmg)$/i.test(name);
+  const isImage = (name) => /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i.test(name);
+
+  const rebuildBar = () => {
+    bar.textContent = "";
+    const chosen = sel();
+    if (chosen.length) {
+      bar.appendChild(el("span", "desk-count", `${chosen.length} selected`));
+      const act = (label, fn, on = true) => {
+        const b = el("button", null, label);
+        if (on) b.onclick = fn;
+        else b.disabled = true;
+        bar.appendChild(b);
+      };
+      act("Open", () => open(chosen[0]));
+      const textual = chosen.filter((e) => !e.dir && looksTextual(e.name));
+      if (document.body.classList.contains("embed")) {
+        act(`Use in chat${textual.length > 1 ? ` (${textual.length})` : ""}`, async () => {
+          for (const e of textual) {
+            const r = await fetch(`/api/raw?path=${encodeURIComponent(e.path)}`);
+            parent.postMessage({ type: "fold:material:add", name: e.name, path: e.path, text: await r.text() }, "*");
+          }
+        }, textual.length > 0);
+      }
+      act("Copy path", () => navigator.clipboard?.writeText(chosen.map((e) => e.path).join("\n")));
+      act("Clear", () => {
+        state.deskSel = new Set();
+        paintSelection();
+      });
+      return;
+    }
+    for (const [mode, label] of [["icons", "▦"], ["table", "☰"]]) {
+      const btn = el("button", (state.deskMode ?? "icons") === mode ? "on" : "", label);
+      btn.title = mode === "icons" ? "grid view" : "list view";
+      btn.onclick = () => {
+        state.deskMode = mode;
+        renderAll();
+      };
+      bar.appendChild(btn);
+    }
+    const crumbs = el("span", "desk-crumbs");
+    const rootBtn = el("button", "linkish", "My files");
+    rootBtn.onclick = () => {
+      state.browseDir = "";
       state.deskSel = new Set();
       renderAll();
+      markCurrentInRail();
     };
-    crumbs.appendChild(b);
-  }
-  modeRow.appendChild(crumbs);
-  surface.appendChild(modeRow);
+    crumbs.appendChild(rootBtn);
+    let walked = "";
+    for (const part of dir.split("/").filter(Boolean)) {
+      walked = walked ? `${walked}/${part}` : part;
+      crumbs.appendChild(el("span", "sep", "›"));
+      const b = el("button", "linkish", part);
+      const target = walked;
+      b.onclick = () => {
+        state.browseDir = target;
+        state.deskSel = new Set();
+        renderAll();
+        markCurrentInRail();
+      };
+      crumbs.appendChild(b);
+    }
+    if (searching) {
+      crumbs.appendChild(el("span", "sep", "›"));
+      crumbs.appendChild(el("span", null, `“${state.deskQuery.trim()}”`));
+    }
+    bar.appendChild(crumbs);
+  };
+  surface.appendChild(bar);
 
-  // ── ordering: the declared rule, or a declared re-anchoring ──────────────
+  // ── ordering ─────────────────────────────────────────────────────────────
   const sort = state.deskSort;
   let entries = listing.entries;
-  let orderNote = listing.order;
+  let orderNote = searching ? "matches by name, in the order the walk found them" : "folders first, then name";
   if (sort) {
     entries = [...entries].sort((a, b) => {
       if (a.dir !== b.dir) return b.dir - a.dir;
@@ -620,23 +756,75 @@ async function renderBrowse(surface) {
       const vb = b[sort.key] ?? (sort.key === "name" ? b.name : 0);
       return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * sort.dir;
     });
-    orderNote = `folders first, then ${sort.key} ${sort.dir > 0 ? "ascending" : "descending"} — your re-anchoring`;
+    orderNote = `folders first, then ${sort.key} ${sort.dir > 0 ? "A→Z" : "Z→A"}`;
   }
+  const folders = entries.filter((e) => e.dir);
+  const files = entries.filter((e) => !e.dir);
 
-  // ── the context menu: right-click, like a desktop ────────────────────────
-  const closeCtx = () => document.querySelector(".ctx")?.remove();
-  const isImage = (name) => /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i.test(name);
-  const looksTextual = (name) => !/\.(png|jpe?g|gif|webp|avif|bmp|ico|tiff?|pdf|mp3|wav|ogg|oga|m4a|flac|mp4|m4v|webm|mov|zip|gz|tgz|dmg|DS_Store)$/i.test(name);
+  const statusLine = () =>
+    `${entries.length.toLocaleString()} item${entries.length === 1 ? "" : "s"}` +
+    `${state.deskSel.size ? ` · ${state.deskSel.size} selected` : ""} · sorted ${orderNote}` +
+    `${listing.truncated ? ` · showing the first ${listing.shown ?? entries.length}${searching ? " matches" : ""} — more exist` : ""}`;
+
+  const paintSelection = () => {
+    for (const n of surface.querySelectorAll("[data-path]")) n.classList.toggle("sel", state.deskSel.has(n.dataset.path));
+    const st = surface.querySelector(".desk-status");
+    if (st) st.textContent = statusLine();
+    rebuildBar();
+    renderDetails();
+  };
+
+  // ── the details panel: one thing selected, everything known about it ─────
+  const details = el("aside", "desk-details");
+  const renderDetails = () => {
+    details.textContent = "";
+    const chosen = sel();
+    if (chosen.length !== 1) {
+      details.hidden = true;
+      return;
+    }
+    details.hidden = false;
+    const e = chosen[0];
+    details.appendChild(el("div", "dt-name", e.name));
+    if (!e.dir && isImage(e.name)) {
+      const img = el("img", "dt-thumb");
+      img.src = `/api/raw?path=${encodeURIComponent(e.path)}`;
+      details.appendChild(img);
+    }
+    const meta = el("dl", "dt-meta");
+    const row = (k, v) => {
+      meta.appendChild(el("dt", null, k));
+      meta.appendChild(el("dd", null, v));
+    };
+    row("Kind", e.dir ? "Folder" : (e.name.split(".").pop() || "file").toUpperCase() + " file");
+    if (!e.dir) row("Size", fmtBytes(e.size));
+    if (e.mtime) row("Modified", new Date(e.mtime).toLocaleString());
+    row("Where", e.path.split("/").slice(0, -1).join("/") || "My files");
+    details.appendChild(meta);
+    if (!e.dir && looksTextual(e.name)) {
+      const peekBox = el("div", "dt-peek", "…");
+      details.appendChild(peekBox);
+      api(`/api/peek?path=${encodeURIComponent(e.path)}`)
+        .then((r) => {
+          peekBox.textContent = r.peek ? r.peek : "no text preview — these bytes are not UTF-8";
+        })
+        .catch(() => peekBox.remove());
+      const openBtn = el("button", null, "Open");
+      openBtn.onclick = () => open(e);
+      details.appendChild(openBtn);
+    }
+  };
+
+  // ── the context menu ─────────────────────────────────────────────────────
   const showCtx = (ev, entry) => {
     ev.preventDefault();
     ev.stopPropagation();
     closeCtx();
-    // right-click on an unselected item selects it alone — desktop semantics
     if (!state.deskSel.has(entry.path)) {
       state.deskSel = new Set([entry.path]);
       paintSelection();
     }
-    const sel = [...state.deskSel].map((p) => entriesByPath.get(p)).filter(Boolean);
+    const chosen = sel();
     const menu = el("div", "ctx");
     const item = (label, fn, enabled = true) => {
       const it = el("button", `ctx-item${enabled ? "" : " off"}`, label);
@@ -647,30 +835,25 @@ async function renderBrowse(surface) {
         };
       menu.appendChild(it);
     };
-    if (sel.length === 1) {
-      item("open", () => open(sel[0]));
-      if (!sel[0].dir && looksTextual(sel[0].name)) {
-        item("open and fold", async () => {
-          await openSource(sel[0].path);
+    if (chosen.length === 1) {
+      item("Open", () => open(chosen[0]));
+      if (!chosen[0].dir && looksTextual(chosen[0].name)) {
+        item("Open and summarize", async () => {
+          await openSource(chosen[0].path);
           requestFold({});
         });
       }
-    } else {
-      item(`open ${sel.length} — the first leads`, () => open(sel[0]));
-    }
+    } else item(`Open the first of ${chosen.length}`, () => open(chosen[0]));
     if (document.body.classList.contains("embed")) {
-      const textual = sel.filter((e) => !e.dir && looksTextual(e.name));
-      item(`use in chat (${textual.length})`, async () => {
+      const textual = chosen.filter((e) => !e.dir && looksTextual(e.name));
+      item(`Use in chat${textual.length > 1 ? ` (${textual.length})` : ""}`, async () => {
         for (const e of textual) {
-          const res = await fetch(`/api/raw?path=${encodeURIComponent(e.path)}`);
-          const text = await res.text();
-          parent.postMessage({ type: "fold:material:add", name: e.name, path: e.path, text }, "*");
+          const r = await fetch(`/api/raw?path=${encodeURIComponent(e.path)}`);
+          parent.postMessage({ type: "fold:material:add", name: e.name, path: e.path, text: await r.text() }, "*");
         }
       }, textual.length > 0);
     }
-    item(sel.length > 1 ? `copy ${sel.length} paths` : "copy path", () => {
-      navigator.clipboard?.writeText(sel.map((e) => e.path).join("\n"));
-    });
+    item(chosen.length > 1 ? `Copy ${chosen.length} paths` : "Copy path", () => navigator.clipboard?.writeText(chosen.map((e) => e.path).join("\n")));
     menu.style.left = `${ev.clientX}px`;
     menu.style.top = `${ev.clientY}px`;
     document.body.appendChild(menu);
@@ -683,24 +866,49 @@ async function renderBrowse(surface) {
     document.addEventListener("pointerdown", away, true);
   };
 
-  const paintSelection = () => {
-    for (const n of surface.querySelectorAll("[data-path]")) n.classList.toggle("sel", state.deskSel.has(n.dataset.path));
-    const st = surface.querySelector(".desk-status");
-    if (st) st.textContent = statusLine();
-  };
-  const statusLine = () =>
-    `${entries.length.toLocaleString()} item${entries.length === 1 ? "" : "s"}${state.deskSel.size ? ` · ${state.deskSel.size} selected` : ""} · double-click opens · drag selects · right-click acts · ${orderNote}${listing.truncated ? ` · ${listing.shown} of ${listing.total} shown — ${listing.total - listing.shown} beyond the page cap` : ""}`;
-
-  // ── the two faces of the same listing ────────────────────────────────────
+  // ── the listing, in two faces ────────────────────────────────────────────
+  const body = el("div", "desk-body");
+  const main = el("div", "desk-main");
   let selectablesSel;
+  const tileFor = (entry) => {
+    const tile = el("button", `tile${entry.dir ? " dir" : ""}`);
+    tile.dataset.path = entry.path;
+    if (!entry.dir && isImage(entry.name)) {
+      const img = el("img", "thumb");
+      img.loading = "lazy";
+      img.src = `/api/raw?path=${encodeURIComponent(entry.path)}`;
+      tile.appendChild(img);
+    } else if (!entry.dir && looksTextual(entry.name)) {
+      const card = el("div", "thumb card");
+      api(`/api/peek?path=${encodeURIComponent(entry.path)}`)
+        .then((r) => {
+          if (r.peek && r.peek.trim()) {
+            card.textContent = r.peek.slice(0, 220);
+          } else {
+            // not text after all — the file's own face, not a blank card
+            const g = el("span", "glyph", glyphOf(entry.name));
+            card.replaceWith(g);
+          }
+        })
+        .catch(() => card.replaceWith(el("span", "glyph", glyphOf(entry.name))));
+      tile.appendChild(card);
+    } else {
+      tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
+    }
+    tile.appendChild(el("span", "nm", entry.name));
+    if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
+    tile.ondblclick = () => open(entry);
+    tile.oncontextmenu = (ev) => showCtx(ev, entry);
+    return tile;
+  };
+
   if ((state.deskMode ?? "icons") === "table") {
     selectablesSel = ".desk-tbl tr[data-path]";
     const tbl = el("table", "tbl desk-tbl");
     const trh = el("tr");
-    for (const [key, label] of [["name", "name"], ["size", "size"], ["mtime", "modified"]]) {
+    for (const [key, label] of [["name", "Name"], ["size", "Size"], ["mtime", "Modified"]]) {
       const th = el("th", null, label + (sort?.key === key ? (sort.dir > 0 ? " ↑" : " ↓") : ""));
       th.style.cursor = "pointer";
-      th.title = "sort by this column";
       th.onclick = () => {
         state.deskSort = sort?.key === key ? { key, dir: -sort.dir } : { key, dir: 1 };
         renderAll();
@@ -708,12 +916,11 @@ async function renderBrowse(surface) {
       trh.appendChild(th);
     }
     tbl.appendChild(trh);
-    if (dir) {
+    if (dir && !searching) {
       const tr = el("tr");
       const td = el("td", null, "↩ ..");
       td.colSpan = 3;
       td.style.cursor = "pointer";
-      td.ondblclick = goUp;
       td.onclick = goUp;
       tr.appendChild(td);
       tbl.appendChild(tr);
@@ -722,62 +929,56 @@ async function renderBrowse(surface) {
       const tr = el("tr");
       tr.dataset.path = entry.path;
       const nameTd = el("td");
-      nameTd.append(`${entry.dir ? "▸ " : glyphOf(entry.name) + " "}${entry.name}`);
+      nameTd.append(`${entry.dir ? "▸ " : glyphOf(entry.name) + " "}${searching ? entry.path : entry.name}`);
       tr.appendChild(nameTd);
       tr.appendChild(el("td", null, entry.dir ? "—" : fmtBytes(entry.size)));
-      tr.appendChild(el("td", null, entry.mtime ? new Date(entry.mtime).toISOString().slice(0, 16).replace("T", " ") : "—"));
+      tr.appendChild(el("td", null, entry.mtime ? new Date(entry.mtime).toLocaleDateString() : "—"));
       tr.ondblclick = () => open(entry);
       tr.oncontextmenu = (ev) => showCtx(ev, entry);
       tbl.appendChild(tr);
     }
-    surface.appendChild(tbl);
+    main.appendChild(tbl);
   } else {
     selectablesSel = ".tiles .tile[data-path]";
-    const grid = el("div", "tiles");
-    if (dir) {
+    if (dir && !searching) {
+      const upRow = el("div", "tiles");
       const up = el("button", "tile dir");
       up.appendChild(el("span", "glyph", "↩"));
       up.appendChild(el("span", "nm", ".."));
-      up.ondblclick = goUp;
       up.onclick = goUp;
-      grid.appendChild(up);
+      upRow.appendChild(up);
+      main.appendChild(upRow);
     }
-    for (const entry of entries) {
-      const tile = el("button", `tile${entry.dir ? " dir" : ""}`);
-      tile.dataset.path = entry.path;
-      if (!entry.dir && isImage(entry.name)) {
-        // a Drive-like thumbnail: the image itself is its own icon
-        const img = el("img", "thumb");
-        img.loading = "lazy";
-        img.src = `/api/raw?path=${encodeURIComponent(entry.path)}`;
-        tile.appendChild(img);
-      } else {
-        tile.appendChild(el("span", "glyph", entry.dir ? "▸" : glyphOf(entry.name)));
-      }
-      tile.appendChild(el("span", "nm", entry.name));
-      if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
-      tile.ondblclick = () => open(entry);
-      tile.oncontextmenu = (ev) => showCtx(ev, entry);
-      grid.appendChild(tile);
+    if (folders.length) {
+      main.appendChild(el("div", "desk-section", "Folders"));
+      const g = el("div", "tiles");
+      for (const entry of folders) g.appendChild(tileFor(entry));
+      main.appendChild(g);
     }
-    surface.appendChild(grid);
+    if (files.length) {
+      main.appendChild(el("div", "desk-section", "Files"));
+      const g = el("div", "tiles");
+      for (const entry of files) g.appendChild(tileFor(entry));
+      main.appendChild(g);
+    }
+    if (!entries.length) main.appendChild(el("div", "surface-note", searching ? "nothing here matches that name" : "this folder is empty"));
   }
+  main.appendChild(el("div", "desk-status", statusLine()));
+  body.appendChild(main);
+  body.appendChild(details);
+  surface.appendChild(body);
 
-  surface.appendChild(el("div", "desk-status", statusLine()));
+  rebuildBar();
+  renderDetails();
 
-  // ── the selection engine (Viselect, vendored): drag a rubber band across
-  // items, ctrl/cmd-click toggles, single click selects — the desktop's own
-  // grammar. Selection is presentation state; it claims nothing.
+  // Viselect: rubber-band drag, click-select, ctrl/cmd-toggle
   state._selArea?.destroy();
   state._selArea = new SelectionArea({
     selectables: [selectablesSel],
-    boundaries: ["#surface"],
+    boundaries: [".desk-main"],
     features: { touch: true, range: true, singleTap: { allow: true, intersect: "native" } },
   })
-    .on("beforestart", ({ event }) => {
-      if (event?.target?.closest(".ctx, .desk-bar, .desk-crumbs, th")) return false;
-      return true;
-    })
+    .on("beforestart", ({ event }) => !event?.target?.closest(".ctx, .desk-bar, .desk-search, .desk-details, th"))
     .on("start", ({ event }) => {
       if (!event?.ctrlKey && !event?.metaKey) state.deskSel = new Set();
     })
@@ -2430,6 +2631,28 @@ function renderParadigm(surface) {
   $("engine-line").textContent = `engine: corpus API ${P.engine.corpusApiVersion}`;
 }
 
+// ── appearance: follow the system, or say ───────────────────────────────────
+const THEMES = [
+  ["system", "◐ system"],
+  ["light", "☀ light"],
+  ["dark", "☾ dark"],
+];
+function applyTheme() {
+  const mode = localStorage.getItem("fold-theme") ?? "system";
+  if (mode === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", mode);
+  const btn = $("theme-toggle");
+  if (btn) btn.textContent = THEMES.find(([m]) => m === mode)[1];
+  return mode;
+}
+$("theme-toggle").onclick = () => {
+  const mode = localStorage.getItem("fold-theme") ?? "system";
+  const next = THEMES[(THEMES.findIndex(([m]) => m === mode) + 1) % THEMES.length][0];
+  localStorage.setItem("fold-theme", next);
+  applyTheme();
+};
+applyTheme();
+
 // ── the record dialog ───────────────────────────────────────────────────────
 $("record-toggle").onclick = async () => {
   const tail = await api("/api/record?tail=80");
@@ -2460,8 +2683,8 @@ function renderAll() {
     toggle.hidden = false;
     toggle.onclick = () => document.body.classList.toggle("rail-open");
   }
+  await renderRecents();
   await loadTree($("tree"), "");
-  $("tree-note").textContent = "folders first, then name — a declared rule";
   const src = q.get("src");
   if (src) {
     state.pendingFocus = {

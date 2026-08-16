@@ -336,15 +336,23 @@ This is the one disclosed amendment to "this repo is not a cube consumer":
 for builds, and builds only, the operator half of the vocabulary is carried,
 by user direction (2026-08-16). holon.js's plan log is unchanged.
 
-Three further walls: editor keystrokes are a DRAFT, not an act — the
-SUPERSEDE lands when the draft runs, never per keypress; identical code is
-churn and appends nothing; and persistence is the entries alone, replayed
-through the engine's own `append` on restore, so a stored row that violates
-the vocabulary fails loudly instead of loading as state. Every entry is
-mirrored, as appended, to `record/build-record.jsonl` (append-only,
-FOLD-CONSTITUTION I.5) through serve.mjs, where the engine's `append` is the
-validation gate — a refused entry lands on the record as a typed refusal
-with the engine's own reason.
+Further walls: editor keystrokes are a DRAFT, not an act — the SUPERSEDE
+lands when the draft is committed, never per keypress, and LEAVING the
+editor commits it (an edit the log never saw would be a second, hidden
+truth: the panel and the download showing older bytes than the newest
+work). Identical code is churn and appends nothing. A result entry keeps
+run output to a declared budget with the drop stated on the entry
+(`kept: {stdout: {kept, of}}`) — the alternative is the browser store's
+quota failing persistence SILENTLY a few dozen runs in. Persistence is the
+entries alone, replayed through the engine's own `append` on restore, so a
+stored row that violates the vocabulary fails loudly instead of loading as
+state. Every entry is mirrored, as appended, to
+`record/build-record.jsonl` (append-only, FOLD-CONSTITUTION I.5) through
+serve.mjs — batched per append-set and chained per build so rows land in
+log order — where the engine's `append` is the validation gate: a refused
+entry lands on the record as a typed refusal with the engine's own reason,
+and never blocks the valid entries around it. A download is a crossing and
+is recorded (`build-export`), the posture Explore's record already holds.
 
 **Evidence:** the mutable shape this replaced lost history by construction —
 `entry.code` overwritten on every editor keystroke, `lastRun` on every run,

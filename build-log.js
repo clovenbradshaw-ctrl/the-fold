@@ -126,19 +126,44 @@ export function makeBuildLog(taskLog) {
     });
   }
 
+  // What a result entry keeps of each output stream. The runner's own cap is
+  // 64KB per stream; a log that kept all of every run would grow past the
+  // browser store's quota in a few dozen runs and persistence would fail
+  // SILENTLY — the worst failure this design has. So the entry keeps a
+  // declared budget and states what it dropped (`kept: {stdout: {kept, of}}`)
+  // — P4's discipline: the number is declared, the gap is a result, never a
+  // silent shrink. Units are string length, the same measure the runner's
+  // own cap uses.
+  const KEEP_STREAM_CHARS = 16 * 1024;
+
+  const keepStreams = (outcome, keep) => {
+    const data = outcome?.data;
+    if (!data || typeof data !== "object") return outcome;
+    const out = { ...outcome, data: { ...data } };
+    for (const k of ["stdout", "stderr"]) {
+      const s = data[k];
+      if (typeof s === "string" && s.length > keep) {
+        out.data[k] = s.slice(0, keep);
+        out.data.kept = { ...(out.data.kept ?? {}), [k]: { kept: keep, of: s.length } };
+      }
+    }
+    return out;
+  };
+
   /**
    * A run's outcome, attached to the version that ran. `params` are the
    * run's declared numbers (lang, caps); `outcome` is what actually happened
    * (exit code, output, timedOut — or the typed failure to reach the
-   * runner). No operator: results attach, they never re-type.
+   * runner), its streams held to the declared keep budget. No operator:
+   * results attach, they never re-type.
    */
-  function attachRun(log, { params = null, outcome } = {}) {
+  function attachRun(log, { params = null, outcome, keepChars = KEEP_STREAM_CHARS } = {}) {
     const cur = foldBuild(log);
     if (!cur) return log;
     return append(log, {
       kind: ENTRY_KINDS.RESULT,
       task_id: cur.task_id,
-      result: outcome,
+      result: keepStreams(outcome, keepChars),
       params,
     });
   }

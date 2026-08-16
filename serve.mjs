@@ -204,33 +204,55 @@ createServer((req, res) => {
     return;
   }
 
-  // POST /api/build-record — mirror one build-log entry to the durable
-  // record. The body limit is above /api/run's output cap because a result
-  // entry legitimately carries up to 64KB of stdout and stderr each.
+  // POST /api/build-record — mirror a batch of build-log entries (or one
+  // export event) to the durable record. A batch lands in one append block,
+  // in log order — the page also chains its batches per build, so the
+  // record's rows arrive in the order the acts happened. Each entry is
+  // validated independently; a refused entry lands as its own typed row and
+  // never blocks the valid ones around it. The body limit is above
+  // /api/run's output cap because a result entry legitimately carries run
+  // output (already held to the page's declared keep budget).
   if (req.method === "POST" && rel === "/api/build-record") {
     if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
     (async () => {
       const params = await readJsonBody(req, res, 256 * 1024);
       if (params === null) return json(res, 413, { error: "body too large" });
       if (params === false) return json(res, 400, { error: "bad json" });
-      const { conv = null, build = null, entry } = params ?? {};
+      const { conv = null, build = null, entries, export: exp } = params ?? {};
       const at = new Date().toISOString();
-      if (!entry || typeof entry !== "object") {
-        recordBuild({ at, event: "build-entry-refused", conv, build, reason: "no entry" });
-        return json(res, 400, { error: "no entry" });
+      // A download is a crossing — the fold leaving for the user's disk —
+      // recorded like any other.
+      if (exp && typeof exp === "object") {
+        recordBuild({ at, event: "build-export", conv, build, name: String(exp.name ?? ""), atSeq: exp.atSeq ?? null });
+        return json(res, 200, { ok: true });
       }
-      if (buildVocab) {
-        try {
-          buildVocab.append(buildVocab.createTaskLog(), entry);
-        } catch (e) {
-          recordBuild({ at, event: "build-entry-refused", conv, build, reason: e.message });
-          return json(res, 400, { error: e.message });
+      if (!Array.isArray(entries) || !entries.length) {
+        recordBuild({ at, event: "build-entry-refused", conv, build, reason: "no entries" });
+        return json(res, 400, { error: "no entries" });
+      }
+      let appended = 0;
+      let refused = 0;
+      for (const entry of entries) {
+        if (!entry || typeof entry !== "object") {
+          recordBuild({ at, event: "build-entry-refused", conv, build, reason: "not an object" });
+          refused += 1;
+          continue;
         }
-        recordBuild({ at, event: "build-entry", conv, build, entry });
-      } else {
-        recordBuild({ at, event: "build-entry", conv, build, entry, vocab: "unchecked" });
+        if (buildVocab) {
+          try {
+            buildVocab.append(buildVocab.createTaskLog(), entry);
+          } catch (e) {
+            recordBuild({ at, event: "build-entry-refused", conv, build, reason: e.message });
+            refused += 1;
+            continue;
+          }
+          recordBuild({ at, event: "build-entry", conv, build, entry });
+        } else {
+          recordBuild({ at, event: "build-entry", conv, build, entry, vocab: "unchecked" });
+        }
+        appended += 1;
       }
-      json(res, 200, { ok: true });
+      json(res, refused && !appended ? 400 : 200, { ok: !refused, appended, refused });
     })();
     return;
   }

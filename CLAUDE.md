@@ -369,16 +369,25 @@ ONLY, by user direction (2026-08-16). holon.js's plan log is untouched and
 still carries no operators.
 
 **Edges decided, not implied:** editor keystrokes are a persisted DRAFT
-(`entry.draft`), committed to a SUPERSEDE only when run — per-keypress
-entries would make the log a keylogger, and a draft is not yet an act.
-Identical code is churn, refused by `reviseBuild` (the entry would change no
-state). localStorage persists `log.entries` alone and restore REPLAYS them
-through the engine's `append` (a corrupt row throws and skips that build,
-never loads silently); the pre-log mutable shape migrates via `fromLegacy`
-to the honest floor — history that was never kept is not invented. The
-record mirror lives on serve.mjs only (the same server that runs builds);
-a page served from explore-server's 8812 reports the miss to the console,
-the same posture `/api/run` already has there.
+(`entry.draft`), committed to a SUPERSEDE when the draft runs OR when the
+editor is left (`commitDraft` in showView/openBuild) — per-keypress entries
+would make the log a keylogger, but a draft that never entered the log
+would be a second, hidden truth the panel and the download silently
+disagree with. The one residue: a reload mid-edit keeps the draft
+uncommitted until the editor is next left. Identical code is churn, refused
+by `reviseBuild` (the entry would change no state). Result entries keep run
+output to a declared budget (16K chars/stream, `kept/of` stated on the
+entry) because unbounded results would fail localStorage persistence
+silently. localStorage persists `log.entries` alone and restore REPLAYS
+them through the engine's `append` (a corrupt row throws and skips that
+build, never loads silently); the pre-log mutable shape migrates via
+`fromLegacy` to the honest floor — history that was never kept is not
+invented. The mirror batches each append-set in ONE request and chains
+batches per build, so record rows land in log order; downloads are recorded
+as `build-export` crossings. The record mirror lives on serve.mjs only (the
+same server that runs builds); a page served from explore-server's 8812
+reports the miss to the console, the same posture `/api/run` already has
+there.
 
 ## Skills (added 2026-08-16, third pass) — procedures kept as code
 

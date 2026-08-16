@@ -181,6 +181,24 @@ test("timeline labels are mechanical, one row per entry", () => {
   );
 });
 
+test("run output is kept to a declared budget, the drop stated on the entry, never silent", () => {
+  let log = buildLog.proposeBuild({ n: 7, turn: 1, seg: codeSeg, caption: "python" });
+  const big = "x".repeat(20_000);
+  log = buildLog.attachRun(log, {
+    params: { lang: "python" },
+    outcome: { ok: true, data: { code: 0, stdout: big, stderr: "small" } },
+    keepChars: 16_384,
+  });
+  const run = buildLog.foldBuild(log).lastRun;
+  assert.equal(run.data.stdout.length, 16_384);
+  assert.deepEqual(run.data.kept, { stdout: { kept: 16_384, of: 20_000 } });
+  // Under the budget nothing is touched and nothing claims to have been.
+  assert.equal(run.data.stderr, "small");
+  let small = buildLog.proposeBuild({ n: 8, turn: 1, seg: codeSeg, caption: "python" });
+  small = buildLog.attachRun(small, { outcome: { ok: true, data: { code: 0, stdout: "1\n", stderr: "" } } });
+  assert.equal(buildLog.foldBuild(small).lastRun.data.kept, undefined);
+});
+
 test("a legacy mutable build migrates to the honest floor: what was known becomes entries", () => {
   const log = buildLog.fromLegacy({
     n: 5,

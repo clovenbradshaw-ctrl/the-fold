@@ -1634,18 +1634,56 @@ const RUN_PARAMS = (lang) => ({ lang, timeoutMs: 10_000, maxOutput: 64 * 1024 })
 /**
  * Mirror every entry appended since `fromLen` to the durable record
  * (record/build-record.jsonl, via serve.mjs — validated there through the
- * engine's own append). The in-page log is primary; a mirror miss is
- * reported to the console, never a crash.
+ * engine's own append). One batch per append-set, chained per build, so rows
+ * land in the record in log order — an append-only record that could
+ * interleave out of seq order would not be one. The in-page log is primary;
+ * a mirror miss is reported to the console, never a crash.
  */
 function mirrorBuild(entry, fromLen) {
+  const batch = entry.log.entries.slice(fromLen);
+  if (!batch.length) return;
   const conv = state.convos[state.active]?.id ?? null;
-  for (const e of entry.log.entries.slice(fromLen)) {
+  const post = () =>
     fetch("/api/build-record", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ conv, build: entry.n, entry: e }),
+      body: JSON.stringify({ conv, build: entry.n, entries: batch }),
     }).catch((err) => console.warn(`build record not reachable (is serve.mjs running?): ${err.message}`));
+  entry.mirror = (entry.mirror ?? Promise.resolve()).then(post);
+}
+
+/** A download is a crossing — the fold leaving for the user's disk — and
+ * crossings are recorded (the same posture Explore's record holds). */
+function recordExport(entry, file, atSeq) {
+  const conv = state.convos[state.active]?.id ?? null;
+  fetch("/api/build-record", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ conv, build: entry.n, export: { name: file.name, atSeq } }),
+  }).catch(() => {
+    /* the download itself already succeeded; the record miss is the loss */
+  });
+}
+
+/**
+ * Commit the editor's draft: leaving the editor is an act, and an edit the
+ * log never saw would be a second, hidden truth — the builds panel and the
+ * download would show older bytes than the newest work. Keystrokes stay a
+ * draft only while the editor is the live pane; identical code just clears
+ * the draft (churn is refused one level down).
+ */
+function commitDraft(entry) {
+  if (!entry || entry.draft == null) return;
+  const draft = entry.draft;
+  entry.draft = null;
+  const before = entry.log.entries.length;
+  entry.log = buildLog.reviseBuild(entry.log, { code: draft, reason: "edit" });
+  if (entry.log.entries.length > before) {
+    entry.cursor = null;
+    mirrorBuild(entry, before);
+    renderBuilds(entry.n);
   }
+  persistBuilds();
 }
 
 async function runBuild(entry) {
@@ -1759,6 +1797,7 @@ function renderBuilds(highlight) {
       a.download = file.name;
       a.click();
       URL.revokeObjectURL(a.href);
+      recordExport(entry, file, entry.cursor ?? seqMax);
     };
     from.append(dl);
 
@@ -1835,6 +1874,9 @@ function renderBuilds(highlight) {
 let editorBuild = null;
 
 async function openBuild(entry) {
+  // Switching builds while another's draft is uncommitted: that draft is
+  // committed first — the same leaving-is-an-act rule showView enforces.
+  if (editorBuild && editorBuild !== entry) commitDraft(editorBuild);
   editorBuild = entry;
   await ensureEditor($("editor-host"));
   const fold = buildFold(entry, null);
@@ -2067,8 +2109,10 @@ function persistBuilds() {
       draft: draft ?? null,
     }));
     localStorage.setItem(BUILDS_KEY, JSON.stringify({ id: conv?.id, builds: data }));
-  } catch {
-    /* storage full or blocked — a build is not worth a crash */
+  } catch (e) {
+    // Not worth a crash, but never silent either: from here on a reload
+    // would lose builds, and that has to be visible somewhere.
+    console.warn(`builds not persisted (storage full or blocked): ${e.message}`);
   }
 }
 
@@ -2694,6 +2738,10 @@ $("material").addEventListener("change", addPasted);
 // with no tab of their own — they open from a build or from its control.
 
 function showView(name) {
+  // Leaving the editor is an act: an uncommitted draft becomes a SUPERSEDE
+  // on the way out, so the builds panel and the download never show older
+  // bytes than the newest work (commitDraft is a no-op when there is none).
+  if (name !== "editor") commitDraft(editorBuild);
   document.body.dataset.view = name;
   for (const t of document.querySelectorAll('[role="tab"]'))
     t.setAttribute("aria-selected", String(t.dataset.pane === name));

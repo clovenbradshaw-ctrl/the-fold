@@ -15,6 +15,9 @@ the corpora this instrument is for (surveillance records among them) make
 this the only acceptable arrangement.
 **Enforced:** `constitution.test.mjs` fails on any non-localhost host in any
 file the page loads.
+*Amended by P13 (2026-08-16, appended below): the Explore server carries one
+narrow, recorded egress — the web organ. Everything P1 says about the model,
+the page, and API keys stands unchanged.*
 
 ## P2 — The model is the mouth, and protocols are physics
 
@@ -181,6 +184,43 @@ Karenina and Leo Tolstoy as not-in-the-material on the record while the
 legitimate sentences attributed to Pierre's actual introduction chapter.
 **Enforced:** `provenance.test.mjs`, including the orthogonality case
 (cited AND striped), and the IV.4 row in `constitution.js`'s map.
+
+## P13 — The web organ: one sanctioned egress, recorded, with a clearable store
+
+P1's "no request leaves the machine" is amended, not repealed: the model
+still has no hosted path, the page still loads nothing remote, and no
+API-key path exists. What is added — at the user's direction, 2026-08-16 —
+is ONE egress, in the local server only (`explore-server.mjs` `/api/web/*`,
+pure half in `web.js`), to exactly three destinations, each by explicit
+user action: the no-key search endpoint for a typed query; the one page a
+request names (never a crawl — subresources are not fetched); and
+`web.archive.org`'s Save Page Now, only while the archive setting is on
+(default off — a fetch is private, the archive crossing is not). Every
+crossing lands in the append-only record before or as it resolves.
+
+What a fetch keeps is the WHOLE page, not a bookmark: raw bytes and the
+extracted readable face, content-addressed under `web/pages/`, indexed by
+`web/history.jsonl` with the retrieval date; salience is served by the fold
+over the saved text, never by truncating what is saved. The history store
+is the one deliberately clearable thing this server owns — the user may
+empty it, per entry or entirely — and the clearing is itself a record
+event: the pages can be deleted; that they were read cannot. Upstream
+refusals are typed, never silent: the search endpoint's bot-challenge page
+is `refused-upstream`, an intermediary's error body is off-endpoint (a
+failed search, not an empty one), and a host's challenge interstitial is
+marked on the entry it produced.
+
+**Evidence:** the live build measurements of 2026-08-16 — DuckDuckGo's
+anomaly page from a distrusted address, a proxy's 200 "upstream connect
+error" body that would otherwise have shipped as "the web had nothing",
+and britannica.com's "Just a moment..." interstitial (5.7KB, zero readable
+chars) — each now a pinned fixture or case.
+**Enforced:** `web.test.mjs` — extraction (including the quote-aware tag
+walk the Wikipedia fixture forced), both search faces plus the blocked and
+off-endpoint refusals, the history fold's patch-by-id and clear semantics,
+archive-address naming, and the seam test: `explore/explore.js`,
+`explore.html`, and `explore-bridge.js` still reference no non-local host,
+same rule II.13 pins for the Converse page.
 
 ---
 

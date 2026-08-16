@@ -48,6 +48,11 @@ import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
 import { attribute, attributedRefs } from "./cite.js";
 
+// The reading engine's own segment organ, served from /engine (see serve.mjs).
+// Boundaries are found by form there and received here — this app does not
+// know what a chapter is and must not learn.
+import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
+
 import {
   buildSourceBlock,
   checkCitations,
@@ -948,8 +953,26 @@ function addSource(name, text) {
   state.sources[name] = text;
   state.chunks = state.chunks
     .filter((c) => c.source !== name)
-    .concat(chunkSource(name, text));
+    .concat(chunkSource(name, text, { boundaries: discoverBoundaries(text) }));
   renderSources();
+}
+
+/**
+ * The document's own structure, or nothing.
+ *
+ * A gap is a result: fewer than two boundaries is `no_structural_boundaries_
+ * detected`, and the honest response is to fall back to paragraphs rather than
+ * to lower the bar until something is found. A spreadsheet has no headings and
+ * is not asked.
+ */
+function discoverBoundaries(text) {
+  try {
+    const out = outlineOfIndex(lineIndex(text), { max: 5000 });
+    if (out.gap || out.headings.length < 2) return null;
+    return out.headings.map((h) => ({ start: h.start, end: h.end, label: h.label }));
+  } catch {
+    return null;
+  }
 }
 
 function removeSource(name) {

@@ -322,3 +322,42 @@ test("container boilerplate is not material", () => {
   // P5.2: the address still names bytes in the file as it sits on disk.
   assert.equal(readRange({ "book.txt": doc }, chunks[0].ref).trim(), chunks[0].text);
 });
+
+test("a document is cut at its own boundaries when it has them", () => {
+  // Boundaries are received, never found here: this module does not know the
+  // word "chapter" and must not learn it.
+  const doc =
+    "CHAPTER I\n\nThe first chapter's body, long enough to be admitted here.\n\n" +
+    "CHAPTER II\n\nThe second chapter's body, also long enough to be admitted.\n";
+  const boundaries = [
+    { start: 0, end: doc.indexOf("CHAPTER II"), label: "CHAPTER I" },
+    { start: doc.indexOf("CHAPTER II"), end: doc.length, label: "CHAPTER II" },
+  ];
+  const chunks = chunkSource("book.txt", doc, { boundaries });
+  assert.equal(chunks.length, 2);
+  assert.deepEqual(chunks.map((c) => c.label), ["CHAPTER I", "CHAPTER II"]);
+  // The label is searchable, so "chapter ii" finds the chapter.
+  assert.equal(retrieve(chunks, "chapter ii")[0].label, "CHAPTER II");
+  // And every address still names the bytes it claims.
+  for (const c of chunks)
+    assert.equal(readRange({ "book.txt": doc }, c.ref).trim(), c.text);
+});
+
+test("a long segment splits inside itself and keeps its label", () => {
+  const para = "A paragraph of the chapter, long enough to matter. ".repeat(30);
+  const doc = `CHAPTER I\n\n${para}\n\n${para}\n\n${para}\n`;
+  const chunks = chunkSource("book.txt", doc, {
+    boundaries: [{ start: 0, end: doc.length, label: "CHAPTER I" }],
+  });
+  assert.ok(chunks.length > 1, "a chapter larger than the reach is split");
+  assert.ok(chunks.every((c) => c.label === "CHAPTER I"), "the label travels");
+  for (const c of chunks)
+    assert.equal(readRange({ "book.txt": doc }, c.ref).trim(), c.text);
+});
+
+test("no boundaries means paragraphs, not an invented structure", () => {
+  const doc = "First paragraph, long enough to be admitted.\n\nSecond paragraph, also long enough.";
+  const chunks = chunkSource("plain.txt", doc, { boundaries: null });
+  assert.equal(chunks.length, 2);
+  assert.ok(chunks.every((c) => !c.label));
+});

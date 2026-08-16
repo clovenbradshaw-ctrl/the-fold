@@ -38,7 +38,17 @@ export function tokenize(text) {
     // survive, which means the last word of a sentence arrives as "bolo." and
     // matches nothing. Trim them at the edges only.
     .map((t) => t.replace(/^[.\-]+|[.\-]+$/g, ""))
-    .filter((t) => t.length > 2 && !STOPWORDS.has(t));
+    // Short tokens are noise — except numerals, which are form rather than
+    // vocabulary and are exactly what a document numbers its own parts with.
+    // Without this "chapter ii" cannot find CHAPTER II, and half a book's
+    // labels (II, IV, VI, IX, XI) are unaddressable. "i" stays out: it is in
+    // the stopword list as a pronoun, which is what it almost always is.
+    .filter((t) => (t.length > 2 || isNumeral(t)) && !STOPWORDS.has(t));
+}
+
+/** A numeral by shape: digits, or roman. The engine's own test, not a list. */
+function isNumeral(t) {
+  return /^\d+$/.test(t) || /^[ivxlcdm]+$/.test(t);
 }
 
 /**
@@ -66,13 +76,102 @@ export function stripContainer(text) {
   return { text: body, offset };
 }
 
-export function chunkSource(name, text) {
+/**
+ * `boundaries` are the document's own structure, found by form and handed in:
+ * `[{ start, end, label }]` in the coordinates of the file as it sits on disk.
+ *
+ * They are RECEIVED, never discovered here. Finding where one stretch of a
+ * source ends is the segments organ's job in eoreader6, and it earns that
+ * boundary from the material's own shape — a short line, followed by a blank
+ * line, numbered or roman-numeraled or all-caps, with substance beneath it.
+ * This module does not know the word "chapter" and must not learn it: a
+ * heading is form, not vocabulary, and a source that numbers its movements or
+ * its letters or its exhibits gets segmented exactly as well as a novel does.
+ *
+ * A passage cut at a blank line is a paragraph and nothing more. A passage cut
+ * at a discovered boundary is the unit the document itself claims — which is
+ * what a reader means by "the chapter where", and what an address should name.
+ */
+export function chunkSource(name, text, { boundaries } = {}) {
   if (looksDelimited(name, text)) return chunkRows(name, text);
   // The addresses stay true to the file as it sits on disk: the container is
   // skipped, not renumbered.
   const { text: body, offset } = stripContainer(text);
+  if (boundaries?.length) return chunkByBoundaries(name, text, boundaries, offset);
   if (offset) return chunkProse(name, body, offset);
   return chunkProse(name, text, 0);
+}
+
+/**
+ * One passage per discovered segment, each carrying the label the document
+ * gave it. A segment that runs past the reach of one passage is split at
+ * paragraph breaks inside itself, and every piece keeps the segment's label so
+ * a reader can still tell which chapter a fragment came from — the label
+ * travels, the boundary is never invented.
+ */
+const SEGMENT_MAX_CHARS = 4000;
+
+function chunkByBoundaries(name, text, boundaries, containerOffset) {
+  const chunks = [];
+  for (const b of boundaries) {
+    // Anything before the first boundary is the preamble; the container strip
+    // has already dropped what it can, and what remains is still addressable.
+    if (b.end <= containerOffset) continue;
+    const start = Math.max(b.start, containerOffset);
+    const body = text.slice(start, b.end);
+    if (body.trim().length < 20) continue;
+
+    if (body.length <= SEGMENT_MAX_CHARS) {
+      chunks.push(makeChunk(name, text, start, b.end, b.label));
+      continue;
+    }
+    // Split inside the segment at blank lines, never mid-paragraph: take
+    // paragraphs until the next one would overrun the reach, then cut at the
+    // last break that still fits. Waiting for a break PAST the limit is how
+    // this first went wrong — with paragraphs longer than a fifth of the
+    // reach, the next break never arrives and the whole chapter stays one
+    // passage.
+    const rel = text.slice(start, b.end);
+    const breaks = [];
+    const re = /\n\s*\n/g;
+    let m;
+    while ((m = re.exec(rel))) breaks.push({ at: m.index, next: re.lastIndex });
+    breaks.push({ at: rel.length, next: rel.length });
+
+    let from = 0;
+    let lastFit = null;
+    for (const br of breaks) {
+      if (br.at - from <= SEGMENT_MAX_CHARS) {
+        lastFit = br;
+        continue;
+      }
+      // This break overruns. Cut at the last one that fit; if none did, the
+      // paragraph itself is larger than the reach and is kept whole rather
+      // than cut mid-sentence.
+      const cut = lastFit ?? br;
+      chunks.push(makeChunk(name, text, start + from, start + cut.at, b.label));
+      from = cut.next;
+      lastFit = null;
+      if (br.at - from <= SEGMENT_MAX_CHARS) lastFit = br;
+    }
+    if (from < rel.length) chunks.push(makeChunk(name, text, start + from, b.end, b.label));
+  }
+  return chunks;
+}
+
+function makeChunk(name, text, start, end, label) {
+  const body = text.slice(start, end);
+  return {
+    source: name,
+    start,
+    end,
+    text: body.trim(),
+    label: label ?? null,
+    ref: `${name}#${start}-${end}`,
+    // The label is part of what the passage says it is, so it is searchable
+    // too — "chapter xviii" should find the chapter.
+    terms: new Set([...tokenize(body), ...tokenize(label ?? "")]),
+  };
 }
 
 function chunkProse(name, text, base) {

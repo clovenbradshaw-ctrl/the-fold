@@ -15,6 +15,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { createReadStream, statSync } from "node:fs";
 
 const ROOT = resolve(import.meta.dirname);
+const ENGINE = resolve(ROOT, "..", "eoreader6", "packages", "engine");
 const PORT = Number(process.argv[2] ?? 8811);
 
 const TYPES = {
@@ -34,10 +35,22 @@ createServer((req, res) => {
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
   let file = join(ROOT, rel === "/" ? "index.html" : rel);
 
-  // Never serve outside the directory, whatever the path claims to be.
-  if (!file.startsWith(ROOT)) {
+  // Never serve outside the directory (or the engine mount), whatever the
+  // path claims to be.
+  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE)) {
     res.writeHead(403).end("no");
     return;
+  }
+
+  // The reading engine is used, not copied. /engine/* serves eoreader6's
+  // packages/engine so the page imports the real organs — one source of truth
+  // for how a boundary is found, and no vendored fork to drift.
+  if (rel.startsWith("/engine/")) {
+    file = join(ENGINE, rel.slice("/engine/".length));
+    if (!file.startsWith(ENGINE)) {
+      res.writeHead(403).end("no");
+      return;
+    }
   }
 
   let stat;

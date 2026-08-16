@@ -54,6 +54,9 @@ const state = {
   grid: null, // TERRAIN_GRID from the read's Paradigm surface
   bcIndex: null, // Uint32Array: byte offset of each char index
   lenses: JSON.parse(localStorage.getItem("fold-explore-lenses") ?? "[]"),
+  // the web view's own state — q survives view switches; history/settings
+  // are server truth, reloaded whenever set back to null
+  web: { q: "", settings: null, results: null, busy: null, fetched: null, history: null, historyLoading: false },
 };
 
 // The nine, in canon order, so the cube renders before any read has run.
@@ -301,6 +304,7 @@ function renderHeaderline() {
 // the legend for whoever wants it — it never fronts the instrument.
 const VIEW_LABEL = {
   Desk: "files",
+  Web: "web",
   Field: "source",
   Entity: "cast",
   Link: "relations",
@@ -315,7 +319,8 @@ const VIEW_LABEL = {
 /** The views that have earned a place right now, in reveal order, with counts. */
 function visibleViews() {
   const T = state.read?.terrains;
-  const out = [{ id: "Desk" }]; // the files view is always a place to stand
+  // files and web are always places to stand; web carries its history count
+  const out = [{ id: "Desk" }, { id: "Web", n: state.web.history?.entries?.length || undefined }];
   if (state.source) out.push({ id: "Field" });
   if (T?.Entity?.referents?.length) out.push({ id: "Entity", n: T.Entity.referents.length });
   if (T?.Link?.total) out.push({ id: "Link", n: T.Link.total });
@@ -521,6 +526,10 @@ function renderSurface() {
   // A lens restores the view it was saved FROM — saving while looking at the
   // lens list must not save "the lens list" as the destination.
   if (state.terrain !== "Lens") state.lastContentTerrain = state.terrain;
+  if (state.terrain === "Web") {
+    renderWeb(surface);
+    return;
+  }
   if (!state.source || state.terrain === "Desk") {
     renderBrowse(surface);
     return;
@@ -780,6 +789,278 @@ async function renderBrowse(surface) {
     .on("stop", () => paintSelection());
   paintSelection();
 }
+
+// ── the web view: the web organ's face ──────────────────────────────────────
+// Search, read, and a page history that is NOT the materials strip: it looks
+// like browser history (a visit per row, grouped by day) but each row HOLDS
+// the page — full content saved at its retrieval date, openable as an
+// ordinary source with the whole reading pipeline, until the user clears it.
+// This page itself still fetches nothing remote (web.test.mjs pins that):
+// every crossing happens in the local server and lands in the record. The
+// only external references rendered are LINKS the user may choose to follow
+// in their own browser — navigation by hand, never a load by this page.
+
+async function loadWebHistory() {
+  const W = state.web;
+  if (W.historyLoading) return;
+  W.historyLoading = true;
+  try {
+    const h = await api("/api/web/history");
+    W.history = h;
+    W.settings = h.settings;
+  } catch (e) {
+    W.history = { entries: [], total: 0, gap: e.message };
+  }
+  W.historyLoading = false;
+  renderAll();
+  // an archive submission lands as a later patch line — poll while one is pending
+  if (W.history?.entries?.some((en) => en.archive?.status === "pending")) {
+    clearTimeout(W._pollTimer);
+    W._pollTimer = setTimeout(() => {
+      if (state.terrain === "Web") {
+        W.history = null;
+        renderAll();
+      }
+    }, 15000);
+  }
+}
+
+async function doWebSearch(query) {
+  const W = state.web;
+  W.busy = `searching for "${query}"…`;
+  W.results = null;
+  W.fetched = null;
+  renderAll();
+  try {
+    W.results = await api("/api/web/search", { method: "POST", body: JSON.stringify({ query }) });
+  } catch (e) {
+    W.results = { gap: { silence: "not-present", detail: e.message } };
+  }
+  W.busy = null;
+  renderAll();
+}
+
+async function doWebFetch(url) {
+  const W = state.web;
+  W.busy = `reading ${url} — full content will be kept in history…`;
+  W.fetched = null;
+  renderAll();
+  try {
+    W.fetched = await api("/api/web/fetch", { method: "POST", body: JSON.stringify({ url }) });
+  } catch (e) {
+    W.fetched = { gap: { silence: "not-present", detail: e.message } };
+  }
+  W.busy = null;
+  W.history = null; // the visit just landed — refold from the server
+  renderAll();
+}
+
+const openHistoryEntry = (e) => {
+  const p = e.textPath ?? e.rawPath;
+  if (p) openSource(p);
+};
+
+function renderWeb(surface) {
+  const W = state.web;
+  note(surface, "shown", "requests leave this machine only from the local server, one per explicit ask, each recorded — and every page read is kept whole below, at its retrieval date, until you clear it");
+
+  // ── the omnibox: an address reads a page, anything else searches ────────
+  const bar = el("div", "web-bar");
+  const box = el("input", "web-omni");
+  box.type = "text";
+  box.placeholder = "search the web, or paste an address to read a page";
+  box.value = W.q;
+  box.oninput = () => {
+    W.q = box.value;
+  };
+  const submit = () => {
+    const q = box.value.trim();
+    if (!q || W.busy) return;
+    W.q = q;
+    if (/^https?:\/\//i.test(q) || /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(q)) doWebFetch(q);
+    else doWebSearch(q);
+  };
+  box.onkeydown = (e) => {
+    if (e.key === "Enter") submit();
+  };
+  const go = el("button", "web-go", "go");
+  go.onclick = submit;
+  bar.appendChild(box);
+  bar.appendChild(go);
+  surface.appendChild(bar);
+
+  // ── the archive switch — the one setting, server truth ──────────────────
+  const sw = el("label", "web-setting");
+  const cb = el("input");
+  cb.type = "checkbox";
+  cb.checked = !!W.settings?.archiveOrg;
+  cb.disabled = W.settings === null;
+  cb.onchange = async () => {
+    W.settings = await api("/api/web/settings", { method: "POST", body: JSON.stringify({ archiveOrg: cb.checked }) });
+    renderAll();
+  };
+  sw.appendChild(cb);
+  sw.append(" also submit each page to archive.org (Wayback Machine) — a stable public snapshot linked from history. Off means a read stays between this machine and the site.");
+  surface.appendChild(sw);
+
+  if (W.busy) surface.appendChild(el("div", "web-busy", W.busy));
+
+  // ── search results ───────────────────────────────────────────────────────
+  const R = W.results;
+  if (R?.gap) {
+    gapFace(surface, R.gap.silence ?? "gap", ` ${R.gap.detail ?? ""}`);
+  } else if (R) {
+    const list = el("div", "web-results");
+    list.appendChild(el("div", "web-results-head", `${R.shown} of ${R.found} results · ${R.engine}${R.truncated ? " · the rest beyond the declared cap" : ""}`));
+    for (const r of R.results) {
+      const row = el("div", "web-result");
+      const t = el("button", "web-result-title", r.title || r.url);
+      t.title = "read this page here — its full content is saved to history";
+      t.onclick = () => doWebFetch(r.url);
+      row.appendChild(t);
+      const meta = el("div", "web-result-url");
+      meta.append(r.url + " ");
+      const ext = el("a", "web-ext", "↗");
+      ext.href = r.url;
+      ext.target = "_blank";
+      ext.rel = "noopener noreferrer";
+      ext.title = "open in your own browser — leaves this instrument";
+      meta.appendChild(ext);
+      row.appendChild(meta);
+      if (r.snippet) row.appendChild(el("div", "web-result-snip", r.snippet));
+      list.appendChild(row);
+    }
+    surface.appendChild(list);
+  }
+
+  // ── the page just read: salience up front, the whole page behind it ─────
+  const F = W.fetched;
+  if (F?.gap) {
+    gapFace(surface, F.gap.silence ?? "gap", ` ${F.gap.detail ?? ""}`);
+  } else if (F?.entry) {
+    const e = F.entry;
+    const card = el("div", "web-fetched");
+    const head = el("div", "web-fetched-head");
+    const t = el("button", "web-fetched-title", e.title || e.finalUrl);
+    t.title = "open the saved page — the full reading pipeline runs on it";
+    t.onclick = () => openHistoryEntry(e);
+    head.appendChild(t);
+    head.appendChild(el("span", "muted", ` ${hostOfUrl(e.finalUrl)} · ${fmtBytes(e.bytes)} saved · retrieved ${e.retrievedAt.slice(0, 16).replace("T", " ")}Z`));
+    card.appendChild(head);
+    if (e.challenge) {
+      card.appendChild(el("div", "web-warn", "this host answered with a bot-challenge page, not the article — the bytes are saved as they arrived"));
+    }
+    if (F.fold?.lines?.length) {
+      card.appendChild(el("div", "web-salient-head", `what's salient — a fold of the whole page, kept ${F.fold.kept} of ${F.fold.of} sentences (verbatim, addressed; the whole page is what history keeps)`));
+      for (const l of F.fold.lines) {
+        const line = el("button", "web-salient-line", l.text.length > 300 ? `${l.text.slice(0, 299)}…` : l.text);
+        line.title = `chars ${l.charStart}–${l.charEnd} of the saved page — click to land there`;
+        line.onclick = () => openSource(e.textPath, { focus: { c0: l.charStart, c1: l.charEnd, why: "salient line" } });
+        card.appendChild(line);
+      }
+    } else if (F.fold?.gap) {
+      card.appendChild(el("div", "muted", `no fold: ${F.fold.gap.silence ?? F.fold.gap.reason} — ${F.fold.gap.detail ?? ""}`));
+    }
+    surface.appendChild(card);
+  }
+
+  // ── page history: browser-shaped, but it holds the pages ────────────────
+  const H = W.history;
+  const hist = el("div", "web-history");
+  const hh = el("div", "web-history-head");
+  hh.appendChild(el("h3", null, "page history"));
+  if (H?.entries?.length) {
+    const refresh = el("button", "linkish", "refresh");
+    refresh.style.textDecoration = "none";
+    refresh.onclick = () => {
+      W.history = null;
+      renderAll();
+    };
+    hh.appendChild(refresh);
+    const clear = el("button", "web-clear", "clear history");
+    clear.title = "removes every saved page and its history row; the append-only record keeps the fact that reads happened";
+    clear.onclick = async () => {
+      if (!confirm(`Clear ${H.entries.length} entr${H.entries.length === 1 ? "y" : "ies"} and delete the saved pages?`)) return;
+      await api("/api/web/clear", { method: "POST", body: JSON.stringify({}) });
+      W.history = null;
+      W.fetched = null;
+      renderAll();
+    };
+    hh.appendChild(clear);
+  }
+  hist.appendChild(hh);
+
+  if (H === null) {
+    loadWebHistory();
+    hist.appendChild(el("div", "muted", "loading history…"));
+  } else if (H.gap) {
+    hist.appendChild(el("div", "muted", `history unavailable: ${H.gap}`));
+  } else if (!H.entries.length) {
+    hist.appendChild(el("div", "muted", "no pages read yet — each read lands here with its retrieval date and its full content, until you clear it"));
+  } else {
+    const today = new Date().toISOString().slice(0, 10);
+    let day = "";
+    for (const e of H.entries) {
+      const d = String(e.retrievedAt ?? "").slice(0, 10);
+      if (d !== day) {
+        day = d;
+        hist.appendChild(el("div", "wh-day", d === today ? `today — ${d}` : d));
+      }
+      const row = el("div", "wh-row");
+      row.appendChild(el("span", "wh-time", String(e.retrievedAt ?? "").slice(11, 16)));
+      row.appendChild(el("span", `wh-dot${e.challenge ? " warn" : ""}`, e.challenge ? "⚠" : "◍"));
+      const t = el("button", "wh-title", e.title || e.finalUrl || e.url);
+      t.title = `open the saved page (retrieved ${e.retrievedAt}) — the full content, not a bookmark`;
+      t.onclick = () => openHistoryEntry(e);
+      row.appendChild(t);
+      row.appendChild(el("span", "wh-host", hostOfUrl(e.finalUrl ?? e.url)));
+      row.appendChild(el("span", "wh-size", `${fmtBytes(e.bytes)} kept`));
+      if (e.archive?.status === "saved") {
+        const a = el("a", "wh-arch", "archived ↗");
+        a.href = e.archive.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.title = `stable snapshot: ${e.archive.url}`;
+        row.appendChild(a);
+      } else if (e.archive?.status === "pending") {
+        row.appendChild(el("span", "wh-arch pending", "archiving…"));
+      } else if (e.archive?.status === "failed") {
+        const s = el("span", "wh-arch failed", "archive failed");
+        s.title = e.archive.detail ?? "";
+        row.appendChild(s);
+      }
+      if (e.rawPath && e.rawPath !== e.textPath) {
+        const raw = el("button", "linkish wh-raw", "html");
+        raw.style.textDecoration = "none";
+        raw.title = "the bytes as they arrived, before extraction";
+        raw.onclick = () => openSource(e.rawPath);
+        row.appendChild(raw);
+      }
+      const x = el("button", "wh-x", "✕");
+      x.title = "clear this entry and its saved page";
+      x.onclick = async () => {
+        await api("/api/web/clear", { method: "POST", body: JSON.stringify({ id: e.id }) });
+        W.history = null;
+        renderAll();
+      };
+      row.appendChild(x);
+      hist.appendChild(row);
+    }
+    if (H.skipped) hist.appendChild(el("div", "muted", `${H.skipped} unreadable line${H.skipped === 1 ? "" : "s"} in the index — counted, not hidden`));
+    hist.appendChild(el("div", "web-history-foot", `the index is ${H.path} — saved pages open as ordinary sources with the whole reading pipeline; clearing deletes them, while the append-only record keeps that the reads happened`));
+  }
+  surface.appendChild(hist);
+}
+
+// hostOf, duplicated tiny from web.js — that module is the server's half;
+// the page keeps its own three lines rather than importing across the seam.
+const hostOfUrl = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url ?? "";
+  }
+};
 
 // ---- Field — Structure·Ground: the raw layout, zero inference -------------
 function renderField(surface) {

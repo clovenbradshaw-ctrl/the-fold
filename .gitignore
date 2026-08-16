@@ -8,3 +8,4 @@ node_modules/
 # materials live with the machine that produced them, not with the code
 record/
 materials/
+web/

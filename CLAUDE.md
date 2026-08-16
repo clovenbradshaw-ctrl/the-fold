@@ -185,6 +185,49 @@ that should confirm it.
 
 ---
 
+## The web organ (added 2026-08-16) — what was decided, so it is not re-derived
+
+Web search and page reading exist, as P13's one sanctioned egress (POLICIES
+P13 amends P1 — read it before touching any of this). The split is strict:
+**`web.js` is pure** (extraction, both DuckDuckGo faces, the history fold,
+archive-address naming — all tested offline against captured fixtures in
+`eval/fixtures/`), **`explore-server.mjs` owns the network** (`/api/web/
+search|fetch|history|settings|clear`), and **the browser page still fetches
+nothing remote** — `web.test.mjs`'s seam test scans explore.js/explore.html/
+explore-bridge.js exactly the way II.13 scans the Converse files. Archive
+links in the UI are anchors built from server data, user-followed, never
+page-loaded.
+
+**A fetch keeps everything.** Raw bytes AND the extracted readable face land
+content-addressed (sha256) in `web/pages/`; the visit lands in
+`web/history.jsonl` with its retrieval date. Salience is `foldExtract` over
+the whole saved text (kept-of-N declared) — finding what matters never
+shrinks what is kept. Saved pages are ordinary sources: opening one from
+history runs the full reading pipeline. Re-fetching identical content
+stores one copy (content addressing) but each visit is its own history row
+— browser-history semantics, except the rows hold the pages.
+
+**history.jsonl is a fold, and clearable.** Append-only in operation (the
+deferred archive.org result patches by id — SPN routinely takes a minute
+the fetch response must not wait for), clearable by decision (per entry or
+all; files deleted only when no kept entry names them). The clearing is a
+record event: `web/` is the user's to empty, `record/` is not. web/ is
+gitignored like record/ and materials/.
+
+**The UI is the "web" view** (always present, next to "files") — omnibox
+(address reads, anything else searches), the archive.org toggle (server
+truth, default off), salient-lines card, then history grouped by day:
+time · title · host · size kept · archive state · html · ✕. Deliberately
+NOT the materials strip and NOT the desk tiles.
+
+**Refusals stay typed** — measured live while building: DDG's anomaly page
+→ `refused-upstream`; a proxy's 200 "upstream connect error" body →
+off-endpoint (a failed search, never "the web had nothing"); britannica's
+Cloudflare "Just a moment..." → `challenge: true` on the entry, bytes still
+saved, ⚠ in history. And the extraction lesson: attribute values legally
+contain ">" (Wikipedia's data-mw JSON), so every tag regex in web.js walks
+quoted values — the naive `[^>]*` leaked half an infobox into the text face.
+
 ## The holonic layer, and its one known deviation
 
 `holon.js` runs a task as parts: plan (shape enforced by decoding grammar,
@@ -246,7 +289,7 @@ pass (render.js stays table-free per the app.js contract).
 
 ## Skills (added 2026-08-16, third pass) — procedures kept as code
 
-P13 in POLICIES.md is the law; this is the map. The ask this answers: when
+P14 in POLICIES.md is the law; this is the map. The ask this answers: when
 the fold has worked out how to make a kind of output once, the *how* must not
 stay locked in prose or in a model's habits — it becomes an executable
 program the instrument calls, and the model's remaining job is slot-filling.

@@ -439,3 +439,72 @@ dialog {
 dialog::backdrop { background: rgb(0 0 0 / 0.35); }
 dialog h2 { margin: 0 0 8px; font-size: 15px; }
 #record-tail { font: 11px/1.5 var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* ── the web view ─────────────────────────────────────────────────────────
+   Browser-shaped history, deliberately unlike the materials strip and the
+   desk tiles: a visit per row, grouped by day — except each row holds the
+   page itself. */
+.web-bar { display: flex; gap: 8px; margin-bottom: 10px; max-width: 720px; }
+.web-omni {
+  flex: 1; font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px;
+}
+.web-omni:focus { outline: none; border-color: var(--accent); }
+.web-go { border-radius: 9px; padding: 7px 16px; }
+.web-setting { display: block; font-size: 12px; color: var(--muted); margin-bottom: 14px; max-width: 720px; }
+.web-setting input { vertical-align: -2px; margin-right: 6px; accent-color: var(--accent); }
+.web-busy { font-size: 12.5px; color: var(--accent); margin: 10px 0; }
+.web-warn { font-size: 12px; color: var(--warn); margin: 6px 0; }
+
+.web-results { max-width: 720px; margin-bottom: 18px; }
+.web-results-head { font-size: 11.5px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+.web-result { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.web-result-title {
+  display: block; border: none; background: none; padding: 0; text-align: left;
+  font-size: 14.5px; font-weight: 600; color: var(--accent); cursor: pointer;
+}
+.web-result-title:hover { text-decoration: underline; }
+.web-result-url { font: 11px/1.5 var(--mono); color: var(--ok); word-break: break-all; }
+.web-result-snip { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.web-ext { color: var(--muted); text-decoration: none; font-size: 12px; }
+.web-ext:hover { color: var(--accent); }
+
+.web-fetched { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; max-width: 760px; background: var(--panel); }
+.web-fetched-head { margin-bottom: 6px; }
+.web-fetched-title { border: none; background: none; padding: 0; font-size: 15px; font-weight: 700; color: var(--ink); cursor: pointer; text-align: left; }
+.web-fetched-title:hover { color: var(--accent); }
+.web-fetched-head .muted { font-size: 12px; }
+.web-salient-head { font-size: 11.5px; color: var(--muted); margin: 8px 0 4px; }
+.web-salient-line {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  font: 13.5px/1.55 var(--serif); color: var(--ink); padding: 3px 6px; border-radius: 6px; cursor: pointer;
+}
+.web-salient-line:hover { background: var(--accent-soft); }
+.web-salient-line + .web-salient-line { border-top: 1px solid var(--line); }
+
+.web-history { max-width: 860px; }
+.web-history-head { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.web-history-head h3 { font-size: 13px; margin: 0; flex: 1; }
+.web-clear { font-size: 12px; color: var(--warn); }
+.wh-day { font: 11px/1 var(--mono); color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; margin: 14px 0 4px; }
+.wh-row { display: flex; align-items: baseline; gap: 10px; padding: 5px 6px; border-radius: 7px; }
+.wh-row:hover { background: var(--accent-soft); }
+.wh-time { font: 11px/1 var(--mono); color: var(--muted); flex: none; width: 34px; }
+.wh-dot { flex: none; color: var(--accent); font-size: 11px; }
+.wh-dot.warn { color: var(--warn); }
+.wh-title {
+  border: none; background: none; padding: 0; text-align: left; cursor: pointer;
+  font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1 1 auto; min-width: 0;
+}
+.wh-title:hover { color: var(--accent); text-decoration: underline; }
+.wh-host { font: 11px/1 var(--mono); color: var(--ok); flex: none; }
+.wh-size { font: 11px/1 var(--mono); color: var(--muted); flex: none; }
+.wh-arch { font-size: 11px; color: var(--accent); text-decoration: none; flex: none; }
+.wh-arch:hover { text-decoration: underline; }
+.wh-arch.pending { color: var(--muted); font-style: italic; }
+.wh-arch.failed { color: var(--warn); }
+.wh-raw { flex: none; }
+.wh-x { border: none; background: none; padding: 0 4px; color: var(--muted); flex: none; }
+.wh-x:hover { color: var(--warn); }
+.web-history-foot { font-size: 10.5px; color: var(--muted); font-style: italic; margin-top: 14px; }

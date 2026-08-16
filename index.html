@@ -234,6 +234,30 @@
         padding: 8px 12px;
         display: inline-block;
       }
+      /* In the conversation an artifact is one line you can press; the thing
+         itself is in the panel, at the width it wants. */
+      .artifact-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin: 2px 0 10px;
+        font-size: 12.5px;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        text-align: left;
+      }
+      .artifact-entry { margin-bottom: 18px; }
+      .artifact-entry .artifact { margin-bottom: 0; }
+      .artifact-from {
+        margin: 0 0 5px;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+      }
+      .artifact-entry.current .artifact { border-color: var(--accent); }
+
       /* Artifacts: the answer rendered as the format it turned out to be. */
       .msg .body .prose { margin: 0 0 10px; white-space: pre-wrap; }
       .msg .body .prose:last-child { margin-bottom: 0; }
@@ -321,16 +345,37 @@
       }
       details.fold[open] summary::before { transform: rotate(90deg); }
       details.fold summary:hover { color: var(--accent); }
-      details.fold p {
-        margin: 5px 0 0;
+      details.fold > p,
+      details.fold > div {
+        margin: 6px 0 0;
+        border-left: 2px solid var(--accent);
+        padding-left: 10px;
+        overflow-wrap: anywhere;
+      }
+      .fold-line {
         font-family: var(--mono);
         font-size: 11.5px;
         line-height: 1.5;
         color: var(--muted);
-        border-left: 2px solid var(--accent);
-        padding-left: 9px;
-        overflow-wrap: anywhere;
       }
+      .fold-note {
+        margin: 6px 0 0;
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      .fold-section {
+        margin: 12px 0 4px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--accent);
+      }
+      details.fold .fields { font-size: 12.5px; }
+      details.fold .fields dt { margin-top: 6px; }
+      details.fold .record { margin: 0; font-size: 12px; }
+      details.fold details.fold { margin-top: 12px; }
+      details.fold details.fold > div { border-left: none; padding-left: 0; }
 
       .composer {
         border-top: 1px solid var(--line);
@@ -538,45 +583,21 @@
       <section class="col" id="col-panel">
         <nav class="tabs" role="tablist">
           <button role="tab" data-pane="chat" aria-selected="false" class="chat-tab">Chat</button>
-          <button role="tab" data-pane="prompt" aria-selected="true">
-            <span class="long">What the model sees</span><span class="short">Sent</span>
-          </button>
-          <button role="tab" data-pane="state" aria-selected="false">
-            <span class="long">Fold state</span><span class="short">Fold</span>
-          </button>
+          <button role="tab" data-pane="views" aria-selected="true">Views</button>
           <button role="tab" data-pane="material" aria-selected="false">Material</button>
         </nav>
         <div class="scroll">
-          <div class="pane on" id="pane-prompt">
-            <div class="meter">
-              <div class="row"><span>Full transcript</span><strong id="m-transcript">0</strong></div>
-              <div class="bar"><span id="bar-transcript" style="width: 0%"></span></div>
-              <div class="row"><span>Conversation carried this turn</span><strong id="m-prompt">0</strong></div>
-              <div class="bar"><span id="bar-prompt" style="width: 0%"></span></div>
-              <div class="row"><span id="m-ratio"></span></div>
+          <div class="pane on" id="pane-views">
+            <h2>Views <span id="artifact-count" class="tag"></span></h2>
+            <p class="note">
+              Output that isn't prose, kept at full size instead of squeezed
+              into the conversation. Whatever a turn produced — a table it
+              wrote, a table this app computed, code, a page — is here, newest
+              first.
+            </p>
+            <div id="artifact-list">
+              <p class="empty">Nothing but prose so far.</p>
             </div>
-            <h2>The exact messages of the last turn</h2>
-            <div id="prompt-dump"><p class="empty">Nothing sent yet.</p></div>
-          </div>
-
-          <div class="pane" id="pane-state">
-            <h2>System 1 — the running summary</h2>
-            <dl class="fields" id="summary"></dl>
-            <h2>Folds <span id="fold-count" class="tag"></span></h2>
-            <div id="folds"></div>
-            <h2>System 2 — on record</h2>
-            <p class="note">
-              Addressed, bounded, re-openable. Click a ref to read the exact
-              bytes back out of the material.
-            </p>
-            <div id="records"><p class="empty">No checked turns yet.</p></div>
-
-            <h2>The whole fold, as sent</h2>
-            <p class="note">
-              The two blocks verbatim — every character of conversation the
-              model is given this turn, and nothing else.
-            </p>
-            <div id="fold-blocks"><p class="empty">Nothing folded yet.</p></div>
           </div>
 
           <div class="pane" id="pane-material">

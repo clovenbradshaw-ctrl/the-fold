@@ -96,6 +96,8 @@ const state = {
    */
   muted: new Set(),
   chunks: [],
+  /** Everything a turn produced that wasn't prose, oldest first. */
+  artifacts: [],
   lastMessages: [],
   lastMaterialChars: 0,
 };
@@ -262,7 +264,7 @@ async function mechanicalTurn(question, kind) {
   const built = buildTable(kind, state);
   const answer = built ? toMarkdown(built.table) : NOTHING[kind];
   body.textContent = "";
-  if (built) body.append(artifactNode(built.table, built.caption));
+  if (built) body.append(publishArtifact(built.table, built.caption));
   else {
     const p = document.createElement("p");
     p.className = "prose";
@@ -274,16 +276,17 @@ async function mechanicalTurn(question, kind) {
     { role: "user", content: question },
     { role: "assistant", content: answer },
   );
-  const fold = mechanicalFoldLine(question, answer);
+  // Fold on what the turn produced, not on its markup. Folding the table's
+  // own text spends the whole hundred characters on pipes and dashes and says
+  // nothing about the turn — and this line is what a later turn reads.
+  const fold = mechanicalFoldLine(question, built ? built.caption : answer);
   state.turnFolds.push(fold);
   // No summary refresh either: this turn spent no tokens and there is no
   // reason for the bookkeeping to cost more than the answer did.
   state.summary = advanceSummaryFold(state.summary, fold);
 
-  node.querySelector(".fold p").textContent = fold;
+  renderFold(node, { fold });
   $("status").textContent = `ready · ${state.model}`;
-  renderState();
-  renderPrompt();
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
@@ -323,7 +326,6 @@ async function send(question) {
 
   addMessage("user", question);
   const node = addMessage("assistant", "");
-  renderPrompt();
 
   let answer = "";
   try {
@@ -349,19 +351,17 @@ async function send(question) {
   const { used, unsupported } = checkCitations(answer, passages);
   const turn = state.summary.turnCount + 1;
   const fold = mechanicalFoldLine(question, answer);
-  if (passages.length) {
-    state.summary = addWarrantRecord(
-      state.summary,
-      buildWarrantRecord({
+  const record = passages.length
+    ? buildWarrantRecord({
         turn,
         gist: fold,
         channels: used.length ? ["source"] : [],
         refs: used,
         unsupported,
         open: openQuestions(question, passages, used),
-      }),
-    );
-  }
+      })
+    : null;
+  if (record) state.summary = addWarrantRecord(state.summary, record);
 
   // System 1: the one model call the fold spends.
   state.turnFolds.push(fold);
@@ -392,11 +392,9 @@ async function send(question) {
   // Streaming shows raw text as it arrives; the artifact is built once the
   // answer is whole, because a half-written table is not a table yet.
   renderAnswer(node.querySelector(".body"), answer);
-  node.querySelector(".fold p").textContent = fold;
+  renderFold(node, { fold, record, sent: messages });
   renderEvidence(node, question, passages, used);
   $("status").textContent = `ready · ${state.model}`;
-  renderState();
-  renderPrompt();
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
@@ -445,7 +443,74 @@ function renderAnswer(body, answer) {
       body.append(p);
       continue;
     }
-    body.append(artifactNode(seg));
+    body.append(publishArtifact(seg));
+  }
+}
+
+/**
+ * An artifact goes to the panel, and the message keeps a handle to it.
+ *
+ * A table wide enough to be worth drawing does not fit the column a
+ * conversation is read in, and squeezing it there costs both — the table gets
+ * a scrollbar and the conversation gets a wall. The panel is the width the
+ * output wants; the chip is the sentence the conversation wants.
+ */
+function publishArtifact(seg, caption) {
+  const entry = {
+    n: state.artifacts.length + 1,
+    turn: state.summary.turnCount + 1,
+    seg,
+    caption: caption ?? defaultCaption(seg),
+  };
+  state.artifacts.push(entry);
+  renderArtifacts(entry.n);
+  // Wide, the panel is already on screen and switching it to the thing just
+  // made costs nothing. Narrow, the panel IS the screen, and yanking someone
+  // out of the conversation to show them a table they can reach with one tap
+  // is the wrong trade — the chip is enough.
+  if (!matchMedia("(max-width: 900px)").matches) showView("views");
+
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "artifact-chip";
+  chip.innerHTML = `<span aria-hidden="true">▤</span> `;
+  chip.append(document.createTextNode(entry.caption));
+  chip.onclick = () => {
+    showView("views");
+    renderArtifacts(entry.n);
+    document
+      .getElementById(`artifact-${entry.n}`)
+      ?.scrollIntoView({ block: "start" });
+  };
+  return chip;
+}
+
+function defaultCaption(seg) {
+  return seg.type === "table"
+    ? `table · ${seg.rows.length} row${seg.rows.length === 1 ? "" : "s"}`
+    : seg.lang || "code";
+}
+
+/** Newest first — the thing just produced is the thing being looked at. */
+function renderArtifacts(highlight) {
+  const list = $("artifact-list");
+  list.textContent = "";
+  $("artifact-count").textContent = state.artifacts.length
+    ? `${state.artifacts.length}`
+    : "";
+  if (!state.artifacts.length) {
+    list.innerHTML = '<p class="empty">Nothing but prose so far.</p>';
+    return;
+  }
+  for (const entry of [...state.artifacts].reverse()) {
+    const wrap = document.createElement("div");
+    wrap.id = `artifact-${entry.n}`;
+    wrap.className = `artifact-entry${entry.n === highlight ? " current" : ""}`;
+    const from = document.createElement("p");
+    from.className = "artifact-from";
+    from.textContent = `turn ${entry.turn}`;
+    wrap.append(from, artifactNode(entry.seg, entry.caption));
+    list.append(wrap);
   }
 }
 
@@ -535,159 +600,144 @@ function artifactNode(seg, caption) {
   return art;
 }
 
-function renderPrompt() {
-  const dump = $("prompt-dump");
-  dump.textContent = "";
-  for (const m of state.lastMessages) {
-    const pre = document.createElement("pre");
-    pre.className = "block";
-    const role = document.createElement("span");
-    role.className = "role";
-    role.textContent = `${m.role} · ${m.content.length} chars`;
-    pre.append(role, document.createTextNode(m.content));
-    dump.append(pre);
-  }
-  if (!state.lastMessages.length)
-    dump.innerHTML = '<p class="empty">Nothing sent yet.</p>';
-
-  // The comparison that means something is conversation against conversation:
-  // everything the transcript holds, against what stands in for it this turn.
-  // Retrieved material and the base prompt are the same size on turn 1 and
-  // turn 400, so counting them here would flatter the fold on a short
-  // conversation and tell you nothing about a long one.
-  const transcript = charCount(state.history);
-  const carried =
-    (buildSummarySystemMessage(state.summary)?.length ?? 0) +
-    (buildRecordSystemMessage(state.summary)?.length ?? 0) +
-    charCount(state.history.slice(-RECENCY_WINDOW));
-  const max = Math.max(transcript, carried, 1);
-  $("m-transcript").textContent = `${transcript.toLocaleString()} chars`;
-  $("m-prompt").textContent = `${carried.toLocaleString()} chars`;
-  $("bar-transcript").style.width = `${(transcript / max) * 100}%`;
-  $("bar-prompt").style.width = `${(carried / max) * 100}%`;
-  $("m-ratio").textContent = transcript
-    ? `${state.history.length} messages exist; ${Math.min(state.history.length, RECENCY_WINDOW)} sent raw, the rest folded` +
-      (state.lastMaterialChars
-        ? ` · plus ${state.lastMaterialChars.toLocaleString()} chars of material retrieved for this question`
-        : "") +
-      // Said out loud rather than hidden, because the first few turns look
-      // like the fold losing: its two framing blocks are a fixed cost, paid in
-      // full on turn one. What is flat is what happens after — the transcript
-      // climbs without limit and this number does not.
-      (carried > transcript
-        ? " — the fold's framing is a fixed cost, and the transcript hasn't outgrown it yet"
-        : "")
-    : "";
+/**
+ * The comparison that means something is conversation against conversation:
+ * everything the transcript holds, against what stood in for it this turn.
+ * Retrieved material and the base prompt are the same size on turn 1 and turn
+ * 400, so counting them here would flatter the fold on a short conversation
+ * and tell you nothing about a long one.
+ */
+function measure() {
+  return {
+    transcript: charCount(state.history),
+    carried:
+      (buildSummarySystemMessage(state.summary)?.length ?? 0) +
+      (buildRecordSystemMessage(state.summary)?.length ?? 0) +
+      charCount(state.history.slice(-RECENCY_WINDOW)),
+    material: state.lastMaterialChars,
+    messages: state.history.length,
+    raw: Math.min(state.history.length, RECENCY_WINDOW),
+  };
 }
 
-function renderState() {
+/**
+ * The whole fold for one turn, under that turn.
+ *
+ * A panel showing the fold's current state can only ever show the latest one,
+ * which is the wrong shape for a thing that happens per turn: the question you
+ * actually have is "what did THIS turn leave behind, and what was it given?"
+ * — and that question is asked while looking at the turn. So the disclosure
+ * carries all of it, and the fold is not a tab.
+ */
+function renderFold(node, { fold, record, sent }) {
+  const box = node.querySelector(".fold");
+  if (!box) return;
+  const out = box.querySelector("p");
+  out.textContent = "";
+
+  const line = document.createElement("div");
+  line.className = "fold-line";
+  line.textContent = fold;
+  out.append(line, foldNote(measure()));
+
   const s = state.summary;
-  const dl = $("summary");
-  dl.textContent = "";
-  const rows = [
+  const fields = [
     ["topic", s.topic],
     ["flow", s.flow],
     ["entities", s.entities?.join(", ")],
     ["carried context", s.context],
-    ["language", s.language],
-    ["turns", String(s.turnCount)],
-  ];
-  for (const [k, v] of rows) {
-    if (!v) continue;
-    const dt = document.createElement("dt");
-    dt.textContent = k;
-    const dd = document.createElement("dd");
-    dd.textContent = v;
-    dl.append(dt, dd);
-  }
-  if (!dl.children.length)
-    dl.innerHTML = '<p class="empty">No turns folded yet.</p>';
-
-  // The folds are numbered rows, not a list of sentences — turn against what
-  // that turn left behind, which is the comparison the panel exists to invite.
-  const ol = $("folds");
-  ol.textContent = "";
-  const kept = s.folds || [];
-  if (kept.length) {
-    const firstTurn = s.turnCount - kept.length + 1;
-    ol.append(
-      artifactNode(
-        tableFrom(kept, [
-          { label: "turn", get: (_, i) => firstTurn + i },
-          { label: "fold", get: (f) => f },
-        ]),
-        `system 1 · ${kept.length} fold${kept.length === 1 ? "" : "s"} kept of ${s.turnCount} turns`,
-      ),
-    );
-  }
-  // The count rides the table's caption now.
-  $("fold-count").textContent = "";
-
-  // The panel above parses the fold into fields; this is the fold itself, in
-  // the words the model actually receives. Nothing is elided — if a claim is
-  // made about what the model was told, it can be read here.
-  const blocks = $("fold-blocks");
-  blocks.textContent = "";
-  const past = buildSummarySystemMessage(s);
-  const onRecord = buildRecordSystemMessage(s);
-  for (const [label, text] of [
-    ["system 1 · past discourse", past],
-    ["system 2 · on record", onRecord],
-  ]) {
-    if (!text) continue;
-    const pre = document.createElement("pre");
-    pre.className = "block";
-    const role = document.createElement("span");
-    role.className = "role";
-    role.textContent = `${label} · ${text.length} chars`;
-    pre.append(role, document.createTextNode(text));
-    blocks.append(pre);
-  }
-  if (!blocks.children.length)
-    blocks.innerHTML = '<p class="empty">Nothing folded yet.</p>';
-
-  const box = $("records");
-  box.textContent = "";
-  if (!s.records?.length) {
-    box.innerHTML = '<p class="empty">No checked turns yet.</p>';
-    return;
-  }
-  for (const r of s.records) {
-    const el = document.createElement("div");
-    el.className = "record";
-    const turn = document.createElement("div");
-    turn.className = "turn";
-    turn.textContent = `turn ${r.turn}${r.channels.length ? ` · carried by ${r.channels.join(", ")}` : ""}`;
-    const gist = document.createElement("div");
-    gist.textContent = r.gist;
-    el.append(turn, gist);
-    if (r.refs.length) {
-      const line = document.createElement("div");
-      line.className = "line";
-      line.innerHTML = '<span class="label">checked against </span>';
-      for (const ref of r.refs) {
-        const b = document.createElement("button");
-        b.className = "ref";
-        b.textContent = ref;
-        b.onclick = () => reopen(ref);
-        line.append(b);
-      }
-      el.append(line);
+  ].filter(([, v]) => v);
+  if (fields.length) {
+    const dl = document.createElement("dl");
+    dl.className = "fields";
+    for (const [k, v] of fields) {
+      const dt = document.createElement("dt");
+      dt.textContent = k;
+      const dd = document.createElement("dd");
+      dd.textContent = v;
+      dl.append(dt, dd);
     }
-    for (const [label, list, bad] of [
-      ["not supported by that material", r.unsupported, true],
-      ["left open", r.open, false],
-    ]) {
-      if (!list.length) continue;
-      const line = document.createElement("div");
-      line.className = `line${bad ? " bad" : ""}`;
-      line.innerHTML = `<span class="label">${label} </span>`;
-      line.append(document.createTextNode(list.join("; ")));
-      el.append(line);
+    out.append(section("system 1 · the running summary after this turn"), dl);
+  }
+
+  if (record) {
+    out.append(section("system 2 · on record"), recordNode(record));
+  }
+
+  if (sent?.length) {
+    const det = document.createElement("details");
+    det.className = "fold";
+    det.innerHTML = "<summary>what was sent</summary>";
+    const wrap = document.createElement("div");
+    for (const m of sent) {
+      const pre = document.createElement("pre");
+      pre.className = "block";
+      const role = document.createElement("span");
+      role.className = "role";
+      role.textContent = `${m.role} · ${m.content.length} chars`;
+      pre.append(role, document.createTextNode(m.content));
+      wrap.append(pre);
     }
-    box.append(el);
+    det.append(wrap);
+    out.append(det);
   }
 }
+
+function section(text) {
+  const h = document.createElement("p");
+  h.className = "fold-section";
+  h.textContent = text;
+  return h;
+}
+
+function foldNote({ transcript, carried, material, messages, raw }) {
+  const p = document.createElement("p");
+  p.className = "fold-note";
+  p.textContent =
+    `${carried.toLocaleString()} chars of conversation carried, standing in for a ${transcript.toLocaleString()}-char transcript` +
+    ` · ${messages} messages exist, ${raw} sent raw` +
+    (material ? ` · plus ${material.toLocaleString()} chars of material` : "") +
+    // Said out loud rather than hidden, because the first few turns look like
+    // the fold losing: its framing is a fixed cost, paid in full on turn one.
+    // What is flat is what happens after.
+    (carried > transcript ? " — the framing is a fixed cost, not yet outgrown" : "");
+  return p;
+}
+
+function recordNode(r) {
+  const el = document.createElement("div");
+  el.className = "record";
+  const turn = document.createElement("div");
+  turn.className = "turn";
+  turn.textContent = `turn ${r.turn}${r.channels.length ? ` · carried by ${r.channels.join(", ")}` : ""}`;
+  el.append(turn);
+  if (r.refs.length) {
+    const line = document.createElement("div");
+    line.className = "line";
+    line.innerHTML = '<span class="label">checked against </span>';
+    for (const ref of r.refs) {
+      const b = document.createElement("button");
+      b.className = "ref";
+      b.textContent = ref;
+      b.onclick = () => reopen(ref);
+      line.append(b);
+    }
+    el.append(line);
+  }
+  for (const [label, list, bad] of [
+    ["not supported by that material", r.unsupported, true],
+    ["left open", r.open, false],
+  ]) {
+    if (!list.length) continue;
+    const line = document.createElement("div");
+    line.className = `line${bad ? " bad" : ""}`;
+    line.innerHTML = `<span class="label">${label} </span>`;
+    line.append(document.createTextNode(list.join("; ")));
+    el.append(line);
+  }
+  return el;
+}
+
 
 function reopen(ref) {
   const body = readRange(state.sources, ref);
@@ -819,8 +869,6 @@ function looksBinary(text) {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-renderState();
-renderPrompt();
 renderSources();
 fillModels();
 

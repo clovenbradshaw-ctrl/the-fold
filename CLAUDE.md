@@ -286,3 +286,44 @@ computed once over the final stage and cached so the cursor scrubs belief,
 not geography. Soft breaks in markdown paragraphs join as spaces
 (CommonMark); blockquotes keep their lines; pipe tables are explore.js's own
 pass (render.js stays table-free per the app.js contract).
+
+## Skills (added 2026-08-16, third pass) — procedures kept as code
+
+P14 in POLICIES.md is the law; this is the map. The ask this answers: when
+the fold has worked out how to make a kind of output once, the *how* must not
+stay locked in prose or in a model's habits — it becomes an executable
+program the instrument calls, and the model's remaining job is slot-filling.
+Skills are NOT instruction sets for the model; the model never sees or runs
+a body. They are code, and they stack.
+
+**Files.** `skills.js` (pure, browser-safe: shape, digest identity, the
+append-only library log, mechanical claiming on declared anchors,
+mechanical-first slot filling with one grammar-constrained fallback call,
+`runSkilledTask` dispatch, authoring prompts + `SKILL_SCHEMA` +
+`parseSkillCandidate`); `skill-runner.mjs` (Node: empty-context vm execution
+with organs granted by declaration, `admitSkill` — the gate, `skills.call`
+stacking with a depth budget, content-addressed persistence in
+`skills/<digest>.json` plus append-only `record/skill-record.jsonl`);
+`skills.test.mjs` (22 conformance tests — the walls themselves, not stubs).
+
+**The ladder.** skill (zero model calls) → slot-fill (one constrained call,
+validated) → model path (holon.js, unchanged — holon.js was deliberately not
+touched; `runSkilledTask` takes the model path as an injected `runModel`).
+Every descent is a typed `open` entry. Dispatch is mechanical (P4's spirit):
+all of a skill's anchors must appear in the task's own words through the
+shared fold; most anchors wins; a tie is refused as ambiguous, never guessed.
+
+**The gate.** A candidate (model-authored or hand-written — same gate) is
+admitted only if its shape is whole, its body and check pass the
+forbidden-token scan, both compile, and ITS OWN CHECK passes against its own
+body in the real sandbox with the real library — so admission order is
+dependency order, and what passed admission is what will run. A skill
+without a check is refused as a wish. Refusals stay on the log.
+
+**Honest edges, disclosed here rather than papered over:** the vm sandbox is
+an authority wall by construction (empty context + declared grants + token
+scan), not a hardened security boundary — P1 local-only is the outer wall;
+the run budget guards await points, and a synchronous spin inside a body is
+the one hole it does not cover (the compile step alone runs under a vm
+timeout); free string slots are never filled mechanically because there is
+no unambiguous mechanical reading of "which words are the value."

@@ -162,10 +162,10 @@ async function connect() {
  * out there. The fold's own invariant (exactly one system block, everything
  * older folded into it) is untouched either way.
  */
-async function complete(messages, { onDelta, effort, maxTokens } = {}) {
+async function complete(messages, { onDelta, effort, maxTokens, json } = {}) {
   return state.provider === "claude"
     ? completeClaude(messages, { onDelta, effort, maxTokens })
-    : completeOllama(messages, { onDelta, maxTokens });
+    : completeOllama(messages, { onDelta, maxTokens, json });
 }
 
 async function completeClaude(messages, { onDelta, effort, maxTokens }) {
@@ -193,7 +193,7 @@ async function completeClaude(messages, { onDelta, effort, maxTokens }) {
     .join("");
 }
 
-async function completeOllama(messages, { onDelta, maxTokens }) {
+async function completeOllama(messages, { onDelta, maxTokens, json }) {
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -201,6 +201,11 @@ async function completeOllama(messages, { onDelta, maxTokens }) {
       model: state.model,
       messages,
       stream: true,
+      // A token cap bounds the damage; constrained decoding removes it. Asked
+      // for JSON in prose, a small model writes the object and then keeps
+      // talking until the cap — 300 tokens at 6/s is fifty seconds of a turn
+      // spent on nothing. Told the grammar, it closes the brace and stops.
+      ...(json ? { format: "json" } : {}),
       options: { num_predict: maxTokens ?? MAX_TOKENS },
     }),
   });
@@ -319,7 +324,7 @@ async function send(question) {
       // lines that are already written. Spending the answer's effort — or the
       // answer's token headroom — on it would double the turn's latency for
       // nothing, which is exactly what a local 3B did until it was capped.
-      { effort: "low", maxTokens: FOLD_MAX_TOKENS },
+      { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: true },
     );
     state.summary = updateSummaryWithFold(state.summary, fold, raw);
   } catch {

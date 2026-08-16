@@ -222,6 +222,54 @@ There is no hosted-model path. The Anthropic SDK, provider select, key input,
 and webfonts were all removed 2026-08-16; `constitution.test.mjs` fails on any
 non-localhost host in the files the page loads. Do not add one back.
 
+## The self plane (added 2026-08-16) — what was decided, so it is not re-derived
+
+The chat has access to its own cognition on request, held on a plane the
+material can never be confused with. P13 in POLICIES.md is the binding
+statement; this is the map of the decisions.
+
+**The ledger.** `reflex.js` — per conversation, append-only (seq not clock),
+one act per cognitive event: asked / planned / retrieved / checked /
+corrected / recorded / folded / surprise / errored / answered-from-state.
+Written mechanically from app.js's own turn loop (the same onProgress
+branches that already narrate); no model ever authors an entry. Rendered to
+a deterministic text (one paragraph per turn), chunked with self-verifying
+offsets, addressed as `self:ledger#a-b` — the reserved `self:` namespace,
+refused to loaded sources at `addSource`. Self refs re-open in the same
+dialog as material refs (rebuilt from entries alone); no Explore deposit —
+the ledger is the conversation's, not a file's.
+
+**The levels, on request.** `/self` is the ladder with counts; `/self
+acts|surprise|pace|folds|records|sources|passages` are computed tables
+(mechanicalTurn — no model call; the new builders live in reflex.js, served
+through tables.js). Natural phrasings go through `detectReflex`, which
+REQUIRES the second-person tell ("what surprised **you**", "how do **you**
+think") and runs after detectTable — a question about surprise IN the
+material stays the material's. `/reflect <question>` is the model turn over
+the plane: retrieval with the same `retrieve` organ over ledger chunks
+(recency slice = RECENCY_WINDOW/2 turn-paragraphs, the fold's own present
+converted, plus top-3 term matches), the SELF block distinct from MATERIAL
+by framing, the same checks (checkGrounding / attribute / checkCitations /
+classifySentences) run against the ledger's bytes, and the warrant typed
+`plane: "self"` end to end (fold.js carries it, ON RECORD marks it, the
+renderer says it). Material refs quoted inside offered ledger lines join
+the known set so they render re-openable, not "invented" — the self plane
+may point into the world's record; it never absorbs it.
+
+**Surprise is measured, never asked.** The meter is eoreader6's
+`emergence/tiers.js` — `createTierStack(["discourse","atmosphere","lens"])`
++ `foldThrough`, over `surprise.js` — injected via the cast.js pattern so
+reflex.js stays node-testable. One arrival per message heard, both roles
+(for a computed table, its caption — rows restated from state are not an
+arrival). Numbers: window = RECENCY_WINDOW, gamma = the engine's
+`gammaFor(window)` = 0.75, draws = 200 and alpha = 1 (read-frankenstein's
+declarations), seed = 0 — givers named, nothing tuned here. First arrival =
+typed `no_ground` gap. Ranking is mechanical: censored-above first, then
+rank, then bits; the caption phrases the null natural-frequency style.
+`tiers.js` imports `../../../nul/index.js`, so **both servers carry a
+`/nul` mount** beside `/engine` (serve.mjs and explore-server.mjs) — without
+it the page dies at import time.
+
 ## The graph's three organs and its cursor (added 2026-08-16, second pass)
 
 The Network surface admits belief from three engine organs, each with its own

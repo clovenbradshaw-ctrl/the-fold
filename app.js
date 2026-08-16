@@ -56,6 +56,24 @@ import { classifySentences } from "./provenance.js";
 
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
 
+// The self plane: the instrument's own acts as an append-only, addressed
+// ledger, and its measured surprise — held apart from the material at the
+// namespace, the store, the prompt block, and the record (reflex.js says
+// how). The surprise meter is the engine's own tier stack, injected below.
+import {
+  buildSelfBlock,
+  detectReflex,
+  emptyReflexLog,
+  isReservedSourceName,
+  isSelfRef,
+  ledgerChunks,
+  makeReflexMeter,
+  normalizeSelfLevel,
+  recordAct,
+  selfOverview,
+  selfRefContext,
+} from "./reflex.js";
+
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
 // Boundaries are found by form there and received here — this app does not
 // know what a chapter is and must not learn.
@@ -68,6 +86,11 @@ import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
 import { makeCastResolver, makeCastHandles } from "./cast.js";
+
+// The engine's surprise ladder — the measured answer to "what is most
+// surprising", and the only licensed one. Same mount, plus /nul for the
+// null module tiers.js stands on (serve.mjs carries both).
+import { createTierStack, foldThrough } from "/engine/emergence/tiers.js";
 
 import {
   BOUND_SYSTEM_PROMPT,
@@ -91,6 +114,11 @@ const handlesFor = makeCastHandles({
   extractSurfaces,
   discoverReferents,
 });
+
+// One meter per conversation, built on the engine's own tiers. reflex.js
+// declares the numbers (window from the fold's own present, draws and alpha
+// from read-frankenstein) — nothing here picks any.
+const reflexMeter = makeReflexMeter({ createTierStack, foldThrough });
 
 import {
   buildSourceBlock,
@@ -165,6 +193,17 @@ const state = {
   artifacts: [],
   lastMessages: [],
   lastMaterialChars: 0,
+
+  /**
+   * The self plane, per conversation: the act ledger (append-only — what
+   * this conversation's turns retrieved, checked, folded, recorded) and the
+   * surprise meter (the engine's tier stack observing every message the
+   * conversation hears). Held here, never in `sources` or `chunks`:
+   * material retrieval must not see the instrument's own cognition, and the
+   * instrument's cognition must not wear a material address.
+   */
+  reflexLog: emptyReflexLog(),
+  meter: reflexMeter.create(),
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -177,6 +216,8 @@ const PER_CONVO = [
   "artifacts",
   "lastMessages",
   "lastMaterialChars",
+  "reflexLog",
+  "meter",
 ];
 
 function newConvo() {
@@ -192,6 +233,8 @@ function newConvo() {
     artifacts: [],
     lastMessages: [],
     lastMaterialChars: 0,
+    reflexLog: emptyReflexLog(),
+    meter: reflexMeter.create(),
   };
 }
 
@@ -390,6 +433,39 @@ async function complete(messages, { onDelta, maxTokens, json } = {}) {
  * them and folding the turn like any other, so the conversation's own history
  * records that the question was asked and answered.
  */
+/** Append one act to this conversation's ledger, stamped with the turn it
+ * belongs to. The ledger is the self plane's record; writing it is itself
+ * mechanical — no model ever authors an entry. */
+function logAct(act, detail = {}) {
+  state.reflexLog = recordAct(state.reflexLog, {
+    turn: state.summary.turnCount + 1,
+    act,
+    ...detail,
+  });
+}
+
+/**
+ * The meter observes every exchange the conversation hears, both roles —
+ * the caller passes what the turn actually contributed (for a computed
+ * table, its caption: the same line the fold keeps, because rows restated
+ * from state are not an arrival). Each observation is also an act on the
+ * ledger, so a reflective turn can retrieve and cite what the meter
+ * measured.
+ */
+function observeExchange(turn, question, answer) {
+  for (const [role, text] of [["user", question], ["assistant", answer]]) {
+    const o = reflexMeter.observe(state.meter, { turn, role, text });
+    state.reflexLog = recordAct(state.reflexLog, {
+      turn,
+      act: "surprise",
+      role,
+      ...(o.gap
+        ? { gap: o.gap }
+        : { bits: o.bits, standing: o.standing ?? "unplaced", reach: o.top }),
+    });
+  }
+}
+
 /** A command that arrived without its argument gets its usage line back — a
  * turn with no model in it, folded like any other so the exchange is on the
  * conversation's own record. */
@@ -400,6 +476,9 @@ function usageTurn(question, usage) {
     { role: "user", content: question },
     { role: "assistant", content: usage },
   );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", { what: "usage" });
+  observeExchange(turn, question, usage);
   const fold = mechanicalFoldLine(question, usage);
   state.turnFolds.push(fold);
   state.summary = advanceSummaryFold(state.summary, fold);
@@ -431,6 +510,11 @@ async function mechanicalTurn(question, kind) {
     { role: "user", content: question },
     { role: "assistant", content: answer },
   );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", { what: kind });
+  // The meter hears the caption, not the table: rows restated from state are
+  // not an arrival, but that the question was answered this way is.
+  observeExchange(turn, question, built ? built.caption : answer);
   // Fold on what the turn produced, not on its markup. Folding the table's
   // own text spends the whole hundred characters on pipes and dashes and says
   // nothing about the turn — and this line is what a later turn reads.
@@ -473,12 +557,38 @@ async function send(question) {
   if (boundQ) return boundTurn(boundQ, question);
   if (/^\/bound\s*$/.test(question)) return usageTurn(question, "/bound <question> — answers twice: a free audited draft, and one where the grammar binds names to the cast and figures to the material's cells.");
 
+  // The self plane's doors. /self is the ladder — the instrument's own
+  // cognition by level, each answered from state (computed, not generated).
+  // /reflect is the model turn over that plane: it retrieves from the act
+  // ledger, answers with the usual checks, and its record is typed `self`.
+  const selfLevel = question.match(/^\/self\s+(\S[\s\S]*)/)?.[1];
+  if (selfLevel) {
+    const kind = normalizeSelfLevel(selfLevel);
+    if (kind) return mechanicalTurn(question, kind);
+    return usageTurn(question, "/self <acts|surprise|pace|folds|records|sources|passages> — one level of the instrument's own cognition, computed from state. Bare /self shows the whole ladder.");
+  }
+  if (/^\/self\s*$/.test(question)) {
+    return usageTurn(question, selfOverview({ ...state, pace: foldPace(state.paceLog, state.model) }));
+  }
+  const reflectQ = question.match(/^\/reflect\s+(\S[\s\S]*)/)?.[1];
+  if (reflectQ) return reflectTurn(reflectQ, question);
+  if (/^\/reflect\s*$/.test(question)) return usageTurn(question, "/reflect <question> — answers about how this instrument has been working, retrieving from its own act ledger instead of the material. The record such a turn earns is typed as self-knowledge, never as a check against the world.");
+
   // A question about the app's own state is answered from that state. Nothing
   // is gained by handing a model rows it would have to paraphrase, and a
   // paraphrase of a data structure drops a row, rounds a number, or invents a
   // file — the three failures the rest of this design exists to refuse.
   const wanted = detectTable(question);
   if (wanted) return mechanicalTurn(question, wanted);
+
+  // Self questions asked in words ("what surprised you most", "how do you
+  // think"). Checked AFTER detectTable so a question the app can answer
+  // about its material state keeps winning, and gated on the second-person
+  // tell inside detectReflex so a question about the material — which must
+  // always win — is never hijacked into introspection.
+  const reflex = detectReflex(question);
+  if (reflex === "reflect") return reflectTurn(question, question);
+  if (reflex) return mechanicalTurn(question, reflex);
 
   // Every remaining turn runs as a task — 100% of the time. The one big
   // prompt that carried summary + records + material together is gone; a
@@ -515,6 +625,9 @@ async function boundTurn(question, typed) {
   const handles = handlesFor(passages);
   const cells = extractCells(passages);
   const resolveName = castFor(passages);
+
+  logAct("asked", { text: question });
+  logAct("bound", { names: handles.length, figures: cells.length });
 
   const prep = `offer: ${handles.length} name(s), ${cells.length} figure(s), from ${passages.length} passage(s)`;
   body.textContent = `${prep}\nA · free draft…`;
@@ -628,10 +741,130 @@ async function boundTurn(question, typed) {
       })
     : null;
   if (record) state.summary = addWarrantRecord(state.summary, record);
+  if (record)
+    logAct("recorded", {
+      plane: record.plane,
+      refs: record.refs,
+      unsupported: record.unsupported.length,
+      open: record.open.length,
+    });
+  logAct("folded", { line: fold });
+  observeExchange(turn, question, flat);
 
   await refreshSummary(fold);
   renderFold(node, { fold, record });
   renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  state.busy = false;
+  $("send").disabled = false;
+  $("input").focus();
+}
+
+/**
+ * The reflective turn: the same shape as any turn — retrieve, answer, check,
+ * fold, record — run entirely on the self plane. The material this turn
+ * reads is the conversation's own act ledger; the model is still only the
+ * mouth (it phrases; every fact it may state is a ledger line with an
+ * address, and the same organs that audit a material answer audit this
+ * one). What comes out is typed end to end: the prompt block says SELF, the
+ * refs say `self:`, and the record says `plane: "self"` — introspection
+ * never wears the authority of a check that ran against the world.
+ */
+async function reflectTurn(question, typed) {
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  logAct("asked", { text: question });
+
+  const all = ledgerChunks(state.reflexLog);
+  // The offer: the reach of the present on this plane, plus what the
+  // question's own words retrieve. A ledger paragraph is one turn — two
+  // messages — so the recency slice is RECENCY_WINDOW/2 paragraphs: the
+  // same declared present the fold sends raw, converted, not a new number.
+  const recent = all.slice(-Math.floor(RECENCY_WINDOW / 2));
+  const matched = retrieve(all, question, 3);
+  const offered = [...new Map([...recent, ...matched].map((p) => [p.ref, p])).values()]
+    .sort((a, b) => a.start - b.start);
+
+  const past = buildSummarySystemMessage(state.summary);
+  const sys = [BASE_PROMPT, ...(past ? [past] : []), buildSelfBlock(offered)]
+    .filter(Boolean)
+    .join("\n\n");
+
+  let answer = "";
+  try {
+    $("status").textContent = "reflecting…";
+    answer = await complete(
+      [
+        { role: "system", content: sys },
+        { role: "user", content: question },
+      ],
+      { onDelta: (out) => { body.textContent = out; } },
+    );
+  } catch (err) {
+    answer = `[engine error: ${err.message || err}]`;
+  }
+
+  const resolveName = castFor(offered);
+  const grounding = checkGrounding(answer, offered, { question, resolveName });
+  const attributions = attribute(answer, offered, all);
+  const { used } = checkCitations(answer, offered);
+
+  // Material addresses quoted inside the offered ledger lines are real,
+  // re-openable refs on the world plane — the answer repeating one must not
+  // be drawn as invented. They join the known set, nothing more: the self
+  // plane may point INTO the world's record; it never absorbs it.
+  const quoted = offered.flatMap((p) =>
+    [...p.text.matchAll(REF_IN_TEXT)].map((m) => m[1]),
+  );
+  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings);
+
+  state.history.push(
+    { role: "user", content: typed },
+    { role: "assistant", content: answer },
+  );
+  const turn = state.summary.turnCount + 1;
+  const fold = mechanicalFoldLine(question, answer);
+  const refs = [...new Set([...used, ...attributedRefs(attributions)])];
+  // A record exists only where a check ran (P6) — here, only when the
+  // ledger had something to offer. An empty ledger is a typed open, and the
+  // turn stays paraphrase-tier.
+  const record = offered.length
+    ? buildWarrantRecord({
+        turn,
+        gist: fold,
+        plane: "self",
+        channels: [
+          "self",
+          ...(used.length ? ["cited"] : []),
+          ...(attributedRefs(attributions).length ? ["attributed"] : []),
+        ],
+        refs,
+        unsupported: unsupportedClaims(grounding),
+        // The same typed gap openQuestions gives a material turn, in this
+        // plane's own words: an offer nothing cited is an open, not a pass.
+        open: used.length || attributedRefs(attributions).length
+          ? []
+          : [`ledger lines offered but none cited: ${question.slice(0, 120)}`],
+      })
+    : null;
+  if (record) state.summary = addWarrantRecord(state.summary, record);
+  if (record)
+    logAct("recorded", {
+      plane: "self",
+      refs: record.refs,
+      unsupported: record.unsupported.length,
+      open: record.open.length,
+    });
+  logAct("reflected", { refs: offered.map((p) => p.ref) });
+  logAct("folded", { line: fold });
+  observeExchange(turn, question, answer);
+
+  await refreshSummary(fold);
+  renderFold(node, { fold, record });
+  renderThreads();
+  renderEvidence(node, question, offered, used, grounding, "self ledger");
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;
@@ -685,6 +918,8 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
+
+  logAct("asked", { text: task });
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   const live = state.chunks.filter((c) => !state.muted.has(c.source));
@@ -758,15 +993,23 @@ async function holonicTurn(task, typed = task, planMode = "model") {
         if (phase === "plan") {
           setPhase("planning");
           show("planning…");
-        } else if (phase === "planned")
+        } else if (phase === "planned") {
           show(
             `plan: ${info.parts.length} part(s)` +
               (info.degraded ? " — plan did not parse, running the task flat" : "") +
               ` · ${info.parts.map((p) => p.label).join(" · ")}`,
           );
-        else if (phase === "research") {
+          logAct("planned", {
+            parts: info.parts.map((p) => p.label),
+            degraded: Boolean(info.degraded),
+          });
+        } else if (phase === "research") {
           setPhase(`reading for ${part.label}`);
           show(`${part.label}: ${info.passages.length} passage(s) retrieved`);
+          logAct("retrieved", {
+            part: part.label,
+            refs: info.passages.map((p) => p.ref),
+          });
         } else if (phase === "execute") {
           setPhase(`writing ${part.label}`, info.promptChars ?? 0);
           $("status").textContent = `writing: ${part.label}…`;
@@ -784,6 +1027,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
         } else if (phase === "correct") {
           setPhase(`rewriting ${part.label}`, info.promptChars ?? 0);
           show(`${part.label}: ${info.failures.length} unsupported claim(s), rewriting`);
+          logAct("corrected", { part: part.label, failures: info.failures.length });
         } else if (phase === "checked") {
           draftEl.replaceChildren();
           show(
@@ -791,8 +1035,16 @@ async function holonicTurn(task, typed = task, planMode = "model") {
               (info.unsupported.length ? `, ${info.unsupported.length} unsupported` : "") +
               (info.open.length ? `, ${info.open.length} open` : ""),
           );
-        } else if (phase === "production")
+          logAct("checked", {
+            part: part.label,
+            refs: info.refs.length,
+            unsupported: info.unsupported.length,
+            open: info.open.length,
+          });
+        } else if (phase === "production") {
           show(`production: ${info.halted_by} after ${info.steps} step(s)`);
+          logAct("production", { halted_by: info.halted_by, steps: info.steps });
+        }
       },
     });
     clearInterval(ticker);
@@ -806,7 +1058,11 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     );
     // An errored turn is still a turn: folded mechanically, no model call —
     // the same accounting mechanicalTurn does — so history and the summary's
-    // turn count cannot silently diverge.
+    // turn count cannot silently diverge. And an error is an act: the
+    // ledger records it, the meter hears it.
+    const turn = state.summary.turnCount + 1;
+    logAct("errored", { message: String(err.message || err) });
+    observeExchange(turn, task, answer);
     const fold = mechanicalFoldLine(task, answer);
     state.turnFolds.push(fold);
     state.summary = advanceSummaryFold(state.summary, fold);
@@ -857,6 +1113,15 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       "the run log",
     );
   if (record) state.summary = addWarrantRecord(state.summary, record);
+  if (record)
+    logAct("recorded", {
+      plane: record.plane,
+      refs: record.refs,
+      unsupported: record.unsupported.length,
+      open: record.open.length,
+    });
+  logAct("folded", { line: fold });
+  observeExchange(turn, task, result.output);
   // The meter counts material against the task's parts, not the fold: what
   // was retrieved here was retrieved for the parts and does not grow with
   // the conversation.
@@ -1119,7 +1384,7 @@ function renderArtifacts(highlight) {
  * a turn's evidence should not depend on the model having chosen to tabulate
  * it.
  */
-function renderEvidence(node, question, passages, used, grounding) {
+function renderEvidence(node, question, passages, used, grounding, label = "material") {
   const box = node.querySelector(".evidence");
   if (!box || !passages.length) return;
   const terms = [...new Set(tokenize(question))];
@@ -1137,7 +1402,7 @@ function renderEvidence(node, question, passages, used, grounding) {
 
   box.hidden = false;
   const parts = [
-    artifactNode(seg, `material · ${passages.length} retrieved, ${cited.size} cited`),
+    artifactNode(seg, `${label} · ${passages.length} retrieved, ${cited.size} cited`),
   ];
   // What the answer said that the material does not: the check that catches an
   // invented figure, which neither the address check nor attribution can see.
@@ -1145,8 +1410,8 @@ function renderEvidence(node, question, passages, used, grounding) {
     const note = document.createElement("p");
     note.className = grounding.clean ? "fold-note" : "fold-note bad";
     note.textContent = grounding.clean
-      ? `every figure and name in the answer appears in the material (${grounding.atomsChecked} checked)`
-      : `not in the material: ${unsupportedClaims(grounding).join("; ")}`;
+      ? `every figure and name in the answer appears in the ${label} (${grounding.atomsChecked} checked)`
+      : `not in the ${label}: ${unsupportedClaims(grounding).join("; ")}`;
     parts.push(note);
   }
   box.querySelector("div").replaceChildren(...parts);
@@ -1333,6 +1598,11 @@ function recordNode(r) {
   const turn = document.createElement("div");
   turn.className = "turn";
   turn.textContent = `turn ${r.turn}${r.channels.length ? ` · carried by ${r.channels.join(", ")}` : ""}`;
+  // The plane, said where the record is read. A self record supports claims
+  // about how the instrument worked; drawn the same as a material record,
+  // it would borrow an authority it does not have.
+  if (r.plane === "self")
+    turn.textContent += " · plane: self — checked against the instrument's own ledger, not the material";
   el.append(turn);
   if (r.refs.length) {
     const line = document.createElement("div");
@@ -1371,9 +1641,16 @@ function reopen(ref) {
   $("reopen-ref").textContent = ref;
   const pre = $("reopen-body");
   pre.textContent = "";
-  const ctx = refContext(state.sources, ref);
+  // A self ref re-opens from the ledger, rebuilt from the entries alone —
+  // the same act of reading bytes back, on the other plane. Explore has no
+  // deposit for it: the ledger is this conversation's, not a file's.
+  const ctx = isSelfRef(ref)
+    ? selfRefContext(state.reflexLog, ref)
+    : refContext(state.sources, ref);
   if (!ctx) {
-    pre.textContent = "That material is no longer loaded — the address outlived it.";
+    pre.textContent = isSelfRef(ref)
+      ? "That address does not resolve on this conversation's ledger."
+      : "That material is no longer loaded — the address outlived it.";
     $("reopen-explore").hidden = true;
     $("reopen").showModal();
     return;
@@ -1401,7 +1678,7 @@ function reopen(ref) {
   }
 
   const explore = $("reopen-explore");
-  explore.hidden = false;
+  explore.hidden = isSelfRef(ref);
   explore.onclick = () =>
     openInExplore(state.sources, ref).catch((err) => {
       $("status").textContent = `explore: ${err.message || err}`;
@@ -1420,6 +1697,13 @@ function reopen(ref) {
 
 function addSource(name, text) {
   if (!text.trim()) return;
+  // The `self:` namespace is the instrument's own plane. A file wearing it
+  // would make a self address ambiguous about which plane it names — the
+  // one ambiguity the whole design exists to refuse.
+  if (isReservedSourceName(name)) {
+    $("status").textContent = `"${name}" is reserved for the instrument's own plane — rename it and add it again`;
+    return;
+  }
   state.sources[name] = text;
   state.chunks = state.chunks
     .filter((c) => c.source !== name)

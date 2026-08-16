@@ -200,6 +200,12 @@ export function buildWarrantRecord(input) {
       .slice(0, max);
   return {
     turn: input.turn,
+    // The plane the check ran on. "world" is a record checked against the
+    // material; "self" is one checked against the instrument's own act
+    // ledger (reflex.js). The two are different kinds of authority and are
+    // typed here, at the record's birth, so nothing downstream has to
+    // guess from the shape of a ref.
+    plane: input.plane === "self" ? "self" : "world",
     gist: truncate(input.gist, FOLD_MAX_CHARS),
     channels: [...new Set(input.channels || [])],
     refs: clean(input.refs, RECORD_REFS_MAX, 120),
@@ -250,8 +256,15 @@ export function buildRecordSystemMessage(summary) {
   const parts = [
     "ON RECORD — earlier turns that were checked, with the addresses they were checked against. Unlike PAST DISCOURSE, these can be re-opened: the sources named here still exist and can be read again. You may rely on a line here, and you must not contradict one without saying you are doing so.",
   ];
+  // The plane note appears only when a self record is present, and it is
+  // one sentence: a record checked against the instrument's own ledger must
+  // never be readable as a check that ran against the material.
+  if (records.some((r) => r.plane === "self"))
+    parts.push(
+      "A turn marked · self was checked against the instrument's own act ledger, not the material: it supports claims about how this instrument worked, never claims about the world.",
+    );
   for (const r of records) {
-    const bits = [`Turn ${r.turn}: ${r.gist}`];
+    const bits = [`Turn ${r.turn}${r.plane === "self" ? " · self" : ""}: ${r.gist}`];
     if (r.channels.length) bits.push(`  carried by: ${r.channels.join(", ")}`);
     if (r.refs.length) bits.push(`  checked against: ${r.refs.join("; ")}`);
     if (r.unsupported.length)

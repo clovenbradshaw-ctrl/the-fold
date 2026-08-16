@@ -13,6 +13,8 @@
 // Pure: no DOM, no IO, no model.
 
 import { tableFrom } from "./artifact.js";
+import { foldPace } from "./pace.js";
+import { actsTable, paceTable, surpriseTable } from "./reflex.js";
 
 /** Words that ask for an enumeration, in any order with the subject. */
 const ASKS = /\b(table|tabulate|tabular|list|enumerate|show|display|what)\b/i;
@@ -119,6 +121,23 @@ const BUILDERS = {
       `${plural(passages.length, "passage")} retrieved last turn · computed, not generated`,
     );
   },
+
+  // ── the self plane's levels (reflex.js owns the shapes) ────────────────────
+  // Same rule as every builder above: the app has these rows in hand, and a
+  // model paraphrasing its own act ledger or its own measured surprise is the
+  // introspection version of the failure this file exists to refuse.
+
+  acts({ reflexLog }) {
+    return actsTable(reflexLog);
+  },
+
+  surprise({ meter }) {
+    return surpriseTable(meter);
+  },
+
+  pace({ paceLog, model }) {
+    return paceTable(paceLog && model ? foldPace(paceLog, model) : null);
+  },
 };
 
 /** What to say when the answer is honestly empty. */
@@ -127,6 +146,9 @@ export const NOTHING = {
   sources: "No material is loaded.",
   folds: "Nothing has been folded yet.",
   passages: "No passages were retrieved on the last turn.",
+  acts: "The ledger is empty — no act has been recorded in this conversation yet.",
+  surprise: "Nothing has arrived yet, so nothing has been measured.",
+  pace: "Pace is unmeasured — no completed call on this model yet.",
 };
 
 function caption(table, text) {

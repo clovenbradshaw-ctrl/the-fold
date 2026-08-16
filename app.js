@@ -440,6 +440,29 @@ function renderState() {
     ? `${s.folds.length} kept of ${state.turnFolds.length} turns`
     : "";
 
+  // The panel above parses the fold into fields; this is the fold itself, in
+  // the words the model actually receives. Nothing is elided — if a claim is
+  // made about what the model was told, it can be read here.
+  const blocks = $("fold-blocks");
+  blocks.textContent = "";
+  const past = buildSummarySystemMessage(s);
+  const onRecord = buildRecordSystemMessage(s);
+  for (const [label, text] of [
+    ["system 1 · past discourse", past],
+    ["system 2 · on record", onRecord],
+  ]) {
+    if (!text) continue;
+    const pre = document.createElement("pre");
+    pre.className = "block";
+    const role = document.createElement("span");
+    role.className = "role";
+    role.textContent = `${label} · ${text.length} chars`;
+    pre.append(role, document.createTextNode(text));
+    blocks.append(pre);
+  }
+  if (!blocks.children.length)
+    blocks.innerHTML = '<p class="empty">Nothing folded yet.</p>';
+
   const box = $("records");
   box.textContent = "";
   if (!s.records?.length) {

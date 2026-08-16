@@ -20,8 +20,18 @@ const STOPWORDS = new Set(
     "how me my we us been being over under after before also just like more most some such only").split(" "),
 );
 
+/**
+ * Diacritics are folded away before splitting. A corpus can be accented where
+ * the question is not — a Project Gutenberg text writes "Natásha" 1,213 times,
+ * and a reader asking about Natasha would otherwise be told, with all of War
+ * and Peace loaded, that there is no mention of her. That failure looks like
+ * the retrieval working and the material lacking, which is the worst shape a
+ * bug can take here.
+ */
 export function tokenize(text) {
   return String(text || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .split(/[^a-z0-9%.\-]+/)
     .filter((t) => t.length > 2 && !STOPWORDS.has(t));

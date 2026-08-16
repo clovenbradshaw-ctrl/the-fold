@@ -197,6 +197,19 @@ test("a ref reads back the exact bytes it names", () => {
   assert.equal(readRange({ "kess.txt": DOC }, hit.ref).trim(), hit.text);
 });
 
+test("an accented corpus answers an unaccented question", () => {
+  // The failure this pins: a Gutenberg text writes "Natásha" throughout, a
+  // reader types "Natasha", and the app reports no mention of her while
+  // holding the whole novel.
+  const doc = "Natásha Rostóva glanced at Prince Andréw across the ballroom.";
+  const chunks = chunkSource("wp.txt", doc);
+  assert.equal(retrieve(chunks, "Who is Natasha Rostova?").length, 1);
+  assert.equal(retrieve(chunks, "what did Andrew do").length, 1);
+  // And in the other direction: an unaccented corpus, an accented question.
+  const plain = chunkSource("q.txt", "Natasha danced with Andrew until the small hours.");
+  assert.equal(retrieve(plain, "Natásha").length, 1);
+});
+
 test("retrieval is mechanical and returns nothing when nothing matches", () => {
   const chunks = chunkSource("kess.txt", DOC);
   assert.equal(retrieve(chunks, "what figure did the report give").length > 0, true);

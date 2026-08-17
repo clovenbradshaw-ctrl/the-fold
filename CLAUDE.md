@@ -583,6 +583,59 @@ still draw on a build turn under the marks toggle, and the suppression is
 turn-scoped — world-claim prose sharing a turn with a code build loses
 its chips too.
 
+**Amended 2026-08-17 (second occurrence, holon.js) — absence of material
+licenses withholding judgment, never manufacturing it.** The build-turn fix
+above closed app.js's single-flat-turn path; the same failure shape was
+still live in `holon.js`'s multi-part pipeline (a plan with an artifact
+part — `runPart`'s `inspect`), which is a different code path and was not
+touched by that fix. Measured live: a counter-widget build with no material
+attached still produced the wall of label chips
+("Okay" / "Counter Initialization" ✓3/6 / "Event Listeners" / …) plus a
+"claiming things nothing given backs: N" tally — because `inspect`'s
+no-material branch unconditionally calls `extractCheckableAtoms`, whose own
+docstring is explicit about what it is for: give the web-proof-seeking tier
+candidates on a genuine world-claim nobody sourced (its own example:
+"what percentage of Earth's atmosphere is nitrogen"). That is a legitimate,
+narrow use — `checkGrounding` at zero passages returns `examined: false`,
+a deliberate *withholding*, and proof-seeking still needs somewhere to
+point on a bare factual question with nothing attached. The bug was
+applying that same fallback to a part whose subject is an artifact the
+model just produced: a build's own account of its own code ("initializes a
+counter set to 0", "adds click listeners") is not an unsourced claim about
+the world, it is the model narrating bytes sitting right next to it — its
+ground is the artifact, not something absent. `extractCheckableAtoms`
+converts "nothing to check against" into "everything is guilty by
+definition," which is exactly backwards from `checkGrounding`'s own stated
+principle one branch up (`examined` and `clean` are different facts, on
+purpose — grounding.test.mjs) applied to a case that principle was never
+meant to cover.
+
+**The constitutional statement, so the next pass does not re-derive it
+turn-type by turn-type:** a checking organ may say "I have nothing to
+compare this against" (withhold), or "I compared it and it failed"
+(convict). It may never manufacture the second out of the first — treating
+absence-of-material as presence-of-fabrication is not a check, it is an
+accusation with no evidence, dressed as one. Where a part DOES have ground
+the ladder doesn't read — its own artifact, sitting in the same turn — the
+fallback must recognize that ground exists rather than treating "the ladder
+found no material" as "there is none." Concretely: `inspect` now runs
+`parseSegments(text)` (artifact.js, the same organ app.js's own segment
+renderer uses — one parser, not a second fence regex) and gates the
+no-material fallback on whether the part produced a code segment; a build
+part gets `checkedGrounding` (correctly `examined: false`, `clean: true`)
+exactly as a material part would if it had none, and a genuine unsourced
+factual part still gets `extractCheckableAtoms`'s candidates — pinned by
+both cases as regressions (`holon.test.mjs`, "a build part with no material
+never manufactures unbacked findings from its own code labels" alongside
+the pre-existing "no material still offers a checkable figure" case that
+must keep working). This is a stronger fix than the app.js drawing toggle:
+that one withholds the CHIP STRIP while the finding still lands on the
+record ("hidden drawing, never a hidden finding," by design, because a real
+check ran and found something real). Here no real check ran — the finding
+itself was synthetic, manufactured by the fallback rather than observed —
+so there is nothing honest to disclose by keeping it; withholding the
+finding IS the honest disclosure.
+
 ## The UX pass (2026-08-17) — what was decided, so it is not re-derived
 
 A working pass over both pages, driven live. The decisions, not the diff:

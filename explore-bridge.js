@@ -15,7 +15,15 @@
 // The explore server's own default port (explore-server.mjs). Declared here
 // because the Converse page may be served by a different static server; a
 // non-default setup passes exploreBase explicitly.
-export const EXPLORE_BASE = "http://localhost:8812";
+// Overridable per page-load (?explore=http://localhost:8819) because this
+// working directory's own documented reality is several concurrent sessions
+// each running their own server — a page must be able to name which explore
+// host it means without editing shared source. Localhost only either way;
+// the constitution's host scan governs what this file may name.
+const exploreOverride =
+  typeof location !== "undefined" ? new URLSearchParams(location.search).get("explore") : null;
+export const EXPLORE_BASE =
+  exploreOverride && /^http:\/\/localhost:\d+$/.test(exploreOverride) ? exploreOverride : "http://localhost:8812";
 
 /** `name#from-to` → { name, from, to } (char offsets), or null. Same regex readRange trusts. */
 export function parseRef(ref) {

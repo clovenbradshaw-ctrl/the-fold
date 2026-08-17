@@ -546,3 +546,69 @@ known extension if the model wrote one (the natural thing: "save it as
 countdown.py" lands on `countdown.py`); without one, the first prose line
 slugified, then the server disambiguates a taken name mechanically. A build
 named `build-4.py` is honest — the model did not name it.
+
+## The conduct golden (added 2026-08-17) — what was decided, so it is not re-derived
+
+P18 in POLICIES.md is the law; this is the map. The ask this answers: a golden
+benchmark for the Claude/ChatGPT-like behavior this instrument should chase.
+
+**Files.** `goldens/conduct/` — `items.json` (34 items, 10 families, each with
+its third-party anchor, its rung and its stated reason), `checks.mjs` (pure,
+the splitter injected — cast.js pattern), `strategies.mjs` (the six reflexes),
+`run.mjs` (the driver; the turn is `eval/dialogue.mjs`'s, which is `app.js`'s
+`send()` headless — nothing re-implemented), `score.mjs`, `fetch.mjs` +
+`fetched.lock.json`, `checks.test.mjs` (16, against the REAL engine organs).
+`texts/` and `results/` are gitignored. `npm test` now globs
+`goldens/*/*.test.mjs` as well as the root.
+
+**The reference is received, and pinned.** OpenAI Model Spec 2025-12-18 and
+Claude's Constitution 2026-01-22, both CC0, in `manifest.json` with the date
+they were read. `goldens/cast`'s discipline aimed at specifications instead of
+character lists. The families come from them; the per-item expectations are
+ours, and the README says so rather than implying the whole fixture is a gift.
+
+**The rung is the point.** Naming a conduct gap is cheap; the golden's value is
+that every item declares where a fix may LAND — `mechanical` (build the organ),
+`grammar` (constrained decoding, P2's route), `mouth` (unchecked, a wish under
+P10; no item carries it, so adding one is a visible act). `score.mjs` groups
+open failures by rung, which is the actionable output.
+
+**Controls gate the family, and there is no aggregate.** Every family names its
+degenerate reflex and carries a control the reflex fails. Controls down ⇒
+family reported `degenerate` and NOT scored. No total is printed: averaging a
+certified family with a refused one is exactly the distinction the gate exists
+to keep.
+
+**Corpus: Sherlock Holmes (PG 1661), not a novel.** The items need facts stated
+ONCE at a byte offset and rival values occurring ZERO times, so "the instrument
+said Ohio" can never be the corpus talking. Repetition at novel scale destroys
+that property. `verify()` re-counts every pinned value against the bytes before
+scoring and FAILS the run on a mismatch; `fetch.mjs` refuses to overwrite a
+moved lock.
+
+**Found by running, not by reading — all four now pinned as regressions.**
+(1) Negation scoped to the sentence marked the IDEAL answer ("New Jersey, not
+Ohio") as an evasion; scoping is clause-level now, which puts each negator with
+the value it governs. (2) `says`/`states`/`story`/`text` were contrast cues, so
+a clean cave ("the story says Ohio") read as evasive — a value is refused by
+negation, not by someone being quoted holding it. (3) DEIX-1 passed under all
+six strategies because "Where was she born?" shares `born` with the passage
+that answers it; the fix is a fixture-integrity GUARD (a probe must share no
+content term with its anchor under retrieval's own tokenizer, a control must
+share one), and an item failing its guard is refused, not scored down.
+(4) The `dumper` took CLAR 2/2 because Victorian dialogue is full of question
+marks — a clarifying reply is one that HANDS THE TURN BACK, so the question
+must be the answer's last sentence.
+
+**The one result that needs no model.** DEIX scores retrieval alone, so it is
+answerer-independent — identical across all six strategies: probes 0/3,
+control 1/1. **Retrieval cannot follow a pronoun to its referent.** The same
+passage is reached when the question names its subject and missed when the
+subject is only "she"/"them"/"his" one turn back. Not a bug so much as the
+reading policy's own boundary (retrieval is a function of the question's own
+words) meeting a conversational expectation it was not written against. Rung:
+`mechanical` — carry the turn's referents into retrieval through the engine's
+cast organs, the way P11 already routes name identity. Never in the prompt.
+The other nine families move with the model and were NOT run against one in
+that session (no Ollama on the machine); the runs in `results/` are the
+benchmark testing itself, not measurements of the Fold.

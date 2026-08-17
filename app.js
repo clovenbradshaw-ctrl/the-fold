@@ -151,6 +151,16 @@ import { makeBuildLog } from "./build-log.js";
 
 const buildLog = makeBuildLog(engineTaskLog);
 
+// The widget router (widget.js): does a code-bearing turn point at a build
+// that already exists, or introduce a new one? Decided from the operator's
+// own words and the engine's closed classes (perceiver/text/priors.js) —
+// same injection pattern as buildLog above, so this stays node-testable
+// against the real register (widget.test.mjs).
+import * as enginePriors from "/engine/perceiver/text/priors.js";
+import { makeWidgetRouter } from "./widget.js";
+
+const widgetRouter = makeWidgetRouter(enginePriors);
+
 import {
   BOUND_SYSTEM_PROMPT,
   buildBoundPrompt,
@@ -1634,7 +1644,12 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null) {
+function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, task = null) {
+  // The operator's own words for this turn — what the widget router reads.
+  // Flat (single-part) turns pass only `instruction`; holonic turns pass a
+  // separate `task` (the plan's own words differ from the operator's), so
+  // this falls back rather than routing on the model's plan text.
+  const routingTask = task ?? instruction;
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings, relationClaims);
@@ -1657,6 +1672,11 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   }
   const segments = parseSegments(answer);
   body.textContent = "";
+  // One turn is one act (widget.js): a later block of the same kind in this
+  // SAME turn is a version of the first, never a sibling — tracked here so
+  // routeSegment sees what already landed before this segment, not just
+  // what existed before the turn began.
+  const landedThisTurn = [];
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
@@ -1671,10 +1691,12 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    // The chip is the conversation handle; for renderable artifacts (html,
-    // svg), the widget itself also appears inline — no click required.
-    const chip = publishBuild(seg, undefined, instruction);
+    const chip = routeAndPublish(seg, routingTask, instruction, landedThisTurn);
     body.append(chip);
+    // The chip is the conversation handle; for renderable artifacts (html,
+    // svg), the widget itself also appears inline — no click required. This
+    // is the segment's OWN code, so a revision's preview is the revision's,
+    // not stale bytes left over from the build's first version.
     if (RENDERABLE.has(seg.lang)) {
       body.append(artifactNode(seg, undefined, seg.code, { scripts: true }));
     }
@@ -1979,6 +2001,90 @@ function taggedProse(text, offered, classified = []) {
 
   if (rest) out.push(...refNodes(rest, known));
   return out;
+}
+
+/** A build's own words, for the router's definite-phrase check: its caption
+ * and its current projected code — the same pairing widget.test.mjs's own
+ * textOf() uses, so the two stay reading the same thing. */
+function buildWords(entry) {
+  const f = buildFold(entry, null);
+  return `${f?.caption ?? ""}\n${f?.code ?? ""}`;
+}
+
+/** A chip pointing at an existing build — the same handle publishBuild's own
+ * chip is, factored out so revise/rezero land the identical affordance a
+ * brand-new build gets. */
+function buildChip(entry, cap) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "build-chip";
+  chip.innerHTML = `<span aria-hidden="true">▤</span> `;
+  chip.append(document.createTextNode(cap));
+  chip.onclick = () => {
+    showView("builds");
+    renderBuilds(entry.n);
+    document
+      .getElementById(`build-${entry.n}`)
+      ?.scrollIntoView({ block: "start" });
+  };
+  return chip;
+}
+
+/**
+ * Does this code segment open a new build, or land on one that already
+ * exists? Decided by widget.js's routeSegment, from the operator's own
+ * words and the standing builds' own bytes — never a guess and never left
+ * to whether the model happened to restate itself in prose.
+ *
+ * A judgment ("I don't like the colors") re-zeros the target build: a new
+ * ground on ITS log, never a new build. A later block of the SAME kind in
+ * this turn (measured live: gemma2:2b answering one request with five html
+ * fences) versions the one just landed. Only a turn whose words introduce
+ * something new — or that names nothing existing at all — opens a build.
+ */
+function routeAndPublish(seg, task, instruction, landedThisTurn) {
+  if (seg.type !== "code" && seg.type !== "table") {
+    return publishBuild(seg, undefined, instruction);
+  }
+  const known = state.builds.map((b) => ({ n: b.n, ...kindOf(b), text: buildWords(b) }));
+  const route = widgetRouter.routeSegment(seg, task ?? "", known, { landedThisTurn });
+
+  if (route.kind === "new") {
+    const chip = publishBuild(seg, undefined, instruction);
+    const made = state.builds[state.builds.length - 1];
+    landedThisTurn.push({ n: made.n, type: seg.type, lang: seg.lang });
+    return chip;
+  }
+
+  const entry = state.builds.find((b) => b.n === route.n);
+  const landed = { ...seg, lang: route.lang && route.lang !== seg.lang ? route.lang : seg.lang };
+  const before = entry.log.entries.length;
+  entry.log =
+    route.kind === "rezero"
+      ? buildLog.rezeroBuild(entry.log, {
+          code: landed.code,
+          seg: landed,
+          caption: defaultCaption(landed),
+          trigger: route.trigger,
+          tell: route.tell,
+        })
+      : buildLog.reviseBuild(entry.log, { code: landed.code, reason: "restated" });
+  if (entry.log.entries.length > before) {
+    entry.cursor = null;
+    entry.draft = null;
+    mirrorBuild(entry, before);
+  }
+  persistBuilds();
+  renderBuilds(entry.n);
+  landedThisTurn.push({ n: entry.n, type: seg.type, lang: landed.lang });
+  return buildChip(entry, buildFold(entry, null)?.caption ?? defaultCaption(landed));
+}
+
+/** A build's kind, for the router's same-kind matching — the projected
+ * segment's own type and language, never a guess from the caption. */
+function kindOf(entry) {
+  const f = buildFold(entry, null);
+  return { type: f?.seg?.type, lang: f?.seg?.lang };
 }
 
 /**

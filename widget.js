@@ -59,9 +59,16 @@
 // anaphor), "I don't like the background" (a judgment), and "build 2" (the
 // number) all route, so the affordance is never absent, only narrower.
 //
-// Morphology is not folded either: "the colors" does not resolve against a
-// build whose bytes say `color:`. There is no stemmer in this engine and
-// inventing one here would be the same mistake at a different altitude.
+// Morphology folds ONE narrow way: a received inflectional suffix
+// (INFLECTIONAL_SUFFIXES, the register's own class, giver lang/en) — "the
+// colors" resolves against a build whose bytes say `color:`, "the buttons"
+// against `button`. That is the quotient this file is licensed to read;
+// there is no stemmer in this engine, and inventing one here (dialect
+// spelling, derivational morphology, anything past a received suffix class)
+// would be the same mistake at a different altitude. `scoutSpan` shares this
+// exact fold with the router (P11: an organ that compares text to text must
+// share retrieval's fold), so a term that ROUTES a complaint to a build can
+// also SCOPE the edit within it — the two questions read the same bytes.
 //
 // ── WHAT WAS CONSIDERED AND REFUSED ─────────────────────────────────────────
 //
@@ -81,6 +88,25 @@
 
 import { BUILD_MESSAGE_MAX, referencedBuild } from "./builds.js";
 import { foldDiacritics, tokenize } from "./source.js";
+
+/**
+ * Two tokens are forms of one referent when they are identical or differ by
+ * a received inflectional suffix — stated language-free (identity under a
+ * received variation class; the class carries the language, with its
+ * giver). Shared by the router (`iterationTell`, deciding which build a
+ * complaint routes to) and `scoutSpan` (deciding which bytes of that build
+ * an edit scopes to) — P11: the two questions read the same bytes and must
+ * share the same fold, or a term that finds the build fails to find itself
+ * inside it. Engine-side placement of this mechanism is named future work;
+ * the class it consumes is already the register's.
+ */
+function sameForm(a, b, suffixes) {
+  if (a === b) return true;
+  for (const sfx of suffixes) {
+    if (a.length > b.length ? a === b + sfx : b === a + sfx) return true;
+  }
+  return false;
+}
 
 /**
  * Bind the router to the engine's prior register.
@@ -175,19 +201,6 @@ export function makeWidgetRouter(priors) {
     return null;
   }
 
-  /** Two tokens are forms of one referent when they are identical or differ
-   * by a received inflectional suffix — stated language-free (identity
-   * under a received variation class; the class carries the language, with
-   * its giver). Engine-side placement of this mechanism is named future
-   * work; the class it consumes is already the register's. */
-  function sameForm(a, b) {
-    if (a === b) return true;
-    for (const sfx of INFLECTIONAL_SUFFIXES) {
-      if (a.length > b.length ? a === b + sfx : b === a + sfx) return true;
-    }
-    return false;
-  }
-
   /** Does any content word of the message resolve into the build's own
    * bytes? Both sides through retrieval's one fold (tokenize — stopwords
    * and short forms drop on both sides), then form identity. */
@@ -195,7 +208,7 @@ export function makeWidgetRouter(priors) {
     const have = [...new Set(terms(known))];
     if (!have.length) return false;
     for (const t of new Set(terms(message))) {
-      for (const s of have) if (sameForm(t, s)) return true;
+      for (const s of have) if (sameForm(t, s, INFLECTIONAL_SUFFIXES)) return true;
     }
     return false;
   }
@@ -341,17 +354,43 @@ export function capture(message) {
  * edit only has to be unique within what attention scoped, and the model
  * is only shown the scouted region — a smaller arena for a small model.
  *
- * Same discipline as the router's own tells, deliberately: the term must
- * appear in the code through retrieval's one fold, exactly (no stemmer in
- * this engine, morphology stays unfolded — "the colors" does not resolve
- * against `color:`; the affordance is narrower, never absent). No match →
- * null, and the caller keeps the whole-file rule. The span is mechanical:
- * from the start of the first line holding the term to the end of the
- * last line holding it.
+ * Same discipline as the router's own tells, deliberately, and now the same
+ * FOLD too (P11, measured live 2026-08-17: the canonical complaint "make the
+ * buttons bigger" routed correctly to the widget that says `button`, then
+ * scoped to the wrong span because "buttons" has no exact match in the
+ * code — the scout fell back to "widget", a single accidental hit in the
+ * `<title>`, and the edit landed there instead of near the buttons). A
+ * message term that has no exact match in the code may still resolve
+ * through a received inflectional suffix (`suffixes`, the register's own
+ * class) — "buttons" resolves against `button` the same way it does for
+ * the router.
+ *
+ * DISCLOSED LIMIT, found the same session and only PARTLY closed here: this
+ * function has no model of what a "button" or a "widget" IS — no referent,
+ * only byte-occurrence counts (P11's own principle, "a name is a reference
+ * to a referent, never a byte sequence," is not yet honored HERE the way
+ * cast.js's referent index honors it for prose). Fixing "buttons" → "button"
+ * alone was not enough: "widget" (an accidental single hit inside the
+ * document's own `<title>`, which names the whole artifact, not any part of
+ * it) still out-selects "button" (4 real occurrences, the actual referent of
+ * the complaint) on raw rarity. The one exclusion below — `<title>` — is a
+ * narrow, disclosed, STRUCTURAL patch (the same class of fix as P5.3's
+ * container-stripping: `<title>` is document metadata by the HTML spec
+ * itself, never rendered page content, never anything a visual complaint
+ * could be about), not a referent model. A real fix needs to know that
+ * "widget" names the whole artifact and "button" names two of its parts,
+ * and would generalize past this one tag; that is future work, named here
+ * rather than smuggled in as if this patch already were it.
+ *
+ * No match at all → null, and the caller keeps the whole-file rule. The
+ * span is mechanical: from the start of the first line holding the term to
+ * the end of the last line holding it.
  */
-export function scoutSpan(message, code) {
+export function scoutSpan(message, code, suffixes) {
   const text = String(code ?? "");
   if (!text) return null;
+  if (!(suffixes instanceof Set) || !suffixes.size)
+    throw new TypeError("scoutSpan: suffixes must come from the engine's prior register");
   // The fold is NOT length-preserving (NFD + mark-strip shrinks decomposed
   // input), so positions in the folded string may not be positions in the
   // text — P5.2's offset lesson. Fold per character and keep the map back.
@@ -367,15 +406,37 @@ export function scoutSpan(message, code) {
   // A term is a WORD the message and the code share — retrieval's own
   // token rule on both sides, never a substring graze ("don", the fragment
   // tokenize cuts from "don't", must not land on "done"). Occurrences are
-  // then located with boundary checks for the same reason.
-  const codeTokens = new Set(tokenize(text));
-  const terms = [...new Set(tokenize(String(message ?? "")))].filter((t) => t.length > 2 && codeTokens.has(t));
+  // then located with boundary checks for the same reason. A message word
+  // with no exact match still resolves if it is the same FORM as a code
+  // token (sameForm, shared with the router) — the term used for locating
+  // places is always the code's own spelling, since that is what the bytes
+  // actually hold.
+  const codeTokenList = [...new Set(tokenize(text))];
+  const codeTokens = new Set(codeTokenList);
+  const terms = [
+    ...new Set(
+      [...new Set(tokenize(String(message ?? "")))]
+        .filter((t) => t.length > 2)
+        .map((t) => (codeTokens.has(t) ? t : codeTokenList.find((c) => sameForm(t, c, suffixes))))
+        .filter(Boolean),
+    ),
+  ];
+  // <title> is document metadata (HTML's own definition — never rendered
+  // page content, never anything a visual complaint names): its bytes are
+  // excluded from every term's places, so its own accidental vocabulary
+  // ("Counter Widget") cannot out-select the actual referent of a complaint
+  // by pure rarity. See the disclosed-limit note above this function.
+  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(text);
+  const titleStart = titleMatch ? titleMatch.index + titleMatch[0].indexOf(titleMatch[1]) : -1;
+  const titleEnd = titleMatch ? titleStart + titleMatch[1].length : -1;
+  const inTitle = (origIndex) => titleStart >= 0 && origIndex >= titleStart && origIndex < titleEnd;
+
   const wordy = (ch) => ch !== undefined && /[a-z0-9_]/.test(ch);
   const placesOf = (term) => {
     const places = [];
     let at = folded.indexOf(term);
     while (at !== -1) {
-      if (!wordy(folded[at - 1]) && !wordy(folded[at + term.length])) places.push(at);
+      if (!wordy(folded[at - 1]) && !wordy(folded[at + term.length]) && !inTitle(map[at])) places.push(at);
       at = folded.indexOf(term, at + 1);
     }
     return places;

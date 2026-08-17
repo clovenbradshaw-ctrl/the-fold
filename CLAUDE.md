@@ -1060,6 +1060,20 @@ the conceded projection plus the model's delta, the delta kept as
 amendment; the honest residue is that the walls verify applicability,
 not intent — the repair is the next iteration, which is the design.
 
+**The loop closed (same day, "do all").** Seven of the nine operators now
+speak on a build log: NUL asks (Ground grain), SIG scouts, INS births and
+admits, SEG snips, SYN compiles, DEF refuses, EVA witnesses, REC re-zeros
+— CON (binding folds into systems) and the Pattern grain (skills.js as
+Kind/Paradigm — still structurally unreachable from chat) are the named
+remainder, each its own pass. The turn's ladder: scout → one grammar-held
+{find, add} edit against the scouted arena → act derived off the bytes →
+strict-within, `every` only as disclosed ambiguous-rescue → refusal lands
+DEF and is quoted to the next ask → landing witnessed (witness.js) and
+the witness lands EVA and aims the next ask. Measured live
+(eval/iterate-eval.mjs): 12/12 landings, 11/12 clean turn-one, 12/12
+after one repair turn, ~220 output tokens per model per six iterations —
+against a 3/6 unmeasured-intent morning baseline.
+
 **Three build-log modules exist and only one is wired.** `build-log.js` is
 live (app.js imports it); `builds.js` is unwired except for `referencedBuild`
 and `BUILD_MESSAGE_MAX`, which widget.js now imports rather than re-deriving;

@@ -567,6 +567,38 @@ re-pinned rather than assumed. Stored logs are unaffected: replay goes
 through the engine's `append`, which accepts both typings, and old
 entries keep the operator they were born with — history is not retyped.
 
+*Amended same day (user direction: "do all") — the loop is closed and five
+more operators speak. Four new entry kinds, each its own micro-thread (the
+REC precedent; the one-way order is why), none touching the projection:
+**NUL · Ground** — the ask joins the log (birth lands the instruction
+verbatim; a re-zero lands the amended ask beside its rebirth — the log's
+first word on the grain axis beyond Figure, the axis the lexical corpus
+measured strongest); **SIG · Figure** — attention: `scoutSpan` resolves
+the operator's own words to the byte-span they name (shared tokens
+through the one fold, boundary-checked, the most SELECTIVE term deciding
+— "the reset button" scopes by "reset", never by "button"), the model is
+shown that arena, the edit applies `within` it, and the span rides both
+the SIG entry and the patch entry so replay recompiles the same arena;
+**DEF · Figure** — a refused patch lands with its gap and its ops, and
+the next ask QUOTES it ("already tried and refused"), so dead ends are
+walked once; **EVA · Figure** — every landing is witnessed mechanically
+(`witness.js`: script compile-checks — never invoked — id referential
+integrity, root closure; unexaminable languages are typed `unexamined`,
+never clean) and a dirty witness aims the next ask. The walls now check
+applicability AND artifact integrity; intent still belongs to the
+operator, one complaint away.
+
+Measured end to end (eval/iterate-eval.mjs, the REAL organs, live
+models, 2026-08-17): the morning's baseline was 3/6 landings with intent
+unmeasured; with the full ladder, gemma2:2b and qwen2.5-coder:1.5b each
+land 6/6 on turn one, 11/12 witness-clean on turn one, and 12/12 after
+ONE repair turn — the single dirty landing (a script-breaking edit) was
+caught by its own witness and repaired by the loop itself, at ~220
+output tokens per model for all six iterations. Enforced: the new cases
+in `build-log.test.mjs` (each operator's entry, thread, checker-silence,
+and replay; the measured qwen id-clobber pinned as witness evidence; the
+scout's offset map surviving decomposed diacritics per P5.2).*
+
 **Enforced:** `build-log.test.mjs` — the INS birth cell derived by the
 engine's own `cellOf`, applyOps' typed gaps and atomicity,
 deriveOp/readOps off the bytes (the INS normalization: the anchor is never

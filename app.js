@@ -160,7 +160,8 @@ const buildLog = makeBuildLog(engineTaskLog);
 // same injection pattern as buildLog above, so this stays node-testable
 // against the real register (widget.test.mjs).
 import * as enginePriors from "/engine/perceiver/text/priors.js";
-import { makeWidgetRouter } from "./widget.js";
+import { makeWidgetRouter, scoutSpan } from "./widget.js";
+import { witnessCode } from "./witness.js";
 
 const widgetRouter = makeWidgetRouter(enginePriors);
 
@@ -990,6 +991,29 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   const lang = cur.seg?.lang ?? "";
   logAct("asked", { text: typed });
 
+  // SIG FIRST: resolve the operator's own words to the region of the code
+  // they name, mechanically, before any model call. A hit shrinks the
+  // arena — the model is shown the scouted region, the edit only has to be
+  // unique inside it, and the landing records what attention scoped.
+  const scout = typeof cur.code === "string" ? scoutSpan(instruction, cur.code) : null;
+  const arena = scout ? cur.code.slice(scout.span[0], scout.span[1]) : cur.code ?? "";
+
+  // What the log already knows, said to the model: dead ends are not
+  // re-walked (DEF entries) and known defects aim the ask (the last EVA
+  // witness). Both are the log's own entries, quoted — never a model's
+  // memory of itself.
+  const refusals = entry.log.entries.filter((e) => e.operator === "DEF").slice(-2);
+  const lastWitness = entry.log.entries.filter((e) => e.operator === "EVA").at(-1);
+  const known =
+    (refusals.length
+      ? `\nEdits already tried and refused (do not repeat): ${refusals
+          .map((e) => `find ${JSON.stringify(String(e.refusal?.ops?.[0]?.find ?? "").slice(0, 48))} — ${e.refusal?.gap?.kind}`)
+          .join("; ")}.`
+      : "") +
+    (lastWitness && lastWitness.witness?.ok === false
+      ? `\nKnown defects in the current code: ${lastWitness.witness.findings.map((f) => f.detail).join("; ")}.`
+      : "");
+
   // THE SMALLEST CHANGE FIRST. The model is asked for the delta, not the
   // file — the ask is plain prose (a small model reads prose better than
   // bracket scaffolding), and the SHAPE is held by the decoder's grammar,
@@ -997,9 +1021,11 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   // is what makes application mechanical; the model is told so plainly, and
   // if it gets it wrong the gap is typed rather than absorbed.
   const opsPrompt =
-    `Here is the working code of fold ${n}${lang ? ` (${lang})` : ""}:\n\n` +
-    `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\`\n\n` +
-    `Change it as follows: ${instruction}\n\n` +
+    (scout
+      ? `Here is the part of fold ${n}${lang ? ` (${lang})` : ""} your request points at ("${scout.term}"):\n\n`
+      : `Here is the working code of fold ${n}${lang ? ` (${lang})` : ""}:\n\n`) +
+    `\`\`\`${lang}\n${arena}\n\`\`\`\n\n` +
+    `Change it as follows: ${instruction}\n${known}\n` +
     `Reply with ONE edit, the smallest that does it — never the whole file. ` +
     `find is a short piece of the code above, copied exactly, that appears only once. ` +
     `add is what that piece becomes. To delete something, leave add empty.`;
@@ -1022,17 +1048,27 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
       // The log is the gate: applyOps runs against the live projection and
       // a patch that does not apply never lands. Nothing here decides
       // whether the change was RIGHT — only whether it is a change this
-      // projection can mechanically take. STRICT FIRST: an edit whose bytes
-      // appear once is unambiguous. `every` is only the rescue of the
-      // measured common case (both buttons carry the same style attribute
-      // and the operator meant both), and a rescue is DISCLOSED — the
-      // landing says how many places moved, because an every-landing can
-      // also be the bad case (a token like "inc" living in the markup AND
-      // the script), and the reader's next complaint is the repair.
-      const strict = buildLog.applyOps(cur.code ?? "", ops);
-      const trial = strict.ok ? strict : strict.gap.kind === "ambiguous" ? buildLog.applyOps(cur.code ?? "", ops, { every: true }) : strict;
-      if (!trial.ok) opsGap = `${trial.gap.kind}${trial.gap.find ? `: ${trial.gap.find.slice(0, 60)}` : ""}`;
-      else landedPatch = { ops, code: trial.code, every: !strict.ok, touched: trial.touched };
+      // projection can mechanically take. The ladder: WITHIN the scouted
+      // arena when attention resolved one (uniqueness judged inside it,
+      // bytes outside it untouchable), strict first, and `every` only as
+      // the disclosed rescue of an `ambiguous` gap — the landing says how
+      // many places moved, because an every-landing can also be the bad
+      // case (a token living in markup AND script), and the reader's next
+      // complaint is the repair.
+      const within = scout?.span ?? null;
+      const strict = buildLog.applyOps(cur.code ?? "", ops, { within });
+      const trial = strict.ok ? strict : strict.gap.kind === "ambiguous" ? buildLog.applyOps(cur.code ?? "", ops, { every: true, within }) : strict;
+      if (!trial.ok) {
+        opsGap = `${trial.gap.kind}${trial.gap.find ? `: ${trial.gap.find.slice(0, 60)}` : ""}`;
+        // The dead end joins the log — DEF · Figure, evidence the next ask
+        // is shown, never a vanished return value.
+        const b0 = entry.log.entries.length;
+        entry.log = buildLog.refuseBuild(entry.log, { ops, gap: trial.gap });
+        if (entry.log.entries.length > b0) {
+          mirrorBuild(entry, b0);
+          persistBuilds();
+        }
+      } else landedPatch = { ops, code: trial.code, every: !strict.ok, touched: trial.touched, within };
     }
   } catch (err) {
     opsGap = `engine error: ${err.message || err}`;
@@ -1088,22 +1124,33 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
     // carrying the operator's own words); an instruction supersedes — as a
     // PATCH when the delta applied (the entry carries the ops, the fold
     // compiles the whole) and as FULL code when the door had to descend.
+    // Attention that resolved lands first — SIG, the arena the patch that
+    // follows applied within, in the operator's own term.
+    if (landedPatch && scout) {
+      entry.log = buildLog.scoutBuild(entry.log, { term: scout.term, span: scout.span });
+    }
     if (rezero) {
       entry.log = buildLog.rezeroBuild(entry.log, {
         code,
         seg: { ...(cur.seg ?? {}), code },
         trigger: trigger ?? instruction,
         tell,
-        patch: landedPatch ? { ops: landedPatch.ops } : null,
+        patch: landedPatch ? { ops: landedPatch.ops, ...(landedPatch.within ? { within: landedPatch.within } : {}) } : null,
       });
     } else if (landedPatch) {
-      const r = buildLog.patchBuild(entry.log, { ops: landedPatch.ops, reason: "revision", tell, every: landedPatch.every });
+      const r = buildLog.patchBuild(entry.log, { ops: landedPatch.ops, reason: "revision", tell, every: landedPatch.every, within: landedPatch.within });
       entry.log = r.log;
     } else {
       entry.log = buildLog.reviseBuild(entry.log, { code, reason: "revision" });
     }
     const landed = entry.log.entries.length > before;
     if (landed) {
+      // The witness closes the loop — what the landing actually did, read
+      // mechanically (witness.js), landed as EVA and fed to the NEXT ask.
+      // Unexamined languages attach nothing: a gap is not a clean bill.
+      const wNow = buildFold(entry, null);
+      const w = witnessCode(wNow?.seg?.lang, wNow?.code);
+      if (w.ok !== null) entry.log = buildLog.attachWitness(entry.log, { witness: w });
       entry.cursor = null;
       entry.draft = null;
       mirrorBuild(entry, before);
@@ -1111,10 +1158,14 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
       renderBuilds(n);
       const now = buildFold(entry, null);
       const places = landedPatch?.touched?.reduce((a, b) => a + b, 0) ?? 0;
-      const how = landedPatch
-        ? `${landedPatch.ops.length} edit${landedPatch.ops.length === 1 ? "" : "s"} (${landedPatch.ops.map((o) => o.op).join(" ")})` +
-          (landedPatch.every ? ` · changed in ${places} places` : "")
-        : "whole file";
+      const lastW = entry.log.entries.filter((e) => e.operator === "EVA").at(-1)?.witness;
+      const how =
+        (landedPatch
+          ? `${landedPatch.ops.length} edit${landedPatch.ops.length === 1 ? "" : "s"} (${landedPatch.ops.map((o) => o.op).join(" ")})` +
+            (scout && landedPatch.within ? ` · within "${scout.term}"` : "") +
+            (landedPatch.every ? ` · changed in ${places} places` : "")
+          : "whole file") +
+        (lastW ? (lastW.ok ? " · witness clean" : ` · witness: ${lastW.findings.length} finding(s)`) : "");
       note = rezero
         ? `fold ${n} · ground ${now.ground} · re-zeroed from your words · ${how}`
         : `fold ${n} · v${now.version} · revision landed · ${how}`;

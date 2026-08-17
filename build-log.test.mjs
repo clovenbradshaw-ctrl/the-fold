@@ -223,8 +223,11 @@ test("instruction travels through proposeBuild, foldBuild, and survives replay",
   let log = buildLog.proposeBuild({ n: 9, turn: 1, seg: codeSeg, caption: "python", instruction: instr });
   const b = buildLog.foldBuild(log);
   assert.equal(b.instruction, instr);
-  // The instruction lands on the PROPOSE entry itself.
-  assert.equal(log.entries[0].instruction, instr);
+  // The ask precedes the artifact: NUL · Ground first, then the PROPOSE
+  // carrying the instruction field.
+  assert.equal(log.entries[0].operator, "NUL");
+  assert.equal(log.entries[0].ask, instr);
+  assert.equal(log.entries[1].instruction, instr);
   // Revise does not disturb the instruction — the fold keeps it.
   log = buildLog.reviseBuild(log, { code: "print(3)", reason: "edit" });
   assert.equal(buildLog.foldBuild(log).instruction, instr);
@@ -445,4 +448,120 @@ test("an every-patch rides the entry with its counts and the cursor recompiles e
   assert.equal(buildLog.foldBuild(r.log).code, '<i style="x:2">a</i><i style="x:2">b</i>');
   const replayed = buildLog.replayEntries(JSON.parse(JSON.stringify(r.log.entries)));
   assert.equal(buildLog.foldBuild(replayed).code, buildLog.foldBuild(r.log).code);
+});
+
+// ——— The remaining operators join the log: NUL asks, SIG scouts, DEF
+// refusals, EVA witnesses — each its own micro-thread (the REC precedent),
+// none touching the projection, all pinned against the engine's checker.
+
+import { witnessCode, witnessHtml, scriptBodies } from "./witness.js";
+import { scoutSpan } from "./widget.js";
+
+test("the ask is NUL · Ground, its own thread, and a re-zero lands the amended ask beside its rebirth", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w", instruction: "make me a counter" });
+  assert.equal(log.entries[0].operator, "NUL");
+  assert.equal(log.entries[0].grain, "Ground");
+  assert.equal(log.entries[0].task_id, "b1.ask.1");
+  log = buildLog.rezeroBuild(log, { code: "<p>x</p>", seg: { ...widgetSeg, code: "<p>x</p>" }, trigger: "I don't like the colors" });
+  const asks = log.entries.filter((e) => e.operator === "NUL");
+  assert.equal(asks.length, 2);
+  assert.equal(asks[1].ask, "I don't like the colors");
+  assert.equal(asks[1].ground, 2);
+  assert.deepEqual(checkCubeProgression(log), []);
+  // The projection never sees an ask.
+  assert.equal(buildLog.foldBuild(log).code, "<p>x</p>");
+});
+
+test("a refused patch lands DEF · Figure with the gap and the ops — evidence, not a vanished return value", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  const ops = [{ op: "SYN", find: "#FF0000", add: "#2196F3" }];
+  const r = buildLog.patchBuild(log, { ops });
+  assert.equal(r.landed, false);
+  log = buildLog.refuseBuild(log, { ops, gap: r.gap });
+  const def = log.entries[log.entries.length - 1];
+  assert.equal(def.operator, "DEF");
+  assert.equal(def.kind, taskLog.ENTRY_KINDS.EVIDENCE);
+  assert.equal(def.refusal.gap.kind, "unlocated");
+  assert.deepEqual(def.refusal.ops, ops);
+  assert.equal(def.task_id, "b1.refuse.1");
+  assert.equal(buildLog.foldBuild(log).version, 1);
+  assert.deepEqual(checkCubeProgression(log), []);
+  assert.match(buildLog.timeline(log)[1].label, /^refused · unlocated/);
+});
+
+test("a witness lands EVA · Figure naming the version it speaks of, and the checker stays silent", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "go", add: "run" }] }).log;
+  const w = witnessCode("html", buildLog.foldBuild(log).code);
+  log = buildLog.attachWitness(log, { witness: w });
+  const eva = log.entries[log.entries.length - 1];
+  assert.equal(eva.operator, "EVA");
+  assert.equal(eva.of, "b1.v2");
+  assert.equal(eva.witness.ok, true);
+  assert.deepEqual(checkCubeProgression(log), []);
+  assert.equal(buildLog.timeline(log)[2].label, "witness · clean");
+});
+
+test("witnessHtml catches the measured clobber: a script addressing an id no element declares", () => {
+  // The live qwen2.5-coder case: SYN "inc" → "style='background:blue'"
+  // replaced the id in markup AND the getElementById in script.
+  const broken = `<button style='background:blue'>+</button><script>document.getElementById('inc').onclick = () => {};</script>`;
+  const w = witnessHtml(broken);
+  assert.equal(w.ok, false);
+  assert.deepEqual(w.findings.map((f) => f.kind), ["dangling-id"]);
+  assert.equal(w.findings[0].id, "inc");
+  // The healthy original is clean.
+  const fine = `<button id="inc">+</button><script>document.getElementById('inc').onclick = () => {};</script>`;
+  assert.equal(witnessHtml(fine).ok, true);
+});
+
+test("witnessCode: a script that does not parse is a finding; material it cannot judge is unexamined, never clean", () => {
+  const w = witnessCode("html", `<p>x</p><script>let a = ;</script>`);
+  assert.equal(w.ok, false);
+  assert.equal(w.findings[0].kind, "script-syntax");
+  const py = witnessCode("python", "print(1)");
+  assert.equal(py.ok, null);
+  assert.equal(py.unexamined, true);
+  // The quote-aware tag walk: an attribute value legally contains ">".
+  assert.equal(scriptBodies(`<script data-x="a>b">let q = 1;</script>`)[0], "let q = 1;");
+});
+
+test("scoutSpan resolves the operator's own term to a byte-span through the fold, or null — never a guess", () => {
+  const code = `<div id="top">hi</div>\n<button id="inc">+</button>\n<p>done</p>`;
+  const s = scoutSpan("I don't like the button", code);
+  assert.equal(s.term, "button");
+  const [a, b] = s.span;
+  assert.equal(code.slice(a, b), `<button id="inc">+</button>`);
+  // No exact-fold match → null (morphology stays unfolded — the stated limit).
+  assert.equal(scoutSpan("make the header taller", code), null);
+  // Diacritics fold with offsets that survive decomposed input (P5.2).
+  const deco = `x\n<p class="hélene">y</p>\nz`;
+  const d = scoutSpan("fix helene please", deco);
+  assert.equal(deco.slice(d.span[0], d.span[1]), `<p class="hélene">y</p>`);
+});
+
+test("a patch applies within the scouted span: unique inside it even when the file holds two, and replay recompiles the same arena", () => {
+  const code = `<button id="inc" style="s:1">+</button>\n<button id="reset" style="s:1">reset</button>`;
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: { type: "code", lang: "html", code }, caption: "w" });
+  // "reset" (one place) decides the arena, never "button" (every row).
+  const s = scoutSpan("make the reset button bigger", code);
+  assert.equal(s.term, "reset");
+  const r = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: 'style="s:1"', add: 'style="s:2"' }], within: s.span });
+  assert.equal(r.landed, true, JSON.stringify(r.gap ?? null));
+  const b = buildLog.foldBuild(r.log);
+  assert.equal(b.code, `<button id="inc" style="s:1">+</button>\n<button id="reset" style="s:2">reset</button>`);
+  const replayed = buildLog.replayEntries(JSON.parse(JSON.stringify(r.log.entries)));
+  assert.equal(buildLog.foldBuild(replayed).code, b.code);
+  // Without the span the same op is ambiguous — the scout is what made it land.
+  assert.equal(buildLog.applyOps(code, [{ op: "SYN", find: 'style="s:1"', add: 'style="s:2"' }]).gap.kind, "ambiguous");
+});
+
+test("a scout lands SIG · Figure with the term and the span it resolved", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  log = buildLog.scoutBuild(log, { term: "button", span: [0, 12] });
+  const sig = log.entries[log.entries.length - 1];
+  assert.equal(sig.operator, "SIG");
+  assert.deepEqual(sig.scout, { term: "button", span: [0, 12] });
+  assert.equal(sig.task_id, "b1.scout.1");
+  assert.deepEqual(checkCubeProgression(log), []);
 });

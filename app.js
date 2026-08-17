@@ -40,6 +40,13 @@ import {
 
 import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
 
+// Which build a produced artifact belongs to. "I don't like the colors" is a
+// turn about something that already exists, and it must land on that thing's
+// log rather than forking a second one beside it — decided mechanically from
+// the OPERATOR's words and the shape of what came back, never from the
+// model's phrasing (L5).
+import { makeWidgetRouter } from "./widget.js";
+
 import {
   ensureEditor,
   editorGet,
@@ -99,6 +106,14 @@ import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
 import { makeCastResolver, makeCastHandles } from "./cast.js";
+
+// The engine's prior register — the closed-class word sets, each naming its
+// giver (Amendment IV). Routing a turn's artifact onto the right build is
+// decided from these, never from a word list this app typed out: a list of
+// English verbs could only ever be a sample standing in for the whole, which
+// is the mistake relations.js's own header records undoing.
+import * as enginePriors from "/engine/perceiver/text/priors.js";
+const widgetRouter = makeWidgetRouter(enginePriors);
 
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
@@ -952,7 +967,7 @@ async function reflectTurn(question, typed) {
   const quoted = offered.flatMap((p) =>
     [...p.text.matchAll(REF_IN_TEXT)].map((m) => m[1]),
   );
-  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings);
+  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, [], question);
 
   state.history.push(
     { role: "user", content: typed },
@@ -1278,7 +1293,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   // it is stamped with THIS turn's number, not the next one's.
   const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
   const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
-  renderAnswer(body, result.output, offered, attributions, findings, relationClaims);
+  renderAnswer(body, result.output, offered, attributions, findings, relationClaims, task);
   await refreshSummary(fold);
   renderFold(node, { fold, record, ran: log });
   renderThreads();
@@ -1338,7 +1353,7 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = []) {
+function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], message = "") {
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings, relationClaims);
@@ -1361,6 +1376,10 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   }
   const segments = parseSegments(answer);
   body.textContent = "";
+  // Where this turn's artifacts landed, accumulated as they land: the first
+  // block of a kind decides, the rest of that kind revise it rather than
+  // opening builds beside it.
+  const landedThisTurn = [];
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
@@ -1375,7 +1394,8 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    body.append(publishBuild(seg));
+    const chip = publishSegment(seg, message, landedThisTurn);
+    if (chip) body.append(chip);
   }
 
   // The turn's epistemic state, at a glance: how much of what was just said
@@ -1665,6 +1685,78 @@ function taggedProse(text, offered, classified = []) {
  * a scrollbar and the conversation gets a wall. The panel is the width the
  * output wants; the chip is the sentence the conversation wants.
  */
+/**
+ * Route one produced segment: onto an existing build's log as a RE-ZERO, or
+ * to a new build of its own. `message` is the operator's own words for this
+ * turn — the only words trusted with the decision.
+ *
+ * The chip that comes back points at whichever build the segment landed on,
+ * so a complaint answered with a fix scrolls to the widget it fixed rather
+ * than to a stranger with the next number.
+ */
+function publishSegment(seg, message, landedThisTurn = [], caption) {
+  const kindOf = (s) => ({ type: s?.type, lang: s?.lang });
+  const route = widgetRouter.routeSegment(
+    seg,
+    message,
+    state.builds.map((b) => {
+      const fold = buildFold(b, null);
+      // The build's OWN words — its caption and its current projection. A
+      // definite phrase ("the button") lands on the build whose bytes state
+      // it, so the routing is answered by the artifact rather than by a
+      // vocabulary this app would have had to invent.
+      return { n: b.n, ...kindOf(fold?.seg), text: `${fold?.caption ?? ""}\n${fold?.code ?? ""}` };
+    }),
+    { landedThisTurn },
+  );
+
+  if (route.kind === "new") {
+    const chip = publishBuild(seg, caption);
+    landedThisTurn.push({ n: state.builds[state.builds.length - 1].n, ...kindOf(seg) });
+    return chip;
+  }
+
+  const entry = state.builds.find((b) => b.n === route.n);
+  const before = entry.log.entries.length;
+  // An untagged fence adopts the build's declared language, so a widget
+  // answered with a bare fence keeps its preview and its .html download.
+  const landed = route.lang && route.lang !== seg.lang ? { ...seg, lang: route.lang } : seg;
+
+  if (route.kind === "revise") {
+    // The same turn, a later block of the same kind: a new whole compiled in
+    // one breath, which is a SUPERSEDE (SYN) and not a re-zero — no ground
+    // was conceded between them, because nobody judged anything in between.
+    entry.log = buildLog.reviseBuild(entry.log, { code: landed.type === "code" ? landed.code : null, reason: "restated" });
+    entry.cursor = null;
+    mirrorBuild(entry, before);
+    persistBuilds();
+    renderBuilds(entry.n);
+    // No second chip: the turn already has one, pointing at this build.
+    return null;
+  }
+
+  entry.log = buildLog.rezeroBuild(entry.log, {
+    seg: landed,
+    code: landed.type === "code" ? landed.code : null,
+    trigger: route.trigger,
+    tell: route.tell,
+  });
+  landedThisTurn.push({ n: entry.n, ...kindOf(landed) });
+  // A re-zero that concedes nothing appends nothing (churn is refused in the
+  // log, not papered over here) — the chip is still honest about where the
+  // turn landed, which is on this build either way.
+  entry.cursor = null;
+  mirrorBuild(entry, before);
+  persistBuilds();
+  renderBuilds(entry.n);
+  if (!matchMedia("(max-width: 900px)").matches) showView("builds");
+
+  const fold = buildFold(entry, null);
+  return buildChip(entry, `${fold.caption} · ground ${fold.ground}`, {
+    title: `Re-zeroed on your own words: "${route.trigger}". The previous ground is still on the log, at its own cursor position.`,
+  });
+}
+
 function publishBuild(seg, caption) {
   const n = state.builds.length + 1;
   const turn = state.summary.turnCount + 1;
@@ -1692,11 +1784,18 @@ function publishBuild(seg, caption) {
   // is the wrong trade — the chip is enough.
   if (!matchMedia("(max-width: 900px)").matches) showView("builds");
 
+  return buildChip(entry, cap);
+}
+
+/** The conversation's one-line handle on a build. Code never appears in the
+ * chat as a block; the chip is the sentence, the panel is the artifact. */
+function buildChip(entry, label, { title = null } = {}) {
   const chip = document.createElement("button");
   chip.type = "button";
   chip.className = "build-chip";
   chip.innerHTML = `<span aria-hidden="true">▤</span> `;
-  chip.append(document.createTextNode(cap));
+  chip.append(document.createTextNode(label));
+  if (title) chip.title = title;
   chip.onclick = () => {
     showView("builds");
     renderBuilds(entry.n);
@@ -1844,7 +1943,13 @@ function renderBuilds(highlight) {
     wrap.className = `build-entry${entry.n === highlight ? " current" : ""}`;
     const from = document.createElement("p");
     from.className = "build-from";
-    from.textContent = `turn ${entry.turn} · v${shown.version}`;
+    // A build that has been re-zeroed says so: the ground is part of where
+    // the reader is, not a footnote. Ground 1 is unlabelled — a build nobody
+    // has complained at has no ground to talk about.
+    from.textContent =
+      shown.ground > 1
+        ? `turn ${entry.turn} · ground ${shown.ground} · v${shown.version}`
+        : `turn ${entry.turn} · v${shown.version}`;
     wrap.append(from);
     if (shown.seg.type === "code" && atLive) {
       const edit = document.createElement("button");

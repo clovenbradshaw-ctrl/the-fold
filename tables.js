@@ -13,6 +13,7 @@
 // Pure: no DOM, no IO, no model.
 
 import { chartFrom, tableFrom } from "./artifact.js";
+import { delimitedTable } from "./source.js";
 import { foldPace } from "./pace.js";
 import { actsTable, paceTable, surpriseTable } from "./reflex.js";
 
@@ -186,14 +187,14 @@ export function detectChart(question) {
  * not tabular (fewer than two columns or two lines).
  */
 export function delimitedRows(text) {
-  const lines = String(text ?? "").split(/\r?\n/).filter((l) => l.trim().length);
-  if (lines.length < 2) return null;
-  const delim = [",", "\t", ";"]
-    .map((d) => ({ d, n: lines[0].split(d).length }))
-    .sort((a, b) => b.n - a.n)[0];
-  if (delim.n < 2) return null;
-  const split = (l) => l.split(delim.d).map((c) => c.trim());
-  return { head: split(lines[0]), rows: lines.slice(1).map(split) };
+  // The walk itself lives in source.js::delimitedTable — one quote-aware
+  // scanner for every reader of delimited bytes. This wrapper keeps the
+  // name and contract every caller already has. The naive String.split
+  // version that used to live here burst quoted cells at their own commas:
+  // measured on the first real dataset the measuring door met (USGS
+  // all_month.csv), 10,549 of 10,733 rows came out too wide and every
+  // column right of `place` silently shifted.
+  return delimitedTable(text);
 }
 
 /**

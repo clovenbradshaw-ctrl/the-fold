@@ -157,6 +157,10 @@ const buildLog = makeBuildLog(engineTaskLog);
 // place a declaration is refused before a draw is spent.
 import * as nul from "/nul/index.js";
 import { bindLinks } from "/engine/emergence/binding.js";
+// The engine's pure frame reduction (rms/flux) — the module split from the
+// ffmpeg-importing material.js precisely so a page can load it. This is how
+// a WAV, or any binary, becomes a series at the measuring door.
+import { reduce as audioReduce } from "/engine/perceiver/audio/reduce.js";
 import {
   admit as admitMeasurement,
   parseMeasure,
@@ -283,6 +287,14 @@ const state = {
   turnFolds: [],
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
+  /**
+   * Binary material — a WAV, any file the text reader refuses. Held as bytes
+   * beside the text sources, NEVER chunked or retrieved (retrieval is term
+   * overlap and bytes have no terms): the one door into it is /measure,
+   * where it becomes a series through the engine's own frame reduction.
+   * {name: {bytes: Uint8Array, kind: "wav"|"bytes"}}.
+   */
+  media: {},
   /**
    * Sources switched off. They stay loaded — their text is still here, so a
    * record's refs still re-open — but retrieval does not see them. Removing a
@@ -776,7 +788,7 @@ async function measureTurn(decl, question) {
   // than resolved by picking one — measuring the wrong file and saying so
   // confidently is the exact failure this door is for. Muted sources are still
   // measurable: the mute is a retrieval concept, and this is not retrieval.
-  const names = Object.keys(state.sources);
+  const names = [...Object.keys(state.sources), ...Object.keys(state.media)];
   const token = (decl.file ?? "").toLowerCase();
   const exact = names.find((n) => n.toLowerCase() === token);
   const hits = exact ? [exact] : names.filter((n) => token && n.toLowerCase().includes(token));
@@ -804,18 +816,28 @@ async function measureTurn(decl, question) {
         body.append(list);
       }
     } else {
-      const table = delimitedRows(state.sources[hits[0]]);
-      if (!table) {
+      // The material ladder: binary media stays bytes; a text source becomes
+      // a table through the shared quote-aware walker. The router takes both.
+      const media = state.media[hits[0]];
+      const material = media ?? delimitedRows(state.sources[hits[0]]);
+      if (!material) {
         answer = say(`${hits[0]} does not read as delimited rows, so there are no columns to measure.`);
       } else {
         // One router (measure.js::runMeasurement), so this turn and the
         // real-data eval can never disagree about which measurement a
         // declaration named. It re-runs the gate, which is cheap and means
         // there is no path into a measurement that skipped it.
-        const result = runMeasurement(d, table, { nul, bindLinks });
+        const result = runMeasurement(d, material, { nul, bindLinks, reduce: audioReduce });
         answer = phraseMeasurement(result);
         body.textContent = "";
-        if (result.refused) say(answer);
+        if (result.refused || result.kind === "probe") {
+          // A probe or a refusal is prose, preformatted — the probe's example
+          // lines are meant to be copied back into the input verbatim.
+          const pre = document.createElement("pre");
+          pre.className = "prose";
+          pre.textContent = answer;
+          body.append(pre);
+        }
         // The figures the app computed, printed by the app. The segment
         // deposits through the same fold door a model's code would, so a
         // measurement is downloadable and addressable like everything else.
@@ -3334,10 +3356,11 @@ function renderSourceStrip() {
 function renderSources() {
   renderSourceStrip();
   const names = Object.keys(state.sources);
+  const mediaNames = Object.keys(state.media);
   const list = $("source-list");
   if (!list) return;
   list.textContent = "";
-  if (!names.length) {
+  if (!names.length && !mediaNames.length) {
     list.innerHTML =
       '<p class="empty">Nothing loaded yet — add files above, drop one anywhere on the page, or paste below.</p>';
     return;
@@ -3377,6 +3400,20 @@ function renderSources() {
     row.append(box, n, c, x);
     list.append(row);
   }
+
+  // Binary material rides below the text sources: no checkbox, because the
+  // mute is a retrieval concept and bytes are never retrieved — the row just
+  // says what it is and how to open it (the one door is /measure).
+  for (const name of mediaNames) {
+    const m = state.media[name];
+    const row = document.createElement("div");
+    row.className = "source-row";
+    const label = document.createElement("span");
+    label.className = "source-name";
+    label.textContent = `${name} · ${fmtBytes(m.bytes.length)} ${m.kind === "wav" ? "audio" : "binary"} · /measure ${name}`;
+    row.append(label);
+    list.append(row);
+  }
 }
 
 async function addFiles(fileList) {
@@ -3390,7 +3427,19 @@ async function addFiles(fileList) {
       await new Promise((r) => setTimeout(r, 0));
       const text = await file.text();
       if (looksBinary(text)) {
-        $("status").textContent = `${file.name} isn't text — skipped`;
+        // Not text — but not skipped either. Binary lands as bytes, and the
+        // status line says the one door that can open it. A WAV is recognized
+        // by its own RIFF header; anything else is honest raw bytes.
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const kind =
+          bytes.length > 12 &&
+          String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" &&
+          String.fromCharCode(...bytes.subarray(8, 12)) === "WAVE"
+            ? "wav"
+            : "bytes";
+        state.media[file.name] = { bytes, kind };
+        renderSources();
+        $("status").textContent = `${file.name} · ${fmtBytes(bytes.length)} of ${kind === "wav" ? "audio" : "binary"} — measure it: /measure ${file.name}`;
         continue;
       }
       addSource(file.name, text);

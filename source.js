@@ -145,6 +145,107 @@ export function stripContainer(text) {
 }
 
 /**
+ * Split one delimited line into cells, walking quotes.
+ *
+ * This existed twice before it existed once, and the two copies disagreed in
+ * exactly the way the reconcile rule predicts: term.js::csvTable walked RFC
+ * 4180 quotes but only spoke comma; tables.js::delimitedRows sniffed the
+ * delimiter off the bytes but split with String.split, so any quoted cell
+ * containing the delimiter burst into two. Measured on the first real dataset
+ * the measuring door met (USGS all_month.csv, 10,733 earthquakes): 10,549 of
+ * its rows carry a quoted place like "10 km ENE of Coso Junction, CA", and
+ * 10,549 rows came out of delimitedRows one or two cells too wide — every
+ * column to the right of `place` silently shifted, so a declared measurement
+ * of `mag` would have been a measurement of something else. The union of
+ * what is right in each copy lives here, in the zero-import module both can
+ * reach, and both callers now split with it.
+ */
+export function splitDelimited(line, delim) {
+  const cells = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { field += '"'; i++; } else quoted = false;
+      } else field += ch;
+    } else if (ch === '"' && field === "") {
+      // A quote opens a cell only at the cell's start — mid-cell quotes are
+      // content (5'9", O'Brien "Bob"), and treating them as delimiter-escapes
+      // is how a naive parser eats half a row.
+      quoted = true;
+    } else if (ch === delim) {
+      cells.push(field);
+      field = "";
+    } else field += ch;
+  }
+  cells.push(field);
+  return cells;
+}
+
+/**
+ * A whole delimited text as {head, rows}, delimiter read off the bytes.
+ *
+ * The union of the two former readers, whole: term.js's copy walked quotes
+ * across newlines (a quoted cell may legally contain a line break) but only
+ * spoke comma; tables.js's copy sniffed comma/tab/semicolon but split on
+ * String.split. This walks the whole text with the quote state machine and
+ * sniffs the delimiter first — quote-aware, on the first line as a line,
+ * because sniffing on raw byte counts would count delimiters inside quoted
+ * cells as structure.
+ *
+ * Returns null when the text is not tabular (fewer than two columns or two
+ * lines) — the same contract delimitedRows always had, kept here so both
+ * callers refuse the same things.
+ */
+export function delimitedTable(text) {
+  const s = String(text ?? "");
+  const firstNl = s.indexOf("\n");
+  const firstLine = (firstNl === -1 ? s : s.slice(0, firstNl)).replace(/\r$/, "");
+  if (!firstLine.trim()) return null;
+  const delim = [",", "\t", ";"]
+    .map((d) => ({ d, n: splitDelimited(firstLine, d).length }))
+    .sort((a, b) => b.n - a.n)[0];
+  if (delim.n < 2) return null;
+
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  let sawQuote = false;
+  const endField = () => {
+    row.push(sawQuote ? field : field.trim());
+    field = "";
+    sawQuote = false;
+  };
+  const endRow = () => {
+    endField();
+    if (row.length > 1 || row[0] !== "") rows.push(row);
+    row = [];
+  };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; } else quoted = false;
+      } else field += ch;
+    } else if (ch === '"' && field.trim() === "") {
+      quoted = true;
+      sawQuote = true;
+      field = "";
+    } else if (ch === delim.d) endField();
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && s[i + 1] === "\n") i++;
+      endRow();
+    } else field += ch;
+  }
+  if (field !== "" || row.length) endRow();
+  if (rows.length < 2) return null;
+  return { head: rows[0], rows: rows.slice(1) };
+}
+
+/**
  * `boundaries` are the document's own structure, found by form and handed in:
  * `[{ start, end, label }]` in the coordinates of the file as it sits on disk.
  *

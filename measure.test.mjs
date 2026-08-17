@@ -21,6 +21,8 @@ import assert from "node:assert/strict";
 import * as nul from "../eoreader6/nul/index.js";
 import { bindLinks } from "../eoreader6/packages/engine/emergence/binding.js";
 import { delimitedRows } from "./tables.js";
+import { reduce as audioReduce } from "../eoreader6/packages/engine/perceiver/audio/reduce.js";
+import { reduce as viaMaterial } from "../eoreader6/packages/engine/perceiver/audio/material.js";
 import {
   admit,
   arrivalsFrom,
@@ -30,8 +32,11 @@ import {
   measureSeries,
   parseMeasure,
   phrase,
+  probeMaterial,
   runMeasurement,
   seriesFrom,
+  seriesFromMedia,
+  wavSamples,
   toTable,
   usage,
 } from "./measure.js";
@@ -396,4 +401,160 @@ test("every refusal this door can produce carries a detail a reader can act on",
     assert.ok(r.detail && r.detail.length > 30, `${r.type} must say what to do about it`);
     assert.equal(phrase({ refused: r }), `refused (${r.type}): ${r.detail}`);
   }
+});
+
+
+// ── binary material: the WAV walk and the bytes path ────────────────────────
+
+/** A real PCM WAV built byte-by-byte: `spec` is [{hz|level, seconds}]. */
+function synthWav({ sampleRate = 8000, spans }) {
+  const samples = [];
+  for (const span of spans) {
+    const n = Math.round(span.seconds * sampleRate);
+    for (let i = 0; i < n; i++) {
+      const t = samples.length / sampleRate;
+      samples.push(span.hz ? Math.round(Math.sin(2 * Math.PI * span.hz * t) * (span.amp ?? 12000)) : (span.level ?? 0));
+    }
+  }
+  const dataSize = samples.length * 2;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const dv = new DataView(buf);
+  const ascii = (off, str) => [...str].forEach((c, i) => dv.setUint8(off + i, c.charCodeAt(0)));
+  ascii(0, "RIFF"); dv.setUint32(4, 36 + dataSize, true); ascii(8, "WAVE");
+  ascii(12, "fmt "); dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sampleRate, true); dv.setUint32(28, sampleRate * 2, true);
+  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  ascii(36, "data"); dv.setUint32(40, dataSize, true);
+  samples.forEach((v, i) => dv.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, v)), true));
+  return new Uint8Array(buf);
+}
+
+test("the pure audio organ and the engine's own module are the same function", () => {
+  // The browser imports reduce.js because material.js's ffmpeg import cannot
+  // load in a page; this pins that the split did not fork the organ.
+  assert.equal(audioReduce, viaMaterial);
+});
+
+test("wavSamples round-trips a synthesized PCM WAV exactly", () => {
+  const bytes = synthWav({ spans: [{ level: 100, seconds: 0.01 }, { level: -200, seconds: 0.01 }] });
+  const got = wavSamples(bytes);
+  assert.ok(!got.refused);
+  assert.equal(got.sampleRate, 8000);
+  assert.equal(got.samples.length, 160);
+  assert.equal(got.samples[0], 100);
+  assert.equal(got.samples[159], -200);
+});
+
+test("a compressed WAV is refused by codec, never half-decoded", () => {
+  const bytes = synthWav({ spans: [{ level: 1, seconds: 0.01 }] });
+  const dv = new DataView(bytes.buffer);
+  dv.setUint16(20, 85, true); // format tag 85 = MP3-in-WAV
+  const got = wavSamples(bytes);
+  assert.equal(got.refused.type, "unsupported_codec");
+  assert.match(got.refused.detail, /format tag 85/);
+});
+
+test("bytes that are not a WAV say so and point at the raw-bytes door", () => {
+  const got = wavSamples(new TextEncoder().encode("not audio at all, just text pretending"));
+  assert.equal(got.refused.type, "not_wav");
+  assert.match(got.refused.detail, /raw bytes/);
+});
+
+test("binary material requires channel and frame, each refused by name", () => {
+  const media = { kind: "bytes", bytes: new Uint8Array(4096) };
+  const base = decl("/measure blob.bin as:burstiness broken:shuffle draws:40 window:5");
+  const noChannel = seriesFromMedia(media, { ...base, file: "blob.bin" }, audioReduce);
+  assert.equal(noChannel.refused.what, "channel");
+  const noFrame = seriesFromMedia(media, { ...base, file: "blob.bin", channel: "rms" }, audioReduce);
+  assert.equal(noFrame.refused.what, "frame");
+});
+
+test("a declared WAV measurement runs end to end through the router, and finds planted structure", () => {
+  // Ten seconds of near-silence with one loud half-second burst — structure
+  // planted, not discovered, so this is a control: the burst's energy must sit
+  // above every shuffle of the loudness frames.
+  const bytes = synthWav({
+    spans: [
+      { level: 0, seconds: 4 },
+      { hz: 440, seconds: 0.5 },
+      { level: 0, seconds: 5.5 },
+    ],
+  });
+  const d = decl("/measure tone.wav channel:rms frame:400 as:burstiness broken:shuffle draws:100 window:4");
+  const r = runMeasurement({ ...d, file: "tone.wav" }, { kind: "wav", bytes }, { nul, bindLinks, reduce: audioReduce });
+  assert.ok(!r.refused, phrase(r));
+  assert.equal(r.censored, "above", "the planted burst must exceed every shuffled loudness arrangement");
+  assert.match(r.column, /rms per 400-sample frame \(8000 Hz, 10\.0s\)/);
+  assert.match(phrase(r), /above every one of the 100 broken copies/);
+});
+
+test("the same WAV with the burst shuffled away is the negative control", () => {
+  // Constant tone, no burst: every frame carries the same energy, the null
+  // has zero width, and the honest answer is the degenerate-ground refusal —
+  // never a finding.
+  const bytes = synthWav({ spans: [{ hz: 440, seconds: 5 }] });
+  const d = decl("/measure flat.wav channel:rms frame:400 as:burstiness broken:shuffle draws:100 window:4");
+  const r = runMeasurement({ ...d, file: "flat.wav" }, { kind: "wav", bytes }, { nul, bindLinks, reduce: audioReduce });
+  assert.ok(r.refused?.type === "degenerate_ground" || (!r.censored && r.rank > 0.05), phrase(r));
+});
+
+test("any binary at all frames as bytes and the gate is identical", () => {
+  // Structure planted in raw bytes: a run of 0xFF inside zeros.
+  const bytes = new Uint8Array(8192);
+  bytes.fill(255, 4000, 4400);
+  const d = decl("/measure blob.bin channel:rms frame:64 as:burstiness broken:shuffle draws:100 window:4");
+  const r = runMeasurement({ ...d, file: "blob.bin" }, { kind: "bytes", bytes }, { nul, bindLinks, reduce: audioReduce });
+  assert.ok(!r.refused, phrase(r));
+  assert.equal(r.censored, "above");
+  assert.match(r.column, /rms per 64-byte frame/);
+  // And the unlicensed pairing is refused for bytes exactly as for columns.
+  const bad = runMeasurement(
+    { ...decl("/measure blob.bin channel:rms frame:64 as:burstiness broken:phase draws:100 window:4"), file: "blob.bin" },
+    { kind: "bytes", bytes },
+    { nul, bindLinks, reduce: audioReduce },
+  );
+  assert.equal(bad.refused.type, "unlicensed_pair");
+});
+
+test("pairs: on binary material is a typed refusal, not a crash", () => {
+  const d = decl("/measure blob.bin pairs:unit at:minute draws:20 window:1");
+  const r = runMeasurement({ ...d, file: "blob.bin" }, { kind: "bytes", bytes: new Uint8Array(64) }, { nul, bindLinks, reduce: audioReduce });
+  assert.equal(r.refused.type, "no_measurement_named");
+  assert.match(r.refused.detail, /binary/);
+});
+
+// ── the probe: a bare file name teaches the declaration ─────────────────────
+
+test("a bare /measure <file> is a probe, not a refusal", () => {
+  const out = parseMeasure("/measure quakes.csv");
+  assert.equal(out.decl.kind, "probe");
+  assert.equal(admit(out.decl, nul), null);
+});
+
+test("the probe reads a table's measurable surface off its own bytes", () => {
+  const r = probeMaterial({ kind: "probe", file: "a.csv" }, ARRIVALS, nul);
+  const text = phrase(r);
+  assert.match(text, /11 rows · 3 columns/);
+  assert.match(text, /pairs:unit/);
+  // The probe's example lines parse back through the door's own grammar.
+  const example = r.lines.find((l) => l.startsWith("/measure") && l.includes("pairs:"));
+  assert.ok(parseMeasure(example)?.decl, "a probe suggestion must be a valid declaration shape");
+  // The suggestion is one that can actually SUCCEED: the pairs column is the
+  // one whose values recur (counted off the rows, never guessed), and the
+  // ordering column is a different column. The e2e transcript that pinned
+  // this suggested `pairs:time at:time` — parseable, degenerate, and doomed.
+  assert.match(example, /pairs:unit/, "unit is the recurring column; note has one distinct value and time-like columns do not recur");
+  const d = parseMeasure(example).decl;
+  assert.notEqual(d.key, d.at, "pairs and at must not be the same column");
+  // And it teaches the established pairings from the engine's table.
+  for (const { pair } of licensedPairs(nul)) assert.match(text, new RegExp(pair.split("/")[0]));
+});
+
+test("the probe describes a WAV in its own units", () => {
+  const bytes = synthWav({ spans: [{ hz: 440, seconds: 2 }] });
+  const r = probeMaterial({ kind: "probe", file: "tone.wav" }, { kind: "wav", bytes }, nul);
+  const text = phrase(r);
+  assert.match(text, /8000 Hz, 2\.0s/);
+  assert.match(text, /channel:rms frame:/);
 });

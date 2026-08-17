@@ -697,6 +697,28 @@ second vocabulary to drift.
   Its `stableDetail` fallback renders an unknown act deterministically from
   sorted keys — the module's own designed extension point.
 
+**Amended same day — any material, and the probe.** Binary files land as
+bytes (`state.media`, never chunked/retrieved; the mute does not apply — it is
+a retrieval concept), and become series through the engine's
+`perceiver/audio/reduce.js` — the pure half split OUT of material.js in
+eoreader6 (its ffmpeg import made the whole module unloadable in a page; the
+split is packaging, not a new statistic, and material.js re-exports so no
+engine caller moved). `wavSamples` in measure.js is the one genuinely new
+parser, with its reason stated: no ffmpeg in the page, no CDN decoder under
+P1, and a PCM RIFF walk is addressing. Compressed audio is `unsupported_codec`,
+never half-decoded. `channel:`+`frame:` are the binary declaration; bare
+`/measure <file>` probes the material's measurable surface with paste-back
+example lines. Two more incidents for the record: the shared CSV walker
+(`source.js::delimitedTable`) exists because the naive delimitedRows burst
+10,549 of 10,733 USGS rows on the first real file (both prior readers were
+half-right — term.js walked quotes but only spoke comma; tables.js sniffed
+delimiters but split naively — reconciled, not deduped); and the probe's
+pairs suggestion counts recurrence off the rows because the blind version
+suggested `pairs:time at:time` live. E2E is `scratchpad`-driven CDP against
+the real page: real drop events, real composer submits, quakes.csv + a
+planted-burst WAV (positive and negative controls both honest) + a .pyc as
+raw bytes.
+
 **Known edges, disclosed:** the causal door is deliberately absent. `binding.js`
 carries `transferEntropy` and `reversalNull`, and the DFR work measured both an
 inflated false-positive rate and 100/100 false positives on common-cause

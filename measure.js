@@ -96,12 +96,22 @@ export function parseMeasure(text) {
   }
   const file = bare.trim().split(/\s+/).filter(Boolean)[0] ?? null;
 
-  const kind = keys.has("pairs") ? "pairs" : keys.has("series") || keys.has("across") || keys.has("as") || keys.has("broken") ? "series" : null;
+  const kind = keys.has("pairs")
+    ? "pairs"
+    : keys.has("series") || keys.has("across") || keys.has("as") || keys.has("broken") || keys.has("channel")
+      ? "series"
+      : null;
+  // A bare file name is a PROBE: describe what is measurable in this material
+  // and teach the declaration, mechanically. This is the door's own answer to
+  // "it should be extremely easy" — the first thing a reader types is the file,
+  // and the door replies with the file's own measurable surface plus example
+  // lines they can paste back.
+  if (!kind && keys.size === 0 && file) return { decl: { kind: "probe", file } };
   if (!kind)
     return {
       refused: {
         type: "no_measurement_named",
-        detail: "say either `series:<column>` (place one column against a nothing), `across:all` (every numeric column against one nothing), or `pairs:<column>` (test which of a column's values arrive together).",
+        detail: "say either `series:<column>` (place one column against a nothing), `across:all` (every numeric column against one nothing), or `pairs:<column>` (test which of a column's values arrive together). Or just `/measure <file>` to see what is measurable in it.",
       },
     };
 
@@ -125,6 +135,14 @@ export function parseMeasure(text) {
   };
   if (kind === "series") {
     decl.column = keys.get("series") ?? null;
+    // For material that is not a table — a WAV, any binary — the series is a
+    // CHANNEL over declared frames rather than a named column. The channel
+    // vocabulary is the engine's own (perceiver/audio/reduce.js: rms, flux),
+    // and both numbers are the reader's: `frame:` is the grain of hearing,
+    // and leaving it to a default would make two measurements of the same
+    // file silently incomparable.
+    decl.channel = keys.get("channel") ?? null;
+    decl.frame = num("frame");
     // `across:` is how a reader asks the best-of-n question through the typed
     // door. It exists because of a gap the real-data eval found and the unit
     // tests could not: `measureAcross` refuses a missing `direction:`, but the
@@ -160,6 +178,9 @@ export function parseMeasure(text) {
 export function admit(decl, nul) {
   if (!decl.file)
     return { type: "no_file", detail: "name a loaded file — a measurement is of some material, and this door never invents one." };
+  // A probe reads the material's shape and spends no draws — the file is its
+  // whole declaration.
+  if (decl.kind === "probe") return null;
 
   // The smallest admissible window is the ORGAN'S OWN, not one floor for both.
   // `nul.ground` refuses a window below 2 (a windowed statistic over a single
@@ -198,11 +219,13 @@ export function admit(decl, nul) {
     return null;
   }
 
-  if (!decl.column && !decl.across)
+  // Three ways to name the series, one required: a column (tables), every
+  // column (across), or a channel over frames (binary material).
+  if (!decl.column && !decl.across && !decl.channel)
     return {
       type: "undeclared",
       what: "series",
-      detail: "`series:<column>` — which column is the numbers. Or `across:all` to place every numeric column against one nothing.",
+      detail: "`series:<column>` — which column is the numbers. Or `across:all` for every numeric column, or `channel:<rms|flux>` + `frame:<n>` for binary material.",
     };
   if (!decl.statistic)
     return {
@@ -266,12 +289,217 @@ export function admit(decl, nul) {
  * "null"). Callers hand in the organs and get a result or a refusal; nobody
  * gets to re-derive the dispatch.
  */
-export function runMeasurement(decl, table, { nul, bindLinks }) {
+export function runMeasurement(decl, material, { nul, bindLinks, reduce }) {
   const refusal = admit(decl, nul);
   if (refusal) return { refused: refusal };
-  if (decl.kind === "pairs") return measurePairs(decl, table, { bindLinks });
-  if (decl.across) return measureAcross(decl, table, nul);
-  return measureSeries(decl, table, nul);
+  if (decl.kind === "probe") return probeMaterial(decl, material, nul);
+
+  // Material dispatch: a table has a head; anything else is bytes. The byte
+  // path frames the material with the engine's own reduce (injected) and
+  // rejoins the table path at placeSeries — same gate, same nothing, same
+  // phrasing floor, different way of becoming a series.
+  if (!material.head) {
+    if (decl.kind === "pairs")
+      return { refused: { type: "no_measurement_named", detail: "pairs: needs columns, and this file is binary — measure it as a channel over frames instead (`channel:` + `frame:`)." } };
+    const got = seriesFromMedia(material, decl, reduce);
+    if (got.refused) return { refused: got.refused };
+    return placeSeries(decl, got.series, got.label, nul);
+  }
+
+  if (decl.kind === "pairs") return measurePairs(decl, material, { bindLinks });
+  if (decl.across) return measureAcross(decl, material, nul);
+  if (!decl.column)
+    return { refused: { type: "undeclared", what: "series", detail: "this file is delimited — name `series:<column>` (channel:/frame: are how BINARY material becomes a series)." } };
+  return measureSeries(decl, material, nul);
+}
+
+/**
+ * PCM samples out of a WAV container, or a typed refusal.
+ *
+ * Genuinely new code, and here is the stated reason (the search-first rule
+ * demands one): the engine's own audio `load` decodes with the system ffmpeg
+ * through node:child_process, which does not exist in the page, and the page
+ * fetches nothing remote (P1) so it cannot borrow a decoder either. A PCM WAV
+ * is a walkable RIFF container — fmt chunk, data chunk, integer samples — and
+ * walking it is addressing, not statistics: every statistic still comes from
+ * the engine. Compressed formats (mp3, ogg, non-PCM wav) are refused by name,
+ * never half-decoded.
+ *
+ * Handles PCM (format 1) and IEEE float (format 3), 8/16/32-bit, any channel
+ * count (mixed to mono by mean — the reduce channels hear energy and motion,
+ * and averaging channels is the standard mono fold). Returns
+ * {samples, sampleRate, channels, seconds} or {refused}.
+ */
+export function wavSamples(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const ascii = (off, len) => String.fromCharCode(...b.subarray(off, off + len));
+  if (b.length < 44 || ascii(0, 4) !== "RIFF" || ascii(8, 4) !== "WAVE")
+    return { refused: { type: "not_wav", detail: "this file does not start with a RIFF/WAVE header, so it is not a WAV. Any file can still be measured as raw bytes — declare `channel:` and `frame:` and the door frames the bytes themselves." } };
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+
+  let fmt = null;
+  let data = null;
+  let off = 12;
+  while (off + 8 <= b.length) {
+    const id = ascii(off, 4);
+    const size = dv.getUint32(off + 4, true);
+    if (id === "fmt ") fmt = { off: off + 8, size };
+    if (id === "data") data = { off: off + 8, size: Math.min(size, b.length - off - 8) };
+    // Chunks are word-aligned: an odd-sized chunk carries a pad byte.
+    off += 8 + size + (size & 1);
+  }
+  if (!fmt || !data)
+    return { refused: { type: "not_wav", detail: "RIFF header found but no fmt/data chunks — a truncated or unusual WAV. Measure it as raw bytes if the content is still worth hearing." } };
+
+  const format = dv.getUint16(fmt.off, true);
+  const channels = dv.getUint16(fmt.off + 2, true);
+  const sampleRate = dv.getUint32(fmt.off + 4, true);
+  const bits = dv.getUint16(fmt.off + 14, true);
+  if (format !== 1 && format !== 3)
+    return {
+      refused: {
+        type: "unsupported_codec",
+        detail: `this WAV holds compressed audio (format tag ${format}), and this door decodes only PCM — decoding a codec is not addressing, and half a decoder would hand the null something that is not the material. Convert to PCM WAV, or measure the raw bytes.`,
+      },
+    };
+  const bytesPer = bits / 8;
+  const frames = Math.floor(data.size / (bytesPer * channels));
+  if (!frames)
+    return { refused: { type: "empty_material", detail: "the WAV's data chunk holds no samples." } };
+
+  const read =
+    format === 3 && bits === 32
+      ? (i) => dv.getFloat32(data.off + i * 4, true)
+      : bits === 16
+        ? (i) => dv.getInt16(data.off + i * 2, true)
+        : bits === 32
+          ? (i) => dv.getInt32(data.off + i * 4, true)
+          : bits === 8
+            ? (i) => b[data.off + i] - 128 // 8-bit WAV is unsigned, centred at 128
+            : null;
+  if (!read)
+    return { refused: { type: "unsupported_codec", detail: `${bits}-bit PCM is not a width this door reads (8, 16, 32, or 32-float).` } };
+
+  const samples = new Array(frames);
+  for (let f = 0; f < frames; f++) {
+    let sum = 0;
+    for (let c = 0; c < channels; c++) sum += read(f * channels + c);
+    samples[f] = sum / channels;
+  }
+  return { samples, sampleRate, channels, seconds: frames / sampleRate };
+}
+
+/**
+ * Any binary as a series: the declared channel over declared frames.
+ *
+ * The reduction is the ENGINE'S — perceiver/audio/reduce.js, injected — run
+ * over whatever integer series the material yields: a WAV's PCM samples, or
+ * failing that the file's own bytes. That reuse is exact, not analogical:
+ * rms and flux are statistics of a numeric frame, and reduce() never asks
+ * what the numbers meant. What changes per material is only the label, which
+ * says precisely what was framed so the phrase cannot overclaim.
+ */
+export function seriesFromMedia(media, decl, reduce) {
+  if (!decl.channel)
+    return {
+      refused: {
+        type: "undeclared",
+        what: "channel",
+        detail: "`channel:<rms|flux>` — what is heard in each frame. rms is energy (blind to arrangement inside the frame); flux is sample-to-sample motion (order-sensitive). This is binary material, so a column name cannot be the series.",
+      },
+    };
+  if (!Number.isInteger(decl.frame) || decl.frame < 2)
+    return {
+      refused: {
+        type: "undeclared",
+        what: "frame",
+        detail: "`frame:<n>` — how many samples (or bytes) make one heard unit. The grain of hearing is the reader's declaration: left to a default, two measurements of the same file would be silently incomparable.",
+      },
+    };
+
+  let source;
+  let label;
+  if (media.kind === "wav") {
+    const got = wavSamples(media.bytes);
+    if (got.refused) return got;
+    source = got.samples;
+    label = `${decl.channel} per ${decl.frame}-sample frame (${got.sampleRate} Hz, ${got.seconds.toFixed(1)}s)`;
+  } else {
+    source = media.bytes;
+    label = `${decl.channel} per ${decl.frame}-byte frame (${media.bytes.length.toLocaleString()} bytes)`;
+  }
+  let series;
+  try {
+    series = reduce(source, { frameSamples: decl.frame, channel: decl.channel });
+  } catch (e) {
+    return { refused: { type: "unknown_spec", what: "channel", detail: e.message } };
+  }
+  if (series.length < 2)
+    return { refused: { type: "empty_material", detail: `frame ${decl.frame} leaves ${series.length} frame(s) — nothing to measure at this grain.` } };
+  return { series, label };
+}
+
+/**
+ * The probe: what is measurable in this material, said mechanically.
+ *
+ * The door's own answer to "it should be extremely easy": the first thing a
+ * reader types is the file, and this replies with the file's measurable
+ * surface and example declarations they can paste straight back. No draws
+ * spent, no model call, nothing guessed — columns are read off the header,
+ * kinds off the bytes, and the example numbers are the repo's own standing
+ * declarations (draws 200 is the null-arm number this app already uses;
+ * window and frame are shown as the slots they are, for the reader to fill).
+ */
+export function probeMaterial(decl, material, nul) {
+  const lines = [];
+  if (material.head) {
+    const numeric = material.head.filter((h) => {
+      const got = seriesFrom(material, h);
+      return !got.refused;
+    });
+    const other = material.head.filter((h) => !numeric.includes(h));
+    lines.push(`${decl.file} · ${material.rows.length.toLocaleString()} rows · ${material.head.length} columns`);
+    if (numeric.length) lines.push(`numeric (measurable as a series): ${numeric.join(", ")}`);
+    if (other.length) lines.push(`text (usable as pairs:/at:): ${other.join(", ")}`);
+    lines.push("");
+    if (numeric.length)
+      lines.push(`/measure ${decl.file} series:${numeric[0]} as:burstiness broken:shuffle draws:200 window:<how much of the material is one present>`);
+    if (numeric.length >= 2)
+      lines.push(`/measure ${decl.file} across:all as:burstiness broken:shuffle draws:200 window:<n> direction:above`);
+    // The pairs suggestion names the text column whose values actually RECUR
+    // — counted, not guessed: most rows per distinct value, among columns with
+    // at least two distinct values (one value recurring is a population of
+    // one, which the pairs door refuses). The e2e transcript that forced this
+    // check suggested `pairs:time at:time` — the timestamp column, every value
+    // unique, ordered by itself — which parses and then refuses; a suggestion
+    // that cannot succeed teaches only distrust.
+    const recurring = other
+      .map((h) => {
+        const i = material.head.indexOf(h);
+        const distinct = new Set(material.rows.map((r) => r[i])).size;
+        return { h, distinct, per: material.rows.length / Math.max(distinct, 1) };
+      })
+      .filter((c) => c.distinct >= 2 && c.per > 1)
+      .sort((a, b) => b.per - a.per)[0];
+    if (recurring) {
+      const at = material.head.find((h) => h !== recurring.h);
+      lines.push(`/measure ${decl.file} pairs:${recurring.h} at:${at} draws:200 window:2`);
+    }
+  } else {
+    const kindLine = material.kind === "wav" ? "a PCM WAV — frames are samples" : "binary — frames are bytes";
+    const wav = material.kind === "wav" ? wavSamples(material.bytes) : null;
+    lines.push(
+      `${decl.file} · ${material.bytes.length.toLocaleString()} bytes · ${kindLine}` +
+        (wav && !wav.refused ? ` · ${wav.sampleRate} Hz, ${wav.seconds.toFixed(1)}s` : ""),
+    );
+    lines.push(`channels: rms (energy per frame), flux (motion per frame)`);
+    lines.push("");
+    lines.push(`/measure ${decl.file} channel:rms frame:<samples per heard unit> as:burstiness broken:shuffle draws:200 window:<n>`);
+  }
+  lines.push("");
+  lines.push("Established statistic/broken pairings:");
+  for (const { pair } of licensedPairs(nul)) lines.push(`  ${pair.replace("/", "  broken:")}`);
+  return { kind: "probe", file: decl.file, lines };
 }
 
 /** The established pairs, each with the material its licence was earned on. */
@@ -371,14 +599,22 @@ export function arrivalsFrom(table, key, at) {
 export function measureSeries(decl, table, nul) {
   const got = seriesFrom(table, decl.column);
   if (got.refused) return { refused: got.refused };
-  const { series, column } = got;
+  return placeSeries(decl, got.series, got.column, nul);
+}
 
+/**
+ * The shared bottom half: one numeric series, wherever it came from, placed
+ * against the declared nothing. A column, a WAV's frame channel, and a raw
+ * binary's frame channel all end here, because from nul's point of view they
+ * are the same thing — material — and the gate has already run.
+ */
+function placeSeries(decl, series, column, nul) {
   if (decl.window > series.length)
     return {
       refused: {
         type: "undeclared",
         what: "window",
-        detail: `window ${decl.window} is wider than the ${series.length} rows in "${column}" — there is no window of that width to measure.`,
+        detail: `window ${decl.window} is wider than the ${series.length} value(s) in ${column} — there is no window of that width to measure.`,
       },
     };
 
@@ -589,6 +825,7 @@ function fromEngineGap(g) {
  */
 export function phrase(result) {
   if (result.refused) return `refused (${result.refused.type}): ${result.refused.detail}`;
+  if (result.kind === "probe") return result.lines.join("\n");
   const floorWords = (r) => `${Math.round(1 / r.floor)} broken copies, so the finest thing sayable is 1 in ${Math.round(1 / r.floor)}`;
 
   if (result.kind === "pairs") {

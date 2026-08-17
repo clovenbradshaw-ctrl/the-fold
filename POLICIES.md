@@ -613,7 +613,30 @@ exists because of it — a refusal no declaration can trigger is a comment, not
 a wall), and `nul`'s window floor had been carried across to co-arrival, where
 it refused a legitimate window of 1.
 
-**Enforced:** `measure.test.mjs` — 35 conformance tests against the REAL
+**Amended same day (any material, one gate).** The door takes any loaded
+file, not only tables. Binary lands as bytes at the drop (a WAV recognized by
+its own RIFF header, anything else honest raw bytes), is never chunked or
+retrieved (retrieval is term overlap; bytes have no terms), and becomes a
+series through the ENGINE'S own frame reduction — `perceiver/audio/reduce.js`,
+the pure half split out of the ffmpeg-importing material.js so a page can load
+it; rms and flux are statistics of a numeric frame and never ask what the
+numbers meant. The reader declares `channel:` (the engine's closed set) and
+`frame:` (the grain of hearing) — each refused by name when missing. A
+compressed WAV is refused `unsupported_codec`, never half-decoded. And a bare
+`/measure <file>` is a PROBE: the file's measurable surface plus example
+declarations, computed off the material's own bytes — including a pairs
+suggestion that names the column whose values actually recur, counted, after
+the live e2e caught the blind version suggesting `pairs:time at:time`
+(parseable, degenerate, doomed). Verified end to end in the real app over CDP
+— real drop events, real composer submits — on 10,733 USGS earthquakes (mag
+clustering censored-above: aftershock sequences, found not asserted), a
+planted-burst WAV (positive control censored-above; flat-tone negative
+control refused `degenerate_ground`), and a real .pyc measured as raw bytes.
+The same live run also surfaced the second CSV-reader bug class: the naive
+split burst 10,549 of the file's quoted rows, so one quote-aware walker
+(`source.js::delimitedTable`) now serves tables.js, term.js, and this door.
+
+**Enforced:** `measure.test.mjs` — 47 conformance tests against the REAL
 `nul/index.js` and `emergence/binding.js` (a stub with a hand-written licensing
 table would pass every one of them while proving nothing). Pinned: that no
 declaration reaches a bare figure; that the refused pair list IS the engine's

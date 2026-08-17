@@ -57,12 +57,12 @@ import { dirname, join, normalize, relative, resolve } from "node:path";
 export const MOUNTS = [
   {
     prefix: "/engine/",
-    root: ["..", "eoreader6", "packages", "engine"],
+    root: ["..", "eoreader6.1", "packages", "engine"],
     why: "eoreader6's engine, used not copied — another repo's bytes, governed by its own tests",
   },
   {
     prefix: "/nul/",
-    root: ["..", "eoreader6", "nul"],
+    root: ["..", "eoreader6.1", "nul"],
     why: "the engine's own null module, imported by tiers.js from above the /engine mount",
   },
 ];

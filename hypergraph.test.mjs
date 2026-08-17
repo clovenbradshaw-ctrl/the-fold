@@ -12,15 +12,15 @@ import { makeRelationReader, relationFindings, relationsClean, MIN_SURFACES_PER_
 import { corroborateAtoms } from "./grounding.js";
 
 const organs = async () => {
-  const { splitSentences } = await import("../eoreader6/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../eoreader6/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../eoreader6/packages/engine/perceiver/text/relations.js"
+    "../eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
   const { tokenize, buildFrequencyTable, functionWordSet } = await import(
-    "../eoreader6/packages/engine/perceiver/text/material.js"
+    "../eoreader6.1/packages/engine/perceiver/text/material.js"
   );
   return {
     splitSentences,
@@ -122,7 +122,7 @@ test("the flagship case: every token present, edge never bound", async () => {
   );
   // And it lands on the record's unsupported list, with the explanation.
   const lines = relationFindings(report);
-  assert.ok(lines.some((l) => /never bound/.test(l) && /married/.test(l)));
+  assert.ok(lines.some((l) => /never says/.test(l) && /married/.test(l)));
   assert.equal(relationsClean(report), false);
 });
 
@@ -135,7 +135,7 @@ test("polarity is read, and a contradiction is its own verdict", async () => {
   assert.ok(claim, JSON.stringify(report.claims));
   assert.equal(claim.verdict, "contradicted");
   assert.ok(claim.refs.includes("letters.txt#0-300"));
-  assert.ok(relationFindings(report).some((l) => /contradicted/.test(l)));
+  assert.ok(relationFindings(report).some((l) => /says otherwise/.test(l)));
 
   // And the same edge WITH the material's polarity is bound.
   const agreeing = reader.read("Pierre Bezukhov never loved Helene.");

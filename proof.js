@@ -182,6 +182,15 @@ export function foldProof(claim, { query, pages = [], gap = null } = {}) {
   }
   const stating = consulted.filter((p) => p.assessment?.stated);
   const hosts = [...new Set(stating.map((p) => p.host ?? hostOf(p.url)))];
+  // EVERY page read, stated or not — the audit must show the whole walk,
+  // not just the pages that agreed (user, 2026-08-17: "I want to see its
+  // websearching stuff").
+  const read = consulted.map((p) => ({
+    url: p.url,
+    host: p.host ?? hostOf(p.url),
+    textPath: p.textPath ?? null,
+    stated: !!p.assessment?.stated,
+  }));
   const kindWord = claim?.kind === "number" ? "the figure" : claim?.kind === "edge" ? "the statement" : "the name";
   const phrase =
     `${kindWord} “${claim?.text ?? ""}”`.trim() +
@@ -193,6 +202,7 @@ export function foldProof(claim, { query, pages = [], gap = null } = {}) {
     claim: claim?.text ?? null,
     query: query ?? null,
     consulted: consulted.length,
+    read,
     failed: failed.length,
     stating: stating.map((p) => ({
       url: p.url,

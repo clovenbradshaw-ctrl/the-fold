@@ -2661,8 +2661,9 @@ async function webApi(path, payload) {
  * the result into counted perspectives. Every step that fails arrives as
  * a typed gap; nothing is dropped.
  */
-async function seekProof(target, faces = null) {
+async function seekProof(target, faces = null, onStep = null) {
   const query = proofQuery(target);
+  onStep?.(`searching: “${query}”`);
   // The turn's evidence pool first: every page ANY chip already read is a
   // perspective this claim gets for free — measured twice (Borodino's
   // "much debate", then 1906/M7.9 on a net-new domain): the proof of one
@@ -2696,6 +2697,7 @@ async function seekProof(target, faces = null) {
   // Read the most claim-relevant results, not the engine's raw top — a bare
   // figure's top hits can be about a different figure entirely (proof.js
   // rankResults carries the measured case).
+  onStep?.(`searching: “${query}” · ${search.found ?? 0} result(s)${pooled.length ? ` · ${pooled.length} page(s) from this turn's pool` : ""}`);
   const picks = rankResults(target, search.results ?? [])
     .filter((r) => !faces?.has(r.url))
     .slice(0, PROOF_PAGES_CONSULTED);
@@ -2704,6 +2706,7 @@ async function seekProof(target, faces = null) {
   const pages = [...pooled];
   for (const r of picks) {
     try {
+      onStep?.(`reading ${hostOf(r.url)}…`);
       const f = await webApi("/api/web/fetch", { url: r.url });
       if (f.gap || !f.entry?.textPath) {
         pages.push({ url: r.url, gap: f.gap ?? { silence: "not-present", detail: "the page has no text face" } });
@@ -2782,7 +2785,16 @@ function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = n
     if (started) return;
     started = true;
     status.textContent = "…";
-    const out = await seekProof(target, faces);
+    // The walk, live: what it's searching and which page it's on, written
+    // into the slot as it happens — visible immediately when the panel is
+    // open on this chip, and replaced by the full audit when done.
+    const live = document.createElement("em");
+    live.className = "proof-query";
+    slot.textContent = "";
+    slot.append(live);
+    const out = await seekProof(target, faces, (step) => {
+      live.textContent = step;
+    });
     renderProofResult(slot, out);
     status.textContent =
       out.verdict === "web-corroborated"
@@ -2842,6 +2854,16 @@ function renderProofResult(slot, out) {
     q.className = "proof-query";
     q.textContent = `searched: “${out.query}”`;
     slot.append(q);
+  }
+  // The whole walk: every page read, agreeing or not — the ∅ rows are as
+  // much of the audit as the ✓ rows.
+  const statingUrls = new Set((out.stating ?? []).map((p) => p.url));
+  const silent = (out.read ?? []).filter((p) => !statingUrls.has(p.url));
+  if (silent.length) {
+    const also = document.createElement("em");
+    also.className = "proof-query";
+    also.textContent = `also read, not stating it: ${silent.map((p) => p.host).join(", ")}`;
+    slot.append(also);
   }
   for (const p of out.stating ?? []) {
     const row = document.createElement("span");

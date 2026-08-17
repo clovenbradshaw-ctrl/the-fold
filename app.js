@@ -219,6 +219,7 @@ import {
 // code, not the model; constitution.js carries the article→organ map and the
 // assay walks it.
 import { CONSTITUTION_PROMPT as BASE_PROMPT } from "./constitution.js";
+import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 const OLLAMA = "http://localhost:11434";
 const MAX_TOKENS = 4096;
@@ -684,6 +685,84 @@ function usageTurn(question, usage) {
   releaseBusy();
 }
 
+/**
+ * /priors — the toggle ledger's chat door. One ledger, three doors (the
+ * Priors tab, the terminal's `priors` command, this one) all reading and
+ * writing the same explore-server.mjs routes, so a flip made anywhere is
+ * seen everywhere. Bare /priors lists the corpus's genres and how many
+ * documents in each are in play; `/priors on|off <path>` flips a document,
+ * a folder, or the whole corpus (blank path). Computed from a server
+ * fetch, never generated — a toggle is a fact about a file on disk.
+ */
+async function priorsTurn(argstr, typed) {
+  const [sub, ...rest] = argstr.trim().split(/\s+/).filter(Boolean);
+  try {
+    if (sub === "on" || sub === "off") {
+      const p = rest.join(" ");
+      const body = await (
+        await fetch(`${EXPLORE_BASE}/api/priors/toggle`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: p, on: sub === "on" }),
+        })
+      ).json();
+      if (body.error) return usageTurn(typed, body.error);
+      // The one thing worth saying plainly: this reaches the surf, not
+      // just the offer surface. explore-server.mjs's /api/priors/check
+      // gates its candidate list on this same ledger — a document
+      // switched off is not consulted at answer time, not just hidden
+      // from the attach picker.
+      return usageTurn(
+        typed,
+        `${p || "the whole corpus"} → ${sub.toUpperCase()}. This reaches the surf directly: the reference-library check that runs during a turn only reads documents the ledger says are on — switching one off means it is not consulted, not just hidden from the picker.`,
+      );
+    }
+    const data = await (await fetch(`${EXPLORE_BASE}/api/priors`)).json();
+    if (data.gap) return usageTurn(typed, data.gap.detail);
+    const lines = [
+      `live_priors: ${data.files.toLocaleString()} documents, ${data.enabledCount.toLocaleString()} in play — every document starts off.`,
+      ...data.categories.map((c) => `  ${c.name}: ${c.enabled}/${c.files} in play`),
+      "`/priors on <path>` or `/priors off <path>` flips a document, a folder, or the whole corpus (bare path = root). A flip here is the same ledger the Priors tab and the terminal's `priors` command read.",
+    ];
+    return usageTurn(typed, lines.join("\n"));
+  } catch {
+    return usageTurn(typed, "the priors organ needs explore-server.mjs running on :8812 to answer this from chat.");
+  }
+}
+
+/**
+ * /learn — points at where each half of "learn this instrument" actually
+ * lives, rather than duplicating either. The terminal's `learn` walk grades
+ * real keystrokes against real commands, which chat has no mechanism to do
+ * honestly; the vendored handbook (handbook/, the eoreaderhandbook repo
+ * copied whole, P1: local) is prose chat CAN open directly. Bare /learn is
+ * the menu; `/learn <n>` opens a chapter, quoted from the vendored file,
+ * never paraphrased.
+ */
+async function learnTurn(argstr, typed) {
+  let idx;
+  try {
+    idx = parseHandbookIndex(await (await fetch("handbook/000-index.md")).text());
+  } catch {
+    return usageTurn(typed, "the handbook isn't reachable from here (handbook/000-index.md) — it ships vendored beside this page.");
+  }
+  const want = argstr.trim();
+  if (!want) {
+    const lines = [
+      "two doors, not one:",
+      "  the terminal's `learn` — a graded walk through this terminal's own commands, real keystrokes checked against real ones. Open the terminal (›) and type `learn`.",
+      "  `/learn <n>` here — a chapter of the eoreaderhandbook, the theory this instrument is built on, vendored whole.",
+      "",
+      ...idx.map((c) => `  ${c.n.padEnd(5)} ${c.title}`),
+    ];
+    return usageTurn(typed, lines.join("\n"));
+  }
+  const ch = findChapter(idx, want);
+  if (!ch) return usageTurn(typed, `no chapter “${want}” — bare \`/learn\` lists them all`);
+  const text = await (await fetch(`handbook/${ch.file}`)).text();
+  return usageTurn(typed, `${text}\n\n— chapter ${ch.n}, ${ch.title} (handbook/${ch.file})`);
+}
+
 async function mechanicalTurn(question, kind) {
   addMessage("user", question);
   const node = addMessage("assistant", "");
@@ -840,6 +919,20 @@ async function send(question) {
   const reflectQ = question.match(/^\/reflect\s+(\S[\s\S]*)/)?.[1];
   if (reflectQ) return reflectTurn(reflectQ, question);
   if (/^\/reflect\s*$/.test(question)) return usageTurn(question, "/reflect <question> — answers about how this instrument has been working, retrieving from its own act ledger instead of the material. The record such a turn earns is typed as self-knowledge, never as a check against the world.");
+
+  // The priors organ's door: browse and flip the live_priors toggle ledger
+  // from the chat, the same ledger the Priors tab and the terminal's
+  // `priors` command read and write (one ledger, three doors). Computed
+  // from a server fetch, never generated — a toggle is a fact about a file
+  // on disk, not a thing to phrase.
+  const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
+  if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
+
+  // /learn's door: the terminal's own `learn` walk is graded on real
+  // keystrokes there, which chat cannot offer — so here it points to
+  // where that walk lives, and lists the vendored handbook's chapters
+  // (theory this instrument is built on) as things chat CAN open directly.
+  if (/^\/learn\s*$/.test(question) || /^\/learn\b/.test(question)) return learnTurn(question.replace(/^\/learn\s*/, ""), question);
 
   // A question about the app's own state is answered from that state. Nothing
   // is gained by handing a model rows it would have to paraphrase, and a

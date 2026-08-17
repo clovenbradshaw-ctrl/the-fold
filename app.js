@@ -166,6 +166,7 @@ import {
   parseMeasure,
   phrase as phraseMeasurement,
   runMeasurement,
+  sniffContainer,
   toTable as measurementTable,
   usage as measurementUsage,
 } from "./measure.js";
@@ -287,6 +288,11 @@ const state = {
   turnFolds: [],
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
+  /** The /measure door's own session record: {file, question, phrase} per run
+   *  that produced a placement (refusals and probes are not measurements).
+   *  Read by the measurements table — a question about a measurement the app
+   *  made is answered from here, never sent to a model to paraphrase. */
+  measurements: [],
   /**
    * Binary material — a WAV, any file the text reader refuses. Held as bytes
    * beside the text sources, NEVER chunked or retrieved (retrieval is term
@@ -841,7 +847,10 @@ async function measureTurn(decl, question) {
         // The figures the app computed, printed by the app. The segment
         // deposits through the same fold door a model's code would, so a
         // measurement is downloadable and addressable like everything else.
-        else body.append(publishBuild(measurementTable(result), answer, question));
+        else {
+          body.append(publishBuild(measurementTable(result), answer, question));
+          state.measurements.push({ file: hits[0], question, phrase: answer });
+        }
       }
     }
   }
@@ -3425,21 +3434,19 @@ async function addFiles(fileList) {
       // megabyte file otherwise goes from click to done with no sign anything
       // happened.
       await new Promise((r) => setTimeout(r, 0));
-      const text = await file.text();
-      if (looksBinary(text)) {
-        // Not text — but not skipped either. Binary lands as bytes, and the
-        // status line says the one door that can open it. A WAV is recognized
-        // by its own RIFF header; anything else is honest raw bytes.
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const kind =
-          bytes.length > 12 &&
-          String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" &&
-          String.fromCharCode(...bytes.subarray(8, 12)) === "WAVE"
-            ? "wav"
-            : "bytes";
+      // Magic FIRST, text heuristic second. A PDF's first kilobytes are
+      // ASCII ("%PDF-1.4 ... obj"), so a looks-like-text check reads one as
+      // prose, chunks it as paragraphs, and every door downstream then treats
+      // a compression stream as vocabulary. A container declares itself in
+      // its own first bytes; that declaration outranks any guess.
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const container = sniffContainer(bytes);
+      const text = container ? null : await file.text();
+      if (container || looksBinary(text)) {
+        const kind = container ?? "bytes";
         state.media[file.name] = { bytes, kind };
         renderSources();
-        $("status").textContent = `${file.name} · ${fmtBytes(bytes.length)} of ${kind === "wav" ? "audio" : "binary"} — measure it: /measure ${file.name}`;
+        $("status").textContent = `${file.name} · ${fmtBytes(bytes.length)} of ${kind === "wav" ? "audio" : kind} — measure it: /measure ${file.name}`;
         continue;
       }
       addSource(file.name, text);

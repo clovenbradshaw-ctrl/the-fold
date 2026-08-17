@@ -699,7 +699,13 @@ second vocabulary to drift.
 
 **Amended same day — any material, and the probe.** Binary files land as
 bytes (`state.media`, never chunked/retrieved; the mute does not apply — it is
-a retrieval concept), and become series through the engine's
+a retrieval concept). Container detection is MAGIC FIRST, text heuristic
+second (`measure.js::sniffContainer`, closed list, tested against real files
+on disk): a PDF's first kilobytes are ASCII, so the looks-like-text check read
+one as prose and chunked a compression stream as paragraphs — the container's
+own first bytes outrank any guess. Naming a container changes only what the
+probe says and which decoder may run (wav → the PCM walk); everything else
+measures identically as frames of bytes. Bytes become series through the engine's
 `perceiver/audio/reduce.js` — the pure half split OUT of material.js in
 eoreader6 (its ffmpeg import made the whole module unloadable in a page; the
 split is packaging, not a new statistic, and material.js re-exports so no

@@ -314,6 +314,39 @@ export function runMeasurement(decl, material, { nul, bindLinks, reduce }) {
 }
 
 /**
+ * What container these bytes are, read off their own magic — or null when
+ * they carry none this door knows.
+ *
+ * Closed list, deliberately: a container is named only when its magic is
+ * unambiguous, and everything else stays honest "bytes". This exists because
+ * a PDF's first kilobytes are ASCII ("%PDF-1.4 ... obj"), so a text-or-not
+ * heuristic reads one as prose, chunks it as paragraphs, and the door then
+ * says "no columns" — when the honest reading is: this is a binary container,
+ * measure it as bytes. Magic is checked BEFORE any text heuristic, always.
+ *
+ * The name changes only what the probe SAYS and which decoder may run (wav →
+ * the PCM walk); every non-wav container measures identically as frames of
+ * bytes. Naming it is honesty about what was framed, not a promise to parse it.
+ */
+export function sniffContainer(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (b.length < 8) return null;
+  const at = (off, str) => [...str].every((c, i) => b[off + i] === c.charCodeAt(0));
+  if (at(0, "RIFF") && at(8, "WAVE")) return "wav";
+  if (b[0] === 0x89 && at(1, "PNG")) return "png";
+  if (at(0, "%PDF")) return "pdf";
+  if (at(0, "PK\x03\x04") || at(0, "PK\x05\x06")) return "zip";
+  if (b[0] === 0x7f && at(1, "ELF")) return "elf";
+  if (b[0] === 0x1f && b[1] === 0x8b) return "gzip";
+  if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return "mpeg-audio";
+  if (at(0, "OggS")) return "ogg";
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "jpeg";
+  if (at(4, "ftyp")) return "mp4";
+  if (at(0, "SQLite format 3")) return "sqlite";
+  return null;
+}
+
+/**
  * PCM samples out of a WAV container, or a typed refusal.
  *
  * Genuinely new code, and here is the stated reason (the search-first rule
@@ -426,7 +459,8 @@ export function seriesFromMedia(media, decl, reduce) {
     label = `${decl.channel} per ${decl.frame}-sample frame (${got.sampleRate} Hz, ${got.seconds.toFixed(1)}s)`;
   } else {
     source = media.bytes;
-    label = `${decl.channel} per ${decl.frame}-byte frame (${media.bytes.length.toLocaleString()} bytes)`;
+    const kindNote = media.kind && media.kind !== "bytes" ? `, ${media.kind}` : "";
+    label = `${decl.channel} per ${decl.frame}-byte frame (${media.bytes.length.toLocaleString()} bytes${kindNote})`;
   }
   let series;
   try {
@@ -486,7 +520,12 @@ export function probeMaterial(decl, material, nul) {
       lines.push(`/measure ${decl.file} pairs:${recurring.h} at:${at} draws:200 window:2`);
     }
   } else {
-    const kindLine = material.kind === "wav" ? "a PCM WAV — frames are samples" : "binary — frames are bytes";
+    const kindLine =
+      material.kind === "wav"
+        ? "a PCM WAV — frames are samples"
+        : material.kind && material.kind !== "bytes"
+          ? `a ${material.kind.toUpperCase()} container — frames are bytes (the container is named, not parsed)`
+          : "binary — frames are bytes";
     const wav = material.kind === "wav" ? wavSamples(material.bytes) : null;
     lines.push(
       `${decl.file} · ${material.bytes.length.toLocaleString()} bytes · ${kindLine}` +

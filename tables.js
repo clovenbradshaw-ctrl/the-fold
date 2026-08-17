@@ -21,6 +21,17 @@ import { actsTable, paceTable, surpriseTable } from "./reflex.js";
 const ASKS = /\b(table|tabulate|tabular|list|enumerate|show|display|what)\b/i;
 
 const SUBJECTS = [
+  // The optional preceding word is part of the MATCH, not a loosening of the
+  // article check: "what did the burstiness measurement find" puts an
+  // adjective between "the" and the subject, and the check reads the text
+  // before the match — absorbing one word keeps "the" adjacent. Measured
+  // need: the first live model-chat e2e sent exactly that question to a 2B
+  // model, which answered "I need more information" about a measurement the
+  // app itself had made forty seconds earlier.
+  // The absorbable word must not BE the article — greedy, it would eat "my"
+  // out of "list my measurements" and the article check would then fail on
+  // the very phrase it exists to admit.
+  [/\b(?:(?!(?:my|our|the|these|loaded|current)\b)[\w-]+\s+)?measurements?\b/i, "measurements"],
   [/\b(records?|on.?record|warrants?)\b/i, "records"],
   [/\b(sources?|materials?|files?|documents?|corpus|corpora)\b/i, "sources"],
   [/\b(folds?|summary|discourse)\b/i, "folds"],
@@ -70,6 +81,23 @@ export function buildTable(kind, state) {
 }
 
 const BUILDERS = {
+  /**
+   * Measurements this conversation has made — the /measure door's own record,
+   * restated from state. The caption IS the finding, in the door's phrasing
+   * (floors and censoring intact), so nothing here can be finer or more
+   * confident than the run itself was.
+   */
+  measurements({ measurements = [] }) {
+    if (!measurements.length) return null;
+    return caption(
+      tableFrom(measurements, [
+        { label: "file", get: (m) => m.file },
+        { label: "declared", get: (m) => m.question },
+        { label: "found", get: (m) => m.phrase },
+      ]),
+      `${plural(measurements.length, "measurement")} this conversation · each row is the run's own phrasing, no model call`,
+    );
+  },
   records({ summary }) {
     const records = summary?.records ?? [];
     if (!records.length) return null;
@@ -143,6 +171,7 @@ const BUILDERS = {
 
 /** What to say when the answer is honestly empty. */
 export const NOTHING = {
+  measurements: "No measurement has been made yet — /measure <file> makes one.",
   records: "No turns have been checked against material yet, so there are no records.",
   sources: "No material is loaded.",
   folds: "Nothing has been folded yet.",

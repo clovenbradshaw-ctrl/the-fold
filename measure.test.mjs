@@ -17,6 +17,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 
 import * as nul from "../eoreader6/nul/index.js";
 import { bindLinks } from "../eoreader6/packages/engine/emergence/binding.js";
@@ -36,6 +37,7 @@ import {
   runMeasurement,
   seriesFrom,
   seriesFromMedia,
+  sniffContainer,
   wavSamples,
   toTable,
   usage,
@@ -557,4 +559,38 @@ test("the probe describes a WAV in its own units", () => {
   const text = phrase(r);
   assert.match(text, /8000 Hz, 2\.0s/);
   assert.match(text, /channel:rms frame:/);
+});
+
+
+// ── container sniffing: magic first, text heuristic never consulted ─────────
+
+test("sniffContainer reads real containers off their own first bytes", () => {
+  // Real files from this machine, head bytes only — no synthetic magic.
+  const head = (path) => new Uint8Array(readFileSync(path).subarray(0, 64));
+  const cases = [
+    ["/home/user/eoreader6/problem space.zip", "zip"],
+    ["/home/user/eoreaderhandbook/sources/web/quine-1948-on-what-there-is.pdf", "pdf"],
+    ["/opt/pw-browsers/chromium-1194/chrome-linux/product_logo_48.png", "png"],
+    ["/opt/pw-browsers/chromium-1194/chrome-linux/libEGL.so", "elf"],
+  ];
+  for (const [path, want] of cases) {
+    if (!existsSync(path)) continue; // machine-dependent fixtures; skip absent ones silently
+    assert.equal(sniffContainer(head(path)), want, path);
+  }
+});
+
+test("a PDF is a container even though its head is ASCII — the trap this exists for", () => {
+  const pdfHead = new TextEncoder().encode("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>");
+  assert.equal(sniffContainer(pdfHead), "pdf");
+});
+
+test("plain text and CSV sniff as nothing, so they stay on the text path", () => {
+  assert.equal(sniffContainer(new TextEncoder().encode("time,latitude,longitude\n2026-08-17,36.0,-117.8\n")), null);
+  assert.equal(sniffContainer(new TextEncoder().encode("It was a bright cold day in April")), null);
+  assert.equal(sniffContainer(new Uint8Array(4)), null);
+});
+
+test("a wav sniffs as wav through the same door the drop handler uses", () => {
+  const bytes = synthWav({ spans: [{ level: 3, seconds: 0.01 }] });
+  assert.equal(sniffContainer(bytes), "wav");
 });

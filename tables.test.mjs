@@ -185,3 +185,27 @@ test("a header word named in the question picks the column", () => {
   assert.ok(out.caption.includes("baseline by month"));
   assert.ok(out.seg.code.includes(">900<"));
 });
+
+
+test("a question about a measurement the app made is answered from state, never sent to a model", () => {
+  // The live e2e that forced this: "What did the burstiness measurement of
+  // the zip file find?" went to a 2B model, which asked for more information
+  // about a run the app had completed forty seconds earlier.
+  assert.equal(detectTable("What did the burstiness measurement of the zip file find?"), "measurements");
+  assert.equal(detectTable("list my measurements"), "measurements");
+  assert.equal(detectTable("show the measurements"), "measurements");
+  // The material's own subject still wins: a locative before the article is a
+  // question about what is inside the text, not about the app's state.
+  assert.equal(detectTable("what does the report say about measurements in the document"), null);
+  // And no article at all is a question, not a state lookup.
+  assert.equal(detectTable("what is a measurement"), null);
+
+  const built = buildTable("measurements", stateWith({
+    measurements: [{ file: "a.zip", question: "/measure a.zip channel:flux ...", phrase: "160 of 200 broken copies reached it" }],
+  }));
+  assert.equal(built.table.rows.length, 1);
+  assert.match(built.table.rows[0][2], /160 of 200/);
+  assert.match(built.caption, /no model call/);
+  assert.equal(buildTable("measurements", stateWith({})), null);
+  assert.match(NOTHING.measurements, /\/measure/);
+});

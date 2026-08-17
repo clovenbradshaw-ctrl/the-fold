@@ -231,7 +231,10 @@ test("the declared numbers carry their duty", () => {
 // itself must never fetch from a non-local host — same rule II.13 pins for
 // the Converse page's files.
 test("P13 seam: explore.js and explore.html fetch only same-origin paths", () => {
-  for (const file of ["explore/explore.js", "explore.html", "explore-bridge.js"]) {
+  // preview.js joins the scan for the reason the others are in it: it builds
+  // the src of every img, iframe, audio and video the preview shows, so it is
+  // exactly where a remote host would slip in.
+  for (const file of ["explore/explore.js", "explore/preview.js", "explore.html", "explore-bridge.js"]) {
     const src = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
     const hosts = [...src.matchAll(/https?:\/\/([^/"'` )>]+)/g)].map((m) => m[1]);
     for (const h of hosts) {

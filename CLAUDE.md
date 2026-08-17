@@ -155,6 +155,34 @@ each as `reading:<Surface>`; the server accumulates `job.partial`; the page
 reveals views progressively. Completed reads are memoized in-memory by
 path·mtime·size and reuse is recorded (`read-reused`), never silent.
 
+**Seeing the file (added 2026-08-17).** Explore's surfaces are all READINGS
+of a file; the thing itself now has its own face. `explore/preview.js` +
+`preview.test.mjs` (14 conformance tests, DOM through a stub document the way
+render.test.mjs does it) hold the faces — image / audio / video / pdf / html
+(EMPTY sandbox) / markdown / table / code with line numbers / text — and, for
+anything the browser cannot render (docx, xlsx, pptx, epub), a NAMED refusal
+plus the download and the hex, never a blank pane or a hex dump passing for a
+document. The overlay is `#preview` in explore.html, its bar and keys in
+explore.js (‹ › walk the folder, Esc closes, ⤓ downloads, "Read this →" hands
+it to the reader). **A preview never starts a read** — peeking costs a stat
+and a decode, so a 3MB book is instant; the organs run when you ask them to.
+The one always-present control is `⛶ view the file` in the header line: a
+reader who wants the bytes as they are should never have to work out which
+surface is least interpreted. web.test.mjs's P13 seam scan now includes
+preview.js (it builds every img/iframe/media src).
+
+Three bugs it was built on top of, all found by driving the live page:
+double-click never opened anything (the details panel appeared on the first
+click, reflowed the grid, and the second click landed elsewhere — fixed by a
+fixed-width always-present details column AND a path-keyed click tracker, not
+node identity); `openSource` re-rendered while `source` was still null, so
+Field was not yet a view and the active view was silently reset to "files" —
+every open looked like a no-op (`state.opening` is now a place to stand); and
+a failed open (a library ref whose file has moved) escaped as an unhandled
+rejection with nothing on screen — `state.openError` says it in the header.
+`parseDelimited` is now the page's ONE csv reader, shared by the preview and
+the reader's table face.
+
 **Embed contract.** The chat page hosts Explore as a pane
 (`pane-explore` → iframe `http://localhost:8812/explore.html?embed=1`,
 loading=lazy). Embed mode drops Explore's own chrome; the rail folds behind

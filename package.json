@@ -8,6 +8,7 @@
     "test": "node --test *.test.mjs"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.84",
     "@phosphor-icons/core": "^2.1.1",
     "@viselect/vanilla": "^3.9.0",
     "monaco-editor": "^0.56.0",

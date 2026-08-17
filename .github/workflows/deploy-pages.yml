@@ -82,6 +82,26 @@ jobs:
           cp -r node_modules/monaco-editor _site/node_modules/
           cp -r node_modules/pyodide _site/node_modules/
           cp -r node_modules/sql.js _site/node_modules/
+          cp -r node_modules/@mlc-ai _site/node_modules/
+
+      - name: Rewrite root-absolute paths for the /the-fold/ project-page subpath
+        # This is a project page (clovenbradshaw-ctrl.github.io/the-fold/), not
+        # a domain root, but the app hardcodes root-absolute specifiers like
+        # "/engine/..." and "/node_modules/..." (they are real server mount
+        # points in dev, via serve.mjs). Left as-is those resolve to the
+        # github.io domain ROOT on Pages, not this site, and the page dies at
+        # import time. /api/* is deliberately left unrewritten — there is no
+        # server here to point it at, and it should keep failing visibly.
+        run: |
+          set -e
+          find _site -type f \( -name '*.html' -o -name '*.js' -o -name '*.mjs' \) -print0 \
+            | xargs -0 sed -i \
+                -e 's#"/engine/#"/the-fold/engine/#g' \
+                -e "s#'/engine/#'/the-fold/engine/#g" \
+                -e 's#"/nul/#"/the-fold/nul/#g' \
+                -e "s#'/nul/#'/the-fold/nul/#g" \
+                -e 's#"/node_modules/#"/the-fold/node_modules/#g' \
+                -e "s#'/node_modules/#'/the-fold/node_modules/#g"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

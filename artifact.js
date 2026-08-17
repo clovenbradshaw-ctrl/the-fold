@@ -127,15 +127,139 @@ export function tableFrom(items, columns) {
   return { type: "table", head: columns.map((c) => c.label), rows };
 }
 
+/**
+ * Build a bar-chart segment from data the caller already holds — tableFrom's
+ * discipline, one rung up: a chart of loaded rows is a projection of bytes
+ * the app can already address, so no model ever types a figure into one.
+ * The output is a code segment (lang "svg") — the same shape parseSegments
+ * yields for model-fenced SVG — so it rides every downstream organ
+ * unchanged: publishBuild deposits it, toDocument walls it, and it renders
+ * in the sandbox with no scripts and no run-consent needed.
+ *
+ * `spec` is {x:{label,get}, y:{label,get}, title}. y values coerce with
+ * Number(); a row whose y is not finite is dropped and counted in the
+ * returned `dropped` — a gap is a result, never a silent omission. All
+ * geometry below is presentation (like toDocument's centering style), not
+ * thresholds: nothing here decides what the data says.
+ */
+export function chartFrom(items, spec) {
+  const rows = [];
+  let dropped = 0;
+  [...items].forEach((item, i) => {
+    const y = Number(spec.y.get(item, i));
+    const x = spec.x.get(item, i);
+    if (!Number.isFinite(y)) return void dropped++;
+    rows.push({ x: x == null ? "" : String(x), y });
+  });
+  if (!rows.length)
+    return { type: "code", lang: "svg", code: "", rows: 0, dropped };
+
+  const W = 720, H = 400, PAD = { top: 44, right: 12, bottom: 64, left: 12 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+  const max = Math.max(...rows.map((r) => r.y));
+  const slot = plotW / rows.length;
+  const barW = Math.max(1, slot * 0.72);
+
+  const bars = rows
+    .map((r, i) => {
+      // An all-zero series still draws its baseline — height 0, never NaN.
+      const h = max > 0 ? (r.y / max) * plotH : 0;
+      const bx = PAD.left + i * slot + (slot - barW) / 2;
+      const by = PAD.top + plotH - h;
+      const cx = PAD.left + i * slot + slot / 2;
+      return (
+        `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="var(--accent)" opacity="0.85"/>` +
+        `<text x="${cx.toFixed(1)}" y="${(by - 6).toFixed(1)}" text-anchor="middle" font-size="12" fill="var(--ink)">${esc(r.y)}</text>` +
+        `<text x="${cx.toFixed(1)}" y="${(PAD.top + plotH + 16).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--muted)" transform="rotate(40 ${cx.toFixed(1)} ${(PAD.top + plotH + 16).toFixed(1)})">${esc(r.x)}</text>`
+      );
+    })
+    .join("\n");
+
+  const code =
+    // width/height ride along with the viewBox: an SVG with only a viewBox
+    // has a ratio but no intrinsic size, and toDocument's max-width/max-height
+    // wrapper has nothing to constrain — measured live, the frame rendered
+    // nothing. Explicit size makes the artifact whole in any container.
+    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(spec.title ?? "")}">\n` +
+    // Its own ground and its own theme: the artifact is downloadable and
+    // renders inside a sandboxed frame that cannot read the page's variables,
+    // so it carries the whole palette and paints its own background.
+    `<style>${themeCss()}</style>\n` +
+    `<rect width="${W}" height="${H}" fill="var(--bg)"/>\n` +
+    (spec.title ? `<text x="${W / 2}" y="24" text-anchor="middle" font-size="16" font-weight="600" fill="var(--ink)">${esc(spec.title)}</text>\n` : "") +
+    `<line x1="${PAD.left}" y1="${PAD.top + plotH}" x2="${W - PAD.right}" y2="${PAD.top + plotH}" stroke="var(--line)"/>\n` +
+    bars +
+    `\n</svg>`;
+  return { type: "code", lang: "svg", code, rows: rows.length, dropped };
+}
+
 /** Languages whose artifact is the thing itself, rendered. */
 export const RENDERABLE = new Set(["html", "svg"]);
+
+/**
+ * The palette, written twice, and the theme block every built artifact
+ * carries. A rendered segment lives in a sandboxed frame that cannot read
+ * index.html's custom properties, so an artifact that borrowed `var(--accent)`
+ * from the page would draw invisibly on its own — and a downloaded one would
+ * have no colors at all. Each artifact therefore carries the whole palette and
+ * its own three-state switch: system by default, an explicit `data-theme`
+ * winning in both directions, exactly as the page does one document up.
+ */
+export const PALETTE = Object.freeze({
+  light: Object.freeze({
+    bg: "#ffffff", panel: "#ffffff", ink: "#111113", muted: "#5f5f68",
+    line: "#dcdce3", accent: "#6d28d9", accentSoft: "#f3eeff", warn: "#b42318",
+  }),
+  dark: Object.freeze({
+    bg: "#0f0f12", panel: "#15151a", ink: "#ecebf0", muted: "#9b9aa5",
+    line: "#2b2b34", accent: "#a78bfa", accentSoft: "#1e1932", warn: "#f0857a",
+  }),
+});
+
+export const SANS = `-apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif`;
+export const MONO = `ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace`;
+
+export function themeCss(extra = "") {
+  const vars = (p) =>
+    Object.entries(p)
+      .map(([k, v]) => `--${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}:${v}`)
+      .join(";");
+  return (
+    `:root{${vars(PALETTE.light)};--sans:${SANS};--mono:${MONO}}` +
+    `@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${vars(PALETTE.dark)}}}` +
+    `:root[data-theme="dark"]{${vars(PALETTE.dark)}}` +
+    `text{font-family:var(--sans)}` +
+    extra
+  );
+}
+
+/** One escape, used by every builder that puts data into markup. */
+export function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 /**
  * A page built from a code segment, for rendering inside a sandboxed frame.
  * SVG is wrapped so it fills the frame; HTML is passed through as authored.
  */
+/**
+ * The no-network wall, injected into every rendered document. When a build
+ * earns scripts (the operator's run consent, below in app.js), what it earns
+ * is COMPUTE — canvas, animation, interaction — never the network: no
+ * connect-src, no external scripts, styles, images, or frames. This is the
+ * local-only rule (P1) applied to model-authored pages by physics rather
+ * than trust, and it holds whether or not the sandbox grants scripts. A CSP
+ * meta governs everything parsed after it, which is why it is prepended
+ * before the model's own markup.
+ */
+const CSP_META =
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:;">`;
+
 export function toDocument(seg) {
   if (seg.lang === "svg")
-    return `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:transparent}svg{max-width:100%;max-height:100%}</style>${seg.code}`;
-  return seg.code;
+    return `<!doctype html><meta charset="utf-8">${CSP_META}<style>html,body{margin:0;height:100%;display:grid;place-items:center;background:transparent}svg{max-width:100%;max-height:100%}</style>${seg.code}`;
+  return `<!doctype html>${CSP_META}${seg.code}`;
 }

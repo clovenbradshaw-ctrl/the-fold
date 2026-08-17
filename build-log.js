@@ -63,11 +63,18 @@ export function makeBuildLog(taskLog) {
     if (!tasks.length) return null;
     // One build per log: a single live version at any fold point.
     const t = tasks[tasks.length - 1];
+    // The instruction is a build-log field, not engine vocabulary —
+    // projectTasks does not carry it. Read it from the PROPOSE entry
+    // that birthed this thread (the one matching this build's n).
+    const propose = entries.find(
+      (e) => e.kind === ENTRY_KINDS.PROPOSE && e.n === t.n,
+    );
     return {
       n: t.n,
       turn: t.turn,
       seg: t.seg,
       caption: t.caption,
+      instruction: propose?.instruction ?? null,
       version: t.version,
       code: t.code,
       reason: t.reason ?? null,
@@ -79,8 +86,12 @@ export function makeBuildLog(taskLog) {
     };
   }
 
-  /** A build is born: the artifact the turn produced, snipped and named. */
-  function proposeBuild({ n, turn, seg, caption }) {
+  /** A build is born: the artifact the turn produced, snipped and named.
+   *  `instruction` is the model's own plan for what this code is —
+   *  mechanically derived from the plan log's task, never left to
+   *  instruction-following (L5). It lands in the PROPOSE entry and
+   *  travels through the fold. */
+  function proposeBuild({ n, turn, seg, caption, instruction = null }) {
     const log = createTaskLog();
     return append(log, {
       kind: ENTRY_KINDS.PROPOSE,
@@ -93,6 +104,7 @@ export function makeBuildLog(taskLog) {
       turn,
       seg,
       caption,
+      instruction,
       version: 1,
       code: seg?.type === "code" ? seg.code : null,
     });

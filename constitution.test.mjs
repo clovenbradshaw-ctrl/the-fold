@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import {
   CONSTITUTION_PROMPT,
@@ -14,6 +14,8 @@ import {
   enforcedArticles,
   unwiredArticles,
 } from "./constitution.js";
+import { MOUNTS, VENDOR, diskReader, hostsIn, isLocalAuthority, pageGraph, servedLocally } from "./page-graph.mjs";
+import { SEVERED } from "./term.js";
 import { chunkSource, openQuestions, readRange, retrieve, checkCitations } from "./source.js";
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute } from "./cite.js";
@@ -93,18 +95,155 @@ test("II.9 mouth: attribution is null-gated, never a guess with a tag", () => {
   assert.equal(unrelated[0].ref, null);
 });
 
-test("II.13 local: no host but localhost appears anywhere the page can reach", () => {
-  for (const file of ["app.js", "index.html", "holon.js", "constitution.js", "fold.js", "source.js", "cite.js", "grounding.js", "tables.js", "artifact.js", "reflex.js", "editor.js", "build-log.js"]) {
-    const src = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
-    const hosts = [...src.matchAll(/https?:\/\/([^/"'` )>]+)/g)].map((m) => m[1]);
-    for (const h of hosts)
-      assert.ok(
-        // www.w3.org appears only inside SVG xmlns attributes — a namespace
-        // identifier the browser never fetches, not a request.
-        /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h) || h === "www.w3.org",
-        `non-local host in ${file}: ${h}`,
-      );
+// ── II.13 / P1: the scan set is derived, not listed ─────────────────────────
+//
+// P1 claims "no non-localhost host in ANY file the page loads". That claim
+// used to be carried by the hand-written array below — 17 filenames, missing
+// thirteen modules the page loads today (render.js, log-pane.js, web.js,
+// quotes.js and the rest), so the invariant was false in its own letter and
+// went staler with every module added. The scan set is now WALKED from
+// index.html by page-graph.mjs; the old array survives only as the floor the
+// walk must clear.
+const ROOT = fileURLToPath(new URL("./", import.meta.url));
+const read = diskReader(ROOT);
+const PAGE = pageGraph({ entry: "index.html", read });
+
+const PREVIOUSLY_SCANNED = [
+  "app.js", "index.html", "holon.js", "constitution.js", "fold.js", "source.js", "cite.js",
+  "grounding.js", "tables.js", "artifact.js", "reflex.js", "editor.js", "build-log.js",
+  "term.js", "term-js-worker.mjs", "term-py-worker.mjs", "term-sql-worker.js",
+];
+
+// The egress verbs, read from term.js so the vocabulary is ONE list: what the
+// terminal severs in its workers is what counts as "this file can make a
+// request" here. Call-shaped on purpose — web.js says the word "fetch" three
+// times in prose about what it never does.
+function egressCalls(src) {
+  const hits = [];
+  for (const verb of SEVERED) {
+    if (new RegExp(`\\b(?:new\\s+)?${verb}\\s*\\(`).test(src)) hits.push(`${verb}(`);
+    if (new RegExp(`\\b${verb}\\s*\\.\\s*\\w+\\s*\\(`).test(src)) hits.push(`${verb}.`);
   }
+  if (/\bimport\s*\(/.test(src)) hits.push("import()");
+  return hits;
+}
+
+// Typed allowances. A non-local host literal that is NOT a request — each one
+// carrying the mechanical reason it cannot become one, CHECKED here rather
+// than waived. An allowance whose reason stops holding fails this test.
+const ALLOWANCES = [
+  {
+    host: "www.w3.org",
+    files: null,
+    why: "the SVG/XML namespace identifier — an XML name, never dereferenced by a browser",
+    holds: (file, src, at) =>
+      /xmlns(?::[a-z]+)?\s*=\s*["']?$/.test(src.slice(Math.max(0, at - 40), at)) ||
+      /createElementNS\(\s*["']$/.test(src.slice(Math.max(0, at - 40), at)),
+  },
+  {
+    host: null, // hostOf builds an authority from user input; there is no literal to name
+    files: ["web.js"],
+    why:
+      "P13: web.js is the PURE half of the web organ — it names archive addresses and parses " +
+      "typed ones; the egress lives in explore-server.mjs. Checked, not asserted: this file " +
+      "holds no egress call at all, so nothing in it can issue a request.",
+    holds: (file, src) => egressCalls(src).length === 0,
+  },
+];
+
+test("II.13 local: no host but localhost appears anywhere the page can reach", () => {
+  assert.ok(PAGE.files.length > PREVIOUSLY_SCANNED.length, "the walk returned no more than the list it replaces");
+  for (const file of PAGE.files) {
+    const src = read(file);
+    for (const h of hostsIn(src)) {
+      if (isLocalAuthority(h)) continue;
+      const allowance = ALLOWANCES.find(
+        (a) => (a.files ? a.files.includes(file) : true) && (a.host ? a.host === h.host : true) && a.holds(file, src, h.at),
+      );
+      assert.ok(allowance, `non-local host in ${file}: ${h.raw}`);
+    }
+  }
+  // Remote load edges are the failure this exists to catch, in any file the
+  // walk reached: an `import "https://cdn…"` anywhere in the graph.
+  assert.deepEqual(PAGE.remote, [], "a page module loads from a non-local host");
+  assert.deepEqual(PAGE.missing, [], "the page states a load edge that resolves to nothing");
+});
+
+test("II.13 local: the scan set is DERIVED from the page, and covers the list it replaced", () => {
+  for (const file of PREVIOUSLY_SCANNED)
+    assert.ok(PAGE.files.includes(file), `the derived scan set lost ${file}, which the old hardcoded list covered`);
+  const newly = PAGE.files.filter((f) => !PREVIOUSLY_SCANNED.includes(f));
+  assert.ok(newly.length > 0, "a derivation that covers only the old list is the old list");
+  console.log(`II.13 scan set: ${PAGE.files.length} files walked from index.html; ${newly.length} beyond the old list — ${newly.join(", ")}`);
+
+  // Closure, checked independently of the walker's own extractor: every
+  // relative module path named in a scanned file must itself be scanned.
+  for (const file of PAGE.files) {
+    for (const m of read(file).matchAll(/["'](\.{1,2}\/[A-Za-z0-9_@./-]+\.(?:js|mjs))["']/g)) {
+      const target = m[1].replace(/^\.\//, "");
+      if (read(target) != null) assert.ok(PAGE.files.includes(target), `${file} names ${m[1]}, which the walk never scanned`);
+    }
+  }
+
+  // What is deliberately NOT scanned is typed and resolves on this machine —
+  // a mount or a vendored path is out of scope because another repo (or a
+  // vendor) owns those bytes, never because the page fetches them remotely.
+  assert.ok(PAGE.external.length > 0, "the engine mounts vanished from the page's imports");
+  for (const e of PAGE.external) {
+    assert.ok(MOUNTS.some((m) => m.prefix === e.mount), `undeclared mount in ${e.from}: ${e.spec}`);
+    assert.ok(servedLocally(e, ROOT), `mounted import ${e.spec} resolves to nothing on this machine`);
+  }
+  assert.ok(PAGE.vendored.length > 0, "the vendored runtimes vanished from the page");
+  for (const v of PAGE.vendored) {
+    assert.ok(v.spec.startsWith(VENDOR.prefix), `undeclared vendor path in ${v.from}: ${v.spec}`);
+    assert.ok(servedLocally(v, ROOT), `${v.spec} is not on this disk — a vendored path that is not vendored is a CDN`);
+  }
+  // Separate documents (the Explore iframe) are their own graph, scanned by
+  // web.test.mjs's seam test; they are named here, never silently dropped.
+  for (const d of PAGE.documents) assert.ok(isLocalAuthority(hostsIn(d.spec)[0] ?? { host: "", dynamic: false }), `embedded document from a non-local host: ${d.spec}`);
+  assert.deepEqual(PAGE.bare, [], "a bare specifier cannot resolve in a browser without an import map");
+});
+
+test("II.13 local: the derivation cannot pass vacuously", () => {
+  // The walk against a synthetic page whose answer is known — so a walker
+  // that silently returns nothing (or stops following one kind of edge) is a
+  // failing test here rather than a clean sweep over there.
+  const FIXTURE = {
+    "page.html":
+      `<link rel="stylesheet" href="look.css" />\n` +
+      `<script src="/node_modules/vendorlib/loader.js"></script>\n` +
+      `<script type="module" src="./boot.js"></script>\n` +
+      `<script type="module" src="side.js"></script>\n` +
+      `<iframe src="http://localhost:9/other.html"></iframe>`,
+    "boot.js":
+      `import { a } from "./organ.js";\nimport { b } from "/engine/x.js";\n` +
+      `const ROSTER = { js: { src: "./hand-worker.mjs" } };\n` +
+      `new Worker(new URL(ROSTER.js.src, import.meta.url), { type: "module" });`,
+    "side.js": `import "./evil.js";\nexport const x = 1;`,
+    "evil.js": `import "https://cdn.example.com/x.js";`,
+    "organ.js": `import { c } from "./deep.js";\nconst lazy = () => import("./lazy.js");`,
+    "deep.js": `// leaf`,
+    "lazy.js": `// leaf`,
+    "hand-worker.mjs": `importScripts("/node_modules/vendorlib/sql.js");`,
+    "look.css": `@import "./more.css";`,
+    "more.css": `/* leaf */`,
+  };
+  const g = pageGraph({ entry: "page.html", read: (p) => FIXTURE[p] ?? null });
+  assert.deepEqual(
+    [...g.files].sort(),
+    ["boot.js", "deep.js", "evil.js", "hand-worker.mjs", "lazy.js", "look.css", "more.css", "organ.js", "page.html", "side.js"],
+    "the walk missed an edge kind — script src, relative import, dynamic import, a worker path held as data, importScripts, or a stylesheet",
+  );
+  assert.deepEqual(g.remote.map((e) => e.host), ["cdn.example.com"], "a remote import must be caught, wherever in the graph it sits");
+  assert.deepEqual(g.external.map((e) => e.spec), ["/engine/x.js"]);
+  assert.deepEqual(g.vendored.map((e) => e.spec), ["/node_modules/vendorlib/loader.js", "/node_modules/vendorlib/sql.js"]);
+  assert.deepEqual(g.documents.map((e) => e.spec), ["http://localhost:9/other.html"]);
+
+  // And the degenerate case is detectable rather than silent: a walk that
+  // reads nothing reports the entry as missing and scans no file at all.
+  const empty = pageGraph({ entry: "page.html", read: () => null });
+  assert.deepEqual(empty.files, []);
+  assert.equal(empty.missing.length, 1);
 });
 
 test("III.3 / IV.3 absent: every kind of gap is typed, never silent", () => {

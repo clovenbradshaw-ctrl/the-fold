@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { NOTHING, buildTable, detectTable, toMarkdown } from "./tables.js";
+import { NOTHING, buildTable, chartOf, delimitedRows, detectChart, detectTable, toMarkdown } from "./tables.js";
 import { parseSegments } from "./artifact.js";
 import { emptySummary, addWarrantRecord, buildWarrantRecord, advanceSummaryFold } from "./fold.js";
 import { chunkSource } from "./source.js";
@@ -125,4 +125,63 @@ test("a cell containing a pipe cannot forge a column", () => {
   // Escaped on the way out, unescaped on the way back: the cell survives whole
   // rather than shifting every column after it.
   assert.equal(round.rows[0][1], "a | b | c");
+});
+
+// ── the chart door ──────────────────────────────────────────────────────────
+
+const EVICTIONS =
+  "month,filings\nJanuary,1144\nFebruary,930\nMarch,613\nApril,108\n";
+
+test("a chart word opens the door; its absence keeps it shut", () => {
+  assert.equal(detectChart("chart the filings in monthly-totals-2020.csv"), true);
+  assert.equal(detectChart("plot filings by month"), true);
+  assert.equal(detectChart("visualise the data"), true);
+  assert.equal(detectChart("list the filings in the file"), false);
+});
+
+test("delimited rows read comma, tab, and semicolon off the bytes", () => {
+  assert.deepEqual(delimitedRows("a,b\n1,2\n"), { head: ["a", "b"], rows: [["1", "2"]] });
+  assert.deepEqual(delimitedRows("a\tb\n1\t2\n"), { head: ["a", "b"], rows: [["1", "2"]] });
+  assert.deepEqual(delimitedRows("a;b\n1;2\n"), { head: ["a", "b"], rows: [["1", "2"]] });
+  assert.equal(delimitedRows("just prose, with a comma but one line"), null);
+  assert.equal(delimitedRows(""), null);
+});
+
+test("a chart of a named source carries the file's own figures and no model call", () => {
+  const out = chartOf(
+    "chart the filings in monthly-totals-2020.csv, title it: Nashville eviction filings, 2020",
+    [{ name: "monthly-totals-2020.csv", text: EVICTIONS }],
+  );
+  assert.ok(out.seg, out.gap);
+  assert.equal(out.seg.lang, "svg");
+  assert.equal(out.seg.rows, 4);
+  assert.ok(out.seg.code.includes(">1144<"));
+  assert.ok(out.seg.code.includes(">108<"));
+  assert.ok(out.seg.code.includes("Nashville eviction filings, 2020"));
+  assert.ok(out.caption.includes("no model call"));
+});
+
+test("no source named in the question is a typed gap, never a guess", () => {
+  const out = chartOf("chart the filings please", [
+    { name: "monthly-totals-2020.csv", text: EVICTIONS },
+  ]);
+  assert.ok(out.gap);
+  assert.ok(!out.seg);
+});
+
+test("a source that is not tabular is a typed gap", () => {
+  const out = chartOf("chart war-and-peace.txt", [
+    { name: "war-and-peace.txt", text: "Well, Prince, so Genoa and Lucca\nare now just family estates." },
+  ]);
+  assert.ok(out.gap);
+});
+
+test("a header word named in the question picks the column", () => {
+  const two = "month,filings,baseline\nJanuary,1144,900\nFebruary,930,900\n";
+  const out = chartOf("plot the baseline from totals.csv", [
+    { name: "totals.csv", text: two },
+  ]);
+  assert.ok(out.seg, out.gap);
+  assert.ok(out.caption.includes("baseline by month"));
+  assert.ok(out.seg.code.includes(">900<"));
 });

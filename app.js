@@ -2569,7 +2569,7 @@ function buildCard(entry, highlight) {
   // named by its address (build-N@seq).
   const dl = document.createElement("button");
   dl.type = "button";
-  dl.className = "build-run";
+  dl.className = "build-run icon";
   dl.textContent = "⬇";
   dl.title = `Download this fold as of log position ${entry.cursor ?? seqMax}.`;
   dl.onclick = () => {
@@ -2587,7 +2587,7 @@ function buildCard(entry, highlight) {
   // dialog shows the same fold at the same cursor under the same consent.
   const wide = document.createElement("button");
   wide.type = "button";
-  wide.className = "build-run";
+  wide.className = "build-run icon";
   wide.textContent = "⛶";
   wide.title = "Open this fold full screen.";
   wide.onclick = () => openFoldViewer(entry);

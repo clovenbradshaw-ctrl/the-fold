@@ -526,17 +526,28 @@
         color: var(--muted);
       }
       .build-run {
-        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 24px;
         font-size: 11px;
-        letter-spacing: 0.05em;
-        padding: 2px 10px;
+        letter-spacing: 0.03em;
+        padding: 0 11px;
         border-radius: 20px;
         color: var(--accent);
-        border-color: var(--accent);
-        background: var(--accent-soft);
+        border: 1px solid var(--line);
+        background: var(--panel);
         cursor: pointer;
+        transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
       }
+      .build-run:first-of-type { margin-left: auto; }
+      .build-run + .build-run { margin-left: 6px; }
+      .build-run:hover { border-color: var(--accent); background: var(--accent-soft); }
+      .build-run:active { background: var(--accent); color: var(--bg); }
       .build-run:disabled { opacity: 0.55; cursor: default; }
+      .build-run:disabled:hover { border-color: var(--line); background: var(--panel); }
+      .build-run.icon { width: 24px; padding: 0; font-size: 12px; color: var(--muted); }
+      .build-run.icon:hover { color: var(--accent); }
       .run-console {
         margin: 0;
         padding: 12px;
@@ -556,16 +567,50 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        margin: 0 0 6px;
+        margin: 0 0 8px;
+        padding: 4px 0;
       }
       .build-cursor input[type="range"] {
         flex: 0 1 160px;
-        accent-color: var(--accent);
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--line);
+        outline: none;
+      }
+      .build-cursor input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid var(--panel);
+        box-shadow: 0 0 0 1px var(--accent);
+        cursor: pointer;
+        margin-top: -0.5px;
+        transition: transform 0.1s ease;
+      }
+      .build-cursor input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+      .build-cursor input[type="range"]::-moz-range-thumb {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid var(--panel);
+        box-shadow: 0 0 0 1px var(--accent);
+        cursor: pointer;
+      }
+      .build-cursor input[type="range"]::-moz-range-track {
+        height: 4px;
+        border-radius: 2px;
+        background: var(--line);
       }
       .cursor-label {
         font-size: 10.5px;
         letter-spacing: 0.05em;
         color: var(--muted);
+        font-family: var(--mono);
         white-space: nowrap;
       }
 

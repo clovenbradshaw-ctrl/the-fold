@@ -32,7 +32,7 @@ import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync,
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { foldExtract } from "../eoreader6/packages/host/index.js";
+import { foldExtract } from "../eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file
@@ -65,11 +65,11 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
-const ENGINE = path.resolve(ROOT, "..", "eoreader6", "packages", "engine");
+const ENGINE = path.resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
 // serve.mjs's nul mount, carried here for the same reason as /engine:
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
-const NUL = path.resolve(ROOT, "..", "eoreader6", "nul");
+const NUL = path.resolve(ROOT, "..", "eoreader6.1", "nul");
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -437,22 +437,61 @@ async function fetchCapped(url, { timeoutMs = WEB_FETCH_TIMEOUT_MS, maxBytes = W
  * merges them), because SPN routinely takes a minute the fetch response
  * must not wait for. Success and failure both land; pending never silently
  * evaporates.
+ *
+ * Content-Location naming a snapshot address is the archive's OWN claim,
+ * not a fact about what a reader following "archived ↗" will find — the
+ * same distinction this instrument draws everywhere else between an
+ * assertion and a checked one (L5: never left to the far side's own
+ * word). Before "saved" ships, the named address is fetched and read
+ * exactly as any other page is (`verifySnapshot`, below) — a link handed
+ * to the reader as a stable snapshot must actually resolve to one.
  */
 async function archivePage(id, url) {
   try {
     const { res } = await fetchCapped(`https://web.archive.org/save/${url}`, { timeoutMs: WEB_ARCHIVE_TIMEOUT_MS });
     const archiveUrl = archiveUrlFrom({ contentLocation: res.headers.get("content-location"), finalUrl: res.url });
-    if (archiveUrl) {
-      appendWebHistory({ id, archive: { status: "saved", url: archiveUrl, at: new Date().toISOString() } });
-      record("web-archive", { id, archiveUrl });
-    } else {
+    if (!archiveUrl) {
       const detail = `save-page-now answered ${res.status} without naming a snapshot`;
       appendWebHistory({ id, archive: { status: "failed", detail, at: new Date().toISOString() } });
       record("web-archive-error", { id, error: detail });
+      return;
+    }
+    const verified = await verifySnapshot(archiveUrl);
+    if (verified.ok) {
+      appendWebHistory({ id, archive: { status: "saved", url: archiveUrl, at: new Date().toISOString() } });
+      record("web-archive", { id, archiveUrl });
+    } else {
+      const detail = `the archive named a snapshot at ${archiveUrl} but it did not resolve to real content — ${verified.detail}`;
+      appendWebHistory({ id, archive: { status: "failed", detail, url: archiveUrl, at: new Date().toISOString() } });
+      record("web-archive-error", { id, error: detail, archiveUrl });
     }
   } catch (e) {
     appendWebHistory({ id, archive: { status: "failed", detail: e.message, at: new Date().toISOString() } });
     record("web-archive-error", { id, error: e.message });
+  }
+}
+
+/**
+ * Does the archive's own named snapshot actually hold a real page? Judged
+ * by the SAME organ that already answers this question for every other
+ * fetch (`looksLikeChallenge`, `extractReadable`) — never by trusting a
+ * 2xx status alone, since a redirect loop or an unindexed snapshot can
+ * still answer 200 with nothing readable behind it. Plain page fetch, so
+ * the ordinary WEB_FETCH_TIMEOUT_MS/WEB_FETCH_MAX_BYTES bounds apply, not
+ * the slow-by-design SPN ones.
+ */
+async function verifySnapshot(archiveUrl) {
+  try {
+    const { res, buf } = await fetchCapped(archiveUrl);
+    if (!res.ok) return { ok: false, detail: `the snapshot itself answered ${res.status}` };
+    const readable = extractReadable(buf.toString("utf8"));
+    if (looksLikeChallenge({ title: readable.title, textChars: readable.text.length })) {
+      return { ok: false, detail: "the snapshot page reads as a shell (bot-challenge shape), not the article" };
+    }
+    if (!readable.text.trim().length) return { ok: false, detail: "the snapshot page has no readable text" };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, detail: `checking the snapshot failed: ${e.message}` };
   }
 }
 

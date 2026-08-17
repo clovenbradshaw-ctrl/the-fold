@@ -297,6 +297,27 @@ unlike a private fetch) keeps ITS default off. Its sibling switch,
 `attachments`, governs no egress at all: it is retrieval-only, and turning it
 off unloads nothing and invalidates no address.*
 
+*Amended again (2026-08-17, by user direction): a link this instrument hands
+to the reader is checked before it is asserted, never taken on the far
+side's own word. `archivePage` used to mark a Save Page Now result "saved"
+the instant Wayback's Content-Location header named a snapshot address —
+the archive's own claim about itself, rendered straight into the "archived
+↗" link with nothing confirming the address actually resolved to real
+content. `verifySnapshot` now fetches that named address and reads it with
+the same organs (`looksLikeChallenge`, `extractReadable`) `fetchAndKeep`
+already uses to judge any other fetch — a non-2xx response, a
+challenge/shell page, or an empty text face all fail verification, and
+`archive.status` ships `"failed"` with a typed detail naming what was
+checked, never a silent pass-through of the header. Nothing else about the
+crossing moves: still one deferred fetch to the address the archive itself
+named, still recorded, still the local server's alone. **Enforced:** the
+verification reuses `web.test.mjs`'s existing coverage of
+`looksLikeChallenge`/`extractReadable` (no second threshold was invented);
+`verifySnapshot` and `archivePage` are the impure half by construction (a
+live fetch to web.archive.org), so — like the rest of the P13 egress
+functions in explore-server.mjs — they are exercised live rather than
+mocked, and are not independently unit-tested offline.*
+
 ## P14 — Work done twice becomes code; the model proposes, the gate disposes
 
 L5 extended from facts to work. A procedure the instrument has performed once
@@ -752,6 +773,102 @@ named, most-specific-wins naming its level, last-write-wins over the
 ledger with bad lines counted, papers through the shared parser with
 offsets naming the file on disk; `priors.test.mjs` (the sibling tier)
 pins the parser both faces.
+
+---
+
+## P20 — A cited link is checked before it is asserted, never taken on its own word
+
+A URL in an answer is P17's own claim one register over: "these exact
+words are in the source" for a quotation, "this address is real, go look"
+for a link — and the one claim local material containment cannot judge by
+itself (P11 can confirm a URL's BYTES appear in what was read; it cannot
+confirm the address exists). By user direction (2026-08-17), a cited URL is
+now checked mechanically, exactly the way a quotation is: every distinct
+URL in the settled draft, not already grounded in the loaded material's own
+bytes, is fetched through the P13 egress and read with the SAME organs
+`fetchAndKeep` already uses to judge any page (`looksLikeChallenge`,
+`extractReadable`) — never a second, invented threshold. Five verdicts:
+
+- **in-material** — the literal address is in the loaded material's own
+  bytes. No network needed; this ground is free, and checked against the
+  WHOLE loaded corpus (`live`), not just the current part's narrower
+  retrieval — quotes.js's own offer/pool distinction, because a sibling
+  part's material still counts as material.
+- **resolved** — fetched, answered 2xx, reads as real content.
+- **unreachable** — the fetch failed, answered outside 2xx, or held nothing
+  readable: a fabricated citation, mechanically caught. `stripDeadLinks`
+  replaces it in the shipped text with a named marker
+  (`[link removed — did not resolve: …]`) — never rendered as a plain,
+  working-looking link — and the finding joins the record's unsupported
+  list, the same treatment an invented figure or a fabricated quotation
+  already gets.
+- **challenge** — the host is real but answered a bot-challenge page;
+  disclosure only, never accused of fabrication (the same posture web.js
+  already gives a challenge page elsewhere).
+- **unexamined** — no check ran (the standing web consent, `state.webProof`,
+  is off, or the turn's link budget was already spent). A gap, never
+  silently treated as verified — a cited URL ships exactly as written when
+  the reader has not turned checking on.
+
+**Why once, and why mechanical, not another correction round trip.** A
+fabricated name or an unlocated quotation is caught by free, local
+containment, so `inspect()` re-runs it every correction retry and the model
+gets a chance to fix its own invention. A link check is a live network
+crossing — re-running it per retry would multiply live fetches for no
+gain, and P9 already treats automatic egress as a bounded backstop, not a
+thing to spend per iteration. So the link tier runs ONCE, after the
+correction loop has already settled, capped at `LINK_CHECKS_PER_PART` (the
+same duty PROOF_TARGETS_PER_TURN names for proof-seeking: automatic egress
+the instrument decided to make, not a click the reader made, bounded and
+the bound stays visible) — and a genuinely fake URL is fixed the same way
+the mechanical fallback already fixes a stubborn model: the instrument
+does it itself, deterministically, rather than trusting another round trip.
+
+**Files.** `links.js` (pure: URL extraction with balanced-paren trimming so
+a real address like Wikipedia's own `…Something_(disambiguation)` is never
+truncated into a different, nonexistent one before it is checked; the
+verdict fold; `linkFindings`; `stripDeadLinks`) + `links.test.mjs`;
+`holon.js`'s `runPart` accepts the injected `checkLink` async organ (this
+module owns no network — the caller fetches, `links.js` only folds the
+result, the proof.js `foldProof` pattern exactly) and runs the tier right
+after the quote repair; `app.js`'s `checkLinkCitation` is the organ,
+reusing `/api/web/fetch` — the SAME recorded egress every other page read
+goes through, so a model-cited URL lands in web history exactly like any
+page the reader asked to read, because from the record's point of view
+that is what happened: the instrument decided to look. Gated behind
+`state.webProof` (P13's standing web consent) at the `runHolonicTask` call
+site in `app.js`, the same switch proof-seeking already asks for.
+
+**Known scope boundary, disclosed rather than implied as complete.** The
+sentence-level MATERIAL/MODEL ground and stripe machinery (P12,
+`provenance.js::classifySentences`) is NOT extended to link verdicts in
+this pass — a `resolved` or `in-material` link earns no special inline
+badge beyond surviving unmodified, and an `unexamined` one ships with no
+visual mark distinguishing it from checked prose. `provenance.js` was
+actively mid-edit by a concurrent session when this landed (a narration-
+stripping feature, uncommitted); extending the stripe vocabulary to links
+touches the same sentence-classification core and is named future work,
+not folded in here to avoid compounding that collision. What this policy
+guarantees today is narrower and load-bearing on its own: a fabricated
+link never ships as a plain, working-looking citation.
+
+**Evidence:** the live design constraint of 2026-08-17 — this repo's own
+`explore-server.mjs::archivePage` was found, in the same session, trusting
+Wayback's Content-Location header for a "stable snapshot" link without
+ever confirming the address resolved (fixed the same day, `verifySnapshot`,
+same organs); the model-citation case is the same failure one layer up,
+where the far side making the claim is the model itself, not an external
+service's header.
+**Enforced:** `links.test.mjs` — extraction with the balanced-paren case
+(a Wikipedia-shaped URL survives; a sentence's wrapping paren does not),
+in-material short-circuiting before any fetch, every verdict branch
+(resolved / unreachable / challenge / unexamined), idempotent repair,
+right-to-left offset safety with multiple dead links in one draft; the
+`checkLink` injection point in `holon.test.mjs` — off ships a URL
+untouched, on strips an unreachable one and records the finding, a
+resolved one ships unmodified and is fetched exactly once, and a URL
+already in the wider loaded corpus is never fetched at all (asserted by
+making the fake `checkLink` throw if called).
 
 ---
 

@@ -1373,6 +1373,12 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
       makeRelationReader: state.grounded ? relationsFor : null,
+      // The link tier (links.js): a cited URL is fetched through the SAME
+      // standing web consent proof-seeking already asks for — an automatic
+      // crossing the instrument decided to make, not a click the reader
+      // made, so it lives behind the same switch. Off means every cited URL
+      // ships `unexamined`, never silently treated as checked.
+      checkLink: state.webProof ? checkLinkCitation : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -2652,6 +2658,28 @@ async function webApi(path, payload) {
   });
   if (!res.ok) throw new Error(`${path} answered ${res.status}`);
   return res.json();
+}
+
+/**
+ * The link tier's fetch (links.js, holon.js's `checkLink` injection point):
+ * does a URL the model cited actually resolve? Reuses the SAME recorded
+ * fetch every other page read goes through (`/api/web/fetch` — the P13
+ * egress, one page, never a crawl) rather than a second, unrecorded path —
+ * a model-cited URL lands in web history exactly like any page the reader
+ * asked to read, because from the record's point of view that is what
+ * happened: the instrument decided to look. logAct records the attempt
+ * regardless of the verdict, the same posture `seekProof` already takes.
+ */
+async function checkLinkCitation(url) {
+  const f = await webApi("/api/web/fetch", { url });
+  if (f.gap) {
+    logAct("link-checked", { url, verdict: "unreachable", detail: f.gap.detail ?? f.gap.silence });
+    return { gap: f.gap };
+  }
+  const ok = f.entry?.status >= 200 && f.entry.status < 300;
+  const out = { ok, status: f.entry?.status, textChars: f.entry?.textChars ?? 0, title: f.entry?.title ?? null, challenge: !!f.entry?.challenge };
+  logAct("link-checked", { url, verdict: !ok ? "unreachable" : out.challenge ? "challenge" : out.textChars > 0 ? "resolved" : "unreachable" });
+  return out;
 }
 
 /**

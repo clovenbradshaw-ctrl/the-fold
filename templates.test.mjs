@@ -7,17 +7,21 @@ import {
   FORMS,
   PALETTE,
   TERRAINS,
+  composite,
   coverage,
   edgeChips,
   emptyFrame,
   histogram,
   legend,
+  negativeClaim,
   networkGraph,
+  rankedNetwork,
   rawLayout,
   recordCard,
   savedView,
   taxonomy,
   terrainLegend,
+  timeline,
   trace,
 } from "./templates.js";
 
@@ -31,6 +35,10 @@ const every = () => [
   trace([1, 2, 3, 2]),
   savedView(taxonomy([{ name: "x", n: 2 }]), { claim: "x dominates" }),
   legend([{ name: "purple", means: "the material" }]),
+  timeline([{ at: "2021-01-01", label: "x" }, { at: "2021-06-01", label: "y" }]),
+  rankedNetwork(["a", "b"], [{ from: "a", to: "b" }], () => 1, { rankLabel: "x" }),
+  negativeClaim("a", "relates to", "b", { scope: "1 passage" }),
+  composite([networkGraph(["a"], []), legend([{ name: "x", means: "y" }])]),
 ];
 
 test("the catalog is closed at nine, and every terrain names what it cannot see", () => {
@@ -198,4 +206,88 @@ test("markup in the data cannot become markup in the surface", () => {
     assert.ok(!seg.code.includes("<script>"), `${seg.terrain} let markup through`);
     assert.ok(seg.code.includes("&lt;script&gt;"));
   }
+});
+
+// ── composites — every real screen is several of these at once ────────────
+
+test("a composite declares its union rather than flattening into one atom", () => {
+  const graph = networkGraph(["a", "b"], [{ from: "a", to: "b" }]);
+  const note = legend([{ name: "x", means: "y" }]);
+  const seg = composite([graph, note], { title: "a graph plus its legend" });
+  assert.equal(seg.terrain, "Network", "the head declares the native terrain");
+  assert.deepEqual(seg.union, ["Network", "Paradigm"]);
+  assert.ok(seg.code.includes("Network"));
+  assert.ok(seg.code.includes("Paradigm"));
+  assert.ok(seg.code.includes("native"), "the head part is marked native, the rest are not");
+});
+
+test("an empty composite is the empty frame, not a blank union", () => {
+  const seg = composite([], { title: "nothing to stand on" });
+  assert.equal(seg.terrain, "Void");
+});
+
+test("composite() drops falsy parts rather than choking on them", () => {
+  const graph = networkGraph(["a"], []);
+  const seg = composite([null, graph, undefined]);
+  assert.equal(seg.terrain, "Network");
+  assert.deepEqual(seg.union, ["Network"]);
+});
+
+// ── Field · timeline — the FORMS entry, now built ──────────────────────────
+
+test("a timeline is Field, never Atmosphere — FORMS's own counter-intuitive call", () => {
+  const seg = timeline([
+    { at: "2020-04-01", label: "filings collapse" },
+    { at: "2020-01-01", label: "baseline" },
+  ]);
+  assert.equal(seg.terrain, "Field");
+  assert.equal(seg.blindTo, TERRAINS.field.blindTo);
+  assert.equal(seg.events, 2);
+  // Sorted by date regardless of input order.
+  const firstLabelIdx = seg.code.indexOf("baseline");
+  const secondLabelIdx = seg.code.indexOf("filings collapse");
+  assert.ok(firstLabelIdx < secondLabelIdx);
+});
+
+test("a timeline drops entries with an unparseable date, and empties to Void", () => {
+  const seg = timeline([{ at: "not a date", label: "x" }]);
+  assert.equal(seg.terrain, "Void");
+  const withOne = timeline([{ at: "not a date", label: "x" }, { at: "2021-01-01", label: "y" }]);
+  assert.equal(withOne.events, 1);
+});
+
+// ── Network ⊗ Lens — a chosen ranking must say so ──────────────────────────
+
+test("a ranked network is a declared composite, never a bare Network", () => {
+  const seg = rankedNetwork(["a", "b", "c"], [{ from: "a", to: "b" }], (n) => (n.id === "a" ? 100 : 1), {
+    rankLabel: "revenue",
+  });
+  assert.equal(seg.terrain, "Network", "the graph is still the native surface");
+  assert.deepEqual(seg.union, ["Network", "Lens"]);
+  assert.ok(seg.code.includes("revenue"), "the ranking's own name is stated, not hidden");
+  assert.ok(seg.code.includes("exogenous"));
+});
+
+test("an empty ranked network is the empty frame", () => {
+  const seg = rankedNetwork([], [], () => 1);
+  assert.equal(seg.terrain, "Void");
+});
+
+// ── Lens over Void — a negative that must say its own scope ───────────────
+
+test("a negative claim is Lens over Void, and refuses a silent scope", () => {
+  const scoped = negativeClaim("Pierre", "married", "Dolokhov", { scope: "2 passages, verb vocabulary of 14" });
+  assert.equal(scoped.terrain, "Lens");
+  assert.equal(scoped.scopeDeclared, true);
+  assert.ok(scoped.code.includes("searched: 2 passages"));
+
+  const bare = negativeClaim("Pierre", "married", "Dolokhov");
+  assert.equal(bare.scopeDeclared, false);
+  assert.ok(bare.code.includes("no scope declared"), "an undeclared scope is drawn as a visible gap, not hidden");
+});
+
+test("a negative claim's terms cannot inject markup", () => {
+  const seg = negativeClaim('<script>x</script>', "y", "z");
+  assert.ok(!seg.code.includes("<script>"));
+  assert.ok(seg.code.includes("&lt;script&gt;"));
 });

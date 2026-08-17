@@ -118,6 +118,18 @@
       <p>Drawn from real material: Nashville eviction filings by month, 2020.</p>
       <div class="grid" id="nine"></div>
 
+      <h2>Composites — the union declared</h2>
+      <p>
+        Real screens are several of the nine at once. A composite here is not
+        one drawing pretending to be one atom — it is every part in its own
+        labeled panel, so the union stays visible rather than flattened. Both
+        below came out of the 2026-08-16 closure census: a graph sized by an
+        <b>exogenous</b> ranking is Network ⊗ Lens, not plain Network, because
+        the ranking is a chosen, contingent view the standard says must be
+        declared where it renders.
+      </p>
+      <div class="grid" id="composites"></div>
+
       <h2>The familiar forms, placed</h2>
       <p>
         Every chart type you already use is one of the nine wearing its common
@@ -142,15 +154,19 @@
       import {
         FORMS,
         coverage,
+        composite,
         edgeChips,
         emptyFrame,
         histogram,
+        negativeClaim,
         networkGraph,
+        rankedNetwork,
         rawLayout,
         recordCard,
         savedView,
         taxonomy,
         terrainLegend,
+        timeline,
         trace,
       } from "./templates.js";
       import { chartFrom } from "./artifact.js";
@@ -249,10 +265,58 @@
           call: `terrainLegend()  // the canon, backstage, on request`,
           wide: true,
         },
+        {
+          seg: timeline([
+            { at: "2020-01-01", label: "baseline" },
+            { at: "2020-04-01", label: "CDC moratorium begins" },
+            { at: "2020-12-31", label: "moratorium lifts" },
+          ], { title: "the moratorium, dated" }),
+          call: `timeline(events, { title: "the moratorium, dated" })\n// Field, not Atmosphere — a fixed date axis is\n// exactly what a trace is blind to`,
+        },
+        {
+          seg: negativeClaim("April 2020", "was caused by", "the eviction backlog alone", {
+            title: "checked against the material",
+            scope: "12 passages · monthly-totals-2020.csv",
+          }),
+          call: `negativeClaim("April 2020", "was caused by", "the backlog alone", {\n  scope: "12 passages · monthly-totals-2020.csv"\n})\n// Lens over Void — the scope is mandatory, not decoration`,
+        },
+      ];
+
+      const COMPOSITE_CARDS = [
+        {
+          seg: rankedNetwork(
+            ["January", "April", "September", "December", "moratorium", "backlog"],
+            [
+              { from: "January", to: "April", weight: 2 },
+              { from: "April", to: "moratorium", weight: 3 },
+              { from: "moratorium", to: "September", weight: 2 },
+              { from: "September", to: "backlog", weight: 1 },
+              { from: "backlog", to: "December", weight: 2 },
+            ],
+            (n) => ({ January: 1144, April: 108, September: 643, December: 705, moratorium: 900, backlog: 1200 })[n.id] ?? 0,
+            { title: "the graph, sized by filings", rankLabel: "filings that month" },
+          ),
+          call: `rankedNetwork(nodes, edges, (n) => filingsOf(n), {\n  rankLabel: "filings that month"\n})\n// Network ⊗ Lens — an exogenous rank must say so`,
+          wide: true,
+        },
+        {
+          seg: composite(
+            [
+              networkGraph(["January", "April", "moratorium"], [
+                { from: "January", to: "April" },
+                { from: "April", to: "moratorium" },
+              ], { title: "belief graph" }),
+              terrainLegend(),
+            ],
+            { title: "a composite declares its union" },
+          ),
+          call: `composite([networkGraph(nodes, edges), terrainLegend()])\n// every real screen is several of the nine at once —\n// this is the mechanism, not just the comment`,
+          wide: true,
+        },
       ];
 
       const nine = document.getElementById("nine");
-      for (const { seg, call, wide } of CARDS) {
+      function renderCard(target, { seg, call, wide }) {
         const card = document.createElement("article");
         card.className = "card" + (wide ? " wide" : "");
         const head = document.createElement("div");
@@ -303,8 +367,13 @@
         pre.textContent = call;
         det.append(sum, pre);
         card.append(det);
-        nine.append(card);
+        target.append(card);
       }
+
+      for (const entry of CARDS) renderCard(nine, entry);
+
+      const composites = document.getElementById("composites");
+      for (const entry of COMPOSITE_CARDS) renderCard(composites, entry);
 
       const tbody = document.querySelector("#forms tbody");
       for (const f of FORMS) {

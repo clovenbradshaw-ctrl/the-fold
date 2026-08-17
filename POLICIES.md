@@ -424,6 +424,46 @@ seq, rebuild from serialized entries alone, vocabulary violations thrown on
 replay, the engine's own progression checker silent, exports per artifact
 type (code/csv/html/svg) named by address, and the legacy migration floor.
 
+*Amended (2026-08-17, appended): the run crossing itself. Everything above
+governs the log the PAGE keeps; it said nothing about the process that
+`/api/run` actually spawns to produce a RESULT, and the audit of 2026-08-16
+(finding 3) found that gap load-bearing — a direct POST to `/api/run` left
+zero trace, sanctioned by no policy, on the same server whose header
+already admitted pip and npm installs reach the network. That endpoint is
+now sanctioned explicitly, on these terms, stated rather than left as a
+code comment: `/api/run` is loopback-only and capped (`RUN_TIMEOUT`,
+`RUN_MAX_OUTPUT`), but the process it spawns runs with this machine's own
+ambient authority, network included — it is NOT a mediated egress in P13's
+sense (one endpoint, one record, one clearable store) and does not become
+one here. This is disclosed, not fixed: P18's terminal moved to a severed
+browser sandbox precisely because a real process has real network, and a
+build run is that same real process, still. Sandboxing the runner is
+future work; what changes now is that the exception is never silent. Every
+attempt is a crossing on `record/build-record.jsonl`, written by the
+server itself: a `build-run` row lands BEFORE the process starts (code by
+its sha256 and kept to a declared budget) — no record, no run; the one
+place in serve.mjs where a failed append stops the act instead of
+disclosing it after the fact — a `build-run-result` row lands as it
+resolves (exit code, timing, true output size beside what the cap kept),
+and a `build-run-refused` row lands for a rejected attempt
+(off-loopback, no runner for the language, a malformed body) — so refusal
+is as visible as success. This is independent of, and does not replace,
+the page's own mirror (`attachRun` → `/api/build-record`): a UI-started
+run now lands on the record twice, once from each side, addressed by the
+same `run` id, which makes the two cross-checkable rather than either
+standing alone as the only witness. **Enforced:** `serve-run.test.mjs` —
+booting a real server against a throwaway record directory: a successful
+run, a refused language, and a refused malformed body each produce their
+row live, the crossing row precedes the result row and shares its `run`
+id, the code is kept by sha256 and declared budget, and the true size of
+capped output is stated beside what fit. The off-loopback refusal cannot
+be produced live from a same-machine test (any socket this process opens
+to itself is loopback by construction), so that branch is verified by
+source shape instead — it must route through the same recorded `refuse()`
+as every other rejection, never a bare response that would skip the row —
+which is disclosed here as what it is, a narrower check than the rest,
+rather than claimed as equivalent to the others.*
+
 ## P17 — A quotation is the source's bytes or it is not printed as one
 
 Quotation marks are the strongest claim an answer makes — "these exact

@@ -1348,7 +1348,16 @@ const server = http.createServer(async (req, res) => {
           gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` },
         });
       }
-      const ranked = rankPriorCandidates(claim, listing.entries);
+      // The gate (closes the limit this repo's own notes named as future
+      // work: "toggles gate the OFFER surface... the checking tier reads
+      // the corpus directly"). Same ledger, same effectivePrior most-
+      // specific-wins resolution walkPriors already uses for the picker —
+      // one reading of "is this document in play", applied here too, so a
+      // toggle now changes what the surf actually consults, not just what
+      // the tab offers to attach.
+      const { byPath } = readPriorToggles();
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const ranked = rankPriorCandidates(claim, gated);
       const documents = [];
       for (const cand of ranked.slice(0, PRIORS_DOCS_CONSULTED)) {
         // The path came from this server's own walk, never from the request;
@@ -1367,8 +1376,16 @@ const server = http.createServer(async (req, res) => {
         documents.push(checkPrior(claim, readPriorDocument(cand.path, raw)));
       }
       const folded = foldPriors(claim, { candidates: ranked.length, documents });
-      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating });
-      return send(res, 200, { ...folded, ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}) });
+      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      return send(res, 200, {
+        ...folded,
+        // Stated plainly rather than left implicit: how many of the corpus's
+        // documents were even eligible to be a candidate this time, per the
+        // toggle ledger — the number a reader needs to tell "the shelf said
+        // nothing" apart from "the shelf was switched off".
+        gate: { enabled: gated.length, total: listing.entries.length },
+        ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
+      });
     }
 
     // ---- web search: one query, one request to the no-key endpoint. The

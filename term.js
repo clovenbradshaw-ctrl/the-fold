@@ -28,6 +28,8 @@
 
 // ── declared budgets (P9: named, with a duty, never a quality threshold) ────
 import { delimitedTable } from "./source.js";
+import { LESSONS, stepLesson } from "./term-lessons.js";
+import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
 export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
@@ -172,6 +174,8 @@ export function initTerminal(bridge) {
     history: [],
     histAt: null,
     workers: {}, // name → { worker, ready }
+    learnAt: null, // lesson index, or null when no lesson is running
+    learnTries: 0,
   };
 
   const line = (text, cls) => {
@@ -301,7 +305,10 @@ export function initTerminal(bridge) {
           "  read <name#a-b>      a source's characters a–b (the chat refs' own space)",
           "  folds                the folds pane's logs (n · turn · entries)",
           "  record [words]       the append-only record's tail (needs a fold server)",
+          "  priors [on|off <p>]  live_priors' toggle state · flip a document, folder, or the whole corpus",
+          "  handbook [n]         the eoreaderhandbook, vendored whole — chapter list, or one chapter's text",
           "  runtimes             what can run here — and what is refused, with reasons",
+          "  learn · learn stop   walk this terminal's own commands, one step at a time · leave the lesson early",
           "  clear · exit         wipe the screen · close the drawer",
           "",
           "runtimes — enter by name, leave with `exit` (the runtime stays warm; ✕ ends it)",
@@ -384,15 +391,113 @@ export function initTerminal(bridge) {
       }
       line("the record lives on a fold server — start explore-server.mjs (or serve.mjs) to read it here", "term-exit bad");
     },
+    async priors(arg) {
+      const [sub, ...rest] = (arg ?? "").trim().split(/\s+/).filter(Boolean);
+      const bases = ["", "http://localhost:8812"];
+      const hit = async (path, opts) => {
+        for (const base of bases) {
+          try {
+            const res = await fetch(`${base}${path}`, opts);
+            if (res.ok) return await res.json();
+          } catch {
+            /* try the next base */
+          }
+        }
+        return null;
+      };
+      if (sub === "on" || sub === "off") {
+        const p = rest.join(" ");
+        const body = await hit("/api/priors/toggle", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: p, on: sub === "on" }),
+        });
+        if (!body) return line("the priors ledger lives on a fold server — start explore-server.mjs (port 8812) to toggle it here", "term-exit bad");
+        if (body.error) return line(body.error, "term-exit bad");
+        line(`${p || "the whole corpus"} → ${sub.toUpperCase()}`, "term-mute");
+        // The one thing worth saying plainly: what this actually changes.
+        // The toggle now gates BOTH the offer surface (the picker, `priors
+        // sources`) and the check itself (/api/priors/check only consults
+        // documents the ledger says are on) — a document switched off here
+        // is not read at answer time, not just hidden from a list.
+        line("this reaches the surf directly: the reference-library check that runs during a turn now only reads documents on — a document switched off is not consulted, not just hidden from the picker.", "term-mute");
+        return;
+      }
+      const data = await hit("/api/priors");
+      if (!data) return line("the priors organ lives on a fold server — start explore-server.mjs (port 8812) to read it here", "term-exit bad");
+      if (data.gap) return line(data.gap.detail, "term-mute");
+      line(`live_priors: ${data.files.toLocaleString()} documents · ${data.enabledCount.toLocaleString()} in play — every document starts off`, "term-mute");
+      for (const c of data.categories) line(`  ${c.name.padEnd(28)} ${String(c.enabled).padStart(5)}/${c.files} in play`);
+      line("`priors on <path>` / `priors off <path>` — a document, a folder, or the whole corpus (\"\", or just `priors on`). Path is corpus-relative, e.g. `02-encyclopedic`.", "term-mute");
+    },
+    async handbook(arg) {
+      // The whole handbook is vendored under handbook/ (P1: local, same
+      // fetch pattern as any other same-origin static file this page
+      // already serves — never a remote crossing). The chapter list is
+      // parsed from the index's own table of contents, never re-typed here.
+      let idx;
+      try {
+        idx = parseHandbookIndex(await (await fetch("handbook/000-index.md")).text());
+      } catch {
+        return line("the handbook isn't reachable from here — served from the same origin as this page (handbook/000-index.md)", "term-exit bad");
+      }
+      const want = (arg ?? "").trim();
+      if (!want) {
+        line("the eoreaderhandbook — theory this instrument is built on, vendored whole:", "term-mute");
+        for (const c of idx) line(`  ${c.n.padEnd(5)} ${c.title}`);
+        line("`handbook <n>` reads a chapter, e.g. `handbook 1.1`", "term-mute");
+        return;
+      }
+      const ch = findChapter(idx, want);
+      if (!ch) return line(`no chapter “${want}” — \`handbook\` lists them all`, "term-exit bad");
+      const text = await (await fetch(`handbook/${ch.file}`)).text();
+      stream(text);
+      line(`— chapter ${ch.n}, ${ch.title} (handbook/${ch.file})`, "term-mute");
+    },
     clear() {
       out.textContent = "";
     },
+    learn(arg) {
+      if ((arg ?? "").trim().toLowerCase() === "stop") {
+        if (term.learnAt == null) return line("no lesson is running", "term-mute");
+        term.learnAt = null;
+        term.learnTries = 0;
+        return line("lesson stopped — the runtimes you visited are still warm", "term-mute");
+      }
+      term.learnAt = 0;
+      term.learnTries = 0;
+      line(`a walk through this terminal's own commands, ${LESSONS.length} steps — \`learn stop\` leaves early, any time; \`handbook\` is the theory this walk doesn't cover`, "term-mute");
+      line(LESSONS[0].ask, "term-mute");
+    },
+  };
+
+  // The lesson never grades a line itself — it only compares what you typed
+  // against the current step's pattern, after that line already ran for
+  // real through the normal dispatch below. It is quizzing you on this
+  // terminal, mechanically; no model is in the loop (P18's posture, applied
+  // to teaching it).
+  const checkLesson = (raw) => {
+    if (term.learnAt == null) return;
+    const r = stepLesson(term.learnAt, term.learnTries, raw);
+    term.learnAt = r.at;
+    term.learnTries = r.tries;
+    if (r.event === "advanced") {
+      line(r.done, "term-mute");
+      line(r.ask, "term-mute");
+    } else if (r.event === "finished") {
+      line(r.done, "term-mute");
+      line("lesson complete — `learn` runs it again any time", "term-mute");
+    } else if (r.event === "hint") {
+      line(`still looking for: ${r.ask}`, "term-mute");
+    }
   };
 
   const runFold = async (text) => {
     const [word, ...rest] = text.trim().split(/\s+/);
     const arg = rest.join(" ");
-    const cmd = word.toLowerCase();
+    // A leading "/" is accepted as the same command — chat's own door
+    // convention, so `/learn` works here exactly as it does there.
+    const cmd = word.toLowerCase().replace(/^\//, "");
     if (cmd === "exit") return document.body.classList.contains("term-drawer") && $("term-toggle")?.click();
     if (ROSTER[cmd] && cmd !== "fold") return enterRuntime(cmd);
     if (REFUSED[cmd]) return line(REFUSED[cmd], "term-exit bad");
@@ -458,6 +563,7 @@ export function initTerminal(bridge) {
       line(`material crossing into the sandbox: ${count} source${count === 1 ? "" : "s"}, ${fmtBytes(bytes)}`, "term-mute");
       term.workers[term.runtime]?.worker.postMessage({ type: "sources", sources: payload });
     } else exec(text);
+    checkLesson(text);
   };
 
   input.addEventListener("keydown", (e) => {

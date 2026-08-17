@@ -712,6 +712,17 @@
       .log-crumbs .linkish { font-size: 13px; text-decoration: none; }
       .log-crumbs .linkish:hover { text-decoration: underline; }
       .log-crumb-here { font-weight: 600; color: var(--ink); }
+
+      /* The GitHub pane: connect state, one-file pull/push, skills/history sync. */
+      #pane-github { display: none; height: 100%; flex-direction: column; gap: 14px; overflow-y: auto; }
+      #pane-github.on { display: flex; }
+      .github-section { display: flex; flex-direction: column; gap: 6px; }
+      .github-section h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      .github-row { display: flex; gap: 8px; }
+      .github-row input { flex: 1; font-size: 12.5px; }
+      #gh-content { width: 100%; font: 12px/1.5 var(--mono); resize: vertical; }
+      #gh-code { font: 12px/1.5 var(--mono); }
+      #gh-note { white-space: pre-wrap; }
       .log-tbl {
         border-collapse: collapse; margin: 0 0 14px;
         font-family: var(--sans); font-size: 13px; max-width: 720px;
@@ -1649,6 +1660,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                the pane below stays wired for that flow, just not fronted. -->
           <button role="tab" data-pane="explore" aria-selected="false" title="What the instrument reads from — needs explore-server.mjs (node explore-server.mjs)">Sources</button>
           <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
+          <button role="tab" data-pane="github" aria-selected="false" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
         </nav>
         <div class="scroll">
@@ -1704,6 +1716,51 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <input id="term-in" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
                 placeholder="help — fold commands; python · sql · js enter sandboxed runtimes" />
               <button type="button" class="editor-plain" id="term-kill" title="interrupt (ctrl+c) — ends the running runtime; it reboots fresh, its state gone" disabled>✕</button>
+            </div>
+          </div>
+
+          <div class="pane" id="pane-github">
+            <!-- Filled by github-pane.js — standalone, like log-pane.js: it
+                 owns this pane alone and app.js's tab switching is all it
+                 needs from the rest of the page. -->
+            <div id="github-connect">
+              <p class="empty">Loading…</p>
+            </div>
+            <div id="github-body" hidden>
+              <section class="github-section">
+                <h3>Repo</h3>
+                <div class="github-row">
+                  <input id="gh-owner" placeholder="owner" autocomplete="off" spellcheck="false" />
+                  <input id="gh-repo" placeholder="repo" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="github-row">
+                  <input id="gh-path" placeholder="path/to/file.md" autocomplete="off" spellcheck="false" />
+                </div>
+              </section>
+              <section class="github-section">
+                <h3>One file</h3>
+                <div class="github-row">
+                  <button type="button" id="gh-pull">Pull</button>
+                  <button type="button" id="gh-push">Push</button>
+                </div>
+                <textarea id="gh-content" rows="12" spellcheck="false" placeholder="pulled/edited content"></textarea>
+              </section>
+              <section class="github-section">
+                <h3>Skills</h3>
+                <div class="github-row">
+                  <button type="button" id="gh-skills-push">Push skills to GitHub</button>
+                  <button type="button" id="gh-skills-pull">Pull skills from GitHub</button>
+                </div>
+              </section>
+              <section class="github-section">
+                <h3>History</h3>
+                <div class="github-row">
+                  <button type="button" id="gh-history-push">Push history to GitHub</button>
+                  <button type="button" id="gh-history-pull">Pull history from GitHub</button>
+                </div>
+              </section>
+              <div id="gh-note" class="log-note"></div>
+              <button type="button" id="gh-disconnect" class="linkish">disconnect</button>
             </div>
           </div>
 
@@ -1865,5 +1922,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
     <script src="/node_modules/monaco-editor/min/vs/loader.js"></script>
     <script type="module" src="./app.js"></script>
       <script type="module" src="log-pane.js"></script>
+      <script type="module" src="github-pane.js"></script>
   </body>
 </html>

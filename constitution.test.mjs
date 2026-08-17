@@ -142,14 +142,17 @@ const ALLOWANCES = [
   },
   {
     host: null, // hostOf builds an authority from user input; there is no literal to name
-    files: ["web.js", "links.js"],
+    files: ["web.js", "links.js", "github.js"],
     why:
       "P13: web.js is the PURE half of the web organ — it names archive addresses and parses " +
       "typed ones; the egress lives in explore-server.mjs. links.js is the same split for the " +
       "link-citation tier — its doc comments name example addresses (x.org, real/fake.example) " +
       "to explain the verdicts; the fetch that checks a real one is injected from app.js. " +
-      "Checked, not asserted: neither file holds an egress call at all, so nothing in either " +
-      "can issue a request.",
+      "github.js is the same split for the GitHub organ — it names the n8n device-flow relays " +
+      "and api.github.com as constants the SERVER reads (explore-server.mjs is what calls " +
+      "fetch on them); the browser page loads github.js only for its pure shapes (base64, " +
+      "path building, response parsing). Checked, not asserted: none of the three files holds " +
+      "an egress call at all, so nothing in them can issue a request.",
     holds: (file, src) => egressCalls(src).length === 0,
   },
 ];

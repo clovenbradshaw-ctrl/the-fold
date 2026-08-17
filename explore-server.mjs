@@ -61,6 +61,22 @@ import { extractCitations, rankPrimary, snipClaim, foldPrimary, PRIMARY_SOURCES_
 // candidate ordering, the snip check, the counted fold) — the route below
 // owns only the reads, confined to the corpus root
 import { parseFrontmatter, readPriorDocument, rankPriorCandidates, checkPrior, foldPriors, PRIORS_DOCS_CONSULTED } from "./priors.js";
+// the GitHub organ's pure half (device-flow shapes, Contents API payloads,
+// base64, the repo-path convention for skills/history sync) — the routes
+// below own only the crossings: github.com's device/token endpoints have no
+// CORS headers, so even the device flow is relayed server-side via n8n.
+import {
+  GITHUB_APP_CLIENT_ID,
+  GITHUB_DEVICE_CODE_RELAY_URL,
+  GITHUB_ACCESS_TOKEN_RELAY_URL,
+  buildDeviceCodeBody,
+  buildAccessTokenBody,
+  contentsUrl,
+  decodeContentsGet,
+  buildContentsWriteBody,
+  decodeContentsWrite,
+} from "./github.js";
+import { skillDigest } from "./skills.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
@@ -99,6 +115,11 @@ const LIBRARY_LEDGER_PATH = path.join(LIBRARY_DIR, "library.jsonl");
 const PRIORS_ROOT = path.resolve(ROOT, "..", "live_priors");
 const PRIORS_DIR = path.join(ROOT, "priors");
 const PRIORS_LEDGER_PATH = path.join(PRIORS_DIR, "toggles.jsonl");
+// The skill library's own persistence (skill-runner.mjs's declared path,
+// dormant there until a skill is actually admitted) — GET/import here read
+// and write the SAME directory skill-runner.mjs would, so a skill pulled
+// from GitHub is indistinguishable from one admitted locally.
+const SKILLS_DIR = path.join(ROOT, "skills");
 
 // ── declared numbers, each with its giver ───────────────────────────────────
 // Tree pages and hex pages are caps on a response, not on the data; every
@@ -1711,6 +1732,157 @@ const server = http.createServer(async (req, res) => {
       }
       record("web-clear", { scope: body.id ?? "all", entries: victims.length, files: removed.size, bytes });
       return send(res, 200, { cleared: victims.length, files: removed.size, bytes, remaining: kept.length });
+    }
+
+    // ---- the GitHub organ. Device flow relayed via n8n (github.com's token
+    // endpoint has no CORS headers, so even a server-to-server proxy is the
+    // only browser-reachable shape); Contents API read/write server-side so
+    // the access token never appears in a URL the browser holds in history.
+    // The token travels in the POST body from client to this server — the
+    // same posture the priors/library routes already take with their own
+    // request bodies; nothing here persists the token, the client does
+    // (localStorage, github-pane.js's concern).
+    if (req.method === "POST" && p === "/api/github/device-code") {
+      try {
+        const r = await fetch(GITHUB_DEVICE_CODE_RELAY_URL, {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: JSON.stringify(buildDeviceCodeBody()),
+        });
+        const data = await r.json();
+        record("github-device-code", { ok: r.ok, hasCode: Boolean(data?.device_code) });
+        return send(res, 200, data);
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    if (req.method === "POST" && p === "/api/github/access-token") {
+      const body = await readJsonBody(req);
+      if (!body.device_code) return send(res, 400, { error: "device_code is required" });
+      try {
+        const r = await fetch(GITHUB_ACCESS_TOKEN_RELAY_URL, {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: JSON.stringify(buildAccessTokenBody(body.device_code)),
+        });
+        const data = await r.json();
+        // a pending poll is not an event worth a record line — every 5s of
+        // waiting would otherwise flood the record with nothing that happened
+        if (data?.access_token || (data?.error && data.error !== "authorization_pending")) {
+          record("github-access-token", { ok: Boolean(data?.access_token), error: data?.error ?? null });
+        }
+        return send(res, 200, data);
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // ---- Contents API read: a file OR a directory listing (owner/repo/path
+    // named by the request; path "" reads the repo root). token travels in
+    // the body, never the query string.
+    if (req.method === "POST" && p === "/api/github/contents/read") {
+      const body = await readJsonBody(req);
+      const { owner, repo, token } = body;
+      const contentsPath = body.path ?? "";
+      if (!owner || !repo || !token) return send(res, 400, { error: "owner, repo, and token are required" });
+      try {
+        const r = await fetch(contentsUrl({ owner, repo, path: contentsPath }), {
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
+        });
+        if (r.status === 404) {
+          record("github-read", { owner, repo, path: contentsPath, found: false });
+          return send(res, 200, { exists: false });
+        }
+        if (!r.ok) return send(res, r.status, { error: `GitHub read failed: ${r.status}` });
+        const data = await r.json();
+        const decoded = decodeContentsGet(data);
+        record("github-read", { owner, repo, path: contentsPath, found: true, isDirectory: Boolean(decoded.isDirectory) });
+        return send(res, 200, decoded);
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // ---- Contents API write: create or update one file. A 409 means the
+    // sha the caller held is stale — reported as a typed conflict so
+    // github-pane.js's retry (re-read the sha, try again, bounded by
+    // MAX_CONFLICT_RETRIES) stays a client-side loop, not a server-side guess.
+    if (req.method === "POST" && p === "/api/github/contents/write") {
+      const body = await readJsonBody(req);
+      const { owner, repo, token, content } = body;
+      const contentsPath = body.path;
+      if (!owner || !repo || !token || !contentsPath || content == null) {
+        return send(res, 400, { error: "owner, repo, path, token, and content are required" });
+      }
+      try {
+        const r = await fetch(contentsUrl({ owner, repo, path: contentsPath }), {
+          method: "PUT",
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
+          body: JSON.stringify(buildContentsWriteBody({ content, sha: body.sha, message: body.message })),
+        });
+        if (r.status === 409) {
+          record("github-write", { owner, repo, path: contentsPath, conflict: true });
+          return send(res, 409, { ok: false, conflict: true });
+        }
+        if (!r.ok) {
+          const detail = await r.text().catch(() => "");
+          record("github-write", { owner, repo, path: contentsPath, ok: false, status: r.status });
+          return send(res, 200, { ok: false, conflict: false, status: r.status, detail: detail.slice(0, 300) });
+        }
+        const data = await r.json();
+        const decoded = decodeContentsWrite(data);
+        record("github-write", { owner, repo, path: contentsPath, ok: true });
+        return send(res, 200, { ok: true, sha: decoded.sha });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // ---- the local skill library, for the "push skills" action: what this
+    // machine already has, so github-pane.js can push only what a connected
+    // repo does not. Reads skill-runner.mjs's own persistence directly — no
+    // network, this is local disk, same posture as /api/library.
+    if (req.method === "GET" && p === "/api/skills") {
+      let names = [];
+      try {
+        names = readdirSync(SKILLS_DIR).filter((n) => n.endsWith(".json"));
+      } catch {
+        /* no skills admitted yet */
+      }
+      const skills = [];
+      for (const name of names) {
+        try {
+          const skill = JSON.parse(readFileSync(path.join(SKILLS_DIR, name), "utf8"));
+          skills.push({ digest: name.slice(0, -".json".length), skill });
+        } catch {
+          /* a file that no longer parses is not this route's problem to fix */
+        }
+      }
+      return send(res, 200, { skills });
+    }
+
+    // ---- import ONE skill pulled from a connected repo into the local
+    // library. The digest is RECOMPUTED from the mechanism (skills.js's own
+    // identity — canonSkill excludes provenance) rather than trusted from
+    // the filename, so a skill imported from GitHub is admitted the same
+    // way skill-runner.mjs's saveSkill would name it, never a foreign claim.
+    if (req.method === "POST" && p === "/api/skills/import") {
+      const body = await readJsonBody(req);
+      const skill = body.skill;
+      if (!skill || typeof skill !== "object") return send(res, 400, { error: "skill (object) is required" });
+      let digest;
+      try {
+        digest = await skillDigest(skill);
+      } catch (e) {
+        return send(res, 400, { error: `could not compute the skill's digest: ${e.message}` });
+      }
+      mkdirSync(SKILLS_DIR, { recursive: true });
+      const dest = path.join(SKILLS_DIR, `${digest}.json`);
+      const already = existsSync(dest);
+      if (!already) writeFileSync(dest, JSON.stringify(skill, null, 2) + "\n");
+      record("skill-import", { digest, already });
+      return send(res, 200, { digest, imported: !already });
     }
 
     // ---- the record's tail, for the UI affordance; the full file is in the tree.

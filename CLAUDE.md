@@ -1289,3 +1289,98 @@ hand-rolled that has no organ yet — `measurePairs` covers the co-arrival
 question over ordered positions, not the spatial one. And the DFR scripts
 themselves are untouched: this door is what they should have called, but
 porting them is its own pass.
+
+## The GitHub organ (added 2026-08-17) — what was decided, so it is not re-derived
+
+A connect / pull / push door onto a real GitHub repo, ported from eoWebLLM's
+`github-auth.ts` + `github-sync.ts` (device flow, Contents API read/write)
+but re-split to this repo's law: nothing loaded by the page may fetch a
+non-localhost host, so every github.com and n8n crossing had to move server-side.
+
+**Reused, not re-registered.** The public GitHub App is eoWebLLM's own
+(`Iv23livftc7ZekSCjCvL`) — it already exists and works, and OAuth Device
+Flow needs no client secret, so reusing it costs nothing and a second app
+would only be two things to keep straight. Say so if a separate app is ever
+wanted; nothing here assumes it.
+
+**Files, same split as the web organ.** `github.js` is PURE — zero fetch
+calls anywhere in it (checked by `constitution.test.mjs`'s II.13 scan, the
+same `egressCalls(src).length === 0` allowance web.js and links.js already
+carry): device-flow response shaping, Contents API URL/payload
+building/parsing, exact-utf8 base64, the repo-path convention, and the
+pull-merge set differences. `github.test.mjs` tests all of it offline — no
+stub fetch needed because, like web.js, there is no fetch to stub.
+`explore-server.mjs` owns every crossing: `POST /api/github/device-code` and
+`/access-token` relay to the two n8n webhooks (github.com's device-flow
+token endpoint has no CORS headers, so even the device flow needs a server
+in the loop); `POST /api/github/contents/read` and `/contents/write` are the
+Contents API, token carried in the POST body end to end (client→server,
+then server→github.com as a Bearer header) so it never rides a URL. A read
+of a directory path returns `{isDirectory:true, entries}` instead of a
+file's text — one route serves both a file pull and a listing, since the
+Contents API itself does. `github-pane.js` is the browser half, log-pane.js's
+"standalone, owns its own pane" pattern: connect state, the device-flow
+poll loop, and three thin actions over the same read/write plumbing.
+
+**Repo path convention for durable memory.** `.the-fold/skills/<digest>.json`
+and `.the-fold/history/<slug>.json` — content-addressed for skills (reusing
+skills.js's OWN identity: `skillDigest` over the mechanism, provenance
+excluded, so a skill pulled from GitHub is the same file skill-runner.mjs's
+`saveSkill` would have written locally) and slug-named for history
+(`build-<n>`, the naming convention CLAUDE.md's build-log section already
+uses — `build-4.py`). Chosen over one big JSON blob because both organs
+already keep one-artifact-per-file locally (skills/<digest>.json,
+record/builds/<slug>.jsonl) — the repo mirrors that shape instead of
+inventing a second one.
+
+**Skills sync.** `GET /api/skills` (new) lists the local library straight off
+disk — skill-runner.mjs's own `SKILLS_DIR`, dormant until a skill is first
+admitted, so this route reads whatever skill-runner.mjs would have written,
+nothing else. Push writes each local skill to its digest path (sha-based
+conflict retry, below). Pull lists `.the-fold/skills/`, diffs against local
+digests (`mergeSkillsPull`, pure), and for each new one calls
+`POST /api/skills/import` (new) — which RECOMPUTES the digest from the
+pulled mechanism rather than trusting the remote filename, then writes
+`skills/<digest>.json` locally only if a file at that address does not
+already exist. A skill imported from GitHub is indistinguishable from one
+admitted on this machine.
+
+**History sync.** Build history has no server-side store to read (it lives
+in the browser's own `localStorage["fold-builds"]`, app.js's `BUILDS_KEY`),
+so github-pane.js reads/writes that key directly rather than adding a
+server route for state the server never held. Push sends each build
+(`{n, turn, entries, draft}`) to `.the-fold/history/build-<n>.json`. Pull
+lists the repo's `.the-fold/history/`, diffs against locally-held slugs
+(`mergeHistoryPull`, pure), and appends new builds into the same
+localStorage key. **Disclosed limitation:** a pulled build does not appear
+in the Folds panel until the page is reloaded — `restoreBuilds()` only runs
+at load, and github-pane.js does not reach into app.js's live state to
+avoid coupling two independently-owned modules; the pane's own note says
+so, never a silent no-op.
+
+**Conflict handling, one implementation.** `shouldRetryConflict` (github.js,
+pure) bounds `MAX_CONFLICT_RETRIES = 3` retries, ported directly from
+eoWebLLM's `pushHistory`: a 409 means the held sha is stale, so the caller
+re-reads the sha and retries rather than guessing. The one-file push,
+skills push, and history push all call the SAME `pushOneFile` helper in
+github-pane.js — one conflict-retry loop, not three copies of it.
+
+**Consent posture.** GitHub egress is never automatic — every crossing is a
+button click (Connect, Pull, Push, "push/pull skills", "push/pull
+history"), mirroring P13's standing-consent shape for the web organ without
+literally reusing its toggle (a GitHub token is a different kind of
+consent than "may this instrument read the web" — conflating them would
+either make web search require a GitHub connection or make connecting
+GitHub silently enable background sync, neither of which was asked for).
+
+**Known limits, disclosed rather than glossed:** the token is held in
+`localStorage["fold-github"]` in plaintext, the same trust boundary this
+repo's other localStorage state already lives in (fold-web-proof,
+fold-marks, theme) — acceptable for a local-only single-user instrument,
+not something to carry into a shared or hosted deployment without
+reconsidering. History pull does not merge conflicting local edits to the
+same `n` — it only imports slugs the local set lacks; a real merge of
+divergent build logs is unscoped. Skills/history sync is pull-then-import,
+never a live two-way sync — there is no polling, no background sync, and
+no automatic push on every skill admission or build; every crossing is the
+three named buttons.

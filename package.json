@@ -8,6 +8,7 @@
     "test": "node --test *.test.mjs"
   },
   "dependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "@viselect/vanilla": "^3.9.0",
     "monaco-editor": "^0.56.0",
     "pyodide": "^314.0.3",

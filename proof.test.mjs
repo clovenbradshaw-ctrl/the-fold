@@ -87,13 +87,13 @@ test("the fold counts perspectives and never says true", () => {
   assert.equal(out.independence.hosts, 2);
   assert.match(out.independence.basis, /syndication/);
   // Natural-frequency phrasing: counted perspectives, no verdict of truth.
-  assert.match(out.sentence, /2 of 3 page/);
+  assert.match(out.sentence, /2 of the 3 page/);
   assert.ok(!/\btrue\b/i.test(out.sentence));
 
   // Zero statings is uncorroborated — a counted fact, not falsity.
   const none = foldProof(claim, { query: "q", pages: [page("https://a.com/1", false), page("https://b.com/2", false)] });
   assert.equal(none.verdict, "web-uncorroborated");
-  assert.match(none.sentence, /0 of 2/);
+  assert.match(none.sentence, /0 of the 2/);
 });
 
 test("a failed crossing is a gap, not a zero", () => {
@@ -161,4 +161,31 @@ test("seam: the chat page's own files still fetch nothing remote", () => {
       );
     }
   }
+});
+
+// ── result ranking: the claim's context picks the pages, not the engine ─────
+// Measured live 2026-08-17: "70,000" from a Borodino casualties sentence
+// consulted a Gaza casualty page the engine ranked first, while three
+// Borodino pages sat lower. Overlap with the claim's own words orders the
+// reads; ties keep the engine's order.
+test("rankResults puts claim-context pages ahead of same-figure strangers", async (t) => {
+  const { rankResults } = await import("./proof.js");
+  const claim = {
+    kind: "number",
+    text: "70,000",
+    tokens: ["70000"],
+    sentence: "combined casualties are usually estimated at around 70,000 at Borodino during the Napoleonic Wars",
+  };
+  const results = [
+    { title: "IDF believes 70,000 Gazans killed in war", url: "https://timesofisrael.com/x", snippet: "civilian-combatant ratio unclear" },
+    { title: "Battle of Borodino - Wikipedia", url: "https://en.wikipedia.org/wiki/Battle_of_Borodino", snippet: "combined casualties estimated around 70,000, the bloodiest day of the Napoleonic Wars" },
+    { title: "Borodino: Key Facts", url: "https://arcanepast.com/borodino", snippet: "casualties at Borodino" },
+  ];
+  const ranked = rankResults(claim, results);
+  assert.equal(ranked[0].url, "https://en.wikipedia.org/wiki/Battle_of_Borodino");
+  assert.equal(ranked[1].url, "https://arcanepast.com/borodino");
+  assert.equal(ranked[2].url, "https://timesofisrael.com/x", "the same-figure stranger reads last");
+  // No context at all → the engine's order is kept, not scrambled.
+  const flat = rankResults({ kind: "number", text: "7", tokens: [], sentence: "" }, results);
+  assert.deepEqual(flat.map((r) => r.url), results.map((r) => r.url));
 });

@@ -13,9 +13,9 @@ test("names resolve against the material's own cast, via the engine's organs", a
   const { checkGrounding } = await import("./grounding.js");
   // The REAL organs, not stand-ins — what counts as "the same name" must be
   // the engine's own answer, or discovery and support drift apart.
-  const { splitSentences } = await import("../eoreader6/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../eoreader6/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const castFor = makeCastResolver({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
 

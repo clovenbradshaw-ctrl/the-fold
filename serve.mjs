@@ -44,12 +44,12 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 const ROOT = resolve(import.meta.dirname);
-const ENGINE = resolve(ROOT, "..", "eoreader6", "packages", "engine");
+const ENGINE = resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
 // The engine's own null module. tiers.js (the surprise ladder) imports it as
 // ../../../nul/index.js, which resolves above the /engine mount — so nul gets
 // its own mount at the path that import lands on. Used, never copied, same as
 // the engine itself.
-const NUL = resolve(ROOT, "..", "eoreader6", "nul");
+const NUL = resolve(ROOT, "..", "eoreader6.1", "nul");
 const PORT = Number(process.argv[2] ?? 8811);
 
 // The one package environment. Both the build runner and the terminal get

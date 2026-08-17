@@ -3,8 +3,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { attribute, attributedRefs, namesIn, overlap, splitSentences } from "./cite.js";
-import { chunkSource } from "./source.js";
+import { attribute, attributedRefs, coverage, namesIn, overlap, splitSentences } from "./cite.js";
+import { chunkSource, readRange } from "./source.js";
+import { classifySentences } from "./provenance.js";
 
 const DOC = `The Kessington Report was commissioned by the Marrowfen Harbour Board in 1974 and delivered eleven months late.
 
@@ -199,4 +200,185 @@ test("attributedRefs is the distinct set of addresses attached", () => {
   const refs = attributedRefs(entries);
   assert.equal(refs.length, 1, "both sentences come from the same passage");
   assert.match(refs[0], /^kess\.txt#\d+-\d+$/);
+});
+
+// ── coverage: every supported sentence wears its address ────────────────────
+//
+// Measured 2026-08-17, on a Wikipedia page fetched by the web organ and
+// opened as an ordinary source: a three-sentence answer, every sentence
+// standing on the material, shipped with a bare middle — the sentence's true
+// support was the page's own lead, which the turn had not offered, so the
+// null outscored the offered passages and attribute() refused the address it
+// had just found. The reader asked "how did it know all this?". Coverage is
+// the answer: containment places the argmax passage from the whole pool, no
+// margin anywhere, and a sentence the material does not support still gets
+// nothing.
+//
+// The corpus mirrors the live shape: an encyclopedia-style page whose source
+// name is what a fetched page actually carries in this app — the basename of
+// its content-addressed text face (explore-server names a source by
+// path.basename, so "the-fold/web/pages/b02d7a4f9c4d1e63.txt" arrives in
+// chat as "b02d7a4f9c4d1e63.txt", and refs are "b02d7a4f9c4d1e63.txt#a-b").
+
+const PAGE = `Battle of Marrowfen — from the reference shelf.
+
+The Battle of Marrowfen was fought near the village of Marrowfen on 7 September 1812, between the Grand Army under Bonaparte and the Imperial Army under Kutuzov.
+
+The engagement opened with a barrage against the earthworks, and the hamlet of Semyonovka changed hands three times before noon while the reserve stood unused.
+
+Casualty returns list 28,000 dead and wounded on the French side and 45,000 on the Russian side, the costliest single day of the whole campaign.
+
+Most later accounts describe the outcome as indecisive: the French captured the principal positions on the field but failed to destroy the Russian army.`;
+
+const WEB_NAME = "ab12cd34ef56aa99.txt";
+const webChunks = chunkSource(WEB_NAME, PAGE);
+const lead = webChunks.find((c) => c.text.includes("was fought near"));
+const casualty = webChunks.find((c) => c.text.includes("Casualty returns"));
+const outcome = webChunks.find((c) => c.text.includes("principal positions"));
+const webOffered = [casualty, outcome]; // the turn retrieved these; the lead stayed behind
+
+const MEASURED =
+  "The Battle of Marrowfen was fought near the village of Marrowfen on 7 September 1812. " +
+  "Casualty returns list 28,000 dead and wounded on the French side. " +
+  "The French captured the principal positions on the field but failed to destroy the Russian army. " +
+  "I would have to check the archive before saying anything more.";
+
+test("the measured case: every sentence standing on the material gets an address", () => {
+  const cov = coverage(MEASURED, webOffered, webChunks);
+  assert.equal(cov.length, 4);
+
+  // The opening sentence's support is the lead — a passage the turn never
+  // offered. attribute() refuses it (the null outscores the offered side);
+  // coverage attaches the passage the null found.
+  const strict = attribute(MEASURED, webOffered, webChunks);
+  assert.equal(strict[0].ref, null, "the gap this section exists to close");
+  assert.equal(cov[0].ref, lead.ref);
+  assert.equal(cov[0].via, "pool");
+  assert.equal(cov[0].rescued, true);
+
+  // The offered-side sentences attach exactly as attribute attaches them.
+  assert.equal(cov[1].ref, casualty.ref);
+  assert.equal(cov[1].via, "offered");
+  assert.notEqual(cov[1].rescued, true);
+  assert.equal(cov[1].ref, strict[1].ref, "coverage never disagrees with a strict attachment");
+  assert.equal(cov[2].ref, outcome.ref);
+
+  // The hedge stands on nothing and stays bare.
+  assert.equal(cov[3].ref, null);
+});
+
+test("classified over coverage, no material-ground sentence is bare", () => {
+  const classified = classifySentences(MEASURED, coverage(MEASURED, webOffered, webChunks), []);
+  const material = classified.filter((e) => e.ground === "material");
+  assert.equal(material.length, 3, "three sentences stand on the material");
+  for (const e of material) assert.ok(e.ref, `a material-ground sentence must carry its address: "${e.text}"`);
+  const voice = classified.filter((e) => e.ground === "model");
+  assert.equal(voice.length, 1);
+  assert.equal(voice[0].ref, null);
+});
+
+test("a model-voice sentence gets no address from coverage", () => {
+  const [entry] = coverage("I would need to check that before saying anything definite.", webOffered, webChunks);
+  assert.equal(entry.ref, null);
+  // Same over the prose corpus: coverage widens where support exists, and
+  // nowhere else.
+  const [hedge] = coverage("I would need to check that before saying anything definite.", chunks, pool);
+  assert.equal(hedge.ref, null);
+});
+
+test("coverage refuses an invented subject exactly as attribute does", () => {
+  // The Hendersonville failure must not be resurrected by the widening: the
+  // phrase is in the material, the subject is not, and a chip here would
+  // vouch for a thing that never happened — the worse lie.
+  const rows = chunkSource(
+    "searches.csv",
+    "agency,reason\nHendersonville TN PD,MNPD BOLO\nHendersonville TN PD,MNPD SID TITANS\n",
+  );
+  const invented = coverage("Bryan TX PD ran a search whose reason was MNPD BOLO.", rows, rows)[0];
+  assert.equal(invented.ref, null);
+  assert.equal(invented.vetoed, true);
+  const accented = coverage("Éloise Dupré ran a search whose reason was MNPD BOLO.", rows, rows)[0];
+  assert.equal(accented.ref, null);
+  // And on prose: a phrase the material states, hung on a person it never
+  // mentions, stays bare even though the winning passage holds the phrase.
+  const prose = coverage("Iríska Voronóva entered the drawing room.", war, war)[0];
+  assert.equal(prose.ref, null);
+  assert.equal(prose.vetoed, true);
+});
+
+test("a pool-side rescue must be a unique argmax — a tied pool is refused as ambiguous", () => {
+  // Measured live on the fetched page: a figures sentence found several
+  // pool passages tied at a run of two — "troops against" in one, the bare
+  // number in another — and retrieval rank, which orders by the question's
+  // terms and not by support, would have picked between them arbitrarily.
+  // An address names one place; an argmax with two winners names none.
+  const ambig = chunkSource(
+    "ambig.txt",
+    "The muster rolls record 130,000 men under arms at the crossing, provisioned for a month.\n\n" +
+      "Skirmishers pushed troops against the embankment before the light failed.\n\n" +
+      "The commissary ledger lists forage for twelve thousand horses.",
+  );
+  const forage = ambig.find((c) => c.text.includes("forage"));
+  const [entry] = coverage("Bonaparte led 130,000 troops against the river crossing.", [forage], ambig);
+  assert.equal(entry.ref, null, `attached ${entry.ref} on score ${entry.score}`);
+  assert.equal(entry.ambiguous, true);
+});
+
+test("a tie goes to the offered passage, marked as rescued", () => {
+  // Two passages state the same phrase equally well; one was offered. The
+  // strict gate refuses the tie (no margin); coverage attaches the passage
+  // the turn actually handed the model — its bytes state the phrase, which
+  // is all the chip claims.
+  const twins = chunkSource(
+    "twin.txt",
+    "The dredging licence was suspended after the equinox inspection.\n\n" +
+      "Harbour minutes note that the dredging licence was suspended after the equinox inspection, pending review.",
+  );
+  const sentence = "The dredging licence was suspended after the equinox inspection.";
+  assert.equal(attribute(sentence, [twins[0]], twins)[0].ref, null, "the strict gate declines the tie");
+  const [entry] = coverage(sentence, [twins[0]], twins);
+  assert.equal(entry.ref, twins[0].ref);
+  assert.equal(entry.via, "offered");
+  assert.equal(entry.rescued, true);
+});
+
+test("web-style refs attach exactly like file refs, and read back", () => {
+  // The shape a fetched page actually carries: its content-addressed
+  // basename. Nothing in cite.js may assume a file-looking name.
+  const cov = coverage(MEASURED, webOffered, webChunks);
+  assert.match(cov[0].ref, /^ab12cd34ef56aa99\.txt#\d+-\d+$/);
+
+  // A slashed name — the store's own path shape — attaches identically and
+  // the ref reads back through readRange to the bytes it names.
+  const slashed = chunkSource("web/pages/ab12cd34.txt", PAGE);
+  const sOffered = [
+    slashed.find((c) => c.text.includes("Casualty returns")),
+    slashed.find((c) => c.text.includes("principal positions")),
+  ];
+  const sCov = coverage(MEASURED, sOffered, slashed);
+  assert.match(sCov[0].ref, /^web\/pages\/ab12cd34\.txt#\d+-\d+$/);
+  const bytes = readRange({ "web/pages/ab12cd34.txt": PAGE }, sCov[0].ref);
+  assert.ok(bytes.includes("7 September 1812"), "the attached web ref re-opens to the supporting bytes");
+
+  // A model-cited slashed address is left alone — one claim, one tag.
+  const cited = coverage(
+    `The battle was fought near the village of Marrowfen [${slashed[1].ref}].`,
+    sOffered,
+    slashed,
+  )[0];
+  assert.equal(cited.cited, true);
+  assert.equal(cited.ref, null);
+});
+
+test("coverage stands without an offered set, and is deterministic", () => {
+  // A turn that retrieved nothing can still have written sentences the
+  // loaded material supports; provenance does not depend on what rode the
+  // prompt. attribute() returns [] here by design — the record has nothing
+  // to earn — but the rendering still owes the reader the address.
+  const bare = coverage("The Battle of Marrowfen was fought near the village of Marrowfen on 7 September 1812.", [], webChunks);
+  assert.equal(bare[0].ref, lead.ref);
+  assert.equal(bare[0].via, "pool");
+
+  assert.deepEqual(coverage(MEASURED, webOffered, webChunks), coverage(MEASURED, webOffered, webChunks));
+  assert.deepEqual(coverage("Anything at all.", [], []), []);
 });

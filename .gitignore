@@ -10,4 +10,5 @@ record/
 materials/
 web/
 library/
+priors/
 .venv/

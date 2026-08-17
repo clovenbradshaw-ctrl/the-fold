@@ -20,6 +20,7 @@ import {
   foldWebHistory,
   archiveUrlFrom,
   extForContentType,
+  pageFaceUrl,
   WEB_FETCH_MAX_BYTES,
   WEB_SEARCH_MAX_RESULTS,
 } from "./web.js";
@@ -219,6 +220,24 @@ test("extForContentType names the file face", () => {
   assert.equal(extForContentType("application/octet-stream"), ".bin");
 });
 
+// ── the two path spaces, never crossed silently ────────────────────────────
+// History entries carry browse-root-relative paths (the file API's space);
+// the static server is rooted at the app directory. Interpolating a stored
+// path straight into a static URL fetched the 404 body, and every proof
+// verdict was judged against the literal text "not found" — measured live
+// 2026-08-17, seekProof answering web-uncorroborated on pages that plainly
+// state the claim. pageFaceUrl is the one sanctioned crossing.
+test("pageFaceUrl maps a stored page path into the static URL space", () => {
+  assert.equal(
+    pageFaceUrl("http://localhost:8812", "the-fold/web/pages/b02d7a4f9c4d1e63.txt"),
+    "http://localhost:8812/web/pages/b02d7a4f9c4d1e63.txt",
+  );
+  // already-bare names pass through; emptiness is null, never a URL to a directory
+  assert.equal(pageFaceUrl("http://localhost:8812", "b02d.txt"), "http://localhost:8812/web/pages/b02d.txt");
+  assert.equal(pageFaceUrl("http://localhost:8812", ""), null);
+  assert.equal(pageFaceUrl("http://localhost:8812", null), null);
+});
+
 // ── declared numbers exist and are sane bounds, not tuned constants ────────
 test("the declared numbers carry their duty", () => {
   assert.ok(WEB_FETCH_MAX_BYTES >= 1_000_000, "a page bound, not a snippet bound");
@@ -233,8 +252,9 @@ test("the declared numbers carry their duty", () => {
 test("P13 seam: explore.js and explore.html fetch only same-origin paths", () => {
   // preview.js joins the scan for the reason the others are in it: it builds
   // the src of every img, iframe, audio and video the preview shows, so it is
-  // exactly where a remote host would slip in.
-  for (const file of ["explore/explore.js", "explore/preview.js", "explore.html", "explore-bridge.js"]) {
+  // exactly where a remote host would slip in. relations-chain.js joins it
+  // because the Explore page loads it (renderLink's handles).
+  for (const file of ["explore/explore.js", "explore/preview.js", "explore.html", "explore-bridge.js", "relations-chain.js"]) {
     const src = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
     const hosts = [...src.matchAll(/https?:\/\/([^/"'` )>]+)/g)].map((m) => m[1]);
     for (const h of hosts) {

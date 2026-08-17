@@ -133,7 +133,7 @@ const widgetRouter = makeWidgetRouter(enginePriors);
 // own term sets stay one alphabet.
 import { discoverRelationVocab, extractRelations } from "/engine/perceiver/text/relations.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { corroborateAtoms } from "./grounding.js";
+import { corroborateAtoms, CLAIM_STOPWORDS } from "./grounding.js";
 
 // Proof-seeking: a flagged claim taken to the world through the one
 // sanctioned egress (P13, explore-server's /api/web/*). proof.js is the
@@ -146,8 +146,11 @@ import {
   foldProof,
   proofQuery,
   proofTargets,
+  rankResults,
 } from "./proof.js";
-import { hostOf } from "./web.js";
+import { hostOf, pageFaceUrl } from "./web.js";
+import { snipClaim } from "./primary.js";
+import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 
 // The engine's surprise ladder — the measured answer to "what is most
@@ -263,14 +266,35 @@ const state = {
   queue: [],
 
   /**
-   * Proof-seeking consent (P13's amendment): when on, a turn's flagged
-   * claims are taken to the web automatically, up to the declared budget
-   * (PROOF_TARGETS_PER_TURN), through the explore server's recorded egress.
-   * DEFAULT OFF — turning it on is the explicit standing act that
-   * authorizes the crossings, and it is the user's, never inferred. The
-   * per-claim button works either way: a click is its own authorization.
+   * Proof-seeking consent (P13's amendment, re-amended 2026-08-17): when on,
+   * a turn's flagged claims are taken to the web automatically, up to the
+   * declared budget (PROOF_TARGETS_PER_TURN), through the explore server's
+   * recorded egress. DEFAULT ON, by user direction — the consent it stands
+   * for is still explicit, but it is now given by a switch sitting on the
+   * composer in plain sight rather than by finding a checkbox in a modal.
+   * Off is one click from every question, and the switch's own state is the
+   * disclosure. The per-claim button works either way: a click is its own
+   * authorization.
    */
-  webProof: localStorage.getItem("fold-web-proof") === "on",
+  webProof: localStorage.getItem("fold-web-proof") !== "off",
+
+  /**
+   * The master switch over everything attached. Silencing one attachment is
+   * `muted`; this is the same act over all of them at once — "answer this
+   * one without my documents" — and it is a retrieval concept only: nothing
+   * is unloaded, every address still re-opens, and the switch comes back on
+   * with nothing lost. DEFAULT ON: material you took the trouble to attach
+   * is in play unless you say otherwise.
+   */
+  useAttachments: localStorage.getItem("fold-use-attachments") !== "off",
+
+  /**
+   * Whether answers are checked at all. On (the default) is what this
+   * instrument is for. Off is a plain chatbot — no relation tier asked for,
+   * nothing drawn into the prose, no tally, no evidence or grounding panel,
+   * no claim taken to the web. Set from the header toggle; read per turn.
+   */
+  grounded: localStorage.getItem("fold-marks") !== "off",
 
   /**
    * The pace ledger and the model's declared window. The ledger is fed by
@@ -316,6 +340,15 @@ const state = {
    * {name: {bytes: Uint8Array, kind: "wav"|"bytes"}}.
    */
   media: {},
+  /**
+   * name → the source's papers, for sources that arrived as priors: the
+   * publisher's own frontmatter ({line, fields, path}), read mechanically by
+   * the explore server from the document itself — never model-authored. A
+   * ref on such a source re-opens WITH its papers, and the attachment pill
+   * carries them: a prior referenced in the surf answers "says who?" with
+   * the institution that published it, not with a file path.
+   */
+  provenance: {},
   /**
    * Sources switched off. They stay loaded — their text is still here, so a
    * record's refs still re-open — but retrieval does not see them. Removing a
@@ -437,14 +470,11 @@ function closeConvo(index) {
 }
 
 function renderThreads() {
-  // Turns, top right beside the model — updated here because every turn and
-  // every conversation switch already lands in this function.
+  // The turn counter is gone by user direction (2026-08-17) — the count
+  // still lives in the fold's own bookkeeping; the header chrome doesn't
+  // need it.
   const total = $("turn-total");
-  if (total) {
-    const turns = state.summary.turnCount ?? 0;
-    total.hidden = !turns;
-    total.textContent = `turn ${turns}`;
-  }
+  if (total) total.hidden = true;
   const bar = $("threads");
   bar.textContent = "";
   state.convos.forEach((c, i) => {
@@ -596,6 +626,14 @@ async function complete(messages, { onDelta, maxTokens, json, model } = {}) {
           outTokens: chunk.eval_count,
           outNs: chunk.eval_duration,
         });
+        // A running total of real tokens, from the runtime's own telemetry.
+        // A turn is many calls (plan, each part, the corrections, the fold),
+        // so a message's cost is the DELTA across this counter between the
+        // moment its node was made and the moment its fold was drawn — which
+        // is the only way to count it without instrumenting every path.
+        tokensSeen.in += chunk.prompt_eval_count ?? 0;
+        tokensSeen.out += chunk.eval_count ?? 0;
+        tokensSeen.calls += 1;
         const pace = foldPace(state.paceLog, modelName);
         if (pace.decodeTps) $("status").textContent = `ready · ${modelName} · ${Math.round(pace.decodeTps)} tok/s`;
       }
@@ -738,9 +776,7 @@ async function chartTurn(question) {
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
 
-  const sources = Object.entries(state.sources)
-    .filter(([name]) => !state.muted.has(name))
-    .map(([name, text]) => ({ name, text }));
+  const sources = liveSources();
   const out = chartOf(question, sources);
   body.textContent = "";
   let answer;
@@ -981,9 +1017,7 @@ async function send(question) {
   // "Visualize the themes" names nothing and falls through to the model,
   // whose answer is prose under the usual checks, never invented figures.
   if (detectChart(question)) {
-    const sources = Object.entries(state.sources)
-      .filter(([name]) => !state.muted.has(name))
-      .map(([name, text]) => ({ name, text }));
+    const sources = liveSources();
     const drawn = chartOf(question, sources);
     if (drawn.seg || drawn.source !== undefined) return chartTurn(question);
   }
@@ -1186,7 +1220,7 @@ async function boundTurn(question, typed) {
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
 
-  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+  const live = liveChunks();
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   const passages = live.length ? retrieve(live, question, 3, foldedRefs) : [];
   const sourceBlock = buildSourceBlock(passages);
@@ -1495,7 +1529,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   });
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
-  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+  const live = liveChunks();
 
   // The run narrates itself while it works — the thinking, live, in three
   // layers: the log lines (what the turn decided and found), a ticker (what
@@ -1554,7 +1588,10 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       call: (messages, opts) => complete(messages, { ...opts, model: turnModel }),
       foldedRefs,
       makeNameResolver: castFor,
-      makeRelationReader: relationsFor,
+      // The relation tier is the expensive check and the one with a whole
+      // verdict vocabulary behind it. Plain mode does not ask for it, so it
+      // is never computed — off means not run, not run-and-hidden.
+      makeRelationReader: state.grounded ? relationsFor : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -1680,7 +1717,10 @@ async function holonicTurn(task, typed = task, planMode = "model") {
         gist: fold,
         channels: result.channels,
         refs: result.refs,
-        unsupported: capped(result.unsupported, RECORD_REFS_MAX, "the run log"),
+        // Lies and unbacked knowledge are corrected differently upstream
+        // (only the first drives a rewrite) but the record names both — a
+        // claim the material does not hold is on the record either way.
+        unsupported: capped([...result.unsupported, ...(result.unbacked ?? [])], RECORD_REFS_MAX, "the run log"),
         open: capped(result.open, RECORD_OPEN_MAX, "the run log"),
       })
     : null;
@@ -1718,10 +1758,25 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   const instruction = result.plan?.parts?.length
     ? `${task} ${result.plan.parts.map((p) => `${p.label}: ${p.description}`).join("; ")}`
     : task;
-  renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction, task);
+  // Plain mode draws prose and nothing else: no address chips, no ground
+  // underlines, no relation badges, no tally. The classification is what
+  // produces every one of those, so it is not run rather than run and hidden.
+  // `task` still threads through either way — publishSegment's widget router
+  // (REC/ground routing on a complaint) reads the operator's own words
+  // regardless of whether checking marks are drawn this turn.
+  if (state.grounded) {
+    renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction, task);
+  } else {
+    renderAnswer(body, result.output, offered, [], [], [], instruction, task);
+  }
   await refreshSummary(fold);
   renderFold(node, { fold, record, ran: log });
   renderThreads();
+  if (!state.grounded) {
+    $("status").textContent = `ready · ${state.model}`;
+    releaseBusy();
+    return;
+  }
   // Evidence terms are the plan's own words — each part retrieved on its own
   // description, so the task's terms alone would call honest matches misses.
   const evidenceQuestion = `${task} ${result.plan.parts.map((p) => `${p.label} ${p.description}`).join(" ")}`;
@@ -1737,6 +1792,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     relations: result.sections.map((s) => s.relations).filter(Boolean),
     quotes: result.sections.map((s) => s.quotes).filter(Boolean),
     quoteCorrections: result.sections.flatMap((s) => s.quoteCorrections ?? []),
+    question: task,
   });
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
@@ -1744,13 +1800,28 @@ async function holonicTurn(task, typed = task, planMode = "model") {
 
 // ── rendering ────────────────────────────────────────────────────────────────
 
+/** Real tokens, cumulative, straight from Ollama's own `done` chunks. */
+const tokensSeen = { in: 0, out: 0, calls: 0 };
+
 function addMessage(role, text) {
   const el = document.createElement("div");
   el.className = `msg ${role}`;
+  // The counter's reading when this message was born. Its cost is the delta.
+  el.dataset.tokIn = String(tokensSeen.in);
+  el.dataset.tokOut = String(tokensSeen.out);
+  el.dataset.tokCalls = String(tokensSeen.calls);
   // The fold is disclosed, not displayed. Printed under every turn it just
   // repeated the exchange you had already read; kept behind a one-word
   // affordance, it is there the moment you want to ask "what did this turn
   // actually leave behind?" — which is the question the fold answers.
+  //
+  // That word is "thinking" (user, 2026-08-17): the box is the resting place
+  // of the same narration the turn streams live while it works — `.thinking`
+  // is already that element's class — plus what the narration produced. The
+  // word "fold" is spent on the artifact type in the Folds pane and may not
+  // mean two things. The `.fold` CLASS below is left alone deliberately: it
+  // is the disclosure's shared styling, nested boxes included, and renaming
+  // it would buy nothing a reader ever sees.
   el.innerHTML =
     `<div class="who"></div><div class="body"></div>` +
     (role === "assistant"
@@ -1760,7 +1831,7 @@ function addMessage(role, text) {
         // against, how a task ran — opens from the same word. Two
         // disclosures asked the reader to know the taxonomy before opening;
         // one asks only curiosity.
-        `<details class="fold"><summary>fold</summary><p></p></details>` +
+        `<details class="fold"><summary>thinking</summary><p></p></details>` +
         `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
@@ -1847,7 +1918,10 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // stands on the material, how much on the model, and how much states
   // facts nothing backs. Counted from the same classification the marks
   // were drawn from — one measurement, two renderings.
-  if (classified.length) {
+  // The tally is a reading of the checks. With checking off there are no
+  // checks to read, and "0 sentences stand on the material" would be a
+  // measurement nobody took dressed as one that was.
+  if (classified.length && state.grounded) {
     // A cited-but-drifted sentence counts under claims — the drift is the
     // salient fact — so the three buckets partition cleanly.
     const claims = classified.filter((e) => e.absent.length).length;
@@ -1862,10 +1936,10 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
     tally.className = `fold-note grounds${claims || broken ? " bad" : ""}`;
     tally.textContent =
       `standing on the material: ${m} sentence(s)` +
-      (voice > 0 ? ` · the model's voice: ${voice}` : "") +
-      (claims ? ` · stating unbacked facts: ${claims}` : "") +
-      (bound ? ` · relations the material binds: ${bound}` : "") +
-      (broken ? ` · relations it does not: ${broken}` : "");
+      (voice > 0 ? ` · the model's own words: ${voice}` : "") +
+      (claims ? ` · claiming things nothing given backs: ${claims}` : "") +
+      (bound ? ` · statements the material also makes: ${bound}` : "") +
+      (broken ? ` · statements it never makes: ${broken}` : "");
     body.append(tally);
   }
 }
@@ -1907,7 +1981,7 @@ function findSentence(hay, sentence) {
  * this app's.
  */
 function groundHunt(text) {
-  const live = state.chunks.filter((c) => !state.muted.has(c.source));
+  const live = liveChunks();
   const hits = live.length ? retrieve(live, text, 1) : [];
   if (!hits.length) {
     $("status").textContent = "no material matches that sentence's words";
@@ -2099,7 +2173,26 @@ function taggedProse(text, offered, classified = []) {
     for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || c.verdict === "unbound")) {
       const badge = document.createElement("button");
       badge.className = `edge-badge ${c.verdict}`;
-      badge.textContent = c.verdict === "contradicted" ? "⇄ contradicted" : "∅ never bound";
+      // The badge names the exact words it means — a blanket "never says
+      // this" on the sentence tars its backed halves too (measured live:
+      // the model's gloss "significant battle" flagged a sentence whose
+      // 70,000 stood perfectly on the material).
+      const disputed = `${c.verb} ${c.object}`.trim();
+      const disputedShort = disputed.length > 32 ? `${disputed.slice(0, 29)}…` : disputed;
+      badge.textContent =
+        c.verdict === "contradicted"
+          ? `⇄ material says otherwise: “${disputedShort}”`
+          : `∅ not in the material: “${disputedShort}”`;
+      // The same key proofTargets dedupes on, so a finished web check can
+      // find this badge and COMPOSE with it — "not in the material" and
+      // "stated by 2 of 3 web pages" are one epistemic state, not two
+      // verdicts that never meet (measured live: the web corroborated the
+      // very assertion the badge was still flagging).
+      badge.dataset.proofKey = [c.subject, c.verb, c.object]
+        .flatMap((s) => String(s).split(/\s+/))
+        .filter((w) => w.length > 2)
+        .join(" ")
+        .toLowerCase();
       const near = c.verdict === "contradicted" ? c.bound?.[0] : c.nearest?.[0];
       badge.title =
         `${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}: ` +
@@ -2898,31 +2991,75 @@ async function webApi(path, payload) {
  * the result into counted perspectives. Every step that fails arrives as
  * a typed gap; nothing is dropped.
  */
-async function seekProof(target) {
+async function seekProof(target, faces = null, onStep = null) {
   const query = proofQuery(target);
+  onStep?.(`searching: “${query}”`);
+  // The turn's evidence pool first: every page ANY chip already read is a
+  // perspective this claim gets for free — measured twice (Borodino's
+  // "much debate", then 1906/M7.9 on a net-new domain): the proof of one
+  // claim sat inside a sibling chip's already-fetched pages while the
+  // claim's own narrower search missed it. Cached faces cost no egress;
+  // fresh fetches below still add up to PROOF_PAGES_CONSULTED new reads.
+  const pooled = [];
+  if (faces) {
+    for (const [url, f] of faces) {
+      pooled.push({
+        url,
+        host: f.host,
+        title: f.title ?? null,
+        textPath: f.textPath,
+        assessment: assessPage(target, f.text),
+        snips: snipClaim(target, f.text).slice(0, 2),
+      });
+    }
+  }
   let search;
   try {
     search = await webApi("/api/web/search", { query });
   } catch (e) {
+    if (pooled.length) return foldProof(target, { query, pages: pooled });
     return foldProof(target, {
       query,
-      gap: { silence: "not-present", detail: `the explore server is not reachable: ${e.message}` },
+      gap: { silence: "not-present", detail: `the local server that does the fetching didn't answer (${e.message})` },
     });
   }
-  if (search.gap) return foldProof(target, { query, gap: search.gap });
-  const picks = (search.results ?? []).slice(0, PROOF_PAGES_CONSULTED);
-  if (!picks.length)
-    return foldProof(target, { query, gap: { silence: "not-present", detail: "the search returned no results" } });
-  const pages = [];
+  if (search.gap) return foldProof(target, { query, pages: pooled, gap: pooled.length ? null : search.gap });
+  // Read the most claim-relevant results, not the engine's raw top — a bare
+  // figure's top hits can be about a different figure entirely (proof.js
+  // rankResults carries the measured case).
+  onStep?.(`searching: “${query}” · ${search.found ?? 0} result(s)${pooled.length ? ` · ${pooled.length} page(s) from this turn's pool` : ""}`);
+  const picks = rankResults(target, search.results ?? [])
+    .filter((r) => !faces?.has(r.url))
+    .slice(0, PROOF_PAGES_CONSULTED);
+  if (!picks.length && !pooled.length)
+    return foldProof(target, { query, gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } });
+  const pages = [...pooled];
   for (const r of picks) {
     try {
+      onStep?.(`reading ${hostOf(r.url)}…`);
       const f = await webApi("/api/web/fetch", { url: r.url });
       if (f.gap || !f.entry?.textPath) {
         pages.push({ url: r.url, gap: f.gap ?? { silence: "not-present", detail: "the page has no text face" } });
         continue;
       }
       const url = f.entry.finalUrl ?? r.url;
-      const text = await (await fetch(`${EXPLORE_BASE}/${f.entry.textPath}`)).text();
+      // The saved face is content-addressed (sha-named), so any local
+      // server serving that name serves those exact bytes — when the
+      // explore server's static CORS blocks a cross-origin read (an older
+      // running instance), the page's own origin serves the same file.
+      let faceRes;
+      try {
+        faceRes = await fetch(pageFaceUrl(EXPLORE_BASE, f.entry.textPath));
+      } catch {
+        faceRes = await fetch(pageFaceUrl(location.origin, f.entry.textPath));
+      }
+      if (!faceRes.ok) {
+        pages.push({ url: r.url, gap: { silence: "not-present", detail: `the saved text face answered ${faceRes.status}` } });
+        continue;
+      }
+      const text = await faceRes.text();
+      // Joins the turn's evidence pool: later claims consult it for free.
+      faces?.set(url, { host: hostOf(url), title: f.entry.title ?? r.title ?? null, textPath: f.entry.textPath, text });
       pages.push({
         url,
         host: hostOf(url),
@@ -2930,6 +3067,10 @@ async function seekProof(target) {
         textPath: f.entry.textPath,
         ...(f.entry.challenge ? { challenge: true } : {}),
         assessment: assessPage(target, text),
+        // The audit: the page's own sentence(s) stating the claim, verbatim
+        // with offsets (primary.js's snip organ) — a verdict the reader can
+        // read, not just count.
+        snips: snipClaim(target, text).slice(0, 2),
       });
     } catch (e) {
       pages.push({ url: r.url, gap: { silence: "not-present", detail: e.message } });
@@ -2945,6 +3086,86 @@ async function seekProof(target) {
   return out;
 }
 
+/**
+ * One fact-check chip: a quiet claim-sized summary that carries its whole
+ * audit behind a click (user direction 2026-08-17: chips, not a wall — the
+ * check's evidence is the page's own snipped sentence, auditable). The chip
+ * shows the claim and, once checked, the count (✓ 3/3 · ∅ 0/3); opening it
+ * shows the verdict sentence, each stating page's verbatim snip, and the
+ * saved copy. Opening an unchecked chip runs the check — the click is the
+ * authorization; autorun (the standing toggle) calls the same run.
+ */
+function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = null, faces = null, panel = null } = {}) {
+  // A button chip and ONE shared panel below the strip — opening an audit
+  // must not reflow the chips or jump the page (user, 2026-08-17: clicking
+  // jumped content around). The panel swaps which chip's detail it shows;
+  // the chips never move.
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "proof-check";
+  const status = document.createElement("span");
+  status.className = "proof-status";
+  chip.append(`${labelText} `, status);
+  if (title) chip.title = title;
+  const slot = document.createElement("span");
+  slot.className = "proof-detail";
+  const key = claimKey(target);
+  let started = false;
+  const run = async () => {
+    if (started) return;
+    started = true;
+    status.textContent = "…";
+    // The walk, live: what it's searching and which page it's on, written
+    // into the slot as it happens — visible immediately when the panel is
+    // open on this chip, and replaced by the full audit when done.
+    const live = document.createElement("em");
+    live.className = "proof-query";
+    slot.textContent = "";
+    slot.append(live);
+    const out = await seekProof(target, faces, (step) => {
+      live.textContent = step;
+    });
+    renderProofResult(slot, out);
+    status.textContent =
+      out.verdict === "web-corroborated"
+        ? `✓ ${out.stating?.length ?? 0}/${out.consulted}`
+        : out.verdict === "web-uncorroborated"
+          ? `∅ 0/${out.consulted}`
+          : "·";
+    chip.classList.add(out.verdict);
+    // The ledger is the one record; the chip's tooltip and the detail's
+    // first line are projections of it — every tier's verdict composed.
+    if (ledger) {
+      ledger.note(target, "web", out);
+      const line = composedSentence(ledger.state(key));
+      if (line) {
+        chip.title = line;
+        const lp = document.createElement("em");
+        lp.className = "fold-note";
+        lp.textContent = line;
+        slot.prepend(lp);
+      }
+    }
+    onVerdict?.(out);
+  };
+  chip.addEventListener("click", () => {
+    run();
+    if (!panel) return;
+    if (panel.dataset.for === key && !panel.hidden) {
+      panel.hidden = true;
+      chip.classList.remove("selected");
+      return;
+    }
+    panel.textContent = "";
+    panel.append(slot);
+    panel.dataset.for = key;
+    panel.hidden = false;
+    for (const b of chip.closest(".grounding-strip")?.querySelectorAll(".proof-check.selected") ?? []) b.classList.remove("selected");
+    chip.classList.add("selected");
+  });
+  return { det: chip, run };
+}
+
 /** Draw a proof verdict into its slot: the counted sentence, then one line
  * per stating page — the live address as a user-followed anchor, the saved
  * text face beside it (the bytes this verdict was actually judged on). */
@@ -2954,6 +3175,26 @@ function renderProofResult(slot, out) {
   line.className = `proof-verdict ${out.verdict}`;
   line.textContent = out.sentence;
   slot.append(line);
+  // The crossing's own provenance (user, 2026-08-17: "I want to see what
+  // it searched"): the exact query, verbatim — the reader can re-run it
+  // themselves, which is what makes the verdict auditable rather than
+  // merely counted.
+  if (out.query) {
+    const q = document.createElement("em");
+    q.className = "proof-query";
+    q.textContent = `searched: “${out.query}”`;
+    slot.append(q);
+  }
+  // The whole walk: every page read, agreeing or not — the ∅ rows are as
+  // much of the audit as the ✓ rows.
+  const statingUrls = new Set((out.stating ?? []).map((p) => p.url));
+  const silent = (out.read ?? []).filter((p) => !statingUrls.has(p.url));
+  if (silent.length) {
+    const also = document.createElement("em");
+    also.className = "proof-query";
+    also.textContent = `also read, not stating it: ${silent.map((p) => p.host).join(", ")}`;
+    slot.append(also);
+  }
   for (const p of out.stating ?? []) {
     const row = document.createElement("span");
     row.className = "proof-page";
@@ -2965,17 +3206,21 @@ function renderProofResult(slot, out) {
     row.append(a);
     if (p.textPath) {
       const saved = document.createElement("a");
-      saved.href = `${EXPLORE_BASE}/${p.textPath}`;
+      saved.href = pageFaceUrl(EXPLORE_BASE, p.textPath);
       saved.target = "_blank";
       saved.rel = "noopener";
-      saved.textContent = "saved bytes";
-      saved.title = "The text face this verdict was judged against, as kept by the fetch record.";
+      saved.textContent = "saved copy";
+      saved.title = "The saved text of this page — the exact words this verdict was judged on.";
       row.append(saved);
     }
-    if (p.context) {
-      const ctx = document.createElement("em");
-      ctx.textContent = `shares ${p.context.shared} of ${p.context.of} of the sentence's words`;
-      row.append(ctx);
+    // The audit: the page's own sentence, verbatim. The relevance count
+    // rides as a tooltip — legible on demand, never a wall.
+    if (p.context) row.title = `this page shares ${p.context.shared} of the ${p.context.of} key words in the answer's sentence`;
+    for (const s of p.snips ?? []) {
+      const q = document.createElement("span");
+      q.className = "snip";
+      q.textContent = `“${s.text}”`;
+      row.append(q);
     }
     slot.append(row);
   }
@@ -2991,10 +3236,30 @@ function renderProofResult(slot, out) {
  * the door to the world: proof-seeking per claim, automatic up to the
  * declared budget when the consent toggle is on.
  */
-function renderGrounding(node, { answer, offered, findings = [], relations = [], quotes = [], quoteCorrections = [] }) {
+function renderGrounding(node, { answer, offered, findings = [], relations = [], quotes = [], quoteCorrections = [], question = "" }) {
   const box = node.querySelector(".turn-meta > .fold p");
   if (!box) return;
   const parts = [];
+  // The confirmations live ON the answer, not in the drawer (user,
+  // 2026-08-17: "still not seeing it ground the statement" — every verdict
+  // was landing inside the collapsed fold, so the chat read as a bare
+  // answer while the checking happened out of sight). The strip holds the
+  // per-claim checks and their live verdicts; the fold keeps the analytic
+  // summaries. The strip's lines are assembled from the checks that
+  // actually ran — never a style the model was asked to perform.
+  const strip = document.createElement("div");
+  strip.className = "grounding-strip";
+  const stripAdd = (row) => strip.append(row);
+  // One shared audit panel under the chips — see proofCheckNode.
+  const panel = document.createElement("div");
+  panel.className = "proof-panel";
+  panel.hidden = true;
+  // The turn's claim ledger (claims.js): one epistemic state per claim,
+  // every tier noting into it, every surface a projection of it.
+  const ledger = createClaimLedger();
+  // The turn's evidence pool: every page any chip reads joins it, and
+  // later chips consult it before spending a fresh crossing.
+  const faces = new Map();
 
   // Quotations, followed to the bytes (quotes.js): what was verbatim, what
   // was corrected to the source's own bytes before rendering, what quoted
@@ -3006,16 +3271,16 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     const n = (s) => quoteList.filter((q) => q.status === s).length;
     parts.push(
       section(
-        `quotations · ${n("verbatim")} at the source's bytes` +
-          (quoteCorrections.length ? ` · ${quoteCorrections.length} corrected to the bytes` : "") +
-          (n("outside-offer") ? ` · ${n("outside-offer")} outside the offer` : "") +
+        `quotations · ${n("verbatim")} match the source word-for-word` +
+          (quoteCorrections.length ? ` · ${quoteCorrections.length} corrected to the source's own words` : "") +
+          (n("outside-offer") ? ` · ${n("outside-offer")} quote material this turn wasn't given` : "") +
           (n("unlocated") ? ` · ${n("unlocated")} found nowhere` : ""),
       ),
     );
     for (const c of quoteCorrections) {
       const row = document.createElement("p");
       row.className = "fold-note claim-row";
-      row.textContent = `✎ “${c.from}” → “${c.to}” — the source's own bytes`;
+      row.textContent = `✎ “${c.from}” → “${c.to}” — corrected to what the source actually says`;
       if (c.anchor) {
         const b = document.createElement("button");
         b.className = "ref";
@@ -3031,8 +3296,8 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
       row.className = `fold-note claim-row${q.status === "unlocated" ? " bad" : ""}`;
       row.textContent =
         q.status === "unlocated"
-          ? `✗ “${q.text}” — quoted from nothing in the material`
-          : `… “${q.text}” — real words, but from material this turn was not offered`;
+          ? `✗ “${q.text}” — presented as a quote, but these words are nowhere in the material`
+          : `… “${q.text}” — real words, but from material this turn wasn't given`;
       const anchor = q.segments?.find((s) => s.anchor)?.anchor;
       if (anchor) {
         const b = document.createElement("button");
@@ -3056,8 +3321,8 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     parts.push(
       section(
         measured.length
-          ? `relations · ${edgeCount} edge(s) the material binds · ${claims.length} claim(s) read against them`
-          : `relations · ${reports[0].vocabulary.gap}`,
+          ? `statements · the answer makes ${claims.length}, checked against ${edgeCount} the material makes`
+          : `statements · ${reports[0].vocabulary.gap}`,
       ),
     );
   }
@@ -3066,17 +3331,27 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     const row = document.createElement("p");
     row.className = `fold-note claim-row ${c.verdict}${c.verdict === "contradicted" || c.verdict === "unbound" ? " bad" : ""}`;
     const mark = { bound: "✓", contradicted: "⇄", unbound: "∅", unheard: "…", "beyond-reach": "…" }[c.verdict] ?? "·";
+    // The verdict leads in plain words; the parsed statement follows in
+    // quotes, arrow kept — it shows exactly what was read as subject, verb,
+    // and object, which is the honest disclosure when the parse is wrong.
+    const plainVerdict = {
+      bound: "the material says this too",
+      contradicted: "the material says otherwise",
+      unbound: "the material never says this",
+      unheard: "couldn't check",
+      "beyond-reach": "couldn't check",
+    }[c.verdict] ?? c.verdict;
     const head = document.createElement("span");
-    head.textContent = `${mark} ${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object} · ${c.verdict}`;
+    head.textContent = `${mark} ${plainVerdict}: “${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}”`;
     row.append(head);
     if (c.verdict === "bound") {
       const cor = document.createElement("em");
-      cor.textContent = ` stated by ${c.corroboration.passages} passage(s) across ${c.corroboration.sources} source(s)`;
+      cor.textContent = ` — in ${c.corroboration.passages} passage(s) across ${c.corroboration.sources} source(s)`;
       row.append(cor);
     }
     if (c.reason) {
       const why = document.createElement("em");
-      why.textContent = ` ${c.reason}`;
+      why.textContent = ` — ${c.reason}`;
       row.append(why);
     }
     for (const ref of c.refs ?? []) {
@@ -3091,8 +3366,8 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     for (const n of near ?? []) {
       const nb = document.createElement("button");
       nb.className = "ref attached";
-      nb.textContent = `binds: ${n.subject} —${n.verb}→ ${n.object}`;
-      nb.title = n.refs?.[0] ? `${n.refs[0]} — what the material states instead` : "what the material states instead";
+      nb.textContent = `it says: ${n.subject} —${n.verb}→ ${n.object}`;
+      nb.title = n.refs?.[0] ? `${n.refs[0]} — read what the material says instead` : "what the material says instead";
       if (n.refs?.[0]) nb.onclick = () => reopen(n.refs[0]);
       row.append(nb);
     }
@@ -3101,6 +3376,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
 
   // Atom corroboration: support as counted perspectives. The summary line
   // carries the distribution; the strongest and the unsupported are named.
+  const singleRuns = [];
   const cor = corroborateAtoms(answer, offered);
   if (cor.examined && cor.atoms.length) {
     const multi = cor.atoms.filter((a) => a.sources.length >= 2).length;
@@ -3108,9 +3384,56 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     const none = cor.atoms.filter((a) => !a.refs.length).length;
     parts.push(
       section(
-        `corroboration · of ${cor.atoms.length} checkable atom(s): ${multi} stated by ≥2 sources, ${single} by one, ${none} by none`,
+        `names & figures · ${cor.atoms.length} checked against your material: ` +
+          `${multi} backed by more than one source · ${single} by exactly one · ${none} by none` +
+          (single
+            ? ` — one source is one perspective${state.webProof ? "; checking against the web automatically (bounded per turn)" : ""}`
+            : ""),
       ),
     );
+    // The material is not ground truth — it is one perspective (user,
+    // 2026-08-17: "we shouldn't trust just the pasted text"). Every atom the
+    // material backs from a SINGLE source keeps its own door to a second
+    // perspective: the same recorded web check the unbacked claims get.
+    // With the standing web switch on these run on their own (the user's
+    // direction: "it needs to validate it by search the web on its own"),
+    // AFTER the unbacked claims, inside the same declared per-turn budget,
+    // sequentially. The click remains for everything past the budget.
+    const seenSingle = new Set();
+    for (const a of cor.atoms.filter((x) => x.refs.length >= 1 && x.sources.length < 2)) {
+      const tokens =
+        a.kind === "number"
+          ? [String(a.text).replace(/[,%]/g, "")]
+          : a.text
+              .split(/[\s-]+/)
+              .map((w) => w.replace(/['’]s$/, ""))
+              .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+      if (!tokens.length) continue;
+      const key = tokens.join(" ").toLowerCase();
+      if (seenSingle.has(key)) continue;
+      seenSingle.add(key);
+      // The claim travels with the question's own words, not just its
+      // sentence: measured live, the casualties sentence never named the
+      // battle (its "it" pointed a sentence back), so the query left
+      // "Borodino" behind and the search read a page about a different
+      // 70,000. The question is the conversation's own anchor.
+      const target = {
+        kind: a.kind,
+        text: a.text,
+        tokens,
+        sentence: [a.sentence, question].filter(Boolean).join(" "),
+        why: "single-source",
+      };
+      ledger.note(target, "corroboration", { refs: a.refs.length, sources: a.sources.length });
+      const { det, run } = proofCheckNode(
+        `“${a.text}”`,
+        `${a.kind === "number" ? "figure" : "name"} backed by one source (${a.refs[0]}) — open to check the web`,
+        target,
+        { ledger, faces, panel },
+      );
+      stripAdd(det);
+      singleRuns.push(run);
+    }
   }
 
   // The door to the world, one row per flagged claim. A click is its own
@@ -3120,37 +3443,70 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
   if (targets.length) {
     parts.push(
       section(
-        `proof-seeking · ${targets.length} claim(s) the material does not back` +
+        `check online · ${targets.length} thing(s) your material doesn't back` +
           (state.webProof
-            ? ` · seeking automatically (first ${Math.min(targets.length, PROOF_TARGETS_PER_TURN)})`
-            : " · off — press per claim, or turn on seeking in settings"),
+            ? ` · looking up the first ${Math.min(targets.length, PROOF_TARGETS_PER_TURN)} automatically`
+            : " · the web switch is off — press “search the web” on a row to look one up anyway"),
       ),
     );
   }
   const autorun = [];
   targets.forEach((t, i) => {
-    const row = document.createElement("p");
-    row.className = "fold-note proof-row";
-    const label = document.createElement("span");
-    label.textContent = `${t.kind === "number" ? "figure" : t.kind === "edge" ? "edge" : "name"} ${t.text} (${t.why}) `;
-    row.append(label);
-    const slot = document.createElement("span");
-    slot.className = "proof-slot";
-    const go = document.createElement("button");
-    go.className = "ref";
-    go.textContent = "seek proof online";
-    go.title = "Verify this claim online";
-    go.onclick = async () => {
-      go.disabled = true;
-      slot.textContent = "consulting…";
-      renderProofResult(slot, await seekProof(t));
-    };
-    row.append(go, slot);
-    parts.push(row);
-    if (state.webProof && i < PROOF_TARGETS_PER_TURN) autorun.push(() => go.onclick());
+    const kindWord = t.kind === "number" ? "figure" : t.kind === "edge" ? "statement" : "name";
+    const whyWord = {
+      unsupported: "not in your material",
+      contradicted: "your material says otherwise",
+      unbound: "your material never says this",
+    }[t.why] ?? t.why;
+    const short = t.text.length > 42 ? `${t.text.slice(0, 39)}…` : t.text;
+    const key = claimKey(t);
+    // Seed the material tier's standing — the why IS its verdict.
+    ledger.note(t, "material", { verdict: t.why });
+    const { det, run } = proofCheckNode(`“${short}”`, composedSentence(ledger.state(key)) || `${kindWord} — ${whyWord}; open to check the web`, t, {
+      ledger,
+      faces,
+      panel,
+      // Compose with the in-line badge for the same claim: the material's
+      // verdict stays true, and the web's counted result rides beside it.
+      onVerdict: (out) => {
+        if (out.verdict !== "web-corroborated" && out.verdict !== "web-uncorroborated") return;
+        for (const b of node.querySelectorAll(".edge-badge")) {
+          if (b.dataset.proofKey !== key) continue;
+          const webBit =
+            out.verdict === "web-corroborated"
+              ? ` · web: stated by ${out.stating.length} of ${out.consulted} page(s)`
+              : ` · web: 0 of ${out.consulted} page(s)`;
+          b.textContent = b.textContent.replace(/ · web:.*$/, "") + webBit;
+          b.classList.toggle("web-backed", out.verdict === "web-corroborated");
+          b.title += ` Web check: ${out.sentence}.`;
+        }
+      },
+    });
+    det.classList.add("unbacked");
+    stripAdd(det);
+    if (state.webProof && i < PROOF_TARGETS_PER_TURN) autorun.push(run);
   });
 
+  // Single-source checks fill whatever the per-turn budget has left after
+  // the unbacked claims — the news outranks the audit, and one declared
+  // bound covers all automatic seeking.
+  if (state.webProof) {
+    for (const run of singleRuns) {
+      if (autorun.length >= PROOF_TARGETS_PER_TURN) break;
+      autorun.push(run);
+    }
+  }
   box.append(...parts);
+  // Mount the chips on the turn itself, above the fold — quiet until they
+  // have counts, the audit one click away.
+  if (strip.childElementCount) {
+    const meta = node.querySelector(".turn-meta");
+    const foldEl = node.querySelector(".turn-meta > .fold");
+    if (meta && foldEl) {
+      meta.insertBefore(strip, foldEl);
+      meta.insertBefore(panel, foldEl);
+    } else box.append(strip, panel);
+  }
   // Sequential, not parallel: the egress is one server doing recorded
   // crossings, and a turn must not fan out a burst of them.
   if (autorun.length) (async () => { for (const run of autorun) await run(); })();
@@ -3254,6 +3610,25 @@ function renderFold(node, { fold, record, sent, ran }) {
   // not be findable through it.
   const box = node.querySelector(".turn-meta > .fold");
   if (!box) return;
+  // What this turn actually cost, in the runtime's own tokens — beside the
+  // disclosure, not inside it, because it is the one number worth seeing
+  // without opening anything. Checking is what makes a turn expensive (a
+  // plan, a call per part, the corrections), so the count is shown in the
+  // mode that incurs it.
+  const meta = node.querySelector(".turn-meta");
+  meta.querySelector(".turn-tokens")?.remove();
+  if (state.grounded) {
+    const din = tokensSeen.in - Number(node.dataset.tokIn ?? 0);
+    const dout = tokensSeen.out - Number(node.dataset.tokOut ?? 0);
+    const calls = tokensSeen.calls - Number(node.dataset.tokCalls ?? 0);
+    if (din + dout > 0) {
+      const t = document.createElement("span");
+      t.className = "turn-tokens";
+      t.textContent = `${(din + dout).toLocaleString()} tokens`;
+      t.title = `${din.toLocaleString()} in · ${dout.toLocaleString()} out, over ${calls} model call(s) — measured from the runtime's own telemetry, not estimated`;
+      meta.append(t);
+    }
+  }
   const out = box.querySelector("p");
   out.textContent = "";
 
@@ -3269,6 +3644,10 @@ function renderFold(node, { fold, record, sent, ran }) {
     ["entities", s.entities?.join(", ")],
     ["carried context", s.context],
   ].filter(([, v]) => v);
+  // The running summary is the app's own bookkeeping (what it will carry
+  // into the next turn), not part of this answer's grounding — showing it
+  // open here read as if the summary were being grounded (user, 2026-08-17).
+  // Collapsed by default, same affordance as "how the task ran".
   if (fields.length) {
     const dl = document.createElement("dl");
     dl.className = "fields";
@@ -3279,11 +3658,15 @@ function renderFold(node, { fold, record, sent, ran }) {
       dd.textContent = v;
       dl.append(dt, dd);
     }
-    out.append(section("system 1 · the running summary after this turn"), dl);
+    const det = document.createElement("details");
+    det.className = "fold";
+    det.innerHTML = "<summary>what the app carries forward — its own bookkeeping, not the answer's grounding</summary>";
+    det.append(dl);
+    out.append(det);
   }
 
   if (record) {
-    out.append(section("system 2 · on record"), recordNode(record));
+    out.append(section("on record · what this turn established"), recordNode(record));
   }
 
   // A holonic turn's run log — which part retrieved what, what failed its
@@ -3396,6 +3779,29 @@ function reopen(ref) {
   $("reopen-address").textContent = label
     ? `${ref} — read back from the material, live`
     : "read back from the material, live — the cited span, inside its source";
+  // A prior's papers ride the re-open: the publisher's own frontmatter,
+  // under the address — so the dialog answers "says who?" as well as
+  // "which bytes?". Set on both paths (found and outlived): the papers
+  // belong to the source, not to whether its text is still loaded.
+  const papers = $("reopen-papers");
+  if (papers) {
+    const prov = state.provenance[String(ref).split("#")[0]];
+    papers.hidden = !prov;
+    papers.textContent = "";
+    if (prov) {
+      papers.append(`papers: ${prov.line}`);
+      if (prov.fields?.url) {
+        papers.append(" ");
+        const a = document.createElement("a");
+        a.href = prov.fields.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = "↗";
+        a.title = "the publisher's official copy — opens in your own browser, leaves this instrument";
+        papers.append(a);
+      }
+    }
+  }
   const pre = $("reopen-body");
   pre.textContent = "";
   // A self ref re-opens from the ledger, rebuilt from the entries alone —
@@ -3445,12 +3851,33 @@ function reopen(ref) {
   mark.scrollIntoView({ block: "center" });
 }
 
-// ── material ─────────────────────────────────────────────────────────────────
+// ── attachments ──────────────────────────────────────────────────────────────
 //
-// Adding material is the one thing a first-time reader has to discover, so it
-// has three doors — drop a file anywhere, click Material next to the composer,
-// or paste — and no confirm step behind any of them. Text is addressable the
-// moment it lands.
+// Attaching is the one thing a first-time reader has to discover, so it has
+// four doors — drop a file anywhere, ＋ Attach beside the composer (upload /
+// already here / paste), and paste — and no confirm step behind any of them.
+// Text is addressable the moment it lands.
+//
+// What retrieval may see is decided in exactly two places and nowhere else:
+// the per-attachment mute, and the master switch. Both are retrieval-only —
+// the text stays loaded and every address still re-opens either way — so
+// these two readers are the single seam, and no caller filters `muted` on
+// its own again.
+
+/** The chunks retrieval is allowed to see this turn. */
+function liveChunks() {
+  if (!state.useAttachments) return [];
+  return state.chunks.filter((c) => !state.muted.has(c.source));
+}
+
+/** The same rule over whole sources, for the organs that read files not
+ * passages (the chart door, which needs a source's full text). */
+function liveSources() {
+  if (!state.useAttachments) return [];
+  return Object.entries(state.sources)
+    .filter(([name]) => !state.muted.has(name))
+    .map(([name, text]) => ({ name, text }));
+}
 
 function addSource(name, text) {
   if (!text.trim()) return;
@@ -3491,6 +3918,7 @@ function removeSource(name) {
   // and re-opening one now says so rather than quietly returning nothing —
   // which is the honest failure for an address whose material is gone.
   delete state.sources[name];
+  delete state.provenance[name];
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
   renderSources();
@@ -3500,94 +3928,160 @@ function countFor(name) {
   return state.chunks.filter((c) => c.source === name).length;
 }
 
-/** The chip strip above the conversation: what the answers stand on, always
- * in view. Click silences or restores; silenced is struck through, never
- * hidden — silenced and gone must not look alike. */
-function renderSourceStrip() {
-  const strip = $("source-strip");
+/**
+ * The attachment pills on the composer: what the next question will be asked
+ * with. Two controls per pill, because they are two different acts — the name
+ * silences and restores (retrieval stops seeing it; the text and its
+ * addresses stay), the × drops it. Silenced is struck through, never hidden:
+ * silenced and gone must not look alike.
+ *
+ * The master switch does not restyle the pills — a pill would then be lying
+ * about its own state — it greys the whole strip, and its own label carries
+ * the count that is out of play.
+ */
+function renderAttachStrip() {
+  const strip = $("attach-strip");
   if (!strip) return;
   const names = Object.keys(state.sources);
-  strip.hidden = !names.length;
   strip.textContent = "";
+  strip.style.opacity = state.useAttachments ? "" : "0.45";
   for (const name of names) {
     const on = !state.muted.has(name);
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = on ? "" : "off";
-    chip.textContent = `${name} · ${countFor(name).toLocaleString()}`;
-    chip.title = on
-      ? "In play — click to silence (the text stays loaded; retrieval stops seeing it)"
-      : "Silenced — click to restore";
-    chip.onclick = () => {
-      if (on) state.muted.add(name);
-      else state.muted.delete(name);
-      renderSources();
-    };
-    strip.append(chip);
+    const pill = document.createElement("span");
+    pill.className = on ? "pill" : "pill off";
+
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "name";
+    label.textContent = `${name} · ${countFor(name).toLocaleString()}`;
+    // The pill opens the sheet (user, 2026-08-17) — choosing what the chat
+    // reads is a considered act over the whole set, and a click that
+    // silently silenced one file was a state change wearing a label's
+    // clothes. The ✕ stays immediate; everything else lives in the sheet.
+    // a prior's pill wears its papers — the publisher line above the control hint
+    const prov = state.provenance[name];
+    label.title = `${prov ? `${prov.line}\n` : ""}${name}${on ? "" : " — silenced"} · click to see and choose what's read`;
+    label.onclick = () => openAttachSheet(name);
+
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "drop";
+    drop.textContent = "✕";
+    drop.title = `Remove ${name} — its addresses stop resolving`;
+    drop.onclick = () => removeSource(name);
+
+    pill.append(label, drop);
+    strip.append(pill);
   }
+
+  // The add button and the switch are one control, so the button carries the
+  // count and the switch simply is not there until there is something for it
+  // to govern — a lever over an empty set is furniture that teaches nothing.
+  const label = $("attach-label");
+  const sw = $("attach-switch");
+  if (label) label.textContent = names.length ? `${names.length} attached` : "Attach";
+  if (sw) sw.hidden = !names.length;
 }
 
-function renderSources() {
-  renderSourceStrip();
+/**
+ * The attached sheet: every attachment as a row — in play (the same mute
+ * state the pills and master switch share), name (click for a peek at the
+ * text itself), size, remove. `focus` pre-opens one row's peek so clicking a
+ * specific pill lands on that file, not just on the list.
+ */
+function openAttachSheet(focus = null) {
+  const list = $("attach-sheet-list");
+  list.textContent = "";
   const names = Object.keys(state.sources);
   const mediaNames = Object.keys(state.media);
-  const list = $("source-list");
-  if (!list) return;
-  list.textContent = "";
   if (!names.length && !mediaNames.length) {
-    list.innerHTML =
-      '<p class="empty">Nothing loaded yet — add files above, drop one anywhere on the page, or paste below.</p>';
-    return;
+    list.innerHTML = '<p class="empty">Nothing attached. Add files with ＋, drop one anywhere, or paste.</p>';
   }
   for (const name of names) {
     const on = !state.muted.has(name);
-    const row = document.createElement("label");
-    row.className = `source-row${on ? "" : " off"}`;
+    const row = document.createElement("div");
+    row.className = `att-row${on ? "" : " off"}`;
 
+    const line = document.createElement("div");
+    line.className = "att-line";
     const box = document.createElement("input");
     box.type = "checkbox";
     box.checked = on;
+    box.title = "read this file when answering";
     box.onchange = () => {
       if (box.checked) state.muted.delete(name);
       else state.muted.add(name);
+      row.classList.toggle("off", !box.checked);
       renderSources();
     };
-
     const n = document.createElement("span");
     n.className = "name";
     n.textContent = name;
-
-    const c = document.createElement("span");
-    c.className = "count";
-    c.textContent = on
-      ? `${countFor(name).toLocaleString()} passages · ${fmtBytes(state.sources[name].length)}`
-      : "off";
-
+    n.title = "peek at the text";
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(state.sources[name].length)}`;
     const x = document.createElement("button");
     x.type = "button";
     x.textContent = "remove";
-    x.onclick = (e) => {
-      e.preventDefault();
+    x.title = `Remove ${name} — its addresses stop resolving`;
+    x.onclick = () => {
       removeSource(name);
+      openAttachSheet();
     };
+    line.append(box, n, meta, x);
+    row.append(line);
 
-    row.append(box, n, c, x);
+    // The peek: the file's own opening bytes, enough to know which file this
+    // is — the full text lives one click away in Sources.
+    let peek = null;
+    n.onclick = () => {
+      if (peek) {
+        peek.remove();
+        peek = null;
+        return;
+      }
+      peek = document.createElement("pre");
+      peek.className = "att-peek";
+      const text = state.sources[name] ?? "";
+      peek.textContent = text.length > 900 ? `${text.slice(0, 900)}\n… ${(text.length - 900).toLocaleString()} more chars — open it in Sources for the whole file` : text;
+      row.append(peek);
+    };
+    if (name === focus) n.onclick();
     list.append(row);
   }
 
-  // Binary material rides below the text sources: no checkbox, because the
-  // mute is a retrieval concept and bytes are never retrieved — the row just
-  // says what it is and how to open it (the one door is /measure).
+  // Binary material rides below the text attachments in the same sheet: no
+  // checkbox, because the mute is a retrieval concept and bytes are never
+  // retrieved — the row just says what it is and how to open it (the one
+  // door is /measure). Merged here from the old materials panel (deleted —
+  // "the pills are the whole interface") so the /measure feature keeps its
+  // one place to be seen.
   for (const name of mediaNames) {
     const m = state.media[name];
     const row = document.createElement("div");
-    row.className = "source-row";
+    row.className = "att-row";
+    const line = document.createElement("div");
+    line.className = "att-line";
     const label = document.createElement("span");
-    label.className = "source-name";
+    label.className = "name";
     label.textContent = `${name} · ${fmtBytes(m.bytes.length)} ${m.kind === "wav" ? "audio" : "binary"} · /measure ${name}`;
-    row.append(label);
+    line.append(label);
+    row.append(line);
     list.append(row);
   }
+  $("attach-sheet").showModal();
+}
+
+/**
+ * One place attachments are drawn, because there is now one place they live.
+ * The second list — a panel of rows with its own checkbox and its own remove
+ * button — was a duplicate control surface for the same state, in a pane with
+ * no tab to reach it: two ways to silence the same file, only one of them
+ * findable. It is gone; the pills are the whole interface.
+ */
+function renderSources() {
+  renderAttachStrip();
 }
 
 async function addFiles(fileList) {
@@ -3646,8 +4140,13 @@ function looksBinary(text) {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
+// This module reached its own boot, so the page is served and its scripts
+// resolved — which is exactly the claim the not-served banner makes the
+// opposite of. Removing it here rather than on a timer means the notice is
+// governed by the one fact that matters: did this file run.
+$("not-served")?.remove();
+
 renderSources();
-fillModels();
 
 // One conversation to start; more on demand, each with its own fold.
 state.convos.push(newConvo());
@@ -3658,7 +4157,8 @@ switchConvo(0);
 restoreBuilds();
 renderBuilds();
 
-$("connect").onclick = connect;
+// No Connect button any more: choosing a model in the picker IS connecting,
+// and the boot path connects on its own when a model is reachable.
 $("model").onchange = () => {
   state.model = $("model").value;
   if (state.ready) $("status").textContent = `ready · ${state.model}`;
@@ -3673,18 +4173,200 @@ window.addEventListener("message", (e) => {
   if (d?.type !== "fold:material:add") return;
   if (typeof d.name !== "string" || typeof d.text !== "string") return;
   addSource(d.name, d.text);
+  // A prior handed over from Explore carries its papers; they are kept only
+  // when the source actually landed (a reserved name is refused above).
+  if (state.sources[d.name] && d.provenance && typeof d.provenance.line === "string") {
+    state.provenance[d.name] = {
+      line: d.provenance.line,
+      fields: typeof d.provenance.fields === "object" && d.provenance.fields ? { ...d.provenance.fields } : {},
+      path: String(d.provenance.path ?? ""),
+    };
+    renderSources(); // the pill was drawn before its papers landed
+  }
   $("status").textContent = `${d.name} · from Explore`;
 });
 
-// Both add buttons are the same door: the one beside the composer, and the one
-// in the Material panel — which is where you end up when you already have
-// material and want more of it.
+// ＋ Attach opens the three doors rather than going straight to the OS file
+// picker. Going straight there was the older, shorter path, and it hid the
+// fact that this machine already holds material — the library and every page
+// the web organ has saved — behind a browse-and-deposit trip through Explore
+// that nobody would guess was there.
 for (const b of document.querySelectorAll(".attach"))
-  b.onclick = () => $("file").click();
+  b.onclick = () => $("attach-menu").showModal();
+// The sheet's own add door closes the sheet first — two stacked modals would
+// leave the reader closing dialogs like nested parentheses.
+$("attach-sheet-add").onclick = () => {
+  $("attach-sheet").close();
+  $("attach-menu").showModal();
+};
 $("file").onchange = (e) => {
   addFiles(e.target.files);
   e.target.value = "";
 };
+$("attach-upload").onclick = () => {
+  $("attach-menu").close();
+  $("file").click();
+};
+$("attach-paste").onclick = () => {
+  $("attach-menu").close();
+  $("material").value = "";
+  $("paste").showModal();
+  $("material").focus();
+};
+$("attach-existing").onclick = () => {
+  $("attach-menu").close();
+  openPicker();
+};
+
+// ── already here ─────────────────────────────────────────────────────────────
+//
+// Two stores, one list: the Explore library (files uploaded or referenced on
+// this disk) and `web/history.jsonl` (every page the web organ fetched, kept
+// whole). Attaching from either is a copy of the text into this conversation,
+// exactly what a drop or a paste does — never a live link, because a source
+// whose bytes could change under a record's addresses would make those
+// addresses lie.
+//
+// The page still owns no network: both reads are same-origin-by-policy calls
+// to the local explore server, the same seam proof-seeking already uses.
+
+/** Rows the picker can offer, newest first within each store. */
+async function existingItems() {
+  const out = [];
+  try {
+    const lib = await (await fetch(`${EXPLORE_BASE}/api/library`)).json();
+    for (const e of lib.entries ?? []) {
+      if (e.dir) continue; // a folder is a place to browse, not a thing to attach
+      out.push({
+        name: e.name,
+        meta: e.size == null ? "file" : fmtBytes(e.size),
+        from: "your files",
+        url: `${EXPLORE_BASE}/api/raw?path=${encodeURIComponent(e.path)}`,
+      });
+    }
+  } catch (e) {
+    out.push({ gap: `your files: ${e.message}` });
+  }
+  try {
+    const hist = await (await fetch(`${EXPLORE_BASE}/api/web/history`)).json();
+    const seen = new Set();
+    for (const e of hist.entries ?? []) {
+      if (!e.textPath || seen.has(e.textPath)) continue;
+      seen.add(e.textPath);
+      out.push({
+        name: e.title || hostOf(e.finalUrl ?? e.url),
+        meta: `${hostOf(e.finalUrl ?? e.url)} · ${(e.textChars ?? 0).toLocaleString()} chars`,
+        from: "saved pages",
+        url: pageFaceUrl(EXPLORE_BASE, e.textPath),
+      });
+    }
+  } catch (e) {
+    out.push({ gap: `saved pages: ${e.message}` });
+  }
+  // The third store: priors the reader has switched ON in Sources → priors.
+  // Only what is in play is offered — the toggle ledger is the gate — and
+  // attaching goes through the doc endpoint so the papers ride along and
+  // the open lands on the record with the publisher's own source URL.
+  try {
+    const pri = await (await fetch(`${EXPLORE_BASE}/api/priors/enabled`)).json();
+    if (pri.gap) out.push({ gap: `priors: ${pri.gap.detail}` });
+    for (const e of pri.entries ?? []) {
+      out.push({
+        name: e.name,
+        meta: `${e.category} · ${fmtBytes(e.size)}`,
+        from: "priors in play",
+        prior: e.path,
+      });
+    }
+  } catch (e) {
+    out.push({ gap: `priors: ${e.message}` });
+  }
+  return out;
+}
+
+async function openPicker() {
+  const list = $("picker-list");
+  const filter = $("picker-filter");
+  filter.value = "";
+  list.textContent = "";
+  list.innerHTML = '<p class="empty">looking…</p>';
+  $("picker").showModal();
+
+  const items = await existingItems();
+  const draw = () => {
+    const q = filter.value.trim().toLowerCase();
+    const shown = items.filter(
+      (i) => i.gap || !q || `${i.name} ${i.meta} ${i.from}`.toLowerCase().includes(q),
+    );
+    list.textContent = "";
+    if (!shown.length) {
+      list.innerHTML = '<p class="empty">Nothing here matches. Upload a file, read a page in Sources → web, or switch priors on in Sources → priors.</p>';
+      return;
+    }
+    for (const item of shown) {
+      if (item.gap) {
+        // A store that did not answer is named, never silently dropped — an
+        // empty list and an unreachable server must not look alike.
+        const p = document.createElement("p");
+        p.className = "empty";
+        p.textContent = `couldn't read ${item.gap}`;
+        list.append(p);
+        continue;
+      }
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "pick-row";
+      const n = document.createElement("span");
+      n.className = "name";
+      n.textContent = item.name;
+      const m = document.createElement("span");
+      m.className = "meta";
+      m.textContent = `${item.from} · ${item.meta}`;
+      row.append(n, m);
+      row.onclick = async () => {
+        row.disabled = true;
+        try {
+          let text;
+          let name = item.name;
+          let prov = null;
+          if (item.prior) {
+            // one crossing: text + papers together, the open recorded with
+            // the publisher's own source URL
+            const doc = await (await fetch(`${EXPLORE_BASE}/api/priors/doc?path=${encodeURIComponent(item.prior)}&text=1`)).json();
+            if (doc.error) throw new Error(doc.error);
+            if (doc.gap) throw new Error(doc.gap.detail);
+            text = doc.text;
+            if (doc.provenance) prov = { line: doc.provenanceLine, fields: doc.provenance, path: doc.path };
+            // two corpora can hold a file by the same name — the genre
+            // disambiguates rather than silently replacing the other one
+            if (state.sources[name] && state.provenance[name]?.path !== doc.path) name = `${doc.path.split("/")[0]}-${name}`;
+          } else {
+            const res = await fetch(item.url);
+            if (!res.ok) throw new Error(`answered ${res.status}`);
+            text = await res.text();
+          }
+          if (looksBinary(text)) {
+            $("status").textContent = `${item.name} isn't text — skipped`;
+            return;
+          }
+          addSource(name, text);
+          if (prov && state.sources[name]) {
+            state.provenance[name] = prov;
+            renderSources(); // the pill was drawn before its papers landed
+          }
+          $("status").textContent = `${name} · attached from ${item.from}`;
+          $("picker").close();
+        } catch (e) {
+          $("status").textContent = `couldn't attach ${item.name}: ${e.message}`;
+          row.disabled = false;
+        }
+      };
+      list.append(row);
+    }
+  };
+  filter.oninput = draw;
+  draw();
+}
 
 // Drop anywhere. The counter tracks nested enter/leave pairs so dragging over a
 // child element doesn't flicker the overlay off.
@@ -3707,25 +4389,76 @@ document.addEventListener("drop", (e) => {
   if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
 });
 
-// Paste is its own door: added on paste, no button to find. Typing gets the
-// same treatment on blur, so someone who types instead of pasting isn't left
-// looking for the button that isn't there.
+// Paste is its own door. It used to add on the paste event itself, in a
+// textarea in a pane with no tab — so the one confirmation you got was the
+// box emptying, in a place you could not navigate to. In a dialog it needs
+// its own commit, and Attach is it.
 function addPasted() {
   const text = $("material").value;
   if (!text.trim()) return;
   const n = Object.keys(state.sources).filter((k) => k.startsWith("pasted")).length;
   addSource(n ? `pasted-${n + 1}.txt` : "pasted.txt", text);
   $("material").value = "";
-  $("status").textContent = "material added";
+  $("status").textContent = "pasted text attached";
 }
-$("material").addEventListener("paste", (e) => {
-  const text = e.clipboardData?.getData("text");
-  if (!text?.trim()) return;
-  e.preventDefault();
-  $("material").value = text;
-  addPasted();
+$("paste").addEventListener("close", () => {
+  if ($("paste").returnValue === "add") addPasted();
 });
-$("material").addEventListener("change", addPasted);
+
+// ── what the next question is asked with ─────────────────────────────────────
+//
+// Two switches, both default ON, both persisted, both retrieval-only: the
+// first decides whether attachments are read, the second whether a claim they
+// do not back is looked up online. They sit on the composer because that is
+// where the decision is actually made — per question, not per session — and
+// because a standing authorization the user cannot see is not one.
+function bindSwitch(id, key, read, write) {
+  const box = $(id);
+  if (!box) return;
+  box.checked = read();
+  box.onchange = () => {
+    write(box.checked);
+    localStorage.setItem(key, box.checked ? "on" : "off");
+    renderSources();
+  };
+}
+bindSwitch("use-attachments", "fold-use-attachments", () => state.useAttachments, (v) => {
+  state.useAttachments = v;
+  $("status").textContent = v ? "attachments on" : "attachments off";
+});
+bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
+  state.webProof = v;
+  $("status").textContent = v ? "web lookups on" : "web lookups off";
+});
+
+// The grounding marks, on or off, for every turn at once — a reading
+// preference, not a measurement, so it lives on the body class and touches no
+// state a turn is built from. Persisted, because someone who turned the
+// apparatus off meant it past this reload.
+// Checking, on or off. This is a MODE, not a paint setting: off, the relation
+// tier is never asked for, nothing is drawn into the prose, no tally is
+// counted, no evidence or grounding panel is built, and no claim is taken to
+// the web. What is left is a model answering a question — a plain chatbot.
+//
+// Two things stay on in either mode, because they are the instrument and not
+// the apparatus: the fold (the running summary IS how the conversation
+// works), and the record (FOLD-CONSTITUTION I.5 — append-only, and not the
+// UI's to switch off). Both are disclosed under the turn either way.
+{
+  const btn = $("marks-toggle");
+  const apply = (on) => {
+    state.grounded = on;
+    document.body.classList.toggle("marks-off", !on);
+    btn.setAttribute("aria-pressed", String(on));
+  };
+  apply(localStorage.getItem("fold-marks") !== "off");
+  btn.onclick = () => {
+    const on = btn.getAttribute("aria-pressed") !== "true";
+    apply(on);
+    localStorage.setItem("fold-marks", on ? "on" : "off");
+    $("status").textContent = on ? "checking on" : "checking off — plain answers";
+  };
+}
 
 // ── views ────────────────────────────────────────────────────────────────────
 //
@@ -3794,7 +4527,20 @@ $("folds-view").onclick = () => {
 {
   const THEME_KEY = "the-fold.theme";
   const themeBtn = $("theme-toggle");
-  const themeLabel = (t) => (t === "light" ? "○ light" : t === "dark" ? "● dark" : "◐ system");
+  // Icon, not a word: the theme control sits in the same group as the marks
+  // toggle, and a growing/shrinking word beside a fixed icon made that group
+  // change width every time it was pressed. The state is the title.
+  const THEME_ICON = {
+    system: '<path d="M128,24a104,104,0,1,0,104,104A104.11,104.11,0,0,0,128,24Zm0,192V40a88,88,0,0,1,0,176Z"/>',
+    light: '<path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/>',
+    dark: '<path d="M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z"/>',
+  };
+  const themeLabel = (t) => {
+    const key = t ?? "system";
+    themeBtn.innerHTML = `<svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${THEME_ICON[key]}</svg>`;
+    themeBtn.title = `Appearance: ${key}. Click to cycle system → light → dark.`;
+    return "";
+  };
   const storedTheme = () => {
     try {
       const t = localStorage.getItem(THEME_KEY);
@@ -3806,7 +4552,7 @@ $("folds-view").onclick = () => {
   const applyTheme = (t) => {
     if (t) document.documentElement.dataset.theme = t;
     else delete document.documentElement.dataset.theme;
-    themeBtn.textContent = themeLabel(t);
+    themeLabel(t);
   };
   themeBtn.onclick = () => {
     const next = { system: "light", light: "dark", dark: "system" }[storedTheme() ?? "system"];
@@ -3844,56 +4590,143 @@ editorRunShortcut(runFromEditor);
 
 // ── the terminal's controls live in term.js (P18) ───────────────────────────
 
-// ── the settings chip ────────────────────────────────────────────────────────
+// ── the model picker ─────────────────────────────────────────────────────────
 //
-// Model and Connect are a first-run affordance that then sits at the
-// top of a phone screen forever. Once connected they fold into one chip and
-// give the space back; tapping it brings them out again.
+// What is answering belongs beside what is being asked. It used to be a chip
+// in the far corner of the header opening a dialog with a <select> and a
+// Connect button — two decisions, in two places, for the one setting a person
+// actually reconsiders per question. Picking a model IS connecting to it, so
+// the menu has no second step: one press, and the next turn runs there.
 
-const settingsDialog = $("settings");
+const settingsDialog = $("model-menu");
 
 function openSettings(open) {
-  if (open) settingsDialog.showModal();
-  else settingsDialog.close();
+  if (!open) return settingsDialog.close();
+  renderModelMenu();
+  settingsDialog.showModal();
+}
+
+/** The models this machine has, current one marked. Built from the same
+ * `#model` select the connect path reads, so there is one source of truth
+ * about what is on offer and no way for the menu to name a model routing
+ * would then fail on. */
+function renderModelMenu() {
+  const list = $("model-list");
+  const sel = $("model");
+  list.textContent = "";
+  if (!sel.options.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.style.padding = "14px 16px";
+    p.textContent =
+      $("status").textContent === "ollama has no models pulled"
+        ? "Ollama is running but has no models pulled. `ollama pull qwen2.5:14b-instruct-q4_K_M` gives this one something to answer with."
+        : "Ollama isn’t answering on :11434. Start it, then reopen this.";
+    list.append(p);
+    return;
+  }
+  for (const opt of sel.options) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `model-row${opt.value === state.model ? " on" : ""}`;
+    const n = document.createElement("span");
+    n.className = "nm";
+    n.textContent = opt.textContent;
+    row.append(n);
+    if (opt.value === state.model) {
+      const tick = document.createElement("span");
+      tick.className = "tick";
+      tick.textContent = "✓";
+      row.append(tick);
+    }
+    row.onclick = () => {
+      sel.value = opt.value;
+      settingsDialog.close();
+      // One press does the whole act: choose, connect, and re-read the
+      // window. `connect` already closes this dialog and lands on the chat.
+      connect();
+    };
+    list.append(row);
+  }
+}
+
+/** The composer's model button: the name, or the reason there isn't one. */
+function syncModelPick() {
+  const name = $("model-name");
+  if (!name) return;
+  name.textContent = state.ready ? state.model : "no model";
+  $("model-pick").title = state.ready
+    ? `Answering with ${state.model} — press to change`
+    : $("status").textContent || "No model connected — press to choose";
 }
 
 // A dialog closes the way it opened — from anywhere around it. Click the
-// backdrop (or press Escape, which <dialog> gives natively) and it goes.
-for (const id of ["reopen", "settings", "fold-view"]) {
+// backdrop (or press Escape, which <dialog> gives natively) and it goes. The
+// ✕ in each sheet's head is the third way, and the only one that is visible:
+// Escape is not discoverable and a backdrop click is a guess.
+for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
   });
 }
+for (const [btn, dlg] of [
+  ["model-menu-x", "model-menu"],
+  ["attach-menu-x", "attach-menu"],
+  ["picker-x", "picker"],
+  ["paste-x", "paste"],
+  ["reopen-x", "reopen"],
+  ["attach-sheet-x", "attach-sheet"],
+])
+  $(btn).onclick = () => $(dlg).close();
 
-$("settings-toggle").onclick = () => openSettings(true);
-$("settings-close").onclick = () => openSettings(false);
+$("model-pick").onclick = () => openSettings(true);
 
-// Proof-seeking consent: the checkbox IS the standing authorization (P13's
-// amendment), persisted so the choice survives a reload, changeable any
-// time. The state it writes is read per turn — never mid-crossing.
-{
-  const box = $("web-proof");
-  if (box) {
-    box.checked = state.webProof;
-    box.onchange = () => {
-      state.webProof = box.checked;
-      localStorage.setItem("fold-web-proof", box.checked ? "on" : "off");
-      $("status").textContent = box.checked ? "proof-seeking on" : "proof-seeking off";
-    };
-  }
-}
-// Nothing is connected yet, so the first thing to do is the only thing on
-// offer — open it rather than making the chip a scavenger hunt.
-if (!state.ready) openSettings(true);
+// Proof-seeking consent is still the switch's own state (P13's amendment) —
+// it just lives on the composer now, next to the question it governs, rather
+// than in this dialog. Wired with the other switch, above. The state it
+// writes is read per turn, never mid-crossing.
+// Nothing is connected yet. When a model is actually there, connecting is not
+// a decision anyone is making — it is the only outcome of the only dialog on
+// offer — so the page does it and lands on the conversation. The dialog opens
+// only when there is a real choice to make: nothing reachable, or nothing
+// pulled. The picker stays in the chip for anyone who wants a different rung.
+fillModels().then(() => {
+  if (state.ready) return;
+  if (state.offeredModels.length) connect();
+  else openSettings(true);
+});
 
 // The chip mirrors whatever the status line says, so every existing status
 // update reaches it without threading a setter through the turn loop.
 const statusEl = $("status");
+/**
+ * The chip says what is answering, and nothing else.
+ *
+ * It used to mirror the whole status line, so a model identity carried
+ * "marks shown" or "attachments on" — messages about the reader's own
+ * settings, which have nothing to do with what is answering — and the header
+ * re-measured on every one of them. What a turn is DOING is worth showing;
+ * where it shows is the status line by the composer, which is allowed to
+ * change without moving anything else.
+ */
+const TRANSIENT = /^(marks |attachments |web lookups |pasted text|.* · (attached|from Explore))/;
 const syncChip = () => {
-  $("settings-label").textContent = state.ready
-    ? `${state.model} · ${statusEl.textContent.replace(`ready · ${state.model}`, "ready")}`
-    : statusEl.textContent;
+  const s = statusEl.textContent;
+  syncModelPick();
+  // Working is a fact about the model, so it shows on the model's own control.
+  const working = state.ready && s && !TRANSIENT.test(s) && !s.startsWith(`ready · ${state.model}`);
+  $("model-pick").dataset.working = working ? "yes" : "no";
+  const line = $("status-line");
+  if (line) {
+    line.textContent = s && !s.startsWith("ready · ") ? s : "";
+    line.hidden = !line.textContent;
+    // A settings acknowledgement is worth saying once, not keeping. Work in
+    // flight stays until the work does — clearing that would hide the fact
+    // that something is still running.
+    clearTimeout(line._fade);
+    if (TRANSIENT.test(s)) line._fade = setTimeout(() => { line.textContent = ""; line.hidden = true; }, 2600);
+  }
 };
 new MutationObserver(syncChip).observe(statusEl, {
   childList: true,

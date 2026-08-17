@@ -8,8 +8,67 @@
     <link rel="stylesheet" href="explore/explore.css" />
   </head>
   <body>
+    <!-- Opened as a file:// document, this page's modules never execute (the
+         browser blocks module loading from the filesystem) and its server
+         mounts — /engine, /nul, /api — do not exist. What the reader got was
+         unstyled raw HTML with dead links, which reads as "the app is broken"
+         rather than "the app is not running".
+
+         This banner is written with INLINE styles on purpose: the stylesheet
+         is one of the things that may not have loaded, so the notice cannot
+         depend on it. It is removed by the page's own boot, so it is present
+         exactly when the page's code did not run — which is the condition
+         worth naming, whatever caused it. -->
+    <div id="not-served" style="margin:0;padding:24px;font:15px/1.6 system-ui,sans-serif;color:#111113;background:#fff8e6;border-bottom:2px solid #b45309">
+      <strong style="display:block;font-size:17px;margin-bottom:6px">This page needs its local server.</strong>
+      <p id="not-served-why" style="margin:0 0 12px;max-width:70ch">
+        Nothing here is broken — it just isn’t running. The reader’s engine, the
+        file API and the record all live in a local server, and none of them exist
+        for a page opened straight off the disk.
+      </p>
+      <p style="margin:0 0 6px;max-width:70ch">From <code>the-fold/</code>, run:</p>
+      <pre style="margin:0 0 12px;padding:10px 14px;background:#fff;border:1px solid #e5d5b0;border-radius:8px;overflow-x:auto"><code>node explore-server.mjs   # Sources, on :8812
+node serve.mjs            # Chat, on :8811</code></pre>
+      <p style="margin:0">
+        Then open <a href="http://localhost:8812/explore.html">http://localhost:8812/explore.html</a>
+        — or <a href="http://localhost:8811/">http://localhost:8811/</a> for the conversation.
+      </p>
+    </div>
+    <script>
+      // A classic script, not a module: this one still runs over file://, so
+      // it can tell the two failures apart. Served-but-dead is a different
+      // problem from never-served, and naming the wrong one sends the reader
+      // to the wrong fix.
+      //
+      // It also decides WHEN the notice appears. Modules are deferred, so on
+      // a healthy page the browser can paint this banner before the boot that
+      // removes it — a yellow flash on every single load. Over http it starts
+      // hidden and only returns if boot has not happened by the time any
+      // honest load would have; over file:// there is no boot coming, so it
+      // shows at once and no timer is involved.
+      (function () {
+        var box = document.getElementById("not-served");
+        if (!location.protocol.startsWith("http")) return;
+        box.style.display = "none";
+        document.getElementById("not-served-why").textContent =
+          "The page was served, but its own scripts did not finish loading — so the reader engine, the file API and the record are all out of reach. Check the server's console for the module that failed.";
+        setTimeout(function () {
+          if (document.getElementById("not-served")) box.style.display = "";
+        }, 4000);
+      })();
+    </script>
     <header>
-      <h1>The Fold</h1>
+      <a class="home" href="index.html" title="back to the conversation"><h1>The Fold</h1></a>
+      <!-- The way back, in the header, at every width. The bottom bar is the
+           narrow layout's switcher and disappears on a wide screen — which
+           left this page with no route home at all when it is opened on its
+           own rather than inside the chat's pane. A page you can reach and
+           not leave is a trap; this is the door, and it is never hidden
+           except in embed mode, where the host page carries it. -->
+      <nav class="page-nav" aria-label="pages">
+        <a href="index.html">Chat</a>
+        <a href="explore.html" class="active" aria-current="page">Sources</a>
+      </nav>
       <button id="rail-toggle" title="hide or show the sidebar" aria-expanded="true">☰</button>
       <div id="source-line" class="source-line">
         <span class="muted">no source in focus — pick one from the rail</span>

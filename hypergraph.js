@@ -274,8 +274,7 @@ export function makeRelationReader(organs) {
         return {
           ...claim,
           verdict: "beyond-reach",
-          reason:
-            "the subject does not resolve to a referent this material establishes — pronoun binding and descriptor synonymy are model-tier gaps, disclosed, never judged",
+          reason: `“${t.subject}” doesn't resolve to anyone or anything this material establishes — a limit of this check, not a mark against the answer`,
         };
       }
       const sameSubjVerb = edges.filter(
@@ -311,7 +310,7 @@ export function makeRelationReader(organs) {
         return {
           ...claim,
           verdict: "beyond-reach",
-          reason: "the object carries nothing this tier can compare — no referent, no content token",
+          reason: `“${t.object}” carries nothing comparable — no name and no content word — a limit of this check, not a mark against the answer`,
         };
       }
       // No edge binds this claim. Show what the material DOES bind around
@@ -388,7 +387,7 @@ export function makeRelationReader(organs) {
                 object: t.object,
                 polarity: t.polarity,
                 verdict: "unheard",
-                reason: "this verb is outside the relation vocabulary the material itself measures — beyond this tier's reach, disclosed",
+                reason: `the material never uses the verb “${t.verb}”, so there is nothing to compare this against — a limit of this check, not a mark against the answer`,
               });
             }
           }
@@ -414,17 +413,25 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * unbound edges are claims of fact the material does not make. beyond-reach
  * and unheard stay OUT — they are limits of the instrument, and putting them
  * on the record would punish the answer for the reader's reach. */
-export function relationFindings(report) {
+export function relationFindings(report, { verdicts = ["contradicted", "unbound"] } = {}) {
+  // Callers choose which verdicts count as findings, because the two are
+  // different kinds of fact (amended 2026-08-17, propose-then-check): a
+  // CONTRADICTED edge is the answer disagreeing with the material's own
+  // words — a lie about the given, worth a correction pass; an UNBOUND edge
+  // is the model saying something the material is merely silent on — its own
+  // knowledge, which ships marked rather than being rewritten away. The
+  // default keeps both, so every existing caller reads as before.
+  const want = new Set(verdicts);
   const lines = [];
   for (const c of report?.claims ?? []) {
     const edge = `${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}`;
-    if (c.verdict === "contradicted") {
-      lines.push(`edge contradicted: ${edge} — the material binds the opposite polarity [${(c.refs ?? []).join("; ")}]`);
-    } else if (c.verdict === "unbound") {
+    if (c.verdict === "contradicted" && want.has("contradicted")) {
+      lines.push(`the material says otherwise: ${edge} [${(c.refs ?? []).join("; ")}]`);
+    } else if (c.verdict === "unbound" && want.has("unbound")) {
       const near = c.nearest?.[0];
       lines.push(
-        `edge never bound: ${edge}` +
-          (near ? ` (the material binds ${near.subject} —${near.verb}→ ${near.object})` : ""),
+        `the material never says: ${edge}` +
+          (near ? ` (closest it does say: ${near.subject} —${near.verb}→ ${near.object})` : ""),
       );
     }
   }

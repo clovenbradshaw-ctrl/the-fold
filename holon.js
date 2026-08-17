@@ -78,6 +78,18 @@ function clausePinsAnchor(clause) {
 export function needsDecomposition(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  // A question is one ask, however many facets it names. Measured live
+  // (2026-08-17): "What river is Nashville on, what US state is it in, and
+  // who was its mayor in 2019?" tripped the anchor gate, each part then
+  // re-answered the WHOLE question, and the assembly shipped three headed
+  // sections that contradicted each other on the mayor (Briley vs Cooper) —
+  // less trustworthy than one draft would have been, at three times the
+  // cost. The flat path is the right shape there: the model proposes one
+  // answer, and the checking ladder — which verifies every name and figure
+  // separately anyway — is the fact-check. Decomposition is for WORK
+  // (imperative, multi-sentence, genuinely dependent parts), so a single
+  // interrogative sentence never plans.
+  if (q.endsWith("?") && !/[.!?]\s+\S/.test(q)) return false;
   const clauses = q
     .split(CLAUSE_SPLIT_RE)
     .map((c) => c.trim())
@@ -412,6 +424,41 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
 }
 
 /**
+ * The mechanical answer — the fallback when the model's drafts keep failing
+ * (echo or photocopy) and the correction budget is spent. The model has had
+ * its chances; the instrument assembles the answer itself from the
+ * material's own sentences, EACH carrying its address — measured need
+ * 2026-08-17: a photocopy shipped with one address on four sentences, and
+ * the reader asked "how did it know all this?" — provenance that isn't on
+ * every sentence reads as knowledge from nowhere. Selection is the argmax
+ * of overlap with the question's own tokens, one sentence per passage
+ * (each retrieved perspective gets one voice; no threshold anywhere, P4).
+ * The closing line states a process fact that is true by construction —
+ * never a judgement about what the material "doesn't say".
+ */
+export function mechanicalAnswer(question, passages) {
+  const qTokens = new Set(tokenize(String(question ?? "")));
+  if (!qTokens.size) return "";
+  const lines = [];
+  for (const p of passages ?? []) {
+    const best = splitSentences(String(p.text ?? ""))
+      .map((s) => {
+        const t = String(s).trim();
+        return { t, n: tokenize(t).filter((w) => qTokens.has(w)).length };
+      })
+      .filter((x) => x.t && x.n > 0)
+      .sort((a, b) => b.n - a.n)[0];
+    if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
+  }
+  if (!lines.length) return "";
+  return [
+    "The model's drafts did not answer, so this is assembled mechanically — the material's own sentences that bear on the question, each with its address:",
+    ...lines,
+    "Nothing further was retrieved for the question's own words.",
+  ].join("\n\n");
+}
+
+/**
  * Pull the first balanced JSON array out of a reply. Constrained decoding
  * makes this trivial for Ollama; a prose-mode model may wrap the array in
  * talk, so the extraction walks brackets rather than trusting a regex to
@@ -575,7 +622,20 @@ export async function runPart({
         ...(relationReport?.examined && !relationReport.vocabulary?.gap ? ["relations"] : []),
         ...(quotes?.quotes.some((q) => q.status === "verbatim" || q.status === "drifted") ? ["quoted"] : []),
       ],
-      unsupported: [...unsupported, ...unsupportedClaims(grounding), ...relationFindings(relationReport), ...quoteFindings(quotes)],
+      // Two lists now, because they are two kinds of fact (user-directed
+      // 2026-08-17, propose-then-check). LIES about the given drive the
+      // bounded correction: an address that was never offered, a fabricated
+      // quotation, an edge the material states the opposite of. UNBACKED
+      // knowledge — a name or figure the material is merely silent on, an
+      // edge it never binds — ships and is MARKED: the wavy stripe, the ∅
+      // badge, the proof-seeking door are that list's whole treatment.
+      // Measured live before this split: "who was its mayor in 2019?" put
+      // the true answer in the draft, the correction pass rewrote it away
+      // for being unsupported, the rewrite collapsed into reproduction, and
+      // the mechanical fallback shipped no mayor at all — the apparatus
+      // deleting the one thing the reader asked for.
+      unsupported: [...unsupported, ...relationFindings(relationReport, { verdicts: ["contradicted"] }), ...quoteFindings(quotes)],
+      unbacked: [...unsupportedClaims(grounding), ...relationFindings(relationReport, { verdicts: ["unbound"] })],
       attributions,
       grounding,
       relations: relationReport,
@@ -639,6 +699,10 @@ export async function runPart({
   const ACT_WORDS = new Set([
     "question", "answer", "ask", "asked", "asks", "asking", "reply", "replied",
     "responding", "respond", "referring", "regarding", "concerning", "about",
+    // Act-naming words measured live 2026-08-17 (three echoes in a row on
+    // the Borodino material): "The question at hand is…", "…is addressed."
+    // Each names the act of asking; none performs an answer.
+    "addressed", "address", "hand", "matter",
   ]);
   // A code fence is STRUCTURE, never framing. Measured live: a Python
   // answer opened with ```python, whose one surviving token ("python") was
@@ -647,10 +711,32 @@ export async function runPart({
   // with an orphan ``` at the end, and no build was ever made from it.
   // Structure is not a claim about the prompt and cannot echo it.
   const FENCE_LINE = /^[ \t]*(?:```|~~~)/;
+  // The embedded-interrogative echo, measured live 2026-08-17: "The question
+  // of who commanded the Russian army at the Battle of Borodino and who led
+  // the French is addressed." Every content word the plain test needs sits
+  // inside a wh-clause — and the model resolved the question's "this battle"
+  // to the material's own "Borodino", so the word-for-word test cannot see
+  // the restatement. Blanking each wh-clause (wh-word up to the matrix verb,
+  // a conjunction, or punctuation) strips what the sentence merely re-asks;
+  // if what SURVIVES is still nothing but the question's words and
+  // act-words, the sentence performed no answer. A real answer keeps its
+  // content outside the wh-clause ("Napoleon, who led the French, entered
+  // Moscow" survives as "Napoleon entered Moscow"), and a pseudo-cleft's
+  // content sits after the copula boundary, so both stay content. Residue
+  // accepted and disclosed: an echo whose embedded clause re-inflects the
+  // question's verb ("who was in command" for "who commanded") slips this
+  // test — the guard catches the measured shapes, it is not a parser.
+  const WH_CLAUSE = /\b(?:who|whom|whose|what|which|when|where|why|how)\b[^,;:—–]*?(?=\b(?:is|are|was|were|and|but|or)\b|[,;:—–]|$)/gi;
   const isFraming = (sentence) => {
     if (FENCE_LINE.test(sentence)) return false;
+    // A sentence that ends by asking is asking, not answering — two of the
+    // three live echoes shipped with the question mark still on them.
+    if (/\?\s*["'”’)\]]*\s*$/.test(sentence)) return true;
     const toks = tokenize(sentence);
-    return toks.length > 0 && toks.every((w) => questionWords.has(w) || ACT_WORDS.has(w));
+    if (!toks.length) return false;
+    if (toks.every((w) => questionWords.has(w) || ACT_WORDS.has(w))) return true;
+    const rest = tokenize(sentence.replace(WH_CLAUSE, " "));
+    return rest.length > 0 && rest.every((w) => questionWords.has(w) || ACT_WORDS.has(w));
   };
   /** Sentences of `t` with addresses stripped, framing (question-echo) sentences removed. */
   const contentSentencesOf = (t) =>
@@ -847,6 +933,26 @@ export async function runPart({
     verdict = judge(draft);
   }
 
+  // The mechanical fallback (user-directed 2026-08-17): the correction
+  // budget is spent and the draft still restates or photocopies — the
+  // model has had its chances, and shipping its failure would put a
+  // non-answer on the page with the record quietly disagreeing. The
+  // instrument assembles the answer itself instead: the material's own
+  // sentences, verbatim, each with its address. The failed verdict stays
+  // on the record (it says why this path ran); the assembled text is
+  // re-inspected below so the record describes what actually ships, and
+  // judge() is NOT re-run on it — quoting the material is this text's
+  // declared method, not a failure of it.
+  let mechanical = false;
+  if ((verdict.echoed || verdict.reproduced) && passages.length) {
+    const assembled = mechanicalAnswer(question, passages);
+    if (assembled) {
+      draft = assembled;
+      check = inspect(draft);
+      mechanical = true;
+    }
+  }
+
   // The quote repair, once, on what will actually ship: every located
   // quotation is rewritten to the source's own bytes (drift dies here, not
   // on the record) and every quotation located in the offer gains its
@@ -883,16 +989,45 @@ export async function runPart({
   // A sentence that carried an address cannot be located in raw (the
   // address was stripped before splitting); then nothing is cut, because
   // shipping the whole draft is always safer than mangling it.
+  // The suffix gets the same cut (2026-08-17): a draft that answers what it
+  // can and then ECHOES the unanswered facet back — "…it is in Tennessee.
+  // Who was the mayor of Nashville in 2019?" — ships a question as its last
+  // sentence, which is never an answer, and measured live it read exactly as
+  // dumb as it sounds. Both cuts stay slices of raw (never a rejoin), both
+  // bail to the whole draft when a sentence cannot be located, and the gap
+  // the trailing echo gestured at is already `open`'s job to report.
+  let lastContent = -1;
+  for (let i = sentences.length - 1; i >= 0; i--) {
+    if (!isFraming(sentences[i])) {
+      lastContent = i;
+      break;
+    }
+  }
   const text =
     firstContent < 0
       ? ""
-      : firstContent === 0
-        ? raw
-        : (() => {
-            const at = raw.indexOf(sentences[firstContent]);
-            return at >= 0 ? raw.slice(at).trim() : raw;
-          })();
-  if (verdict.echoed || verdict.reproduced) {
+      : (() => {
+          const from = firstContent === 0 ? 0 : raw.indexOf(sentences[firstContent]);
+          if (from < 0) return raw;
+          let to = raw.length;
+          // Material path only: in plain chat a trailing question is
+          // conversation ("How can I help you today?"), not a dodge —
+          // measured immediately by this file's own chat test.
+          if (passages.length && lastContent < sentences.length - 1) {
+            const lastAt = raw.lastIndexOf(sentences[lastContent]);
+            if (lastAt >= 0) {
+              // Keep the sentence and whatever closing punctuation follows it.
+              const end = lastAt + sentences[lastContent].length;
+              const tail = raw.slice(end).match(/^[.!?…)\]"'”’]*/);
+              to = end + (tail ? tail[0].length : 0);
+            }
+          }
+          return raw.slice(from, to).trim();
+        })();
+  // A failed model answer earns nothing — but the mechanical assembly is
+  // not the model's answer: its sentences ARE the material's bytes and its
+  // addresses attach with certainty, so its warrant stands.
+  if ((verdict.echoed || verdict.reproduced) && !mechanical) {
     check = { ...check, refs: [], used: [], attributed: [], channels: [] };
   }
   const open = [
@@ -900,6 +1035,9 @@ export async function runPart({
     ...(verdict.echoed ? [`answer restates the prompt; nothing established: ${part.label}`] : []),
     ...(verdict.reproduced
       ? [`answer reproduces the material verbatim; it does not answer the prompt: ${part.label}`]
+      : []),
+    ...(mechanical
+      ? [`shipped text assembled mechanically from the material's own sentences, each with its address: ${part.label}`]
       : []),
     ...(scaffoldRemoved.length
       ? [`model narrated its own answering process; ${scaffoldRemoved.length} span(s) hidden: ${part.label}`]
@@ -1040,6 +1178,7 @@ export async function runHolonicTask({
       refs: result.refs,
       channels: result.channels,
       unsupported: result.unsupported,
+      unbacked: result.unbacked,
       open: result.open,
       corrections: result.corrections,
     };
@@ -1068,6 +1207,9 @@ export async function runHolonicTask({
 
   const refs = [...new Set(sections.flatMap((s) => s.refs))];
   const unsupported = [...new Set(sections.flatMap((s) => s.unsupported))];
+  // Unbacked knowledge, unioned the same way: not a correction driver, but
+  // the record still names it — disclosure is that list's whole treatment.
+  const unbacked = [...new Set(sections.flatMap((s) => s.unbacked ?? []))];
   const open = [
     ...(plan.degraded ? ["plan did not parse; task ran as a single part"] : []),
     ...sections.flatMap((s) => s.open),
@@ -1077,5 +1219,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, open, channels };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels };
 }

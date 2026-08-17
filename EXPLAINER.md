@@ -124,9 +124,9 @@ accountable to rules that already exist elsewhere.
 |---|---|---|
 | the fold — two kinds of memory | `eochat/server/conversation-summary.js` → `eoWebLLM` → `eochatX/eo-discourse.ts` | ported; algorithm unchanged |
 | grounding — a claim backed by the bytes cited | `eochat/server/citation-check.js` → `eochatX/eo-citation-check.ts` | ported; the UI-bound two-thirds left behind |
-| boundaries found by form, never vocabulary | `eoreader6/packages/engine/perceiver/text/segments.js` | **used live**, mounted at `/engine` — not copied |
+| boundaries found by form, never vocabulary | `eoreader6.1/packages/engine/perceiver/text/segments.js` | **used live**, mounted at `/engine` — not copied |
 | compliance facts are computed | `eoWebLLM/LAWS.md` L5 | why the mechanical checks exist at all |
-| activation decays, identity doesn't, recall is retrieval | `eoreader6/READING-POLICY.md` P1 | the recency window is never enlarged to fix recall |
+| activation decays, identity doesn't, recall is retrieval | `eoreader6.1/READING-POLICY.md` P1 | the recency window is never enlarged to fix recall |
 | numbers declared, gaps are results | P4 | `examined` ≠ `clean`; no relevance floor |
 | strip the container; verify offsets | P5.2 / P5.3 | 47 licence passages dropped; every address byte-verified |
 | a null is the hardest available comparison | `eoWebLLM/LAWS.md` L8 | 35% → 0% false warrants |
@@ -134,7 +134,7 @@ accountable to rules that already exist elsewhere.
 And two things the canon **forbids**, which this repo therefore does not do:
 the cube is not a content classifier (95.7% of cell assignments survived
 shuffling the words inside 2,527 paragraphs), and only two of the nine
-terrains have lenses anywhere, including in eoreader6. A reading with no lens
+terrains have lenses anywhere, including in eoreader6.1. A reading with no lens
 on a terrain omits it, visibly.
 
 ---
@@ -150,7 +150,7 @@ on a terrain omits it, visibly.
   trusted. Per LAWS L3 the gate is the shape of the request, never whether a
   corpus happens to be loaded. Not yet ported.
 - **"What is most interesting."** The licensed answer is
-  `eoreader6/emergence/surprise.js` — novelty and Bayesian surprise, kept
+  `eoreader6.1/emergence/surprise.js` — novelty and Bayesian surprise, kept
   apart, provably identical only at full commitment. Identified, not wired.
   Anything else would be asking the model for an opinion and calling it a
   reading.

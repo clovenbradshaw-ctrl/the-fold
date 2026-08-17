@@ -158,40 +158,127 @@
       .settings-actions { display: flex; gap: 8px; margin: 0; }
       /* The cited span inside its source: the mark is the address made
          visible, the muted lines are the counts of what the window withheld. */
-      #reopen-body mark { background: var(--accent-soft); color: var(--accent); border-radius: 3px; }
+      /* When the cited span IS most of what fits, a full-width wash over it
+         carries no signal — everything highlighted is nothing highlighted.
+         The span keeps a quiet tint and takes a rule down its left edge, so
+         the eye finds its START, which is the thing an address names. */
+      #reopen-body {
+        max-height: 46vh;
+        overflow: auto;
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px 14px;
+      }
+      #reopen-body mark {
+        background: var(--accent-soft);
+        color: inherit;
+        box-shadow: -6px 0 0 0 var(--accent-soft), -7px 0 0 0 var(--accent);
+      }
       #reopen-body .muted { color: var(--muted); }
-      /* The material strip: what the answers stand on, one chip per source.
-         A silenced source stays visible, struck through — silenced and gone
-         must not look alike. */
-      #source-strip {
+      #reopen .sheet-head h3 { font-size: 13px; }
+      /* Attachments live on the composer, not over the conversation: what is
+         attached belongs to what you are about to ask. A silenced attachment
+         stays visible, struck through — silenced and gone must not look
+         alike (the text stays loaded and its addresses still re-open). */
+      #attach-strip {
         display: flex;
         gap: 6px;
-        flex-wrap: wrap;
-        padding: 6px 12px;
-        border-bottom: 1px solid var(--line);
-        background: var(--panel);
+        flex-wrap: nowrap;
+        align-items: center;
+        min-width: 0;
+        flex: 1;
+        overflow-x: auto;
+        scrollbar-width: thin;
+        padding-bottom: 2px;
       }
-      #source-strip button {
-        font-size: 12px;
-        padding: 3px 9px;
-        border-radius: 999px;
-        color: var(--accent);
-        border-color: var(--accent);
+      #attach-strip .pill { flex: 0 0 auto; }
+      #attach-strip .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        border: 1px solid var(--accent);
         background: var(--accent-soft);
+        border-radius: 999px;
+        overflow: hidden;
+        max-width: 260px;
       }
-      #source-strip .turn-total {
-        font-family: var(--mono);
-        font-size: 11.5px;
-        color: var(--muted);
-        align-self: center;
-        margin-right: 4px;
+      #attach-strip .pill > button {
+        font-size: 12px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--accent);
+      }
+      #attach-strip .pill .name {
+        padding: 3px 4px 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
       }
-      #source-strip button.off {
+      #attach-strip .pill .drop { padding: 3px 9px 3px 4px; opacity: 0.55; }
+      #attach-strip .pill .drop:hover { opacity: 1; color: var(--warn); }
+      #attach-strip .pill.off { border-color: var(--line); background: transparent; }
+      #attach-strip .pill.off > button { color: var(--muted); }
+      #attach-strip .pill.off .name { text-decoration: line-through; }
+      /* Marks off: one class on <body>, so the choice reaches every turn
+         already on screen without re-rendering a single one — and reaches
+         them identically, which a per-turn redraw could not promise. The
+         apparatus is hidden, never unmade: the classification still ran, the
+         tally still counts it, and the turn's disclosure still lists it. */
+      .turn-tokens {
+        font-family: var(--mono);
+        font-size: 10.5px;
         color: var(--muted);
-        border-color: var(--line);
-        background: transparent;
-        text-decoration: line-through;
+        margin-left: 10px;
+        cursor: help;
+      }
+      body.marks-off .msg .body button.ref,
+      body.marks-off .msg .body .edge-badge { display: none; }
+      /* The fact-check chips follow the same switch — hidden, never unmade:
+         the checks still ran, the ledger still holds their verdicts, the
+         fold's disclosure still lists them. */
+      body.marks-off .grounding-strip,
+      body.marks-off .proof-panel { display: none; }
+      body.marks-off .sent[data-ground="model"],
+      body.marks-off .sent.claims {
+        border-bottom: 0;
+        text-decoration: none;
+        cursor: auto;
+      }
+      /* The view preferences, as one object. */
+      .icon-group { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+      .icon-group button { border: 0; border-radius: 0; background: transparent; line-height: 0; padding: 6px 9px; }
+      .icon-group button + button { border-left: 1px solid var(--line); }
+      .icon-group button:hover { background: var(--accent-soft); }
+      #marks-toggle { color: var(--accent); }
+      #marks-toggle[aria-pressed="false"] { color: var(--muted); }
+      #theme-toggle { color: var(--muted); }
+      /* The model chip is one identity at a fixed size, and a dot for whether
+         it is working — not a status line that re-measures the header. */
+      #settings-toggle[data-working="yes"] #settings-label::after {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-left: 7px;
+        border-radius: 999px;
+        background: var(--accent);
+        animation: chip-pulse 1.4s ease-in-out infinite;
+        vertical-align: middle;
+      }
+      @keyframes chip-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        #settings-toggle[data-working="yes"] #settings-label::after { animation: none; }
+      }
+      .status-line {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       /* Every sentence stands on a named ground, and the two grounds never
          render alike (IV.4). Material ground reads plain and carries its
@@ -756,8 +843,13 @@
 
       /* Quiet until asked for: one muted word under the turn, which opens to
          the ~100 chars that turn actually left behind. */
-      .turn-meta { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
-      .turn-meta > details { flex: 1 1 100%; }
+      /* The disclosure and the turn's cost sit on ONE line: the count is a
+         caption on the affordance, not a second row under it. The details
+         element still gets the full width when it is open, which is what the
+         order-2 wrap gives it. */
+      .turn-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+      .turn-meta > details { flex: 0 1 auto; min-width: 0; }
+      .turn-meta > details[open] { flex: 1 1 100%; }
       details.fold { margin-top: 5px; }
       /* The material table now lives inside the turn's one disclosure. */
       details.fold .artifact { margin: 6px 0 0; }
@@ -892,10 +984,217 @@
         padding: 12px 20px;
         background: var(--panel);
         display: flex;
+        flex-direction: column;
         gap: 8px;
-        align-items: flex-end;
       }
-      .composer textarea { flex: 1; resize: vertical; min-height: 52px; max-height: 220px; }
+      .composer textarea { width: 100%; resize: vertical; min-height: 52px; max-height: 220px; }
+      /* One row under the input holds everything that decides what the next
+         question is asked WITH: the door that adds material, the material
+         itself, and the two switches that say whether it — or the web — is
+         in play at all. */
+      /* One row, always. Wrapping put Send on a second line as soon as a
+         couple of attachments arrived — the button that submits must not
+         move because of what you attached. The pills scroll instead. */
+      .composer-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: nowrap;
+      }
+      .composer-bar .spacer { flex: 1; min-width: 0; }
+      /* Adding and switching are one group because they are one subject. */
+      .attach-group {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+      .attach-group .attach {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--accent);
+        font-size: 13px;
+        padding: 6px 12px;
+      }
+      .attach-group .attach:hover { background: var(--accent-soft); }
+      .attach-group .switch { padding: 0 11px 0 8px; border-left: 1px solid var(--line); }
+      /* What is answering, on the composer. Quiet by default — it is a label
+         far more often than it is a control — and it carries the working dot
+         because "is it thinking" is a fact about the model. */
+      .model-pick {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 1 auto;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12.5px;
+        padding: 6px 8px;
+        border-radius: 8px;
+      }
+      .model-pick:hover { background: var(--accent-soft); color: var(--accent); }
+      .model-pick .ph { color: var(--accent); }
+      .model-pick #model-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 22ch;
+      }
+      .model-pick .caret { opacity: 0.6; font-size: 11px; }
+      .model-pick[data-working="yes"] .ph { animation: chip-pulse 1.4s ease-in-out infinite; }
+      /* One row per model this machine actually has; the current one ticked. */
+      .model-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        padding: 11px 16px;
+        font-size: 13px;
+      }
+      .model-row + .model-row { border-top: 1px solid var(--line); }
+      .model-row:hover { background: var(--accent-soft); color: var(--accent); }
+      .model-row .nm { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; }
+      .model-row.on { color: var(--accent); font-weight: 600; }
+      .model-row .tick { flex: none; }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      /* A switch is a checkbox wearing a track. Its state has to be legible
+         at a glance and from across the room — off is not a subtle mood. */
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+      /* `display` on the class would otherwise beat the hidden attribute. */
+      .switch[hidden] { display: none; }
+      .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+      .switch .track {
+        width: 28px;
+        height: 16px;
+        border-radius: 999px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        position: relative;
+        transition: background 0.12s ease;
+        flex: 0 0 auto;
+      }
+      .switch .track::after {
+        content: "";
+        position: absolute;
+        top: 1px;
+        left: 1px;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--panel);
+        transition: transform 0.12s ease;
+      }
+      .switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+      .switch input:checked + .track::after { transform: translateX(12px); }
+      .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* The label reads on when the switch is on, whichever side of the input
+         it sits on — the two switches order their parts differently. */
+      .switch:has(input:checked) .switch-label,
+      .switch:has(input:checked) .ph { color: var(--accent); }
+      .switch:has(input:disabled) { opacity: 0.45; }
+      .switch .ph { color: var(--muted); }
+      /* The add-material menu: three doors, named, no taxonomy to learn. */
+      #attach-menu { width: min(380px, 92vw); }
+      #attach-menu .sheet-body button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        padding: 12px 16px;
+        font-size: 13.5px;
+      }
+      #attach-menu .sheet-body button + button { border-top: 1px solid var(--line); }
+      #attach-menu .sheet-body button:hover { background: var(--accent-soft); color: var(--accent); }
+      #attach-menu .sheet-body button .ph { color: var(--accent); }
+      #attach-menu button small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
+      /* A note nobody needs twice becomes a mark you can ask. The text is the
+         title attribute — the browser's own tooltip, no JS, no layout cost —
+         and the mark is only ever adjacent to the thing it explains. */
+      .why {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 0 0 0 6px;
+        line-height: 0;
+        vertical-align: middle;
+        cursor: help;
+      }
+      .why:hover { color: var(--accent); }
+      /* Picking from what is already here: the library and the saved pages,
+         one list, filterable, each row one click from being attached. */
+      #picker { width: min(560px, 92vw); }
+      #picker-list { max-height: 46vh; overflow: auto; margin: 10px 0; }
+      .pick-row {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        padding: 8px 6px;
+        border-radius: 0;
+      }
+      .pick-row:hover { background: var(--accent-soft); }
+      .pick-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pick-row .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+      .pick-row[disabled] { opacity: 0.5; }
+      #picker-filter { width: 100%; }
+      /* The attached sheet's rows: in play, name, size, a peek, remove. */
+      .att-row { border-bottom: 1px solid var(--line); padding: 8px 2px; }
+      .att-row:last-child { border-bottom: 0; }
+      .att-line { display: flex; gap: 10px; align-items: baseline; }
+      .att-line input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; align-self: center; }
+      .att-line .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12.5px; cursor: pointer; }
+      .att-row.off .name { color: var(--muted); text-decoration: line-through; }
+      .att-line .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+      .att-line button { font-size: 11.5px; padding: 2px 8px; color: var(--muted); }
+      .att-line button:hover { color: var(--warn); border-color: var(--warn); }
+      .att-peek {
+        margin: 8px 0 2px 25px;
+        font: 11.5px/1.5 var(--mono);
+        color: var(--muted);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        max-height: 160px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
       .tabs {
         display: flex;
         gap: 4px;
@@ -1018,20 +1317,111 @@
         background: none;
       }
       button.ref.attached::before { content: "≈ "; opacity: 0.7; }
+      /* Fact-check chips: one quiet chip per checked claim; the audit — the
+         verdict sentence, each page's verbatim snip, the saved copy — sits
+         behind the click. */
+      .grounding-strip { display: flex; flex-wrap: wrap; gap: 3px 6px; margin: 6px 0 2px; align-items: baseline; }
+      button.proof-check {
+        cursor: pointer;
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 5px;
+        border: 1px dotted var(--record);
+        background: var(--record-soft);
+        color: var(--record);
+      }
+      button.proof-check:hover { border-color: var(--accent); color: var(--accent); }
+      button.proof-check.web-corroborated { border-style: solid; }
+      button.proof-check.selected { border-color: var(--accent); color: var(--accent); }
+      /* One stable audit panel below the chips: opening a check swaps the
+         panel's content in place — the chips never move, the page never
+         jumps. */
+      .proof-panel { font-size: 12px; margin: 2px 0 6px 4px; }
+      .proof-panel .proof-detail { display: block; }
+      .proof-panel .snip { display: block; font-style: italic; color: var(--muted); margin: 2px 0 2px 12px; }
+      .proof-panel .proof-query { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 2px 0; }
+      /* A flagged badge whose claim the web then backed — the material's
+         verdict stays, the web's count rides beside it, the alarm softens. */
+      .edge-badge.web-backed { border-style: solid; opacity: 0.85; }
       .empty { color: var(--muted); font-size: 13px; font-style: italic; }
       textarea#material { width: 100%; min-height: 260px; font-family: var(--mono); font-size: 12px; }
+      /* Dialogs. Every one of them is the same object — a small sheet that
+         rises over a dimmed page, with its own title, its own body, and its
+         actions on the bottom right — so opening one never asks the reader
+         to work out which kind of thing this one is. The sheet is padded by
+         section rather than as a block: the head and the footer keep their
+         own rules, which is what stops a long list from running into either. */
       dialog {
-        max-width: 640px;
-        width: 90%;
+        max-width: 560px;
+        width: min(560px, 92vw);
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: 14px;
         background: var(--panel);
         color: var(--ink);
-        padding: 18px 20px;
+        padding: 0;
+        box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
       }
-      dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+      dialog:not([open]) { display: none; }
+      /* Entry is a short rise, not a bounce; anyone who has asked for less
+         motion gets none of it. */
+      dialog[open] { animation: sheet-in 0.14s ease-out; }
+      dialog[open]::backdrop { animation: veil-in 0.14s ease-out; }
+      @keyframes sheet-in {
+        from { opacity: 0; transform: translateY(6px) scale(0.985); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes veil-in { from { opacity: 0; } to { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        dialog[open], dialog[open]::backdrop { animation: none; }
+      }
+      dialog::backdrop {
+        background: rgba(17, 17, 23, 0.42);
+        backdrop-filter: blur(2px);
+      }
+      /* The head: title left, close right, one rule under it. The close
+         button is in every sheet because Escape is not discoverable and a
+         backdrop click is a guess. */
+      .sheet-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .sheet-head h3 { margin: 0; flex: 1; min-width: 0; }
+      .sheet-head .sub { margin: 2px 0 0; }
+      .sheet-close {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 4px;
+        line-height: 0;
+        border-radius: 6px;
+        flex: 0 0 auto;
+      }
+      .sheet-close:hover { color: var(--fg); background: var(--accent-soft); }
+      .sheet-body { padding: 14px 16px; }
+      .sheet-body.flush { padding: 0; }
+      .sheet-foot {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+        margin: 0;
+        padding: 12px 16px;
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+      }
+      .sheet-foot .spacer { flex: 1; }
       dialog h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+      /* Icons are Phosphor (regular), vendored under node_modules and inlined
+         as paths — this page reaches no CDN for anything, fonts included. */
+      .ph { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.13em; }
+      .ph-lg { width: 17px; height: 17px; }
       /* The full-screen fold viewer: the artifact, given the window. */
       dialog#fold-view {
         width: min(96vw, 1400px);
@@ -1083,27 +1473,43 @@
         font-size: 15px;
       }
       .dropzone-card span { color: var(--muted); font-size: 13px; }
-      .source-row {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        padding: 9px 0;
-        border-bottom: 1px solid var(--line);
-        font-size: 13px;
-        cursor: pointer;
-      }
-      .source-row input { accent-color: var(--accent); width: 15px; height: 15px; }
-      .source-row .name { font-family: var(--mono); font-size: 12px; }
-      .source-row .count { color: var(--muted); font-size: 12px; margin-left: auto; }
-      /* Off is visibly off, and still listed — the file is loaded, just not
-         being read from. */
-      .source-row.off .name { color: var(--muted); text-decoration: line-through; }
-      .source-row button { font-size: 11.5px; padding: 3px 8px; color: var(--muted); }
-      .source-row button:hover { color: var(--warn); border-color: var(--warn); }
       .note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
     </style>
   </head>
   <body>
+    <!-- See explore.html for the reasoning: inline styles because the
+         stylesheet is one of the things that may not have loaded, and removed
+         by app.js's own boot so it shows exactly when the page's code did not
+         run. Opened off the disk, this page's modules never execute and the
+         reader gets unstyled HTML that looks broken rather than unstarted. -->
+    <div id="not-served" style="margin:0;padding:24px;font:15px/1.6 system-ui,sans-serif;color:#111113;background:#fff8e6;border-bottom:2px solid #b45309">
+      <strong style="display:block;font-size:17px;margin-bottom:6px">This page needs its local server.</strong>
+      <p id="not-served-why" style="margin:0 0 12px;max-width:70ch">
+        Nothing here is broken — it just isn’t running. The reader’s engine, the
+        record and the model all sit behind a local server, and none of them exist
+        for a page opened straight off the disk.
+      </p>
+      <p style="margin:0 0 6px;max-width:70ch">From <code>the-fold/</code>, run:</p>
+      <pre style="margin:0 0 12px;padding:10px 14px;background:#fff;border:1px solid #e5d5b0;border-radius:8px;overflow-x:auto"><code>node serve.mjs            # Chat, on :8811
+node explore-server.mjs   # Sources, on :8812</code></pre>
+      <p style="margin:0">Then open <a href="http://localhost:8811/">http://localhost:8811/</a>.</p>
+    </div>
+    <script>
+      // Classic, not a module — it runs over file:// too. See explore.html for
+      // the reasoning, including why the notice starts hidden over http: the
+      // module that removes it is deferred, and without this the banner would
+      // flash yellow on every healthy load.
+      (function () {
+        var box = document.getElementById("not-served");
+        if (!location.protocol.startsWith("http")) return;
+        box.style.display = "none";
+        document.getElementById("not-served-why").textContent =
+          "The page was served, but its own scripts did not finish loading — so the reader engine, the record and the model are all out of reach. Check the server's console for the module that failed.";
+        setTimeout(function () {
+          if (document.getElementById("not-served")) box.style.display = "";
+        }, 4000);
+      })();
+    </script>
     <header>
       <h1 class="logo" title="The Fold">
         <!-- The mark is the mechanism: three pleats, each standing in for
@@ -1115,32 +1521,76 @@
         </svg>
         <span class="wordmark">the<b>fold</b></span>
       </h1>
-      <span class="tag">a conversation whose context window does not grow</span>
       <span class="spacer"></span>
       <span id="turn-total" class="turn-total" hidden></span>
-      <button id="theme-toggle" type="button" title="Theme — follows the system until you choose. Click to cycle system → light → dark."></button>
-      <button id="settings-toggle" type="button" title="Model settings">
-        <span id="settings-label">not connected</span>
-        <span aria-hidden="true">⚙</span>
+      <!-- The two view preferences are one object: both change how the page
+           LOOKS and neither changes what it does. Grouped, they read as a
+           pair of settings; loose, they were two more unrelated boxes in a
+           row of four different shapes. -->
+      <span class="icon-group">
+      <!-- The marks are the reading apparatus drawn into the prose: the
+           address chips, the ground underlines, the relation badges. They are
+           the point of this instrument and they are also, sometimes, in the
+           way of simply reading the answer. Off hides the drawing, never the
+           finding — every mark is still in the turn's "thinking", and the
+           tally still counts what the marks would have shown. -->
+      <button id="marks-toggle" type="button" aria-pressed="true" title="Checking — read every answer against your material, mark what it stands on, and look up what nothing backs. Off is a plain chatbot: the model answers and nothing is verified.">
+        <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
       </button>
+        <button id="theme-toggle" type="button" title="Appearance"></button>
+      </span>
       <span id="status" hidden>idle</span>
     </header>
 
     <main>
       <section class="col" id="col-chat">
         <nav class="threads" id="threads" aria-label="Conversations"></nav>
-        <!-- What the answers stand on, always in view: one chip per source,
-             click to silence or restore it. Toggling is not removal — the
-             text stays loaded and records still re-open; retrieval just
-             stops seeing it. -->
-        <div id="source-strip" aria-label="Material in play" hidden></div>
         <div class="scroll" id="chat"></div>
+        <!-- Everything that decides what the next question is asked WITH sits
+             on the composer: the attachments themselves, the door that adds
+             more, and the two switches. Silencing one is not removing it —
+             the text stays loaded and its addresses still re-open; retrieval
+             just stops seeing it. -->
         <form class="composer" id="composer">
-          <button type="button" class="attach" id="attach" title="Add material (or drop a file anywhere)">
-            <span aria-hidden="true">＋</span> Material
-          </button>
+          <!-- What the instrument is doing right now. It lives here, not in
+               the header, because it changes constantly and the header must
+               not re-measure every time it does. -->
+          <p id="status-line" class="status-line" aria-live="polite" hidden></p>
           <textarea id="input" placeholder="Ask something…" title="Enter to send, Shift+Enter for a newline" rows="1"></textarea>
-          <button type="submit" class="primary" id="send" disabled>Send</button>
+          <div class="composer-bar">
+            <!-- One control, because it is one subject: the paperclip adds
+                 attachments and the switch beside it decides whether they are
+                 read. The switch only appears once there is something for it
+                 to govern — a lever over an empty set is furniture. -->
+            <div class="attach-group">
+              <button type="button" class="attach" id="attach" title="Attach — upload, pick from what is already here, or paste (dropping a file anywhere works too)">
+                <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
+                <span id="attach-label">Attach</span>
+              </button>
+              <label class="switch bare" id="attach-switch" hidden title="Whether attachments are read at all. Off answers this question without them — nothing is removed and nothing is lost.">
+                <input type="checkbox" id="use-attachments" checked />
+                <span class="track" aria-hidden="true"></span>
+                <span class="sr-only">use attachments</span>
+              </label>
+            </div>
+            <!-- What is answering, next to what is being asked. It was a chip
+                 in the header opening a dialog — two moves and a different
+                 corner of the screen to change the one setting a person
+                 actually changes per question. -->
+            <button type="button" class="model-pick" id="model-pick" title="Model">
+              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,88H176V64a16,16,0,0,0-16-16H136V24a8,8,0,0,0-16,0V48H96A16,16,0,0,0,80,64V88H56a8,8,0,0,0,0,16H80v48H56a8,8,0,0,0,0,16H80v24a16,16,0,0,0,16,16h24v24a8,8,0,0,0,16,0V208h24a16,16,0,0,0,16-16V168h24a8,8,0,0,0,0-16H176V104h24a8,8,0,0,0,0-16ZM160,192H96V64h64Z"/></svg>
+              <span id="model-name">no model</span>
+              <span class="caret" aria-hidden="true">⌄</span>
+            </button>
+            <div id="attach-strip" aria-label="Attachments"></div>
+            <label class="switch" title="Whether claims your attachments don't back are looked up online. One recorded search per claim, then up to 3 page reads.">
+              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg>
+              <span class="switch-label">web</span>
+              <input type="checkbox" id="use-web" checked />
+              <span class="track" aria-hidden="true"></span>
+            </label>
+            <button type="submit" class="primary" id="send" disabled>Send</button>
+          </div>
         </form>
         <input type="file" id="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,text/*" hidden />
       </section>
@@ -1158,16 +1608,7 @@
         </nav>
         <div class="scroll">
           <div class="pane on" id="pane-builds">
-            <h2>Folds <span id="builds-count" class="tag"></span></h2>
-            <p class="note">
-              Code leaves the conversation entirely: the model appends an
-              addendum to a fold's append-only log, and the chat keeps a
-              handle to it. The log is the record; what you see is a fold
-              over it, downloadable at any cursor. Address one in chat as
-              <code>/fold &lt;n&gt; &lt;instruction&gt;</code> — the revision
-              lands on that fold's own log. Tables, pages, and everything
-              else that is not prose lands here at full size.
-            </p>
+            <h2>Folds <span id="builds-count" class="tag"></span><button type="button" class="why" aria-label="what folds are" title="Code, tables and pages land here, not in the chat. Each fold is an append-only log; what you see is the projection at the cursor you scrubbed to, downloadable at any point. Revise one from chat with /fold &lt;n&gt; &lt;instruction&gt; — the revision lands on that fold's own log."><svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/></svg></button></h2>
             <div class="folds-bar">
               <input id="folds-search" type="search" spellcheck="false" placeholder="search folds — words, code, or an address like fold 2" aria-label="search folds" />
               <select id="folds-sort" aria-label="order folds"></select>
@@ -1210,7 +1651,7 @@
           </div>
 
           <div class="pane" id="pane-terminal">
-            <pre id="term-out" aria-live="polite"><span class="term-mute">a terminal over the instrument, sandboxed in this page — nothing typed here reaches the machine. `help` lists commands; python · sql · js enter vendored runtimes.</span>
+            <pre id="term-out" aria-live="polite"><span class="term-mute">sandboxed in this page — nothing typed here reaches the machine. `help` for commands.</span>
 
 </pre>
             <div class="term-row">
@@ -1228,44 +1669,110 @@
                  ?embed=1 tells the page to drop its own chrome. -->
             <iframe id="explore-frame" src="http://localhost:8812/explore.html?embed=1" loading="lazy" title="Explore"></iframe>
           </div>
-          <div class="pane" id="pane-material">
-            <h2>Material</h2>
-            <p class="note">
-              Drop a text file anywhere on this page, or paste below — either
-              way it is addressable the moment it lands. Retrieval is mechanical
-              term overlap; no model decides what to fetch. Every passage handed
-              to the model carries the byte range it came from, which is what a
-              record's refs point back at.
-            </p>
-            <p><button type="button" class="attach primary">＋ Add files</button></p>
-            <div id="source-list"></div>
-            <h2>Paste text</h2>
-            <textarea id="material" spellcheck="false" placeholder="Paste anything. Blank lines separate passages. It is added as soon as you paste."></textarea>
-          </div>
         </div>
       </section>
     </main>
 
-    <dialog id="settings">
-      <h3>Model</h3>
-      <p class="sub">Where the answers come from. Nothing else lives up top.</p>
-      <div class="controls" id="controls">
-        <label>
-          <span>Model · Ollama on this machine</span>
-          <select id="model"></select>
-        </label>
-        <label class="check">
-          <span>Seek proof online</span>
-          <span class="check-row">
-            <input type="checkbox" id="web-proof" />
-            verify unbacked claims online
-          </span>
-        </label>
+    <!-- The models this machine actually has, as a menu. The old dialog held
+         a <select> plus a Connect button — two decisions for one act, when
+         picking a model IS connecting to it. `#model` stays as the hidden
+         source of truth the connect path already reads. -->
+    <dialog id="model-menu">
+      <div class="sheet-head">
+        <div>
+          <h3>Model</h3>
+          <p class="sub">Ollama, on this machine. There is no hosted path.</p>
+        </div>
+        <button type="button" class="sheet-close" id="model-menu-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
       </div>
-      <p class="settings-actions">
-        <button id="connect" class="primary">Connect</button>
-        <button id="settings-close" type="button">Close</button>
-      </p>
+      <div class="sheet-body flush" id="model-list"></div>
+      <select id="model" hidden></select>
+    </dialog>
+
+    <!-- Three doors, all the same act. Upload reaches the OS picker; "already
+         here" lists the library and the pages the web organ already saved, so
+         material that is on this machine never has to be found twice; paste
+         is for the text that lives in no file at all. -->
+    <dialog id="attach-menu">
+      <div class="sheet-head">
+        <h3>Attach</h3>
+        <button type="button" class="sheet-close" id="attach-menu-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body flush">
+        <button type="button" id="attach-upload">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0ZM93.66,77.66,120,51.31V144a8,8,0,0,0,16,0V51.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,77.66Z"/></svg>
+          <span>Upload files<small>from this computer</small></span>
+        </button>
+        <button type="button" id="attach-existing">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M245,110.64A16,16,0,0,0,232,104H216V88a16,16,0,0,0-16-16H130.67L102.94,51.2a16.14,16.14,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V208h0a8,8,0,0,0,8,8H211.1a8,8,0,0,0,7.59-5.47l28.49-85.47A16.05,16.05,0,0,0,245,110.64ZM93.34,64,123.2,86.4A8,8,0,0,0,128,88h72v16H69.77a16,16,0,0,0-15.18,10.94L40,158.7V64Zm112,136H43.1l26.67-80H232Z"/></svg>
+          <span>Already here<small>your files, saved web pages, and priors in play</small></span>
+        </button>
+        <button type="button" id="attach-paste">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"/></svg>
+          <span>Paste text<small>added as its own attachment</small></span>
+        </button>
+      </div>
+    </dialog>
+
+    <!-- Click an attachment: what is attached, what is in play, what each
+         one actually says. The pills stay the glanceable strip; this sheet is
+         where the choosing happens — per-file checkboxes over the same mute
+         state the pills and the master switch already share. -->
+    <dialog id="attach-sheet">
+      <div class="sheet-head">
+        <div>
+          <h3>Attached</h3>
+          <p class="sub">Checked files are read; unchecked stay loaded but unread. Nothing is removed by unchecking.</p>
+        </div>
+        <button type="button" class="sheet-close" id="attach-sheet-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="attach-sheet-list"></div>
+      <form method="dialog" class="sheet-foot">
+        <button type="button" class="attach" id="attach-sheet-add">＋ Add more</button>
+        <span class="spacer"></span>
+        <button>Done</button>
+      </form>
+    </dialog>
+
+    <dialog id="picker">
+      <div class="sheet-head">
+        <div>
+          <h3>Already here</h3>
+          <p class="sub">Attaching copies the text in, so its addresses can't drift.</p>
+        </div>
+        <button type="button" class="sheet-close" id="picker-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <input id="picker-filter" type="search" spellcheck="false" placeholder="filter by name…" aria-label="filter" />
+        <div id="picker-list"></div>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Close</button>
+      </form>
+    </dialog>
+
+    <dialog id="paste">
+      <div class="sheet-head">
+        <h3>Paste text</h3>
+        <button type="button" class="sheet-close" id="paste-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <textarea id="material" spellcheck="false" placeholder="Paste or type anything. Blank lines separate passages."></textarea>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Cancel</button>
+        <button id="paste-add" value="add" class="primary">Attach</button>
+      </form>
     </dialog>
 
     <div id="dropzone" hidden>
@@ -1276,12 +1783,24 @@
     </div>
 
     <dialog id="reopen">
-      <h3 id="reopen-ref"></h3>
-      <p class="sub" id="reopen-address">read back from the material, live — the cited span, inside its source</p>
-      <pre class="block" id="reopen-body"></pre>
-      <form method="dialog" class="settings-actions">
-        <button id="reopen-explore" type="button">Open in Explore</button>
+      <div class="sheet-head">
+        <div>
+          <h3 id="reopen-ref"></h3>
+          <p class="sub" id="reopen-address">the cited span, read back from the material inside its source</p>
+          <!-- a prior's papers: the publisher's own frontmatter, mechanical,
+               shown only when the cited source carries provenance -->
+          <p class="sub" id="reopen-papers" hidden></p>
+        </div>
+        <button type="button" class="sheet-close" id="reopen-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <pre class="block" id="reopen-body"></pre>
+      </div>
+      <form method="dialog" class="sheet-foot">
         <button>Close</button>
+        <button id="reopen-explore" type="button" class="primary">Open in Explore</button>
       </form>
     </dialog>
 

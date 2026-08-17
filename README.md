@@ -106,7 +106,7 @@ node the-fold/serve.mjs 8811
 ```
 
 Then open `http://localhost:8811`, pick an Ollama model, and connect. (The
-server must be `serve.mjs`, not a generic static server: it mounts eoreader6's
+server must be `serve.mjs`, not a generic static server: it mounts eoreader6.1's
 engine at `/engine` and serves everything no-store.)
 
 Two model calls per ordinary turn: the answer, and the summary refresh. The

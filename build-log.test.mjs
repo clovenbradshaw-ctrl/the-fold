@@ -12,8 +12,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as taskLog from "../eoreader6/packages/engine/holon/task-log.js";
-import { checkCubeProgression } from "../eoreader6/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
+import { checkCubeProgression } from "../eoreader6.1/packages/engine/holon/task-log.js";
 import { toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
 

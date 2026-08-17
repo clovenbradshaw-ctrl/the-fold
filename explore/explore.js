@@ -22,6 +22,14 @@ import SelectionArea from "./vendor/viselect.mjs";
 // The file's own face — the preview overlay's renderers, pure enough to test
 // under node (preview.test.mjs) because they build DOM through ownerDocument.
 import { buildPreview, previewFace, FACE_NOTE, parseDelimited } from "./preview.js";
+// Handles on the relation list (pure; conformance in relations-chain.test.mjs)
+// — the discourse chain and the referent siblings that make a clause fragment
+// readable. diaNorm is the engine's own fold, injected the cast.js way.
+import { chainRelations } from "../relations-chain.js";
+// The priors organ's gate — the same module the server folds the ledger
+// with, so "what decides this document" is ONE implementation on both sides.
+import { effectivePrior, declarationsFrom } from "../priors-toggles.js";
+import { diaNorm } from "/engine/perceiver/text/surfaces.js";
 
 const $ = (id) => document.getElementById(id);
 const api = async (path, init) => {
@@ -72,6 +80,10 @@ const state = {
   // the web view's own state — q survives view switches; history/settings
   // are server truth, reloaded whenever set back to null
   web: { q: "", settings: null, results: null, busy: null, fetched: null, history: null, historyLoading: false },
+  // the priors view's own state — data is server truth (/api/priors),
+  // reloaded whenever set back to null; expanded/children survive view
+  // switches; focus is one document's papers in hand
+  priors: { data: null, loading: false, error: null, expanded: new Set(), children: new Map(), focus: null, busy: null },
 };
 
 // The nine, in canon order, so the cube renders before any read has run.
@@ -221,6 +233,11 @@ const TEXTUAL = new Set(["text", "code", "markdown", "json", "table", "html"]);
 
 async function openSource(relPath, opts = {}) {
   state.path = relPath;
+  // A saved page knows its own title, and the index that holds it may not
+  // have been fetched yet — opening one straight from a deep link or the
+  // rail would otherwise be titled by its content hash forever, since
+  // nothing else on this path ever asks for the history.
+  if (relPath?.includes("/web/pages/") && !state.web.history) loadWebHistory();
   // The stat is a round trip, and until it lands there is no modality and no
   // Field surface. Saying WHICH file is opening is what keeps the stage from
   // falling back to the file grid the reader just left (visibleViews reads
@@ -470,6 +487,17 @@ async function startRead() {
       state.readPhase = null;
       renderAll();
       applyPendingFocus();
+      // Kinds induce themselves, at the quick draw, as soon as the read is
+      // in (user, 2026-08-17). Every other surface arrives on its own; this
+      // one asked the reader to press a button before it would say anything,
+      // which made "are there kinds here?" a question you had to know to ask.
+      // The escalation stays explicit — `thorough` is a stricter, much longer
+      // run, and it is still the reader's to call — and the quick draw is
+      // armed exactly as before: its null arm lands after, the kinds render
+      // `provisional` until it does, and the renderer still may not phrase
+      // finer than the arm's finestRank. Automatic is the trigger, not the
+      // standard of evidence.
+      if (TEXTUAL.has(state.source?.modality ?? "") && !state.kinds && !state.kindsPhase) startKinds(true);
       return;
     }
     if (job.phase === "error") {
@@ -543,8 +571,26 @@ function renderHeaderline() {
     renderAll();
   };
   box.appendChild(close);
-  box.appendChild(el("span", "name", ` ${s.name}`));
-  box.appendChild(el("span", "meta", `${fmtBytes(s.bytes)} · ${s.modality}${s.magic ? ` (${s.magic})` : ""} · modified ${new Date(s.mtime).toISOString().slice(0, 10)} · cursor: read at ${new Date().toISOString().slice(11, 19)}Z`));
+  // What is open, said plainly and in this order: the kind of file, its name,
+  // then everything else quiet behind it. It used to be one mono run-on that
+  // put the name between a ✕ and a size, and ended on `cursor: read at
+  // 15:27:23Z` — a wall-clock stamp of the current render, which told the
+  // reader nothing and changed every time the view redrew.
+  const saved = savedPageFor(state.path);
+  const kind = el("span", "ftype", saved ? "PAGE" : fileKind(s));
+  kind.title = saved
+    ? `a page this instrument fetched and kept whole — read as ${s.modality}`
+    : `${s.modality}${s.magic ? ` · ${s.magic}` : ""} — how this file is being read`;
+  box.appendChild(kind);
+  const name = el("span", "name", saved?.title || s.name);
+  name.title = saved ? `${saved.finalUrl ?? saved.url}\n${state.path}` : state.path;
+  box.appendChild(name);
+  const dir = state.path?.includes("/") ? state.path.slice(0, state.path.lastIndexOf("/")) : null;
+  if (saved) box.appendChild(el("span", "where", `${hostOfUrl(saved.finalUrl ?? saved.url)} · retrieved ${String(saved.retrievedAt).slice(0, 10)}`));
+  else if (dir) box.appendChild(el("span", "where", `in ${dir}`));
+  box.appendChild(
+    el("span", "meta", `${fmtBytes(s.bytes)} · modified ${new Date(s.mtime).toISOString().slice(0, 10)}`),
+  );
   // The one control that is always here, whatever is open: see the file
   // itself. Everything else on this page is a READING of the file — a
   // reader who just wants the thing as it is should never have to work out
@@ -559,10 +605,22 @@ function renderHeaderline() {
   if (document.body.classList.contains("embed") && TEXTUAL.has(s.modality) && state.text != null) {
     const toChat = el("button", null, "use in chat");
     toChat.style.marginLeft = "10px";
-    toChat.onclick = () => {
-      parent.postMessage({ type: "fold:material:add", name: s.name, path: state.path, text: state.text }, "*");
-      toChat.textContent = "sent to chat ✓";
+    toChat.onclick = async () => {
       toChat.disabled = true;
+      // A prior crosses WITH its papers. The prefix is the corpus mount the
+      // server resolves (PRIORS_ROOT = ../live_priors, browse-root-relative
+      // "live_priors/…"); papers unavailable never blocks the text crossing.
+      let provenance = null;
+      if (state.path?.startsWith("live_priors/")) {
+        try {
+          const doc = await api(`/api/priors/doc?path=${encodeURIComponent(state.path.slice("live_priors/".length))}`);
+          if (doc.provenance) provenance = { line: doc.provenanceLine, fields: doc.provenance, path: doc.path };
+        } catch {
+          /* the text still crosses; the tab can be asked for papers again */
+        }
+      }
+      parent.postMessage({ type: "fold:material:add", name: s.name, path: state.path, text: state.text, ...(provenance ? { provenance } : {}) }, "*");
+      toChat.textContent = "sent to chat ✓";
     };
     box.appendChild(toChat);
   }
@@ -575,6 +633,7 @@ function renderHeaderline() {
 const VIEW_LABEL = {
   Desk: "files",
   Web: "web",
+  Priors: "priors",
   Field: "source",
   Entity: "cast",
   Link: "relations",
@@ -582,28 +641,66 @@ const VIEW_LABEL = {
   Atmosphere: "trace",
   Kind: "kinds",
   Void: "gaps",
-  Lens: "projections",
+  Lens: "folds",
   Paradigm: "legend",
 };
 
-/** The views that have earned a place right now, in reveal order, with counts. */
+/**
+ * The canonical order of the row, once and in one place. Nothing may reorder
+ * it: the row's whole job while a read streams is to stay still.
+ */
+const VIEW_ORDER = [
+  "Desk", "Web", "Priors", "Field", "Entity", "Link",
+  "Network", "Atmosphere", "Kind", "Void", "Lens", "Paradigm",
+];
+/** Views whose label carries a number, so the slot can be reserved before the
+ * number exists — a count arriving must not push its neighbours sideways. */
+const COUNTED = new Set(["Web", "Priors", "Entity", "Link", "Network", "Kind", "Void", "Lens"]);
+
+/**
+ * The views of this source: the ones that have landed, and — while a read is
+ * still running — the ones it is going to produce, held in place as pending.
+ *
+ * A read streams its surfaces cheapest-first over a minute and a half, and
+ * the row used to be built from what had ALREADY landed. So it grew a tab at
+ * a time, each arrival reflowing the row and moving every label to its right
+ * out from under the pointer. A surface that has not arrived yet is not the
+ * same as a surface that is not coming, and the honest rendering of the first
+ * is a tab you can see and cannot yet press — which is also the stable one.
+ */
 function visibleViews() {
   const T = state.read?.terrains;
-  // files and web are always places to stand; web carries its history count
-  const out = [{ id: "Desk" }, { id: "Web", n: state.web.history?.entries?.length || undefined }];
+  const reading = state.readPhase != null;
+  const textual = TEXTUAL.has(state.source?.modality ?? "");
+  const landed = new Map();
+  // files, web and priors are always places to stand; web carries its
+  // history count, priors how many documents are in play
+  landed.set("Desk", {});
+  landed.set("Web", { n: state.web.history?.entries?.length || undefined });
+  landed.set("Priors", { n: state.priors.data?.enabledCount || undefined });
   // A file whose stat is still in flight already has a place to stand — see
   // openSource: without this the active view is reset to "files" mid-open and
   // the file never appears.
-  if (state.source || state.opening) out.push({ id: "Field" });
-  if (T?.Entity?.referents?.length) out.push({ id: "Entity", n: T.Entity.referents.length });
-  if (T?.Link?.total) out.push({ id: "Link", n: T.Link.total });
-  if (T?.Network?.nodeCount) out.push({ id: "Network", n: T.Network.nodeCount });
-  if (T?.Atmosphere?.frames?.length) out.push({ id: "Atmosphere" });
-  if (T?.Kind && TEXTUAL.has(state.source?.modality ?? "")) out.push({ id: "Kind", n: state.kinds?.kinds?.length });
-  if (T?.Void?.ledger?.length) out.push({ id: "Void", n: T.Void.ledger.length });
-  if (state.source) out.push({ id: "Lens", n: state.lenses.length || undefined });
-  if (T?.Paradigm) out.push({ id: "Paradigm" });
-  return out;
+  if (state.source || state.opening) landed.set("Field", {});
+  if (T?.Entity?.referents?.length) landed.set("Entity", { n: T.Entity.referents.length });
+  if (T?.Link?.total) landed.set("Link", { n: T.Link.total });
+  if (T?.Network?.nodeCount) landed.set("Network", { n: T.Network.nodeCount });
+  if (T?.Atmosphere?.frames?.length) landed.set("Atmosphere", {});
+  if (T?.Kind && textual) landed.set("Kind", { n: state.kinds?.kinds?.length });
+  if (T?.Void?.ledger?.length) landed.set("Void", { n: T.Void.ledger.length });
+  if (state.source) landed.set("Lens", { n: state.lenses.length || undefined });
+  if (T?.Paradigm) landed.set("Paradigm", {});
+
+  // What this read is still expected to bring. Kind is the one surface a
+  // source can be genuinely without, so it is only promised for material the
+  // induction actually runs on; the rest every read produces.
+  const promised = reading
+    ? VIEW_ORDER.filter((id) => id !== "Kind" || textual)
+    : [];
+
+  return VIEW_ORDER.filter((id) => landed.has(id) || promised.includes(id)).map((id) =>
+    landed.has(id) ? { id, ...landed.get(id) } : { id, pending: true },
+  );
 }
 
 function renderViews() {
@@ -615,17 +712,35 @@ function renderViews() {
   // to the first view that IS available — "Field" is not a safe default
   // when no source is open, since Field is not among the views then.
   if (!views.some((v) => v.id === state.terrain)) state.terrain = views[0]?.id ?? "Field";
+  // Two levels, one row, and they were reading as one list. `files` and `web`
+  // are PLACES TO STAND — where material comes from, present whether or not
+  // anything is open. Everything after them is a SURFACE OF THE OPEN SOURCE.
+  // A rule between them says so without adding a word.
+  const PLACES = new Set(["Desk", "Web", "Priors"]);
+  let sepDrawn = false;
   for (const v of views) {
-    const b = el("button", `view${v.id === state.terrain ? " active" : ""}`);
+    if (!sepDrawn && !PLACES.has(v.id)) {
+      sepDrawn = true;
+      if (box.childElementCount) box.appendChild(el("span", "view-sep"));
+    }
+    const b = el("button", `view${v.id === state.terrain ? " active" : ""}${v.pending ? " pending" : ""}`);
     b.setAttribute("role", "tab");
     b.append(VIEW_LABEL[v.id]);
-    if (v.n != null) b.appendChild(el("span", "n", String(v.n)));
-    const c = cellOf(v.id);
-    if (c?.blindTo) b.title = `blind to ${c.blindTo}`;
-    b.onclick = () => {
-      state.terrain = v.id;
-      renderAll();
-    };
+    // The count slot exists from the first frame for every view that will
+    // ever carry a number, so the number landing changes a glyph, not a
+    // layout. Reserved width lives in the stylesheet, not in a space here.
+    if (COUNTED.has(v.id)) b.appendChild(el("span", "n", v.n == null ? "" : String(v.n)));
+    if (v.pending) {
+      b.disabled = true;
+      b.title = "still reading — this surface hasn't landed yet";
+    } else {
+      const c = cellOf(v.id);
+      if (c?.blindTo) b.title = `blind to ${c.blindTo}`;
+      b.onclick = () => {
+        state.terrain = v.id;
+        renderAll();
+      };
+    }
     box.appendChild(b);
   }
   if (state.readPhase != null || state.kindsPhase != null) {
@@ -661,7 +776,11 @@ function renderMeta() {
   chipBox.textContent = "";
   if (state.sel) {
     const chip = el("span", "chip");
-    chip.append(`${state.sel.label} · ${state.sel.type}`);
+    // The label goes in its own element so the ellipsis has something to cut:
+    // a bare text node beside the ✕ cannot be truncated without taking the
+    // close button with it.
+    chip.appendChild(el("span", null, `${state.sel.label} · ${state.sel.type}`));
+    chip.title = `${state.sel.label} · ${state.sel.type}`;
     const x = el("button", null, "✕");
     x.onclick = () => {
       state.sel = null;
@@ -692,11 +811,24 @@ function renderMeta() {
 }
 
 // ── surfaces ────────────────────────────────────────────────────────────────
-function note(surface, standing, text) {
+/**
+ * The standing of what a view shows, and — behind it — why.
+ *
+ * Every view opened on a paragraph explaining its own epistemics, above the
+ * thing the reader came for. The standing still has to be declared (that is
+ * not negotiable), but a declaration nobody needs twice belongs on the chip
+ * as a tooltip, not in the reader's way. `text` is what stays visible and
+ * should be facts — counts, sizes, what was capped; `why` is the sentence.
+ */
+function note(surface, standing, text, why) {
   const n = el("div", "surface-note");
   const s = el("span", `standing ${standing}`, standing);
+  if (why) {
+    s.title = why;
+    s.classList.add("asks");
+  }
   n.appendChild(s);
-  n.append(text);
+  if (text) n.append(text);
   surface.appendChild(n);
   return n;
 }
@@ -809,6 +941,10 @@ function renderSurface() {
   if (state.terrain !== "Lens") state.lastContentTerrain = state.terrain;
   if (state.terrain === "Web") {
     renderWeb(surface);
+    return;
+  }
+  if (state.terrain === "Priors") {
+    renderPriors(surface);
     return;
   }
   if (!state.source && state.opening && state.terrain === "Field") {
@@ -1157,19 +1293,25 @@ async function renderBrowse(surface) {
       return;
     }
     if (atLibraryRoot) {
-      const newBtn = el("button", "new-btn", "+ New");
+      const newBtn = el("button", "new-btn", "Add");
       newBtn.onclick = (ev) => openNewMenu(ev, newBtn);
       bar.appendChild(newBtn);
     }
-    for (const [mode, label] of [["icons", "▦"], ["table", "☰"]]) {
+    // The same segmented control the source view uses for rendered/raw. Two
+    // faces of one thing is the same question here as it is there, and it had
+    // been answered with two separate glyph toggles that looked like nothing
+    // else on the page — this desk was built to a different reference than
+    // the instrument around it, and reusing the control is how that stops.
+    const seg = el("div", "seg");
+    for (const [mode, label] of [["icons", "grid"], ["table", "list"]]) {
       const btn = el("button", (state.deskMode ?? "icons") === mode ? "on" : "", label);
-      btn.title = mode === "icons" ? "grid view" : "list view";
       btn.onclick = () => {
         state.deskMode = mode;
         renderAll();
       };
-      bar.appendChild(btn);
+      seg.appendChild(btn);
     }
+    bar.appendChild(seg);
     const crumbs = el("span", "desk-crumbs");
     const rootBtn = el("button", "linkish", "My files");
     rootBtn.onclick = () => goToLibraryRoot();
@@ -1642,9 +1784,281 @@ const openHistoryEntry = (e) => {
   if (p) openSource(p);
 };
 
+// ── the priors view: the corpus, its papers, and what is in play ────────────
+// live_priors beside this repo, browsed genre → collection → document, with a
+// toggle at every level. A document starts OFF (the corpus arrived wholesale;
+// enabling is the explicit act); the most specific declaration on its path
+// decides it, and the chip says whether that decision was made here,
+// inherited, or is the default — inherited state never dresses as chosen
+// state. Every flip is one ledger line and one record event; reading a
+// document's papers is a recorded open. The resolution code is priors.js —
+// the same module the server folds with, one implementation of "what decides
+// this document" on both sides of the wire.
+
+async function loadPriors() {
+  const P = state.priors;
+  if (P.loading) return;
+  P.loading = true;
+  P.error = null;
+  try {
+    P.data = await api("/api/priors");
+  } catch (e) {
+    P.error = e.message;
+  }
+  P.loading = false;
+  renderAll();
+}
+
+async function togglePrior(rel, on) {
+  const P = state.priors;
+  P.busy = rel || "(everything)";
+  renderAll();
+  try {
+    await api("/api/priors/toggle", { method: "POST", body: JSON.stringify({ path: rel, on }) });
+    P.data = null; // counts and declarations are server truth — refold
+    await loadPriors();
+    if (P.focus?.path != null) {
+      // the focused document's own state may just have moved — re-read it so
+      // the card never shows a stale decision
+      try {
+        P.focus = await api(`/api/priors/doc?path=${encodeURIComponent(P.focus.path)}`);
+      } catch {
+        /* the card keeps its last truth; the tree is already fresh */
+      }
+    }
+  } catch (e) {
+    P.error = e.message;
+  }
+  P.busy = null;
+  renderAll();
+}
+
+async function openPriorDoc(rel) {
+  const P = state.priors;
+  P.busy = rel;
+  renderAll();
+  try {
+    P.focus = await api(`/api/priors/doc?path=${encodeURIComponent(rel)}`);
+  } catch (e) {
+    P.error = e.message;
+  }
+  P.busy = null;
+  renderAll();
+}
+
+async function expandPrior(rel) {
+  const P = state.priors;
+  if (P.expanded.has(rel)) {
+    P.expanded.delete(rel);
+    renderAll();
+    return;
+  }
+  P.expanded.add(rel);
+  if (!P.children.has(rel)) {
+    try {
+      const t = await api(`/api/tree?path=${encodeURIComponent(`${P.data.root}/${rel}`)}`);
+      P.children.set(rel, t);
+    } catch (e) {
+      P.children.set(rel, { error: e.message, entries: [] });
+    }
+  }
+  renderAll();
+}
+
+/** The toggle chip: effective state, and where it came from — set here (a
+ * dot), inherited (named), or default. Click writes a declaration AT THIS
+ * LEVEL, whatever an ancestor says. */
+function priorToggleChip(rel, byPath) {
+  const eff = effectivePrior(byPath, rel);
+  const setHere = eff.decidedBy === rel;
+  const where = eff.decidedBy == null ? "the default — nothing on the ledger decides it" : setHere ? "set at this level" : `inherited from ${eff.decidedBy === "" ? "the everything toggle" : eff.decidedBy}`;
+  const b = el("button", `pr-toggle${eff.on ? " on" : ""}${setHere ? " declared" : ""}`, eff.on ? "in play" : "off");
+  b.title = `${eff.on ? "in play" : "off"} — ${where}. Click to turn ${eff.on ? "off" : "on"} at this level: one line on the append-only ledger, one event on the record.`;
+  b.disabled = state.priors.busy != null;
+  b.onclick = (e) => {
+    e.stopPropagation();
+    togglePrior(rel, !eff.on);
+  };
+  return b;
+}
+
+function renderPriors(surface) {
+  const P = state.priors;
+  if (!P.data && !P.error && !P.loading) loadPriors();
+  note(
+    surface,
+    "received",
+    P.data && !P.data.gap ? `${P.data.files.toLocaleString()} documents · ${P.data.enabledCount.toLocaleString()} in play · every document starts off` : "the live_priors corpus",
+    "The corpus arrived wholesale, so nothing in it is in play until you say so — at any level: everything, a genre, one collection, one document. The most specific declaration on a document's path decides it. Every flip is one line on an append-only ledger and one event on the record, and a document's papers — its publisher's own frontmatter — ride every crossing it makes into chat.",
+  );
+  if (P.error) {
+    gapFace(surface, "unreachable", ` ${P.error}`);
+    return;
+  }
+  if (!P.data) {
+    surface.appendChild(el("div", "web-busy", "reading the corpus off the disk…"));
+    return;
+  }
+  if (P.data.gap) {
+    gapFace(surface, P.data.gap.silence, ` ${P.data.gap.detail}`);
+    return;
+  }
+  const byPath = declarationsFrom(P.data.declarations);
+  if (P.data.ledgerSkipped) {
+    gapFace(surface, "ledger", ` ${P.data.ledgerSkipped} unreadable ledger line${P.data.ledgerSkipped === 1 ? "" : "s"} — counted, not folded`);
+  }
+  if (P.data.truncated) {
+    gapFace(surface, "censored-above", ` the corpus walk stopped at its declared cap of ${P.data.walkCap.toLocaleString()} entries — counts below are a floor, not a total`);
+  }
+  if (P.busy) surface.appendChild(el("div", "web-busy", `writing the ledger… (${P.busy})`));
+
+  // ── the focused document's papers, when one is in hand ────────────────────
+  if (P.focus) {
+    const f = P.focus;
+    const card = el("div", "pr-card");
+    const head = el("div", "pr-card-head");
+    head.appendChild(el("span", "ftype", "PRIOR"));
+    head.appendChild(el("span", "name", f.provenance?.title || f.name));
+    const x = el("button", "fold-x", "✕");
+    x.onclick = () => {
+      P.focus = null;
+      renderAll();
+    };
+    head.appendChild(x);
+    card.appendChild(head);
+    if (f.gap) {
+      card.appendChild(el("div", "pr-gap", `${f.gap.silence}: ${f.gap.detail}`));
+    } else {
+      // the papers, every field the document carries, as the document
+      // carries them — parsed mechanically, never composed
+      if (f.provenance) {
+        const table = el("div", "pr-papers");
+        for (const [k, v] of Object.entries(f.provenance)) {
+          // priors.js fills canonical aliases (url/publisher/date) so every
+          // consumer can rely on them; the card shows the header's own keys
+          // and hides an alias that merely repeats one
+          if (["url", "publisher", "date", "title"].includes(k) && Object.entries(f.provenance).some(([k2, v2]) => k2 !== k && v2 === v)) continue;
+          const row = el("div", "pr-paper-row");
+          row.appendChild(el("span", "k", k));
+          if (/^https?:\/\//.test(v)) {
+            const a = el("a", "v", v);
+            a.href = v;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.title = "the publisher's official copy — opens in your own browser, leaves this instrument";
+            row.appendChild(a);
+          } else row.appendChild(el("span", "v", v));
+          table.appendChild(row);
+        }
+        card.appendChild(table);
+      } else {
+        card.appendChild(el("div", "pr-gap", "no papers — this document carries no frontmatter; its path and the corpus's SOURCES.md are what vouch for it"));
+      }
+      const foot = el("div", "pr-card-foot");
+      foot.appendChild(priorToggleChip(f.path, byPath));
+      const read = el("button", "primary", "Read this →");
+      read.title = "open in the reader — admission, cast, relations, the full pipeline";
+      read.onclick = () => openSource(f.browsePath);
+      foot.appendChild(read);
+      const see = el("button", null, "⛶ view the file");
+      see.onclick = () => openPreview({ path: f.browsePath, name: f.name }, []);
+      foot.appendChild(see);
+      foot.appendChild(el("span", "meta", `${fmtBytes(f.bytes)} · ${f.path}`));
+      card.appendChild(foot);
+    }
+    surface.appendChild(card);
+  }
+
+  // ── everything: the root toggle ───────────────────────────────────────────
+  const rootRow = el("div", "pr-row pr-root");
+  rootRow.appendChild(el("span", "pr-name", "everything"));
+  rootRow.appendChild(el("span", "pr-meta", `${P.data.files.toLocaleString()} documents in ${P.data.categories.length} genres`));
+  rootRow.appendChild(priorToggleChip("", byPath));
+  surface.appendChild(rootRow);
+
+  // ── the genres, each expandable down to its documents ─────────────────────
+  const list = el("div", "pr-tree");
+  for (const c of P.data.categories) {
+    list.appendChild(priorFolderRow(c.name, byPath, { files: c.files, bytes: c.bytes, enabled: c.enabled }, 0));
+    if (P.expanded.has(c.name)) priorChildren(list, c.name, byPath, 1);
+  }
+  surface.appendChild(list);
+}
+
+function priorFolderRow(rel, byPath, counts, depth) {
+  const P = state.priors;
+  const row = el("div", "pr-row");
+  row.style.paddingLeft = `${depth * 22}px`;
+  const open = P.expanded.has(rel);
+  const arrow = el("button", "pr-arrow", open ? "▾" : "▸");
+  arrow.onclick = () => expandPrior(rel);
+  row.appendChild(arrow);
+  const name = el("button", "pr-name", rel.split("/").pop());
+  name.onclick = () => expandPrior(rel);
+  row.appendChild(name);
+  if (counts) {
+    row.appendChild(
+      el("span", "pr-meta", `${counts.files.toLocaleString()} docs · ${fmtBytes(counts.bytes)}${counts.enabled ? ` · ${counts.enabled.toLocaleString()} in play` : ""}`),
+    );
+  }
+  row.appendChild(priorToggleChip(rel, byPath));
+  return row;
+}
+
+function priorChildren(list, rel, byPath, depth) {
+  const P = state.priors;
+  const t = P.children.get(rel);
+  if (!t) {
+    const r = el("div", "pr-row");
+    r.style.paddingLeft = `${depth * 22}px`;
+    r.appendChild(el("span", "pr-meta", "listing…"));
+    list.appendChild(r);
+    return;
+  }
+  if (t.error) {
+    const r = el("div", "pr-row");
+    r.style.paddingLeft = `${depth * 22}px`;
+    r.appendChild(el("span", "pr-gap", t.error));
+    list.appendChild(r);
+    return;
+  }
+  for (const entry of t.entries) {
+    // the walk's own rule, applied to the listing too: dotfiles are
+    // machinery, not documents — a row the counts refuse to count would
+    // otherwise still be offered a toggle
+    if (entry.name.startsWith(".")) continue;
+    const childRel = `${rel}/${entry.name}`;
+    if (entry.dir) {
+      list.appendChild(priorFolderRow(childRel, byPath, null, depth));
+      if (P.expanded.has(childRel)) priorChildren(list, childRel, byPath, depth + 1);
+    } else {
+      const row = el("div", "pr-row pr-doc");
+      row.style.paddingLeft = `${depth * 22 + 20}px`;
+      const name = el("button", "pr-name", entry.name);
+      name.title = "the document's papers — its publisher's own frontmatter (a recorded open)";
+      name.onclick = () => openPriorDoc(childRel);
+      row.appendChild(name);
+      row.appendChild(el("span", "pr-meta", fmtBytes(entry.size)));
+      row.appendChild(priorToggleChip(childRel, byPath));
+      list.appendChild(row);
+    }
+  }
+  if (t.truncated) {
+    const r = el("div", "pr-row");
+    r.style.paddingLeft = `${depth * 22}px`;
+    r.appendChild(el("span", "pr-gap", `showing ${t.shown} of ${t.total} — the rest beyond the page cap`));
+    list.appendChild(r);
+  }
+}
+
 function renderWeb(surface) {
   const W = state.web;
-  note(surface, "shown", "requests leave this machine only from the local server, one per explicit ask, each recorded — and every page read is kept whole below, at its retrieval date, until you clear it");
+  note(
+    surface,
+    "shown",
+    "one request per ask, from the local server, recorded",
+    "requests leave this machine only from the local server, one per explicit ask, each recorded — and every page read is kept whole below, at its retrieval date, until you clear it",
+  );
 
   // ── the omnibox: an address reads a page, anything else searches ────────
   const bar = el("div", "web-bar");
@@ -1834,6 +2248,33 @@ function renderWeb(surface) {
   surface.appendChild(hist);
 }
 
+/**
+ * The badge on the title: the file's own extension when it has one, else the
+ * modality the sniffer decided. The extension is what the reader typed and
+ * what the folder shows, so it is the one that goes in the badge; the
+ * modality — which is a READING, and can disagree — rides the tooltip.
+ */
+function fileKind(s) {
+  const dot = String(s?.name ?? "").lastIndexOf(".");
+  const ext = dot > 0 ? s.name.slice(dot + 1) : "";
+  return (ext && ext.length <= 5 ? ext : s?.modality ?? "file").toUpperCase();
+}
+
+/**
+ * A saved page, identified by what it IS rather than by where it landed.
+ *
+ * Pages the web organ keeps are content-addressed, so the file on disk is
+ * called `108c4b618934090b.txt` — an identity that is true, stable, and
+ * completely unreadable as a title. The history index already holds the
+ * page's own title and host for exactly this file, so when the open source is
+ * one of those, that is what the title bar says; the hash keeps its place as
+ * the path, one hover away. Nothing is renamed on disk and no address moves.
+ */
+function savedPageFor(path) {
+  if (!path || !path.includes("/web/pages/")) return null;
+  return (state.web.history?.entries ?? []).find((e) => e.textPath === path || e.rawPath === path) ?? null;
+}
+
 // hostOf, duplicated tiny from web.js — that module is the server's half;
 // the page keeps its own three lines rather than importing across the seam.
 const hostOfUrl = (url) => {
@@ -1848,13 +2289,24 @@ const hostOfUrl = (url) => {
 function renderField(surface) {
   const s = state.source;
   if (TEXTUAL.has(s.modality) && state.text != null) {
-    note(surface, "shown", `the bytes as they sit on disk, decoded as UTF-8 — nothing interpreted. ${s.bytes.toLocaleString()} bytes.`);
-    const foldRow = el("div", "run-row");
-    const foldBtn = el("button", null, state.focus ? "fold this range" : "fold the source");
+    note(
+      surface,
+      "shown",
+      `${s.bytes.toLocaleString()} bytes · UTF-8`,
+      "the bytes as they sit on disk, decoded as UTF-8 — nothing interpreted",
+    );
+    // One toolbar, not a column of loose buttons. Everything that acts on the
+    // document in view sits in this row, in a fixed order — how it is shown
+    // on the left, what can be done to it on the right — so the controls stop
+    // moving as the modality changes which of them exist.
+    const bar = el("div", "field-bar");
+    surface.appendChild(bar);
+    state._fieldBar = bar;
+    const foldBtn = el("button", "field-act", state.focus ? "fold this range" : "fold the source");
     foldBtn.title = "an extractive summary: the most novel sentences here, verbatim and addressed — no model";
     foldBtn.onclick = () => requestFold(state.focus ? { c0: state.focus.c0, c1: state.focus.c1 } : {});
-    foldRow.appendChild(foldBtn);
-    surface.appendChild(foldRow);
+    bar.appendChild(el("span", "bar-gap"));
+    bar.appendChild(foldBtn);
     if (state.fold) surface.appendChild(foldCard(state.fold, "fold"));
     if (s.modality === "markdown") return renderMarkdownField(surface);
     if (s.modality === "table") return renderTableField(surface);
@@ -1902,8 +2354,14 @@ function renderTextField(surface) {
   if (outline?.sections?.length) {
     const box = el("div", "outline");
     box.appendChild(el("div", "hd", `outline · ${outline.sections.length} sections`));
+    // The document's own nesting, kept. A flat column of equal-weight lines
+    // is a list of strings; the same lines indented by their level are a
+    // shape, and the shape is what tells you where you are.
+    const levels = [...new Set(outline.sections.map((s) => s.level).filter((n) => Number.isFinite(n)))].sort((a, b) => a - b);
     for (const sec of outline.sections) {
-      const b = el("button", null, sec.label || `§${sec.index + 1}`);
+      const depth = Math.max(0, Math.min(3, levels.indexOf(sec.level)));
+      const b = el("button", `lvl-${depth}`, sec.label || `§${sec.index + 1}`);
+      b.title = sec.label || "";
       b.onclick = () => {
         const r = byteRangeToChars(sec.byteStart, sec.byteEnd);
         if (r) {
@@ -1969,15 +2427,26 @@ function renderMarkdownField(surface) {
   if (state.focus && !state.mdRaw) {
     state.mdRaw = true;
   }
-  const toggle = el("button", null, state.mdRaw ? "view rendered" : "view raw");
-  toggle.onclick = () => {
-    if (state.mdRaw) {
-      state.mdRaw = false;
-      state.focus = null; // the rendered face cannot hold a byte address
-    } else state.mdRaw = true;
-    renderAll();
-  };
-  surface.appendChild(toggle);
+  // Two faces of one document, so: a segmented control that shows both and
+  // marks which you are on — not a button whose label names the other one,
+  // which made the reader work out the state from the verb.
+  const seg = el("div", "seg");
+  for (const [raw, label] of [[false, "rendered"], [true, "raw"]]) {
+    const b = el("button", raw === state.mdRaw ? "on" : null, label);
+    b.title = raw
+      ? "the bytes themselves — the only face that can carry an address"
+      : "the document as markdown describes it";
+    b.onclick = () => {
+      if (raw === state.mdRaw) return;
+      // The rendered face cannot hold a byte address, so leaving raw drops
+      // the focus rather than pointing it at something that isn't there.
+      if (!raw) state.focus = null;
+      state.mdRaw = raw;
+      renderAll();
+    };
+    seg.appendChild(b);
+  }
+  (state._fieldBar ?? surface).prepend(seg);
   if (state.mdRaw) {
     const doc = el("div", "doc mono");
     fillDocWithMarks(doc, state.text);
@@ -2220,33 +2689,174 @@ function renderEntity(surface) {
 }
 
 // ---- Link — Structure·Figure: the triples ---------------------------------
+// Each statement carries handles (relations-chain.js, computed once per
+// landed Link surface and remembered): the statement before/after it in the
+// discourse — same sentence or the clause next door — and the other
+// statements naming the same cast member. A clause fragment ("and —that→
+// Russia would never forget") is unreadable alone; its handles are where its
+// meaning lives.
+let linkChain = { src: null, cast: null, rows: [] };
+function chainedLink(T) {
+  const rels = T.Link?.relations ?? [];
+  const referents = T.Entity?.referents ?? [];
+  // Keyed on the arrays themselves: a new read lands new objects, so
+  // reference identity can never serve a stale chain the way a count could.
+  if (linkChain.src !== rels || linkChain.cast !== referents) {
+    linkChain = { src: rels, cast: referents, rows: chainRelations(rels, { text: state.text ?? "", referents, diaNorm }) };
+  }
+  return linkChain.rows;
+}
+
+const LINK_WORDS = {
+  "same-clause": "same clause",
+  "same-sentence": "same sentence",
+  "adjacent-clause": "the clause next door",
+};
+
+/**
+ * ONE drawing of a link, everywhere a link is drawn.
+ *
+ * A statement was appearing three ways on one screen: as styled subject /
+ * verb / object spans in its own row, as a flat truncated string inside the
+ * neighbour pills, and as a spaceless label with no arrow at all in the
+ * selection. The same edge in three costumes reads as three kinds of thing,
+ * and the reader has to work out each time whether they are looking at the
+ * same claim. They are always the same claim, so they get one shape:
+ *
+ *     subject  —verb→  object   [negated]
+ *
+ * Subject and object are the material's own words and stay in the reading
+ * face; the verb is the instrument's finding and stays mono, so which half
+ * came from where is legible without a legend. Truncation is per-side, on the
+ * side that is long, rather than a cut through the middle of the arrow.
+ */
+const LINK_SIDE_MAX = 42;
+function linkNode(t, { compact = false } = {}) {
+  const wrap = el("span", `link${compact ? " compact" : ""}`);
+  const side = (cls, text) => {
+    const s = el("span", cls, clip(String(text ?? ""), LINK_SIDE_MAX));
+    if (String(text ?? "").length > LINK_SIDE_MAX) s.title = text;
+    return s;
+  };
+  wrap.appendChild(side("s", t.subject));
+  wrap.appendChild(el("span", "v", `—${t.verb}→`));
+  wrap.appendChild(side("o", t.object));
+  if (t.polarity === "−" || t.polarity === "-") wrap.appendChild(el("span", "neg", "negated"));
+  return wrap;
+}
+
+/** The same link as a string, for titles and labels — one spelling there too. */
+function linkText(t) {
+  return `${t.subject} —${t.verb}→ ${t.object}${t.polarity === "−" || t.polarity === "-" ? " (negated)" : ""}`;
+}
+
+const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const RELATION_ROWS_DRAWN = 400; // display cap, stated where it drops
+const SHARED_SHOWN = 8; // display cap on the sibling list, stated where it drops
+
 function renderLink(surface) {
   const T = readGate(surface, "Link");
   if (!T) return;
   const { relations, total, truncated } = T.Link;
   if (!total) return gapFace(surface, "computed-and-empty", "the relation ladder ran and stated zero (subject, verb, object) triples.");
-  let shown = relations;
+  const rows = chainedLink(T);
+  let shown = rows;
   let filterNote = "";
   if (state.sel?.type === "referent" || state.sel?.type === "node") {
     const needles = (state.sel.surfaces ?? [state.sel.label]).map((s) => s.toLowerCase());
-    shown = relations.filter((t) => needles.some((n) => t.subject?.toLowerCase() === n || t.object?.toLowerCase() === n || t.subject?.toLowerCase().includes(n) || t.object?.toLowerCase().includes(n)));
-    filterNote = ` · filtered by ${state.sel.label}: ${shown.length} of ${relations.length} match (rule: side equals or contains a surface, case-folded)`;
+    shown = rows.filter((t) => needles.some((n) => t.subject?.toLowerCase() === n || t.object?.toLowerCase() === n || t.subject?.toLowerCase().includes(n) || t.object?.toLowerCase().includes(n)));
+    filterNote = ` · filtered by ${state.sel.label}: ${shown.length} of ${rows.length} match (rule: side equals or contains a surface, case-folded)`;
   }
-  note(surface, "shown", `${total} triples stated (sessionRelations)${truncated ? ` · ${total - relations.length} beyond the response cap not shown` : ""}${filterNote}`);
+  note(surface, "shown", `${total} triples stated (sessionRelations), in the order the material states them${truncated ? ` · ${total - relations.length} beyond the response cap not shown` : ""}${filterNote} · click a statement for what links to it`);
+
+  const keyOf = (t) => `${t.subject}|${t.verb}|${t.object}`;
+  const jump = (t) => {
+    state.sel = { type: "relation", label: linkText(t), key: keyOf(t), index: t.index, surfaces: [t.subject, t.object] };
+    renderAll();
+    const row = document.getElementById(`rel-row-${t.index}`);
+    if (row) {
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+      row.classList.add("flash");
+      setTimeout(() => row.classList.remove("flash"), 1300);
+    }
+  };
+  const buildRow = (t) => {
+    const row = el("button", `triple${state.sel?.type === "relation" && state.sel.key === keyOf(t) ? " sel" : ""}`);
+    row.id = `rel-row-${t.index}`;
+    row.appendChild(el("span", "ord", String(t.index + 1))); // its place in the material, not a rank
+    row.appendChild(linkNode(t));
+    row.onclick = () => jump(t);
+    return row;
+  };
+
+  /**
+   * One shape for every hop out of the selected statement, whichever kind of
+   * neighbour it is. The relation to the selection goes in a fixed slot on
+   * the LEFT — always the same place, always the same width — and the link
+   * itself follows in its one standard drawing.
+   *
+   * Before this, `before` wore a leading `‹`, `after` wore a trailing `›`,
+   * and a shared-cast sibling wore neither and used an em dash instead: three
+   * layouts for one gesture, and the two chevrons on opposite edges meant the
+   * eye could not scan the column that told it what kind of hop each was.
+   */
+  const hop = (relation, t, title) => {
+    const b = el("button", "rel-hop");
+    b.appendChild(el("span", "rel-kind", relation));
+    b.appendChild(linkNode(t, { compact: true }));
+    b.title = title ?? linkText(t);
+    b.onclick = () => jump(t);
+    return b;
+  };
+  // The selected statement's handles, under its own row: where its meaning
+  // continues (a fragment completes the statement before it), and who else
+  // the material says something about.
+  const buildHandles = (t) => {
+    const strip = el("div", "rel-handles");
+    if (t.prev)
+      strip.appendChild(
+        hop(`↑ before · ${LINK_WORDS[t.prev.link]}`, rows[t.prev.index], `statement ${t.prev.index + 1} in the material's order`),
+      );
+    if (t.next)
+      strip.appendChild(
+        hop(`↓ after · ${LINK_WORDS[t.next.link]}`, rows[t.next.index], `statement ${t.next.index + 1} in the material's order`),
+      );
+    if (!t.prev && !t.next && t.where) strip.appendChild(el("div", "rel-note", "no statement sits next to this one in its sentence or the clauses beside it"));
+    if (!t.where) strip.appendChild(el("div", "rel-note", "this statement couldn't be placed back in the material, so before/after are unknown for it"));
+    if (t.shared.length) {
+      strip.appendChild(el("div", "rel-note", `other statements naming ${[...new Set(t.shared.flatMap((x) => x.via))].join(", ")}:`));
+      for (const x of t.shared.slice(0, SHARED_SHOWN))
+        strip.appendChild(
+          hop(`⇢ ${x.via.join(" · ")}`, rows[x.index], `statement ${x.index + 1} in the material's order`),
+        );
+      if (t.shared.length > SHARED_SHOWN) strip.appendChild(el("div", "rel-note", `${t.shared.length - SHARED_SHOWN} more not drawn (display cap)`));
+    } else {
+      strip.appendChild(el("div", "rel-note", "no other statement names the same cast member on either side"));
+    }
+    return strip;
+  };
+
   const box = el("div", "triples");
-  for (const t of shown.slice(0, 400)) {
-    const row = el("button", `triple${state.sel?.type === "relation" && state.sel.key === `${t.subject}|${t.verb}|${t.object}` ? " sel" : ""}`);
-    row.appendChild(el("span", "s", t.subject));
-    row.appendChild(el("span", "v", `—${t.verb}→`));
-    row.appendChild(el("span", "o", t.object));
-    if (t.polarity === "−" || t.polarity === "-") row.appendChild(el("span", "neg", "negated"));
-    row.onclick = () => {
-      state.sel = { type: "relation", label: `${t.subject} ${t.verb} ${t.object}`, key: `${t.subject}|${t.verb}|${t.object}`, surfaces: [t.subject, t.object] };
-      renderAll();
-    };
-    box.appendChild(row);
+  const selKey = state.sel?.type === "relation" ? state.sel.key : null;
+  let selDrawn = false;
+  for (const t of shown.slice(0, RELATION_ROWS_DRAWN)) {
+    box.appendChild(buildRow(t));
+    if (selKey && keyOf(t) === selKey) {
+      box.appendChild(buildHandles(t));
+      selDrawn = true;
+    }
   }
-  if (shown.length > 400) box.appendChild(el("div", "surface-note", `${shown.length - 400} more not drawn (display cap)`));
+  if (shown.length > RELATION_ROWS_DRAWN) box.appendChild(el("div", "surface-note", `${shown.length - RELATION_ROWS_DRAWN} more not drawn (display cap)`));
+  // A jump must never land nowhere: a selected statement beyond the drawn
+  // window (or outside the current filter) is drawn out of place, and says so.
+  if (selKey && !selDrawn) {
+    const t = rows.find((r) => keyOf(r) === selKey);
+    if (t) {
+      box.appendChild(el("div", "surface-note", `the selected statement sits at place ${t.index + 1}, beyond what is drawn above — shown here so it stays followable`));
+      box.appendChild(buildRow(t));
+      box.appendChild(buildHandles(t));
+    }
+  }
   surface.appendChild(box);
 }
 
@@ -2946,6 +3556,22 @@ function renderKind(surface) {
     surface.appendChild(again);
     return;
   }
+  // The quick draw now runs itself, so the stricter one needs a door that is
+  // always here rather than only on the pre-run screen nobody sees any more.
+  if (state.kindsOpts?.quick !== false) {
+    const bar = el("div", "field-bar");
+    bar.appendChild(el("span", "bar-gap"));
+    const thorough = el("button", "field-act", "look again · thorough");
+    thorough.title = "stricter gates and five scrambles instead of one — much longer";
+    thorough.onclick = () => {
+      state.kinds = null;
+      state.kindsArm = null;
+      startKinds(false);
+    };
+    bar.appendChild(thorough);
+    surface.appendChild(bar);
+  }
+
   const arm = state.kindsArm;
   // The arm banner: its sentence is BUILT from draws/drawsWithKinds —
   // natural frequencies, never a probability the draw count cannot support.
@@ -3241,6 +3867,10 @@ function renderAll() {
 
 // ── boot ────────────────────────────────────────────────────────────────────
 (async function boot() {
+  // This module reached its own boot, so the page is served and its scripts
+  // resolved — which is exactly what the not-served banner claims did not
+  // happen. It is governed by the one fact that matters: did this file run.
+  document.getElementById("not-served")?.remove();
   const q = new URLSearchParams(location.search);
   if (q.get("embed")) {
     // Inside the Converse pane: the host page carries the chrome.
@@ -3339,10 +3969,13 @@ document.addEventListener("keydown", (e) => {
     }
   }
 
-  // number keys walk the visible views, in their reveal order
+  // Number keys walk the row as it is drawn, so a key names the same view
+  // whether or not the read has finished — the row's stability is the point.
+  // A key on a surface that hasn't landed does nothing rather than jumping
+  // the reader somewhere they did not aim for.
   const n = Number(e.key);
   const views = visibleViews();
-  if (n >= 1 && n <= views.length) {
+  if (n >= 1 && n <= views.length && !views[n - 1].pending) {
     state.terrain = views[n - 1].id;
     renderAll();
   }

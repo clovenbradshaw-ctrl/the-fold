@@ -108,6 +108,93 @@ export function stripScaffoldNarration(text) {
   return { text: out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim(), removed };
 }
 
+/**
+ * The narration register, unbracketed: sentences ABOUT the prompt instead of
+ * answers TO it — "This passage indicates that…", "The prompt aims to…",
+ * "It then transitions to discussing…". The word classes here are not a
+ * style opinion; they are measured against a null (the user's standing
+ * rule): across 194 real documents from live_priors (literature,
+ * encyclopedic, academic, news — ~460,544 sentences), sentence-initial
+ * subject+verb of this register appears ONCE. In a 15-turn live trial
+ * (2026-08-17, qwen2.5:14b) it opened 6 of 15 answers. A register at ~2 per
+ * million sentences in human prose and ~40 per hundred in model output is
+ * model scaffold, and scaffold is stripped mechanically — the model is the
+ * mouth; nothing asks it to stop, the instrument just does not ship it.
+ *
+ * Three moves, each a cut or a prefix-cut of the raw text, never a rewrite:
+ * — DEFLATE: "The passage shows that X" keeps X (the complement is content;
+ *   the wrapper is the register). Prefix located and sliced off.
+ * — CUT: a register sentence with no that-complement carries nothing
+ *   ("This prompt aims to calculate a growth scenario."), as does an
+ *   "It then transitions…" continuation, a sentence reproducing the
+ *   discourse block, and — on the material path only — the false refusal
+ *   ("I can't access files", "It's a model"), which lies about an
+ *   instrument that just handed the model the bytes.
+ * — BAIL: a sentence that cannot be located in the raw text cuts nothing;
+ *   shipping the whole draft is always safer than mangling it.
+ */
+const NARRATION_SUBJECT = "(?:the|this|that|your)\\s+(?:passage|prompt|question|material|text|excerpt|conversation|dialogue|discussion|user|file|document|notes?|input)";
+const DEFLATE_RE = new RegExp(
+  `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:indicates|demonstrates|shows|states|suggests|confirms|reveals|says|notes|mentions|highlights|implies)\\s+that\\s+`,
+  "i",
+);
+const CUT_RES = [
+  new RegExp(
+    `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:asks?|asked|aims?|wants?|wanted|focuse[sd]|transitions?|discusse[sd]|begins?|starts?|revolves|details?|describe[sd]|provides?|provided|is\\s+about|is\\s+asking|seeks?)\\b`,
+    "i",
+  ),
+  /^\s*it\s+(?:then\s+)?(?:asks?|aims?|transitions?|shifts?|moves|focuse[sd]|discusse[sd]|goes\s+on)\b/i,
+  /conversation\s+so\s+far(?:,)?\s+in\s+one\s+line/i,
+];
+const FALSE_REFUSAL_RE =
+  /\b(?:as\s+an\s+ai\b|i'?m\s+(?:just\s+)?an?\s+(?:ai|language\s+model|model)\b|it'?s\s+a\s+model\b|i\s+(?:can'?t|cannot|don'?t\s+have)\s+(?:direct\s+)?access)\b/i;
+
+export function stripNarrationSentences(text, { discourse = "", hasMaterial = false } = {}) {
+  const raw = String(text ?? "");
+  const foldedDiscourse = discourse ? String(discourse).toLowerCase().replace(/\s+/g, " ") : "";
+  const removed = [];
+  let out = "";
+  let cursor = 0;
+  for (const sentence of splitSentences(raw)) {
+    const s = sentence.trim();
+    if (!s) continue;
+    const at = raw.indexOf(s, cursor);
+    if (at < 0) continue; // bail — this sentence stays wherever it is
+    const foldedS = s.toLowerCase().replace(/\s+/g, " ");
+    const isEcho = foldedDiscourse.length >= 24 && foldedS.length >= 24 && foldedDiscourse.includes(foldedS.slice(0, 60));
+    const isCut =
+      CUT_RES.some((re) => re.test(s)) || isEcho || (hasMaterial && FALSE_REFUSAL_RE.test(s));
+    if (isCut) {
+      out += raw.slice(cursor, at);
+      removed.push(s);
+      // Swallow the sentence and its trailing punctuation/space run.
+      let end = at + s.length;
+      const tail = raw.slice(end).match(/^[.!?…]*\s*/);
+      end += tail ? tail[0].length : 0;
+      cursor = end;
+      continue;
+    }
+    const m = s.match(DEFLATE_RE);
+    if (m) {
+      out += raw.slice(cursor, at);
+      removed.push(m[0].trim());
+      const rest = s.slice(m[0].length);
+      out += rest.charAt(0).toUpperCase() + rest.slice(1);
+      cursor = at + s.length;
+      continue;
+    }
+    // Untouched: emit up to and including this sentence as-is.
+    out += raw.slice(cursor, at + s.length);
+    cursor = at + s.length;
+  }
+  out += raw.slice(cursor);
+  if (!removed.length) return { text: raw, removed: [] };
+  return {
+    text: out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim(),
+    removed,
+  };
+}
+
 export function classifySentences(answer, attributions = [], findings = [], relationClaims = []) {
   const byText = new Map(attributions.map((a) => [a.text, a]));
   // A relation claim anchors to the sentence that carries its subject AND

@@ -269,8 +269,8 @@ locally, the result folded to counted perspectives ("stated by 2 of 3
 pages consulted, 2 distinct hosts") with the syndication residue named on
 the verdict — never "true", which this instrument cannot say. Authorization
 is two-tier and stays explicit: the per-claim button is one click, one
-crossing; the settings toggle (default OFF, persisted, the user's alone) is
-the standing consent that lets a turn seek automatically, bounded by
+crossing; the standing toggle (persisted, the user's alone) is the standing
+consent that lets a turn seek automatically, bounded by
 PROOF_TARGETS_PER_TURN with the bound visible in the disclosure. The page
 still owns no network — search, fetch, and record stay in
 explore-server.mjs; failures arrive as the typed gaps this policy already
@@ -279,6 +279,23 @@ nothing". Enforced: `proof.test.mjs` — query-from-own-words, same-fold
 containment, perspective counting with the never-"true" assertion, gap
 typing, target ordering and dedup, the declared budgets, and the seam test
 extended to proof.js, app.js, and index.html.*
+
+*Amended again (2026-08-17, by user direction): the standing toggle DEFAULTS
+ON, and it moved out of the settings dialog onto the composer, beside the
+question it governs. The reasoning for default-off was that a crossing must
+be authorized rather than assumed — but the toggle it protected was a
+checkbox inside a modal nobody opened twice, so what it actually bought was
+"the reader almost certainly never turned this on", not "the reader decided".
+A switch in permanent view, one click from every question, whose state is
+legible without opening anything, is the stronger form of the same
+requirement: consent that can be seen and withdrawn beats consent that has to
+be found. Nothing else in P13 moves — the egress is still the local server's
+alone, still one request per explicit ask, still recorded before it resolves,
+the per-claim button is still its own authorization, the per-turn bound is
+still declared and visible, and the archive.org crossing (a public act,
+unlike a private fetch) keeps ITS default off. Its sibling switch,
+`attachments`, governs no egress at all: it is retrieval-only, and turning it
+off unloads nothing and invalidates no address.*
 
 ## P14 — Work done twice becomes code; the model proposes, the gate disposes
 
@@ -684,6 +701,57 @@ table; that a trial says so in phrase and table alike; that no rank is finer
 than the floor; that the best-of-n gate is reachable *through the grammar*;
 that each dispatch matches what it would be by hand; and that every refusal
 this door can produce carries a detail a reader can act on.
+
+---
+
+## P19 — Priors are gated by a ledger, and their papers ride every crossing
+
+live_priors — the curated corpus one directory up (2,000+ documents in
+numbered genre folders, each carrying its publisher's own frontmatter) — is
+wired in as a place to stand, never as ambient knowledge:
+
+- **A prior arrives OFF.** The corpus arrived wholesale by fetch script, so
+  nothing in it is "material you took the trouble to attach" (the
+  attachments switch's own reasoning, inverted by the same logic). Enabling
+  is the explicit act, at whatever level the reader means it: everything,
+  one genre (`06-government-legal`), one collection
+  (`…/world-legislation/de`), one document. live_priors' own boundary —
+  browsable, never auto-ingested — is kept.
+- **Toggles are an append-only ledger** (`priors/toggles.jsonl`), folded to
+  current state; the most SPECIFIC declaration on a document's path decides
+  it, and the UI must say whether a state was set at that level, inherited
+  (naming the level that decided), or the default — inherited state never
+  dresses as chosen state. Every flip is one ledger line AND one record
+  event; every document open is recorded WITH the publisher's source URL.
+- **Papers ride every crossing.** A document's provenance — parsed
+  mechanically from its own frontmatter by priors.js's one parser, never
+  composed by a model — goes wherever the document goes: the Sources →
+  priors card, the attachment pill, and the re-open dialog of any ref that
+  cites it. A prior referenced in the surf answers "says who?" with the
+  institution that published it, not with a file path.
+- **The gate is the offer surface.** The chat's "already here" door lists
+  only what the ledger has in play; attaching goes through
+  `/api/priors/doc` so text and papers arrive in one recorded crossing and
+  the copy-not-link rule (attachments, 2026-08-17) holds.
+
+Two tiers, one corpus, one parser: priors-toggles.js is this gate;
+priors.js is the checking tier (a claim against the library). Both read a
+document's papers through priors.js's `parseFrontmatter`/`provenanceOf`, so
+the card that shows provenance and the check that cites it cannot drift.
+
+**Evidence:** the live run of 2026-08-17 — the German legislation
+collection enabled at its own level (15 documents), one statute
+(`BEAMTSTG.md`) vetoed at its own path and correctly excluded (14 in
+play), the tab's chips reading "set at this level" / "inherited from …" /
+"the default", ARBZG.md attached through the door with
+"Arbeitszeitgesetz · BMJ … · in_force · gesetze-im-internet.de" riding the
+pill, and `prior-toggle` / `prior-open` rows on the record carrying the
+official source URL.
+**Enforced:** `priors-toggles.test.mjs` — default-off with no decider
+named, most-specific-wins naming its level, last-write-wins over the
+ledger with bad lines counted, papers through the shared parser with
+offsets naming the file on disk; `priors.test.mjs` (the sibling tier)
+pins the parser both faces.
 
 ---
 

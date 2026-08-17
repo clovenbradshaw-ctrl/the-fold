@@ -1548,10 +1548,13 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   // Plain mode draws prose and nothing else: no address chips, no ground
   // underlines, no relation badges, no tally. The classification is what
   // produces every one of those, so it is not run rather than run and hidden.
+  // `task` still threads through either way — publishSegment's widget router
+  // (REC/ground routing on a complaint) reads the operator's own words
+  // regardless of whether checking marks are drawn this turn.
   if (state.grounded) {
-    renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction);
+    renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction, task);
   } else {
-    renderAnswer(body, result.output, offered, [], [], [], instruction);
+    renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
   await refreshSummary(fold);
   renderFold(node, { fold, record, ran: log });
@@ -3691,7 +3694,8 @@ function openAttachSheet(focus = null) {
   const list = $("attach-sheet-list");
   list.textContent = "";
   const names = Object.keys(state.sources);
-  if (!names.length) {
+  const mediaNames = Object.keys(state.media);
+  if (!names.length && !mediaNames.length) {
     list.innerHTML = '<p class="empty">Nothing attached. Add files with ＋, drop one anywhere, or paste.</p>';
   }
   for (const name of names) {
@@ -3745,6 +3749,26 @@ function openAttachSheet(focus = null) {
       row.append(peek);
     };
     if (name === focus) n.onclick();
+    list.append(row);
+  }
+
+  // Binary material rides below the text attachments in the same sheet: no
+  // checkbox, because the mute is a retrieval concept and bytes are never
+  // retrieved — the row just says what it is and how to open it (the one
+  // door is /measure). Merged here from the old materials panel (deleted —
+  // "the pills are the whole interface") so the /measure feature keeps its
+  // one place to be seen.
+  for (const name of mediaNames) {
+    const m = state.media[name];
+    const row = document.createElement("div");
+    row.className = "att-row";
+    const line = document.createElement("div");
+    line.className = "att-line";
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = `${name} · ${fmtBytes(m.bytes.length)} ${m.kind === "wav" ? "audio" : "binary"} · /measure ${name}`;
+    line.append(label);
+    row.append(line);
     list.append(row);
   }
   $("attach-sheet").showModal();

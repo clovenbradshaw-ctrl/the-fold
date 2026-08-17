@@ -45,6 +45,13 @@ import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js"
 // walls; this file only draws what they return.
 import { FOLD_SORTS, filterFolds, parseFoldCommand, pickRevisionSegment, sortFolds } from "./folds-pane.js";
 
+// Which build a produced artifact — or a bare complaint — belongs to.
+// "I don't like the colors" is a turn about something that already exists,
+// and it must land on that thing's log rather than forking a second one
+// beside it. Decided mechanically from the OPERATOR's words and the shape of
+// what came back, never from the model's phrasing (L5).
+import { capture, makeWidgetRouter } from "./widget.js";
+
 import {
   ensureEditor,
   editorGet,
@@ -106,6 +113,14 @@ import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
 import { makeCastResolver, makeCastHandles } from "./cast.js";
+
+// The engine's prior register — the closed-class word sets, each naming its
+// giver (Amendment IV). Routing is decided from these, never from a word
+// list this app typed out: a list of English verbs could only ever be a
+// sample standing in for the whole, which is the mistake relations.js's own
+// header records undoing.
+import * as enginePriors from "/engine/perceiver/text/priors.js";
+const widgetRouter = makeWidgetRouter(enginePriors);
 
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
@@ -820,6 +835,28 @@ async function send(question) {
   if (reflex === "reflect") return reflectTurn(question, question);
   if (reflex) return mechanicalTurn(question, reflex);
 
+  // A complaint about something already built runs as a SIGHTED revision on
+  // that build's own log — the /fold door's machinery, routed mechanically
+  // from the operator's words instead of a typed number. "I don't like the
+  // colors" hands the model the widget's current code and lands the returned
+  // fence as a RE-ZERO (REC) on the widget's log, with the words verbatim as
+  // the trigger. Checked AFTER every explicit door and after the material's
+  // own detectors, so a typed command or a question about the material can
+  // never be hijacked; the router itself refuses creation demands (the
+  // indefinite determiner) and questions that point at nothing a build
+  // contains. Without this, iteration depended on the model happening to
+  // re-emit a fence into ordinary chat — measured live (gemma2:2b,
+  // 2026-08-17), a coin flip. The model is only the mouth; the routing and
+  // the landing never depend on its behaviour.
+  const complaint = widgetRouter.routeMessage(
+    question,
+    state.builds.map((b) => {
+      const fold = buildFold(b, null);
+      return { n: b.n, type: fold?.seg?.type, lang: fold?.seg?.lang, text: `${fold?.caption ?? ""}\n${fold?.code ?? ""}` };
+    }),
+  );
+  if (complaint) return foldTurn(complaint.n, question, question, { rezero: true, tell: complaint.tell });
+
   // Every remaining turn runs as a task — 100% of the time. The one big
   // prompt that carried summary + records + material together is gone; a
   // turn is a plan log whose fold projects into small part-scoped calls,
@@ -842,7 +879,7 @@ async function send(question) {
  * a typed gap, identical code is churn the log refuses, and both facts are
  * said in the answer rather than absorbed.
  */
-async function foldTurn(n, instruction, typed) {
+async function foldTurn(n, instruction, typed, { rezero = false, tell = null } = {}) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -865,7 +902,9 @@ async function foldTurn(n, instruction, typed) {
   const prompt =
     `${instruction}\n\n` +
     `The working code of fold ${n}${lang ? ` (${lang})` : ""} is below. ` +
-    `Reply with the complete revised code in one fenced block.\n\n` +
+    (rezero
+      ? `Rewrite it to address the feedback above. Reply with the complete new code in one fenced block.\n\n`
+      : `Reply with the complete revised code in one fenced block.\n\n`) +
     `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\``;
 
   $("status").textContent = `revising fold ${n}…`;
@@ -902,7 +941,23 @@ async function foldTurn(n, instruction, typed) {
     logAct("revised", { fold: n, landed: false, gap: "no code in reply" });
   } else {
     const before = entry.log.entries.length;
-    entry.log = buildLog.reviseBuild(entry.log, { code: seg.code, reason: "revision" });
+    // The two landings differ by WHO moved and what the algebra says about
+    // it. A /fold instruction compiles a new whole from the current one —
+    // SUPERSEDE · SYN. A routed complaint is a judgment: the operator
+    // conceded the ground the code stood on, which is REC's own cell
+    // ("rezero — a new ambient ground begins"), so it lands through
+    // rezeroBuild: the concession entry carries the operator's words
+    // VERBATIM, and the next ground is born fresh (build-log.js's header
+    // says why one thread cannot hold both — REC→SYN runs the algebra
+    // backward).
+    entry.log = rezero
+      ? buildLog.rezeroBuild(entry.log, {
+          seg: { ...cur.seg, code: seg.code },
+          code: seg.code,
+          trigger: capture(typed),
+          tell,
+        })
+      : buildLog.reviseBuild(entry.log, { code: seg.code, reason: "revision" });
     const landed = entry.log.entries.length > before;
     if (landed) {
       entry.cursor = null;
@@ -912,8 +967,10 @@ async function foldTurn(n, instruction, typed) {
       renderBuilds(n);
       const now = buildFold(entry, null);
       const last = entry.log.entries[entry.log.entries.length - 1];
-      note = `fold ${n} · v${now.version} · revision landed (+${last.added ?? "?"}/−${last.removed ?? "?"} lines)`;
-      logAct("revised", { fold: n, landed: true, version: now.version });
+      note = rezero
+        ? `fold ${n} · ground ${now.ground} · re-zeroed on your words ("${capture(typed)}")`
+        : `fold ${n} · v${now.version} · revision landed (+${last.added ?? "?"}/−${last.removed ?? "?"} lines)`;
+      logAct("revised", { fold: n, landed: true, version: now.version, ...(rezero ? { rezero: true, ground: now.ground } : {}) });
     } else {
       // The log's own churn refusal: identical code appends nothing, and
       // that is a result worth saying, not a silence.
@@ -1165,7 +1222,7 @@ async function reflectTurn(question, typed) {
   const quoted = offered.flatMap((p) =>
     [...p.text.matchAll(REF_IN_TEXT)].map((m) => m[1]),
   );
-  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, undefined, question);
+  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, undefined, question, question);
 
   state.history.push(
     { role: "user", content: typed },
@@ -1499,7 +1556,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   const instruction = result.plan?.parts?.length
     ? `${task} ${result.plan.parts.map((p) => `${p.label}: ${p.description}`).join("; ")}`
     : task;
-  renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction);
+  renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction, task);
   await refreshSummary(fold);
   renderFold(node, { fold, record, ran: log });
   renderThreads();
@@ -1557,7 +1614,7 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null) {
+function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, message = "") {
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings, relationClaims);
@@ -1580,6 +1637,12 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   }
   const segments = parseSegments(answer);
   body.textContent = "";
+  // Where this turn's artifacts landed, accumulated as they land: the first
+  // block of a kind decides, the rest of that kind revise it rather than
+  // opening builds beside it. `touched` keeps the build numbers in first-
+  // touch order for the inline previews drawn after the loop.
+  const landedThisTurn = [];
+  const touched = [];
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
@@ -1594,12 +1657,27 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    // The chip is the conversation handle; for renderable artifacts (html,
-    // svg), the widget itself also appears inline — no click required.
-    const chip = publishBuild(seg, undefined, instruction);
-    body.append(chip);
-    if (RENDERABLE.has(seg.lang)) {
-      body.append(artifactNode(seg, undefined, seg.code, { scripts: true }));
+    // The chip is the conversation handle. Where the segment lands is the
+    // router's decision — an ordinary turn that happens to produce code can
+    // still be about a build that already exists, and a small model
+    // restating itself in one reply must not fork five builds out of one
+    // request (measured live, gemma2:2b, 2026-08-17). publishSegment routes;
+    // the touched builds render inline AFTER the loop, one frame per build,
+    // at the LIVE head — so a restated reply shows its final state once,
+    // never five drafts stacked.
+    const { chip, n } = publishSegment(seg, message, landedThisTurn, instruction);
+    if (chip) body.append(chip);
+    if (n != null && !touched.includes(n)) touched.push(n);
+  }
+
+  // For renderable artifacts (html, svg), the widget itself also appears
+  // inline — no click required. The frame draws the build's live projection,
+  // which is what the turn actually left behind.
+  for (const n of touched) {
+    const entry = state.builds.find((b) => b.n === n);
+    const fold = entry && buildFold(entry, null);
+    if (fold?.seg?.type === "code" && RENDERABLE.has(fold.seg.lang)) {
+      body.append(artifactNode({ ...fold.seg, code: fold.code }, undefined, fold.code, { scripts: true }));
     }
   }
 
@@ -1890,6 +1968,80 @@ function taggedProse(text, offered, classified = []) {
  * a scrollbar and the conversation gets a wall. The panel is the width the
  * output wants; the chip is the sentence the conversation wants.
  */
+/**
+ * Route one produced segment: onto an existing build's log, or to a new
+ * build of its own. `message` is the operator's own words for this turn —
+ * the only words trusted with the decision (the model's `instruction` rides
+ * along only to seed a NEW build's PROPOSE entry; it never routes).
+ *
+ * Returns `{chip, n}`: the chip may be null (a same-turn restatement adds a
+ * version, not a second handle), `n` is the build the segment landed on.
+ */
+function publishSegment(seg, message, landedThisTurn = [], instruction = null) {
+  const kindOf = (x) => ({ type: x?.type, lang: x?.lang });
+  const route = widgetRouter.routeSegment(
+    seg,
+    message,
+    state.builds.map((b) => {
+      const fold = buildFold(b, null);
+      // The build's OWN words — its caption and its current projection. A
+      // definite phrase ("the button") lands on the build whose bytes state
+      // it, so the routing is answered by the artifact rather than by a
+      // vocabulary this app would have had to invent.
+      return { n: b.n, ...kindOf(fold?.seg), text: `${fold?.caption ?? ""}\n${fold?.code ?? ""}` };
+    }),
+    { landedThisTurn },
+  );
+
+  if (route.kind === "new") {
+    const chip = publishBuild(seg, undefined, instruction);
+    const n = state.builds[state.builds.length - 1].n;
+    landedThisTurn.push({ n, ...kindOf(seg) });
+    return { chip, n };
+  }
+
+  const entry = state.builds.find((b) => b.n === route.n);
+  const before = entry.log.entries.length;
+  // An untagged fence adopts the build's declared language, so a widget
+  // answered with a bare fence keeps its preview and its .html download.
+  const landed = route.lang && route.lang !== seg.lang ? { ...seg, lang: route.lang } : seg;
+
+  if (route.kind === "revise") {
+    // The same turn, a later block of the same kind: a new whole compiled in
+    // one breath, which is a SUPERSEDE (SYN) and not a re-zero — no ground
+    // was conceded between them, because nobody judged anything in between.
+    entry.log = buildLog.reviseBuild(entry.log, { code: landed.type === "code" ? landed.code : null, reason: "restated" });
+    entry.cursor = null;
+    mirrorBuild(entry, before);
+    persistBuilds();
+    renderBuilds(entry.n);
+    // No second chip: the turn already has one, pointing at this build.
+    return { chip: null, n: entry.n };
+  }
+
+  entry.log = buildLog.rezeroBuild(entry.log, {
+    seg: landed,
+    code: landed.type === "code" ? landed.code : null,
+    trigger: route.trigger,
+    tell: route.tell,
+  });
+  landedThisTurn.push({ n: entry.n, ...kindOf(landed) });
+  // A re-zero that concedes nothing appends nothing (churn is refused in the
+  // log, not papered over here) — the chip is still honest about where the
+  // turn landed, which is on this build either way.
+  entry.cursor = null;
+  mirrorBuild(entry, before);
+  persistBuilds();
+  renderBuilds(entry.n);
+  if (!matchMedia("(max-width: 900px)").matches) showView("builds");
+
+  const fold = buildFold(entry, null);
+  const chip = buildChip(entry, `${fold.caption} · ground ${fold.ground}`, {
+    title: `Re-zeroed on your own words: "${route.trigger}". The previous ground is still on the log, at its own cursor position.`,
+  });
+  return { chip, n: entry.n };
+}
+
 function publishBuild(seg, caption, instruction = null) {
   const n = state.builds.length + 1;
   const turn = state.summary.turnCount + 1;
@@ -1917,11 +2069,18 @@ function publishBuild(seg, caption, instruction = null) {
   // is the wrong trade — the chip is enough.
   if (!matchMedia("(max-width: 900px)").matches) showView("builds");
 
+  return buildChip(entry, cap);
+}
+
+/** The conversation's one-line handle on a build. Code never appears in the
+ * chat as a block; the chip is the sentence, the panel is the artifact. */
+function buildChip(entry, label, { title = null } = {}) {
   const chip = document.createElement("button");
   chip.type = "button";
   chip.className = "build-chip";
   chip.innerHTML = `<span aria-hidden="true">▤</span> `;
-  chip.append(document.createTextNode(cap));
+  chip.append(document.createTextNode(label));
+  if (title) chip.title = title;
   chip.onclick = () => {
     showView("builds");
     renderBuilds(entry.n);
@@ -2162,7 +2321,13 @@ function buildCard(entry, highlight) {
   wrap.append(addrLine);
   const from = document.createElement("p");
   from.className = "build-from";
-  from.textContent = `turn ${entry.turn} · v${shown.version}`;
+  // A build that has been re-zeroed says so: the ground is part of where
+  // the reader is, not a footnote. Ground 1 is unlabelled — a build nobody
+  // has complained at has no ground to talk about.
+  from.textContent =
+    shown.ground > 1
+      ? `turn ${entry.turn} · ground ${shown.ground} · v${shown.version}`
+      : `turn ${entry.turn} · v${shown.version}`;
   wrap.append(from);
   if (shown.seg.type === "code" && atLive) {
     const edit = document.createElement("button");

@@ -563,6 +563,125 @@ countdown.py" lands on `countdown.py`); without one, the first prose line
 slugified, then the server disambiguates a taken name mechanically. A build
 named `build-4.py` is honest — the model did not name it.
 
+## Iterating a build (added 2026-08-17) — REC, grounds, and the router
+
+The ask, verbatim: *"give the widget the ability to be iterated on through
+append only modifications (including REC)"*, then the clarification that
+settled the design — *"So if I'm like 'I don't like the colors' or 'it's
+broken' it's able to modify that particular one and not create a net new
+one."*
+
+**The defect this closed.** `publishBuild` counted `state.builds.length + 1`
+and stopped there, so every code segment a turn produced was a NEW build.
+Complaining at a widget forked it: build 1 the original, build 2 the
+recolour, build 3 the fix — three orphans, and build 1's append-only log
+frozen at the moment the operator first spoke. The log was append-only in
+the small and abandoned in the large.
+
+**REC is a re-zero, and a re-zero opens a GROUND.** `operators.js` types REC
+as *rezero* — Generate · Interpretation, "a new ambient ground begins". A
+complaint is exactly that: the operator judged the projection and the ground
+it was built on is conceded. Two entries per re-zero, and the shape is
+forced, not stylistic: the engine's production order is one-way
+(`isProductionOrder("SYN","REC")` is **true**, `("REC","SYN")` is **false**),
+so a REC inside a build's thread would forbid every later edit on it —
+editing a widget after complaining about it, i.e. the normal case. So the
+concession is its own single-entry thread (EVIDENCE · REC · Figure ·
+produced, carrying the operator's words VERBATIM and the version it
+concedes) and the next ground is born as any production is, PROPOSE · SEG,
+with **no `supersedes`** — a re-zero concedes a ground, it does not compile a
+new whole out of the old one. Threads read `[SEG SYN…] [REC] [SEG SYN…]` and
+`checkCubeProgression` stays silent across all of them, for any number of
+grounds. Ground 1 keeps the plain `b<n>.v<k>` address, so a log that never
+re-zeroed is addressed exactly as it always was and replays unchanged.
+
+**The router (`widget.js`) contains no word lists, and that is the point.**
+The first version decided the question with four hand-typed English lists —
+presupposing verbs, creation verbs, judgment adjectives, anaphora. That is
+precisely the mistake `relations.js`'s own header records having undone: a
+90-word hand-listed verb string that was *"not a simplification of English,
+it was a sample of it standing in for the whole"*. It was rewritten to
+compose organs instead:
+
+- **Closed classes from the engine's prior register**
+  (`perceiver/text/priors.js`, every entry naming its giver, Amendment IV).
+  `INDEFINITE_DETERMINERS` / `DEFINITE_DETERMINERS` / `ANAPHORIC_PRONOUNS`
+  are NEW there — the register is where a received closed class lives, not a
+  private regex in this repo; `NEGATION_WORDS` and `FIRST_PERSON` were
+  already there. An indefinite determiner INTRODUCES its noun and decides
+  outright; an anaphor POINTS BACK; negation with a first-person subject is a
+  JUDGMENT. None of this needs to know what a verb means.
+- **The build's own bytes.** A definite phrase ("the button") lands on the
+  build whose projection contains it, both sides through retrieval's own
+  fold (`tokenize`/`foldDiacritics`) — CLAUDE.md's diacritics lesson applied
+  to routing. This is also why a material question cannot be hijacked: the
+  widget's bytes hold no "report".
+
+`extractRelations`/`discoverRelationVocab` was reached for first and refused
+**on the merits**, stated rather than assumed: it anchors candidate verbs on
+capitalised surfaces, and "I don't like the colors" has no surface at all
+(`NEVER_A_NAME` excludes "I"), so the ladder measures an empty vocabulary.
+Same posture as `outlineOfIndex` being tried and rejected in eoreader6's own
+`goldens/network`.
+
+**Two rules that only a real model produced.** Both were found running the
+page against a live `gemma2:2b` on ollama, and neither was reachable from
+canned fixtures:
+
+1. **A turn is one act.** Asked for one counter widget, gemma2:2b replied
+   with FIVE html fences, and every one opened a build — one request, five
+   orphans. Later blocks of the same kind in one turn are SUPERSEDE · SYN
+   versions of the first, never siblings (no ground is conceded: nobody
+   judged anything in between). Two different KINDS in one turn are still two
+   builds.
+2. **An untagged fence is a gap, not a difference.** Complained at, the model
+   answered with a bare ``` fence holding the fix, and the strict
+   language match forked it. Silence is not a declaration of difference: the
+   strict match exists to stop a DECLARED python file from becoming a version
+   of a DECLARED html widget, and an undeclared fence adopts the build's own
+   language so the widget keeps its preview frame and its `.html` download.
+
+**The stated limit, kept rather than bought back with a list.** A definite
+phrase naming something the artifact does not YET contain does not resolve:
+"change the background to blue" on a widget with no background falls through
+to a new build. The verb list caught that one phrasing and would have
+silently mis-routed every phrasing outside itself. Anaphora ("make it
+blue"), judgment ("I don't like the background") and the number ("build 2")
+all still route, so the affordance is narrower, never absent. Morphology is
+not folded either — "the colors" does not resolve against `color:` — and
+there is no stemmer in this engine to borrow.
+
+**Files.** `widget.js` (pure, priors injected — the cast.js pattern);
+`widget.test.mjs` (the e2e walk plus the router's walls, against the REAL
+engine modules); `build-log.js` grew `rezeroBuild`/`groundCount` and
+ground-aware ids; app.js's `publishSegment` routes and `buildChip` is shared;
+`constitution.test.mjs`'s II.13 host scan now covers widget.js and builds.js,
+which the page now loads.
+
+**The reliable path is COMPOSITION with the /fold door (added at merge,
+2026-08-17).** The fold-architecture session independently built `foldTurn`
+(`/fold <n> <instruction>`): the model is handed the fold's CURRENT code,
+the returned fence is extracted mechanically (`pickRevisionSegment` —
+tolerates a dropped language tag), churn is refused by the log, and a
+codeless reply is a typed gap. That is exactly what iteration-by-complaint
+needed and did not have: before, a routed complaint depended on the model
+happening to re-emit a fence into ordinary chat — measured live (gemma2:2b),
+a coin flip. Now `widgetRouter.routeMessage` decides in `send()`, BEFORE any
+model call, whether the operator's words point at an existing code build
+(checked after every explicit door and the material's detectors, so nothing
+typed or material-bound can be hijacked), and a hit runs `foldTurn` with
+`{rezero: true}` — same sighted prompt, same mechanical extraction, but the
+landing is `rezeroBuild` (REC, trigger verbatim) rather than `reviseBuild`
+(SYN), because a judgment concedes a ground and an instruction compiles a
+new whole. The two landings, one machine. `routeSegment` remains the
+downstream wall for ordinary turns that happen to produce code.
+
+**Three build-log modules exist and only one is wired.** `build-log.js` is
+live (app.js imports it); `builds.js` is unwired except for `referencedBuild`
+and `BUILD_MESSAGE_MAX`, which widget.js now imports rather than re-deriving;
+`buildlog.js` is unwired entirely — and its SIG/INS/REC/EVA vocabulary is
+where the REC reading here was first written down. Named so the next pass
+does not mistake one for another, as this one nearly did.
 ## The terminal (added 2026-08-16, sixth pass) — what was decided, so it is not re-derived
 
 P18 in POLICIES.md is the law; this is the map. The user's direction: the

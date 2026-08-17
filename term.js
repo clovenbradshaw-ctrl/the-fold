@@ -13,11 +13,14 @@
 //   python   pyodide, vendored in node_modules, served from localhost —
 //            stdlib plus numpy/matplotlib/pandas, also vendored
 //            (scripts/fetch-pyodide-packages.sh; no PyPI: the page loads
-//            nothing remote, P1)
+//            nothing remote, P1). `pip install <name>` (below, a fold
+//            command) fetches any of pyodide's own ~350 wasm-built
+//            packages the same way (P21, the wheel organ) — never
+//            arbitrary PyPI, and only the local SERVER ever crosses out.
 //   sql      sqlite via sql.js, vendored the same way; loaded CSV material
 //            imports as tables
 //
-// Anything else — a shell, node, pip, a remote box — is refused with its
+// Anything else — a shell, node, npm, a remote box — is refused with its
 // reason, never half-simulated. The registry takes any runtime a localhost-
 // served module can boot; the refusals name why the famous ones cannot.
 //
@@ -43,7 +46,7 @@ export const HINT_AFTER_MS = 10_000; // a long-running command earns one "✕ in
 export const ROSTER = {
   fold: { kind: "builtin", blurb: "commands over the instrument itself — mechanical, no model" },
   js: { kind: "worker", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
-  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); material mounts at /material" },
+  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); `pip install <name>` (fold command) fetches any of ~350 others; material mounts at /material" },
   sql: { kind: "worker", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
 };
 
@@ -56,8 +59,7 @@ export const REFUSED = {
   zsh: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
   sh: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
   node: "node runs on the machine — `js` is the sandboxed runtime here",
-  pip: "package installs need the network and the machine — P1 allows neither; stdlib plus numpy/matplotlib/pandas (vendored) is all there is",
-  npm: "package installs need the network and the machine — P1 allows neither",
+  npm: "package installs need the machine's own node — P1 allows neither; `pip install <name>` is the one sanctioned install, closed to pyodide's own vetted set (P21)",
   webcontainers: "needs a remote CDN and a commercial licence — P1 refuses the first, the licence refuses the second",
   webvm: "boots a full Debian over an external network proxy — P1 refuses the proxy",
   ssh: "a page has no raw sockets; an ssh relay would be egress — P1 refuses it",
@@ -374,6 +376,7 @@ export function initTerminal(bridge) {
           "  record [words]       the append-only record's tail (needs a fold server)",
           "  priors [on|off <p>]  live_priors' toggle state · flip a document, folder, or the whole corpus",
           "  handbook [n]         the eoreaderhandbook, vendored whole — chapter list, or one chapter's text",
+          "  pip install <name>   fetch a wheel from pyodide's own ~350-package build (P21) — never arbitrary PyPI",
           "  runtimes             what can run here — and what is refused, with reasons",
           "  learn · learn stop   walk this terminal's own commands, one step at a time · leave the lesson early",
           "  clear · exit         wipe the screen · close the drawer",
@@ -520,6 +523,50 @@ export function initTerminal(bridge) {
       const text = await (await fetch(`handbook/${ch.file}`)).text();
       stream(text);
       line(`— chapter ${ch.n}, ${ch.title} (handbook/${ch.file})`, "term-mute");
+    },
+    // pip: the wheel organ (P21), closed to pyodide's own ~350-package wasm
+    // build — never arbitrary PyPI. This command does the one crossing
+    // (the local server fetches, sha256-verifies, and vendors the wheel);
+    // the python worker's OWN loadPackagesFromImports mechanism (untouched)
+    // picks it up on a FRESH session's first line, same as it already does
+    // for numpy/matplotlib/pandas. A name not in that set is a typed
+    // refusal, never a silent miss.
+    async pip(arg) {
+      const [sub, ...rest] = (arg ?? "").trim().split(/\s+/).filter(Boolean);
+      const bases = ["", "http://localhost:8812"];
+      const hit = async (path, opts) => {
+        for (const base of bases) {
+          try {
+            const res = await fetch(`${base}${path}`, opts);
+            if (res.ok) return await res.json();
+          } catch {
+            /* try the next base */
+          }
+        }
+        return null;
+      };
+      if (sub !== "install" || !rest.length) {
+        let count = "pyodide's own vetted set";
+        try {
+          const lock = await (await fetch("node_modules/pyodide/pyodide-lock.json")).json();
+          count = `${Object.keys(lock.packages).length} packages`;
+        } catch {
+          /* the count is a nicety; the usage line stands without it */
+        }
+        return line(`pip install <name> — fetches a wheel from ${count} pyodide itself already builds for wasm (numpy, scipy, pandas, scikit-learn, networkx, requests, and hundreds more — never arbitrary PyPI). \`import <name>\` on a FRESH python session's first line loads it.`, "term-mute");
+      }
+      const name = rest.join(" ");
+      line(`fetching ${name} — checking pyodide's own vetted set, sha256-verified against its lock file…`, "term-mute");
+      const body = await hit("/api/wheels/install", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!body) return line("the wheel organ lives on a fold server — start explore-server.mjs (port 8812) to install packages here", "term-exit bad");
+      if (body.gap) return line(body.gap.detail, "term-exit bad");
+      const fresh = body.fetchedNow?.length ? `${body.fetchedNow.length} new wheel${body.fetchedNow.length === 1 ? "" : "s"} fetched` : "already vendored";
+      line(`${body.name} v${body.version} ready (${fresh}) — sha256-pinned against pyodide's own lock.`, "term-mute");
+      line(`this session's python runtime won't see it — its network already severed. \`exit\` then \`python\` starts fresh; \`import ${body.name}\` as that session's FIRST line loads it, same as numpy/pandas/matplotlib always have.`, "term-mute");
     },
     clear() {
       out.textContent = "";

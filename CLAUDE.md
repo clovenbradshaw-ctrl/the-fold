@@ -583,6 +583,59 @@ still draw on a build turn under the marks toggle, and the suppression is
 turn-scoped — world-claim prose sharing a turn with a code build loses
 its chips too.
 
+**Amended 2026-08-17 (second occurrence, holon.js) — absence of material
+licenses withholding judgment, never manufacturing it.** The build-turn fix
+above closed app.js's single-flat-turn path; the same failure shape was
+still live in `holon.js`'s multi-part pipeline (a plan with an artifact
+part — `runPart`'s `inspect`), which is a different code path and was not
+touched by that fix. Measured live: a counter-widget build with no material
+attached still produced the wall of label chips
+("Okay" / "Counter Initialization" ✓3/6 / "Event Listeners" / …) plus a
+"claiming things nothing given backs: N" tally — because `inspect`'s
+no-material branch unconditionally calls `extractCheckableAtoms`, whose own
+docstring is explicit about what it is for: give the web-proof-seeking tier
+candidates on a genuine world-claim nobody sourced (its own example:
+"what percentage of Earth's atmosphere is nitrogen"). That is a legitimate,
+narrow use — `checkGrounding` at zero passages returns `examined: false`,
+a deliberate *withholding*, and proof-seeking still needs somewhere to
+point on a bare factual question with nothing attached. The bug was
+applying that same fallback to a part whose subject is an artifact the
+model just produced: a build's own account of its own code ("initializes a
+counter set to 0", "adds click listeners") is not an unsourced claim about
+the world, it is the model narrating bytes sitting right next to it — its
+ground is the artifact, not something absent. `extractCheckableAtoms`
+converts "nothing to check against" into "everything is guilty by
+definition," which is exactly backwards from `checkGrounding`'s own stated
+principle one branch up (`examined` and `clean` are different facts, on
+purpose — grounding.test.mjs) applied to a case that principle was never
+meant to cover.
+
+**The constitutional statement, so the next pass does not re-derive it
+turn-type by turn-type:** a checking organ may say "I have nothing to
+compare this against" (withhold), or "I compared it and it failed"
+(convict). It may never manufacture the second out of the first — treating
+absence-of-material as presence-of-fabrication is not a check, it is an
+accusation with no evidence, dressed as one. Where a part DOES have ground
+the ladder doesn't read — its own artifact, sitting in the same turn — the
+fallback must recognize that ground exists rather than treating "the ladder
+found no material" as "there is none." Concretely: `inspect` now runs
+`parseSegments(text)` (artifact.js, the same organ app.js's own segment
+renderer uses — one parser, not a second fence regex) and gates the
+no-material fallback on whether the part produced a code segment; a build
+part gets `checkedGrounding` (correctly `examined: false`, `clean: true`)
+exactly as a material part would if it had none, and a genuine unsourced
+factual part still gets `extractCheckableAtoms`'s candidates — pinned by
+both cases as regressions (`holon.test.mjs`, "a build part with no material
+never manufactures unbacked findings from its own code labels" alongside
+the pre-existing "no material still offers a checkable figure" case that
+must keep working). This is a stronger fix than the app.js drawing toggle:
+that one withholds the CHIP STRIP while the finding still lands on the
+record ("hidden drawing, never a hidden finding," by design, because a real
+check ran and found something real). Here no real check ran — the finding
+itself was synthetic, manufactured by the fallback rather than observed —
+so there is nothing honest to disclose by keeping it; withholding the
+finding IS the honest disclosure.
+
 ## The UX pass (2026-08-17) — what was decided, so it is not re-derived
 
 A working pass over both pages, driven live. The decisions, not the diff:
@@ -1384,3 +1437,77 @@ divergent build logs is unscoped. Skills/history sync is pull-then-import,
 never a live two-way sync — there is no polling, no background sync, and
 no automatic push on every skill admission or build; every crossing is the
 three named buttons.
+
+## The wheel organ (added 2026-08-17) — what was decided, so it is not re-derived
+
+P21 in POLICIES.md is the law; this is the map. The ask, from the user
+directly, after the numpy/matplotlib/pandas vendoring landed: have the
+terminal's python actually run `pip install`, "as powerful as possible,"
+while never running anything on the real machine's own terminal.
+
+**The reframe that made this tractable.** `pip install <name>` sounds like
+it needs a general package-install organ. It doesn't. pyodide already
+ships its own wasm build of ~350 packages — the SAME mirror
+`scripts/fetch-pyodide-packages.sh` already pulls numpy/matplotlib/pandas
+from, listed in the SAME `pyodide-lock.json` that already governs what
+`loadPackagesFromImports` can resolve. So "make pip work" reduces to
+"generalize that script from three hardcoded names to any name in the
+lock" — a route that fetches, sha256-verifies, and vendors onto the SAME
+disk `indexURL` already points at. `term-py-worker.mjs` needed ZERO
+changes to its exec/sever logic: its existing `loadPackagesFromImports`
+mechanism already resolves whatever sits at `indexURL`, vendored ahead of
+time or freshly fetched moments before — it has no idea, and does not need
+one. Arbitrary PyPI (a package outside this lock) stays a named, disclosed
+absence, not something quietly promised — a real `micropip`/PyPI-JSON tier
+is a materially different, broader crossing (an open host, not one pinned
+mirror) and is future work, weighed on its own.
+
+**Files.** `wheels.js` (new, pure — the transitive dependency-closure
+walk over a lock object, zero egress calls, mirroring the
+web.js/github.js/priors-toggles.js split between shape and crossing) +
+`wheels.test.mjs` (6 conformance tests against a small fixture lock: a
+leaf, a diamond dependency deduplicated to one wheel, a lowercase-name
+fallback, a miss, every wheel keeping its own hash). `explore-server.mjs`
+owns the one crossing: `POST /api/wheels/install`, reusing
+`fetchCapped` — the SAME fetch pipeline `fetchAndKeep` (the web organ)
+already uses — rather than a second one. `term.js` gained a `pip` fold
+command (the `hit()`-against-two-bases pattern `priors()`/`record()`
+already use) and lost `pip` from `REFUSED`; `term-py-worker.mjs`'s
+in-Python pip guard stayed (typing `pip install x` as Python still isn't
+valid Python) but its message now redirects to the real command instead
+of claiming installs are impossible.
+
+**Decisions that cost something, kept here.** The whole closure is
+sha256-re-verified on every call, not just newly-fetched wheels — an
+already-vendored file from an interrupted prior run is checked, never
+trusted because its filename already existed on disk. Two named budgets
+(P9): `WHEEL_MAX_BYTES` (90MB/wheel) and `WHEEL_CLOSURE_MAX_BYTES`
+(260MB/install) — measured against this lock's own largest builds
+(scipy, opencv), not guessed. The crossing is recorded twice per install —
+`wheel-install-requested` before the fetch begins (naming the full
+closure and what actually needs fetching), `wheel-install`/
+`wheel-install-failed` once it resolves — so a name outside the lock
+(`wheel-install-refused`) is visibly distinct on the record from one that
+tried and failed partway through.
+
+**The inherited constraint, stated rather than papered over.** A
+pip-installed package is invisible to any ALREADY-RUNNING python session —
+`term-py-worker.mjs` severs its own fetch right after the first exec's
+imports resolve, a constraint this policy does not touch and could not
+without reopening P18. `pip install <name>` only ever prepares the ground:
+a FRESH `python` session's first line is what actually loads it, exactly
+the way numpy/matplotlib/pandas already work. The command's own output
+says this every time, rather than promising something the architecture
+cannot yet do.
+
+**Evidence, driven live end to end through the real terminal UI** (not
+just the route in isolation): `pip install networkx` at the fold prompt
+resolved a 15-wheel transitive closure (networkx pulls in matplotlib, and
+from there numpy/pillow/kiwisolver/fonttools/…), fetched and verified the
+3 wheels not already vendored in 1.5s; a repeat call re-verified the full
+closure's hashes and fetched nothing in 25ms; `exit` then a fresh `python`
+then `import networkx as nx; g = nx.Graph(); g.add_edge("a","b");
+print(nx.number_of_nodes(g))` as that session's first line printed `2`;
+separately, `pip install requests` typed AS PYTHON inside a running
+session was refused with the redirect, not a stack trace. Full numbers and
+the refusal-path measurement are in POLICIES.md P21.

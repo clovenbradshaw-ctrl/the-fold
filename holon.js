@@ -41,6 +41,7 @@ import { stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
+import { parseSegments } from "./artifact.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -638,11 +639,28 @@ export async function runPart({
     });
     // No material means checkGrounding rightly declines to examine anything
     // (its `examined: false` is a deliberate fact, not a gap — see
-    // grounding.test.mjs). But proof-seeking still needs candidates: with
-    // nothing attached, every atom in the draft is unsupported by
-    // definition, so it is offered to the web tier the same way a
-    // material-unsupported atom would be (see extractCheckableAtoms).
-    const grounding = passages.length
+    // grounding.test.mjs). The constitutional question is what absence is
+    // ALLOWED to mean: everywhere else in this ladder, "nothing to check
+    // against" is a reason to withhold judgment, never a reason to convict.
+    // extractCheckableAtoms exists to give proof-seeking candidates on a
+    // genuine world-claim nobody sourced — a bare factual question with no
+    // material at all (grounding.js's own docstring: "what percentage of
+    // Earth's atmosphere is nitrogen"). It must not fire on a part whose
+    // subject is an artifact the model just produced. A build's own account
+    // of its own code ("initializes a counter", "adds click listeners") is
+    // not a claim about the world nobody sourced — its ground is the code
+    // sitting right next to it, which this ladder doesn't check prose
+    // against because app.js already treats that ground as sufficient (the
+    // 2026-08-17 build-turn amendment, CLAUDE.md). Manufacturing "unsupported
+    // by definition" findings from bare absence, on a part that HAS a ground
+    // just not one this ladder reads, produced exactly the failure that
+    // amendment named live: a counter widget's own walk-through read back as
+    // a wall of invented-claim chips. So the fallback is gated on the same
+    // signal app.js uses to withhold its chip strip — a fenced code segment
+    // in the part's own text — rather than repeating the mistake one layer
+    // down under a different name.
+    const isArtifactPart = parseSegments(text).some((s) => s.type === "code");
+    const grounding = passages.length || isArtifactPart
       ? checkedGrounding
       : (() => {
           const findings = extractCheckableAtoms(shipped, { question: groundingQuestion });

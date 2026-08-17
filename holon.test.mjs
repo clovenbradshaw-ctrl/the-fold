@@ -360,6 +360,38 @@ test("no material still offers a checkable figure to the web tier, not silence",
   assert.ok(result.unbacked.some((u) => u.includes("999")));
 });
 
+test("a build part with no material never manufactures unbacked findings from its own code labels", async () => {
+  // The live failure this pins (2026-08-17, constitutional pass): a counter
+  // widget with no material attached answered with a fenced code block plus
+  // its own prose walk-through ("Initializes a counter set to 0.", "Adds
+  // click listeners for increment and decrement."). No material means
+  // checkGrounding correctly declines to examine anything — but the SAME
+  // no-material fallback that rightly offers a bare factual claim to the web
+  // tier (the test above) was, before this fix, also firing here, reading
+  // the model's account of its own artifact as world-claims nobody sourced
+  // and manufacturing a findings list out of bare absence. A part's own
+  // artifact is its own ground; the fallback must stay silent on it exactly
+  // as checkGrounding itself would if there were passages to compare against.
+  const result = await runHolonicTask({
+    task: "build a counter widget in vanilla JS",
+    chunks: [],
+    call: async () =>
+      [
+        "```html",
+        "<button id='dec'>-</button><span id='n'>0</span><button id='inc'>+</button>",
+        "<script>let count = 0;</script>",
+        "```",
+        "Initializes a counter variable set to 0.",
+        "Adds click listeners for increment and decrement.",
+      ].join("\n"),
+  });
+  const section = result.sections[0];
+  assert.equal(section.passages.length, 0);
+  assert.deepEqual(section.grounding.findings, []);
+  assert.equal(section.grounding.clean, true);
+  assert.deepEqual(result.unbacked, []);
+});
+
 test("production retries a strayed part that matched nothing, as a supersede", async () => {
   // The plan strays entirely — a part sharing no term with the task, matching
   // nothing in the corpus. The rule proposes one retry in the task's own

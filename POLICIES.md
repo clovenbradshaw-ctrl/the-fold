@@ -727,8 +727,12 @@ opens instead is a registry of runtimes that live entirely in the page:
   line runs;
 - **python** — pyodide, vendored in node_modules and served from
   localhost like every other byte the page loads (P1: no CDN, hence no
-  PyPI — pip is a typed refusal naming this policy; the stdlib is all
-  there is);
+  PyPI — the stdlib plus numpy/matplotlib/pandas is what a session starts
+  with). *Amended by P21 (2026-08-17): `pip install <name>` is now a real
+  fold command — the wheel organ, closed to pyodide's own ~350-package
+  vetted build, never arbitrary PyPI. Everything above about the SANDBOX
+  stands unchanged: the crossing is the local server's alone, and nothing
+  typed inside a runtime ever reaches further than it already did.*
 - **sql** — sqlite via sql.js, vendored the same way; loaded CSV material
   imports as typed tables (the quote-walking parse and the all-or-nothing
   column typing are term.js's own, tested).
@@ -738,9 +742,8 @@ crossing into the sandbox: N sources, M bytes", printed where it happens —
 mounted read-only (/material in python's MEMFS, material(name) in js,
 .load in sql), re-synced only by the explicit `mount`. Runtimes that
 cannot exist under P1 are refused with their reasons (bash/zsh/sh, node,
-pip/npm, WebContainers, WebVM, ssh) — typed refusals, never
-half-simulations; the registry stays open to any runtime a
-localhost-served module can boot. The sandbox is an authority wall by
+npm, WebContainers, WebVM, ssh) — typed refusals, never half-simulations;
+the registry stays open to any runtime a localhost-served module can boot. The sandbox is an authority wall by
 construction (P14's own disclosed posture), never claimed as a hardened
 security boundary; P1 remains the outer wall. Budgets are named: the
 display keeps KEEP_PER_EXEC per command, the sql worker carries
@@ -1004,6 +1007,79 @@ untouched, on strips an unreachable one and records the finding, a
 resolved one ships unmodified and is fetched exactly once, and a URL
 already in the wider loaded corpus is never fetched at all (asserted by
 making the fake `checkLink` throw if called).
+
+## P21 — The wheel organ: pip installs are a second sanctioned egress, closed to a vetted set
+
+P18's "nothing typed here reaches the machine" is amended, not repealed:
+the sandbox itself gains no new capability, and every guarantee P18 names
+— severed workers, no exec route, no stdin, no PTY — stands exactly as
+before. What is added is ONE more egress in the local server only
+(`explore-server.mjs` `POST /api/wheels/install`, pure half in `wheels.js`)
+to exactly one destination — pyodide's own package mirror, the SAME CDN
+`scripts/fetch-pyodide-packages.sh` already pulls numpy/matplotlib/pandas
+from — for exactly the packages that mirror's own lock file
+(`pyodide-lock.json`) declares: a closed, pyodide-vetted set of wasm
+builds, currently 356 packages, never arbitrary PyPI. `pip install <name>`
+is a fold command, not Python: it asks the server to walk the requested
+name's transitive dependency closure, fetch whatever is not already
+vendored, sha256-verify EVERY wheel in the closure (freshly fetched and
+already-on-disk alike, so a corrupted prior download is caught rather than
+trusted) against the lock's own declared hash, and write it to
+`node_modules/pyodide/` — the same disk location `indexURL` already
+points at. Nothing downstream changes: `term-py-worker.mjs`'s existing
+`loadPackagesFromImports` mechanism (untouched by this policy) picks up
+whatever sits there, vendored or freshly fetched, on that runtime's next
+FRESH session's first line — exactly as it already does for
+numpy/matplotlib/pandas, inheriting the same disclosed constraint (only
+the first exec's imports resolve; fetch severs right after). A name typed
+inside a running python session as `pip install x` is still refused, not
+silently reinterpreted — it never was valid Python, and the refusal now
+redirects to the real fold command rather than claiming installs are
+impossible.
+
+Every crossing lands on the record before the fetch begins
+(`wheel-install-requested`, naming the full closure and what actually
+needs fetching) and again once it resolves or fails
+(`wheel-install`/`wheel-install-failed`) — a name outside the lock is
+`wheel-install-refused` and never touches the network at all. Two named
+budgets bound the crossing (P9: named, with a duty): `WHEEL_MAX_BYTES`
+(90MB, one wheel) and `WHEEL_CLOSURE_MAX_BYTES` (260MB, one install's
+whole dependency closure) — a name whose closure exceeds the bound is a
+typed `censored-above` refusal, never a half-fetched, half-usable state.
+
+**Disclosed limit, not a silent absence.** This is NOT a general PyPI
+organ. A pure-Python package outside pyodide's own build (arbitrary PyPI
+via a real `micropip`/PyPI-JSON tier) is refused by name
+(`gap.silence: "not-present"`, the reason stated) — a materially broader
+crossing (an open-ended host, not one pinned mirror; arbitrary code
+selected by whatever a request names) that deserves its own amendment,
+weighed on its own, not folded in here to make this pass look larger than
+it is.
+
+**Evidence:** the live measurements of 2026-08-17 — a request for a name
+outside the lock (`totally-not-a-real-package-xyz`) refused in the typed
+shape above, zero network calls made; `pip install networkx` resolving a
+15-wheel transitive closure (networkx itself pulls in matplotlib, and from
+there numpy/pillow/kiwisolver/fonttools/…), 3 of the 15 not yet vendored,
+fetched and sha256-verified in 1.5s; a repeat call resolving the same
+closure with `fetchedNow: []` in 25ms (every wheel re-verified against
+its hash on disk, not merely checked for existence); the whole loop driven
+live end to end through the real terminal UI — `pip install networkx` at
+the fold prompt, `exit`, a fresh `python`, `import networkx as nx; g =
+nx.Graph(); g.add_edge("a","b"); print(nx.number_of_nodes(g))` as that
+session's first line, printing `2`; and, separately, `pip install
+requests` typed AS PYTHON inside a running session, correctly refused with
+the redirect to the real command rather than a stack trace.
+**Enforced:** `wheels.test.mjs` — the closure walk against a fixture lock
+(a leaf, a diamond dependency deduplicated to one wheel, a lowercase-name
+fallback, a miss returning null, every wheel carrying exactly its own
+hash); `term.test.mjs` — `pip` is confirmed absent from `REFUSED` and the
+in-Python guard is confirmed still present with its new redirect;
+`constitution.test.mjs` II.13 is unchanged by this policy because
+`explore-server.mjs` (where the one real crossing lives) and `wheels.js`
+(pure, zero egress calls, never loaded by the page) both sit outside the
+browser's own page graph — the same seam `web.js`'s sibling crossing in
+that same server file already relies on.
 
 ---
 

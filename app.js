@@ -63,7 +63,7 @@ import {
   editorRunShortcut,
 } from "./editor.js";
 
-import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } from "./tables.js";
+import { NOTHING, buildTable, chartOf, delimitedRows, detectChart, detectTable, toMarkdown } from "./tables.js";
 
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
@@ -162,6 +162,29 @@ import * as engineTaskLog from "/engine/holon/task-log.js";
 import { makeBuildLog } from "./build-log.js";
 
 const buildLog = makeBuildLog(engineTaskLog);
+
+// The measuring door. `nul` is the engine's whole statistical physiology — it
+// builds a nothing by breaking the material on purpose and says where the
+// observation sits in it — and `bindLinks` is the co-arrival organ with its own
+// per-pair null. Both come off the same mounts (binding.js itself imports
+// ../../../nul/index.js, which is why /nul is not optional here either).
+// measure.js is the gate in front of them: pure, engine injected, and the
+// place a declaration is refused before a draw is spent.
+import * as nul from "/nul/index.js";
+import { bindLinks } from "/engine/emergence/binding.js";
+// The engine's pure frame reduction (rms/flux) — the module split from the
+// ffmpeg-importing material.js precisely so a page can load it. This is how
+// a WAV, or any binary, becomes a series at the measuring door.
+import { reduce as audioReduce } from "/engine/perceiver/audio/reduce.js";
+import {
+  admit as admitMeasurement,
+  parseMeasure,
+  phrase as phraseMeasurement,
+  runMeasurement,
+  sniffContainer,
+  toTable as measurementTable,
+  usage as measurementUsage,
+} from "./measure.js";
 
 import {
   BOUND_SYSTEM_PROMPT,
@@ -280,6 +303,19 @@ const state = {
   turnFolds: [],
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
+  /** The /measure door's own session record: {file, question, phrase} per run
+   *  that produced a placement (refusals and probes are not measurements).
+   *  Read by the measurements table — a question about a measurement the app
+   *  made is answered from here, never sent to a model to paraphrase. */
+  measurements: [],
+  /**
+   * Binary material — a WAV, any file the text reader refuses. Held as bytes
+   * beside the text sources, NEVER chunked or retrieved (retrieval is term
+   * overlap and bytes have no terms): the one door into it is /measure,
+   * where it becomes a series through the engine's own frame reduction.
+   * {name: {bytes: Uint8Array, kind: "wav"|"bytes"}}.
+   */
+  media: {},
   /**
    * Sources switched off. They stay loaded — their text is still here, so a
    * record's refs still re-open — but retrieval does not see them. Removing a
@@ -740,6 +776,121 @@ async function chartTurn(question) {
   drainQueue();
 }
 
+/**
+ * A measurement of a loaded file — chartTurn's rule one rung up.
+ *
+ * A chart shows a file's own rows; this says whether anything in them is more
+ * than the file's own arithmetic, and it is the one turn in this app whose
+ * whole job is to REFUSE more often than it answers. Everything statistical is
+ * the engine's (`nul`, `bindLinks`); measure.js is the gate; this function is
+ * only plumbing — find the named file, hand the declaration to the gate, print
+ * whichever of the two came back.
+ *
+ * Zero model calls, by construction. A model asked to place a figure against a
+ * null could only retype numbers it cannot compute, which is the failure mode
+ * this whole door exists downstream of.
+ */
+async function measureTurn(decl, question) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const say = (text) => {
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = text;
+    body.textContent = "";
+    body.append(p);
+    return text;
+  };
+
+  let answer;
+  // The file is found by name (P11), and an ambiguous name is REFUSED rather
+  // than resolved by picking one — measuring the wrong file and saying so
+  // confidently is the exact failure this door is for. Muted sources are still
+  // measurable: the mute is a retrieval concept, and this is not retrieval.
+  const names = [...Object.keys(state.sources), ...Object.keys(state.media)];
+  const token = (decl.file ?? "").toLowerCase();
+  const exact = names.find((n) => n.toLowerCase() === token);
+  const hits = exact ? [exact] : names.filter((n) => token && n.toLowerCase().includes(token));
+
+  if (!hits.length) {
+    answer = say(
+      names.length
+        ? `no loaded file is named "${decl.file}". Loaded: ${names.join(", ")}.`
+        : `no file is loaded, so there is nothing to measure. Drop one in first.`,
+    );
+  } else if (hits.length > 1) {
+    answer = say(`"${decl.file}" names ${hits.length} loaded files (${hits.join(", ")}) — say which one. Measuring the wrong file is worse than measuring nothing.`);
+  } else {
+    const d = { ...decl, file: hits[0] };
+    const refusal = admitMeasurement(d, nul);
+    if (refusal) {
+      answer = say(phraseMeasurement({ refused: refusal }));
+      // An unlicensed pairing is the one refusal worth printing at length: the
+      // reader is being told not just no, but what HAS been established and on
+      // what material, so the next declaration can be a better one.
+      if (refusal.established?.length) {
+        const list = document.createElement("pre");
+        list.className = "prose";
+        list.textContent = refusal.established.map((p) => `${p.pair}\n    earned on: ${p.where}`).join("\n\n");
+        body.append(list);
+      }
+    } else {
+      // The material ladder: binary media stays bytes; a text source becomes
+      // a table through the shared quote-aware walker. The router takes both.
+      const media = state.media[hits[0]];
+      const material = media ?? delimitedRows(state.sources[hits[0]]);
+      if (!material) {
+        answer = say(`${hits[0]} does not read as delimited rows, so there are no columns to measure.`);
+      } else {
+        // One router (measure.js::runMeasurement), so this turn and the
+        // real-data eval can never disagree about which measurement a
+        // declaration named. It re-runs the gate, which is cheap and means
+        // there is no path into a measurement that skipped it.
+        const result = runMeasurement(d, material, { nul, bindLinks, reduce: audioReduce });
+        answer = phraseMeasurement(result);
+        body.textContent = "";
+        if (result.refused || result.kind === "probe") {
+          // A probe or a refusal is prose, preformatted — the probe's example
+          // lines are meant to be copied back into the input verbatim.
+          const pre = document.createElement("pre");
+          pre.className = "prose";
+          pre.textContent = answer;
+          body.append(pre);
+        }
+        // The figures the app computed, printed by the app. The segment
+        // deposits through the same fold door a model's code would, so a
+        // measurement is downloadable and addressable like everything else.
+        else {
+          body.append(publishBuild(measurementTable(result), answer, question));
+          state.measurements.push({ file: hits[0], question, phrase: answer });
+        }
+      }
+    }
+  }
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: answer },
+  );
+  const turn = state.summary.turnCount + 1;
+  // A new act on the closed ledger. `measured` is not one of the acts reflex.js
+  // was taught to phrase, and that is deliberate — its `stableDetail` fallback
+  // renders an unknown act deterministically from sorted keys, which is the
+  // module's own designed extension point rather than an edit to it.
+  logAct("measured", { what: decl.kind, file: hits[0] ?? decl.file ?? "—" });
+  observeExchange(turn, question, answer);
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
 function drainQueue() {
   if (state.busy || !state.queue.length) return;
   const next = state.queue.shift();
@@ -803,6 +954,17 @@ async function send(question) {
   if (/^\/self\s*$/.test(question)) {
     return usageTurn(question, selfOverview({ ...state, pace: foldPace(state.paceLog, state.model) }));
   }
+  // The measuring door. Typed, so it is checked with the other typed commands
+  // and before any heuristic — a declaration of a measurement must never be
+  // hijacked by a word-match, and its own refusals are the answer when the
+  // declaration is incomplete. Nothing here reaches a model.
+  const measured = parseMeasure(question);
+  if (measured) {
+    if (measured.decl) return measureTurn(measured.decl, question);
+    if (measured.refused) return usageTurn(question, `${phraseMeasurement(measured)}\n\n${measurementUsage(nul)}`);
+    return usageTurn(question, measurementUsage(nul));
+  }
+
   const reflectQ = question.match(/^\/reflect\s+(\S[\s\S]*)/)?.[1];
   if (reflectQ) return reflectTurn(reflectQ, question);
   if (/^\/reflect\s*$/.test(question)) return usageTurn(question, "/reflect <question> — answers about how this instrument has been working, retrieving from its own act ledger instead of the material. The record such a turn earns is typed as self-knowledge, never as a check against the world.");
@@ -3368,10 +3530,11 @@ function renderSourceStrip() {
 function renderSources() {
   renderSourceStrip();
   const names = Object.keys(state.sources);
+  const mediaNames = Object.keys(state.media);
   const list = $("source-list");
   if (!list) return;
   list.textContent = "";
-  if (!names.length) {
+  if (!names.length && !mediaNames.length) {
     list.innerHTML =
       '<p class="empty">Nothing loaded yet — add files above, drop one anywhere on the page, or paste below.</p>';
     return;
@@ -3411,6 +3574,20 @@ function renderSources() {
     row.append(box, n, c, x);
     list.append(row);
   }
+
+  // Binary material rides below the text sources: no checkbox, because the
+  // mute is a retrieval concept and bytes are never retrieved — the row just
+  // says what it is and how to open it (the one door is /measure).
+  for (const name of mediaNames) {
+    const m = state.media[name];
+    const row = document.createElement("div");
+    row.className = "source-row";
+    const label = document.createElement("span");
+    label.className = "source-name";
+    label.textContent = `${name} · ${fmtBytes(m.bytes.length)} ${m.kind === "wav" ? "audio" : "binary"} · /measure ${name}`;
+    row.append(label);
+    list.append(row);
+  }
 }
 
 async function addFiles(fileList) {
@@ -3422,9 +3599,19 @@ async function addFiles(fileList) {
       // megabyte file otherwise goes from click to done with no sign anything
       // happened.
       await new Promise((r) => setTimeout(r, 0));
-      const text = await file.text();
-      if (looksBinary(text)) {
-        $("status").textContent = `${file.name} isn't text — skipped`;
+      // Magic FIRST, text heuristic second. A PDF's first kilobytes are
+      // ASCII ("%PDF-1.4 ... obj"), so a looks-like-text check reads one as
+      // prose, chunks it as paragraphs, and every door downstream then treats
+      // a compression stream as vocabulary. A container declares itself in
+      // its own first bytes; that declaration outranks any guess.
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const container = sniffContainer(bytes);
+      const text = container ? null : await file.text();
+      if (container || looksBinary(text)) {
+        const kind = container ?? "bytes";
+        state.media[file.name] = { bytes, kind };
+        renderSources();
+        $("status").textContent = `${file.name} · ${fmtBytes(bytes.length)} of ${kind === "wav" ? "audio" : kind} — measure it: /measure ${file.name}`;
         continue;
       }
       addSource(file.name, text);

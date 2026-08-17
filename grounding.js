@@ -465,8 +465,20 @@ export function blankStructure(answer) {
     .replace(/^[ \t]*#{1,6}[^\n]*$/gm, blank)
     .replace(/^[ \t]*\*\*[^\n*]+\*\*[ \t]*:?[ \t]*$/gm, blank)
     // A line-initial bold phrase with a colon is a heading even when prose
-    // follows on the same line ("**Anatole's Effect:** she felt…").
-    .replace(/^([ \t]*)\*\*[^\n*]+:\*\*|^([ \t]*)\*\*[^\n*]+\*\*:/gm, blank)
+    // follows on the same line ("**Anatole's Effect:** she felt…") — and the
+    // same heading wearing a list marker ("1. **HTML Structure:** - We
+    // create…", "- **Counter Initialization:** let count = 0…") is still a
+    // heading: the model labelling the sections of its own walk-through, not
+    // a claim about the world. Measured live (2026-08-17): a counter
+    // widget's numbered explanation defeated the anchor and rendered a wall
+    // of label chips ("Counter Initialization", "Event Listeners") plus
+    // "claiming things nothing given backs: 76". The optional prefix admits
+    // digits-and-dot or a -/*/+ bullet, with leading whitespace, and the
+    // whole match blanks so the marker's own digit never reads as a figure.
+    .replace(
+      /^[ \t]*(?:\d+\.[ \t]+|[-*+][ \t]+)?\*\*[^\n*]+:\*\*|^[ \t]*(?:\d+\.[ \t]+|[-*+][ \t]+)?\*\*[^\n*]+\*\*:/gm,
+      blank,
+    )
     .replace(ADDRESS, blank);
 }
 

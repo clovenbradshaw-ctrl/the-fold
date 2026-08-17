@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { classifySentences, stripScaffoldNarration } from "./provenance.js";
+import { classifySentences, stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { chunkSource } from "./source.js";
 import { attribute } from "./cite.js";
 import { checkGrounding } from "./grounding.js";
@@ -122,4 +122,59 @@ test("relation verdicts ride the sentence that carries subject and verb, read of
   // Backward compatible: the fourth argument omitted means no edges, never a throw.
   const bare = classifySentences(answer, [], []);
   assert.ok(bare.every((e) => Array.isArray(e.edges) && e.edges.length === 0));
+});
+
+test("the narration register is stripped: cut, deflate, echo, false refusal", () => {
+  // DEFLATE — the complement is content, the wrapper is the register.
+  const d = stripNarrationSentences("This passage indicates that Nashville is located on the Cumberland River.");
+  assert.equal(d.text, "Nashville is located on the Cumberland River.");
+  assert.equal(d.removed.length, 1);
+
+  // CUT — no complement, nothing carried: the live turn-8 opener verbatim.
+  const c = stripNarrationSentences(
+    "This prompt aims to calculate a population growth scenario. It asks the user to compute it. The answer is 724,000.",
+  );
+  assert.equal(c.text, "The answer is 724,000.");
+  assert.equal(c.removed.length, 2);
+
+  // ECHO of the discourse block — the live turn-2 opener.
+  const e = stripNarrationSentences(
+    "The conversation so far in one line: Nashville River location. The population was 689,447 in 2020.",
+    { discourse: "Nashville River location · Conversation focused on the river" },
+  );
+  assert.ok(!/conversation so far/i.test(e.text));
+  assert.ok(/689,447/.test(e.text));
+
+  // FALSE REFUSAL on the material path — the live turn-6 answer. In plain
+  // chat (no material) the same sentence is odd but not provably false, so
+  // it survives there.
+  const f = stripNarrationSentences("I can't access or provide a table of the content in nashville.md.", { hasMaterial: true });
+  assert.equal(f.text, "");
+  const g = stripNarrationSentences("I can't access your calendar.", { hasMaterial: false });
+  assert.equal(g.removed.length, 0);
+
+  // Real prose about a passage IN THE MATERIAL'S OWN SUBJECT survives — the
+  // register needs the narration verb, not just the noun.
+  const h = stripNarrationSentences("The document was signed in 1779 by James Robertson.");
+  assert.equal(h.removed.length, 0);
+});
+
+test("stripNarrationSentences never touches a fenced code block, even when a cut happens elsewhere", () => {
+  // The exact bug measured live in this session: a blanket whitespace-
+  // collapse regex ran over the WHOLE output whenever anything was cut,
+  // destroying 4-space Python indentation in a fence the cut never came
+  // near. Both strip functions share the fence-splice fix; this pins it at
+  // the narration-sentence layer, where the live trial actually hit it.
+  const draft =
+    "This prompt aims to calculate a population script.\n\n" +
+    "```python\n" +
+    "def fib(n):\n" +
+    "    a = [0, 1]\n" +
+    "    for i in range(2, n):\n" +
+    "        a.append(a[i-1] + a[i-2])\n" +
+    "    return a\n" +
+    "```";
+  const { text, removed } = stripNarrationSentences(draft);
+  assert.equal(removed.length, 1);
+  assert.ok(text.includes("```python\ndef fib(n):\n    a = [0, 1]\n    for i in range(2, n):\n        a.append(a[i-1] + a[i-2])\n    return a\n```"));
 });

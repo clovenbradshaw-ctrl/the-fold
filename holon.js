@@ -37,7 +37,7 @@
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
-import { stripScaffoldNarration } from "./provenance.js";
+import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 
@@ -871,8 +871,11 @@ export async function runPart({
   const scaffoldRemoved = [];
   const clean = (raw) => {
     const { text: t, removed } = stripScaffoldNarration(raw);
-    scaffoldRemoved.push(...removed);
-    return t;
+    // The unbracketed register too — "This passage indicates that…" — with
+    // its word classes earned against live_priors' null (see provenance.js).
+    const second = stripNarrationSentences(t, { discourse, hasMaterial: passages.length > 0 });
+    scaffoldRemoved.push(...removed, ...second.removed);
+    return second.text;
   };
 
   draft = clean(await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));

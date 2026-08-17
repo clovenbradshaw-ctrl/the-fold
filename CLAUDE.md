@@ -1046,7 +1046,11 @@ an `ambiguous` gap, landed by `patchBuild` as a SUPERSEDE whose entry
 carries only the delta. `foldBuild` compiles every cursor's whole from the
 last full entry plus the patch stack. The descent ladder in `foldTurn` is
 typed and said out loud: ops that apply → patch entry; ops that don't →
-the old full-code ask; neither → a typed gap. And `routeMessage` is NOW
+the old full-code ask; neither → a typed gap. Same pass, same direction:
+PROPOSE is retyped **INS · Figure · produced** — birth is Generate ·
+Existence by the handbook's own axes (201-nine-verbs), and the SEG typing
+had read the snip mechanics rather than the act; SEG keeps its true
+station as the deletion primitive. And `routeMessage` is NOW
 ACTUALLY WIRED in `send()` (it was documented below as wired before it
 was — the same documented-but-never-called failure routeSegment had):
 checked after every typed door and material detector, a complaint lands

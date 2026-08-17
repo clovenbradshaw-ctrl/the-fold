@@ -13,10 +13,21 @@
 // cube is not a content classifier — POLICIES/CLAUDE.md both carry the
 // refuted measurement). The constitutive entries carry it:
 //
-//   PROPOSE   → SEG · Figure · produced — the artifact was snipped out of
-//               the turn's own answer and individually named; this is
-//               task-log.js::proposeDiscovered's exact cell, reused, not a
-//               new invention.
+//   PROPOSE   → INS · Figure · produced — BIRTH. Generate · Existence: a
+//               new whole brought into being, in the domain of "is this
+//               thing here at all" (the handbook's own axes, 201-nine-verbs;
+//               the sibling bare-metal-eo-matrix-app reads it identically —
+//               "INS creates new entities with permanent anchor IDs").
+//               Corrected from SEG (2026-08-17, user direction: "INS is
+//               birth"): the SEG typing read the MECHANICS (a fence snipped
+//               out of the turn's answer — task-log's proposeDiscovered
+//               cell) rather than the ACT (an artifact coming into being).
+//               The snip is how the segment reached us; the birth is what
+//               the entry records. SEG keeps its true station below, as the
+//               delta primitive that cuts a reach-unit out. INS → SYN runs
+//               forward in the engine's own order (… DEF → INS → SYN …), so
+//               the referee stays silent — pinned, as ever, against the
+//               real checker.
 //   SUPERSEDE → SYN · Figure · produced — a new whole compiled from the
 //               prior version and the edit. SEG → SYN … SYN never runs the
 //               algebra backward (checkCubeProgression stays silent on a
@@ -340,7 +351,10 @@ export function makeBuildLog(taskLog) {
       kind: ENTRY_KINDS.PROPOSE,
       task_id: vid(n, 1),
       description: caption,
-      operator: STRUCTURE_OPERATORS.SEG,
+      // INS, not SEG: birth is Generate · Existence (header). The literal
+      // is the same convention the REC entry already uses — the engine's
+      // append is the wall either way.
+      operator: "INS",
       operator_basis: OPERATOR_BASIS.PRODUCED,
       grain: FIGURE,
       n,
@@ -411,7 +425,7 @@ export function makeBuildLog(taskLog) {
       kind: ENTRY_KINDS.PROPOSE,
       task_id: vid(cur.n, 1, ground),
       description: caption ?? cur.caption,
-      operator: STRUCTURE_OPERATORS.SEG,
+      operator: "INS",
       operator_basis: OPERATOR_BASIS.PRODUCED,
       grain: FIGURE,
       n: cur.n,

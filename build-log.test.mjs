@@ -13,6 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
+import { cellOf } from "../eoreader6.1/packages/engine/operators.js";
 import { checkCubeProgression } from "../eoreader6.1/packages/engine/holon/task-log.js";
 import { toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
@@ -36,21 +37,21 @@ function sampleLog() {
   return log;
 }
 
-test("a build is born as PROPOSE · SEG · Figure · produced — proposeDiscovered's cell, not a new one", () => {
+test("a build is born as PROPOSE · INS · Figure · produced — birth is Generate · Existence, the handbook's own cell", () => {
   const log = buildLog.proposeBuild({ n: 1, turn: 2, seg: codeSeg, caption: "python" });
   assert.equal(log.entries.length, 1);
   const e = log.entries[0];
   assert.equal(e.kind, taskLog.ENTRY_KINDS.PROPOSE);
-  assert.equal(e.operator, "SEG");
+  assert.equal(e.operator, "INS");
   assert.equal(e.grain, "Figure");
   assert.equal(e.operator_basis, taskLog.OPERATOR_BASIS.PRODUCED);
   const b = buildLog.foldBuild(log);
   assert.equal(b.code, "print(1)");
   assert.equal(b.version, 1);
   // The fold carries the algebra's own cell for the pair, derived by the
-  // engine (SEG at Figure = Link · Dissecting), never hand-listed here.
-  assert.equal(b.cell.terrain, "Link");
-  assert.equal(b.cell.op, "SEG");
+  // engine, never hand-listed here.
+  assert.equal(b.cell.op, "INS");
+  assert.equal(b.cell.terrain, cellOf("INS", "Figure").terrain);
 });
 
 test("an edit is SUPERSEDE · SYN · Figure and the past stays on the log", () => {
@@ -177,7 +178,7 @@ test("timeline labels are mechanical, one row per entry", () => {
   );
   assert.deepEqual(
     t.map((r) => r.operator),
-    ["SEG", null, "SYN", null],
+    ["INS", null, "SYN", null],
   );
 });
 

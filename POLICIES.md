@@ -552,7 +552,23 @@ log), with one divergence named — that repo reads DEF as "set a value in
 the current frame"; this repo follows eoreader6's own register (DEF =
 refuse), so a value swap here is SYN · compile, never DEF.
 
-**Enforced:** `build-log.test.mjs` — applyOps' typed gaps and atomicity,
+Amended same day, user direction ("INS is birth — go read the eoreader
+handbook"): PROPOSE is retyped **INS · Figure · produced**. The handbook's
+own axes (201-nine-verbs) place birth at Generate · Existence — a new
+whole brought into being, in the domain of "is this thing here at all" —
+and the sibling bare-metal-eo-matrix-app reads the cell identically
+("INS creates new entities with permanent anchor IDs"). The old SEG
+typing read the MECHANICS (a fence snipped out of the turn's answer,
+proposeDiscovered's cell) rather than the ACT; the snip is how the
+segment reached us, the birth is what the entry records. SEG keeps its
+true station as the delta primitive that cuts a reach-unit out. INS → SYN
+runs forward in the engine's own order, so the referee stays silent —
+re-pinned rather than assumed. Stored logs are unaffected: replay goes
+through the engine's `append`, which accepts both typings, and old
+entries keep the operator they were born with — history is not retyped.
+
+**Enforced:** `build-log.test.mjs` — the INS birth cell derived by the
+engine's own `cellOf`, applyOps' typed gaps and atomicity,
 deriveOp/readOps off the bytes (the INS normalization: the anchor is never
 carried twice), the every-carriage counts riding the entry and recompiling
 identically from serialized entries alone, patch stacks folding

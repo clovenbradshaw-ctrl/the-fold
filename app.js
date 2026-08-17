@@ -39,6 +39,9 @@ import {
 } from "./fold.js";
 
 import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
+// skills.js's balanced-object walk, reused as the one mechanical reading of
+// "the JSON an ollama reply carried" (the delta grammar's extractor).
+import { extractObject } from "./skills.js";
 
 // The Folds panel's pure half: search, the declared orderings, the compact
 // list face, and the /fold door's mechanics — all testable in node, all
@@ -864,6 +867,32 @@ async function send(question) {
   if (reflex === "reflect") return reflectTurn(question, question);
   if (reflex) return mechanicalTurn(question, reflex);
 
+  // A complaint at something already built ("I don't like the colors",
+  // "it's broken", "make the buttons bigger") points at a fold, and the
+  // pointing is decided HERE — mechanically, from the operator's own words
+  // and the folds' own bytes, BEFORE any model call. This is what makes
+  // iteration reliable rather than probabilistic: the downstream router
+  // (routeSegment) can only route code the model happened to emit, and
+  // measured live on gemma2:2b a bare complaint comes back as prose about
+  // as often as not, so the complaint routed nowhere and the log forked.
+  // Deciding first lets the turn run the SIGHTED revision instead — the
+  // /fold door's own machine, handed the target's current code.
+  //
+  // Checked LAST among the doors, after every typed command and every
+  // material detector, so nothing typed and nothing about the material can
+  // be hijacked by it: a widget's bytes hold no "report".
+  const pointed = widgetRouter.routeMessage(
+    question,
+    state.builds.map((b) => ({ n: b.n, ...kindOf(b), text: buildWords(b) })),
+  );
+  if (pointed) {
+    return foldTurn(pointed.n, question, question, {
+      rezero: true,
+      trigger: pointed.trigger,
+      tell: pointed.tell,
+    });
+  }
+
   // Every remaining turn runs as a task — 100% of the time. The one big
   // prompt that carried summary + records + material together is gone; a
   // turn is a plan log whose fold projects into small part-scoped calls,
@@ -877,16 +906,74 @@ async function send(question) {
 }
 
 /**
- * The /fold turn: a model revision routed onto an existing fold's log by the
- * door's own number. The model is only the mouth here — it is handed the
- * fold's current code and the instruction, and whatever fenced code arrives
- * is extracted mechanically (parseSegments + pickRevisionSegment) and lands
- * as a SUPERSEDE on fold n's append-only log, mirrored to the durable
- * record. The model's prose never routes anything: no code in the reply is
- * a typed gap, identical code is churn the log refuses, and both facts are
- * said in the answer rather than absorbed.
+ * The delta grammar. Ollama's `format` is the decoder's wall, not a request
+ * (P2: structure is obtained by grammar or extracted mechanically, never by
+ * asking the model harder).
+ *
+ * TWO FIELDS, ONE EDIT — both shapes measured live (2026-08-17), neither
+ * reasoned about. (1) Under an ARRAY-OF-OBJECTS schema gemma2:2b emits an
+ * empty array — whitespace, then close — the same grammar-death P2 already
+ * records for the plan array, one nesting level in; a flat parallel-array
+ * shape was tried next and is worse (qwen2.5-coder misaligned the lists,
+ * a correspondence nothing can enforce). One flat object per call is the
+ * shape a 2B decoder physically walks, and iterating one edit at a time is
+ * what the append-only log is FOR: the log does the remembering, so each
+ * call only has to be right about the next small thing.
+ * (2) `op` is deliberately NOT asked for. Both models answered "INS" while
+ * supplying an `add` that replaced `find`, which applied at its word puts
+ * two buttons in the widget — so the act is DERIVED from the bytes by
+ * `readOps` (L5: never leave a compliance-critical fact to the model's own
+ * instruction-following; the mouth supplies bytes, the instrument types
+ * the act).
  */
-async function foldTurn(n, instruction, typed) {
+const PATCH_SCHEMA = {
+  type: "object",
+  properties: {
+    find: { type: "string" },
+    add: { type: "string" },
+  },
+  required: ["find", "add"],
+};
+
+/** The delta a reply carried, read mechanically — skills.js's own balanced
+ * walk (`extractObject`, the object twin of holon.js's extractArray),
+ * REUSED rather than re-derived: a third reading of "the JSON in a reply"
+ * is exactly the drift eoreader6's reconcile-don't-dedupe rule forbids.
+ * The operator typing is build-log.js's `readOps`, off the bytes. A miss is
+ * `null` and the caller types it as a gap. */
+function parseOps(text) {
+  const obj = extractObject(text);
+  if (!obj) return null;
+  // One edit is the asked shape; a list is still read if a larger model
+  // volunteers one, because widening the extractor is P2's own remedy.
+  return buildLog.readOps(Array.isArray(obj.ops) ? obj.ops : [obj]);
+}
+
+/**
+ * The /fold turn: a model revision routed onto an existing fold's log by the
+ * door's own number.
+ *
+ * THE DELTA IS ASKED FOR FIRST, and this is the point of the whole pass
+ * (user direction, 2026-08-17): a small model can reliably say "change
+ * #4CAF50 to #2196F3"; it cannot reliably retype an entire html file
+ * byte-for-byte without introducing a new mistake somewhere it was never
+ * asked to touch. So the first call is grammar-constrained to ops, the ops
+ * are applied MECHANICALLY by the log (build-log.js::applyOps — exact bytes,
+ * exactly once, atomic), and the new whole is compiled by the fold. The
+ * model only has to be right about the change.
+ *
+ * The ladder, every descent typed and said out loud: ops that apply land as
+ * a patch SUPERSEDE; ops that do not apply (unlocated / ambiguous /
+ * malformed, or no ops at all) descend to the FULL-code path this door has
+ * always had, which is itself the same mechanical extraction
+ * (pickRevisionSegment) it always was. A reply with neither is a typed gap.
+ * Identical code, either way, is churn the log refuses.
+ *
+ * `rezero` lands the result as a re-zero (REC, the operator's words as its
+ * trigger) rather than a revision — a judgment concedes a ground, an
+ * instruction compiles a new whole. Same machine, two landings.
+ */
+async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null } = {}) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -903,31 +990,80 @@ async function foldTurn(n, instruction, typed) {
   const lang = cur.seg?.lang ?? "";
   logAct("asked", { text: typed });
 
-  // A request, not a guarantee (II.9): the fence ask is courtesy phrasing;
-  // the mechanical extraction below is the wall, and its failure is a typed
-  // gap, never a retry-harder.
-  const prompt =
-    `${instruction}\n\n` +
-    `The working code of fold ${n}${lang ? ` (${lang})` : ""} is below. ` +
-    `Reply with the complete revised code in one fenced block.\n\n` +
-    `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\``;
+  // THE SMALLEST CHANGE FIRST. The model is asked for the delta, not the
+  // file — the ask is plain prose (a small model reads prose better than
+  // bracket scaffolding), and the SHAPE is held by the decoder's grammar,
+  // never by the asking. `find` must be the code's own bytes because that
+  // is what makes application mechanical; the model is told so plainly, and
+  // if it gets it wrong the gap is typed rather than absorbed.
+  const opsPrompt =
+    `Here is the working code of fold ${n}${lang ? ` (${lang})` : ""}:\n\n` +
+    `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\`\n\n` +
+    `Change it as follows: ${instruction}\n\n` +
+    `Reply with ONE edit, the smallest that does it — never the whole file. ` +
+    `find is a short piece of the code above, copied exactly, that appears only once. ` +
+    `add is what that piece becomes. To delete something, leave add empty.`;
 
   $("status").textContent = `revising fold ${n}…`;
-  body.textContent = `revising fold ${n}…`;
+  body.textContent = `asking for the smallest change to fold ${n}…`;
   let answer = "";
+  let landedPatch = null;
+  let opsGap = null;
   try {
-    answer = await complete([{ role: "user", content: prompt }], {
+    const reply = await complete([{ role: "user", content: opsPrompt }], {
       model: state.model,
-      onDelta: (out) => {
-        body.textContent = out;
-      },
+      json: PATCH_SCHEMA,
     });
+    answer = reply;
+    const ops = parseOps(reply);
+    if (!ops) {
+      opsGap = "the reply carried no edits";
+    } else {
+      // The log is the gate: applyOps runs against the live projection and
+      // a patch that does not apply never lands. Nothing here decides
+      // whether the change was RIGHT — only whether it is a change this
+      // projection can mechanically take. STRICT FIRST: an edit whose bytes
+      // appear once is unambiguous. `every` is only the rescue of the
+      // measured common case (both buttons carry the same style attribute
+      // and the operator meant both), and a rescue is DISCLOSED — the
+      // landing says how many places moved, because an every-landing can
+      // also be the bad case (a token like "inc" living in the markup AND
+      // the script), and the reader's next complaint is the repair.
+      const strict = buildLog.applyOps(cur.code ?? "", ops);
+      const trial = strict.ok ? strict : strict.gap.kind === "ambiguous" ? buildLog.applyOps(cur.code ?? "", ops, { every: true }) : strict;
+      if (!trial.ok) opsGap = `${trial.gap.kind}${trial.gap.find ? `: ${trial.gap.find.slice(0, 60)}` : ""}`;
+      else landedPatch = { ops, code: trial.code, every: !strict.ok, touched: trial.touched };
+    }
   } catch (err) {
-    answer = `[engine error: ${err.message || err}]`;
-    logAct("errored", { where: "fold-revision", message: String(err.message || err) });
+    opsGap = `engine error: ${err.message || err}`;
+    logAct("errored", { where: "fold-patch", message: String(err.message || err) });
   }
 
-  const seg = pickRevisionSegment(parseSegments(answer), lang);
+  // The descent, typed and disclosed: the delta did not apply, so the door
+  // falls back to the full-code path it has always had. One call each, both
+  // mechanically read — never a retry-harder loop on the same ask.
+  let seg = null;
+  if (!landedPatch) {
+    body.textContent = `the edits did not apply (${opsGap}) — asking for the whole file…`;
+    logAct("revised", { fold: n, patch: false, gap: opsGap });
+    const prompt =
+      `${instruction}\n\n` +
+      `The working code of fold ${n}${lang ? ` (${lang})` : ""} is below. ` +
+      `Reply with the complete revised code in one fenced block.\n\n` +
+      `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\``;
+    try {
+      answer = await complete([{ role: "user", content: prompt }], {
+        model: state.model,
+        onDelta: (out) => {
+          body.textContent = out;
+        },
+      });
+    } catch (err) {
+      answer = `[engine error: ${err.message || err}]`;
+      logAct("errored", { where: "fold-revision", message: String(err.message || err) });
+    }
+    seg = pickRevisionSegment(parseSegments(answer), lang);
+  }
   body.textContent = "";
 
   // The model's prose, kept visible as its own voice — but never a router.
@@ -940,13 +1076,32 @@ async function foldTurn(n, instruction, typed) {
   }
 
   let note;
-  if (!seg) {
+  const before = entry.log.entries.length;
+  const code = landedPatch ? landedPatch.code : seg?.code ?? null;
+
+  if (code == null) {
     // Typed gap: the door was walked, the target named, and nothing landed.
     note = `the reply carried no code — nothing landed on fold ${n}.`;
-    logAct("revised", { fold: n, landed: false, gap: "no code in reply" });
+    logAct("revised", { fold: n, landed: false, gap: opsGap ?? "no code in reply" });
   } else {
-    const before = entry.log.entries.length;
-    entry.log = buildLog.reviseBuild(entry.log, { code: seg.code, reason: "revision" });
+    // Three landings, one machine. A judgment concedes a ground (REC,
+    // carrying the operator's own words); an instruction supersedes — as a
+    // PATCH when the delta applied (the entry carries the ops, the fold
+    // compiles the whole) and as FULL code when the door had to descend.
+    if (rezero) {
+      entry.log = buildLog.rezeroBuild(entry.log, {
+        code,
+        seg: { ...(cur.seg ?? {}), code },
+        trigger: trigger ?? instruction,
+        tell,
+        patch: landedPatch ? { ops: landedPatch.ops } : null,
+      });
+    } else if (landedPatch) {
+      const r = buildLog.patchBuild(entry.log, { ops: landedPatch.ops, reason: "revision", tell, every: landedPatch.every });
+      entry.log = r.log;
+    } else {
+      entry.log = buildLog.reviseBuild(entry.log, { code, reason: "revision" });
+    }
     const landed = entry.log.entries.length > before;
     if (landed) {
       entry.cursor = null;
@@ -955,9 +1110,15 @@ async function foldTurn(n, instruction, typed) {
       persistBuilds();
       renderBuilds(n);
       const now = buildFold(entry, null);
-      const last = entry.log.entries[entry.log.entries.length - 1];
-      note = `fold ${n} · v${now.version} · revision landed (+${last.added ?? "?"}/−${last.removed ?? "?"} lines)`;
-      logAct("revised", { fold: n, landed: true, version: now.version });
+      const places = landedPatch?.touched?.reduce((a, b) => a + b, 0) ?? 0;
+      const how = landedPatch
+        ? `${landedPatch.ops.length} edit${landedPatch.ops.length === 1 ? "" : "s"} (${landedPatch.ops.map((o) => o.op).join(" ")})` +
+          (landedPatch.every ? ` · changed in ${places} places` : "")
+        : "whole file";
+      note = rezero
+        ? `fold ${n} · ground ${now.ground} · re-zeroed from your words · ${how}`
+        : `fold ${n} · v${now.version} · revision landed · ${how}`;
+      logAct("revised", { fold: n, landed: true, version: now.version, patch: !!landedPatch, ops: landedPatch?.ops.length ?? 0 });
     } else {
       // The log's own churn refusal: identical code appends nothing, and
       // that is a result worth saying, not a silence.

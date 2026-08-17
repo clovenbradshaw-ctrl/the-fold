@@ -330,7 +330,7 @@ test("a re-zero is EVIDENCE · REC · Figure · produced, carrying the operator'
   // out of the old one.
   const seed = log.entries[2];
   assert.equal(seed.kind, taskLog.ENTRY_KINDS.PROPOSE);
-  assert.equal(seed.operator, "SEG");
+  assert.equal(seed.operator, "INS");
   assert.equal(seed.task_id, "b1.g2.v1");
   assert.equal(seed.supersedes, undefined);
   assert.equal(seed.ground, 2);
@@ -391,7 +391,7 @@ test("the cursor says why the ground moved, in the operator's own words", () => 
     buildLog.timeline(log).map((r) => r.label),
     ["v1 · built", "re-zero · ground 2 · I don't like the colors", "g2 v1 · rebuilt", "g2 v2 · edit"],
   );
-  assert.deepEqual(buildLog.timeline(log).map((r) => r.operator), ["SEG", "REC", "SEG", "SYN"]);
+  assert.deepEqual(buildLog.timeline(log).map((r) => r.operator), ["INS", "REC", "INS", "SYN"]);
 });
 
 test("a log that never re-zeroes is addressed exactly as it always was", () => {

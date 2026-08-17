@@ -92,14 +92,13 @@ import { foldDiacritics, tokenize } from "./source.js";
  */
 export function makeWidgetRouter(priors) {
   const {
-    INDEFINITE_DETERMINERS,
-    DEFINITE_DETERMINERS,
     ANAPHORIC_PRONOUNS,
     NEGATION_WORDS,
     FIRST_PERSON,
+    INFLECTIONAL_SUFFIXES,
   } = priors;
 
-  for (const [name, set] of Object.entries({ INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS, ANAPHORIC_PRONOUNS, NEGATION_WORDS })) {
+  for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES })) {
     if (!(set instanceof Set) || !set.size)
       throw new TypeError(`makeWidgetRouter: ${name} must come from the engine's prior register`);
   }
@@ -142,55 +141,61 @@ export function makeWidgetRouter(priors) {
     const toks = forms(raw);
     if (!toks.length) return null;
 
-    // 1. AN INDEFINITE DETERMINER INTRODUCES ITS NOUN, and that decides
-    //    outright. "Make me another one with better colours" carries a
-    //    complaint and a pointer and is still a demand for a second artifact;
-    //    the determiner is what separates it from "make it better", and the
-    //    determiner wins. Required to actually determine something — a
-    //    trailing "a" with no noun after it introduces nothing.
-    for (let i = 0; i < toks.length - 1; i++) {
-      if (INDEFINITE_DETERMINERS.has(toks[i])) return null;
-    }
-
-    // 2. AN ANAPHORIC PRONOUN POINTS BACK. "it's broken", "make it bigger",
-    //    "this is unreadable" — the form itself says the object is already
-    //    here, which is the whole of what needs deciding.
+    // THE DECISION IS A READING, NOT A WORD-LIST VETO (user direction,
+    // 2026-08-17: "no hardcoded list of english articles — it needs to
+    // climb the terrain ladder like any arbitrary content; colors and
+    // colours point to the same referent"). The earlier rule here let ANY
+    // indefinite determiner veto routing, and the brief's own canonical
+    // complaint — "I don't like the counter widget, make the buttons
+    // bigger with SOME color" — was thereby unroutable. What decides now:
+    //
+    //   · FORM RESOLUTION. A content word of the message resolves into the
+    //     build when the build's own bytes hold the same FORM — identical
+    //     through retrieval's fold, or differing by a member of
+    //     INFLECTIONAL_SUFFIXES (the register's received morphology class,
+    //     giver lang/en): "buttons" resolves against "button", "colors"
+    //     against "color:". Identity lives in the quotient; the suffix
+    //     class only says which surface differences are ground, not
+    //     figure. (Dialect spelling — colour/color — is NOT inflection;
+    //     it closes only through a received spelling prior with its own
+    //     giver, and until then stays a typed limit, per II.2's "a missing
+    //     giver is a wall, never derive".)
+    //   · ANAPHORA. "it's broken", "make it bigger" — the pronoun class
+    //     is resolution's own pronoun face: the form itself says the
+    //     object is already here.
+    //   · JUDGMENT is a LABEL on the tell, never the tell itself: negation
+    //     plus first person says the operator is judging; what they are
+    //     judging still has to resolve.
+    const judged = toks.some((t) => NEGATION_WORDS.has(t)) && toks.some((t) => FIRST_PERSON.test(t));
+    if (resolvesInto(raw, known)) return judged ? "judgment" : "resolved";
+    // The pointer is the more specific fact than the judging of it — a
+    // judgment that arrives BY anaphora reports as the anaphor (the
+    // earlier doctrine's own line, kept).
     if (toks.some((t) => ANAPHORIC_PRONOUNS.has(t))) return "anaphora";
-
-    // 3. A NEGATED FIRST PERSON IS A JUDGMENT about what is present. "I don't
-    //    like the colors" — the subject is the operator, the polarity is
-    //    negative, and neither fact needs to know what "like" means.
-    const negated = toks.some((t) => NEGATION_WORDS.has(t));
-    if (negated && toks.some((t) => FIRST_PERSON.test(t))) return "judgment";
-    // A negation with no first person is still a judgment about something
-    // present ("the button doesn't work") — the negated thing is the subject,
-    // and rule 4 decides whether it is this build's.
-    if (negated && definiteHit(toks, known)) return "judgment";
-
-    // 4. A DEFINITE NOUN PHRASE THAT THE BUILD'S OWN BYTES CONTAIN. "fix the
-    //    counter" and "the button does nothing" resolve here, against the
-    //    artifact rather than against a vocabulary. A definite phrase naming
-    //    something the build has never contained is NOT this build's — which
-    //    is also why "what does the report say about funding" cannot be
-    //    hijacked: the widget's bytes hold no "report".
-    if (definiteHit(toks, known)) return "definite-reference";
-
     return null;
   }
 
-  /** Does a definite determiner in the message govern a word the build's own
-   * text actually contains? Both sides through the same fold. */
-  function definiteHit(toks, known) {
-    const have = new Set(terms(known));
-    if (!have.size) return false;
-    for (let i = 0; i < toks.length - 1; i++) {
-      if (!DEFINITE_DETERMINERS.has(toks[i])) continue;
-      // The determiner's noun phrase runs until the next determiner or the
-      // end; any content word inside it that the build states is a hit.
-      for (let j = i + 1; j < toks.length; j++) {
-        if (DEFINITE_DETERMINERS.has(toks[j]) || INDEFINITE_DETERMINERS.has(toks[j])) break;
-        if (have.has(toks[j])) return true;
-      }
+  /** Two tokens are forms of one referent when they are identical or differ
+   * by a received inflectional suffix — stated language-free (identity
+   * under a received variation class; the class carries the language, with
+   * its giver). Engine-side placement of this mechanism is named future
+   * work; the class it consumes is already the register's. */
+  function sameForm(a, b) {
+    if (a === b) return true;
+    for (const sfx of INFLECTIONAL_SUFFIXES) {
+      if (a.length > b.length ? a === b + sfx : b === a + sfx) return true;
+    }
+    return false;
+  }
+
+  /** Does any content word of the message resolve into the build's own
+   * bytes? Both sides through retrieval's one fold (tokenize — stopwords
+   * and short forms drop on both sides), then form identity. */
+  function resolvesInto(message, known) {
+    const have = [...new Set(terms(known))];
+    if (!have.length) return false;
+    for (const t of new Set(terms(message))) {
+      for (const s of have) if (sameForm(t, s)) return true;
     }
     return false;
   }

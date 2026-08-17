@@ -71,7 +71,7 @@ import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
-import { initTerminal } from "./term.js";
+import { autoRunnable, initTerminal, KEEP_PER_EXEC, runSandboxed } from "./term.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
@@ -1231,6 +1231,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
     document.getElementById(`build-${n}`)?.scrollIntoView({ block: "start" });
   };
   body.append(chip);
+  autoRunAndDisclose(entry, chip);
 
   // The turn on the conversation's own record. The fold line is mechanical —
   // the landing note says everything later turns need — so the summary
@@ -2281,7 +2282,54 @@ function buildChip(entry, cap) {
       .getElementById(`build-${entry.n}`)
       ?.scrollIntoView({ block: "start" });
   };
+  autoRunAndDisclose(entry, chip);
   return chip;
+}
+
+/**
+ * Auto-run a fold's just-landed code in the browser sandbox (term.js's
+ * pyodide/js workers — network severed, P18), right after a chat turn
+ * creates or revises it. A DIFFERENT door than the Folds panel's own ▶ run,
+ * which is a REAL machine process via /api/run (P16) and stays manual —
+ * this one never leaves the sandbox, so it runs without waiting for a
+ * click. Fire-and-forget on purpose: pyodide's own boot cost (measured:
+ * 10-20s) must never hold up the turn the chip already rendered for: this
+ * patches the chip's own text with the outcome, plainly, when the sandbox
+ * finishes — the audit trail a layperson reads is the chip itself, not a
+ * log only a developer would open.
+ */
+function autoRunAndDisclose(entry, chip) {
+  const fold = buildFold(entry, null);
+  const lang = fold?.seg?.lang;
+  if (!autoRunnable(lang)) return;
+  const before = entry.log.entries.length;
+  runSandboxed(lang, fold.code ?? "")
+    .then((outcome) => {
+      entry.log = buildLog.attachRun(entry.log, {
+        params: { lang, timeoutMs: null, maxOutput: KEEP_PER_EXEC, sandboxed: true },
+        outcome: { ok: outcome.code === 0 && !outcome.timedOut, data: outcome },
+      });
+      entry.cursor = null;
+      mirrorBuild(entry, before);
+      persistBuilds();
+      renderBuilds(entry.n);
+      if (chip?.isConnected) chip.append(document.createTextNode(` · ${autoRunSummary(outcome)}`));
+    })
+    .catch((e) => {
+      if (chip?.isConnected) chip.append(document.createTextNode(` · ran automatically — could not start: ${e.message}`));
+    });
+}
+
+/** The chip's own plain-language line — a layperson's whole audit trail,
+ * so this names what happened rather than a status code. */
+function autoRunSummary(outcome) {
+  if (outcome.timedOut) return "ran automatically — took too long and was stopped";
+  if (outcome.code !== 0) {
+    const last = (outcome.stderr || "an error").trim().split("\n").filter(Boolean).pop() ?? "an error";
+    return `ran automatically — failed: ${last.slice(0, 100)}`;
+  }
+  const out = (outcome.stdout || "").trim();
+  return out ? `ran automatically — printed: ${out.slice(0, 100)}${out.length > 100 ? "…" : ""}` : "ran automatically — no output";
 }
 
 /**
@@ -2388,6 +2436,7 @@ function publishBuild(seg, caption, instruction = null) {
       .getElementById(`build-${entry.n}`)
       ?.scrollIntoView({ block: "start" });
   };
+  autoRunAndDisclose(entry, chip);
   return chip;
 }
 

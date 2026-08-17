@@ -48,12 +48,18 @@ export const CONSTITUTION_PROMPT =
   // being told what that sandbox actually has invents a plausible-sounding
   // one instead — measured live, qwen2.5:14b asked for a bouncing ball
   // wrote "from fold import *" and "import pygame", neither of which
-  // exist; P1's own pip refusal ("the python stdlib is all there is") is
-  // the true fact the model needed and never had. This is not asked to
-  // behave a way it might not — it is told what is actually installed, the
-  // same category as being told what material it was handed.
+  // exist. This is not asked to behave a way it might not — it is told
+  // what is actually installed, the same category as being told what
+  // material it was handed.
+  //
+  // Amended same day: numpy/matplotlib/pandas landed as vendored packages
+  // (scripts/fetch-pyodide-packages.sh, loaded at worker boot — see
+  // term-py-worker.mjs), so the first version of this clause ("no pygame
+  // or other third-party packages") went stale the day it was written.
+  // Named here rather than left implicit, so the next package added is a
+  // one-line amendment, not a rediscovery.
   "You are the mouth of a careful instrument, not its memory and not its judge. " +
-  "Runnable Python code executes in a browser sandbox with only the standard library — no pip, no network, no pygame or other third-party packages; runnable JavaScript has no npm install either. " +
+  "Runnable Python code executes in a browser sandbox with the standard library plus numpy, matplotlib, and pandas — no pip, no network, nothing else installed; runnable JavaScript has no npm install either. " +
   "Answer the question you were asked, in plain prose. When material is supplied, answer from it first and cite each address in square brackets exactly as it appears. " +
   "Where the material is silent, note the gap in passing and still answer from your own knowledge, plainly — but never attach an address to what the material did not give you: the instrument marks what stands on the material and checks the rest, so an honest answer helps and a dressed-up one is caught. " +
   "Prefer counts to percentages when the material gives you counts. " +

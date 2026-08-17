@@ -58,8 +58,18 @@ export const FORMS = Object.freeze([
   { form: "dated timeline", native: "field", note: "NOT a trace: a fixed reference is what a trace is blind to" },
   { form: "citation, hyperlink, foreign key, related-to chip", native: "link" },
   { form: "node-link graph, sankey, chord, adjacency matrix", native: "network" },
+  {
+    form: "node-link graph sized/colored by a chosen ranking (centrality, PageRank, a business metric)",
+    native: "network",
+    composite: "lens — an exogenous ranking is a chosen, contingent view and must be declared (2026-08-16 closure census)",
+  },
   { form: "sparkline, EKG strip, ticker, running feed", native: "atmosphere" },
   { form: "dashboard panel, pinned report, annotated figure", native: "lens" },
+  {
+    form: "determinate negative fact evaluated over a corpus (\"never bound\", \"no rows match\")",
+    native: "lens",
+    composite: "void (the empty match set) — never its own cell (2026-08-16 closure census)",
+  },
   { form: "legend, style guide, controlled vocabulary, a constitution", native: "paradigm" },
 ]);
 
@@ -454,6 +464,197 @@ export function legend(entries, { title = "legend", excludes = "" } = {}) {
     `<div class="frame"><h3>${esc(title)}</h3>${rows}` +
     `<div class="ex">excludes: ${esc(excludes || "nothing stated — a frame that names no exclusion is hiding one")}</div></div>`;
   return segment("paradigm", code, { lang: "html", entries: [...entries].length });
+}
+
+// ── composites — every real screen is several of these at once ─────────────
+/**
+ * A composite declares its union rather than pretending to be one atom
+ * (§4's corollary law). The 2026-08-16 closure census is why this exists as
+ * code and not just a comment: nearly every representation eleven falsifiers
+ * threw at the standard — a dated timeline, an EKG strip, a ranked graph, the
+ * fold's own "never bound" badge — turned out to be two or three terrains
+ * standing on each other, never a tenth cell. `parts` is already-built
+ * segments; the first is the HEAD (the terrain the standard calls this
+ * surface's native one), the rest are what it stands on. Rendering keeps
+ * every part in its own labeled panel — a composite flattened into one
+ * drawing is exactly the failure mode ("read caption as content") the
+ * closure census's Lens-blindness amendments warn about.
+ */
+export function composite(parts, { title = "" } = {}) {
+  const ps = [...parts].filter(Boolean);
+  if (!ps.length) return emptyFrame([], { title: title || "a composite with nothing in it" });
+  const head = ps[0];
+  const panels = ps
+    .map(
+      (p, i) =>
+        `<div class="part">` +
+        `<div class="ptag"><span class="terrain">${esc(p.terrain)}</span>` +
+        `<span class="cell">${esc(p.cell)}</span>${i === 0 ? '<span class="native">native</span>' : ""}</div>` +
+        `<div class="pfig">${p.code}</div>` +
+        `<div class="pblind">blind to ${esc(p.blindTo)}</div>` +
+        `</div>`,
+    )
+    .join("");
+  const code =
+    `<style>${themeCss()}` +
+    `body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}` +
+    `.stack{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}` +
+    `.head-title{padding:12px 16px 4px;font-size:14.5px;font-weight:650}` +
+    `.part{border-top:1px solid var(--line)}.part:first-child{border-top:0}` +
+    `.ptag{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--accent-soft)}` +
+    `.terrain{font-weight:650;font-size:12px}` +
+    `.cell{font-family:${MONO};font-size:11px;color:var(--muted)}` +
+    `.native{margin-left:auto;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 7px}` +
+    `.pfig{padding:6px 10px}.pfig svg{max-width:100%;height:auto;display:block;margin:0 auto}` +
+    `.pblind{padding:2px 16px 10px;font-size:10.5px;color:var(--muted)}` +
+    `</style>` +
+    `<div class="stack">${title ? `<p class="head-title">${esc(title)}</p>` : ""}${panels}</div>`;
+  return {
+    type: "code",
+    lang: "html",
+    code,
+    terrain: head.terrain,
+    cell: head.cell,
+    plain: `${head.plain} (composite)`,
+    blindTo: head.blindTo,
+    union: ps.map((p) => p.terrain),
+  };
+}
+
+// ── Field · timeline — the form FORMS names but no builder had drawn ───────
+/**
+ * A dated timeline: Field, never Atmosphere — the FORMS table's own
+ * counter-intuitive entry, now built. A trace re-zeros and is blind to fixed
+ * reference; a timeline's whole point IS a fixed reference, an absolute date
+ * axis, so it decomposes as spatial contiguity (Field) carrying dated marks
+ * at their addressed positions, never as a moving baseline.
+ */
+export function timeline(events, { title = "timeline" } = {}) {
+  const rows = [...events]
+    .map((e) => ({ at: new Date(e.at), label: String(e.label ?? "") }))
+    .filter((e) => Number.isFinite(e.at.getTime()))
+    .sort((a, b) => a.at - b.at);
+  if (!rows.length) return emptyFrame(["at", "label"], { title });
+  const h = 90 + rows.length * 30;
+  const lo = rows[0].at.getTime(), hi = rows[rows.length - 1].at.getTime();
+  const span = hi - lo || 1;
+  const padX = 40, axisY = 56;
+  const x = (t) => padX + ((t - lo) / span) * (W - padX * 2);
+  const ticks = rows
+    .map((e) => `<line x1="${x(e.at.getTime()).toFixed(1)}" y1="${axisY - 5}" x2="${x(e.at.getTime()).toFixed(1)}" y2="${axisY + 5}" stroke="var(--line)"/>`)
+    .join("");
+  const marks = rows
+    .map((e, i) => {
+      const cx = x(e.at.getTime());
+      const y = 90 + i * 30;
+      return (
+        `<line x1="${cx.toFixed(1)}" y1="${axisY}" x2="${cx.toFixed(1)}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 3"/>` +
+        `<circle cx="${cx.toFixed(1)}" cy="${y}" r="3.5" fill="var(--accent)"/>` +
+        `<text x="${(cx + 8).toFixed(1)}" y="${(y + 4).toFixed(1)}" font-size="11.5" fill="var(--ink)">${esc(e.label)}</text>` +
+        `<text x="${(cx + 8).toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="9.5" fill="var(--muted)" font-family="${MONO}">${esc(e.at.toISOString().slice(0, 10))}</text>`
+      );
+    })
+    .join("");
+  return segment(
+    "field",
+    svgOpen(h, title) + heading(title) +
+      `<line x1="${padX}" y1="${axisY}" x2="${W - padX}" y2="${axisY}" stroke="var(--muted)"/>` +
+      ticks + marks + `</svg>`,
+    { events: rows.length, plain: "timeline" },
+  );
+}
+
+// ── Network ⊗ Lens — a ranking is a chosen view, and now says so ───────────
+/**
+ * A graph sized or colored by a caller-supplied ranking. The closure census
+ * drew the exact line here: degree and other measures the edges alone
+ * determine (automorphism-invariant — two structurally interchangeable
+ * nodes get the same value) ARE the Network reading itself and need no
+ * Lens — networkGraph's own degree-sized dots are already this and stay
+ * plain Network. An EXOGENOUS rank — a seed vector, a business metric, a
+ * hand-set weight — is a chosen, contingent view folded over the graph, and
+ * this builder cannot draw one without declaring that composite: the Lens
+ * panel is not decoration, it is where "swap the ranking, a different node
+ * looks central" gets said instead of silently implied.
+ */
+export function rankedNetwork(nodes, edges, rankOf, { title = "the graph, ranked", rankLabel = "rank" } = {}) {
+  const ns = [...nodes].map((n) => (typeof n === "string" ? { id: n } : n));
+  if (!ns.length) return emptyFrame(["node", "edges", rankLabel], { title });
+  const h = 460;
+  const cx = W / 2, cy = 250, R = 165;
+  const at = new Map();
+  ns.forEach((n, i) => {
+    const a = (i / ns.length) * Math.PI * 2 - Math.PI / 2;
+    at.set(n.id, { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a });
+  });
+  const ranks = ns.map((n) => Number(rankOf(n)) || 0);
+  const maxRank = Math.max(...ranks, 1);
+  const lines = [...edges]
+    .filter((e) => at.has(e.from) && at.has(e.to))
+    .map((e) => {
+      const a = at.get(e.from), b = at.get(e.to);
+      return `<path d="M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx} ${cy} ${b.x.toFixed(1)} ${b.y.toFixed(1)}" fill="none" stroke="var(--muted)" stroke-width="1" opacity="0.28"/>`;
+    })
+    .join("");
+  const dots = ns
+    .map((n, i) => {
+      const p = at.get(n.id);
+      const r = 4 + (ranks[i] / maxRank) * 12;
+      const flip = Math.cos(p.a) < 0;
+      const lx = p.x + Math.cos(p.a) * (r + 7);
+      const ly = p.y + Math.sin(p.a) * (r + 7);
+      return (
+        `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="var(--accent)" opacity="0.85"/>` +
+        `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${flip ? "end" : "start"}" font-size="11.5" fill="var(--ink)">${esc(n.id)}</text>`
+      );
+    })
+    .join("");
+  const graphSeg = segment(
+    "network",
+    svgOpen(h, title) + heading(title) + lines + dots + `</svg>`,
+    { nodes: ns.length, edges: [...edges].length },
+  );
+  const lensSeg = segment(
+    "lens",
+    `<style>${themeCss()}body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}` +
+      `.note{padding:9px 4px;font-size:12.5px}.note b{font-weight:650}</style>` +
+      `<div class="note">node size = <b>${esc(rankLabel)}</b> — an exogenous value the edges alone do not derive; swap the ranking function and a different node looks central.</div>`,
+    { lang: "html", rankedBy: rankLabel },
+  );
+  return composite([graphSeg, lensSeg], { title });
+}
+
+// ── Lens over Void — a negative that says its own scope ────────────────────
+/**
+ * A determinate negative fact — "X does not relate to Y", the shape of the
+ * fold's own "∅ never bound" badge (hypergraph.js) — placed per the closure
+ * census's amendment: negation is a value applied to Void, never a cell of
+ * its own. When the absence is the RETURN OF A QUERY over a corpus (not a
+ * fixed unfilled slot like an empty foreign key), it inherits Lens's own
+ * blindness — its own contingency — so this builder REFUSES to omit scope:
+ * an undeclared scope is drawn as a visible gap, not silently absolute.
+ */
+export function negativeClaim(subject, verb, object, { title = "", scope = "" } = {}) {
+  const code =
+    `<style>${themeCss()}body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}` +
+    `.claim{border:1px dashed var(--line);border-radius:10px;padding:13px 16px;background:var(--panel)}` +
+    `.terms{font-size:14px}.terms b{font-weight:650}` +
+    `.mark{color:var(--warn);font-weight:650;margin-right:7px}` +
+    `.scope{margin-top:7px;font-size:11px;color:var(--muted)}` +
+    `.scope.gap{color:var(--warn)}` +
+    `</style>` +
+    `<div class="claim">${title ? `<div style="font-weight:650;font-size:13px;margin-bottom:6px">${esc(title)}</div>` : ""}` +
+    `<span class="mark">∅</span><span class="terms"><b>${esc(subject)}</b> ${esc(verb)} <b>${esc(object)}</b> — never bound</span>` +
+    `<div class="scope${scope ? "" : " gap"}">${scope ? `searched: ${esc(scope)}` : "no scope declared — an undated negative reads as absolute when it is not"}</div>` +
+    `</div>`;
+  return segment("lens", code, {
+    lang: "html",
+    plain: "negative claim",
+    subject,
+    verb,
+    object,
+    scopeDeclared: !!scope,
+  });
 }
 
 /** The nine, as their own legend — the canon, backstage, on request. */

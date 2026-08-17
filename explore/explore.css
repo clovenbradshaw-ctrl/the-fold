@@ -115,6 +115,8 @@ header h1 { font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -0.015
 .source-line { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .source-line .name { font-weight: 600; }
 .source-line .meta { color: var(--muted); margin-left: 8px; }
+.source-line .see-file { margin-left: 10px; font-size: 12px; padding: 2px 10px; border-radius: 14px; color: var(--accent); border-color: var(--accent); }
+.source-line .see-file:hover { background: var(--accent-soft); }
 .spacer { flex: 1; }
 .muted { color: var(--muted); }
 
@@ -416,16 +418,28 @@ body.embed .page-tabs { display: none; }
 .desk-crumbs .linkish:hover { color: var(--accent); }
 .desk-crumbs .sep { color: var(--muted); }
 .desk-section { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 4px 0 8px; }
-.desk-body { display: flex; gap: 18px; align-items: flex-start; }
-.desk-main { flex: 1; min-width: 0; }
+/* Two columns whose widths do not depend on what is selected: the details
+   panel is always in the layout (quiet when nothing is chosen), because a
+   panel that appears on the first click moves the grid before the second one
+   lands — which is exactly why double-click-to-open used to do nothing. */
+.desk-body { display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 18px; align-items: start; }
+.desk-main { min-width: 0; }
 .desk-tbl { width: 100%; }
 .desk-tbl tr:hover td { background: var(--accent-soft); }
 .desk-details {
-  flex: none; width: 260px; position: sticky; top: 0;
+  position: sticky; top: 0;
   border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
   padding: 14px; font-size: 13px;
 }
-.desk-details[hidden] { display: none; }
+.desk-details.quiet { background: none; border-style: dashed; }
+.dt-hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.dt-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.dt-acts button { font-size: 12.5px; }
+.dt-dl, .ctx a.ctx-item { color: var(--accent); font-size: 12.5px; text-decoration: none; }
+.dt-dl:hover, .ctx a.ctx-item:hover { text-decoration: underline; }
+.ctx a.ctx-item { display: block; padding: 6px 12px; border-radius: 6px; color: var(--ink); font-size: 13px; }
+.ctx a.ctx-item:hover { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+.open-error { color: var(--warn); font-size: 12.5px; }
 .dt-name { font-weight: 650; font-size: 14px; margin-bottom: 10px; overflow-wrap: break-word; }
 .dt-thumb { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 10px; }
 .dt-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0 0 10px; font-size: 12px; }
@@ -592,6 +606,70 @@ button.primary { background: var(--accent); color: var(--on-accent); border-colo
 button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 button.primary:disabled { opacity: 0.45; }
 
+/* ── the preview: the file in whatever format it is ───────────────────────────
+   A sheet over the whole page, not a pane inside it — what you asked to see
+   gets the room, and Esc gives it back. The chrome is one bar; everything
+   below it belongs to the file. */
+.pv {
+  position: fixed; inset: 0; z-index: 80;
+  background: color-mix(in srgb, var(--ink) 62%, transparent);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 14px 18px;
+}
+.pv[hidden] { display: none; }
+body.pv-open { overflow: hidden; }
+.pv-bar {
+  flex: none; width: min(1180px, 100%); display: flex; gap: 8px; align-items: center;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px 12px 0 0;
+  border-bottom: none; padding: 8px 12px;
+}
+.pv-title { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: baseline; overflow: hidden; }
+.pv-name { font-weight: 650; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-meta { font: 11.5px var(--mono); color: var(--muted); flex: none; }
+.pv-nav { flex: none; padding: 2px 10px; font-size: 16px; line-height: 1.1; border-radius: 8px; }
+.pv-act {
+  flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  border-radius: 8px; padding: 3px 10px; font-size: 14px; line-height: 1.3;
+  text-decoration: none; cursor: pointer;
+}
+.pv-act:hover { border-color: var(--accent); color: var(--accent); }
+.pv-read { flex: none; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+.pv-read:hover { filter: brightness(1.08); border-color: var(--accent); }
+.pv-body {
+  flex: 1; width: min(1180px, 100%); min-height: 0; overflow: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 0 0 12px 12px;
+  padding: 18px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.pv-said { font-size: 11.5px; color: var(--muted); font-style: italic; text-align: center; }
+.pv-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.pv-media { width: 100%; max-width: 860px; }
+.pv-frame { width: 100%; flex: 1; min-height: 60vh; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.pv-md { align-self: stretch; max-width: 74ch; margin: 0 auto; font-size: 15px; line-height: 1.6; }
+.pv-md h3, .pv-md h4, .pv-md h5 { margin: 1.2em 0 0.4em; line-height: 1.25; }
+.pv-md .para { margin: 0.6em 0; }
+.pv-md blockquote { margin: 0.8em 0; padding: 2px 14px; border-left: 3px solid var(--line); color: var(--muted); }
+.pv-md code { font-family: var(--mono); font-size: 0.88em; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.pv-md pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.5 var(--mono); }
+.pv-md pre code { border: none; background: none; padding: 0; }
+.pv-md table { border-collapse: collapse; font-size: 13px; margin: 0.9em 0; }
+.pv-md th, .pv-md td { border: 1px solid var(--line); padding: 3px 8px; text-align: left; }
+.pv-text { align-self: stretch; max-width: 74ch; margin: 0 auto; font: 15.5px/1.65 var(--serif); white-space: pre-wrap; word-wrap: break-word; }
+/* code: a gutter of line numbers beside the bytes, both scrolling as one */
+.pv-code { align-self: stretch; display: flex; gap: 12px; overflow-x: auto; }
+.pv-code pre { margin: 0; font: 12.5px/1.55 var(--mono); }
+.pv-ln { flex: none; text-align: right; color: var(--muted); user-select: none; border-right: 1px solid var(--line); padding-right: 10px; }
+.pv-src { flex: 1; min-width: 0; white-space: pre; }
+.pv-tblwrap { align-self: stretch; overflow: auto; }
+.pv-none { text-align: center; color: var(--muted); padding: 40px 16px 8px; max-width: 460px; }
+.pv-none-glyph { font-size: 44px; color: var(--line); margin-bottom: 12px; }
+.pv-none-hd { font-size: 16px; color: var(--ink); font-weight: 650; margin-bottom: 6px; }
+.pv-none-sub { font-size: 13px; line-height: 1.5; }
+.pv-hex { align-self: stretch; font: 12px/1.5 var(--mono); overflow-x: auto; }
+.pv-hex table { border-collapse: collapse; margin: 0 auto; }
+.pv-hex td { padding: 0 6px; white-space: pre; }
+.pv-hex .off { color: var(--muted); }
+.pv-hex .asc { color: var(--muted); border-left: 1px solid var(--line); }
+
 /* record dialog */
 dialog {
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink);
@@ -679,11 +757,13 @@ dialog h2 { margin: 0 0 8px; font-size: 15px; }
 /* Tablet and narrow desktop: the rail floats when opened, the side panels
    stop competing with the listing for horizontal room. */
 @media (max-width: 1080px) {
-  .desk-body { flex-direction: column; }
+  .desk-body { grid-template-columns: minmax(0, 1fr); }
   .desk-details {
     width: 100%; position: static; max-height: none;
     order: -1; /* what you selected reads above the grid, not beside it */
   }
+  /* stacked, an always-present panel would push the grid down for nothing */
+  .desk-details.quiet { display: none; }
   .net-wrap { flex-direction: column; }
   .net-inspector { width: 100%; position: static; max-height: none; }
   .field-wrap { flex-direction: column; }
@@ -724,6 +804,11 @@ dialog h2 { margin: 0 0 8px; font-size: 15px; }
   .desk-tbl th:nth-child(3), .desk-tbl td:nth-child(3) { display: none; }
   .net svg { height: max(52vh, 320px); }
   .fold-card, .md, .doc { max-width: none; }
+  /* the preview takes the whole phone — there is no room to frame it */
+  .pv { padding: 0; }
+  .pv-bar { border-radius: 0; border-left: none; border-right: none; flex-wrap: wrap; }
+  .pv-body { border-radius: 0; border-left: none; border-right: none; padding: 12px 10px; }
+  .pv-md, .pv-text { max-width: none; }
 }
 
 /* Coarse pointers (touch): every control gets a real target, and hover-only

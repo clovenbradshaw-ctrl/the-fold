@@ -19,6 +19,9 @@ import { renderBlocksInto, parseInline } from "../render.js";
 // Viselect (MIT, vendored — the page loads nothing remote): the rubber-band
 // selection engine that makes the files view feel like a desktop, not a list.
 import SelectionArea from "./vendor/viselect.mjs";
+// The file's own face — the preview overlay's renderers, pure enough to test
+// under node (preview.test.mjs) because they build DOM through ownerDocument.
+import { buildPreview, previewFace, FACE_NOTE, parseDelimited } from "./preview.js";
 
 const $ = (id) => document.getElementById(id);
 const api = async (path, init) => {
@@ -38,6 +41,12 @@ const el = (tag, cls, text) => {
 // ── state ───────────────────────────────────────────────────────────────────
 const state = {
   path: null, // rel path of the source in focus
+  opening: null, // rel path of a source whose stat is still in flight
+  openError: null, // {path, detail} — an open that failed, said out loud
+  // The preview overlay, deliberately its own little world: it holds a
+  // SECOND source (the one being looked at) so that peeking at a file does
+  // not disturb — or start a read of — the one in the reader behind it.
+  pv: null, // {path, name, list, i, source, text, raw, loading, error}
   source: null, // /api/source result
   text: null, // decoded text (textual modalities)
   terrain: "Field", // the active interface — Field is the declared default
@@ -212,6 +221,14 @@ const TEXTUAL = new Set(["text", "code", "markdown", "json", "table", "html"]);
 
 async function openSource(relPath, opts = {}) {
   state.path = relPath;
+  // The stat is a round trip, and until it lands there is no modality and no
+  // Field surface. Saying WHICH file is opening is what keeps the stage from
+  // falling back to the file grid the reader just left (visibleViews reads
+  // this) — the old code re-rendered with `source === null`, Field was not
+  // among the views, and the active view was silently reset to "files", so
+  // every open appeared to do nothing at all.
+  state.opening = relPath;
+  state.openError = null;
   state.source = null;
   state.text = null;
   state.read = null;
@@ -238,16 +255,202 @@ async function openSource(relPath, opts = {}) {
   markCurrentInRail();
   renderAll();
 
-  state.source = await api(`/api/source?path=${encodeURIComponent(relPath)}`);
+  // An open that fails must SAY so. A library entry can name a file that has
+  // since moved or been deleted (the ledger keeps the ref; the bytes are the
+  // disk's business), and the old code let the rejection escape into an
+  // unhandled promise — the reader clicked, nothing happened, and the only
+  // trace was a line in the console nobody was reading.
+  try {
+    state.source = await api(`/api/source?path=${encodeURIComponent(relPath)}`);
+  } catch (e) {
+    if (state.opening !== relPath) return; // the reader moved on while this failed
+    state.opening = null;
+    state.path = null;
+    state.openError = { path: relPath, detail: e.message };
+    state.terrain = "Desk";
+    renderAll();
+    return;
+  }
+  if (state.opening !== relPath) return; // a later open won the race
+  state.opening = null;
   renderHeaderline();
 
   if (TEXTUAL.has(state.source.modality)) {
     const raw = await fetch(`/api/raw?path=${encodeURIComponent(relPath)}`);
-    state.text = await raw.text();
+    const text = await raw.text();
+    if (state.path !== relPath) return;
+    state.text = text;
     state.bcIndex = byteCharIndex(state.text);
     startRead(); // the read is the point of this instrument; kinds never auto-runs
   }
   renderAll();
+}
+
+// ── the preview overlay: the file in whatever format it is ──────────────────
+// Drive's own gesture, and the one this instrument was missing: you look at
+// the thing before you interrogate it. Double-click (or Enter, or Space) over
+// the grid lifts a full-bleed preview; ‹ › walk the folder without going back
+// for it; Esc drops you where you were. The reading surfaces stay behind it —
+// the preview never starts a read, so peeking at a 3MB book costs a stat and
+// a decode, not ninety seconds of organs.
+
+async function openPreview(entry, list = []) {
+  const files = list.filter((e) => !e.dir);
+  const i = Math.max(0, files.findIndex((e) => e.path === entry.path));
+  state.pv = { path: entry.path, name: entry.name, list: files, i, source: null, text: null, raw: false, loading: true, error: null };
+  renderPreview();
+  await loadPreview();
+}
+
+async function loadPreview() {
+  const asked = state.pv?.path;
+  if (!asked) return;
+  try {
+    const src = await api(`/api/source?path=${encodeURIComponent(asked)}`);
+    if (state.pv?.path !== asked) return; // ‹ › moved on while this was in flight
+    state.pv.source = src;
+    renderPreview();
+    if (TEXTUAL.has(src.modality)) {
+      const r = await fetch(`/api/raw?path=${encodeURIComponent(asked)}`);
+      const t = await r.text();
+      if (state.pv?.path !== asked) return;
+      state.pv.text = t;
+    }
+  } catch (e) {
+    if (state.pv?.path !== asked) return;
+    state.pv.error = e.message;
+  }
+  if (state.pv?.path !== asked) return;
+  state.pv.loading = false;
+  renderPreview();
+}
+
+/** Walk the folder from inside the preview, the way an image viewer does. */
+function pvStep(d) {
+  const pv = state.pv;
+  if (!pv?.list?.length) return;
+  const next = pv.i + d;
+  if (next < 0 || next >= pv.list.length) return;
+  const e = pv.list[next];
+  state.pv = { ...pv, i: next, path: e.path, name: e.name, source: null, text: null, raw: false, loading: true, error: null };
+  renderPreview();
+  loadPreview();
+}
+
+function closePreview() {
+  state.pv = null;
+  renderPreview();
+}
+
+function renderPreview() {
+  const box = $("preview");
+  if (!box) return;
+  box.textContent = "";
+  const pv = state.pv;
+  document.body.classList.toggle("pv-open", !!pv);
+  if (!pv) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const rawUrl = `/api/raw?path=${encodeURIComponent(pv.path)}`;
+
+  // ── the bar: where you are in the folder, and what you can do with this file
+  const bar = el("div", "pv-bar");
+  const back = el("button", "pv-nav", "‹");
+  back.title = "the file before this one in this folder";
+  back.disabled = pv.i <= 0;
+  back.onclick = () => pvStep(-1);
+  const fwd = el("button", "pv-nav", "›");
+  fwd.title = "the file after this one in this folder";
+  fwd.disabled = pv.i >= pv.list.length - 1;
+  fwd.onclick = () => pvStep(1);
+  bar.appendChild(back);
+  bar.appendChild(fwd);
+
+  const title = el("div", "pv-title");
+  title.appendChild(el("span", "pv-name", pv.name));
+  const s = pv.source;
+  if (s) title.appendChild(el("span", "pv-meta", `${fmtBytes(s.bytes)} · ${s.modality}${s.magic ? ` (${s.magic})` : ""}`));
+  if (pv.list.length > 1) title.appendChild(el("span", "pv-meta", `${pv.i + 1} of ${pv.list.length}`));
+  bar.appendChild(title);
+
+  // The rendered/raw pivot exists only where there are two honest faces of
+  // the same bytes; for a PNG there is no "raw" but the hex dump, which the
+  // reader's own source view already owns.
+  const face = s ? previewFace(s) : null;
+  if (s && (face === "markdown" || face === "html")) {
+    const toggle = el("button", null, pv.raw ? "view rendered" : "view raw");
+    toggle.onclick = () => {
+      state.pv.raw = !state.pv.raw;
+      renderPreview();
+    };
+    bar.appendChild(toggle);
+  }
+
+  const dl = document.createElement("a");
+  dl.className = "pv-act";
+  dl.href = rawUrl;
+  dl.download = pv.name;
+  dl.title = "download the bytes as they are on disk";
+  dl.textContent = "⤓";
+  bar.appendChild(dl);
+
+  const tab = document.createElement("a");
+  tab.className = "pv-act";
+  tab.href = rawUrl;
+  tab.target = "_blank";
+  tab.rel = "noopener";
+  tab.title = "open the bytes in a tab of their own";
+  tab.textContent = "⧉";
+  bar.appendChild(tab);
+
+  if (s) {
+    const read = el("button", "pv-read", "Read this →");
+    read.title = "open it in the reader: the cast, the relations, the graph, the trace";
+    read.onclick = () => {
+      const path = pv.path;
+      closePreview();
+      openSource(path);
+    };
+    bar.appendChild(read);
+  }
+
+  const x = el("button", "pv-act", "✕");
+  x.title = "close (Esc)";
+  x.onclick = () => closePreview();
+  bar.appendChild(x);
+  box.appendChild(bar);
+
+  // ── the body: the file's own face
+  const body = el("div", "pv-body");
+  if (pv.error) {
+    body.appendChild(el("div", "pv-none-glyph", "⃠"));
+    body.appendChild(el("div", "pv-none-hd", "This file could not be opened"));
+    body.appendChild(el("div", "pv-none-sub", `${pv.path} — ${pv.error}`));
+  } else if (!s || (TEXTUAL.has(s.modality) && pv.text == null)) {
+    // A textual file has two round trips (the stat, then the bytes). Drawing a
+    // face after the first one would flash the "no viewer" refusal at every
+    // .js file on the way to rendering it — so the face waits for its material.
+    body.appendChild(el("div", "pv-said", "opening…"));
+  } else {
+    const drawn = buildPreview(body, {
+      source: s,
+      text: pv.text,
+      rawUrl,
+      raw: pv.raw,
+      markdown: (holder, text) => mdInto(holder, text),
+      hex: () => api(`/api/hex?path=${encodeURIComponent(pv.path)}&offset=0`),
+    });
+    body.appendChild(el("div", "pv-said", FACE_NOTE[drawn === "raw" ? "code" : drawn] ?? ""));
+  }
+  box.appendChild(body);
+
+  // Clicking the ground behind the sheet closes it, the way every previewer
+  // does — but only the ground itself, never a click that started inside.
+  box.onpointerdown = (ev) => {
+    if (ev.target === box) closePreview();
+  };
 }
 
 async function startRead() {
@@ -310,6 +513,18 @@ function renderHeaderline() {
   const box = $("source-line");
   box.textContent = "";
   if (!state.source) {
+    if (state.openError) {
+      // A failed open is a fact about this instrument's world, so it is shown
+      // where the open would have been, not swallowed.
+      const warn = el("span", "open-error", `could not open ${state.openError.path.split("/").pop()} — ${state.openError.detail}`);
+      warn.title = state.openError.path;
+      box.appendChild(warn);
+      return;
+    }
+    if (state.opening) {
+      box.appendChild(el("span", "muted", `opening ${state.opening.split("/").pop()}…`));
+      return;
+    }
     box.appendChild(el("span", "muted", state.browseDir ? `browsing ${state.browseDir}` : "nothing open — pick something from My files"));
     return;
   }
@@ -330,6 +545,14 @@ function renderHeaderline() {
   box.appendChild(close);
   box.appendChild(el("span", "name", ` ${s.name}`));
   box.appendChild(el("span", "meta", `${fmtBytes(s.bytes)} · ${s.modality}${s.magic ? ` (${s.magic})` : ""} · modified ${new Date(s.mtime).toISOString().slice(0, 10)} · cursor: read at ${new Date().toISOString().slice(11, 19)}Z`));
+  // The one control that is always here, whatever is open: see the file
+  // itself. Everything else on this page is a READING of the file — a
+  // reader who just wants the thing as it is should never have to work out
+  // which surface is least interpreted.
+  const see = el("button", "see-file", "⛶ view the file");
+  see.title = "the file in its own format — the image, the page, the document, the bytes (Esc closes)";
+  see.onclick = () => openPreview({ path: state.path, name: s.name }, []);
+  box.appendChild(see);
   // Inside the Converse pane, a source can be handed to the chat as
   // material — the request crosses the frame; the chat side owns what it
   // does with it (and its own mute/unmute strip).
@@ -368,7 +591,10 @@ function visibleViews() {
   const T = state.read?.terrains;
   // files and web are always places to stand; web carries its history count
   const out = [{ id: "Desk" }, { id: "Web", n: state.web.history?.entries?.length || undefined }];
-  if (state.source) out.push({ id: "Field" });
+  // A file whose stat is still in flight already has a place to stand — see
+  // openSource: without this the active view is reset to "files" mid-open and
+  // the file never appears.
+  if (state.source || state.opening) out.push({ id: "Field" });
   if (T?.Entity?.referents?.length) out.push({ id: "Entity", n: T.Entity.referents.length });
   if (T?.Link?.total) out.push({ id: "Link", n: T.Link.total });
   if (T?.Network?.nodeCount) out.push({ id: "Network", n: T.Network.nodeCount });
@@ -583,6 +809,10 @@ function renderSurface() {
   if (state.terrain !== "Lens") state.lastContentTerrain = state.terrain;
   if (state.terrain === "Web") {
     renderWeb(surface);
+    return;
+  }
+  if (!state.source && state.opening && state.terrain === "Field") {
+    gapFace(surface, "opening", `reading ${state.opening.split("/").pop()} off the disk…`);
     return;
   }
   if (!state.source || state.terrain === "Desk") {
@@ -818,6 +1048,28 @@ async function renderBrowse(surface) {
       markCurrentInRail();
     } else openSource(entry.path);
   };
+  // Drive's own division of labour: opening a FILE shows you the file (the
+  // preview, in its own format, costing nothing); opening a FOLDER walks into
+  // it. The reader is one button further in, from inside the preview — the
+  // reading organs are not what anyone wants from a double-click.
+  const preview = (entry) => {
+    closeCtx();
+    if (entry.dir) open(entry);
+    else openPreview(entry, entries);
+  };
+  // A double-click has to survive the layout moving under it. The first click
+  // selects, which fills the details panel, which used to reflow the grid —
+  // so the second click landed on a different tile and the file never opened.
+  // Tracking the last-clicked PATH rather than the last-clicked node makes the
+  // gesture immune to any re-render between the two clicks. (The details
+  // column is now fixed-width and always present, so it should not move at
+  // all; this is the belt to that suspenders, and it is what actually failed.)
+  const DOUBLE_CLICK_MS = 450;
+  const secondClick = (path) => {
+    const last = state._lastClick;
+    state._lastClick = { path, t: performance.now() };
+    return last?.path === path && state._lastClick.t - last.t < DOUBLE_CLICK_MS;
+  };
   const goUp = () => {
     state.browseDir = dir === state.libraryOrigin ? "" : dir.split("/").slice(0, -1).join("/");
     if (dir === state.libraryOrigin) state.libraryOrigin = null;
@@ -872,7 +1124,8 @@ async function renderBrowse(surface) {
         else b.disabled = true;
         bar.appendChild(b);
       };
-      act("Open", () => open(chosen[0]));
+      act(chosen[0].dir ? "Open" : "View the file", () => preview(chosen[0]));
+      if (!chosen[0].dir) act("Read", () => open(chosen[0]));
       const textual = chosen.filter((e) => !e.dir && looksTextual(e.name));
       if (document.body.classList.contains("embed")) {
         act(`Use in chat${textual.length > 1 ? ` (${textual.length})` : ""}`, async () => {
@@ -988,11 +1241,14 @@ async function renderBrowse(surface) {
   const renderDetails = () => {
     details.textContent = "";
     const chosen = sel();
+    // The panel is ALWAYS in the layout, empty or not. It used to appear and
+    // disappear with the selection, which moved the grid under the reader's
+    // second click — the reason double-click never opened anything.
+    details.classList.toggle("quiet", chosen.length !== 1);
     if (chosen.length !== 1) {
-      details.hidden = true;
+      details.appendChild(el("div", "dt-hint", chosen.length ? `${chosen.length} items selected` : "Select a file to see its details. Double-click it to see the file itself."));
       return;
     }
-    details.hidden = false;
     const e = chosen[0];
     details.appendChild(el("div", "dt-name", e.name));
     if (!e.dir && isImage(e.name)) {
@@ -1018,10 +1274,29 @@ async function renderBrowse(surface) {
           peekBox.textContent = r.peek ? r.peek : "no text preview — these bytes are not UTF-8";
         })
         .catch(() => peekBox.remove());
-      const openBtn = el("button", null, "Open");
-      openBtn.onclick = () => open(e);
-      details.appendChild(openBtn);
     }
+    // Every file gets the same three, whatever its format: see it, read it,
+    // take it. A .docx has no reading pipeline here and no preview renderer,
+    // but it still has bytes — so "Download" is never missing.
+    const acts = el("div", "dt-acts");
+    if (!e.dir) {
+      const pvBtn = el("button", "primary", "View the file");
+      pvBtn.title = "the file in its own format, whatever that format is";
+      pvBtn.onclick = () => preview(e);
+      acts.appendChild(pvBtn);
+    }
+    const openBtn = el("button", null, e.dir ? "Open folder" : "Read");
+    openBtn.onclick = () => open(e);
+    acts.appendChild(openBtn);
+    if (!e.dir) {
+      const dl = document.createElement("a");
+      dl.className = "dt-dl";
+      dl.href = `/api/raw?path=${encodeURIComponent(e.path)}`;
+      dl.download = e.name;
+      dl.textContent = "Download";
+      acts.appendChild(dl);
+    }
+    details.appendChild(acts);
   };
 
   // ── the context menu ─────────────────────────────────────────────────────
@@ -1045,7 +1320,17 @@ async function renderBrowse(surface) {
       menu.appendChild(it);
     };
     if (chosen.length === 1) {
-      item("Open", () => open(chosen[0]));
+      if (!chosen[0].dir) item("View the file", () => preview(chosen[0]));
+      item(chosen[0].dir ? "Open" : "Read in the reader", () => open(chosen[0]));
+      const dl = document.createElement("a");
+      dl.className = "ctx-item";
+      dl.href = `/api/raw?path=${encodeURIComponent(chosen[0].path)}`;
+      dl.download = chosen[0].name;
+      dl.textContent = "Download";
+      if (!chosen[0].dir) {
+        dl.onclick = () => closeCtx();
+        menu.appendChild(dl);
+      }
       if (!chosen[0].dir && looksTextual(chosen[0].name)) {
         item("Open and summarize", async () => {
           await openSource(chosen[0].path);
@@ -1119,7 +1404,12 @@ async function renderBrowse(surface) {
     }
     tile.appendChild(el("span", "nm", entry.name));
     if (!entry.dir && entry.size != null) tile.appendChild(el("span", "sz", fmtBytes(entry.size)));
-    tile.ondblclick = () => open(entry);
+    // One handler, not onclick + ondblclick: the tracker already fires exactly
+    // once, on the second click, and a native dblclick beside it would open
+    // the same file twice.
+    tile.onclick = () => {
+      if (secondClick(entry.path)) preview(entry);
+    };
     tile.oncontextmenu = (ev) => showCtx(ev, entry);
     return tile;
   };
@@ -1155,7 +1445,9 @@ async function renderBrowse(surface) {
       tr.appendChild(nameTd);
       tr.appendChild(el("td", null, entry.dir ? "—" : fmtBytes(entry.size)));
       tr.appendChild(el("td", null, entry.mtime ? new Date(entry.mtime).toLocaleDateString() : "—"));
-      tr.ondblclick = () => open(entry);
+      tr.onclick = () => {
+        if (secondClick(entry.path)) preview(entry);
+      };
       tr.oncontextmenu = (ev) => showCtx(ev, entry);
       tbl.appendChild(tr);
     }
@@ -1213,6 +1505,18 @@ async function renderBrowse(surface) {
 
   rebuildBar();
   renderDetails();
+
+  // The keyboard's handle on this listing: the global keydown handler is
+  // outside this closure, so what it needs to act on — the entries in view and
+  // the two verbs — is left here for it. Rebuilt every render, so it can never
+  // name a listing that is no longer on screen.
+  state._desk = {
+    entries: () => entries,
+    byPath: entriesByPath,
+    preview,
+    open,
+    paint: paintSelection,
+  };
 
   // Uploading: the native file picker (X-File-Name per request; no
   // multipart parser this server has declared it will not carry) and
@@ -1682,10 +1986,22 @@ function renderMarkdownField(surface) {
     return;
   }
   const holder = el("div", "md");
+  mdInto(holder, state.text, state.sel?.surfaces ?? []);
+  surface.appendChild(holder);
+  holder.querySelector("mark")?.scrollIntoView({ block: "center" });
+}
+
+/**
+ * The markdown face, into any holder: the reader's Field view and the preview
+ * overlay draw the same rendered document from the same code. `marked` are
+ * the selection's surfaces to light up — empty from the preview, which has no
+ * pivot to carry.
+ */
+function mdInto(holder, text, marked = []) {
   // The selection's surfaces get marked inside the rendered prose — the
   // decorator hook exists for exactly this (the same seam the chat uses for
   // its address chips). Fence content stays verbatim and unmarked.
-  const needles = (state.sel?.surfaces ?? []).map((s) => String(s).toLowerCase()).filter((s) => s.length >= 2);
+  const needles = marked.map((s) => String(s).toLowerCase()).filter((s) => s.length >= 2);
   const decorate = (chunk) => {
     if (!needles.length) return [document.createTextNode(chunk)];
     const lower = chunk.toLowerCase();
@@ -1738,7 +2054,7 @@ function renderMarkdownField(surface) {
   const isTableRow = (line) => /^\s*\|.*\|\s*$/.test(line);
   const isTableRule = (line) => /^\s*\|[\s:|-]+\|\s*$/.test(line) && line.includes("-");
 
-  const lines = state.text.split(/\r\n|\n/);
+  const lines = String(text ?? "").split(/\r\n|\n/);
   let prose = [];
   let fence = null;
   const flushProse = () => {
@@ -1785,44 +2101,18 @@ function renderMarkdownField(surface) {
     prose.push("```", ...fence); // unclosed fence stays prose
   }
   flushProse();
-  surface.appendChild(holder);
-  holder.querySelector("mark")?.scrollIntoView({ block: "center" });
 }
 
 function renderTableField(surface) {
-  const ROW_CAP = 500; // display cap; the drop is counted next to the table
-  const delim = state.source.delimiter ?? ",";
-  const rows = [];
-  let cur = [""];
-  let inQ = false;
-  const text = state.text;
-  for (let i = 0; i < text.length && rows.length <= ROW_CAP; i++) {
-    const ch = text[i];
-    if (inQ) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          cur[cur.length - 1] += '"';
-          i++;
-        } else inQ = false;
-      } else cur[cur.length - 1] += ch;
-    } else if (ch === '"') inQ = true;
-    else if (ch === delim) cur.push("");
-    else if (ch === "\n" || (ch === "\r" && text[i + 1] === "\n")) {
-      if (ch === "\r") i++;
-      rows.push(cur);
-      cur = [""];
-    } else cur[cur.length - 1] += ch;
-  }
-  if (cur.length > 1 || cur[0]) rows.push(cur);
-  const totalLines = (text.match(/\n/g)?.length ?? 0) + 1;
-  const shown = rows.length - 1;
-  note(surface, "shown", `rows as delimited on disk · showing ${Math.min(shown, ROW_CAP).toLocaleString()} of ${(totalLines - 1).toLocaleString()} data rows${totalLines - 1 > ROW_CAP ? ` — ${(totalLines - 1 - ROW_CAP).toLocaleString()} beyond the display cap not shown` : ""}`);
+  // One CSV reader for the whole page (preview.js's), so the desk's preview
+  // and the reader's table face can never disagree about where a row ends.
+  const { head, body, totalDataRows, dropped } = parseDelimited(state.text, state.source.delimiter ?? ",");
+  note(surface, "shown", `rows as delimited on disk · showing ${(totalDataRows - dropped).toLocaleString()} of ${totalDataRows.toLocaleString()} data rows${dropped ? ` — ${dropped.toLocaleString()} beyond the display cap not shown` : ""}`);
   const tbl = el("table", "tbl");
-  const [head, ...body] = rows;
   const trh = el("tr");
   for (const h of head ?? []) trh.appendChild(el("th", null, h));
   tbl.appendChild(trh);
-  body.slice(0, ROW_CAP).forEach((r, i) => {
+  body.forEach((r, i) => {
     const tr = el("tr");
     if (state.sel?.type === "member" && state.sel.row === i) tr.className = "hl";
     for (const c of r) tr.appendChild(el("td", null, c));
@@ -2997,9 +3287,59 @@ function renderAll() {
   }
 })();
 
-// number keys walk the visible views, in their reveal order
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input, textarea, dialog")) return;
+
+  // The preview owns the keyboard while it is up — Esc out, arrows through the
+  // folder. Nothing behind it hears these keys, so a number cannot switch the
+  // view out from under a file you are looking at.
+  if (state.pv) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closePreview();
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      pvStep(-1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      pvStep(1);
+    }
+    return;
+  }
+
+  // On the files view: Enter/Space open what is selected (the desk's own
+  // gesture, and the one every file manager has), Esc drops the selection.
+  if (showingDesk() && state._desk) {
+    const chosen = [...state.deskSel].map((p) => state._desk.byPath.get(p)).filter(Boolean);
+    if ((e.key === "Enter" || e.key === " ") && chosen.length === 1) {
+      e.preventDefault();
+      state._desk.preview(chosen[0]);
+      return;
+    }
+    if (e.key === "Escape" && state.deskSel.size) {
+      e.preventDefault();
+      state.deskSel = new Set();
+      state._desk.paint();
+      return;
+    }
+    // Arrows walk the listing, wrapping at neither end — a selection is a
+    // place, and there is nothing past the last file.
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const list = state._desk.entries();
+      if (!list.length) return;
+      e.preventDefault();
+      const at = list.findIndex((x) => state.deskSel.has(x.path));
+      const per = surfaceTilesPerRow();
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : e.key === "ArrowDown" ? per : -per;
+      const next = at < 0 ? 0 : Math.min(list.length - 1, Math.max(0, at + step));
+      state.deskSel = new Set([list[next].path]);
+      state._desk.paint();
+      document.querySelector(`[data-path="${CSS.escape(list[next].path)}"]`)?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+  }
+
+  // number keys walk the visible views, in their reveal order
   const n = Number(e.key);
   const views = visibleViews();
   if (n >= 1 && n <= views.length) {
@@ -3007,3 +3347,13 @@ document.addEventListener("keydown", (e) => {
     renderAll();
   }
 });
+
+/** How many tiles a row actually holds right now — measured off the grid, not
+ *  assumed, so ↓ lands one row down at every window width (and in list view,
+ *  where a "row" is one entry). */
+function surfaceTilesPerRow() {
+  const grid = document.querySelector(".tiles");
+  if (!grid) return 1;
+  const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
+  return Math.max(1, cols);
+}

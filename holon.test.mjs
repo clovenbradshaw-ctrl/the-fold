@@ -163,6 +163,25 @@ test("a single interrogative sentence never plans, however many facets it names"
   );
 });
 
+test("a single-sentence ask plans only on anchors — a comma count is length, not structure", () => {
+  // The live browser failure this pins (2026-08-17): one imperative
+  // sentence naming facets of ONE artifact hit the clause-count shortcut,
+  // planned five parts, and each part — sighted only on its own label —
+  // regenerated the whole widget from scratch. No clause pins an anchor,
+  // so the ask is one propose; the build loop's iteration is the improver.
+  assert.equal(
+    needsDecomposition("Make me a counter widget in html, with a plus button, a minus button, and a number in between."),
+    false,
+  );
+  // Multi-sentence work keeps the clause-count shortcut — steps stated as steps.
+  assert.equal(
+    needsDecomposition(
+      "Compare the 1805 and 1812 campaigns. Cite the figures for each army, name the commanding generals, and note the dates of the major battles. Which mattered more?",
+    ),
+    true,
+  );
+});
+
 test("a standing preference is not WORK, and does not trip the gate on its own commas", () => {
   // The live failure this pins (2026-08-17): "My name is Jordan. From now
   // on, whenever you give me more than one item, use a numbered list,

@@ -622,3 +622,90 @@ synchronously is stoppable only by ✕ (the same one hole the skills sandbox
 discloses for its run budget); terminal acts are not on the record — the
 old terminal's posture, kept deliberately; a term-record mirror is named
 future work, not implied.
+
+## The measuring door (added 2026-08-17, seventh pass) — what was decided, so it is not re-derived
+
+P19 in POLICIES.md is the law; this is the map. The ask this answers, from the
+user directly: the fold should carry **standardized eoreader6-based statistics
+modules, so DFR-repo-style analysis stops being hand-rolled** — and the point
+is to make *people*, not only the model, less prone to bullshitting.
+
+**Nothing was added to eoreader6, and that is the finding.** The organs were
+already there and the search-before-you-write rule found them: `nul/index.js`
+(1,306 lines — PERTURBATIONS × STATISTICS with a `LICENSED` table, ~20 typed
+gap types, `ground` / `difference` / `extremeGround`, the censoring floor) and
+`emergence/binding.js` (displacement / reversal / reseed nulls, transfer
+entropy, per-pair `bindLinks`). What was missing was never a statistic. It was
+the **gate**, and `nul` says in as many words that the gate is the caller's to
+ask for: "NOT enforced inside `ground` … An organ that wants the guarantee asks
+for it." So the gate is the fold's, the statistics stay the engine's, and the
+standing rule (*leave everything you can in eoreader6*) is honoured by
+subtraction rather than by a port.
+
+**Files.** `measure.js` — pure, organs injected (cast.js pattern): the
+declaration grammar, `admit` (the gate), the table→series and table→arrivals
+adapters, `measureSeries` / `measureAcross` / `measurePairs`, the single
+`runMeasurement` router, `phrase` and `toTable`. `measure.test.mjs` — 35
+conformance tests against the REAL nul and binding modules.
+`eval/measure-real-data.mjs` + `eval/fixtures/santa-ana-flight-hours.csv` —
+the door run on 1,021 real drone flights. app.js's `measureTurn` is plumbing
+only: find the named file, hand the declaration to the router, print whichever
+of result-or-refusal came back. No server change: both mounts (`/engine`,
+`/nul`) already existed, and `page-graph.mjs` picked `measure.js` up on its own
+— "adding a module needs no edit here" held.
+
+**The grammar is keyed, not positional** (`series:` / `across:` / `pairs:` /
+`at:` / `as:` / `trying:` / `broken:` / `draws:` / `window:` / `seed:` /
+`direction:`), order-free, because a reader is declaring a spec and a
+positional form would make the fourth number they type silently mean something
+else. `broken:` is the plain-language name for a perturbation (the handbook's
+own "break it on purpose"); nul's registry keys stay underneath so there is no
+second vocabulary to drift.
+
+**Decisions that cost something, kept here:**
+
+- **The fixture is copied, not read across repos.** Twenty-four integers from
+  `dfr-causal-analysis/profiles/profile-santa-ana.json`. Reaching over there
+  would have inherited the exact defect that repo's own paper lists under
+  limitations ("cannot be reproduced by a third party") while criticising it.
+- **The real-data declarations were fixed before the run and never revisited**
+  (eoreader6's tune-nothing-against-the-answer rule, applied to a measurement's
+  parameters). window 8 = a patrol shift, a unit of the world the material came
+  from; draws 200 = this repo's standing null-arm number, giver named.
+- **The result is worth knowing.** The declared question returns *censored
+  above* (59.25 flights in the largest 8-hour mean, above all 200 shuffles).
+  The same observation against a spectrum-preserving null sits at 59/200 —
+  unremarkable. Two nulls, opposite readings, and only one pairing established:
+  that contrast is the licensing gate's whole justification, found live rather
+  than argued.
+- **Two walls were found by RUNNING it, not by reasoning about it** (P5.5's
+  discipline, both directions). (1) The `best_of_n` refusal was correct and
+  **unreachable** — the only route into `measureAcross` was supplying the very
+  `direction:` whose absence it refuses, so a sound wall nobody could touch.
+  `across:` exists because of that; a refusal no declaration can trigger is a
+  comment, not a wall, and its test now goes through the grammar. (2) `nul`'s
+  `window >= 2` had been carried across to co-arrival, where `displacementNull`
+  states its own floor of 1 — so a legitimate "arrived at an adjacent position"
+  was refused. Each floor is now the consuming organ's own.
+- **One router, because there were briefly two.** app.js's turn and the eval
+  each grew a three-way dispatch and disagreed within the hour (one routed on
+  `direction`, the other on `across`). `runMeasurement` is the only
+  implementation, and it re-runs the gate so no path reaches a measurement that
+  skipped it — eoreader6's "reconcile, don't dedupe" rule, applied before the
+  second copy could rot.
+- **`measured` is a new act on the reflex ledger and reflex.js was NOT edited.**
+  Its `stableDetail` fallback renders an unknown act deterministically from
+  sorted keys — the module's own designed extension point.
+
+**Known edges, disclosed:** the causal door is deliberately absent. `binding.js`
+carries `transferEntropy` and `reversalNull`, and the DFR work measured both an
+inflated false-positive rate and 100/100 false positives on common-cause
+synthetic data — the paper's own conclusion is that confounding "requires
+design, not statistics." A `/measure … causes:` door would therefore need a
+design declaration, not another null, and that is scoped work rather than
+something to bolt on here. Also absent: a space-time (position-held,
+time-permuted) perturbation, which is the one null `matter_grouping.py`
+hand-rolled that has no organ yet — `measurePairs` covers the co-arrival
+question over ordered positions, not the spatial one. And the DFR scripts
+themselves are untouched: this door is what they should have called, but
+porting them is its own pass.

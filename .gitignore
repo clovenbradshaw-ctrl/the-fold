@@ -12,3 +12,7 @@ web/
 library/
 priors/
 .venv/
+
+# the in-tab model's mirrored weights (P21) — re-fetched, never committed:
+# models/fetch-llama32-3b.sh rebuilds them md5-verified
+models/*/

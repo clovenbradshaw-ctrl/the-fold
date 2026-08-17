@@ -206,6 +206,7 @@ import {
 // code, not the model; constitution.js carries the article→organ map and the
 // assay walks it.
 import { CONSTITUTION_PROMPT as BASE_PROMPT } from "./constitution.js";
+import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 const OLLAMA = "http://localhost:11434";
 const MAX_TOKENS = 4096;
@@ -671,6 +672,84 @@ function usageTurn(question, usage) {
   releaseBusy();
 }
 
+/**
+ * /priors — the toggle ledger's chat door. One ledger, three doors (the
+ * Priors tab, the terminal's `priors` command, this one) all reading and
+ * writing the same explore-server.mjs routes, so a flip made anywhere is
+ * seen everywhere. Bare /priors lists the corpus's genres and how many
+ * documents in each are in play; `/priors on|off <path>` flips a document,
+ * a folder, or the whole corpus (blank path). Computed from a server
+ * fetch, never generated — a toggle is a fact about a file on disk.
+ */
+async function priorsTurn(argstr, typed) {
+  const [sub, ...rest] = argstr.trim().split(/\s+/).filter(Boolean);
+  try {
+    if (sub === "on" || sub === "off") {
+      const p = rest.join(" ");
+      const body = await (
+        await fetch(`${EXPLORE_BASE}/api/priors/toggle`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: p, on: sub === "on" }),
+        })
+      ).json();
+      if (body.error) return usageTurn(typed, body.error);
+      // The one thing worth saying plainly: this reaches the surf, not
+      // just the offer surface. explore-server.mjs's /api/priors/check
+      // gates its candidate list on this same ledger — a document
+      // switched off is not consulted at answer time, not just hidden
+      // from the attach picker.
+      return usageTurn(
+        typed,
+        `${p || "the whole corpus"} → ${sub.toUpperCase()}. This reaches the surf directly: the reference-library check that runs during a turn only reads documents the ledger says are on — switching one off means it is not consulted, not just hidden from the picker.`,
+      );
+    }
+    const data = await (await fetch(`${EXPLORE_BASE}/api/priors`)).json();
+    if (data.gap) return usageTurn(typed, data.gap.detail);
+    const lines = [
+      `live_priors: ${data.files.toLocaleString()} documents, ${data.enabledCount.toLocaleString()} in play — every document starts off.`,
+      ...data.categories.map((c) => `  ${c.name}: ${c.enabled}/${c.files} in play`),
+      "`/priors on <path>` or `/priors off <path>` flips a document, a folder, or the whole corpus (bare path = root). A flip here is the same ledger the Priors tab and the terminal's `priors` command read.",
+    ];
+    return usageTurn(typed, lines.join("\n"));
+  } catch {
+    return usageTurn(typed, "the priors organ needs explore-server.mjs running on :8812 to answer this from chat.");
+  }
+}
+
+/**
+ * /learn — points at where each half of "learn this instrument" actually
+ * lives, rather than duplicating either. The terminal's `learn` walk grades
+ * real keystrokes against real commands, which chat has no mechanism to do
+ * honestly; the vendored handbook (handbook/, the eoreaderhandbook repo
+ * copied whole, P1: local) is prose chat CAN open directly. Bare /learn is
+ * the menu; `/learn <n>` opens a chapter, quoted from the vendored file,
+ * never paraphrased.
+ */
+async function learnTurn(argstr, typed) {
+  let idx;
+  try {
+    idx = parseHandbookIndex(await (await fetch("handbook/000-index.md")).text());
+  } catch {
+    return usageTurn(typed, "the handbook isn't reachable from here (handbook/000-index.md) — it ships vendored beside this page.");
+  }
+  const want = argstr.trim();
+  if (!want) {
+    const lines = [
+      "two doors, not one:",
+      "  the terminal's `learn` — a graded walk through this terminal's own commands, real keystrokes checked against real ones. Open the terminal (›) and type `learn`.",
+      "  `/learn <n>` here — a chapter of the eoreaderhandbook, the theory this instrument is built on, vendored whole.",
+      "",
+      ...idx.map((c) => `  ${c.n.padEnd(5)} ${c.title}`),
+    ];
+    return usageTurn(typed, lines.join("\n"));
+  }
+  const ch = findChapter(idx, want);
+  if (!ch) return usageTurn(typed, `no chapter “${want}” — bare \`/learn\` lists them all`);
+  const text = await (await fetch(`handbook/${ch.file}`)).text();
+  return usageTurn(typed, `${text}\n\n— chapter ${ch.n}, ${ch.title} (handbook/${ch.file})`);
+}
+
 async function mechanicalTurn(question, kind) {
   addMessage("user", question);
   const node = addMessage("assistant", "");
@@ -827,6 +906,20 @@ async function send(question) {
   const reflectQ = question.match(/^\/reflect\s+(\S[\s\S]*)/)?.[1];
   if (reflectQ) return reflectTurn(reflectQ, question);
   if (/^\/reflect\s*$/.test(question)) return usageTurn(question, "/reflect <question> — answers about how this instrument has been working, retrieving from its own act ledger instead of the material. The record such a turn earns is typed as self-knowledge, never as a check against the world.");
+
+  // The priors organ's door: browse and flip the live_priors toggle ledger
+  // from the chat, the same ledger the Priors tab and the terminal's
+  // `priors` command read and write (one ledger, three doors). Computed
+  // from a server fetch, never generated — a toggle is a fact about a file
+  // on disk, not a thing to phrase.
+  const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
+  if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
+
+  // /learn's door: the terminal's own `learn` walk is graded on real
+  // keystrokes there, which chat cannot offer — so here it points to
+  // where that walk lives, and lists the vendored handbook's chapters
+  // (theory this instrument is built on) as things chat CAN open directly.
+  if (/^\/learn\s*$/.test(question) || /^\/learn\b/.test(question)) return learnTurn(question.replace(/^\/learn\s*/, ""), question);
 
   // A question about the app's own state is answered from that state. Nothing
   // is gained by handing a model rows it would have to paraphrase, and a
@@ -1979,6 +2072,90 @@ function taggedProse(text, offered, classified = []) {
 
   if (rest) out.push(...refNodes(rest, known));
   return out;
+}
+
+/** A build's own words, for the router's definite-phrase check: its caption
+ * and its current projected code — the same pairing widget.test.mjs's own
+ * textOf() uses, so the two stay reading the same thing. */
+function buildWords(entry) {
+  const f = buildFold(entry, null);
+  return `${f?.caption ?? ""}\n${f?.code ?? ""}`;
+}
+
+/** A chip pointing at an existing build — the same handle publishBuild's own
+ * chip is, factored out so revise/rezero land the identical affordance a
+ * brand-new build gets. */
+function buildChip(entry, cap) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "build-chip";
+  chip.innerHTML = `<span aria-hidden="true">▤</span> `;
+  chip.append(document.createTextNode(cap));
+  chip.onclick = () => {
+    showView("builds");
+    renderBuilds(entry.n);
+    document
+      .getElementById(`build-${entry.n}`)
+      ?.scrollIntoView({ block: "start" });
+  };
+  return chip;
+}
+
+/**
+ * Does this code segment open a new build, or land on one that already
+ * exists? Decided by widget.js's routeSegment, from the operator's own
+ * words and the standing builds' own bytes — never a guess and never left
+ * to whether the model happened to restate itself in prose.
+ *
+ * A judgment ("I don't like the colors") re-zeros the target build: a new
+ * ground on ITS log, never a new build. A later block of the SAME kind in
+ * this turn (measured live: gemma2:2b answering one request with five html
+ * fences) versions the one just landed. Only a turn whose words introduce
+ * something new — or that names nothing existing at all — opens a build.
+ */
+function routeAndPublish(seg, task, instruction, landedThisTurn) {
+  if (seg.type !== "code" && seg.type !== "table") {
+    return publishBuild(seg, undefined, instruction);
+  }
+  const known = state.builds.map((b) => ({ n: b.n, ...kindOf(b), text: buildWords(b) }));
+  const route = widgetRouter.routeSegment(seg, task ?? "", known, { landedThisTurn });
+
+  if (route.kind === "new") {
+    const chip = publishBuild(seg, undefined, instruction);
+    const made = state.builds[state.builds.length - 1];
+    landedThisTurn.push({ n: made.n, type: seg.type, lang: seg.lang });
+    return chip;
+  }
+
+  const entry = state.builds.find((b) => b.n === route.n);
+  const landed = { ...seg, lang: route.lang && route.lang !== seg.lang ? route.lang : seg.lang };
+  const before = entry.log.entries.length;
+  entry.log =
+    route.kind === "rezero"
+      ? buildLog.rezeroBuild(entry.log, {
+          code: landed.code,
+          seg: landed,
+          caption: defaultCaption(landed),
+          trigger: route.trigger,
+          tell: route.tell,
+        })
+      : buildLog.reviseBuild(entry.log, { code: landed.code, reason: "restated" });
+  if (entry.log.entries.length > before) {
+    entry.cursor = null;
+    entry.draft = null;
+    mirrorBuild(entry, before);
+  }
+  persistBuilds();
+  renderBuilds(entry.n);
+  landedThisTurn.push({ n: entry.n, type: seg.type, lang: landed.lang });
+  return buildChip(entry, buildFold(entry, null)?.caption ?? defaultCaption(landed));
+}
+
+/** A build's kind, for the router's same-kind matching — the projected
+ * segment's own type and language, never a guess from the caption. */
+function kindOf(entry) {
+  const f = buildFold(entry, null);
+  return { type: f?.seg?.type, lang: f?.seg?.lang };
 }
 
 /**

@@ -39,6 +39,7 @@ import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
+import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -550,6 +551,12 @@ export async function runPart({
     // beyond-reach and unheard stay disclosure-only (limits of the
     // instrument, not failures of the answer).
     const relationReport = relations ? relations.read(shipped) : null;
+    // Every quotation followed to the bytes (quotes.js): a fabricated
+    // quotation joins the unsupported list — the strongest claim an answer
+    // makes gets the same bounded correction as an invented figure. Drift
+    // repair happens once, after the correction loop, where the final
+    // draft is rewritten to the source's own bytes and re-inspected.
+    const quotes = passages.length ? verifyQuotes(text, passages, { pool: live }) : null;
     return {
       used,
       attributed,
@@ -558,11 +565,13 @@ export async function runPart({
         ...(used.length ? ["cited"] : []),
         ...(attributed.length ? ["attributed"] : []),
         ...(relationReport?.examined && !relationReport.vocabulary?.gap ? ["relations"] : []),
+        ...(quotes?.quotes.some((q) => q.status === "verbatim" || q.status === "drifted") ? ["quoted"] : []),
       ],
-      unsupported: [...unsupported, ...unsupportedClaims(grounding), ...relationFindings(relationReport)],
+      unsupported: [...unsupported, ...unsupportedClaims(grounding), ...relationFindings(relationReport), ...quoteFindings(quotes)],
       attributions,
       grounding,
       relations: relationReport,
+      quotes,
     };
   };
 
@@ -760,6 +769,23 @@ export async function runPart({
     verdict = judge(draft);
   }
 
+  // The quote repair, once, on what will actually ship: every located
+  // quotation is rewritten to the source's own bytes (drift dies here, not
+  // on the record) and every quotation located in the offer gains its
+  // chunk's address — mechanical citation, cite.js's own posture, at the
+  // one place a quote's warrant can be attached with certainty. The
+  // repaired draft is re-inspected so the record describes the text the
+  // reader sees, not the text the model wrote.
+  let quoteCorrections = [];
+  if (passages.length && check.quotes) {
+    const fixed = applyQuotes(draft, check.quotes);
+    quoteCorrections = fixed.corrections;
+    if (fixed.text !== draft) {
+      draft = fixed.text;
+      check = inspect(draft);
+    }
+  }
+
   // The output ships without its framing: a sentence that names the act of
   // prompting is never an answer, and a draft that opens by echoing the
   // prompt must not carry that echo to the page, the fold, or the record.
@@ -784,6 +810,9 @@ export async function runPart({
     ...(scaffoldRemoved.length
       ? [`model narrated its own answering process; ${scaffoldRemoved.length} span(s) hidden: ${part.label}`]
       : []),
+    // Real quotations from material the turn was not offered: the model
+    // quoting past its evidence — typed, never silently warranted.
+    ...quoteOpens(check.quotes),
     ...openQuestions(question, passages, check.refs),
     ...(text ? [] : [`part produced no text: ${part.label}`]),
   ];
@@ -795,6 +824,7 @@ export async function runPart({
     passages,
     corrections,
     ...check,
+    quoteCorrections,
     open,
   };
 }

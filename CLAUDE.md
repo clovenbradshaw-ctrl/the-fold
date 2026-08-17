@@ -400,10 +400,17 @@ never a bit anywhere in this ladder: it is counted perspectives, typed
 verdicts, and disclosed limits.
 
 **The ladder, bottom to top.** (1) address tier — `checkCitations` /
-`attribute` (unchanged); (2) atom tier — `checkGrounding` for absence,
-`corroborateAtoms` (grounding.js) for STRENGTH: every checkable atom with
-the passages that state it, refs and distinct sources counted apart because
-two chunks of one file are one perspective; (3) relation tier —
+`attribute` (unchanged); (1.5) quotation tier — `quotes.js` (P17), NEW:
+every quotation followed to the bytes; verbatim quotes self-cite their
+chunk mechanically, drifted quotes are REWRITTEN to the source's own bytes
+before rendering (repair disclosed, then re-inspected so the record
+describes what ships), fabricated quotations join unsupported and drive
+correction, outside-offer quotations are typed opens with the anchor where
+the words live but never an inline warrant; (2) atom tier —
+`checkGrounding` for absence, `corroborateAtoms` (grounding.js) for
+STRENGTH: every checkable atom with the passages that state it, refs and
+distinct sources counted apart because two chunks of one file are one
+perspective; (3) relation tier —
 `hypergraph.js`, NEW: the material's own edges (engine organs, injected —
 `discoverRelationVocab` / `extractRelations` / the referent index) versus
 the answer read with the SAME organs, five typed verdicts (bound /

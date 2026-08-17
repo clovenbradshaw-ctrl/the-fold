@@ -408,6 +408,52 @@ seq, rebuild from serialized entries alone, vocabulary violations thrown on
 replay, the engine's own progression checker silent, exports per artifact
 type (code/csv/html/svg) named by address, and the legacy migration floor.
 
+## P17 — A quotation is the source's bytes or it is not printed as one
+
+Quotation marks are the strongest claim an answer makes — "these exact
+words are in the source" — and the one claim no other check can see: every
+token of a fabricated quotation can pass the byte check while the wording
+is invented, and a drifted quotation still overlaps its passage well enough
+to earn an attribution. So every quotation in every answer is followed to
+the bytes, mechanically, with no model in the loop (L5 applied to the fact
+that a quotation is real), against the material through the one shared fold
+(P11):
+
+- **verbatim** — the quoted words are the source's bytes (whitespace and
+  emphasis aside: layout is not content). The quote earns its chunk's
+  address inline — mechanical citation — and its precise char anchor rides
+  the disclosure for one-click reopening.
+- **drifted** — found under the fold, bytes differ. The answer is REPAIRED
+  before rendering: the quoted words are rewritten to the source's own
+  bytes, the correction is disclosed in the grounding panel ("Helene" →
+  "Hélène", with the drift the reader never saw shown), and the repaired
+  text is re-inspected so the record describes what the reader sees. The
+  declared transformations between bytes and print are exactly two:
+  whitespace runs to one space, inner double quotation marks to single.
+- **unlocated** — quoted from nothing in the material. A fabricated
+  quotation, on the record's unsupported list, driving the same bounded
+  correction as an invented figure.
+- **outside-offer** — real words from a live chunk the turn was not given:
+  the model quoting past its evidence. A typed open entry with the anchor
+  where the words actually live — never an inline address, because an
+  address is a warrant and the turn was not given that material.
+
+The repair is idempotent (a byte-true quote is untouched, an address is
+never doubled), quotes below the declared floor (MIN_QUOTE_WORDS = 5) are
+never judged, and no material means `unexamined`, never clean.
+
+**Evidence:** the handbook's byte-anchor pass (eoreaderhandbook,
+2026-08-16) — a book that already carried per-chapter footers CLAIMING
+verbatim quotation was found, on backport, to hold six real drifts, all
+silent re-capitalizations of the sources' own words; and eochatX's
+citation-check lineage, whose "citation snippeting" and "did you mean"
+corrector were left behind by grounding.js as unearned — this policy is
+that capability re-earned at answer time.
+**Enforced:** `quotes.test.mjs` — pairing across line breaks, the anchor's
+round trip through `readRange`, backport-and-cite with idempotence, the
+fabricated-quotation finding, the outside-offer refusal to warrant, the
+no-material unexamined case, and the declared floor.
+
 ---
 
 *Established 2026-08-16, alongside the holonic layer, the constitution

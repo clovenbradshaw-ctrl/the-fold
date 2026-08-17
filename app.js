@@ -1295,6 +1295,8 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     offered,
     findings,
     relations: result.sections.map((s) => s.relations).filter(Boolean),
+    quotes: result.sections.map((s) => s.quotes).filter(Boolean),
+    quoteCorrections: result.sections.flatMap((s) => s.quoteCorrections ?? []),
   });
   $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
@@ -2404,10 +2406,60 @@ function renderProofResult(slot, out) {
  * the door to the world: proof-seeking per claim, automatic up to the
  * declared budget when the consent toggle is on.
  */
-function renderGrounding(node, { answer, offered, findings = [], relations = [] }) {
+function renderGrounding(node, { answer, offered, findings = [], relations = [], quotes = [], quoteCorrections = [] }) {
   const box = node.querySelector(".turn-meta > .fold p");
   if (!box) return;
   const parts = [];
+
+  // Quotations, followed to the bytes (quotes.js): what was verbatim, what
+  // was corrected to the source's own bytes before rendering, what quoted
+  // past the offer, and what was quoted from nothing. The correction rows
+  // show the drift the reader never saw, because hiding the repair would
+  // hide that the model drifted at all.
+  const quoteList = quotes.flatMap((r) => r?.quotes ?? []);
+  if (quoteList.length) {
+    const n = (s) => quoteList.filter((q) => q.status === s).length;
+    parts.push(
+      section(
+        `quotations · ${n("verbatim")} at the source's bytes` +
+          (quoteCorrections.length ? ` · ${quoteCorrections.length} corrected to the bytes` : "") +
+          (n("outside-offer") ? ` · ${n("outside-offer")} outside the offer` : "") +
+          (n("unlocated") ? ` · ${n("unlocated")} found nowhere` : ""),
+      ),
+    );
+    for (const c of quoteCorrections) {
+      const row = document.createElement("p");
+      row.className = "fold-note claim-row";
+      row.textContent = `✎ “${c.from}” → “${c.to}” — the source's own bytes`;
+      if (c.anchor) {
+        const b = document.createElement("button");
+        b.className = "ref";
+        b.textContent = c.anchor;
+        b.title = `${c.anchor} — read the bytes this quotation was corrected to`;
+        b.onclick = () => reopen(c.anchor);
+        row.append(b);
+      }
+      parts.push(row);
+    }
+    for (const q of quoteList.filter((x) => x.status === "outside-offer" || x.status === "unlocated")) {
+      const row = document.createElement("p");
+      row.className = `fold-note claim-row${q.status === "unlocated" ? " bad" : ""}`;
+      row.textContent =
+        q.status === "unlocated"
+          ? `✗ “${q.text}” — quoted from nothing in the material`
+          : `… “${q.text}” — real words, but from material this turn was not offered`;
+      const anchor = q.segments?.find((s) => s.anchor)?.anchor;
+      if (anchor) {
+        const b = document.createElement("button");
+        b.className = "ref attached";
+        b.textContent = anchor;
+        b.title = `${anchor} — where those words actually live`;
+        b.onclick = () => reopen(anchor);
+        row.append(b);
+      }
+      parts.push(row);
+    }
+  }
 
   // The relation tier's own state, disclosed either way: what it measured,
   // or that it could not run — an omitted tier must stay visible.

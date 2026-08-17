@@ -2008,6 +2008,23 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
     }
   }
 
+  // Fold membership decides the register (user direction, 2026-08-17: "just
+  // the fact that it is content in the FOLD item means it's not relevant
+  // there, it's code"). On a turn that landed a code build, the answer's
+  // prose is the model walking through its own artifact — "**Counter
+  // Initialization:** let count = 0 sets…" — content whose subject IS the
+  // turn's own fold, not claims about the world. A build turn's ground is
+  // the artifact and its witness (the run result attached to the version
+  // that ran), never web corroboration of the model's own labels for its
+  // own code. So the chat surface's claim apparatus stands down for this
+  // turn: the tally below is skipped and renderGrounding reads the class to
+  // withhold its chip strip and automatic proof-seeking. The marks
+  // toggle's own discipline, keyed per turn: the checks still ran, the
+  // findings still land on the record and in the thinking disclosure —
+  // what is withheld is the drawing, never the finding.
+  const buildTurn = landedThisTurn.some((b) => b.type === "code");
+  if (buildTurn) body.closest(".msg")?.classList.add("build-turn");
+
   // The turn's epistemic state, at a glance: how much of what was just said
   // stands on the material, how much on the model, and how much states
   // facts nothing backs. Counted from the same classification the marks
@@ -2015,7 +2032,7 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // The tally is a reading of the checks. With checking off there are no
   // checks to read, and "0 sentences stand on the material" would be a
   // measurement nobody took dressed as one that was.
-  if (classified.length && state.grounded) {
+  if (classified.length && state.grounded && !buildTurn) {
     // A cited-but-drifted sentence counts under claims — the drift is the
     // salient fact — so the three buckets partition cleanly.
     const claims = classified.filter((e) => e.absent.length).length;
@@ -3400,6 +3417,13 @@ function renderProofResult(slot, out) {
 function renderGrounding(node, { answer, offered, findings = [], relations = [], quotes = [], quoteCorrections = [], question = "" }) {
   const box = node.querySelector(".turn-meta > .fold p");
   if (!box) return;
+  // Fold membership (renderAnswer sets the class): this turn landed a code
+  // build, so the prose being checked is the model's explanation of its own
+  // artifact — content that belongs to the fold, not to the chat's claim
+  // ledger. The chip strip and the automatic proof-seeking are withheld
+  // from the chat surface; the analytic parts still land inside the
+  // thinking disclosure below, and the record keeps every finding.
+  const buildTurn = node.classList.contains("build-turn");
   const parts = [];
   // The confirmations live ON the answer, not in the drawer (user,
   // 2026-08-17: "still not seeing it ground the statement" — every verdict
@@ -3548,7 +3572,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
         `names & figures · ${cor.atoms.length} checked against your material: ` +
           `${multi} backed by more than one source · ${single} by exactly one · ${none} by none` +
           (single
-            ? ` — one source is one perspective${state.webProof ? "; checking against the web automatically (bounded per turn)" : ""}`
+            ? ` — one source is one perspective${state.webProof && !buildTurn ? "; checking against the web automatically (bounded per turn)" : ""}`
             : ""),
       ),
     );
@@ -3602,12 +3626,17 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
   // bounded by PROOF_TARGETS_PER_TURN with the bound visible.
   const targets = proofTargets({ findings, relationReport: { claims } });
   if (targets.length) {
+    // The disclosure says what will actually happen — on a build turn the
+    // chips are withheld and no automatic crossing is spent, and a line
+    // promising either would be a description of checks nobody will run.
     parts.push(
       section(
         `check online · ${targets.length} thing(s) your material doesn't back` +
-          (state.webProof
-            ? ` · looking up the first ${Math.min(targets.length, PROOF_TARGETS_PER_TURN)} automatically`
-            : " · the web switch is off — press “search the web” on a row to look one up anyway"),
+          (buildTurn
+            ? " · withheld: this turn built an artifact, and its ground is its run, not web corroboration of its own labels"
+            : state.webProof
+              ? ` · looking up the first ${Math.min(targets.length, PROOF_TARGETS_PER_TURN)} automatically`
+              : " · the web switch is off — press “search the web” on a row to look one up anyway"),
       ),
     );
   }
@@ -3659,8 +3688,9 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
   }
   box.append(...parts);
   // Mount the chips on the turn itself, above the fold — quiet until they
-  // have counts, the audit one click away.
-  if (strip.childElementCount) {
+  // have counts, the audit one click away. Never on a build turn: the
+  // chips would be web-check doors on the model's own section labels.
+  if (strip.childElementCount && !buildTurn) {
     const meta = node.querySelector(".turn-meta");
     const foldEl = node.querySelector(".turn-meta > .fold");
     if (meta && foldEl) {
@@ -3669,8 +3699,10 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     } else box.append(strip, panel);
   }
   // Sequential, not parallel: the egress is one server doing recorded
-  // crossings, and a turn must not fan out a burst of them.
-  if (autorun.length) (async () => { for (const run of autorun) await run(); })();
+  // crossings, and a turn must not fan out a burst of them. A build turn
+  // spends none: corroborating "Event Listeners" against the web is a
+  // crossing in service of nothing — the artifact's ground is its run.
+  if (autorun.length && !buildTurn) (async () => { for (const run of autorun) await run(); })();
 }
 
 /**

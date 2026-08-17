@@ -554,6 +554,35 @@ fan-out burst; the per-claim click is its own authorization and the toggle
 is the standing one; nothing anywhere phrases a web verdict stronger than
 "stated by N of M pages (K distinct hosts)".
 
+**Amended 2026-08-17 — a build turn's prose belongs to its fold, not the
+chat's claim ledger.** Measured live: gemma2:2b answered a counter-widget
+ask with the code plus its own walk-through ("1. **HTML Structure:** …",
+"**Event Listeners:** …"), and the apparatus rendered a wall of label chips
+("Counter Initialization" ✓ 3/6, "Event Listeners", "DOM", …) plus
+"claiming things nothing given backs: 76" — the model's own labels for its
+own code checked as claims about the world. Two fixes, both mechanical.
+(a) `blankStructure`'s line-initial-bold heading anchor now also blanks the
+label behind a list-marker prefix (digits+dot or -/*/+ bullet) — the known
+gap where `1. **HTML Structure:**` defeated the `^\*\*` anchor and leaked
+through as atoms; still length-preserving, fenced-code blanking untouched;
+regression pinned in `grounding.test.mjs` (the walk-through case).
+(b) The user's rule, verbatim: "just the fact that it is content in the
+FOLD item means it's not relevant there, it's code." On a turn that landed
+at least one code build (`landedThisTurn` in `renderAnswer`), the answer's
+prose is the model explaining its own artifact — its subject IS the turn's
+own fold, and its ground is the artifact and its run witness, never web
+corroboration of its labels. So the chat surface's claim apparatus stands
+down for that turn (`.build-turn` class on the message): the tally line is
+skipped, `renderGrounding` withholds the chip strip and the automatic
+proof-seeking, and the fold's check-online line says "withheld" rather
+than promising a lookup nobody will run. The marks toggle's own
+discipline, keyed per turn: the checks still run, the findings still land
+on the record and in the thinking disclosure — hidden drawing, never a
+hidden finding. Disclosed residue: inline sentence stripes (taggedProse)
+still draw on a build turn under the marks toggle, and the suppression is
+turn-scoped — world-claim prose sharing a turn with a code build loses
+its chips too.
+
 ## The UX pass (2026-08-17) — what was decided, so it is not re-derived
 
 A working pass over both pages, driven live. The decisions, not the diff:

@@ -91,6 +91,34 @@ test("headings are structure, not claims — but a name in a body sentence still
   assert.ok(flagged.some((t) => /Marlborough/.test(t)), "the body-sentence invention must still be caught");
 });
 
+test("a list item's bold label is a heading, not a claim — the walk-through case", async () => {
+  const { checkGrounding, corroborateAtoms, blankStructure } = await import("./grounding.js");
+  const passages = [{ ref: "n.txt#0-45", text: "The committee met on the quay and adjourned." }];
+  // The model explaining its own code (measured live, 2026-08-17): a
+  // numbered or bulleted list marker in front of the bold label used to
+  // defeat the line-initial heading anchor, so every label leaked through
+  // as a checkable claim and the chat filled with label chips.
+  const answer =
+    "1. **HTML Structure:** - We create the basic layout with two buttons.\n" +
+    "2. **Counter Initialization:** let count = 0 sets the initial count.\n" +
+    "- **Event Listeners:** each button updates the count when clicked.";
+  // blankStructure stays length-preserving — offsets must survive.
+  assert.equal(blankStructure(answer).length, answer.length);
+  const report = checkGrounding(answer, passages, {});
+  const flagged = report.findings.map((f) => f.text);
+  assert.ok(!flagged.some((t) => /HTML|Structure/.test(t)), `label flagged: ${flagged}`);
+  assert.ok(!flagged.some((t) => /Counter|Initialization/.test(t)), `label flagged: ${flagged}`);
+  assert.ok(!flagged.some((t) => /Event|Listeners/.test(t)), `label flagged: ${flagged}`);
+  // The list marker's own digit blanks with the label — "1." is furniture,
+  // never a figure.
+  assert.ok(!flagged.includes("1") && !flagged.includes("2"), `marker digit flagged: ${flagged}`);
+  const { atoms } = corroborateAtoms(answer, passages);
+  assert.ok(
+    !atoms.some((a) => /Structure|Initialization|Listeners/.test(a.text)),
+    `label atoms extracted: ${atoms.map((a) => a.text)}`,
+  );
+});
+
 test("a lone capitalized word opening a sentence is position, not namehood", async () => {
   const { checkGrounding } = await import("./grounding.js");
   const passages = [{ ref: "n.txt#0-40", text: "The column marched east before dawn broke." }];

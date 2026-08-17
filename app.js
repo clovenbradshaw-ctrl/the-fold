@@ -162,8 +162,15 @@ const buildLog = makeBuildLog(engineTaskLog);
 import * as enginePriors from "/engine/perceiver/text/priors.js";
 import { makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode } from "./witness.js";
+import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
 
 const widgetRouter = makeWidgetRouter(enginePriors);
+
+// The languages a seed scrub or an ingest can keep as folds — seed.js's own
+// technical vocabulary (extension map), read as a token set. Not a word
+// list: these are fence-tag/extension names, the same closed set the
+// download namer writes with.
+const SEED_LANGS = new Set([...Object.keys(INGEST_EXTS), ...Object.values(INGEST_EXTS)]);
 
 import {
   BOUND_SYSTEM_PROMPT,
@@ -893,6 +900,15 @@ async function send(question) {
   if (/^\/fold\b/.test(question))
     return usageTurn(question, "/fold <n> <instruction> — asks the model to revise fold n. Whatever code comes back lands as a new version on that fold's own append-only log — the door carries the target, so the model's prose cannot re-route it.");
 
+  // The ingest door: /ingest <owner/name or github url> — a repo becomes
+  // folds, every file with the SAME provenance riding its birth, budgets
+  // declared and counted, and NO model call anywhere: ingestion is
+  // mechanical from end to end (the intelligence outside the model).
+  const ingestCmd = parseIngestCommand(question);
+  if (ingestCmd) return ingestTurn(ingestCmd.repo, question);
+  if (/^\/ingest\b/.test(question))
+    return usageTurn(question, "/ingest <owner/name or github url> — fetches the repo's admissible files through the recorded egress and lands each as a fold carrying its provenance (source, license, retrieval date) forever.");
+
   const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
   if (task) return holonicTurn(task, question, "model");
   if (/^\/task\s*$/.test(question)) return usageTurn(question, "/task <what to produce> — plans the task into parts and runs each one against the material.");
@@ -987,6 +1003,18 @@ async function send(question) {
     });
   }
 
+  // THE SEED SCRUB (CRISPR rung, user-directed): before the model builds
+  // an artifact from a blank page, look for existing open work. Mechanical
+  // end to end — closed-class demand detection, grammar-extracted
+  // archetype, the server's license-graded GitHub search — and only a
+  // known-permissive license with an unambiguous single file splices
+  // automatically; anything else is candidates on the record. Gated behind
+  // the standing web consent like every automatic crossing.
+  if (state.web) {
+    const seeded = await maybeSeedBuild(question);
+    if (seeded) return;
+  }
+
   // Every remaining turn runs as a task — 100% of the time. The one big
   // prompt that carried summary + records + material together is gone; a
   // turn is a plan log whose fold projects into small part-scoped calls,
@@ -997,6 +1025,182 @@ async function send(question) {
   // retrieval: parts carry a one-line discourse slice and re-retrieve what
   // they need, never the whole carried block.
   return holonicTurn(question, question, needsDecomposition(question) ? "model" : "flat");
+}
+
+/**
+ * /ingest — a repo becomes folds, mechanically. Every admissible file (the
+ * server applies seed.js's declared budgets and skips machinery) lands as
+ * its own build whose birth carries the SHARED provenance: repo, path,
+ * license as GitHub states it (or null, said as unknown), retrieval date.
+ * The provenance is forever — re-carried across re-zeros, stamped into
+ * exports — so an ingested file can be edited in place by the whole
+ * iteration ladder without its ancestry ever washing out.
+ */
+async function ingestTurn(repo, typed) {
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = `ingesting github.com/${repo}…`;
+  $("status").textContent = `ingesting ${repo}…`;
+  logAct("asked", { text: typed });
+
+  let r = null;
+  try {
+    r = await (await fetch(`${EXPLORE_BASE}/api/seed/ingest`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo }),
+    })).json();
+  } catch (err) {
+    r = { gap: { silence: "unreachable", detail: String(err.message || err) } };
+  }
+  body.textContent = "";
+
+  let note;
+  if (r.gap) {
+    note = `nothing ingested — ${r.gap.silence}: ${r.gap.detail}`;
+    logAct("errored", { where: "ingest", message: r.gap.detail });
+  } else {
+    let landed = 0;
+    for (const f of r.files ?? []) {
+      if (!f.code) continue;
+      publishBuild({ type: "code", lang: f.lang, code: f.code }, f.path, `ingested from github.com/${repo}`, f.provenance);
+      landed++;
+    }
+    const gaps = (r.files ?? []).filter((f) => f.gap).length;
+    note =
+      `ingested ${landed} file${landed === 1 ? "" : "s"} from github.com/${repo}` +
+      ` · license ${r.license ?? "unknown"}` +
+      ` · ${r.admitted.kept} admissible of ${r.admitted.of}${r.admitted.dropped ? ` (${r.admitted.dropped} past the declared cap)` : ""}` +
+      (gaps ? ` · ${gaps} failed to fetch` : "");
+    logAct("recorded", { ingest: repo, landed, license: r.license ?? null });
+  }
+
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = note;
+  body.append(p);
+
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: note });
+  const turn = state.summary.turnCount + 1;
+  observeExchange(turn, typed, note);
+  const fold = mechanicalFoldLine(typed, note);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
+ * The seed scrub: a demand for a new artifact of a known kind looks for
+ * existing open work FIRST. A permissive-licensed, single-file hit is
+ * spliced as the build's birth — the model writes nothing — with
+ * provenance riding the entry forever. Anything less definitive returns
+ * falsy and the model path proceeds; found candidates are already on the
+ * server's record either way. Returns true only when the turn is fully
+ * answered here.
+ */
+async function maybeSeedBuild(question) {
+  const ask = buildAsk(question, { langs: SEED_LANGS, indefinites: enginePriors.INDEFINITE_DETERMINERS });
+  if (!ask) return false;
+  const archetype = archetypeOf(question, { indefinites: enginePriors.INDEFINITE_DETERMINERS, lang: ask.lang });
+  if (!archetype) return false;
+  $("status").textContent = `scrubbing for existing open ${archetype}…`;
+  let r = null;
+  try {
+    r = await (await fetch(`${EXPLORE_BASE}/api/seed/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: `${archetype} ${ask.lang}`, lang: ask.lang }),
+    })).json();
+  } catch {
+    return false; // the scrub is best-effort; the model path is the floor
+  }
+  let seed = r?.seed ?? null;
+
+  // THE LOCAL MODEL NAVIGATES, UNDER PHYSICS (user direction: "we need the
+  // local model to be doing all the navigating with physics"). When no
+  // candidate auto-splices (the zero-model rung: known-permissive license +
+  // unambiguous file), the choice of which found repo to reuse is a
+  // NAVIGATION decision — the model's kind of call — made under the
+  // decoder's wall: the schema's enum IS the candidate list plus "none",
+  // so a repo outside the found set is unrepresentable, and everything
+  // after the pick (fetch, file admission, provenance) stays mechanical.
+  if (!seed && r?.candidates?.length) {
+    logAct("checked", { seedScrub: archetype, candidates: r.candidates.length, spliced: false });
+    $("status").textContent = `asking ${state.model} to navigate ${r.candidates.length} candidates…`;
+    try {
+      const names = r.candidates.map((c) => c.repo);
+      const pickPrompt =
+        `You are choosing which existing repository to reuse for this request: ${question}\n\n` +
+        `Candidates:\n` +
+        r.candidates.map((c) => `- ${c.repo} — ${c.description ?? "no description"} (license ${c.license ?? "unknown"}, ${c.stars}★)`).join("\n") +
+        `\n\nPick the one whose description best matches the request, or none if none of them is it.`;
+      const reply = await complete([{ role: "user", content: pickPrompt }], {
+        model: state.model,
+        json: { type: "object", properties: { pick: { type: "string", enum: [...names, "none"] } }, required: ["pick"] },
+      });
+      const pick = extractObject(reply)?.pick;
+      if (pick && pick !== "none") {
+        logAct("planned", { navigated: pick, from: names.length, physics: "enum" });
+        const ing = await (await fetch(`${EXPLORE_BASE}/api/seed/ingest`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ repo: pick }),
+        })).json();
+        const ofLang = (ing.files ?? []).filter((f) => f.code && f.lang === ask.lang);
+        let file = ofLang.length === 1 ? ofLang[0] : ofLang.find((f) => /(?:^|\/)index\./i.test(f.path)) ?? null;
+        if (!file && ofLang.length > 1) {
+          // The file choice is navigation too — same physics, paths as enum.
+          const fReply = await complete(
+            [{ role: "user", content: `Which file is the ${archetype} itself?\n${ofLang.map((f) => `- ${f.path}`).join("\n")}` }],
+            { model: state.model, json: { type: "object", properties: { pick: { type: "string", enum: ofLang.map((f) => f.path) } }, required: ["pick"] } },
+          );
+          file = ofLang.find((f) => f.path === extractObject(fReply)?.pick) ?? null;
+        }
+        if (file) seed = { code: file.code, lang: file.lang, provenance: file.provenance };
+      }
+    } catch (err) {
+      logAct("errored", { where: "seed-navigation", message: String(err.message || err) });
+    }
+  }
+
+  if (!seed) {
+    $("status").textContent = `ready · ${state.model}`;
+    return false;
+  }
+
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  logAct("asked", { text: question });
+
+  publishBuild({ type: "code", lang: seed.lang, code: seed.code }, archetype, question, seed.provenance);
+  const made = state.builds[state.builds.length - 1];
+  const prov = seed.provenance;
+  const note =
+    `found an existing ${archetype} and seeded fold ${made.n} from it — ` +
+    `${prov.repo} (${prov.license ?? "license unknown"}, ${prov.stars ?? 0}★) · ` +
+    `the model wrote nothing; iterate on it by complaint as ever, and its provenance rides every version and export.`;
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = note;
+  body.append(p);
+  body.append(buildChip(made, archetype));
+
+  state.history.push({ role: "user", content: question }, { role: "assistant", content: note });
+  const turn = state.summary.turnCount + 1;
+  observeExchange(turn, question, note);
+  const fold = mechanicalFoldLine(question, note);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+  return true;
 }
 
 /**
@@ -2465,7 +2669,7 @@ function kindOf(entry) {
  * a scrollbar and the conversation gets a wall. The panel is the width the
  * output wants; the chip is the sentence the conversation wants.
  */
-function publishBuild(seg, caption, instruction = null) {
+function publishBuild(seg, caption, instruction = null, received = null) {
   const n = state.builds.length + 1;
   const turn = state.summary.turnCount + 1;
   const cap = caption ?? defaultCaption(seg);
@@ -2476,7 +2680,7 @@ function publishBuild(seg, caption, instruction = null) {
     // (build-log.js). Nothing here mutates: the working code, the last run,
     // the caption are all answers to "fold the entries", at whatever cursor
     // the reader has scrubbed to. `cursor: null` means live head.
-    log: buildLog.proposeBuild({ n, turn, seg, caption: cap, instruction }),
+    log: buildLog.proposeBuild({ n, turn, seg, caption: cap, instruction, received }),
     cursor: null,
     // Editor keystrokes not yet committed by a run. A draft is not an act —
     // it becomes a SUPERSEDE entry when it runs, not per keypress.
@@ -3033,6 +3237,19 @@ initTerminal({
 const BUILDS_KEY = "fold-builds";
 
 function persistBuilds() {
+  // The cube as a RUNTIME conformance wall (user direction: "leverage the
+  // cube for automated conformance — no X before Y"): every persisted log
+  // is walked by the engine's own referee, and a flag is a typed defect
+  // said on the ledger and the console — never a silent save. This cannot
+  // fire through build-log.js's own doors (each is pinned conformant), so
+  // a flag here means a foreign writer or a corrupted store.
+  for (const b of state.builds) {
+    const flags = buildLog.conform(b.log);
+    if (flags.length) {
+      console.error(`fold ${b.n}: production order violated`, flags);
+      logAct("errored", { where: "cube-conformance", fold: b.n, flags: flags.map((f) => `${f.kind}${f.from ? ` ${f.from}→${f.to}` : ""}`) });
+    }
+  }
   try {
     const conv = state.convos[state.active];
     const data = state.builds.map(({ n, turn, log, draft }) => ({

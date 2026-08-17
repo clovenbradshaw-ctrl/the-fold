@@ -111,6 +111,17 @@
 // /engine) and the node tests (which load it by relative path) — the same
 // pattern cast.js already carries, for the same reason. Used, never copied.
 
+// PROVENANCE IS FOREVER (user direction, 2026-08-17: "carrying the
+// provenance forever is also more important than definitive public domain
+// signals"). A build seeded from found work carries `received` — the
+// seed.js provenance shape: source url, repo, path, license-as-found-or-
+// null, retrieval date — on its birth entry; every re-zero RE-CARRIES the
+// origin's provenance onto the new ground's birth (ancestry never resets
+// with the ground); the fold surfaces it; and every export stamps it as a
+// comment header, so a downloaded file carries its ancestry on its face.
+
+import { commentHeader } from "./seed.js";
+
 /** The closed vocabulary of delta primitives — operator names, because the
  * operators ARE the primitives (header). Closed: an op outside it is
  * malformed, never coerced. */
@@ -339,6 +350,7 @@ export function makeBuildLog(taskLog) {
       seg,
       caption: t.caption,
       instruction: propose?.instruction ?? null,
+      received: propose?.received ?? null,
       version: t.version,
       ground,
       code,
@@ -362,7 +374,7 @@ export function makeBuildLog(taskLog) {
    *  mechanically derived from the plan log's task, never left to
    *  instruction-following (L5). It lands in the PROPOSE entry and
    *  travels through the fold. */
-  function proposeBuild({ n, turn, seg, caption, instruction = null }) {
+  function proposeBuild({ n, turn, seg, caption, instruction = null, received = null }) {
     // The ask precedes the artifact — NUL is received first, the birth
     // answers it. A build with no stated instruction has no ask entry:
     // history that was never given is not invented (fromLegacy's own line).
@@ -385,6 +397,7 @@ export function makeBuildLog(taskLog) {
       version: 1,
       ground: 1,
       code: seg?.type === "code" ? seg.code : null,
+      ...(received ? { received } : {}),
     });
   }
 
@@ -445,6 +458,10 @@ export function makeBuildLog(taskLog) {
     // next ground answers to, landed beside its birth.
     const asked = askEntry(conceded, { n: cur.n, turn: cur.turn, ground, ask: trigger });
 
+    // Provenance is forever: the ORIGIN's `received` re-carries onto every
+    // ground's birth — a re-zero concedes a ground, never an ancestry.
+    const origin = log.entries.find((e) => e.kind === ENTRY_KINDS.PROPOSE && e.n === cur.n && e.received);
+
     return append(asked, {
       kind: ENTRY_KINDS.PROPOSE,
       task_id: vid(cur.n, 1, ground),
@@ -468,6 +485,7 @@ export function makeBuildLog(taskLog) {
       // field is patchProvenance, NOT patch: foldBuild reads a truthy
       // `patch` as the delta carriage, and this entry's code is full.
       ...(patch ? { patchProvenance: patch } : {}),
+      ...(origin?.received ? { received: origin.received } : {}),
     });
   }
 
@@ -781,6 +799,14 @@ export function makeBuildLog(taskLog) {
     if (!b) return null;
     const seq = atSeq ?? b.seqMax;
     const seg = b.seg ?? {};
+    // The forever-line: an export of a seeded build carries its ancestry on
+    // its face — the header is derived from the fold's own provenance at
+    // export time, so every cursor position's download says where the
+    // lineage began.
+    const stamp = (lang, text) => {
+      const h = commentHeader(lang, b.received);
+      return h && !text.startsWith(h) ? h + text : text;
+    };
     if (seg.type === "table") {
       const rows = [seg.head ?? [], ...(seg.rows ?? [])];
       return {
@@ -795,16 +821,16 @@ export function makeBuildLog(taskLog) {
       return {
         name: `build-${b.n}@${seq}.html`,
         mime: "text/html",
-        text: toDocument ? toDocument({ ...seg, code }) : code,
+        text: stamp("html", toDocument ? toDocument({ ...seg, code }) : code),
       };
     }
     if (lang === "svg") {
-      return { name: `build-${b.n}@${seq}.svg`, mime: "image/svg+xml", text: code };
+      return { name: `build-${b.n}@${seq}.svg`, mime: "image/svg+xml", text: stamp("svg", code) };
     }
     return {
       name: `build-${b.n}@${seq}.${EXT[lang] ?? "txt"}`,
       mime: "text/plain",
-      text: code,
+      text: stamp(lang, code),
     };
   }
 
@@ -836,7 +862,23 @@ export function makeBuildLog(taskLog) {
     return log;
   }
 
+  /**
+   * The cube as an automated conformance wall, at RUNTIME — "no X before
+   * Y" enforced by the engine's own referee (checkCubeProgression walks
+   * every thread against the real production order), not only by the test
+   * suite. A flagged log is a typed defect the caller must surface; a
+   * missing referee (an engine build without it) is reported as its own
+   * gap, never a silent pass.
+   */
+  function conform(log) {
+    if (typeof taskLog.checkCubeProgression !== "function") {
+      return [{ kind: "no-referee", detail: "this engine build carries no checkCubeProgression" }];
+    }
+    return taskLog.checkCubeProgression(log);
+  }
+
   return Object.freeze({
+    conform,
     proposeBuild,
     reviseBuild,
     patchBuild,

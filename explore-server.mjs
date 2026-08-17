@@ -38,6 +38,7 @@ import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./libra
 // resolution, papers via priors.js's one frontmatter reading) — this file
 // owns only the crossings
 import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, papersOf } from "./priors-toggles.js";
+import { gradeLicense, admissibleFiles, pickSeedFile, seedProvenance, INGEST_MAX_BYTES } from "./seed.js";
 import {
   extractReadable,
   looksLikeChallenge,
@@ -1391,6 +1392,122 @@ const server = http.createServer(async (req, res) => {
     // ---- web search: one query, one request to the no-key endpoint. The
     // endpoint's bot-challenge page is a typed refusal (P4: gaps are
     // results), never an empty success. Found vs shown is reported.
+    // ---- seed scrub: find existing open work before the model builds its
+    // own (the CRISPR rung, user-directed 2026-08-17), and ingest arbitrary
+    // repos with provenance. One new egress DESTINATION — api.github.com +
+    // raw.githubusercontent.com — sanctioned by P13 amendment: server-only,
+    // every crossing recorded, rate-limit refusals typed. The GitHub API's
+    // license.spdx_id is the mechanical license signal; provenance is
+    // carried whatever the signal says.
+    if (req.method === "POST" && p === "/api/seed/search") {
+      const body = await readJsonBody(req);
+      const query = String(body.query ?? "").trim();
+      const lang = String(body.lang ?? "").trim() || null;
+      if (!query) return send(res, 400, { error: "query (string) is required" });
+      let gh;
+      try {
+        gh = await fetchCapped(`https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&per_page=5`);
+      } catch (e) {
+        record("seed-search", { query, gap: "unreachable", detail: e.message });
+        return send(res, 200, { query, gap: { silence: "unreachable", detail: e.message } });
+      }
+      if (gh.res.status === 403 || gh.res.status === 429) {
+        record("seed-search", { query, gap: "refused-upstream" });
+        return send(res, 200, { query, gap: { silence: "refused-upstream", detail: "GitHub's search rate limit (10/min unauthenticated) declined this machine; try again shortly" } });
+      }
+      let items = [];
+      try { items = JSON.parse(gh.buf.toString("utf8")).items ?? []; } catch { /* falls through to none */ }
+      const candidates = items.map((it) => ({
+        repo: it.full_name,
+        url: it.html_url,
+        description: it.description ?? null,
+        stars: it.stargazers_count ?? 0,
+        license: it.license?.spdx_id ?? null,
+        grade: gradeLicense(it.license?.spdx_id).grade,
+      }));
+      record("seed-search", { query, found: items.length });
+      // Splice automatically only from a known-permissive license AND an
+      // unambiguous single file of the asked language — anything else is
+      // an offer, never a silent splice.
+      const auto = lang ? candidates.find((c) => c.grade === "seedable") : null;
+      if (auto) {
+        try {
+          const listing = await fetchCapped(`https://api.github.com/repos/${auto.repo}/contents`);
+          const entries = JSON.parse(listing.buf.toString("utf8"));
+          const file = pickSeedFile(entries, lang);
+          if (file?.url) {
+            const raw = await fetchCapped(file.url, { maxBytes: INGEST_MAX_BYTES });
+            const provenance = seedProvenance({ repo: auto.repo, path: file.path, url: `${auto.url}/blob/HEAD/${file.path}`, license: auto.license, stars: auto.stars, retrievedAt: new Date().toISOString() });
+            record("seed-splice", { query, repo: auto.repo, path: file.path, license: auto.license, bytes: raw.buf.length });
+            return send(res, 200, { query, candidates, seed: { code: raw.buf.toString("utf8"), lang: file.lang, provenance } });
+          }
+          record("seed-search", { query, repo: auto.repo, gap: "no-single-file" });
+        } catch (e) {
+          record("seed-search", { query, repo: auto.repo, gap: "fetch-failed", detail: e.message });
+        }
+      }
+      return send(res, 200, { query, candidates });
+    }
+
+    // ---- repo ingestion: /ingest <owner/name> — every admissible file
+    // becomes a fold with shared provenance; budgets declared and counted
+    // (seed.js), the drop stated, never silent. No model call anywhere.
+    if (req.method === "POST" && p === "/api/seed/ingest") {
+      const body = await readJsonBody(req);
+      const repo = String(body.repo ?? "").trim();
+      if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return send(res, 400, { error: "repo (owner/name) is required" });
+      let meta = null;
+      try {
+        const m = await fetchCapped(`https://api.github.com/repos/${repo}`);
+        if (m.res.status === 403 || m.res.status === 429) {
+          record("seed-ingest", { repo, gap: "refused-upstream" });
+          return send(res, 200, { repo, gap: { silence: "refused-upstream", detail: "GitHub's rate limit declined this machine; try again shortly" } });
+        }
+        if (m.res.status === 404) {
+          record("seed-ingest", { repo, gap: "not-present" });
+          return send(res, 200, { repo, gap: { silence: "not-present", detail: `github.com/${repo} answered 404` } });
+        }
+        meta = JSON.parse(m.buf.toString("utf8"));
+      } catch (e) {
+        record("seed-ingest", { repo, gap: "unreachable", detail: e.message });
+        return send(res, 200, { repo, gap: { silence: "unreachable", detail: e.message } });
+      }
+      const license = meta?.license?.spdx_id ?? null;
+      let entries = [];
+      try {
+        const listing = await fetchCapped(`https://api.github.com/repos/${repo}/contents`);
+        entries = JSON.parse(listing.buf.toString("utf8"));
+      } catch (e) {
+        record("seed-ingest", { repo, gap: "unreachable", detail: e.message });
+        return send(res, 200, { repo, gap: { silence: "unreachable", detail: e.message } });
+      }
+      const admitted = admissibleFiles(entries);
+      const files = [];
+      for (const f of admitted.files) {
+        if (!f.url) continue;
+        try {
+          const raw = await fetchCapped(f.url, { maxBytes: INGEST_MAX_BYTES });
+          files.push({
+            path: f.path,
+            lang: f.lang,
+            code: raw.buf.toString("utf8"),
+            provenance: seedProvenance({ repo, path: f.path, url: `${meta.html_url}/blob/HEAD/${f.path}`, license, stars: meta.stargazers_count ?? null, retrievedAt: new Date().toISOString() }),
+          });
+        } catch (e) {
+          files.push({ path: f.path, lang: f.lang, gap: { silence: "unreachable", detail: e.message } });
+        }
+      }
+      record("seed-ingest", { repo, license, admitted: admitted.files.length, of: admitted.of, fetched: files.filter((x) => x.code).length });
+      return send(res, 200, {
+        repo,
+        url: meta.html_url,
+        license,
+        grade: gradeLicense(license).grade,
+        files,
+        admitted: { kept: admitted.files.length, of: admitted.of, dropped: admitted.dropped },
+      });
+    }
+
     if (req.method === "POST" && p === "/api/web/search") {
       const body = await readJsonBody(req);
       const query = String(body.query ?? "").trim();

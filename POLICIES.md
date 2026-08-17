@@ -318,6 +318,36 @@ live fetch to web.archive.org), so — like the rest of the P13 egress
 functions in explore-server.mjs — they are exercised live rather than
 mocked, and are not independently unit-tested offline.*
 
+*Amended (2026-08-17, by user direction: "go have it scrub for a pre-build
+copyright free version before building it's own, carry provenance" / "grab
+any arbitrary repo and ingest with provenance and edit in place" / "it
+should have network access"): the SEED egress. P13 gains one more named
+destination, server-only and recorded like the rest — api.github.com and
+raw.githubusercontent.com, reached only by `/api/seed/search` (the scrub
+before a build) and `/api/seed/ingest` (the /ingest door). The mechanical
+license signal is GitHub's own license.spdx_id, graded by seed.js against
+the closed SPDX permissive set (giver: spdx.org): `seedable` may splice
+automatically when the file choice is also unambiguous; `stated` and
+`unknown` never splice silently — but PROVENANCE IS CARRIED WHATEVER THE
+SIGNAL SAYS (user direction: carrying provenance forever outweighs
+definitive public-domain signals): source url, repo, path,
+license-as-found-or-null, retrieval date ride the build's birth entry,
+re-carry onto every re-zeroed ground, and stamp every export as a comment
+header. Navigation among found candidates is the LOCAL MODEL'S, under
+physics: the decoder's enum is the candidate list plus "none", so a repo
+outside the found set is unrepresentable, and everything after the pick
+(fetch, admission budgets, provenance) is mechanical. Rate-limit and
+missing-repo refusals are typed (refused-upstream / not-present), every
+crossing lands on the record before the response ships, and ingestion
+budgets are declared and counted (INGEST_MAX_FILES, INGEST_MAX_BYTES),
+the drop stated, never silent. Enforced: seed.test.mjs (offline, the
+pure organs against the real engine prior register — demand detection,
+archetype grammar, license grading, admission with counted drops,
+provenance riding birth → re-zero → export); the server half is
+exercised live per this policy's own posture, and was: candidates
+returned license-graded, a CC0-1.0 repo ingested 6/6 files with
+provenance, both crossings on the record.*
+
 ## P14 — Work done twice becomes code; the model proposes, the gate disposes
 
 L5 extended from facts to work. A procedure the instrument has performed once

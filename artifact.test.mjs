@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { RENDERABLE, chartFrom, parseSegments, tableFrom, toDocument } from "./artifact.js";
+import { RENDERABLE, chartFrom, mergeHtmlScript, parseSegments, tableFrom, toDocument } from "./artifact.js";
 
 test("a table can be built from rows, without a model", () => {
   const seg = tableFrom(
@@ -110,6 +110,49 @@ test("html and svg are the renderable ones", () => {
   assert.ok(RENDERABLE.has("html"));
   assert.ok(RENDERABLE.has("svg"));
   assert.ok(!RENDERABLE.has("python"));
+});
+
+test("mergeHtmlScript: a lone html fence absorbs a lone trailing javascript fence", () => {
+  const segs = parseSegments(
+    "Here you go:\n```html\n<button id=\"add\">+</button>\n```\nNow wire it up:\n```javascript\ndocument.getElementById('add').onclick = () => {};\n```\nEnjoy.",
+  );
+  const merged = mergeHtmlScript(segs);
+  const code = merged.filter((s) => s.type === "code");
+  assert.equal(code.length, 1, "the javascript segment is absorbed, not a sibling build");
+  assert.equal(code[0].lang, "html");
+  assert.ok(code[0].code.includes('<button id="add">+</button>'));
+  assert.ok(code[0].code.includes("<script>"));
+  assert.ok(code[0].code.includes("document.getElementById('add')"));
+  // Prose segments are untouched — only the code list changes shape.
+  assert.equal(merged.filter((s) => s.type === "prose").length, 3);
+});
+
+test("mergeHtmlScript: 'js' is the same scriptable lang as 'javascript'", () => {
+  const merged = mergeHtmlScript(parseSegments("```html\n<div></div>\n```\n```js\n1;\n```"));
+  assert.equal(merged.length, 1);
+  assert.ok(merged[0].code.includes("<script>\n1;\n</script>"));
+});
+
+test("mergeHtmlScript: javascript before html never merges — order is the one thing not guessed", () => {
+  const segs = parseSegments("```javascript\n1;\n```\n```html\n<div></div>\n```");
+  assert.deepEqual(mergeHtmlScript(segs), segs);
+});
+
+test("mergeHtmlScript: two of either kind refuses to guess which pairs with which", () => {
+  const twoHtml = parseSegments("```html\n<a></a>\n```\n```html\n<b></b>\n```\n```javascript\n1;\n```");
+  assert.deepEqual(mergeHtmlScript(twoHtml), twoHtml);
+  const twoJs = parseSegments("```html\n<a></a>\n```\n```javascript\n1;\n```\n```javascript\n2;\n```");
+  assert.deepEqual(mergeHtmlScript(twoJs), twoJs);
+});
+
+test("mergeHtmlScript: html with a different companion kind (python) is untouched", () => {
+  const segs = parseSegments("```html\n<div></div>\n```\n```python\nprint(1)\n```");
+  assert.deepEqual(mergeHtmlScript(segs), segs);
+});
+
+test("mergeHtmlScript: no javascript segment at all is a no-op", () => {
+  const segs = parseSegments("```html\n<div></div>\n```");
+  assert.deepEqual(mergeHtmlScript(segs), segs);
 });
 
 test("every rendered document carries the no-network wall; the content survives intact", () => {

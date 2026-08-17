@@ -400,5 +400,23 @@ createServer((req, res) => {
   // serve-run.test.mjs asks for, to run without colliding with a real
   // instance) prints the port it actually got, not the literal 0.
   .listen(PORT, function () {
-    console.log(`the-fold on http://localhost:${this.address().port} (no-store)`);
+    const url = `http://localhost:${this.address().port}`;
+    console.log(`the-fold on ${url} (no-store)`);
+    openBrowser(url);
   });
+
+// Opens the reader's default browser at the given URL, best-effort. Skipped
+// for `node serve.mjs 0` (serve-run.test.mjs's ephemeral-port boot — a test
+// run should never pop a window) and under CI or THE_FOLD_NO_OPEN, and any
+// failure (no display, no known opener command) is swallowed: a server that
+// can't open a browser should still serve requests.
+function openBrowser(url) {
+  if (process.argv[2] === "0" || process.env.CI || process.env.THE_FOLD_NO_OPEN) return;
+  const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+  const args = process.platform === "win32" ? ["", url] : [url];
+  try {
+    spawn(cmd, args, { detached: true, stdio: "ignore", shell: process.platform === "win32" }).unref();
+  } catch {
+    /* no display, no opener on PATH — the server still runs */
+  }
+}

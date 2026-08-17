@@ -131,6 +131,7 @@ import {
   buildUnionIndex,
   checkGrounding,
   extractAtoms,
+  extractCheckableAtoms,
   hasWord,
   splitSentences,
   tokenSupported,
@@ -174,6 +175,22 @@ test("clean and examined are different facts", () => {
   assert.equal(r.examined, false);
   assert.equal(r.clean, true);
   assert.equal(r.findings.length, 0);
+});
+
+test("extractCheckableAtoms offers candidates even where checkGrounding rightly declines to", () => {
+  // Not a contradiction of the test above: checkGrounding's `examined:
+  // false` at zero passages stays exactly what it is (nothing was checked
+  // against material). This is a DIFFERENT question — is there anything in
+  // the answer worth offering to the web tier? — and the answer is yes: with
+  // no material at all, every atom is unsupported by definition.
+  const atoms = extractCheckableAtoms("The report gave a figure of 99 percent, disputed by Bryan Whitfield.");
+  const texts = atoms.map((a) => a.text);
+  assert.ok(texts.some((t) => t.includes("99")));
+  assert.ok(texts.some((t) => t.includes("Whitfield")));
+  // A name the question itself supplied is still marked as echoing it —
+  // the same discipline checkGrounding's own findings carry.
+  const echoing = extractCheckableAtoms("The figure was 99 percent.", { question: "what was the 99 percent figure?" });
+  assert.ok(echoing.every((a) => a.echoesQuestion || !/99/.test(a.text)));
 });
 
 test("a stem counts as the word", () => {

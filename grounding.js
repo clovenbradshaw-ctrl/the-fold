@@ -587,6 +587,45 @@ export function checkGrounding(answer, passages, { question = "", resolveName = 
   };
 }
 
+/**
+ * Every checkable atom in an answer, unconditionally unsupported — for a
+ * caller that has no material at all and still wants candidates for the web
+ * tier (proofTargets). This is NOT checkGrounding with the guard removed:
+ * checkGrounding's `examined: false` at zero passages is a deliberate fact
+ * ("clean and examined are different facts" — grounding.test.mjs) and stays
+ * exactly as it is for every existing caller. Measured live (2026-08-17): a
+ * plain question with no material attached ("what percentage of Earth's
+ * atmosphere is nitrogen...") produced zero proof-seeking chips — not
+ * because proof-seeking was off, but because `findings` never had anything
+ * in it to offer, since checkGrounding correctly declines to examine
+ * against an index that does not exist. With no material, every atom is
+ * trivially unsupported by definition, so this mirrors checkGrounding's own
+ * atom scan without the index comparison. Same finding shape, so an
+ * existing consumer of `findings` (proofTargets, unsupportedClaims) needs
+ * no changes to accept it.
+ */
+export function extractCheckableAtoms(answer, { question = "" } = {}) {
+  const questionWords = wordSet(question);
+  const sentences = splitSentences(blankStructure(answer));
+  const findings = [];
+  for (const s of sentences) {
+    for (const atom of extractAtoms(s.text, s.start)) {
+      findings.push({
+        kind: "unsupported_claim",
+        atomKind: atom.kind,
+        text: atom.text,
+        absent: atom.tokens,
+        start: atom.start,
+        end: atom.end,
+        sentence: s.text,
+        echoesQuestion: atom.tokens.every((t) => questionWords.has(t.toLowerCase())),
+      });
+    }
+  }
+  findings.sort((a, b) => a.start - b.start);
+  return findings.slice(0, MAX_FINDINGS);
+}
+
 /** The findings as short lines, for a record's `unsupported`.
  *
  * A name the question itself supplied is the model repeating the asker, not

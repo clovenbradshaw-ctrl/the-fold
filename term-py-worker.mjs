@@ -1,7 +1,14 @@
 // term-py-worker.mjs — the terminal's python runtime: pyodide, vendored in
 // node_modules and served from localhost like every other byte this page
-// loads (P1 — no CDN, and so no PyPI: micropip is not shipped and pip is
-// refused with its reason, not a stack trace). A module Worker, because
+// loads (P1 — no CDN). `pip install <name>` is a FOLD command (term.js),
+// never Python typed here: it fetches a wheel from pyodide's own ~350-
+// package wasm build (P21, the wheel organ) onto this same local disk,
+// server-side, before a FRESH session's first line ever runs — the guard
+// below still refuses `pip install x` typed as Python, because it never
+// was valid Python and a clean redirect beats a SyntaxError. micropip
+// itself is not used; loadPackagesFromImports already resolves anything
+// sitting at indexURL, vendored or freshly fetched, unchanged. A module
+// Worker, because
 // pyodide's loader is an ES module and dynamic import inside one is the one
 // portable path; the import happens inside boot so node can import this
 // file's severed list without resolving /node_modules/… URLs.
@@ -72,7 +79,7 @@ if (typeof self !== "undefined" && typeof self.postMessage === "function" && typ
         const version = pyodide.runPython("import sys; sys.version.split()[0]");
         post({
           type: "ready",
-          note: `python ${version} ready (pyodide, local) — stdlib; numpy/matplotlib/pandas load on first use (vendored, no others); ${n} source(s) mounted at /material. no network once the first line runs: ${SEVERED.length} egress APIs sever then.`,
+          note: `python ${version} ready (pyodide, local) — stdlib; numpy/matplotlib/pandas load on first use (vendored); a name fetched by \`pip install <name>\` at the fold prompt loads the same way, if fetched before now; ${n} source(s) mounted at /material. no network once the first line runs: ${SEVERED.length} egress APIs sever then.`,
         });
       } catch (e) {
         post({ type: "err", text: `the python runtime could not boot: ${e.message}` });
@@ -89,7 +96,7 @@ if (typeof self !== "undefined" && typeof self.postMessage === "function" && typ
     if (m.type !== "exec" || !pyodide) return;
     const code = String(m.code ?? "");
     if (/^\s*(pip|python\s+-m\s+pip|%pip)\b/.test(code)) {
-      post({ type: "err", text: `pip is refused here: installs need the network, and this page loads nothing remote (P1). the vendored set is all there is: stdlib plus ${VENDORED_PACKAGES.join(", ")}.` });
+      post({ type: "err", text: `pip install <name> isn't Python — it never was. \`exit\` back to fold and run \`pip install <name>\` there; a FRESH \`python\` session's first line can then \`import <name>\`, same as ${VENDORED_PACKAGES.join("/")} already do.` });
       post({ type: "done" });
       return;
     }

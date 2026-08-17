@@ -114,10 +114,23 @@ test("the roster is local modules that exist; every refusal carries its reason",
     assert.ok(r.src.startsWith("./"), `${name} loads from somewhere other than this directory`);
     assert.ok(existsSync(here(r.src.slice(2))), `${name}'s module is missing: ${r.src}`);
   }
-  for (const name of ["bash", "node", "pip", "webcontainers", "ssh"]) {
+  for (const name of ["bash", "node", "npm", "webcontainers", "ssh"]) {
     assert.ok(typeof REFUSED[name] === "string" && REFUSED[name].length > 20, `${name} is refused without a reason`);
   }
 });
+
+// P21: pip is no longer a blanket refusal — `pip install <name>` is a real
+// fold command (the wheel organ), closed to pyodide's own vetted set.
+test("P21: pip is not in REFUSED — it is a real command now, not a typed refusal", () => {
+  assert.equal(REFUSED.pip, undefined, "pip should be a fold command, not a REFUSED entry");
+});
+
+test("P21: the python worker still refuses `pip install …` typed as Python, with a redirect", () => {
+  const worker = src("term-py-worker.mjs");
+  assert.ok(worker.includes("%pip"), "the in-Python pip guard is gone");
+  assert.match(worker, /isn't Python/, "the guard no longer explains itself");
+});
+
 
 test("a mounted source name cannot carry a path", () => {
   assert.ok(!mountName("a/b.txt").includes("/"));

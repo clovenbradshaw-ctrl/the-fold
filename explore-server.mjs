@@ -77,6 +77,10 @@ import {
   decodeContentsWrite,
 } from "./github.js";
 import { skillDigest } from "./skills.js";
+// the wheel organ's pure half (P21, amending P18) — the transitive
+// dependency-closure walk over pyodide's own lock file; the route below
+// owns only the crossing (the CDN fetch, the sha256 verify, the disk write)
+import { wheelClosure } from "./wheels.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
@@ -597,6 +601,39 @@ async function fetchAndKeep(url) {
   record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: !!settings.archiveOrg });
   if (settings.archiveOrg) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
   return { url, entry, fold, text };
+}
+
+// ── the wheel organ (P21, amending P18): pip installs closed to pyodide's
+// own vetted package set ─────────────────────────────────────────────────
+// pyodide ships pre-built wasm wheels for ~350 packages — its own CDN
+// mirror, listed in node_modules/pyodide/pyodide-lock.json, the SAME index
+// numpy/matplotlib/pandas already come from via
+// scripts/fetch-pyodide-packages.sh. This route generalizes that script
+// from three hardcoded names to any name in the lock: walk the transitive
+// dependency closure, fetch whatever is not already vendored from that
+// SAME pinned mirror (fetchAndKeep's own fetchCapped, reused — one fetch
+// pipeline, not two), sha256-verify every wheel (newly-fetched AND
+// already-present, so a corrupted prior download is caught, not trusted)
+// against the lock's own declared hash, and write it into
+// node_modules/pyodide/. Nothing downstream changes: term-py-worker.mjs's
+// EXISTING loadPackagesFromImports mechanism picks up whatever sits at
+// indexURL, vendored or freshly fetched, on that runtime's next FRESH
+// session — exactly as it already does for numpy/pandas/matplotlib. A name
+// not in this lock (arbitrary PyPI) is a typed refusal, never a silent
+// miss or a half-simulation — a real micropip/PyPI-index tier is named
+// future work, not implied.
+const PYODIDE_DIR = path.join(ROOT, "node_modules", "pyodide");
+const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide";
+const WHEEL_MAX_BYTES = 90_000_000; // one wheel; this lock's own largest builds (scipy, opencv) run tens of MB — giver: this route, engineering starting point
+const WHEEL_CLOSURE_MAX_BYTES = 260_000_000; // a whole install's dependency closure; exceeding it is refused, never half-fetched
+const WHEEL_TIMEOUT_MS = 120_000; // a big wasm wheel over a slow link, not an interactive page wait
+
+function pyodideVersion() {
+  return JSON.parse(readFileSync(path.join(PYODIDE_DIR, "package.json"), "utf8")).version;
+}
+
+function pyodideLock() {
+  return JSON.parse(readFileSync(path.join(PYODIDE_DIR, "pyodide-lock.json"), "utf8")).packages;
 }
 
 // ── path confinement ────────────────────────────────────────────────────────
@@ -1883,6 +1920,61 @@ const server = http.createServer(async (req, res) => {
       if (!already) writeFileSync(dest, JSON.stringify(skill, null, 2) + "\n");
       record("skill-import", { digest, already });
       return send(res, 200, { digest, imported: !already });
+    }
+
+    // ---- the wheel organ (P21): fetch a name from pyodide's own vetted
+    // build, sha256-verified, onto local disk — see the block above
+    // fetchAndKeep for the full design. Recorded before the fetch begins
+    // (a name outside the lock, or one already fully vendored, never
+    // touches the network at all) and again once it resolves or fails.
+    if (req.method === "POST" && p === "/api/wheels/install") {
+      const body = await readJsonBody(req);
+      const name = String(body.name ?? "").trim();
+      if (!name) return send(res, 400, { error: "name is required" });
+      let lock, version;
+      try {
+        version = pyodideVersion();
+        lock = pyodideLock();
+      } catch (e) {
+        return send(res, 200, { name, gap: { silence: "not-present", detail: `this checkout's pyodide vendor is incomplete: ${e.message}` } });
+      }
+      const closure = wheelClosure(name, lock);
+      if (!closure) {
+        record("wheel-install-refused", { name, reason: "not-in-lock" });
+        return send(res, 200, { name, gap: { silence: "not-present", detail: `"${name}" is not one of this pyodide build's ${Object.keys(lock).length} vetted packages — arbitrary PyPI is a separate, not-yet-built tier (P21's disclosed limit), not a silent miss` } });
+      }
+      const need = closure.wheels.filter((w) => !existsSync(path.join(PYODIDE_DIR, w.file_name)));
+      record("wheel-install-requested", { name: closure.key, version: closure.version, wheels: closure.wheels.map((w) => w.file_name), toFetch: need.map((w) => w.file_name) });
+      const fetchedNow = [];
+      let totalBytes = 0;
+      try {
+        for (const w of need) {
+          const { res: r, buf } = await fetchCapped(`${PYODIDE_CDN}/v${version}/full/${w.file_name}`, { timeoutMs: WHEEL_TIMEOUT_MS, maxBytes: WHEEL_MAX_BYTES });
+          if (!r.ok) throw new Error(`${w.file_name}: the mirror answered ${r.status}`);
+          totalBytes += buf.length;
+          if (totalBytes > WHEEL_CLOSURE_MAX_BYTES) {
+            throw Object.assign(new Error(`"${name}"'s dependency closure exceeds the ${WHEEL_CLOSURE_MAX_BYTES}-byte bound — giver: this route, engineering starting point`), { code: "CENSORED_ABOVE" });
+          }
+          const sha = crypto.createHash("sha256").update(buf).digest("hex");
+          if (sha !== w.sha256) throw new Error(`${w.file_name}: sha256 mismatch — pyodide's own lock says ${w.sha256}, the fetched bytes hash ${sha}`);
+          writeFileSync(path.join(PYODIDE_DIR, w.file_name), buf);
+          fetchedNow.push(w.file_name);
+        }
+        // Verify the WHOLE closure, not just what was just fetched — a
+        // wheel already on disk from an interrupted prior run is checked
+        // here too, never trusted because its filename already existed.
+        for (const w of closure.wheels) {
+          const buf = readFileSync(path.join(PYODIDE_DIR, w.file_name));
+          const sha = crypto.createHash("sha256").update(buf).digest("hex");
+          if (sha !== w.sha256) throw new Error(`${w.file_name}: sha256 mismatch on disk — pyodide's own lock says ${w.sha256}, the file on disk hashes ${sha}`);
+        }
+      } catch (e) {
+        record("wheel-install-failed", { name: closure.key, error: e.message, fetchedNow });
+        const gap = e.code === "CENSORED_ABOVE" ? { silence: "censored-above", detail: e.message } : { silence: "not-present", detail: e.message };
+        return send(res, 200, { name: closure.key, gap });
+      }
+      record("wheel-install", { name: closure.key, version: closure.version, wheels: closure.wheels.map((w) => w.file_name), fetchedNow });
+      return send(res, 200, { name: closure.key, version: closure.version, wheels: closure.wheels.map((w) => w.file_name), fetchedNow });
     }
 
     // ---- the record's tail, for the UI affordance; the full file is in the tree.

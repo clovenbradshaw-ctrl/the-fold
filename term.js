@@ -27,6 +27,8 @@
 // across workers, and the grammar below.
 
 // ── declared budgets (P9: named, with a duty, never a quality threshold) ────
+import { delimitedTable } from "./source.js";
+
 export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
 export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
 export const RECORD_SHOWN = 20; // record tail rows shown
@@ -98,38 +100,17 @@ export function continues(runtime, line, buffer) {
 // non-empty value is one, REAL if every one is numeric, TEXT otherwise —
 // never a sampled guess. Empty fields load as NULL.
 export function csvTable(text) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else quoted = false;
-      } else field += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ",") {
-      row.push(field);
-      field = "";
-    } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
-      row.push(field);
-      field = "";
-      if (row.length > 1 || row[0] !== "") rows.push(row);
-      row = [];
-    } else field += ch;
-  }
-  if (field !== "" || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-  if (!rows.length) return null;
-  const header = rows[0];
-  const body = rows.slice(1);
+  // The walk is source.js::delimitedTable — the one quote-aware scanner every
+  // reader of delimited bytes shares (measure.js's door and the chart both
+  // split with it too). Reconciling widened this side rather than narrowing
+  // it: this copy already walked quotes across newlines, and now it also
+  // speaks tab and semicolon, because the shared walker sniffs the delimiter
+  // off the bytes — a TSV loaded into the sql runtime used to burst into one
+  // column per row and load as garbage without a word said.
+  const parsed = delimitedTable(text);
+  if (!parsed) return null;
+  const header = parsed.head;
+  const body = parsed.rows;
   const width = header.length;
   const columns = header.map((h, i) => {
     let name = h.trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");

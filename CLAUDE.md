@@ -841,6 +841,125 @@ countdown.py" lands on `countdown.py`); without one, the first prose line
 slugified, then the server disambiguates a taken name mechanically. A build
 named `build-4.py` is honest — the model did not name it.
 
+## Iterating a build (added 2026-08-17) — REC, grounds, and the router
+
+The ask, verbatim: *"give the widget the ability to be iterated on through
+append only modifications (including REC)"*, then the clarification that
+settled the design — *"So if I'm like 'I don't like the colors' or 'it's
+broken' it's able to modify that particular one and not create a net new
+one."*
+
+**The defect this closed.** `publishBuild` counted `state.builds.length + 1`
+and stopped there, so every code segment a turn produced was a NEW build.
+Complaining at a widget forked it: build 1 the original, build 2 the
+recolour, build 3 the fix — three orphans, and build 1's append-only log
+frozen at the moment the operator first spoke. The log was append-only in
+the small and abandoned in the large.
+
+**REC is a re-zero, and a re-zero opens a GROUND.** `operators.js` types REC
+as *rezero* — Generate · Interpretation, "a new ambient ground begins". A
+complaint is exactly that: the operator judged the projection and the ground
+it was built on is conceded. Two entries per re-zero, and the shape is
+forced, not stylistic: the engine's production order is one-way
+(`isProductionOrder("SYN","REC")` is **true**, `("REC","SYN")` is **false**),
+so a REC inside a build's thread would forbid every later edit on it —
+editing a widget after complaining about it, i.e. the normal case. So the
+concession is its own single-entry thread (EVIDENCE · REC · Figure ·
+produced, carrying the operator's words VERBATIM and the version it
+concedes) and the next ground is born as any production is, PROPOSE · SEG,
+with **no `supersedes`** — a re-zero concedes a ground, it does not compile a
+new whole out of the old one. Threads read `[SEG SYN…] [REC] [SEG SYN…]` and
+`checkCubeProgression` stays silent across all of them, for any number of
+grounds. Ground 1 keeps the plain `b<n>.v<k>` address, so a log that never
+re-zeroed is addressed exactly as it always was and replays unchanged.
+
+**The router (`widget.js`) contains no word lists, and that is the point.**
+The first version decided the question with four hand-typed English lists —
+presupposing verbs, creation verbs, judgment adjectives, anaphora. That is
+precisely the mistake `relations.js`'s own header records having undone: a
+90-word hand-listed verb string that was *"not a simplification of English,
+it was a sample of it standing in for the whole"*. It was rewritten to
+compose organs instead:
+
+- **Closed classes from the engine's prior register**
+  (`perceiver/text/priors.js`, every entry naming its giver, Amendment IV).
+  `INDEFINITE_DETERMINERS` / `DEFINITE_DETERMINERS` / `ANAPHORIC_PRONOUNS`
+  are NEW there — the register is where a received closed class lives, not a
+  private regex in this repo; `NEGATION_WORDS` and `FIRST_PERSON` were
+  already there. An indefinite determiner INTRODUCES its noun and decides
+  outright; an anaphor POINTS BACK; negation with a first-person subject is a
+  JUDGMENT. None of this needs to know what a verb means.
+- **The build's own bytes.** A definite phrase ("the button") lands on the
+  build whose projection contains it, both sides through retrieval's own
+  fold (`tokenize`/`foldDiacritics`) — CLAUDE.md's diacritics lesson applied
+  to routing. This is also why a material question cannot be hijacked: the
+  widget's bytes hold no "report".
+
+`extractRelations`/`discoverRelationVocab` was reached for first and refused
+**on the merits**, stated rather than assumed: it anchors candidate verbs on
+capitalised surfaces, and "I don't like the colors" has no surface at all
+(`NEVER_A_NAME` excludes "I"), so the ladder measures an empty vocabulary.
+Same posture as `outlineOfIndex` being tried and rejected in eoreader6's own
+`goldens/network`.
+
+**Two rules that only a real model produced.** Both were found running the
+page against a live `gemma2:2b` on ollama, and neither was reachable from
+canned fixtures:
+
+1. **A turn is one act.** Asked for one counter widget, gemma2:2b replied
+   with FIVE html fences, and every one opened a build — one request, five
+   orphans. Later blocks of the same kind in one turn are SUPERSEDE · SYN
+   versions of the first, never siblings (no ground is conceded: nobody
+   judged anything in between). Two different KINDS in one turn are still two
+   builds.
+2. **An untagged fence is a gap, not a difference.** Complained at, the model
+   answered with a bare ``` fence holding the fix, and the strict
+   language match forked it. Silence is not a declaration of difference: the
+   strict match exists to stop a DECLARED python file from becoming a version
+   of a DECLARED html widget, and an undeclared fence adopts the build's own
+   language so the widget keeps its preview frame and its `.html` download.
+
+**The stated limit, kept rather than bought back with a list.** A definite
+phrase naming something the artifact does not YET contain does not resolve:
+"change the background to blue" on a widget with no background falls through
+to a new build. The verb list caught that one phrasing and would have
+silently mis-routed every phrasing outside itself. Anaphora ("make it
+blue"), judgment ("I don't like the background") and the number ("build 2")
+all still route, so the affordance is narrower, never absent. Morphology is
+not folded either — "the colors" does not resolve against `color:` — and
+there is no stemmer in this engine to borrow.
+
+**Files.** `widget.js` (pure, priors injected — the cast.js pattern);
+`widget.test.mjs` (the e2e walk plus the router's walls, against the REAL
+engine modules); `build-log.js` grew `rezeroBuild`/`groundCount` and
+ground-aware ids; app.js's `publishSegment` routes and `buildChip` is shared;
+`constitution.test.mjs`'s II.13 host scan now covers widget.js and builds.js,
+which the page now loads.
+
+**The reliable path is COMPOSITION with the /fold door (added at merge,
+2026-08-17).** The fold-architecture session independently built `foldTurn`
+(`/fold <n> <instruction>`): the model is handed the fold's CURRENT code,
+the returned fence is extracted mechanically (`pickRevisionSegment` —
+tolerates a dropped language tag), churn is refused by the log, and a
+codeless reply is a typed gap. That is exactly what iteration-by-complaint
+needed and did not have: before, a routed complaint depended on the model
+happening to re-emit a fence into ordinary chat — measured live (gemma2:2b),
+a coin flip. Now `widgetRouter.routeMessage` decides in `send()`, BEFORE any
+model call, whether the operator's words point at an existing code build
+(checked after every explicit door and the material's detectors, so nothing
+typed or material-bound can be hijacked), and a hit runs `foldTurn` with
+`{rezero: true}` — same sighted prompt, same mechanical extraction, but the
+landing is `rezeroBuild` (REC, trigger verbatim) rather than `reviseBuild`
+(SYN), because a judgment concedes a ground and an instruction compiles a
+new whole. The two landings, one machine. `routeSegment` remains the
+downstream wall for ordinary turns that happen to produce code.
+
+**Three build-log modules exist and only one is wired.** `build-log.js` is
+live (app.js imports it); `builds.js` is unwired except for `referencedBuild`
+and `BUILD_MESSAGE_MAX`, which widget.js now imports rather than re-deriving;
+`buildlog.js` is unwired entirely — and its SIG/INS/REC/EVA vocabulary is
+where the REC reading here was first written down. Named so the next pass
+does not mistake one for another, as this one nearly did.
 ## The terminal (added 2026-08-16, sixth pass) — what was decided, so it is not re-derived
 
 P18 in POLICIES.md is the law; this is the map. The user's direction: the
@@ -900,3 +1019,118 @@ synchronously is stoppable only by ✕ (the same one hole the skills sandbox
 discloses for its run budget); terminal acts are not on the record — the
 old terminal's posture, kept deliberately; a term-record mirror is named
 future work, not implied.
+
+## The measuring door (added 2026-08-17, seventh pass) — what was decided, so it is not re-derived
+
+P19 in POLICIES.md is the law; this is the map. The ask this answers, from the
+user directly: the fold should carry **standardized eoreader6-based statistics
+modules, so DFR-repo-style analysis stops being hand-rolled** — and the point
+is to make *people*, not only the model, less prone to bullshitting.
+
+**Nothing was added to eoreader6, and that is the finding.** The organs were
+already there and the search-before-you-write rule found them: `nul/index.js`
+(1,306 lines — PERTURBATIONS × STATISTICS with a `LICENSED` table, ~20 typed
+gap types, `ground` / `difference` / `extremeGround`, the censoring floor) and
+`emergence/binding.js` (displacement / reversal / reseed nulls, transfer
+entropy, per-pair `bindLinks`). What was missing was never a statistic. It was
+the **gate**, and `nul` says in as many words that the gate is the caller's to
+ask for: "NOT enforced inside `ground` … An organ that wants the guarantee asks
+for it." So the gate is the fold's, the statistics stay the engine's, and the
+standing rule (*leave everything you can in eoreader6*) is honoured by
+subtraction rather than by a port.
+
+**Files.** `measure.js` — pure, organs injected (cast.js pattern): the
+declaration grammar, `admit` (the gate), the table→series and table→arrivals
+adapters, `measureSeries` / `measureAcross` / `measurePairs`, the single
+`runMeasurement` router, `phrase` and `toTable`. `measure.test.mjs` — 35
+conformance tests against the REAL nul and binding modules.
+`eval/measure-real-data.mjs` + `eval/fixtures/santa-ana-flight-hours.csv` —
+the door run on 1,021 real drone flights. app.js's `measureTurn` is plumbing
+only: find the named file, hand the declaration to the router, print whichever
+of result-or-refusal came back. No server change: both mounts (`/engine`,
+`/nul`) already existed, and `page-graph.mjs` picked `measure.js` up on its own
+— "adding a module needs no edit here" held.
+
+**The grammar is keyed, not positional** (`series:` / `across:` / `pairs:` /
+`at:` / `as:` / `trying:` / `broken:` / `draws:` / `window:` / `seed:` /
+`direction:`), order-free, because a reader is declaring a spec and a
+positional form would make the fourth number they type silently mean something
+else. `broken:` is the plain-language name for a perturbation (the handbook's
+own "break it on purpose"); nul's registry keys stay underneath so there is no
+second vocabulary to drift.
+
+**Decisions that cost something, kept here:**
+
+- **The fixture is copied, not read across repos.** Twenty-four integers from
+  `dfr-causal-analysis/profiles/profile-santa-ana.json`. Reaching over there
+  would have inherited the exact defect that repo's own paper lists under
+  limitations ("cannot be reproduced by a third party") while criticising it.
+- **The real-data declarations were fixed before the run and never revisited**
+  (eoreader6's tune-nothing-against-the-answer rule, applied to a measurement's
+  parameters). window 8 = a patrol shift, a unit of the world the material came
+  from; draws 200 = this repo's standing null-arm number, giver named.
+- **The result is worth knowing.** The declared question returns *censored
+  above* (59.25 flights in the largest 8-hour mean, above all 200 shuffles).
+  The same observation against a spectrum-preserving null sits at 59/200 —
+  unremarkable. Two nulls, opposite readings, and only one pairing established:
+  that contrast is the licensing gate's whole justification, found live rather
+  than argued.
+- **Two walls were found by RUNNING it, not by reasoning about it** (P5.5's
+  discipline, both directions). (1) The `best_of_n` refusal was correct and
+  **unreachable** — the only route into `measureAcross` was supplying the very
+  `direction:` whose absence it refuses, so a sound wall nobody could touch.
+  `across:` exists because of that; a refusal no declaration can trigger is a
+  comment, not a wall, and its test now goes through the grammar. (2) `nul`'s
+  `window >= 2` had been carried across to co-arrival, where `displacementNull`
+  states its own floor of 1 — so a legitimate "arrived at an adjacent position"
+  was refused. Each floor is now the consuming organ's own.
+- **One router, because there were briefly two.** app.js's turn and the eval
+  each grew a three-way dispatch and disagreed within the hour (one routed on
+  `direction`, the other on `across`). `runMeasurement` is the only
+  implementation, and it re-runs the gate so no path reaches a measurement that
+  skipped it — eoreader6's "reconcile, don't dedupe" rule, applied before the
+  second copy could rot.
+- **`measured` is a new act on the reflex ledger and reflex.js was NOT edited.**
+  Its `stableDetail` fallback renders an unknown act deterministically from
+  sorted keys — the module's own designed extension point.
+
+**Amended same day — any material, and the probe.** Binary files land as
+bytes (`state.media`, never chunked/retrieved; the mute does not apply — it is
+a retrieval concept). Container detection is MAGIC FIRST, text heuristic
+second (`measure.js::sniffContainer`, closed list, tested against real files
+on disk): a PDF's first kilobytes are ASCII, so the looks-like-text check read
+one as prose and chunked a compression stream as paragraphs — the container's
+own first bytes outrank any guess. Naming a container changes only what the
+probe says and which decoder may run (wav → the PCM walk); everything else
+measures identically as frames of bytes. Bytes become series through the engine's
+`perceiver/audio/reduce.js` — the pure half split OUT of material.js in
+eoreader6 (its ffmpeg import made the whole module unloadable in a page; the
+split is packaging, not a new statistic, and material.js re-exports so no
+engine caller moved). `wavSamples` in measure.js is the one genuinely new
+parser, with its reason stated: no ffmpeg in the page, no CDN decoder under
+P1, and a PCM RIFF walk is addressing. Compressed audio is `unsupported_codec`,
+never half-decoded. `channel:`+`frame:` are the binary declaration; bare
+`/measure <file>` probes the material's measurable surface with paste-back
+example lines. Two more incidents for the record: the shared CSV walker
+(`source.js::delimitedTable`) exists because the naive delimitedRows burst
+10,549 of 10,733 USGS rows on the first real file (both prior readers were
+half-right — term.js walked quotes but only spoke comma; tables.js sniffed
+delimiters but split naively — reconciled, not deduped); and the probe's
+pairs suggestion counts recurrence off the rows because the blind version
+suggested `pairs:time at:time` live. E2E is `scratchpad`-driven CDP against
+the real page: real drop events, real composer submits, quakes.csv + a
+planted-burst WAV (positive and negative controls both honest) + a .pyc as
+raw bytes.
+
+**Known edges, disclosed:** the causal door is deliberately absent. `binding.js`
+carries `transferEntropy` and `reversalNull`, and the DFR work measured both an
+inflated false-positive rate and 100/100 false positives on common-cause
+synthetic data — the paper's own conclusion is that confounding "requires
+design, not statistics." A `/measure … causes:` door would therefore need a
+design declaration, not another null, and that is scoped work rather than
+something to bolt on here. Also absent: a space-time (position-held,
+time-permuted) perturbation, which is the one null `matter_grouping.py`
+hand-rolled that has no organ yet — `measurePairs` covers the co-arrival
+question over ordered positions, not the spatial one. And the DFR scripts
+themselves are untouched: this door is what they should have called, but
+porting them is its own pass.

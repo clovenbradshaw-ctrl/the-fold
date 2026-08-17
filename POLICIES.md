@@ -606,6 +606,102 @@ continuation grammar including the control-word rule, the CSV walk and
 typing, and the roster/refusal shapes; `constitution.test.mjs` II.13
 extended over term.js and the workers.
 
+## P19 — A figure is a placement against a nothing, or it is refused
+
+The instrument could draw a file's own rows (P12's tables and charts) and
+could not say whether anything in them was more than the file's own
+arithmetic. So that question got answered elsewhere, by hand, every time
+someone had it — and the sibling `dfr-causal-analysis` repo is the measured
+cost of that: of seven analysis scripts, four import eoreader6 by an absolute
+path on one laptop (its own paper lists this under limitations: "those runs
+cannot be reproduced by a third party"), three hand-roll permutation nulls
+with `random.shuffle` and their own p-values, and two report weighted
+averages and medians with **no null at all** — in a repo whose own writeup
+says "never report a number."
+
+The measuring door (`/measure`) closes that. Everything statistical is the
+engine's, used and never copied: `nul` builds the nothing by breaking the
+material on purpose and places the observation in it; `emergence/binding.js`
+tests co-arrival per pair with its own displacement null. `measure.js` is the
+gate in front of them, and the gate is the policy:
+
+- **No figure without a nothing.** A declaration naming a statistic and no
+  way of breaking the material is refused `no_ground`. There is no code path
+  from a declaration to a bare number.
+- **The engine's licensing table is enforced, not restated.** `nul` says of
+  its own `LICENSED` map: "NOT enforced inside `ground` … An organ that wants
+  the guarantee asks for it." This door asks. An unestablished
+  statistic/perturbation pairing is refused `unlicensed_pair`, and the
+  refusal carries every established pair *with the material its licence was
+  earned on* — so it teaches rather than only blocking. The escape hatch is
+  the engine's own: `trying:` in place of `as:` runs the pairing and types
+  the result a trial, never testimony, in every phrasing and every row.
+- **Never phrased finer than the draws can carry.** Every result rides its
+  own floor of 1/draws. A co-arrival no broken copy matched reads "1 in
+  draws or rarer", never zero; at twelve draws there is no phrasing in which
+  a 95th percentile appears. The word "significant" appears nowhere — it
+  names a threshold nobody here declared.
+- **Best-of-n gets its own nothing.** Measuring every column and keeping the
+  most extreme is refused (`best_of_n`) until a direction is declared, then
+  routed to `extremeGround` with n *counted*, never chosen.
+- **Every number is declared, by name.** draws and window are refused when
+  missing, each with why it cannot be a default; the smallest admissible
+  window is the consuming organ's own guard (2 for `nul.ground`, 1 for
+  `displacementNull`), never one floor imposed across both.
+- **A censored placement is a finding, not an error.** Outside the support
+  the magnitude is real and the ground cannot supply a place; surfeit and
+  regularity are phrased apart and never pooled.
+- **Zero model calls.** A model asked to place a figure against a null could
+  only retype numbers it cannot compute. `runMeasurement` is the single
+  router both the turn and the eval use, so no caller re-derives dispatch and
+  none can skip the gate.
+
+**Evidence:** the door run against real published data
+(`eval/measure-real-data.mjs`, 1,021 Santa Ana PD drone flights by local hour,
+declarations fixed before the run and never revisited after seeing an output).
+The declared question returns *censored above* — the largest 8-hour mean, 59.25
+flights, sits above all 200 shuffles, so the concentration is real and the
+ground honestly cannot say how far. The same observation against a
+spectrum-preserving null lands at 59 of 200, unremarkable — which is why the
+licensing gate exists, and why that run can only be had as a trial. Two walls
+were found by running it rather than by reasoning about it: the `best_of_n`
+refusal was sound and **unreachable** from any typed declaration (`across:`
+exists because of it — a refusal no declaration can trigger is a comment, not
+a wall), and `nul`'s window floor had been carried across to co-arrival, where
+it refused a legitimate window of 1.
+
+**Amended same day (any material, one gate).** The door takes any loaded
+file, not only tables. Binary lands as bytes at the drop (a WAV recognized by
+its own RIFF header, anything else honest raw bytes), is never chunked or
+retrieved (retrieval is term overlap; bytes have no terms), and becomes a
+series through the ENGINE'S own frame reduction — `perceiver/audio/reduce.js`,
+the pure half split out of the ffmpeg-importing material.js so a page can load
+it; rms and flux are statistics of a numeric frame and never ask what the
+numbers meant. The reader declares `channel:` (the engine's closed set) and
+`frame:` (the grain of hearing) — each refused by name when missing. A
+compressed WAV is refused `unsupported_codec`, never half-decoded. And a bare
+`/measure <file>` is a PROBE: the file's measurable surface plus example
+declarations, computed off the material's own bytes — including a pairs
+suggestion that names the column whose values actually recur, counted, after
+the live e2e caught the blind version suggesting `pairs:time at:time`
+(parseable, degenerate, doomed). Verified end to end in the real app over CDP
+— real drop events, real composer submits — on 10,733 USGS earthquakes (mag
+clustering censored-above: aftershock sequences, found not asserted), a
+planted-burst WAV (positive control censored-above; flat-tone negative
+control refused `degenerate_ground`), and a real .pyc measured as raw bytes.
+The same live run also surfaced the second CSV-reader bug class: the naive
+split burst 10,549 of the file's quoted rows, so one quote-aware walker
+(`source.js::delimitedTable`) now serves tables.js, term.js, and this door.
+
+**Enforced:** `measure.test.mjs` — 47 conformance tests against the REAL
+`nul/index.js` and `emergence/binding.js` (a stub with a hand-written licensing
+table would pass every one of them while proving nothing). Pinned: that no
+declaration reaches a bare figure; that the refused pair list IS the engine's
+table; that a trial says so in phrase and table alike; that no rank is finer
+than the floor; that the best-of-n gate is reachable *through the grammar*;
+that each dispatch matches what it would be by hand; and that every refusal
+this door can produce carries a detail a reader can act on.
+
 ---
 
 ## P19 — Priors are gated by a ledger, and their papers ride every crossing

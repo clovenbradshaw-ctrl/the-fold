@@ -4,6 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>The Fold</title>
+    <script>
+      // Pre-paint: stamp the stored theme choice on <html> before the first
+      // frame, so a chosen theme never flashes the other one. "system" stores
+      // nothing and stamps nothing — the media query is the whole rule then.
+      try {
+        const t = localStorage.getItem("the-fold.theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {
+        /* storage blocked — the system preference still applies */
+      }
+    </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'><path d='M3 18 L8.5 4 L11 4 L5.5 18 Z' fill='%236d28d9'/><path d='M8.5 18 L14 4 L16 4 L10.5 18 Z' fill='%236d28d9' opacity='0.55'/><path d='M14 18 L19.5 4 L21 4 L15.5 18 Z' fill='%236d28d9' opacity='0.25'/></svg>" />
     <!-- No webfonts: the system stacks below are the whole typography, so the
          page makes no request that leaves the machine — same rule as the model. -->
@@ -24,8 +35,13 @@
         --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
           monospace;
       }
+      /* Three theme states: the default follows the system; an explicit
+         choice stamps data-theme on <html> and wins in both directions.
+         The dark palette is written twice on purpose — once under the media
+         query (system dark, unless the reader chose light) and once under
+         the explicit choice — so the toggle can override the OS either way. */
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root:not([data-theme="light"]) {
           --bg: #0f0f12;
           --panel: #15151a;
           --ink: #ecebf0;
@@ -37,6 +53,18 @@
           --record-soft: #17141f;
           --warn: #f0857a;
         }
+      }
+      :root[data-theme="dark"] {
+        --bg: #0f0f12;
+        --panel: #15151a;
+        --ink: #ecebf0;
+        --muted: #9b9aa5;
+        --line: #2b2b34;
+        --accent: #a78bfa;
+        --accent-soft: #1e1932;
+        --record: #a78bfa;
+        --record-soft: #17141f;
+        --warn: #f0857a;
       }
       * { box-sizing: border-box; }
       body {
@@ -340,8 +368,17 @@
         padding: 8px 12px;
         display: inline-block;
       }
+      .msg.queued { opacity: 0.55; }
+      .msg.queued .queue-tag {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-left: 8px;
+      }
       /* In the conversation an artifact is one line you can press; the thing
          itself is in the panel, at the width it wants. */
+      .msg .artifact { margin-top: 4px; }
       .build-chip {
         display: inline-flex;
         align-items: center;
@@ -353,6 +390,42 @@
         background: var(--accent-soft);
         text-align: left;
       }
+      /* The Folds panel's controls: search, a declared ordering, and the
+         list/cards switch. The bar filters a rendering — the logs beneath
+         never change, and what a filter hides is counted next to the pane's
+         own heading. */
+      .folds-bar { display: flex; gap: 8px; margin: 0 0 12px; }
+      .folds-bar input[type="search"] { flex: 1; min-width: 0; font-size: 13px; }
+      .folds-bar select,
+      .folds-bar button { font-size: 12px; color: var(--muted); white-space: nowrap; }
+      .fold-row {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        width: 100%;
+        text-align: left;
+        padding: 8px 4px;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        border-radius: 0;
+        background: none;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .fold-row .addr { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
+      .fold-row .cap { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .fold-row .meta { color: var(--muted); font-size: 11.5px; white-space: nowrap; font-family: var(--mono); }
+      .fold-row .meta.bad { color: var(--warn); }
+      .fold-row[aria-expanded="true"] .addr { font-weight: 700; }
+      /* Where the fold lives: its chat address and its downloadable file, on
+         every card, in the panel's own muted register. */
+      .build-addr {
+        margin: 0 0 5px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .build-addr b { color: var(--accent); font-weight: 600; }
       .build-entry { margin-bottom: 18px; }
       .build-entry .artifact { margin-bottom: 0; }
       .build-from {
@@ -488,9 +561,81 @@
         flex: none;
       }
 
+      /* The Log pane: the record's readable face. */
+      #pane-log { display: none; height: 100%; flex-direction: column; }
+      #pane-log.on { display: flex; }
+      .log-bar { display: flex; gap: 8px; margin-bottom: 10px; flex: none; }
+      .log-bar input { flex: 1; max-width: 320px; font-size: 12.5px; }
+      #log-lines { flex: 1; overflow-y: auto; font: 11.5px/1.6 var(--mono); min-height: 0; }
+      .log-row { display: flex; gap: 10px; align-items: baseline; padding: 1px 0; }
+      .log-time { color: var(--muted); flex: none; }
+      .log-event { color: var(--accent); flex: none; min-width: 110px; }
+      .log-event.warn { color: var(--warn); }
+      .log-detail { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .log-note { flex: none; font-size: 10.5px; color: var(--muted); font-style: italic; padding-top: 8px; }
+      .log-row { cursor: pointer; border-radius: 5px; padding: 1px 6px; }
+      .log-row:hover, .log-row:focus-visible { background: var(--accent-soft); outline: none; }
+      /* a log event's profile: breadcrumbs back, every field, the raw line */
+      .log-crumbs { font-size: 13px; margin-bottom: 12px; font-family: var(--sans); }
+      .log-crumbs .linkish { font-size: 13px; text-decoration: none; }
+      .log-crumbs .linkish:hover { text-decoration: underline; }
+      .log-crumb-here { font-weight: 600; color: var(--ink); }
+      .log-tbl {
+        border-collapse: collapse; margin: 0 0 14px;
+        font-family: var(--sans); font-size: 13px; max-width: 720px;
+      }
+      .log-tbl th, .log-tbl td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; vertical-align: top; }
+      .log-tbl th { color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-weight: 400; white-space: nowrap; }
+      .log-tbl td { overflow-wrap: anywhere; white-space: pre-wrap; }
+      .log-tbl .log-tbl-more td { color: var(--muted); font-style: italic; }
+      .log-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; font-family: var(--sans); }
+      .log-actions button { font-size: 12px; }
+      .log-raw-head { font-size: 10.5px; color: var(--muted); font-style: italic; margin-bottom: 4px; font-family: var(--sans); cursor: pointer; }
+      .log-raw-wrap[open] .log-raw-head { margin-bottom: 6px; }
+      .log-raw {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+        padding: 10px 12px; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere;
+        max-width: 900px; margin: 0;
+      }
+
+      /* The terminal as a drawer: not a place but a second grammar, sliding
+         over whatever tab you are on (ctrl+` or the >_ button). It overrides
+         the pane's tab-based display entirely — the terminal has no tab. */
+      /* button.term-toggle, not .term-toggle — `.tabs button` (0,1,1) would
+         out-specify a bare class and stretch this flex:1 like a tab on
+         mobile; the same specificity gotcha the desk's + New button hit. */
+      .tabs button.term-toggle { font-family: var(--mono); font-size: 12px; flex: none; align-self: center; margin-left: 6px; border-top: none; }
+      .tabs button.term-toggle[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+      /* Open, the drawer is a REAL bottom region: the app above it shrinks,
+         nothing is covered. The body is a plain block and main's height is a
+         fixed calc — so the drawer state makes body the flex column and lets
+         main yield; without this the drawer lands below the fold and the
+         page scrolls instead of shrinking. A quarter of the screen by
+         default; full screen on request, when main steps aside. */
+      body.term-drawer { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+      body.term-drawer header { flex: none; }
+      body.term-drawer main { flex: 1 1 0; height: auto; min-height: 0; }
+      body.term-drawer #pane-terminal {
+        display: flex;
+        flex: none;
+        height: 25vh;
+        min-height: 150px;
+        margin: 0;
+        padding: 8px 16px;
+        position: relative;
+        background: var(--bg);
+        border-top: 2px solid var(--accent);
+      }
+      body.term-drawer.term-full #pane-terminal { flex: 1; height: auto; }
+      body.term-drawer.term-full main { display: none; }
+      .term-controls { position: absolute; top: 5px; right: 10px; display: flex; gap: 4px; z-index: 2; }
+      .term-controls button { font-size: 11px; padding: 2px 8px; color: var(--muted); }
+      .term-controls button:hover { color: var(--ink); }
+
       /* The terminal: one live command at a time, its output up top, input
-         below. While a command runs, Enter feeds it stdin (so `python` is a
-         REPL); otherwise Enter runs a new command. */
+         below. Sandboxed (P18): every runtime lives in this page — term.js
+         and its workers — and there is no stdin because there is no PTY;
+         the runtimes themselves are the REPLs. */
       #pane-terminal {
         display: none;
         height: 100%;
@@ -887,6 +1032,27 @@
       dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
       dialog h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+      /* The full-screen fold viewer: the artifact, given the window. */
+      dialog#fold-view {
+        width: min(96vw, 1400px);
+        max-width: none;
+        height: 92vh;
+        padding: 12px 16px 16px;
+      }
+      dialog#fold-view[open] { display: flex; flex-direction: column; }
+      .fold-view-head { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+      .fold-view-head h3 { margin: 0; }
+      #fold-view-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+      #fold-view-body .artifact {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+      }
+      #fold-view-body .artifact iframe { flex: 1; height: auto; min-height: 0; }
+      #fold-view-body .artifact pre { flex: 1; min-height: 0; overflow: auto; }
+      #fold-view-body .table-wrap { flex: 1; min-height: 0; overflow: auto; }
       #status { font-size: 12.5px; color: var(--muted); }
 
       #attach {
@@ -952,6 +1118,7 @@
       <span class="tag">a conversation whose context window does not grow</span>
       <span class="spacer"></span>
       <span id="turn-total" class="turn-total" hidden></span>
+      <button id="theme-toggle" type="button" title="Theme — follows the system until you choose. Click to cycle system → light → dark."></button>
       <button id="settings-toggle" type="button" title="Model settings">
         <span id="settings-label">not connected</span>
         <span aria-hidden="true">⚙</span>
@@ -986,19 +1153,26 @@
                Dropping a file anywhere on the page still adds material —
                the pane below stays wired for that flow, just not fronted. -->
           <button role="tab" data-pane="explore" aria-selected="false" title="What the instrument reads from — needs explore-server.mjs (node explore-server.mjs)">Sources</button>
-          <button role="tab" data-pane="terminal" aria-selected="false" title="A shell on this machine — install what a build needs, run anything">Terminal</button>
+          <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
+          <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
         </nav>
         <div class="scroll">
           <div class="pane on" id="pane-builds">
-            <h2>Builds <span id="builds-count" class="tag"></span></h2>
+            <h2>Folds <span id="builds-count" class="tag"></span></h2>
             <p class="note">
               Code leaves the conversation entirely: the model appends an
-              addendum to a build's append-only log, the projected code file
-              lands in materials/, and the chat keeps a handle to it. The log
-              is the record; the file is a view of it. Tables, pages, and
-              everything else that is not prose lands here at full size.
-              Newest first.
+              addendum to a fold's append-only log, and the chat keeps a
+              handle to it. The log is the record; what you see is a fold
+              over it, downloadable at any cursor. Address one in chat as
+              <code>/fold &lt;n&gt; &lt;instruction&gt;</code> — the revision
+              lands on that fold's own log. Tables, pages, and everything
+              else that is not prose lands here at full size.
             </p>
+            <div class="folds-bar">
+              <input id="folds-search" type="search" spellcheck="false" placeholder="search folds — words, code, or an address like fold 2" aria-label="search folds" />
+              <select id="folds-sort" aria-label="order folds"></select>
+              <button type="button" id="folds-view" title="switch between full cards and a compact list">≡ list</button>
+            </div>
             <div id="builds-list">
               <p class="empty">Nothing but prose so far.</p>
             </div>
@@ -1006,8 +1180,8 @@
 
           <div class="pane" id="pane-editor">
             <div class="editor-head">
-              <button type="button" class="back" id="editor-back">← builds</button>
-              <h2 id="editor-title">build</h2>
+              <button type="button" class="back" id="editor-back">← folds</button>
+              <h2 id="editor-title">fold</h2>
               <span id="editor-lang" class="tag"></span>
               <span class="spacer"></span>
               <button type="button" class="artifact-run" id="editor-run">▶ run</button>
@@ -1017,20 +1191,33 @@
                 <div class="code-wrap">
                   <div id="editor-host"></div>
                 </div>
-                <iframe id="editor-preview" hidden title="preview"></iframe>
+                <!-- ▶ render is the operator's consent, so scripts run here —
+                     but same-origin is never granted (an unsandboxed iframe
+                     would hand model HTML this page's own origin), and
+                     toDocument's CSP keeps the page off the network. -->
+                <iframe id="editor-preview" sandbox="allow-scripts" hidden title="preview"></iframe>
                 <pre id="editor-console" class="run-console" hidden></pre>
               </div>
           </div>
 
+          <div class="pane" id="pane-log">
+            <div class="log-bar">
+              <input id="log-filter" spellcheck="false" placeholder="filter events…" />
+              <button type="button" id="log-refresh">refresh</button>
+            </div>
+            <div id="log-lines"></div>
+            <div id="log-note" class="log-note"></div>
+          </div>
+
           <div class="pane" id="pane-terminal">
-            <pre id="term-out" aria-live="polite"><span class="term-mute">a shell on this machine. pip install and npm install here land where builds import from — the same .venv and node_modules.</span>
+            <pre id="term-out" aria-live="polite"><span class="term-mute">a terminal over the instrument, sandboxed in this page — nothing typed here reaches the machine. `help` lists commands; python · sql · js enter vendored runtimes.</span>
 
 </pre>
             <div class="term-row">
-              <span class="term-prompt" id="term-prompt">$</span>
+              <span class="term-prompt" id="term-prompt">fold ›</span>
               <input id="term-in" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
-                placeholder="run a command — or, while one runs, type into it" />
-              <button type="button" class="editor-plain" id="term-kill" title="send Ctrl-C to the running command" disabled>✕</button>
+                placeholder="help — fold commands; python · sql · js enter sandboxed runtimes" />
+              <button type="button" class="editor-plain" id="term-kill" title="interrupt (ctrl+c) — ends the running runtime; it reboots fresh, its state gone" disabled>✕</button>
             </div>
           </div>
 
@@ -1071,10 +1258,7 @@
           <span>Seek proof online</span>
           <span class="check-row">
             <input type="checkbox" id="web-proof" />
-            when a turn states something the material does not back, search the
-            web on the claim's own words through the Explore server's recorded
-            egress and report how many independent pages state it. Off by
-            default — a fetch is a crossing, and turning this on is yours to do.
+            verify unbacked claims online
           </span>
         </label>
       </div>
@@ -1101,7 +1285,21 @@
       </form>
     </dialog>
 
+    <!-- The full-screen fold viewer: the same artifact the card shows, at the
+         same cursor, given the whole window. A view, not a new state — the
+         log, the consent, and the cursor all stay the card's. -->
+    <dialog id="fold-view">
+      <div class="fold-view-head">
+        <h3 id="fold-view-title"></h3>
+        <span id="fold-view-address" class="tag"></span>
+        <span class="spacer"></span>
+        <form method="dialog"><button>✕ close</button></form>
+      </div>
+      <div id="fold-view-body"></div>
+    </dialog>
+
     <script src="/node_modules/monaco-editor/min/vs/loader.js"></script>
     <script type="module" src="./app.js"></script>
+      <script type="module" src="log-pane.js"></script>
   </body>
 </html>

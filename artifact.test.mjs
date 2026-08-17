@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
+import { RENDERABLE, chartFrom, parseSegments, tableFrom, toDocument } from "./artifact.js";
 
 test("a table can be built from rows, without a model", () => {
   const seg = tableFrom(
@@ -112,11 +112,87 @@ test("html and svg are the renderable ones", () => {
   assert.ok(!RENDERABLE.has("python"));
 });
 
-test("svg is wrapped to fill its frame; html is passed through", () => {
+test("every rendered document carries the no-network wall; the content survives intact", () => {
+  // Scripts may be granted by run-consent, but the network never is: every
+  // document toDocument produces opens with a CSP that has no connect-src,
+  // no external anything — local-only by physics, not trust.
   const svg = toDocument({ lang: "svg", code: "<svg/>" });
   assert.match(svg, /^<!doctype html>/);
+  assert.ok(svg.includes("Content-Security-Policy"));
+  assert.ok(svg.includes("default-src 'none'"));
   assert.ok(svg.includes("<svg/>"));
-  assert.equal(toDocument({ lang: "html", code: "<p>hi</p>" }), "<p>hi</p>");
+  const html = toDocument({ lang: "html", code: "<p>hi</p>" });
+  assert.ok(html.includes("Content-Security-Policy"));
+  assert.ok(html.endsWith("<p>hi</p>"), "the model's markup is appended after the wall, unmodified");
+});
+
+test("a chart is built from rows without a model, and every figure is the row's own", () => {
+  const seg = chartFrom(
+    [
+      { month: "January", filings: 1144 },
+      { month: "April", filings: 108 },
+    ],
+    {
+      x: { label: "month", get: (r) => r.month },
+      y: { label: "filings", get: (r) => r.filings },
+      title: "Nashville eviction filings, 2020",
+    },
+  );
+  assert.equal(seg.type, "code");
+  assert.equal(seg.lang, "svg");
+  assert.equal(seg.rows, 2);
+  assert.equal(seg.dropped, 0);
+  // Intrinsic size, not just a viewBox: without it the render wrapper's
+  // max-constraints have nothing to hold and the frame draws nothing.
+  assert.match(seg.code, /<svg [^>]*width="\d+" height="\d+"/);
+  // The figures in the markup are the input rows' bytes, nothing invented.
+  assert.ok(seg.code.includes(">1144<"));
+  assert.ok(seg.code.includes(">108<"));
+  assert.ok(seg.code.includes("January"));
+  assert.ok(seg.code.includes("Nashville eviction filings, 2020"));
+});
+
+test("chart bar heights are proportional to the values", () => {
+  const seg = chartFrom(
+    [{ x: "a", y: 100 }, { x: "b", y: 50 }],
+    { x: { label: "x", get: (r) => r.x }, y: { label: "y", get: (r) => r.y } },
+  );
+  // Bars only — the background rect carries a height too, but not the bar fill.
+  const heights = [...seg.code.matchAll(/<rect [^>]*height="([\d.]+)" fill="var\(--accent\)"/g)].map((m) => Number(m[1]));
+  assert.equal(heights.length, 2);
+  assert.ok(Math.abs(heights[0] - 2 * heights[1]) < 0.2, `expected 2:1, got ${heights}`);
+});
+
+test("a non-numeric row is dropped and counted, never drawn as NaN", () => {
+  const seg = chartFrom(
+    [{ x: "a", y: 10 }, { x: "b", y: "not a number" }],
+    { x: { label: "x", get: (r) => r.x }, y: { label: "y", get: (r) => r.y } },
+  );
+  assert.equal(seg.rows, 1);
+  assert.equal(seg.dropped, 1);
+  assert.ok(!seg.code.includes("NaN"));
+});
+
+test("an all-zero series draws baselines, not NaN geometry", () => {
+  const seg = chartFrom(
+    [{ x: "a", y: 0 }, { x: "b", y: 0 }],
+    { x: { label: "x", get: (r) => r.x }, y: { label: "y", get: (r) => r.y } },
+  );
+  assert.ok(!seg.code.includes("NaN"));
+  assert.ok(seg.code.includes('height="0.0"'));
+});
+
+test("no rows yields an empty chart segment, and markup in labels is escaped", () => {
+  const empty = chartFrom([], { x: { label: "x", get: (r) => r.x }, y: { label: "y", get: (r) => r.y } });
+  assert.equal(empty.rows, 0);
+  assert.equal(empty.code, "");
+  const seg = chartFrom(
+    [{ x: '<script>"hi"</script>', y: 5 }],
+    { x: { label: "x", get: (r) => r.x }, y: { label: "y", get: (r) => r.y }, title: "a & b" },
+  );
+  assert.ok(!seg.code.includes("<script>"));
+  assert.ok(seg.code.includes("&lt;script&gt;"));
+  assert.ok(seg.code.includes("a &amp; b"));
 });
 
 test("prose, table, and code interleave in order", () => {
@@ -127,4 +203,16 @@ test("prose, table, and code interleave in order", () => {
     segs.map((s) => s.type),
     ["prose", "table", "prose", "code", "prose"],
   );
+});
+
+test("a built chart carries its own three-state theme, not the page's variables", () => {
+  // A sandboxed frame cannot read index.html's custom properties, and a
+  // downloaded .svg has no page at all — so the palette rides along.
+  const seg = chartFrom([{ x: "a", y: 1 }], {
+    x: { label: "x", get: (r) => r.x },
+    y: { label: "y", get: (r) => r.y },
+  });
+  assert.ok(seg.code.includes("prefers-color-scheme"));
+  assert.ok(seg.code.includes('[data-theme="dark"]'));
+  assert.ok(seg.code.includes("var(--bg)"), "it paints its own ground");
 });

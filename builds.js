@@ -158,10 +158,12 @@ export function fileFor(slug, hash, lang) {
  * The mechanical anchor that routes new model code onto an existing build:
  * "revision to build 3" means the addendum extends build 3's log, not a new
  * one. Numbers only — nothing the model could phrase as intent is trusted;
- * the number IS the reference.
+ * the number IS the reference. "fold 3" is the same address in the panel's
+ * visible vocabulary (builds are Folds in every rendered word), so both
+ * spellings resolve.
  */
 export function referencedBuild(text) {
-  const m = String(text ?? "").match(/\bbuild\s+#?(\d+)\b/i);
+  const m = String(text ?? "").match(/\b(?:build|fold)\s+#?(\d+)\b/i);
   return m ? { n: Number(m[1]) } : null;
 }
 

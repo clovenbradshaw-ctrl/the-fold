@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@viselect/vanilla": "^3.9.0",
-    "monaco-editor": "^0.56.0"
+    "monaco-editor": "^0.56.0",
+    "pyodide": "^314.0.3",
+    "sql.js": "^1.14.2"
   }
 }

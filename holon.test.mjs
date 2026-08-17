@@ -438,6 +438,100 @@ test("a fenced code answer survives byte-exact — fences are structure, never f
   assert.equal(framed.output, code, "framing prefix is CUT from the raw text; the code after it is byte-exact");
 });
 
+// ── the reproduction detector's fold, and its measure ───────────────────────
+//
+// A model does not retype a source's bytes; it retypes its WORDS. Curly
+// quotes come back straight, em dashes come back as hyphens, the ellipsis
+// glyph comes back as three dots, and a comma drifts. The detector's fold
+// must be blind to all of that on BOTH sides or a photocopy reads as an
+// answer (audit 2026-08-16, findings at holon.js:649 and :657).
+const LEDGER = chunkSource(
+  "ledger.txt",
+  [
+    // Curly apostrophe, curly quotation marks, an em dash, an ellipsis glyph
+    // — the typography a source carries and a model does not reproduce.
+    "The harbourmaster’s ledger records the tonnage of every berth, and the clerk kept the margin for his own remarks. “The silting figure was never disputed,” he wrote there — the committee had accepted it in March, and nobody reopened it afterwards. The audit is finished. The berths reopened in May.",
+    // Dialogue: nine short lines, most of them under any content-token floor.
+    "“Well, and what then?” he asked.\n“Nothing,” said Pierre.\n“He has gone away.”\n“Gone where?”\n“To Moscow, they say.”\n“And the letter?”\n“It was burned.”\n“Burned by whom?”\n“By the count himself.”",
+    "Unrelated paragraph about the town festival, the weather, and the new bakery on the corner of the square.",
+  ].join("\n\n"),
+);
+
+test("a transcription with its typography normalized is still a reproduction", async () => {
+  // The first chunk, retyped: straight quotes for curly, a hyphen for the em
+  // dash, a straight apostrophe, and one comma dropped. Not one word changed.
+  const retyped =
+    "The harbourmaster's ledger records the tonnage of every berth and the clerk kept the margin for his own remarks. \"The silting figure was never disputed,\" he wrote there - the committee had accepted it in March, and nobody reopened it afterwards. The audit is finished. The berths reopened in May.";
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    return retyped;
+  };
+  const result = await runHolonicTask({
+    task: "what does the ledger say about the silting figure?",
+    chunks: LEDGER,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(
+    result.open.some((o) => o.includes("reproduces the material verbatim; it does not answer")),
+    "straightened typography is retyping, not writing",
+  );
+  assert.deepEqual(result.refs, [], "a photocopy earns nothing, however it is typeset");
+  assert.deepEqual(result.channels, []);
+});
+
+test("wholesale transcription of short dialogue is a reproduction", async () => {
+  // Nine short lines behind one lead-in sentence. Under a sentence COUNT the
+  // lines sit in the denominator and can never reach the numerator (each is
+  // under the content-token floor), so the majority cut can never fire — the
+  // whole dialogue face of a novel photocopies past the guard. Character mass
+  // has no such blind spot: what the lines weigh is what they contribute.
+  const dialogue = LEDGER[1].text;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    return `The exchange between the two men runs as follows.\n${dialogue}`;
+  };
+  const result = await runHolonicTask({
+    task: "what passes between the count and Pierre about the letter?",
+    chunks: LEDGER,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(
+    result.open.some((o) => o.includes("reproduces the material verbatim; it does not answer")),
+    "short lines are still the material's words",
+  );
+  assert.deepEqual(result.refs, [], "a photocopy earns nothing, however short its sentences");
+});
+
+test("an original short answer holding two verbatim lines is NOT a reproduction", async () => {
+  // The false-positive guard, and the reason the measure is mass rather than
+  // a floorless sentence count: two of these three sentences ARE the
+  // material's own words ("The audit is finished." / "The berths reopened in
+  // May.") — a count would read 2 of 3 and condemn an answer whose substance
+  // is entirely the model's own. Mass reads what the three sentences actually
+  // weigh, and the original one weighs more than both quotations together.
+  const answer =
+    "The audit is finished. The berths reopened in May. What the ledger will not tell you is why the committee let the silting number stand for so long, and nothing in these pages connects the closure of the berths to that decision.";
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `${answer} [${refs[0] ?? "ledger.txt#0-1"}]`;
+  };
+  const result = await runHolonicTask({
+    task: "what does the ledger not tell you about the silting decision?",
+    chunks: LEDGER,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(
+    !result.open.some((o) => o.includes("reproduces the material")),
+    "an answer that answers is not a photocopy",
+  );
+  assert.ok(!result.open.some((o) => o.includes("restates the prompt")));
+  assert.ok(result.refs.length >= 1, "and it keeps the warrant it earned");
+});
+
 test("a plan that fails to parse is itself a typed gap", async () => {
   const call = async (messages) =>
     messages[0].content === PLAN_SYSTEM_PROMPT

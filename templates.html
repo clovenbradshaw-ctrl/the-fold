@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Fold · surfaces</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'><path d='M3 18 L8.5 4 L11 4 L5.5 18 Z' fill='%236d28d9'/><path d='M8.5 18 L14 4 L16 4 L10.5 18 Z' fill='%236d28d9' opacity='0.55'/><path d='M14 18 L19.5 4 L21 4 L15.5 18 Z' fill='%236d28d9' opacity='0.25'/></svg>" />
+    <!-- Pre-paint: the stored choice is stamped before first paint, so a
+         reader who chose light never sees a dark flash. Same three states the
+         app uses — unset follows the system, an explicit choice wins. -->
+    <script>
+      (() => {
+        const t = localStorage.getItem("the-fold.theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <!-- No webfonts, no CDN, nothing remote: same wall as the app (P1). -->
+    <style>
+      :root {
+        --bg: #ffffff; --panel: #ffffff; --ink: #111113; --muted: #5f5f68;
+        --line: #dcdce3; --accent: #6d28d9; --accent-soft: #f3eeff; --warn: #b42318;
+        --sans: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --bg: #0f0f12; --panel: #15151a; --ink: #ecebf0; --muted: #9b9aa5;
+          --line: #2b2b34; --accent: #a78bfa; --accent-soft: #1e1932; --warn: #f0857a;
+        }
+      }
+      :root[data-theme="dark"] {
+        --bg: #0f0f12; --panel: #15151a; --ink: #ecebf0; --muted: #9b9aa5;
+        --line: #2b2b34; --accent: #a78bfa; --accent-soft: #1e1932; --warn: #f0857a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--ink);
+        font: 400 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased;
+      }
+      header {
+        display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+        padding: 16px 28px; border-bottom: 1px solid var(--line); background: var(--panel);
+        position: sticky; top: 0; z-index: 5;
+      }
+      h1.logo { display: inline-flex; align-items: center; gap: 9px; margin: 0; font-size: 17px; }
+      .wordmark { font-weight: 300; letter-spacing: .01em; color: var(--muted); }
+      .wordmark b { font-weight: 750; letter-spacing: -.02em; color: var(--accent); }
+      .tag { color: var(--muted); font-size: 13px; }
+      .spacer { flex: 1; }
+      button {
+        font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line);
+        border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 12.5px;
+      }
+      button:hover { border-color: var(--accent); }
+      main { max-width: 1180px; margin: 0 auto; padding: 28px; }
+      .lede { max-width: 66ch; color: var(--muted); font-size: 14.5px; }
+      .lede b { color: var(--ink); font-weight: 600; }
+      h2 {
+        font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+        color: var(--muted); margin: 40px 0 4px; font-weight: 600;
+      }
+      h2 + p { margin-top: 0; color: var(--muted); font-size: 13.5px; max-width: 66ch; }
+      .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); margin-top: 18px; }
+      .card { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; display: flex; flex-direction: column; }
+      .card > .head { padding: 13px 16px 11px; border-bottom: 1px solid var(--line); }
+      .plain { font-size: 15px; font-weight: 650; }
+      .cell { font-family: var(--mono); font-size: 10.5px; color: var(--accent); margin-top: 2px; }
+      .blind { font-size: 12px; color: var(--muted); margin-top: 5px; }
+      .blind b { color: var(--warn); font-weight: 600; }
+      .frame { padding: 10px 12px; }
+      iframe { width: 100%; border: 0; display: block; background: transparent; }
+      details { border-top: 1px solid var(--line); }
+      summary {
+        cursor: pointer; padding: 8px 16px; font-size: 11px; color: var(--muted);
+        letter-spacing: .07em; text-transform: uppercase; list-style: none;
+      }
+      summary::-webkit-details-marker { display: none; }
+      summary:hover { color: var(--accent); }
+      pre { margin: 0; padding: 0 16px 14px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); overflow-x: auto; }
+      table { border-collapse: collapse; width: 100%; margin-top: 14px; font-size: 13.5px; }
+      th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+      td.native { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
+      td .note { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+      .cover { margin-top: 14px; font-size: 13px; color: var(--muted); }
+      footer { border-top: 1px solid var(--line); margin-top: 48px; padding: 22px 28px 60px; color: var(--muted); font-size: 12.5px; }
+      .wide { grid-column: 1 / -1; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 class="logo">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+          <path d="M3 18 L8.5 4 L11 4 L5.5 18 Z" fill="var(--accent)" />
+          <path d="M8.5 18 L14 4 L16 4 L10.5 18 Z" fill="var(--accent)" opacity="0.55" />
+          <path d="M14 18 L19.5 4 L21 4 L15.5 18 Z" fill="var(--accent)" opacity="0.25" />
+        </svg>
+        <span class="wordmark">the<b>fold</b></span>
+      </h1>
+      <span class="tag">surfaces — the nine ways to show data</span>
+      <span class="spacer"></span>
+      <button id="theme">◐ system</button>
+    </header>
+
+    <main>
+      <p class="lede">
+        Every representation has one <b>native terrain</b> — the single cell its
+        structure is built to hold — and the catalog is closed at nine. A
+        spreadsheet, a graph, a legend and an EKG strip are not four interface
+        choices; they are four terrains wearing pixels. Real screens are
+        composites; these are the atoms. Each surface below is built
+        mechanically from data — no model types a figure — and each says what
+        it is <b>blind to</b>, because a surface that cannot name what it misses
+        invites being mistaken for the whole.
+      </p>
+
+      <h2>The nine surfaces</h2>
+      <p>Drawn from real material: Nashville eviction filings by month, 2020.</p>
+      <div class="grid" id="nine"></div>
+
+      <h2>The familiar forms, placed</h2>
+      <p>
+        Every chart type you already use is one of the nine wearing its common
+        name. Two placements below are deliberately counter-intuitive and are
+        pinned by tests.
+      </p>
+      <table id="forms">
+        <thead><tr><th>Form</th><th>Native surface</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="cover" id="coverage"></p>
+    </main>
+
+    <footer>
+      Built from <code>templates.js</code> — pure, tested, no model call, no
+      network. The grid itself lives in the legend above, never on the
+      interface: surfaces reveal themselves.
+    </footer>
+
+    <script type="module">
+      import { toDocument } from "./artifact.js";
+      import {
+        FORMS,
+        coverage,
+        edgeChips,
+        emptyFrame,
+        histogram,
+        networkGraph,
+        rawLayout,
+        recordCard,
+        savedView,
+        taxonomy,
+        terrainLegend,
+        trace,
+      } from "./templates.js";
+      import { chartFrom } from "./artifact.js";
+
+      // The material: the real 2020 series, and the aggregate the file itself
+      // yields. Nothing here is illustrative — these are the bytes the chat
+      // charted, so the templates are shown holding real weight.
+      const MONTHS = [
+        ["January", 1144], ["February", 930], ["March", 613], ["April", 108],
+        ["May", 132], ["June", 351], ["July", 234], ["August", 319],
+        ["September", 643], ["October", 569], ["November", 409], ["December", 705],
+      ];
+      const rows = MONTHS.map(([month, filings]) => ({ month, filings }));
+
+      const CARDS = [
+        {
+          seg: emptyFrame(["month", "filings", "tract"], {
+            title: "nothing matched",
+            asked: "filings in 2019 — before the file begins",
+          }),
+          call: `emptyFrame(["month","filings","tract"], {\n  asked: "filings in 2019 — before the file begins"\n})`,
+        },
+        {
+          seg: recordCard(rows[3], [
+            { label: "month", get: (r) => r.month },
+            { label: "filings", get: (r) => r.filings },
+            { label: "against baseline", get: () => "−81%" },
+          ], { title: "April 2020", address: "monthly-totals-2020.csv#48-60" }),
+          call: `recordCard(row, fields, {\n  title: "April 2020",\n  address: "monthly-totals-2020.csv#48-60"\n})`,
+        },
+        {
+          seg: taxonomy(
+            [
+              { name: "Other", n: 30948 }, { name: "White", n: 24108 },
+              { name: "Black", n: 13174 }, { name: "Hispanic", n: 1117 },
+            ],
+            { title: "filings by tract majority", label: "category", of: "filing" },
+          ),
+          call: `taxonomy(groups, {\n  title: "filings by tract majority"\n})`,
+        },
+        {
+          seg: rawLayout(
+            "type,GEOID,racial_majority,month,filings_2020\nCensus Tract,47037010103,White,04/2020,1\nCensus Tract,47037010104,Black,04/2020,3",
+            [{ start: 62, end: 73, label: "the address the chart cites" }],
+            { name: "monthly-totals-2020.csv" },
+          ),
+          call: `rawLayout(text, [{ start: 62, end: 73 }], {\n  name: "monthly-totals-2020.csv"\n})`,
+        },
+        {
+          seg: edgeChips([
+            { from: "April 2020", verb: "coincides with", to: "CDC moratorium", ref: "orders.txt#0-88" },
+            { from: "April 2020", verb: "caused by", to: "the moratorium" },
+          ], { title: "what binds to what" }),
+          call: `edgeChips(edges)  // the second has no address,\n// so it draws as never bound`,
+        },
+        {
+          seg: networkGraph(
+            ["January", "April", "September", "December", "moratorium", "backlog"],
+            [
+              { from: "January", to: "April", weight: 2 },
+              { from: "April", to: "moratorium", weight: 3 },
+              { from: "moratorium", to: "September", weight: 2 },
+              { from: "September", to: "backlog", weight: 1 },
+              { from: "backlog", to: "December", weight: 2 },
+            ],
+            { title: "the graph", asOf: "stage 5 of 5" },
+          ),
+          call: `networkGraph(nodes, edges, { asOf: "stage 5 of 5" })`,
+        },
+        {
+          seg: trace(MONTHS.map(([, n]) => n), {
+            title: "filings, month over month",
+            rezero: [3],
+            baselineWindow: 3,
+          }),
+          call: `trace(values, {\n  rezero: [3],        // April: the moratorium\n  baselineWindow: 3\n})`,
+        },
+        {
+          seg: savedView(
+            chartFrom(rows, {
+              x: { label: "month", get: (r) => r.month },
+              y: { label: "filings", get: (r) => r.filings },
+              title: "Nashville eviction filings, 2020",
+            }),
+            {
+              claim: "Filings collapsed in April and never fully returned in 2020.",
+              filter: "2020 only · all tracts · unweighted",
+              source: "monthly-totals-2020.csv",
+            },
+          ),
+          call: `savedView(chartFrom(rows, spec), {\n  claim: "Filings collapsed in April…",\n  filter: "2020 only · all tracts · unweighted"\n})`,
+          wide: true,
+        },
+        {
+          seg: terrainLegend(),
+          call: `terrainLegend()  // the canon, backstage, on request`,
+          wide: true,
+        },
+      ];
+
+      const nine = document.getElementById("nine");
+      for (const { seg, call, wide } of CARDS) {
+        const card = document.createElement("article");
+        card.className = "card" + (wide ? " wide" : "");
+        const head = document.createElement("div");
+        head.className = "head";
+        head.innerHTML =
+          `<div class="plain"></div><div class="cell"></div>` +
+          `<div class="blind">blind to <b></b></div>`;
+        head.querySelector(".plain").textContent = seg.plain;
+        head.querySelector(".cell").textContent = `${seg.terrain} · ${seg.cell}`;
+        head.querySelector(".blind b").textContent = seg.blindTo;
+        card.append(head);
+
+        const frame = document.createElement("div");
+        frame.className = "frame";
+        const f = document.createElement("iframe");
+        // allow-same-origin and NOTHING else: no scripts run (the sandbox
+        // withholds them), and the parent can measure the laid-out height so
+        // a card fits its content instead of guessing.
+        f.setAttribute("sandbox", "allow-same-origin");
+        f.srcdoc = toDocument(seg);
+        const size = () => {
+          const d = f.contentDocument;
+          if (!d) return;
+          // An SVG artifact is wrapped in a full-height centring page, so its
+          // scrollHeight is the viewport's, not the drawing's — its viewBox is
+          // the honest measure. An HTML artifact must be measured by its body
+          // instead: a saved view CONTAINS an svg but is taller than it, and
+          // sizing to the inner ratio clipped its claim line (seen live).
+          const vb = (seg.lang ?? "svg") === "svg"
+            ? d.querySelector("svg")?.getAttribute("viewBox")?.split(/\s+/).map(Number)
+            : null;
+          f.style.height =
+            vb && vb.length === 4 && vb[2]
+              ? Math.ceil(f.clientWidth * (vb[3] / vb[2])) + "px"
+              : Math.ceil(d.body.scrollHeight) + 6 + "px";
+        };
+        f.onload = size;
+        // A card's width changes with the grid, and a fixed pixel height set
+        // at load would then be wrong at every other viewport.
+        new ResizeObserver(size).observe(frame);
+        frame.append(f);
+        card.append(frame);
+
+        const det = document.createElement("details");
+        const sum = document.createElement("summary");
+        sum.textContent = "the call that built it";
+        const pre = document.createElement("pre");
+        pre.textContent = call;
+        det.append(sum, pre);
+        card.append(det);
+        nine.append(card);
+      }
+
+      const tbody = document.querySelector("#forms tbody");
+      for (const f of FORMS) {
+        const tr = document.createElement("tr");
+        const a = document.createElement("td");
+        a.textContent = f.form;
+        if (f.note) {
+          const n = document.createElement("span");
+          n.className = "note";
+          n.textContent = f.note;
+          a.append(n);
+        }
+        const b = document.createElement("td");
+        b.className = "native";
+        b.textContent = f.native;
+        tr.append(a, b);
+        tbody.append(tr);
+      }
+
+      const cov = coverage(CARDS.map((c) => c.seg));
+      document.getElementById("coverage").textContent = cov.missing.length
+        ? `This page reaches ${cov.used.length} of the nine. Never drawn here: ${cov.missing.join(", ")}.`
+        : `This page reaches all nine surfaces: ${cov.used.join(", ")}.`;
+
+      // The three-state theme, cycled: system → light → dark.
+      const btn = document.getElementById("theme");
+      const label = () => {
+        const t = document.documentElement.dataset.theme;
+        btn.textContent = t === "light" ? "☀ light" : t === "dark" ? "☾ dark" : "◐ system";
+      };
+      btn.onclick = () => {
+        const t = document.documentElement.dataset.theme;
+        if (!t) {
+          document.documentElement.dataset.theme = "light";
+          localStorage.setItem("the-fold.theme", "light");
+        } else if (t === "light") {
+          document.documentElement.dataset.theme = "dark";
+          localStorage.setItem("the-fold.theme", "dark");
+        } else {
+          delete document.documentElement.dataset.theme;
+          localStorage.removeItem("the-fold.theme");
+        }
+        label();
+        // The frames carry their own theme block, so they must be re-stamped
+        // to follow an explicit choice rather than the system.
+        for (const f of document.querySelectorAll("iframe")) {
+          const d = f.contentDocument;
+          if (!d) continue;
+          const t2 = document.documentElement.dataset.theme;
+          if (t2) d.documentElement.dataset.theme = t2;
+          else delete d.documentElement.dataset.theme;
+        }
+      };
+      label();
+    </script>
+  </body>
+</html>

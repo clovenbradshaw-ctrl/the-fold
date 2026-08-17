@@ -30,12 +30,26 @@
 //               what it is — a fabricated quotation — flagged on the
 //               record's unsupported list, where it drives the same
 //               bounded correction as an invented figure.
+//   partial   — an ellipsis quotation whose SHOWN segments are not all in
+//               the bytes: some located, at least one nowhere. Elision is
+//               legitimate — a quotation may skip material — but every
+//               segment it shows asserts "these exact words are in the
+//               source," so one segment located nowhere makes the whole
+//               quotation not verbatim, and fabricated. It is a finding,
+//               not a disclosure: it drives the same bounded correction as
+//               `unlocated`, naming WHICH segment failed, and it never
+//               earns an inline address. The located half is not a warrant
+//               for the invented half — that stamp was the false-warrant
+//               class this module exists to refuse (audit 2026-08-16).
 //
 // Plus one disclosure status: `outside-offer` — the quotation IS real, but
 // lives in a live chunk the turn was not offered. It is not invention and
 // not support; it is the model quoting past its evidence, typed as an open
 // entry, never silently endorsed with an address (checkCitations would
-// rightly refuse a ref the turn was never given).
+// rightly refuse a ref the turn was never given). Fabrication outranks it:
+// a quotation holding both an unoffered segment and an invented one is
+// `partial`, because a disclosure must never file an invention away as
+// merely "quoted past your evidence."
 //
 // The lineage note: eochatX's citation-check carried "citation snippeting"
 // and a "did you mean" corrector, left behind then as unearned complexity
@@ -190,8 +204,11 @@ function locateSegment(prepared, segment) {
  * `outside-offer` — real words, wrong warrant — instead of `unlocated`.
  *
  * Returns { examined, quotes } where each quote is
- *   { text, start, end, closeAt, status, segments, alreadyCited }
+ *   { text, start, end, closeAt, status, segments, missingSegments,
+ *     unlocatedSegments, alreadyCited }
  * and status ∈ verbatim | drifted | partial | outside-offer | unlocated.
+ * `missingSegments` holds the shown segments that are in no material at
+ * all — the words the reader has to be told about by name.
  */
 export function verifyQuotes(answer, offered, { pool = null, minWords = MIN_QUOTE_WORDS } = {}) {
   const spans = extractQuotedSpans(answer, { minWords });
@@ -205,7 +222,7 @@ export function verifyQuotes(answer, offered, { pool = null, minWords = MIN_QUOT
 
   const quotes = spans.map((span) => {
     const located = [];
-    let missing = 0;
+    const missing = [];
     let inPoolOnly = 0;
     for (const seg of span.segments) {
       const hit = locateSegment(preparedOffer, seg);
@@ -217,19 +234,24 @@ export function verifyQuotes(answer, offered, { pool = null, minWords = MIN_QUOT
       if (poolHit) {
         located.push({ ...poolHit, outsideOffer: true });
         inPoolOnly++;
-      } else missing++;
+      } else missing.push(seg);
     }
+    // Fabrication first, and nothing outranks it: a segment that is in no
+    // material at all is invention, and invention decides the quotation's
+    // verdict however much of the rest is real. Reading `inPoolOnly` first
+    // filed such a quotation as a disclosure and lost the invention.
     let status;
     if (!located.length) status = "unlocated";
+    else if (missing.length) status = "partial";
     else if (inPoolOnly) status = "outside-offer";
-    else if (missing) status = "partial";
     else if (located.some((l) => l.drifted)) status = "drifted";
     else status = "verbatim";
     return {
       ...quoteShape(span),
       status,
       segments: located,
-      unlocatedSegments: missing,
+      missingSegments: missing,
+      unlocatedSegments: missing.length,
       alreadyCited: ADDRESS_NEAR.test(s.slice(span.closeAt + 1, span.closeAt + 1 + CITED_LOOKAHEAD)),
     };
   });
@@ -252,9 +274,10 @@ const quoteShape = (span) => ({
  *
  * Idempotent by construction: a quote already byte-true is not touched, an
  * address already present is not doubled — running this twice is running
- * it once. `outside-offer` quotes are backported (real words should still
- * be the source's bytes) but never given an inline address: an address is
- * a warrant, and the turn was not given that material.
+ * it once. `outside-offer` and `partial` quotes are backported (whatever
+ * words are real should still be the source's bytes) but never given an
+ * inline address: an address is a warrant, and neither material the turn
+ * was not given nor a quotation half of which was invented has earned one.
  */
 export function applyQuotes(answer, report) {
   let out = String(answer ?? "");
@@ -292,10 +315,16 @@ export function applyQuotes(answer, report) {
     let replacement = content;
     let tail = "";
     // The address, appended after the closing mark — only for quotes whose
-    // every located segment sits in the offer, and only when no address is
-    // already there.
+    // every SHOWN segment sits in the offer, and only when no address is
+    // already there. The gate is a whitelist, not a blacklist: a warrant is
+    // granted to the two verdicts that mean "the whole quotation is in the
+    // offered bytes," never withheld from a list of known bad ones. The
+    // blacklist form (`status !== "outside-offer"`) let `partial` through —
+    // the located half handed its chunk address to a quotation whose other
+    // half was invented — and would let any later status through too.
     const refs = [...new Set(q.segments.filter((s) => !s.outsideOffer && s.ref).map((s) => s.ref))];
-    if (refs.length && !q.alreadyCited && q.status !== "outside-offer") {
+    const wholeInOffer = q.status === "verbatim" || q.status === "drifted";
+    if (refs.length && !q.alreadyCited && wholeInOffer) {
       tail = " " + refs.map((r) => `[${r}]`).join(" ");
       cited.push(...refs);
     }
@@ -304,12 +333,23 @@ export function applyQuotes(answer, report) {
   return { text: out, corrections, cited: [...new Set(cited)] };
 }
 
-/** The findings for a record's unsupported list: fabricated quotations
- * only. outside-offer is an open entry (quoteOpens), not an accusation. */
+/** The findings for a record's unsupported list: fabricated quotations —
+ * wholly (`unlocated`) or in part (`partial`). A partly fabricated
+ * quotation is reported one line PER invented segment, naming the words
+ * that are in no material, because "which segment failed" is the fact the
+ * reader and the correction prompt can both act on. outside-offer is an
+ * open entry (quoteOpens), not an accusation. */
 export function quoteFindings(report) {
-  return (report?.quotes ?? [])
-    .filter((q) => q.status === "unlocated")
-    .map((q) => `quotation not found in the material: “${clip(q.text)}”`);
+  return (report?.quotes ?? []).flatMap((q) => {
+    if (q.status === "unlocated") return [`quotation not found in the material: “${clip(q.text)}”`];
+    if (q.status === "partial")
+      return (q.missingSegments ?? []).map(
+        (seg) =>
+          `quotation segment not found in the material: “${clip(seg)}” ` +
+          `(shown inside the quotation “${clip(q.text)}”)`,
+      );
+    return [];
+  });
 }
 
 /** Typed open entries: real quotations from material the turn was not

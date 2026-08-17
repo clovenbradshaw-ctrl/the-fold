@@ -122,6 +122,10 @@ const MIME = {
   ".md": "text/markdown; charset=utf-8",
   ".csv": "text/csv; charset=utf-8",
   ".tsv": "text/tab-separated-values; charset=utf-8",
+  // The sandboxed terminal's runtimes (pyodide, sql.js) are wasm, vendored
+  // and served from here too — this server also serves the chat page whole.
+  ".wasm": "application/wasm",
+  ".zip": "application/zip",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",

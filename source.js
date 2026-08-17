@@ -43,6 +43,61 @@ export function foldDiacritics(s) {
     .replace(/[̀-ͯ]/g, "");
 }
 
+/**
+ * A text reduced to its WORDS AND ITS STOPS: diacritics folded, case folded,
+ * every sentence-terminal run collapsed to one canonical stop, and every
+ * other mark — typesetting rather than vocabulary — reduced to a word
+ * boundary. Letters and numbers of any script survive; nothing else does.
+ *
+ * This exists because a model does not retype a source's BYTES, it retypes
+ * its WORDS. The bytes of a book carry curly quotation marks, curly
+ * apostrophes, em and en dashes and the ellipsis glyph; a model's retyping of
+ * the same passage carries straight quotes, hyphens, three dots, and a comma
+ * that drifted. Measured on War and Peace (audit 2026-08-16): a full
+ * transcription of a chunk read as reproduction byte-exact and as clean prose
+ * once its punctuation was straightened — across a third of the corpus, and
+ * dropping the commas alone was enough on its own. A fold that stops at
+ * diacritics therefore lets a photocopy pass as an answer, which is P11's own
+ * lesson (one fold, applied to BOTH sides of every containment) arriving one
+ * drift class later.
+ *
+ * The stop is the one mark that is NOT typesetting, and it is kept
+ * deliberately. Where a source's sentence ENDS is the source's own structure,
+ * and reproducing that boundary is what separates transcribing a passage from
+ * extracting a clause out of one: an answer that lifts "Dredging of the
+ * channel runs through March" and stops where the source does not has
+ * selected something; an answer that runs to the source's full stop and halts
+ * there has copied. Both readings are already pinned in holon.test.mjs, one
+ * in each direction, and both survive this fold — which a blanket
+ * punctuation strip does not (it condemns the extraction).
+ *
+ * The word rule is not invented here: `\p{L}\p{N}` is exactly the boundary
+ * grounding.js's containment index already splits on, so the two organs read
+ * "the same words" the same way. Unicode classes, not `[a-z0-9]`, because a
+ * Cyrillic or CJK corpus must fold to its words and not to nothing — a fold
+ * that silently emptied on another script would make the checks that use it
+ * go blind rather than wrong, which is worse (II.13's own scar).
+ *
+ * Distinct from quotes.js's `normalizedIndex`, deliberately: that fold must
+ * keep a map back to the original characters (it addresses bytes) and must
+ * keep the difference between "byte equal" and "found under the fold" — that
+ * difference IS its verbatim/drifted verdict. This one answers a coarser
+ * question, "are these the source's words, in the source's order, to the
+ * source's own stops", and can afford to shed everything else. Both stand on
+ * foldDiacritics; neither is a second fold of the first's job.
+ */
+export function foldTypography(s) {
+  return foldDiacritics(s)
+    .toLowerCase()
+    // One canonical stop, however the source or the retyping spelled it —
+    // "…" and "..." are the same end of the same sentence.
+    .replace(/[.!?…]+/g, " . ")
+    // Everything else that is not a letter, a number, or a stop is a boundary.
+    .replace(/[^\p{L}\p{N}.]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function tokenize(text) {
   return foldDiacritics(text)
     .toLowerCase()

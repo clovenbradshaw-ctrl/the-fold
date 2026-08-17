@@ -3751,8 +3751,6 @@ function openAttachSheet(focus = null) {
     if (name === focus) n.onclick();
     list.append(row);
   }
-<<<<<<< HEAD
-=======
 
   // Binary material rides below the text attachments in the same sheet: no
   // checkbox, because the mute is a retrieval concept and bytes are never
@@ -3773,7 +3771,6 @@ function openAttachSheet(focus = null) {
     row.append(line);
     list.append(row);
   }
->>>>>>> origin/main
   $("attach-sheet").showModal();
 }
 

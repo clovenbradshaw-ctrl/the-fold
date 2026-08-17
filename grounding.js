@@ -443,17 +443,25 @@ const ADDRESS = /\[?[^\s\]]+#\d+-\d+\]?/g;
 
 /**
  * The answer with its structure blanked, length preserved: headings,
- * line-initial bold labels, and bracketed addresses are the model's own
- * scaffolding, not claims (the measured cases live in checkGrounding's
- * comment below). Exported because every organ that reads CLAIMS out of an
- * answer must skip the same furniture — the relation tier (hypergraph.js)
- * shares this, or a Title-Case heading would read as a subject and a byte
- * address as a figure. Length-preserving so every offset an extractor
- * reports lands in the original answer's own coordinate space.
+ * line-initial bold labels, bracketed addresses, and fenced code blocks are
+ * the model's own scaffolding, not claims (the measured cases live in
+ * checkGrounding's comment below). Exported because every organ that reads
+ * CLAIMS out of an answer must skip the same furniture — the relation tier
+ * (hypergraph.js) shares this, or a Title-Case heading would read as a
+ * subject and a byte address as a figure. Length-preserving so every offset
+ * an extractor reports lands in the original answer's own coordinate space.
+ *
+ * A fenced code block is a program, not an assertion about the world:
+ * measured live (2026-08-17), a widget's own `<!DOCTYPE html>` and
+ * `getElementById` were flagged as unsupported claims and sent to the web
+ * tier for "corroboration" — DOCTYPE is not a fact anyone could state or
+ * contradict. Blanked whole, fence lines included, so the language tag on
+ * the opening fence cannot itself read as a claim either.
  */
 export function blankStructure(answer) {
   const blank = (m) => " ".repeat(m.length);
   return String(answer)
+    .replace(/^[ \t]*```[^\n]*\n[\s\S]*?^[ \t]*```[ \t]*$/gm, blank)
     .replace(/^[ \t]*#{1,6}[^\n]*$/gm, blank)
     .replace(/^[ \t]*\*\*[^\n*]+\*\*[ \t]*:?[ \t]*$/gm, blank)
     // A line-initial bold phrase with a colon is a heading even when prose

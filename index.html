@@ -409,6 +409,30 @@
         white-space: nowrap;
       }
 
+      /* A build's append-only log, surfaced git-style: each addendum is a
+         short hash, its verb, the message it carried, and the line delta. */
+      .build-log { margin: 6px 0 0; }
+      .build-log summary {
+        cursor: pointer;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 2px 0;
+      }
+      .build-loglines {
+        padding: 4px 0 0 10px;
+        border-left: 2px solid var(--line);
+      }
+      .build-logline {
+        margin: 2px 0;
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--muted);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
       /* The editor: a build opened at working width, VS Code-ish. Zero
          dependencies — a gutter of line numbers over a monospace textarea. */
       #pane-editor {
@@ -968,10 +992,12 @@
           <div class="pane on" id="pane-builds">
             <h2>Builds <span id="builds-count" class="tag"></span></h2>
             <p class="note">
-              Output that isn't prose, spun up at full size instead of squeezed
-              into the conversation. Code builds open in the editor and run.
-              Whatever a turn produced — a table it wrote, a table this app
-              computed, code, a page — is here, newest first.
+              Code leaves the conversation entirely: the model appends an
+              addendum to a build's append-only log, the projected code file
+              lands in materials/, and the chat keeps a handle to it. The log
+              is the record; the file is a view of it. Tables, pages, and
+              everything else that is not prose lands here at full size.
+              Newest first.
             </p>
             <div id="builds-list">
               <p class="empty">Nothing but prose so far.</p>

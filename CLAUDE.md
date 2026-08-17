@@ -494,3 +494,55 @@ the run budget guards await points, and a synchronous spin inside a body is
 the one hole it does not cover (the compile step alone runs under a vm
 timeout); free string slots are never filled mechanically because there is
 no unambiguous mechanical reading of "which words are the value."
+
+## The build log — code as a projection of an append-only record (added 2026-08-16, third pass)
+
+Code never appears in the chat as a block. It is deposited as an ADDENDUM to a
+build's append-only log, and the code file in `materials/` is PROJECTED from
+that log — the way a working tree is checked out from git history. The log is
+the record; the file is a view of it.
+
+**Files.** `builds.js` (pure: the vocabulary of addenda, the hash, the
+projection, the diff, the anchor that routes new code onto an existing build);
+`builds.test.mjs` (13 conformance tests — sealed chained hashes, projection
+from head alone, reset re-projects deposit, the anchor reads only the number);
+`serve.mjs` (`POST /api/builds/log` and `GET /api/builds/<slug>` — the server
+owns the record: it stamps the time, writes `record/builds/<slug>.jsonl`,
+projects the content-addressed file into `materials/`, and best-effort tells
+Explore about the deposit so it surfaces in "My files" on the first deposit
+only; `app.js` — the chat emits prose plus a compact `▤ build N · file.py · N
+addenda` handle; the Builds pane shows the git-style log and the "file" button
+opens the projection in Explore).
+
+**The addendum vocabulary.** deposit (the model first produced this code;
+the seed), revision (the model produced new code for an existing build —
+routed by `referencedBuild`'s mechanical anchor "build 3"), edit (the operator
+saved in the build editor), reset (the projection returns to the deposit),
+run (the projection was executed; the outcome is the addendum). Each verb
+is declared; the vocabulary is closed.
+
+**The hash.** Every addendum is sealed by `seq`, `prev`, and a SHA-256 `hash`
+over its canonical payload (kind, message, code, lang, author, run, prev). The
+hash is chained — a re-append from the serialized record lines alone
+reproduces the same log, byte-for-byte, the resumption property the skill
+log already proved.
+
+**The projection.** `projectCode(log)` returns the code of the last
+code-bearing addendum. A `revision`, `edit`, or `reset` moves the
+projection; a `run` does not. The file lands at
+`materials/<slug>.<hash8>.<ext>`, content-addressed: every revision is a new
+file and every old one stays on disk like a git object. On deposit only,
+best-effort `POST` to the Explore server adds a library ref so the file
+surfaces in "My files" without anyone browsing for it. Revisions re-project
+but do not re-list — the build's log keeps the history, the file keeps
+the head.
+
+**The chat.** Prose only. Code is a one-line handle to the build; clicking
+it scrolls the Builds pane. The "open file" control in the pane opens the
+projection in Explore.
+
+**Known design choice, not a gap:** `nameFor` takes a filename token with a
+known extension if the model wrote one (the natural thing: "save it as
+countdown.py" lands on `countdown.py`); without one, the first prose line
+slugified, then the server disambiguates a taken name mechanically. A build
+named `build-4.py` is honest — the model did not name it.

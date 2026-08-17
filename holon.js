@@ -621,7 +621,15 @@ export async function runPart({
     "question", "answer", "ask", "asked", "asks", "asking", "reply", "replied",
     "responding", "respond", "referring", "regarding", "concerning", "about",
   ]);
+  // A code fence is STRUCTURE, never framing. Measured live: a Python
+  // answer opened with ```python, whose one surviving token ("python") was
+  // also in the prompt, so the fence read as a restatement — the trim below
+  // dropped the opening fence and the block rendered as flattened prose
+  // with an orphan ``` at the end, and no build was ever made from it.
+  // Structure is not a claim about the prompt and cannot echo it.
+  const FENCE_LINE = /^[ \t]*(?:```|~~~)/;
   const isFraming = (sentence) => {
+    if (FENCE_LINE.test(sentence)) return false;
     const toks = tokenize(sentence);
     return toks.length > 0 && toks.every((w) => questionWords.has(w) || ACT_WORDS.has(w));
   };
@@ -797,7 +805,23 @@ export async function runPart({
     .map((s) => s.trim())
     .filter(Boolean);
   const firstContent = sentences.findIndex((s) => !isFraming(s));
-  const text = firstContent < 0 ? "" : firstContent > 0 ? sentences.slice(firstContent).join(" ") : raw;
+  // Dropping the framing prefix is a CUT, never a rejoin. Rejoining trimmed
+  // sentence pieces with spaces destroyed every newline and indent the
+  // draft had — measured live on a fenced Python block, which arrived at
+  // the page as one flat line. Slicing the raw text at the first content
+  // sentence drops exactly the prefix and leaves the remainder byte-exact.
+  // A sentence that carried an address cannot be located in raw (the
+  // address was stripped before splitting); then nothing is cut, because
+  // shipping the whole draft is always safer than mangling it.
+  const text =
+    firstContent < 0
+      ? ""
+      : firstContent === 0
+        ? raw
+        : (() => {
+            const at = raw.indexOf(sentences[firstContent]);
+            return at >= 0 ? raw.slice(at).trim() : raw;
+          })();
   if (verdict.echoed || verdict.reproduced) {
     check = { ...check, refs: [], used: [], attributed: [], channels: [] };
   }

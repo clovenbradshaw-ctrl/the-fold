@@ -417,6 +417,27 @@ test("a draft that opens by restating the prompt ships without its framing", asy
   assert.ok(result.output.includes("Kessington report"), "the content survives");
 });
 
+test("a fenced code answer survives byte-exact — fences are structure, never framing", async () => {
+  // Measured live: ```python read as framing (its one token was in the
+  // prompt), the opening fence was dropped, and the framing trim's rejoin
+  // flattened every newline — the code arrived as one line with an orphan
+  // fence, and no build could be made from it.
+  const code =
+    "```python\ndef fib(n):\n    a = [0, 1]\n    for i in range(2, n):\n        a.append(a[i-1] + a[i-2])\n    return a\n```";
+  const task = "Write a short Python function returning the first n Fibonacci numbers.";
+
+  const bare = await runHolonicTask({ task, chunks: [], call: async () => code, planMode: "flat" });
+  assert.equal(bare.output, code, "no framing: the draft ships untouched, newlines and all");
+
+  const framed = await runHolonicTask({
+    task,
+    chunks: [],
+    call: async () => `The question is about Fibonacci numbers. ${code}`,
+    planMode: "flat",
+  });
+  assert.equal(framed.output, code, "framing prefix is CUT from the raw text; the code after it is byte-exact");
+});
+
 test("a plan that fails to parse is itself a typed gap", async () => {
   const call = async (messages) =>
     messages[0].content === PLAN_SYSTEM_PROMPT

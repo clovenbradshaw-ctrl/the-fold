@@ -34,6 +34,10 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { foldExtract } from "../eoreader6/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
+// the priors organ's GATE (toggle ledger fold, most-specific-wins
+// resolution, papers via priors.js's one frontmatter reading) — this file
+// owns only the crossings
+import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, papersOf } from "./priors-toggles.js";
 import {
   extractReadable,
   looksLikeChallenge,
@@ -48,6 +52,14 @@ import {
   WEB_ARCHIVE_TIMEOUT_MS,
   WEB_UA,
 } from "./web.js";
+// the primary-source walk's pure half (citations out of a saved wiki face,
+// the claim-ordered ranking, the verbatim snip, the counted fold) — the
+// route below owns only the crossings
+import { extractCitations, rankPrimary, snipClaim, foldPrimary, PRIMARY_SOURCES_CONSULTED, PRIMARY_SNIPS_KEPT } from "./primary.js";
+// the reference-library tier's pure half (provenance frontmatter, mechanical
+// candidate ordering, the snip check, the counted fold) — the route below
+// owns only the reads, confined to the corpus root
+import { parseFrontmatter, readPriorDocument, rankPriorCandidates, checkPrior, foldPriors, PRIORS_DOCS_CONSULTED } from "./priors.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
@@ -77,6 +89,15 @@ const WEB_SETTINGS_PATH = path.join(WEB_DIR, "settings.json");
 const LIBRARY_DIR = path.join(ROOT, "library");
 const LIBRARY_FILES_DIR = path.join(LIBRARY_DIR, "files");
 const LIBRARY_LEDGER_PATH = path.join(LIBRARY_DIR, "library.jsonl");
+// The priors organ — live_priors as toggleable, papers-carrying material.
+// The corpus itself lives one level up (inside the browse root, so every
+// existing read path — raw/peek/source/read — already serves its files);
+// what lives HERE is the toggle ledger: append-only in operation, folded by
+// priors.js, every line also mirrored to the record. priors/ is this
+// server's to write, like library/ — never the corpus itself.
+const PRIORS_ROOT = path.resolve(ROOT, "..", "live_priors");
+const PRIORS_DIR = path.join(ROOT, "priors");
+const PRIORS_LEDGER_PATH = path.join(PRIORS_DIR, "toggles.jsonl");
 
 // ── declared numbers, each with its giver ───────────────────────────────────
 // Tree pages and hex pages are caps on a response, not on the data; every
@@ -107,6 +128,16 @@ const FOLD_BUDGET_SENTENCES = 7;
 // the caps bound one response, and every truncation is counted. Givers:
 // this file, engineering starting points.
 const FIND_SKIP = new Set(["node_modules", ".git", ".next", "dist", "out", "build", ".cache"]);
+// The corpus's own machinery — fetch scripts, similarity code, manifests —
+// is not priors material. A declared rule (live_priors' README draws the
+// same line: the numbered category folders hold the documents); the walk
+// also skips FIND_SKIP and top-level loose files (README, SOURCES.md,
+// package.json — the corpus's papers about itself, not documents in it).
+const PRIORS_SKIP = new Set(["scripts", "src", "manifests"]);
+// One walk visits at most this many entries — same posture as
+// FIND_MAX_VISITED, a cap on a response never on the data, truncation
+// always counted. Giver: this file, engineering starting point.
+const PRIORS_WALK_MAX = 60_000;
 const FIND_MAX_RESULTS = 200;
 const FIND_MAX_VISITED = 60_000;
 const PEEK_CHARS = 400;
@@ -194,6 +225,173 @@ function readRawBody(req, maxBytes) {
   });
 }
 
+// ── the priors organ's I/O half ─────────────────────────────────────────────
+// The pure half (frontmatter parse, ledger fold, most-specific-wins) lives in
+// priors.js and is tested offline; this half owns the ledger file and the
+// corpus walk. Nothing here is ever ingested unasked: the walk lists, the
+// toggle appends, the doc read is one document a request named — and the
+// toggle and the open are record events, the listings are display.
+
+function readPriorToggles() {
+  const jsonl = existsSync(PRIORS_LEDGER_PATH) ? readFileSync(PRIORS_LEDGER_PATH, "utf8") : "";
+  return foldPriorToggles(jsonl);
+}
+
+function appendPriorToggle(entry) {
+  mkdirSync(PRIORS_DIR, { recursive: true });
+  appendFileSync(PRIORS_LEDGER_PATH, JSON.stringify(entry) + "\n");
+}
+
+/** corpus-relative path -> absolute path inside PRIORS_ROOT, or null when it
+ * escapes. "" resolves to the corpus root itself (the everything toggle). */
+function confinePrior(rel) {
+  const clean = normalizePriorPath(rel);
+  if (clean.split("/").some((seg) => seg === "..")) return null;
+  const abs = path.join(PRIORS_ROOT, clean);
+  if (abs !== PRIORS_ROOT && !abs.startsWith(PRIORS_ROOT + path.sep)) return null;
+  return abs;
+}
+
+/**
+ * One pass over the corpus: per-category counts (files, bytes, how many are
+ * in play) and the flat list of enabled documents. Categories are the
+ * top-level folders — the corpus's own genre layer. Machinery (PRIORS_SKIP,
+ * FIND_SKIP, dotfiles, top-level loose files) is out of scope by declared
+ * rule, and the visit cap's truncation is counted, never silent.
+ */
+function walkPriors(byPath) {
+  const categories = new Map();
+  const enabled = [];
+  let files = 0;
+  let visited = 0;
+  let truncated = false;
+  const walk = (dir, rel, category) => {
+    if (visited >= PRIORS_WALK_MAX) {
+      truncated = true;
+      return;
+    }
+    let names;
+    try {
+      names = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of names) {
+      if (++visited >= PRIORS_WALK_MAX) {
+        truncated = true;
+        return;
+      }
+      if (ent.name.startsWith(".")) continue;
+      const abs = path.join(dir, ent.name);
+      const childRel = rel ? `${rel}/${ent.name}` : ent.name;
+      if (ent.isDirectory()) {
+        if (FIND_SKIP.has(ent.name) || (!rel && PRIORS_SKIP.has(ent.name))) continue;
+        walk(abs, childRel, category ?? ent.name);
+        continue;
+      }
+      if (!category) continue; // top-level loose files are the corpus's own papers
+      let st;
+      try {
+        st = statSync(abs);
+      } catch {
+        continue;
+      }
+      files++;
+      const c = categories.get(category) ?? { name: category, files: 0, bytes: 0, enabled: 0 };
+      c.files++;
+      c.bytes += st.size;
+      categories.set(category, c);
+      const eff = effectivePrior(byPath, childRel);
+      if (eff.on) {
+        c.enabled++;
+        enabled.push({ name: ent.name, path: childRel, browsePath: relOf(abs), size: st.size, category, decidedBy: eff.decidedBy });
+      }
+    }
+  };
+  walk(PRIORS_ROOT, "", null);
+  return {
+    categories: [...categories.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    enabled,
+    files,
+    truncated,
+  };
+}
+
+// The reference-library CHECK's listing (POST /api/priors/check): every
+// document beside the title its own head declares, for the mechanical
+// candidate ranking in priors.js::rankPriorCandidates. Scope mirrors
+// walkPriors exactly — FIND_SKIP, PRIORS_SKIP, dotfiles and top-level loose
+// files out by the same declared rule — so the two priors organs see one
+// corpus. Titles come from ONE bounded head read per document, memoized by
+// path·mtime·size (the read-reuse discipline completed reads already use);
+// binary files are skipped because snipping needs a text face.
+const PRIORS_HEAD_BYTES = 4096; // one head read per document for its provenance title; the longest real frontmatter measured (uk legislation) is ~1.6KB — giver: this file, engineering starting point
+const priorsHeads = new Map(); // abs -> { mtimeMs, size, binary, title }
+function listPriorDocuments() {
+  if (!existsSync(PRIORS_ROOT)) return null;
+  const entries = [];
+  let visited = 0;
+  let truncated = false;
+  const walk = (dir, rel, category) => {
+    if (visited >= PRIORS_WALK_MAX) {
+      truncated = true;
+      return;
+    }
+    let names;
+    try {
+      names = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of names) {
+      if (++visited >= PRIORS_WALK_MAX) {
+        truncated = true;
+        return;
+      }
+      if (ent.name.startsWith(".")) continue;
+      if (ent.isSymbolicLink()) continue; // a link may not lead a read outside the corpus
+      const abs = path.join(dir, ent.name);
+      const childRel = rel ? `${rel}/${ent.name}` : ent.name;
+      if (ent.isDirectory()) {
+        if (FIND_SKIP.has(ent.name) || (!rel && PRIORS_SKIP.has(ent.name))) continue;
+        walk(abs, childRel, category ?? ent.name);
+        continue;
+      }
+      if (!category) continue; // top-level loose files are the corpus's papers about itself
+      let st;
+      try {
+        st = statSync(abs);
+      } catch {
+        continue;
+      }
+      let head = priorsHeads.get(abs);
+      if (!head || head.mtimeMs !== st.mtimeMs || head.size !== st.size) {
+        const buf = Buffer.alloc(Math.min(st.size, PRIORS_HEAD_BYTES));
+        if (buf.length) {
+          try {
+            const fd = openSync(abs, "r");
+            try {
+              readSync(fd, buf, 0, buf.length, 0);
+            } finally {
+              closeSync(fd);
+            }
+          } catch {
+            continue;
+          }
+        }
+        const binary = buf.length ? !utf8Probe(buf) : false;
+        head = { mtimeMs: st.mtimeMs, size: st.size, binary, title: binary ? null : parseFrontmatter(buf.toString("utf8")).title };
+        priorsHeads.set(abs, head);
+      }
+      if (head.binary) continue;
+      entries.push({ path: childRel, title: head.title });
+    }
+  };
+  walk(PRIORS_ROOT, "", null);
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { entries, truncated };
+}
+
 // ── the web organ's I/O half ────────────────────────────────────────────────
 // The pure half (extraction, parsing, the history fold) lives in web.js and
 // is tested offline; this half is the P13 egress itself. Three destinations
@@ -256,6 +454,88 @@ async function archivePage(id, url) {
     appendWebHistory({ id, archive: { status: "failed", detail: e.message, at: new Date().toISOString() } });
     record("web-archive-error", { id, error: e.message });
   }
+}
+
+/**
+ * The whole keep-everything fetch pipeline as ONE function, because two
+ * routes now cross the seam (/api/web/fetch for the page a request names,
+ * /api/web/primary for a claim's walk to a page's cited sources) and a
+ * second copy of "what a fetch keeps" would drift from the first. One url
+ * in; the raw bytes and readable face land content-addressed in web/pages/,
+ * the visit lands in web/history.jsonl, the crossing lands on the record,
+ * the archive setting is honoured — exactly what /api/web/fetch always did.
+ * Returns { url, entry, fold, text } or { url, gap } with the gap typed.
+ */
+async function fetchAndKeep(url) {
+  const retrievedAt = new Date().toISOString();
+  let fetched;
+  try {
+    fetched = await fetchCapped(url);
+  } catch (e) {
+    record("web-fetch-error", { url, error: e.message });
+    const gap = e.code === "CENSORED_ABOVE"
+      ? { silence: "censored-above", detail: `${e.message} — giver: web.js WEB_FETCH_MAX_BYTES, engineering starting point` }
+      : { silence: "not-present", detail: e.message };
+    return { url, gap };
+  }
+  const { res: r, buf } = fetched;
+  const contentType = r.headers.get("content-type") ?? "";
+  const sha = crypto.createHash("sha256").update(buf).digest("hex");
+  const ext = extForContentType(contentType);
+  mkdirSync(WEB_PAGES_DIR, { recursive: true });
+  const rawFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}${ext}`);
+  if (!existsSync(rawFile)) writeFileSync(rawFile, buf);
+
+  // the readable face — ALL of it, extraction is not a summary
+  let title = null;
+  let text = null;
+  let textFile = null;
+  if (ext === ".html" || ext === ".xml") {
+    const readable = extractReadable(buf.toString("utf8"));
+    title = readable.title || null;
+    text = readable.text;
+    textFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}.txt`);
+    if (!existsSync(textFile)) writeFileSync(textFile, text);
+  } else {
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+      textFile = rawFile; // the raw face IS the text face
+    } catch {
+      /* binary — raw is kept, there is no text face */
+    }
+  }
+
+  // salience — the fold over the whole saved text, never a paraphrase
+  let fold = null;
+  if (text?.length) {
+    try {
+      fold = { ...foldExtract({ text, budgetSentences: FOLD_BUDGET_SENTENCES }), budget: FOLD_BUDGET_SENTENCES };
+    } catch (e) {
+      fold = { gap: { reason: "fold_failed", detail: e.message } };
+    }
+  }
+
+  const settings = webSettings();
+  const entry = {
+    id: crypto.randomUUID(),
+    url,
+    finalUrl: r.url || url,
+    status: r.status,
+    contentType,
+    title,
+    retrievedAt,
+    bytes: buf.length,
+    textChars: text?.length ?? null,
+    sha256: sha,
+    rawPath: relOf(rawFile),
+    textPath: textFile ? relOf(textFile) : null,
+    ...(looksLikeChallenge({ title, textChars: text?.length }) ? { challenge: true } : {}),
+    archive: settings.archiveOrg ? { status: "pending", askedAt: retrievedAt } : null,
+  };
+  appendWebHistory(entry);
+  record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: !!settings.archiveOrg });
+  if (settings.archiveOrg) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
+  return { url, entry, fold, text };
 }
 
 // ── path confinement ────────────────────────────────────────────────────────
@@ -442,7 +722,13 @@ function serveStatic(req, res, pathname) {
     res.writeHead(404);
     return res.end("not found");
   }
-  res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream", "cache-control": "no-store" });
+  // Static files carry the same localhost-only CORS the API speaks: the
+  // Converse page on a sibling port reads saved page faces (web/pages/*)
+  // to judge proof verdicts, and without the header the browser blocks the
+  // GET — measured live 2026-08-17: every /web/pages/<sha>.txt read from
+  // :8814 died net::ERR_FAILED and every verdict gapped out as
+  // "Failed to fetch" while the API half of the same crossing succeeded.
+  res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream", "cache-control": "no-store", ...corsHeaders(req) });
   createReadStream(file).pipe(res);
 }
 
@@ -876,6 +1162,176 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { removed: body.id });
     }
 
+    // ---- priors: the corpus, its toggle state, and its papers. Listing is
+    // display (like /api/tree); a TOGGLE and a DOC OPEN are computed events
+    // and land on the record. The ledger is append-only in operation; the
+    // current state is the fold; the most specific declaration decides.
+
+    // the fold: declarations + the walk's per-genre counts, one call.
+    if (req.method === "GET" && p === "/api/priors") {
+      if (!existsSync(PRIORS_ROOT)) {
+        return send(res, 200, { gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` } });
+      }
+      const { byPath, skipped } = readPriorToggles();
+      const { categories, enabled, files, truncated } = walkPriors(byPath);
+      return send(res, 200, {
+        root: relOf(PRIORS_ROOT),
+        declarations: declarationRows(byPath),
+        ledgerSkipped: skipped,
+        categories,
+        files,
+        enabledCount: enabled.length,
+        truncated,
+        walkCap: PRIORS_WALK_MAX,
+        machineryRule: [...PRIORS_SKIP].join(", ") + " and top-level loose files — the corpus's own machinery and papers, not documents in it",
+      });
+    }
+
+    // toggle: one line on the ledger, at whatever level the reader means —
+    // "" is the whole corpus, a folder is a genre or a source collection, a
+    // file is one document. The level must exist: a toggle on a typo would
+    // fold forever and govern nothing.
+    if (req.method === "POST" && p === "/api/priors/toggle") {
+      const body = await readJsonBody(req);
+      if (typeof body.on !== "boolean") return send(res, 400, { error: "on (boolean) is required" });
+      const rel = normalizePriorPath(body.path ?? "");
+      const abs = confinePrior(rel);
+      if (!abs) return send(res, 400, { error: "path escapes the corpus" });
+      if (!existsSync(abs)) return send(res, 404, { error: `no such path in the corpus: ${rel || "(root)"}` });
+      const entry = { path: rel, on: body.on, at: new Date().toISOString() };
+      appendPriorToggle(entry);
+      record("prior-toggle", { path: rel || "(root)", on: body.on });
+      const { byPath } = readPriorToggles();
+      return send(res, 200, { entry, declarations: declarationRows(byPath) });
+    }
+
+    // doc: one document a request named — its papers (frontmatter, parsed
+    // mechanically), its effective toggle state with the level that decided
+    // it, and (with ?text=1) the text itself, so a chat attachment is one
+    // crossing. The open is recorded WITH the document's own source URL:
+    // the record answers "says who", not just "which file".
+    if (req.method === "GET" && p === "/api/priors/doc") {
+      const rel = normalizePriorPath(url.searchParams.get("path") ?? "");
+      const abs = confinePrior(rel);
+      if (!abs) return send(res, 400, { error: "path escapes the corpus" });
+      let st;
+      try {
+        st = statSync(abs);
+      } catch (e) {
+        return send(res, 404, { error: e.message });
+      }
+      if (!st.isFile()) return send(res, 400, { error: "not a file — toggle a folder, read a document" });
+      let text;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(abs));
+      } catch {
+        record("prior-open", { path: rel, bytes: st.size, gap: "binary" });
+        return send(res, 200, {
+          path: rel,
+          browsePath: relOf(abs),
+          name: path.basename(abs),
+          bytes: st.size,
+          gap: { silence: "beyond-reach", detail: "not valid UTF-8 — the bytes are servable raw, but papers and text need a text face" },
+        });
+      }
+      const { provenance, line, bodyStart } = papersOf(text);
+      const { byPath } = readPriorToggles();
+      const eff = effectivePrior(byPath, rel);
+      record("prior-open", { path: rel, bytes: st.size, on: eff.on, source: provenance?.url ?? null });
+      return send(res, 200, {
+        path: rel,
+        browsePath: relOf(abs),
+        name: path.basename(abs),
+        bytes: st.size,
+        chars: text.length,
+        provenance,
+        provenanceLine: line,
+        bodyStart,
+        enabled: eff,
+        ...(url.searchParams.get("text") === "1" ? { text } : {}),
+      });
+    }
+
+    // enabled: the flat list of documents currently in play — what the chat's
+    // "already here" door offers. Display, not a record event; the crossing
+    // that matters (a doc actually read) is recorded by /api/priors/doc.
+    if (req.method === "GET" && p === "/api/priors/enabled") {
+      if (!existsSync(PRIORS_ROOT)) {
+        return send(res, 200, { entries: [], gap: { silence: "not-present", detail: "live_priors is not beside this repo" } });
+      }
+      const { byPath } = readPriorToggles();
+      const { enabled, truncated } = walkPriors(byPath);
+      return send(res, 200, { entries: enabled, total: enabled.length, truncated });
+    }
+
+    // ---- the check: the reference library as the grounding ladder's FREE
+    // tier. A claim (the same {kind, text, tokens, sentence} shape
+    // /api/web/primary takes) is judged against live_priors with ZERO
+    // egress — no crossing, no consent to spend — which is why a chip flow
+    // can consult the library BEFORE the web and spend P13's crossing only
+    // on what the shelf leaves unsettled. The pure half (priors.js) parses
+    // the provenance frontmatter, orders candidates mechanically and snips
+    // the claim; this half owns only the reads, confined to PRIORS_ROOT.
+    // FULL PROVENANCE (user direction 2026-08-17): every document in the
+    // answer carries its publisher frontmatter (official URL, department,
+    // date, status) and every snip its self-verified offsets into the
+    // file's own chars — a count with no addresses behind it would be
+    // knowledge from nowhere wearing a library card.
+    //
+    // Selection, measured (2026-08-17, this machine): 2,047 documents,
+    // 183.4MB. Listing is ~20ms warm and reading every byte ~1.1s, but the
+    // sentence walk over the whole corpus is ~9s per claim — not an
+    // interactive check — so candidates are ordered mechanically (claim-word
+    // overlap with filename + title, then the claim's category ladder, then
+    // path order) and consultation is bounded by PRIORS_DOCS_CONSULTED with
+    // the true candidate count on the result. A PROPER index would be
+    // eoreader6 host ingestion (createSession/admitChunked, searchSpans —
+    // the same {byte_start, byte_end} address shape this repo's refs use):
+    // at the engine's measured 8.4s per 3.3MB, admitting 183MB is a
+    // minutes-long one-time build whose persistence and staleness story
+    // this server does not own — named future work, not half-built here.
+    if (req.method === "POST" && p === "/api/priors/check") {
+      const body = await readJsonBody(req);
+      const c = body.claim ?? {};
+      const tokens = Array.isArray(c.tokens) ? c.tokens.map(String).filter(Boolean) : [];
+      const claim = {
+        kind: typeof c.kind === "string" ? c.kind : "name",
+        text: String(c.text ?? "").trim(),
+        tokens: tokens.length ? tokens : String(c.text ?? "").split(/\s+/).filter(Boolean),
+        sentence: String(c.sentence ?? ""),
+      };
+      if (!claim.tokens.length) return send(res, 400, { error: "claim needs tokens or text — the check judges the claim's own words, never a paraphrase" });
+      const listing = listPriorDocuments();
+      if (!listing) {
+        record("priors-check", { claim: claim.text || claim.tokens.join(" "), consulted: 0, stating: 0, gap: "not-present" });
+        return send(res, 200, {
+          ...foldPriors(claim, {}),
+          gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` },
+        });
+      }
+      const ranked = rankPriorCandidates(claim, listing.entries);
+      const documents = [];
+      for (const cand of ranked.slice(0, PRIORS_DOCS_CONSULTED)) {
+        // The path came from this server's own walk, never from the request;
+        // the confinement is restated where the read happens all the same.
+        const abs = path.join(PRIORS_ROOT, cand.path);
+        if (!abs.startsWith(PRIORS_ROOT + path.sep)) continue;
+        let raw;
+        try {
+          raw = readFileSync(abs, "utf8");
+        } catch (e) {
+          // a file the walk saw and the read lost (moved, no longer UTF-8) —
+          // a typed gap on that document, never a dropped row
+          documents.push({ path: cand.path, category: cand.category, title: cand.title ?? null, stating: false, snipsFound: 0, snips: [], source: {}, gap: { silence: "not-present", detail: e.message } });
+          continue;
+        }
+        documents.push(checkPrior(claim, readPriorDocument(cand.path, raw)));
+      }
+      const folded = foldPriors(claim, { candidates: ranked.length, documents });
+      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating });
+      return send(res, 200, { ...folded, ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}) });
+    }
+
     // ---- web search: one query, one request to the no-key endpoint. The
     // endpoint's bot-challenge page is a typed refusal (P4: gaps are
     // results), never an empty success. Found vs shown is reported.
@@ -938,75 +1394,90 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const url = normalizeUrl(body.url);
       if (!url) return send(res, 400, { error: "url must be http(s), not loopback — the tree already serves local files" });
-      const retrievedAt = new Date().toISOString();
-      let fetched;
-      try {
-        fetched = await fetchCapped(url);
-      } catch (e) {
-        record("web-fetch-error", { url, error: e.message });
-        const gap = e.code === "CENSORED_ABOVE"
-          ? { silence: "censored-above", detail: `${e.message} — giver: web.js WEB_FETCH_MAX_BYTES, engineering starting point` }
-          : { silence: "not-present", detail: e.message };
-        return send(res, 200, { url, gap });
-      }
-      const { res: r, buf } = fetched;
-      const contentType = r.headers.get("content-type") ?? "";
-      const sha = crypto.createHash("sha256").update(buf).digest("hex");
-      const ext = extForContentType(contentType);
-      mkdirSync(WEB_PAGES_DIR, { recursive: true });
-      const rawFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}${ext}`);
-      if (!existsSync(rawFile)) writeFileSync(rawFile, buf);
+      const got = await fetchAndKeep(url);
+      if (got.gap) return send(res, 200, { url, gap: got.gap });
+      return send(res, 200, { entry: got.entry, fold: got.fold });
+    }
 
-      // the readable face — ALL of it, extraction is not a summary
-      let title = null;
-      let text = null;
-      let textFile = null;
-      if (ext === ".html" || ext === ".xml") {
-        const readable = extractReadable(buf.toString("utf8"));
-        title = readable.title || null;
-        text = readable.text;
-        textFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}.txt`);
-        if (!existsSync(textFile)) writeFileSync(textFile, text);
-      } else {
-        try {
-          text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
-          textFile = rawFile; // the raw face IS the text face
-        } catch {
-          /* binary — raw is kept, there is no text face */
-        }
-      }
-
-      // salience — the fold over the whole saved text, never a paraphrase
-      let fold = null;
-      if (text?.length) {
-        try {
-          fold = { ...foldExtract({ text, budgetSentences: FOLD_BUDGET_SENTENCES }), budget: FOLD_BUDGET_SENTENCES };
-        } catch (e) {
-          fold = { gap: { reason: "fold_failed", detail: e.message } };
-        }
-      }
-
-      const settings = webSettings();
-      const entry = {
-        id: crypto.randomUUID(),
-        url,
-        finalUrl: r.url || url,
-        status: r.status,
-        contentType,
-        title,
-        retrievedAt,
-        bytes: buf.length,
-        textChars: text?.length ?? null,
-        sha256: sha,
-        rawPath: relOf(rawFile),
-        textPath: textFile ? relOf(textFile) : null,
-        ...(looksLikeChallenge({ title, textChars: text?.length }) ? { challenge: true } : {}),
-        archive: settings.archiveOrg ? { status: "pending", askedAt: retrievedAt } : null,
+    // ---- the primary-source walk: Wikipedia as a stepping stone, never a
+    // source of record. Given a claim and a SAVED Wikipedia page's raw HTML
+    // face, the pure half (primary.js) extracts the article's outbound
+    // citations and orders them for the claim; this route then reads the top
+    // candidates through the SAME fetch pipeline as any other page — each
+    // crossing saved, historied and recorded like any fetch — and snips the
+    // claim against each saved face: verbatim sentences with char offsets
+    // into content-addressed bytes. Sequential, never a burst; bounded by
+    // PRIMARY_SOURCES_CONSULTED (giver: proof.js PROOF_PAGES_CONSULTED).
+    // This stands on P13's proof-seeking amendment — pages chosen by the
+    // article's own ranked citations instead of ranked search results, same
+    // bound, same record, same typed gaps.
+    if (req.method === "POST" && p === "/api/web/primary") {
+      const body = await readJsonBody(req);
+      const c = body.claim ?? {};
+      const tokens = Array.isArray(c.tokens) ? c.tokens.map(String).filter(Boolean) : [];
+      const claim = {
+        kind: typeof c.kind === "string" ? c.kind : "name",
+        text: String(c.text ?? "").trim(),
+        tokens: tokens.length ? tokens : String(c.text ?? "").split(/\s+/).filter(Boolean),
+        sentence: String(c.sentence ?? ""),
       };
-      appendWebHistory(entry);
-      record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: !!settings.archiveOrg });
-      if (settings.archiveOrg) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
-      return send(res, 200, { entry, fold });
+      if (!claim.tokens.length) return send(res, 400, { error: "claim needs tokens or text — the walk judges the claim's own words, never a paraphrase" });
+      const abs = confine(String(body.wikiPath ?? ""));
+      if (!abs || !abs.startsWith(WEB_PAGES_DIR + path.sep)) {
+        return send(res, 400, { error: "wikiPath must name a saved page under the web store (web/pages/…) — the walk starts from bytes already kept" });
+      }
+      if (!existsSync(abs)) return send(res, 404, { error: "no such saved page" });
+      const citations = extractCitations(readFileSync(abs, "utf8"));
+      const ranked = rankPrimary(claim, citations);
+      const consulted = [];
+      for (const cand of ranked.slice(0, PRIMARY_SOURCES_CONSULTED)) {
+        // sequential by construction — each fetch completes (and lands on
+        // history and the record) before the next candidate is touched
+        let got = await fetchAndKeep(cand.url);
+        let archivedCopy = false;
+        if (got.gap && cand.archiveUrl) {
+          // the wrapper exists because the target link was dying; the
+          // archive copy is the disclosed fallback, never the silent default
+          got = await fetchAndKeep(cand.archiveUrl);
+          archivedCopy = true;
+        }
+        const base = { url: cand.url, host: cand.host, structuralClass: cand.structuralClass, citation: cand.text || null, ...(archivedCopy ? { archivedCopy: true } : {}) };
+        if (got.gap) {
+          consulted.push({ ...base, gap: got.gap });
+          continue;
+        }
+        if (got.text == null) {
+          // bytes kept, no text face (a PDF, an image): snipping is beyond
+          // this organ's reach — a typed limit, never "the source is silent"
+          consulted.push({
+            ...base,
+            title: got.entry.title,
+            rawPath: got.entry.rawPath,
+            gap: { silence: "beyond-reach", detail: `the saved face is ${got.entry.contentType || "binary"} — snipping needs a text face; the bytes are kept at ${got.entry.rawPath}` },
+          });
+          continue;
+        }
+        const snips = snipClaim(claim, got.text, { facePath: got.entry.textPath, url: got.entry.finalUrl, host: cand.host });
+        consulted.push({
+          ...base,
+          title: got.entry.title,
+          textPath: got.entry.textPath,
+          textChars: got.entry.textChars, // a 200-char face is a bot shell wearing a 200 status — the size lets the reader see that (measured live 2026-08-17: muse.jhu.edu and doi.org both served ~206-char shells)
+          ...(got.entry.challenge ? { challenge: true } : {}),
+          snipsFound: snips.length,
+          snips: snips.slice(0, PRIMARY_SNIPS_KEPT), // kept-of-N: snipsFound states the truth, the face keeps every sentence
+        });
+      }
+      const folded = foldPrimary(claim, { citationsFound: citations.length, consulted });
+      record("web-primary", {
+        wikiPath: body.wikiPath,
+        claim: claim.text || claim.tokens.join(" "),
+        kind: claim.kind,
+        citationsFound: citations.length,
+        consulted: consulted.length,
+        verdict: folded.verdict,
+      });
+      return send(res, 200, { wikiPath: body.wikiPath, ...folded });
     }
 
     // ---- web history: the fold over history.jsonl, newest first, with the

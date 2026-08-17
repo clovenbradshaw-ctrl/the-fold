@@ -16,7 +16,23 @@
 // overlap with that passage beats the best overlap the same sentence gets
 // against material the turn never touched.
 //
-// Pure: no DOM, no IO, no model. `attribute` is the whole surface.
+// Two exports carry two different duties (measured 2026-08-17: an answer of
+// three sentences, every one standing on the material, shipped with a bare
+// middle sentence — the reader asked "how did it know all this?", and the
+// classification had typed a supported sentence as the model's own voice):
+//
+//   `attribute` — the RECORD's discipline, unchanged: an address is earned
+//   only by beating the null with a margin, because a record's refs are the
+//   claim "this passage, and no other, sourced this sentence".
+//
+//   `coverage` — the RENDERING's discipline: every sentence the material
+//   actually SUPPORTS wears the address of its best-supporting passage. The
+//   rule is structural, not confidence-gated — containment (the passage holds
+//   the sentence's phrase, and every name the sentence commits to) places the
+//   argmax passage from the whole pool, with no margin to clear. A sentence
+//   the material does not support still gets nothing: rescue, never invention.
+//
+// Pure: no DOM, no IO, no model.
 
 import { foldDiacritics, retrieve, tokenize } from "./source.js";
 
@@ -120,16 +136,31 @@ export function overlap(sentenceTerms, chunk, common) {
  * available comparison rather than an easy one. When the true source is not
  * among the offered passages it turns up here instead, outscores them, and the
  * claim is refused — which is the behaviour that was missing.
+ *
+ * Returns who won as well as by how much. `attribute` reads only the score —
+ * for it the rival is a floor to clear — but `coverage` needs the winner
+ * itself: a rival that outscores every offered passage is not noise, it is
+ * the pool's own best-supporting passage, and its address is the honest one.
  */
-function nullBest(sentence, sentenceTerms, pool, offered, samples, common) {
+function bestRival(sentence, sentenceTerms, pool, offered, samples, common) {
   const skip = new Set(offered.map((c) => c.ref));
   const rivals = retrieve(pool, sentence, samples).filter((c) => !skip.has(c.ref));
-  let best = 0;
+  let chunk = null;
+  let score = 0;
+  let next = 0;
   for (const c of rivals) {
-    const score = overlap(sentenceTerms, c, common);
-    if (score > best) best = score;
+    const s = overlap(sentenceTerms, c, common);
+    if (s > score) {
+      next = score;
+      score = s;
+      chunk = c;
+    } else if (s > next) {
+      next = s;
+    }
   }
-  return best;
+  // `next` is the runner-up's score — what `coverage` reads to know whether
+  // the winner is a unique argmax or one of several equal claimants.
+  return { chunk, score, next };
 }
 
 export const NULL_SAMPLES = 12;
@@ -255,11 +286,129 @@ export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES }
     // The floor this sentence has to clear is the best score the same words
     // get from material the turn never saw. Beating it means the passage
     // carried something the corpus at large does not.
-    const floor = nullBest(text, terms, pool.length ? pool : offered, offered, samples, common);
+    const floor = bestRival(text, terms, pool.length ? pool : offered, offered, samples, common).score;
     // Both tests: a phrase rather than a word, and better than the corpus
     // at large gives the same words for free.
     const attributed = score >= MIN_RUN && score > floor;
     return { text, ref: attributed ? ref : null, score, floor };
+  });
+}
+
+/**
+ * Coverage: every sentence the material supports wears the address of its
+ * best-supporting passage. Same entry shape as `attribute`, so everything
+ * that consumes attributions (classifySentences, attributedRefs, the
+ * renderer) takes these unchanged; attachments additionally carry
+ * `via: "offered" | "pool"` — which side of the turn's evidence the winner
+ * came from — and `rescued: true` on every attachment the strict gate in
+ * `attribute` would have declined.
+ *
+ * Why `attribute` alone was not enough, measured 2026-08-17 on a fetched
+ * Wikipedia page (saved by the web organ, opened as an ordinary source): an
+ * answer's opening sentence stood squarely on the page — the page's own lead
+ * states the date and the place — but the lead was not among the passages
+ * retrieved for the turn, so the null found it, outscored the offered
+ * passages 6 to 2, and the sentence was REFUSED an address. Typed as model
+ * voice, it rendered as knowledge from nowhere, and the reader asked "how
+ * did it know all this?". The null did its job — the offered passages did
+ * not source that sentence — and the conclusion drawn from it was wrong: the
+ * rival that outscored them is not "material the turn never touched", it is
+ * the pool's own best-supporting passage. Refusing the chip threw away the
+ * address the null had just found.
+ *
+ * So coverage asks the structural question — WHERE does the material state
+ * this sentence's words? — and answers by argmax and containment, with no
+ * margin to clear anywhere:
+ *
+ *   - The winner is the best-overlap passage across the whole pool: the
+ *     offered passages and the retrieval-drawn rivals, compared by the same
+ *     `overlap` on the same fold. A tie goes to the offered side — when two
+ *     passages state the phrase equally well, the one the turn actually
+ *     handed the model is the likelier source, and the chip's claim ("these
+ *     bytes state this") holds either way.
+ *   - A pool-side winner must be a UNIQUE argmax. An address names one
+ *     place, and an argmax with two winners names none. The rival draw is
+ *     ordered by retrieval — the sentence's terms, not the passages'
+ *     support — so between two rivals tied on overlap, rank would pick
+ *     arbitrarily, and an arbitrary address is a misdirection wearing a
+ *     warrant. A phrase the pool states in several places equally is
+ *     ambient, not located, and the entry is typed `ambiguous` rather
+ *     than guessed — the same discipline P14 pins for skill dispatch (a
+ *     tie is refused as ambiguous, never guessed). The offered side keeps
+ *     its tie privilege because it has what a rival lacks: the model
+ *     actually read those bytes.
+ *   - A run of one is a word, not a phrase: `MIN_RUN` stands exactly as in
+ *     `attribute`. A sentence sharing no phrase with any passage has nothing
+ *     to stand on, and attaching anything to it would be the invention this
+ *     function exists to refuse. That is what keeps a model-voice sentence
+ *     bare: a hedge, a summary, connective tissue shares words at most.
+ *   - The names veto stands exactly as in `attribute`, applied to the one
+ *     winner, never used to choose one: a sentence committing to a subject
+ *     the winning passage does not hold gets nothing, because an address on
+ *     an invented subject is the worse lie — a chip vouching for a thing
+ *     that never happened.
+ *
+ * Residues, stated rather than papered over: a sentence rewritten so
+ * thoroughly that it shares no two-term run with its source cannot be
+ * attached — support that only a reader (or the atom/relation tiers) can
+ * see is beyond a phrase-overlap organ, and such a sentence stays typed as
+ * model voice rather than guessed at. When the winning passage fails the
+ * names veto, a lesser passage holding both phrase and names may exist,
+ * but coverage declines rather than walking down the ranking — choosing by
+ * name is the inversion `attribute`'s veto comment records (a passage that
+ * merely mentions the subject beating the one the claim came from). A
+ * sentence refused as `ambiguous` may be genuinely supported — a phrase
+ * the corpus states everywhere is if anything BETTER attested — but
+ * multi-passage support is the atom tier's fact (`corroborateAtoms` counts
+ * it as perspectives); one address for an everywhere-phrase would be false
+ * precision. And a generic two-term run that happens to live in exactly
+ * one pool passage still earns its chip — uniqueness is evidence of place,
+ * not proof of distinctiveness; the chip's claim ("these bytes state this
+ * phrase") stays true even when it is weak. The worst the declines do is
+ * leave a chip off; none of them ever puts a false one on.
+ */
+export function coverage(answer, offered = [], pool = [], { samples = NULL_SAMPLES } = {}) {
+  const corpus = pool.length ? pool : offered;
+  if (!corpus.length) return [];
+  const common = commonTerms(corpus);
+  return splitSentences(answer).map((text) => {
+    // A sentence that already carries an address needs no rescue — same
+    // rule, same reason as `attribute`: one claim, one tag.
+    if (ALREADY_CITED.test(text)) return { text, ref: null, score: 0, floor: 0, cited: true };
+    const terms = tokenize(text);
+    // The offered side's argmax — first maximum wins, `attribute`'s own rule.
+    let offeredBest = null;
+    let offeredScore = 0;
+    for (const c of offered) {
+      const s = overlap(terms, c, common);
+      if (s > offeredScore) {
+        offeredScore = s;
+        offeredBest = c;
+      }
+    }
+    // The pool side's argmax, drawn where a competitor would actually be —
+    // the same draw the null uses, read for its winner rather than as a bar.
+    const rival = bestRival(text, terms, corpus, offered, samples, common);
+    const viaPool = rival.score > offeredScore;
+    const winner = viaPool ? rival.chunk : offeredBest;
+    const score = viaPool ? rival.score : offeredScore;
+    const floor = viaPool ? offeredScore : rival.score;
+    // A run of one is a word, not a phrase — nothing to stand on.
+    if (!winner || score < MIN_RUN) return { text, ref: null, score, floor };
+    // A pool-side winner that only tied its runner-up is no winner: the
+    // phrase is in several places and the argmax names none of them.
+    // Refused as ambiguous, never guessed.
+    if (viaPool && rival.next >= rival.score) return { text, ref: null, score, floor, ambiguous: true };
+    // The veto refuses the winner; it never chooses one.
+    if (!namesSupported(text, winner)) return { text, ref: null, score, floor, vetoed: true };
+    const entry = { text, ref: winner.ref, score, floor, via: viaPool ? "pool" : "offered" };
+    // Marked wherever `attribute`'s stricter gate would have said nothing:
+    // a pool-side winner, or an offered winner that only tied the null. The
+    // renderer can say which kind of claim each chip is (a margin beaten,
+    // or containment found), and the record can keep its own stricter set —
+    // same evidence, two duties, both visible.
+    if (viaPool || score <= floor) entry.rescued = true;
+    return entry;
   });
 }
 

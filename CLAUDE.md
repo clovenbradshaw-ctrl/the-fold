@@ -155,6 +155,34 @@ each as `reading:<Surface>`; the server accumulates `job.partial`; the page
 reveals views progressively. Completed reads are memoized in-memory by
 path·mtime·size and reuse is recorded (`read-reused`), never silent.
 
+**Seeing the file (added 2026-08-17).** Explore's surfaces are all READINGS
+of a file; the thing itself now has its own face. `explore/preview.js` +
+`preview.test.mjs` (14 conformance tests, DOM through a stub document the way
+render.test.mjs does it) hold the faces — image / audio / video / pdf / html
+(EMPTY sandbox) / markdown / table / code with line numbers / text — and, for
+anything the browser cannot render (docx, xlsx, pptx, epub), a NAMED refusal
+plus the download and the hex, never a blank pane or a hex dump passing for a
+document. The overlay is `#preview` in explore.html, its bar and keys in
+explore.js (‹ › walk the folder, Esc closes, ⤓ downloads, "Read this →" hands
+it to the reader). **A preview never starts a read** — peeking costs a stat
+and a decode, so a 3MB book is instant; the organs run when you ask them to.
+The one always-present control is `⛶ view the file` in the header line: a
+reader who wants the bytes as they are should never have to work out which
+surface is least interpreted. web.test.mjs's P13 seam scan now includes
+preview.js (it builds every img/iframe/media src).
+
+Three bugs it was built on top of, all found by driving the live page:
+double-click never opened anything (the details panel appeared on the first
+click, reflowed the grid, and the second click landed elsewhere — fixed by a
+fixed-width always-present details column AND a path-keyed click tracker, not
+node identity); `openSource` re-rendered while `source` was still null, so
+Field was not yet a view and the active view was silently reset to "files" —
+every open looked like a no-op (`state.opening` is now a place to stand); and
+a failed open (a library ref whose file has moved) escaped as an unhandled
+rejection with nothing on screen — `state.openError` says it in the header.
+`parseDelimited` is now the page's ONE csv reader, shared by the preview and
+the reader's table face.
+
 **Embed contract.** The chat page hosts Explore as a pane
 (`pane-explore` → iframe `http://localhost:8812/explore.html?embed=1`,
 loading=lazy). Embed mode drops Explore's own chrome; the rail folds behind
@@ -469,6 +497,256 @@ territory, not silently patched here. Proof-seeking is sequential, never a
 fan-out burst; the per-claim click is its own authorization and the toggle
 is the standing one; nothing anywhere phrases a web verdict stronger than
 "stated by N of M pages (K distinct hosts)".
+
+## The UX pass (2026-08-17) — what was decided, so it is not re-derived
+
+A working pass over both pages, driven live. The decisions, not the diff:
+
+**Two words could not keep meaning two things.** `fold` named the artifact
+type (the Folds pane, `/fold <n>`) AND the per-turn disclosure. The disclosure
+is now **thinking** — the resting place of the narration a turn already
+streams live under that class name, plus what the narration produced. The
+`.fold` CSS class is deliberately unchanged: it is shared disclosure styling,
+nested boxes included, and renaming it buys nothing a reader sees. In Explore,
+the Lens view's label moved the other way — `projections` → **folds** — by
+user direction.
+
+**Material became attachments, and moved onto the composer.** The overhead
+strip is gone; pills sit in the composer bar where what-you-attached belongs
+to what-you-are-about-to-ask. Adding and switching are ONE control (paperclip
++ count, with the master switch inside the same group, appearing only once
+there is something to govern). Three doors behind ＋: upload, **already
+here** (the Explore library `/api/library` and saved pages `/api/web/history`,
+so material on this machine is never found twice), paste. Attaching COPIES the
+text — never a live link, because bytes that could change under a record's
+addresses would make those addresses lie. The second control surface for the
+same state (`#pane-material`'s row list, in a pane with no tab) is deleted.
+
+**Two switches, both default ON, both retrieval-or-egress scoped, both in
+permanent view.** `attachments` is the master over per-source mute — see
+`liveChunks()` / `liveSources()` in app.js, now the ONLY readers of
+`state.muted`, so no caller filters it independently again. `web` is P13's
+standing consent, whose default flip is amended in POLICIES.md with its
+reasoning. A third control, **marks**, hides the grounding apparatus drawn
+into answers (address chips, ground underlines, relation badges) via one
+`body.marks-off` class — so it reaches every turn already on screen, without
+re-rendering, and identically. It hides the drawing, never the finding: the
+classification still ran, the tally still counts it, `thinking` still lists it.
+
+**Explanations became tooltips.** `note()` in explore.js took a fourth
+argument: `text` is what stays visible and should be FACTS (counts, sizes,
+what was capped), `why` is the sentence, and it rides the standing chip. The
+standing is still declared — that is not negotiable — but a declaration nobody
+needs twice is not put in the reader's way.
+
+**The Explore view row holds still.** It was built from surfaces that had
+ALREADY landed, and a read streams them over ~90s, so it grew a tab at a time
+and every label to the right moved out from under the pointer. Now every view
+a read WILL produce is present from the first frame as `pending` (visible,
+disabled) — a surface not yet arrived is not the same as one not coming, and
+the honest rendering is also the stable one. Count slots are reserved
+(`COUNTED`), active is a pill not a weight, and `VIEW_ORDER` is the one
+ordering. A rule separates the two levels the row was conflating: `files` /
+`web` are places to stand, everything after is a surface of the open source.
+
+**Kinds induce themselves** at the quick draw when a read lands (user
+direction). Automatic is the TRIGGER, not the standard of evidence: the null
+arm still lands after, kinds still render `provisional` until it does, the
+renderer still may not phrase finer than `finestRank`, and `thorough` stays
+an explicit escalation — now reachable from the result, since the pre-run
+screen that used to hold it is no longer seen.
+
+**One drawing of a link, everywhere.** `linkNode()` / `linkText()` in
+explore.js. A statement was appearing three ways on one screen — styled
+subject/verb/object spans in its own row, a flat 90-char truncated string in
+the neighbour pills, a spaceless arrow-less label in the pivot — and the same
+edge in three costumes reads as three kinds of thing. Now: `subject —verb→
+object [negated]`, sides in the reading face (the material's own words), verb
+in mono (the instrument's finding), truncation per side rather than through
+the arrow. Every hop out of a statement has one shape too, with the kind of
+neighbour in a FIXED left column (`↑ before` / `↓ after` / `⇢ shared cast`) —
+before, `before` wore a leading `‹` and `after` a trailing `›`, so the column
+that said what kind of hop it was could not be scanned.
+
+**A saved page is titled by what it is.** Pages the web organ keeps are
+content-addressed, so the file is `108c4b618934090b.txt`; `savedPageFor()`
+reads the history index for the page's own title and host, and `openSource`
+loads that index when the path is under `web/pages/` (nothing else on that
+path ever asks for it). Nothing is renamed on disk and no address moves.
+
+**Propose-then-check (2026-08-17, user-directed) — three suppressors removed
+and one cut added.** The failing question was "What river is Nashville on,
+what US state is it in, and who was its mayor in 2019?" and each layer made
+it worse in its own way. (1) `needsDecomposition` planned it into three
+parts; each part re-answered the WHOLE question; the sections contradicted
+each other on the mayor (Briley vs Cooper) under `## headings`. Now a single
+interrogative sentence never plans — a question is one propose, and the
+checking ladder (which verifies every name and figure separately anyway) is
+the fact-check; imperative multi-sentence WORK still plans. (2) The
+constitution prompt told the model never to supply a value the material
+lacked — instruction-following as a wall, the thing L5 distrusts — so it
+withheld the mayor it knew. The prompt now asks for the model's honest
+answer, with the epistemics left to the organs that enforce them. (3) The
+correction loop treated unbacked knowledge as failure: it rewrote the true
+mayor away, the rewrite collapsed into reproduction, and the mechanical
+fallback shipped no mayor at all. `inspect()` now returns two lists —
+`unsupported` (lies about the given: fake addresses, fabricated quotes,
+CONTRADICTED edges) still drives the bounded correction; `unbacked` (names/
+figures the material is silent on, UNBOUND edges) ships and is marked, and
+the record names both (`relationFindings` takes a verdicts option; default
+unchanged). The added cut: the framing-stripper now also cuts a TRAILING
+framing sentence — a draft that echoes the unanswered facet back as a
+question ships a question as its last sentence — material path only, since
+in plain chat "How can I help you today?" is conversation. End state,
+measured: one fluent answer, every fact right, marks and quote-verification
+drawn over it, 667 tokens where the planned version spent 1,339 being wrong.
+
+**Attachment pills open a sheet** (`#attach-sheet`, `openAttachSheet`): rows
+of checkbox (same mute state as ever) · name (click = peek at the bytes) ·
+size · remove, with ＋ Add more closing the sheet before opening the menu —
+stacked modals close like nested parentheses otherwise. The pill's click
+used to silently toggle mute: a state change wearing a label's clothes.
+
+**Checking is a MODE, not a paint setting** (`state.grounded`, the header
+toggle, seal-check icon — the highlighter said "colour the text", which was
+the smallest true thing about it). Off, the relation tier is never asked for
+(`makeRelationReader: null` — off means not computed, not computed-and-hidden),
+`renderAnswer` is handed empty attributions/findings/claims so no chips,
+underlines or badges are produced, the tally is skipped (0-of-N is a
+measurement nobody took dressed as one that was), and the turn returns before
+`renderEvidence` / `renderGrounding` — which is also what kills proof-seeking,
+since the web rows live in the grounding panel. What is left is a model
+answering a question.
+
+Two things stay ON in either mode, and this is deliberate: the **fold** (the
+running summary IS how the conversation works — switching it off would not be
+a plain chatbot, it would be a broken one) and the **record**
+(FOLD-CONSTITUTION I.5: append-only, and not the UI's to switch off). Both
+remain disclosed under the turn either way. Honest residue: `checkGrounding`
+and the quote tier still run inside holon.js per part, because that module
+belongs to another session's contract — nothing is drawn from them and no
+crossing is made, but they are not yet skipped.
+
+**Turn cost is measured, never estimated.** `tokensSeen` accumulates
+`prompt_eval_count` / `eval_count` from Ollama's own `done` chunks; a message
+node stamps the counter's reading at birth and `renderFold` shows the DELTA.
+A turn is many calls (plan, one per part, corrections, the fold), so a
+delta is the only way to count a message's real cost without instrumenting
+every path. Shown in checking mode, which is the mode that incurs it.
+
+**The model picker moved to the composer** (OpenCode's shape: `＋ | model ⌄ |
+… | Send`). It was a chip in the far corner of the header opening a dialog
+with a `<select>` AND a Connect button — two decisions in two places for the
+one setting a person reconsiders per question. Picking a model IS connecting
+to it, so the menu has no second step; `#model` survives hidden as the single
+source of truth the connect path already reads, so the menu can never name a
+model routing would then fail on.
+
+**The chat header holds still.** The model chip mirrored the whole status
+line, so a model IDENTITY carried "marks shown" or "attachments on" — messages
+about the reader's own settings — and the header re-measured on every one of
+them. Now the chip is the model name and a pulsing dot when a turn is working
+(`data-working`, `TRANSIENT` decides which messages are settings noise), and
+everything transient goes to `#status-line` above the composer, which is
+allowed to change because nothing is laid out against it; settings
+acknowledgements clear after 2.6s, work in flight does not (clearing that
+would hide that something is still running). The two view preferences share
+one `.icon-group`, the theme control is a Phosphor icon rather than a word
+whose width changed on every press, and the tagline is cut.
+
+**The files desk speaks the page's language now.** It had been built to a
+file-manager reference — 22px pill search at 620px, 16px pill bar buttons, a
+filled capsule "+ New", tiles carrying a 60px full-width colour band — and
+beside the rest of the instrument it read as a different application that
+happened to be embedded. Nothing about browsing files needs its own shapes:
+it now uses the page's radii and control sizes, "+ New" is "Add" as an
+ordinary primary button, and grid/list is the SAME `.seg` control the source
+view uses for rendered/raw (two faces of one thing is the same question in
+both places — reusing the control is how the drift stops). The one thing kept
+is the per-kind colour chip, which genuinely earns its place: colour per kind
+is how a folder of mixed contents reads at a glance. It is a 22px mark beside
+the name — the size it already was in list view — not a band across the tile.
+
+**Opened off the disk, both pages say so.** A `file://` load blocks module
+execution and has no `/engine`, `/nul` or `/api` mounts, so the reader got
+unstyled raw HTML with dead links — which reads as "this app is broken", not
+"this app is not running". Both pages now carry a `#not-served` notice with
+the commands to run. Three properties are load-bearing: it uses INLINE styles
+(the stylesheet is one of the things that may not have loaded, so the notice
+cannot depend on it); it is removed by each page's own boot, so it shows
+exactly when the page's code did not run, whatever the cause; and a CLASSIC
+inline script — which does run over `file://` — hides it immediately over
+http and restores it after 4s if boot never happened, because the module that
+removes it is deferred and the banner would otherwise flash on every healthy
+load. Served-but-dead gets different wording from never-served: naming the
+wrong failure sends the reader to the wrong fix.
+
+**Explore's route home is in the header** (`.page-nav`), at every width, and
+hidden only in embed mode. The bottom `.page-tabs` bar is the narrow layout's
+switcher — hiding it on wide screens (correct) left the standalone page with
+no way back to the chat, which is a trap, not a tidy-up.
+
+**Other decisions worth not re-deriving:** the model dialog no longer blocks
+boot (a reachable model is connected to, since "connect" was the only outcome
+of the only dialog on offer; the dialog opens only when there is a real
+choice — nothing reachable, or nothing pulled); dialogs are one object
+(`.sheet-head` / `.sheet-body` / `.sheet-foot`, a visible ✕ because Escape is
+undiscoverable and a backdrop click is a guess); the composer bar never wraps,
+because the Send button must not move because of what you attached; Explore's
+bottom page-tabs are the NARROW layout's switcher and are hidden wide; data
+views lost their fixed pixel caps (prose keeps its 74ch measure — that is a
+reading measure, not a layout accident); the source title is kind-badge, name,
+then quiet context, and it dropped `cursor: read at HH:MM:SSZ`, a wall-clock
+stamp of the current render. Icons are **Phosphor regular**, vendored under
+`node_modules/@phosphor-icons/core` and inlined as paths in index.html — the
+no-CDN rule covers icon fonts like everything else, and inlining in HTML also
+keeps the SVG namespace out of the II.13 host scan.
+
+## The priors organ (added 2026-08-17) — what was decided, so it is not re-derived
+
+P19 in POLICIES.md is the law; this is the map. The user's direction, in
+three sentences: live_priors gets its own tab; priors must be readable and
+toggleable on/off at all levels, down to specific sources or entire genres;
+and as priors are referenced in the surf they need to carry provenance.
+
+**Files.** `priors-toggles.js` (pure, browser-safe: ledger fold,
+most-specific-wins resolution with the decider NAMED, papers via priors.js
+— see below) + `priors-toggles.test.mjs`; explore-server.mjs owns the I/O
+(`priors/toggles.jsonl` append-only ledger, the corpus walk, routes
+`GET /api/priors`, `POST /api/priors/toggle`, `GET /api/priors/doc`,
+`GET /api/priors/enabled`); explore.js's `renderPriors` is the tab (a third
+place-to-stand after `web`); app.js carries `state.provenance` and the
+picker's third store.
+
+**Two sessions, two tiers, one parser — the collision and its settlement.**
+This organ and priors.js (the claim-checking tier, a sibling session, same
+day) were built concurrently; the sibling took the `priors.js` filename
+mid-build. Settlement: the gate lives in `priors-toggles.js` and imports
+`parseFrontmatter`/`provenanceOf` from priors.js rather than keeping its
+own parser — one implementation of "what do this document's papers say" on
+every side (the tab's card, the doc route, the check). Do not re-introduce
+a second frontmatter reading.
+
+**Decisions that cost something:** default OFF with `decidedBy: null` (the
+corpus arrived wholesale; enabling is the act — and the default is a fact
+of the code, not a hidden ledger line); the chip must distinguish set-here
+(dot) / inherited (named level) / default; there is deliberately NO unset
+verb — flip the level or flip its parent, the ledger stays two-verb; the
+walk skips the corpus's machinery (`scripts`, `src`, `manifests`, dotfiles,
+top-level loose files) by declared rule and the tree listing applies the
+same rule so no uncounted row is offered a toggle; attaching COPIES text
+via `/api/priors/doc?text=1` (one crossing, papers + text together, the
+open recorded with the publisher's URL); name collisions across genres
+disambiguate with the genre prefix rather than silently replacing;
+`renderSources()` must be re-called after papers land (the pill is drawn
+by addSource before provenance exists — measured live, the papers were
+missing from the pill until this was added).
+
+**Known limits, disclosed:** toggles gate the OFFER surface (picker and
+tab), and the checking tier reads the corpus directly — wiring the ledger
+into `/api/priors/check`'s candidate walk is named future work, not
+implied; enabled-list responses list every enabled doc (fine at hundreds,
+unpaged at thousands).
 
 ## Skills (added 2026-08-16, third pass) — procedures kept as code
 

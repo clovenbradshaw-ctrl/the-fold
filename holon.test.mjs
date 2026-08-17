@@ -137,6 +137,32 @@ test("the gate fires on several separately-anchored parts, not on length", () =>
   assert.equal(needsDecomposition(""), false);
 });
 
+test("a single interrogative sentence never plans, however many facets it names", () => {
+  // The live failure this pins (2026-08-17): three anchored facets in one
+  // question tripped the gate, each part re-answered the whole question,
+  // and the sections contradicted each other on the mayor. One question is
+  // one propose; the checking ladder is the fact-check.
+  assert.equal(
+    needsDecomposition("What river is Nashville on, what US state is it in, and who was its mayor in 2019?"),
+    false,
+  );
+  // Imperative multi-part WORK still plans — the gate lost questions, not tasks.
+  assert.equal(
+    needsDecomposition(
+      "Our budget is $2000, we need wifi at the venue, everyone eats vegetarian, and our CFO cannot attend on the 14th",
+    ),
+    true,
+  );
+  // Several sentences ending in a question still reach the anchor scan —
+  // only the single-sentence interrogative is exempt.
+  assert.equal(
+    needsDecomposition(
+      "Compare the 1805 and 1812 campaigns. Cite the figures for each army, name the commanding generals, and note the dates of the major battles. Which mattered more?",
+    ),
+    true,
+  );
+});
+
 test("extractArray finds a balanced array inside talk", () => {
   const arr = extractArray('Sure! Here is the plan:\n[{"label":"a [b]","description":"c"}]\nHope that helps.');
   assert.equal(arr.length, 1);
@@ -184,20 +210,29 @@ test("the loop plans, grounds each part, and corrects an invented figure", async
   assert.equal(harbor.unsupported.length, 0);
   assert.equal(harbor.corrections, 0);
 
-  // Part two's first draft invented 999; the check caught it, one correction
-  // ran, and the last draft stands clean with its own citation.
+  // Part two's first draft carried the figure 999, which the material does
+  // not hold. Under propose-then-check (2026-08-17) that is UNBACKED
+  // knowledge, not a lie about the given: no correction pass burns on it,
+  // the draft ships as written, and the finding lands in `unbacked` — the
+  // marks and the record are its treatment. (Rewriting it away was measured
+  // deleting true answers: the mayor the material was merely silent on.)
   const dredging = result.sections[1];
-  assert.equal(dredging.corrections, 1);
+  assert.equal(dredging.corrections, 0);
   assert.equal(dredging.unsupported.length, 0);
-  assert.ok(dredging.used.length >= 1);
-  assert.ok(events.includes("correct:p2"));
+  assert.ok(dredging.unbacked.some((u) => u.includes("999")));
+  // No correction ran, so the part never earned the citation the rewrite
+  // used to carry — an uncited part with its figure marked is the honest
+  // shape now, and the marks are what the reader sees.
+  assert.equal(dredging.used.length, 0);
+  assert.ok(!events.includes("correct:p2"));
 
   // Assembly: two parts means headings, and provenance is the union of what
   // the parts' own checks established.
   assert.ok(result.output.includes("## the harbor figure"));
   assert.ok(result.output.includes("## the dredging schedule"));
   assert.equal(result.unsupported.length, 0);
-  assert.ok(result.refs.length >= 2);
+  assert.ok(result.unbacked.some((u) => u.includes("999")));
+  assert.ok(result.refs.length >= 1);
   assert.ok(result.channels.includes("cited"));
 
   // The log is the run's own account: a propose per part, a result per run —
@@ -208,21 +243,26 @@ test("the loop plans, grounds each part, and corrects an invented figure", async
     ["propose", "propose", "result", "result"],
   );
   assert.deepEqual(foldPlan(result.log).parts, result.plan.parts);
-  assert.equal(foldPlan(result.log).results.get("p2").corrections, 1);
+  assert.equal(foldPlan(result.log).results.get("p2").corrections, 0);
   // The part's evidence accumulated from its result entry.
   assert.ok(projectParts(result.log)[0].evidence.length >= 1);
 });
 
-test("the correction pass is a budget: a stubborn model's failure stays on record", async () => {
+test("an unbacked figure never burns the correction budget; it ships and stays on record", async () => {
+  // The stubborn model repeats its 999 no matter what. Before the split this
+  // spent MAX_CORRECTIONS rewriting and shipped the failure anyway; now the
+  // figure is unbacked knowledge — zero corrections, the draft ships, and
+  // the record still names what nothing given backs.
   const result = await runHolonicTask({
     task: "Summarize the port situation from the notes.",
     chunks,
     call: fakeModel({ stubborn: true }),
   });
   const dredging = result.sections[1];
-  assert.equal(dredging.corrections, MAX_CORRECTIONS);
-  assert.ok(dredging.unsupported.some((u) => u.includes("999")));
-  assert.ok(result.unsupported.some((u) => u.includes("999")));
+  assert.equal(dredging.corrections, 0);
+  assert.ok(dredging.unbacked.some((u) => u.includes("999")));
+  assert.ok(result.unbacked.some((u) => u.includes("999")));
+  assert.equal(dredging.unsupported.length, 0);
 });
 
 test("no material is a typed gap on every part, never a guess", async () => {
@@ -349,7 +389,7 @@ test("a verbatim reproduction fails as not-answering, and the correction can sav
   assert.ok(result.refs.length >= 1);
 });
 
-test("a stubborn reproduction fails the part: typed open, no refs", async () => {
+test("a stubborn reproduction: the failure stays typed, and the mechanical answer ships instead", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
     return "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.";
@@ -360,9 +400,14 @@ test("a stubborn reproduction fails the part: typed open, no refs", async () => 
     call,
     planMode: "flat",
   });
+  // The model's failure stays on the record — it says why the mechanical
+  // path ran — and what ships is the material's own sentences, quoted,
+  // each with its address (user direction 2026-08-17: "ground all that").
   assert.ok(result.open.some((o) => o.includes("reproduces the material verbatim; it does not answer")));
-  assert.deepEqual(result.refs, [], "a photocopy earns nothing, however grounded");
-  assert.deepEqual(result.channels, []);
+  assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
+  assert.ok(result.output.includes("[notes.txt#"), result.output);
+  assert.ok(result.output.includes("12%"), "the material's own sentence carries the actual answer");
+  assert.ok(result.refs.length >= 1, "verbatim material with its address is a warrant the assembly may keep");
 });
 
 test("an echo answer establishes nothing: typed open, no refs granted", async () => {
@@ -380,8 +425,12 @@ test("an echo answer establishes nothing: typed open, no refs granted", async ()
     planMode: "flat",
   });
   assert.ok(result.open.some((o) => o.includes("restates the prompt")));
-  assert.deepEqual(result.refs, [], "circular support is not support");
-  assert.deepEqual(result.channels, []);
+  // The echo itself earned nothing; the mechanical assembly that ships in
+  // its place quotes the material's own sentence — which here carries the
+  // very figure the echo dodged — with its address attached.
+  assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
+  assert.ok(result.output.includes("12%"), result.output);
+  assert.ok(result.output.includes("[notes.txt#"), "every shipped sentence wears its address");
 });
 
 test("a prompt that matched no material gets one plain-chat reply, not a diagnosis", async () => {
@@ -476,8 +525,10 @@ test("a transcription with its typography normalized is still a reproduction", a
     result.open.some((o) => o.includes("reproduces the material verbatim; it does not answer")),
     "straightened typography is retyping, not writing",
   );
-  assert.deepEqual(result.refs, [], "a photocopy earns nothing, however it is typeset");
-  assert.deepEqual(result.channels, []);
+  // The retyping earned nothing; the mechanical assembly ships in its place,
+  // quoting the material with its address on every sentence.
+  assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
+  assert.ok(result.output.includes("[ledger.txt#"), result.output);
 });
 
 test("wholesale transcription of short dialogue is a reproduction", async () => {
@@ -501,7 +552,10 @@ test("wholesale transcription of short dialogue is a reproduction", async () => 
     result.open.some((o) => o.includes("reproduces the material verbatim; it does not answer")),
     "short lines are still the material's words",
   );
-  assert.deepEqual(result.refs, [], "a photocopy earns nothing, however short its sentences");
+  // The transcription earned nothing; what ships is the mechanical assembly
+  // with its addresses.
+  assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
+  assert.ok(result.output.includes("[ledger.txt#"), result.output);
 });
 
 test("an original short answer holding two verbatim lines is NOT a reproduction", async () => {
@@ -542,4 +596,50 @@ test("a plan that fails to parse is itself a typed gap", async () => {
   assert.ok(result.open.some((o) => o.includes("plan did not parse")));
   // One part means no heading scaffolding around a single answer.
   assert.ok(!result.output.startsWith("##"));
+});
+
+// ── the embedded-interrogative echo, from the live Borodino runs ────────────
+// Measured 2026-08-17, three echoes in a row: the model resolves the
+// question's "this battle" to the material's own "Borodino" and restates the
+// question — as a declarative ("…is addressed."), and twice with the question
+// mark still on. The word-for-word framing test cannot see any of the three;
+// the wh-clause blanking and the ?-tail rule must.
+const BORODINO = [
+  "The battle near the village of Borodino was fought on 7 September 1812, during the French invasion of Russia.",
+  "The Grande Armee under Napoleon met the Imperial Russian Army about 110 kilometres west of Moscow.",
+  "The Russian army withdrew in good order afterward, and Napoleon entered Moscow a week later without a decisive victory.",
+].join("\n\n");
+const borodinoChunks = chunkSource("pasted.txt", BORODINO);
+const BORODINO_TASK = "Who commanded the Russian army at this battle, and who led the French?";
+
+test("an echo that resolves the question's own deixis is still an echo: typed open, no refs", async () => {
+  let drafts = 0;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    // First draft: the declarative echo. Correction: the ?-terminated echo.
+    // Both are the live shapes, byte for byte in structure.
+    drafts++;
+    return drafts === 1
+      ? `The question of who commanded the Russian army at the Battle of Borodino and who led the French is addressed. [${refs[0] ?? "x#0-1"}]`
+      : `The question at hand is who commanded the Russian army at the Battle of Borodino, and who led the French forces? [${refs[0] ?? "x#0-1"}]`;
+  };
+  const result = await runHolonicTask({ task: BORODINO_TASK, chunks: borodinoChunks, call, planMode: "flat" });
+  assert.ok(result.open.some((o) => o.includes("restates the prompt")), JSON.stringify(result.open));
+  // The restatement never ships: the mechanical assembly does, quoting the
+  // material with addresses on every sentence.
+  assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
+  assert.ok(result.output.includes("[pasted.txt#"), result.output);
+  assert.ok(!/question at hand|is addressed/.test(result.output), "the echo itself stays off the page");
+});
+
+test("a real answer carrying a wh-relative clause is NOT framing and keeps its warrant", async () => {
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `Napoleon, who led the French, entered Moscow a week later. [${refs[0] ?? "x#0-1"}]`;
+  };
+  const result = await runHolonicTask({ task: "who led the French at this battle?", chunks: borodinoChunks, call, planMode: "flat" });
+  assert.ok(!result.open.some((o) => o.includes("restates the prompt")), JSON.stringify(result.open));
+  assert.ok(result.refs.length >= 1, "content outside the wh-clause is an answer, and it keeps its address");
 });

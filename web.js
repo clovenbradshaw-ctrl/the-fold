@@ -74,8 +74,10 @@ const DROP_CONTAINER = ["nav", "header", "footer", "aside", "form", "dialog"];
 // Attribute values may legally contain ">" (Wikipedia ships JSON inside
 // data-mw='{…}'), so every tag pattern here walks quoted values instead of
 // stopping at the first ">" — measured on the War and Peace fixture, where
-// the naive pattern leaked half an attribute into the text face.
-const ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
+// the naive pattern leaked half an attribute into the text face. Exported
+// because the lesson is one lesson: primary.js walks the same markup for
+// citations and must not re-learn it with a second, naive pattern.
+export const ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
 
 function dropTag(html, tag, { dropUnclosedTail = false } = {}) {
   const re = new RegExp(`<${tag}\\b${ATTRS}>[\\s\\S]*?</${tag}\\s*>`, "gi");
@@ -254,6 +256,22 @@ export function archiveUrlFrom({ contentLocation, finalUrl }) {
   if (/^https?:\/\/web\.archive\.org\/web\/\d+/.test(cl)) return cl;
   if (/^https?:\/\/web\.archive\.org\/web\/\d+/.test(finalUrl ?? "")) return finalUrl;
   return null;
+}
+
+/**
+ * The static URL for a saved page face. History entries carry paths in the
+ * FILE API's space (relative to the browse root, e.g. "the-fold/web/pages/
+ * ab12….txt") because Explore's openSource speaks that space. The static
+ * server's URL space is rooted one level lower, at this directory — so a
+ * client that fetches `${base}/${textPath}` gets the 404 body, and judging
+ * a claim against the literal text "not found" is a silent wrong verdict
+ * (measured live 2026-08-17: every proof came back web-uncorroborated).
+ * The pages directory is flat and content-addressed, so the basename alone
+ * names the file in the static space.
+ */
+export function pageFaceUrl(base, storedPath) {
+  const name = String(storedPath ?? "").split("/").pop();
+  return name ? `${base}/web/pages/${name}` : null;
 }
 
 /** The file face a saved page gets, from its content-type. */

@@ -72,6 +72,37 @@ export function proofQuery(claim) {
 }
 
 /**
+ * Order search results by how much of the claim's own context their title
+ * and snippet carry, before any page is fetched. The engine's raw order is
+ * relevance to the QUERY STRING; a bare figure is a weak key, and the top
+ * results can be about a different 70,000 entirely — measured live
+ * 2026-08-17: "70,000" from a Borodino sentence consulted a Gaza casualty
+ * page while three Borodino pages sat lower in the list. Overlap is a
+ * count (argmax ordering, no threshold, P4); ties keep the engine's order.
+ */
+export function rankResults(claim, results) {
+  const want = new Set(
+    [
+      ...String(claim?.sentence ?? "")
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}'’]+/u)
+        .map((w) => w.replace(/['’]s$/, "")),
+      ...(claim?.tokens ?? []).map((t) => String(t).toLowerCase()),
+    ].filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w)),
+  );
+  if (!want.size) return [...(results ?? [])];
+  const scored = (results ?? []).map((r, i) => {
+    const face = `${r?.title ?? ""} ${r?.snippet ?? ""}`.toLowerCase();
+    const toks = new Set(face.split(/[^\p{L}\p{N}'’]+/u).map((w) => w.replace(/['’]s$/, "")));
+    let n = 0;
+    for (const w of want) if (toks.has(w)) n++;
+    return { r, i, n };
+  });
+  scored.sort((a, b) => b.n - a.n || a.i - b.i);
+  return scored.map((x) => x.r);
+}
+
+/**
  * One page, one assessment: does this page's saved text face state the
  * claim's tokens? The same containment discipline as the local check
  * (grounding.js's wordSet/hasWord for names, numberSet/hasNumber for
@@ -130,23 +161,33 @@ export function foldProof(claim, { query, pages = [], gap = null } = {}) {
   const consulted = pages.filter((p) => p && !p.gap);
   const failed = pages.filter((p) => p && p.gap);
   if (gap || !consulted.length) {
+    const g = gap ?? failed[0]?.gap ?? { silence: "not-present", detail: "no page could be read" };
+    // Say what actually happened, not a catch-all: a search that ran and
+    // found nothing is a different fact from a crossing that failed —
+    // measured live 2026-08-17, when a zero-result search shipped as "the
+    // crossing failed" and read as an outage.
+    const sentence =
+      g.silence === "refused-upstream"
+        ? "the search engine declined this machine (its bot check) — nothing was looked up, which is a gap, not a verdict"
+        : `nothing was checked online — ${g.detail ?? "no page could be read"} — a gap, not a verdict`;
     return {
-      verdict: gap?.silence === "refused-upstream" ? "refused-upstream" : "not-consulted",
+      verdict: g.silence === "refused-upstream" ? "refused-upstream" : "not-consulted",
       claim: claim?.text ?? null,
       query: query ?? null,
       consulted: 0,
       failed: failed.length,
-      gap: gap ?? failed[0]?.gap ?? { silence: "not-present", detail: "no page could be consulted" },
-      sentence: "the web was not consulted for this claim — the crossing failed, which is a gap, not a zero",
+      gap: g,
+      sentence,
     };
   }
   const stating = consulted.filter((p) => p.assessment?.stated);
   const hosts = [...new Set(stating.map((p) => p.host ?? hostOf(p.url)))];
+  const kindWord = claim?.kind === "number" ? "the figure" : claim?.kind === "edge" ? "the statement" : "the name";
   const phrase =
-    `${claim?.kind === "number" ? "the figure" : "the name"} ${claim?.text ?? ""}`.trim() +
-    ` appears on ${stating.length} of ${consulted.length} page(s) consulted` +
-    (stating.length ? ` (${hosts.length} distinct host(s))` : "") +
-    (failed.length ? `; ${failed.length} fetch(es) refused, counted apart` : "");
+    `${kindWord} “${claim?.text ?? ""}”`.trim() +
+    ` appears on ${stating.length} of the ${consulted.length} page(s) read` +
+    (stating.length ? ` (${hosts.length} different site(s))` : "") +
+    (failed.length ? `; ${failed.length} page(s) couldn't be fetched, counted separately` : "");
   return {
     verdict: stating.length ? "web-corroborated" : "web-uncorroborated",
     claim: claim?.text ?? null,
@@ -159,6 +200,7 @@ export function foldProof(claim, { query, pages = [], gap = null } = {}) {
       title: p.title ?? null,
       textPath: p.textPath ?? null,
       context: p.assessment?.context ?? null,
+      ...(p.snips?.length ? { snips: p.snips } : {}),
       ...(p.challenge ? { challenge: true } : {}),
     })),
     independence: {

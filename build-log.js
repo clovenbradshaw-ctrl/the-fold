@@ -21,7 +21,49 @@
 //               prior version and the edit. SEG → SYN … SYN never runs the
 //               algebra backward (checkCubeProgression stays silent on a
 //               build thread; the conformance test pins this against the
-//               engine's own checker).
+//               engine's own checker). A SUPERSEDE comes in two carriages:
+//               FULL (the entry holds the whole code, reviseBuild) and
+//               PATCH (the entry holds only a delta, patchBuild) — same
+//               kind, same cell, because the typing is from the ACT
+//               (supersession) and both acts supersede one version with the
+//               next. The patch carriage is the one a small model can be
+//               right about: it states the smallest change, and the FOLD
+//               compiles the new whole mechanically — which is SYN's own
+//               verb ("compile: a whole composed from parts") read
+//               literally: the parts are the prior version and the delta,
+//               and the composer is foldBuild, never the model retyping
+//               bytes it was not asked to touch.
+//
+// THE DELTA'S OWN PRIMITIVES ARE THE OPERATORS (user direction,
+// 2026-08-17: "use the 9 operators as the primitives"). A patch is a list
+// of ops, each typed by the operator whose act it is:
+//
+//   INS · admit   — new bytes come into being, bound after an anchor the
+//                   projection already holds ({op:"INS", find, add} —
+//                   `add` lands immediately after `find`).
+//   SEG · snip    — a reach-unit is cut out ({op:"SEG", find} — `find` is
+//                   removed).
+//   SYN · compile — a span is recompiled ({op:"SYN", find, add} — `find`
+//                   becomes `add`).
+//
+// All three reduce to one mechanical application rule — the op's bytes
+// must appear in the projection EXACTLY ONCE — so an op that names bytes
+// the projection does not hold is a typed gap (`unlocated`), an op whose
+// bytes appear twice is a typed gap (`ambiguous`), and application is
+// atomic: one failing op and NOTHING lands. Never a silent no-op, never a
+// guess at intent.
+//
+// WHY THE PRIMITIVES LIVE INSIDE ONE SYN ENTRY RATHER THAN AS ENTRIES OF
+// THEIR OWN — the same wall that forced REC into its own thread, conceded
+// to rather than argued with: checkCubeProgression walks a supersedes-
+// chained thread and flags any adjacent pair that runs the production
+// order backward, and the order is one-way (INS fires before SYN; SEG
+// before INS). A deletion entry (SEG) landing after an insertion entry
+// (INS) — the normal case, iterating on a widget — would flag on the
+// engine's own referee. So the ENTRY is the supersession (SYN, the fold
+// compiles) and the OPS carry the operator primitives as the delta's own
+// vocabulary. The algebra's order is why; it is stated here so the next
+// pass does not re-derive it or, worse, bolt the ops on untyped.
 //   EVIDENCE  → REC · Figure · produced — a RE-ZERO. The operator judged the
 //               projection ("I don't like the colours", "it's broken") and
 //               the ground it was built on is conceded; the entry records the
@@ -57,6 +99,135 @@
 // this file is imported by both the page (which loads task-log.js from
 // /engine) and the node tests (which load it by relative path) — the same
 // pattern cast.js already carries, for the same reason. Used, never copied.
+
+/** The closed vocabulary of delta primitives — operator names, because the
+ * operators ARE the primitives (header). Closed: an op outside it is
+ * malformed, never coerced. */
+export const PATCH_OPS = Object.freeze(["INS", "SEG", "SYN"]);
+
+/**
+ * Which of the nine a delta actually IS, computed from the delta's own
+ * shape — never taken from the label the model wrote.
+ *
+ * MEASURED, 2026-08-17, and this is why the function exists. Asked for one
+ * edit with an `op` field, both gemma2:2b and qwen2.5-coder:1.5b routinely
+ * answer `op: "INS"` while supplying an `add` that plainly REPLACES `find`
+ * (the whole button, restyled). Applied at its word that admits the new
+ * bytes and keeps the old ones — the widget ends up with two buttons, a
+ * broken artifact that passed every mechanical wall because the walls
+ * checked the bytes and trusted the label. That is L5 exactly: a
+ * compliance-critical fact left to the model's own instruction-following.
+ * So the model supplies only `find` and `add` — the bytes, which it CAN be
+ * right about — and the act is read off them:
+ *
+ *   add is empty            → SEG · snip     (a reach-unit is cut out)
+ *   add contains find whole → INS · admit    (new bytes join what stays)
+ *   otherwise               → SYN · compile  (the span becomes a new one)
+ *
+ * A caller that states its own op (a hand-written patch, a test) keeps it:
+ * derivation is for what the mouth produced, not a wall against authorship.
+ */
+export function deriveOp({ find, add }) {
+  if (typeof add !== "string" || add === "") return "SEG";
+  if (add !== find && add.includes(find)) return "INS";
+  return "SYN";
+}
+
+/** The delta as the log will carry it: the model's bytes, the derived act.
+ * `add` is normalized to what each op means mechanically — an INS carries
+ * only the bytes it admits, so the projection is never asked to hold the
+ * anchor twice. */
+export function readOps(raw) {
+  if (!Array.isArray(raw)) return null;
+  const ops = [];
+  for (const o of raw) {
+    if (!o || typeof o.find !== "string" || !o.find.length) continue;
+    const add = typeof o.add === "string" ? o.add : "";
+    const op = deriveOp({ find: o.find, add });
+    if (op === "SEG") ops.push({ op, find: o.find });
+    else if (op === "INS") {
+      // add holds find plus new bytes; INS admits only the new ones, after
+      // the anchor. Split on the anchor's own position so nothing is
+      // duplicated and nothing is guessed.
+      const at = add.indexOf(o.find);
+      const before = add.slice(0, at);
+      const after = add.slice(at + o.find.length);
+      // Bytes on BOTH sides is not an admission after an anchor — it is a
+      // recompilation of the span, and saying so is more honest than
+      // splitting it into two acts nobody declared.
+      if (before && after) ops.push({ op: "SYN", find: o.find, add });
+      else if (after) ops.push({ op: "INS", find: o.find, add: after });
+      else ops.push({ op: "SYN", find: o.find, add });
+    } else ops.push({ op, find: o.find, add });
+  }
+  return ops.length ? ops : null;
+}
+
+/**
+ * Apply a patch — a list of operator-typed ops — to a projection's code,
+ * mechanically. Exact bytes, exactly once, atomic, typed gaps:
+ *
+ *   {op:"SYN", find, add} — `find` recompiled to `add`
+ *   {op:"INS", find, add} — `add` admitted immediately after `find`
+ *   {op:"SEG", find}      — `find` snipped out
+ *
+ * Ops apply in order, each against the text the previous op produced — a
+ * later op may therefore anchor on bytes an earlier op admitted, and that
+ * is a feature (the model states changes in reading order), stated here so
+ * it is never mistaken for a bug.
+ *
+ * Returns {ok:true, code, touched} or {ok:false, gap} where gap names the
+ * failing op by index and operator, with the bytes that failed — a reader
+ * can act on it. No partial application ever escapes: one failing op fails
+ * the whole patch. `touched` counts the places each op changed.
+ *
+ * `every` — AN ACT ON THE FORM RATHER THAN THE FIGURE, and the reason it
+ * exists is measured, not assumed (2026-08-17). Under the strict rule the
+ * dominant live failure was `ambiguous`: asked to "make the buttons
+ * bigger", both small models named `style="font-size:12px;background:#eee"`
+ * — which is on BOTH buttons, and which is what the operator meant. The
+ * strict reading treats N matches as an unanswerable "which one"; but an
+ * edit that is well-defined on every occurrence needs no choice, and
+ * refusing it demands one nobody made. So `every` applies the op at every
+ * occurrence and COUNTS them, and the count rides the entry and the note —
+ * "changed in 2 places", never a silent multiple. Strict (`every: false`)
+ * stays the default, so every existing caller and the whole conformance
+ * suite keep the narrower wall.
+ */
+export function applyOps(code, ops, { every = false } = {}) {
+  if (typeof code !== "string") {
+    return { ok: false, gap: { kind: "no-projection", reason: "there is no code to patch" } };
+  }
+  if (!Array.isArray(ops) || !ops.length) {
+    return { ok: false, gap: { kind: "malformed", reason: "a patch is a non-empty list of ops" } };
+  }
+  let out = code;
+  const touched = [];
+  for (let i = 0; i < ops.length; i++) {
+    const o = ops[i] ?? {};
+    const op = typeof o.op === "string" ? o.op.toUpperCase() : null;
+    if (!PATCH_OPS.includes(op)) {
+      return { ok: false, gap: { kind: "malformed", at: i, op: o.op ?? null, reason: `op must be one of ${PATCH_OPS.join("/")}` } };
+    }
+    if (typeof o.find !== "string" || !o.find.length) {
+      return { ok: false, gap: { kind: "malformed", at: i, op, reason: "find must be a non-empty string of the projection's own bytes" } };
+    }
+    if (op !== "SEG" && typeof o.add !== "string") {
+      return { ok: false, gap: { kind: "malformed", at: i, op, reason: `${op} needs add: the bytes to ${op === "INS" ? "admit" : "compile in"}` } };
+    }
+    const count = out.split(o.find).length - 1;
+    if (count === 0) {
+      return { ok: false, gap: { kind: "unlocated", at: i, op, find: o.find, reason: "the op names bytes the projection does not hold" } };
+    }
+    if (count > 1 && !every) {
+      return { ok: false, gap: { kind: "ambiguous", at: i, op, find: o.find, count, reason: `the op's bytes appear ${count} times — widen find until it is unique` } };
+    }
+    const replacement = op === "SEG" ? "" : op === "INS" ? o.find + o.add : o.add;
+    out = every ? out.split(o.find).join(replacement) : out.replace(o.find, replacement);
+    touched.push(every ? count : 1);
+  }
+  return { ok: true, code: out, touched };
+}
 
 /**
  * Bind the build-log operations to the engine's task-log module.
@@ -95,21 +266,55 @@ export function makeBuildLog(taskLog) {
     // is the build as it now stands. projectTasks sorts by first_seq, so
     // "last" is "most recently born", not an accident of Map order.
     const t = tasks[tasks.length - 1];
+    const ground = t.ground ?? 1;
     // The instruction is a build-log field, not engine vocabulary —
     // projectTasks does not carry it. Read it from the PROPOSE entry
     // that birthed this thread (the one matching this build's n).
     const propose = entries.find(
       (e) => e.kind === ENTRY_KINDS.PROPOSE && e.n === t.n,
     );
+    // A SUPERSEDE in the patch carriage holds only its delta — the code is
+    // the fold's to compile (the header's SYN reading, taken literally).
+    // Walk this ground's constitutive entries: the last FULL-carriage entry
+    // holds authoritative code and seg; every later patch applies in seq
+    // order on top. A log with no patches walks straight to its last entry
+    // and reads exactly as it always has.
+    const thread = entries.filter(
+      (e) => e.n === t.n && (e.ground ?? 1) === ground &&
+        (e.kind === ENTRY_KINDS.PROPOSE || e.kind === ENTRY_KINDS.SUPERSEDE),
+    );
+    let base = thread.length - 1;
+    while (base >= 0 && thread[base].patch) base--;
+    let code = base >= 0 ? (thread[base].code ?? null) : null;
+    const seg0 = base >= 0 ? (thread[base].seg ?? null) : null;
+    // A stored patch that no longer applies is a typed gap on the fold,
+    // never a silent hole: patchBuild refuses a non-applying patch at
+    // append, so this branch is only reachable from a corrupted store —
+    // and a corrupted store degrades to the last projectable version WITH
+    // the gap named, the honest floor.
+    let patchGap = null;
+    for (let j = base + 1; j < thread.length; j++) {
+      // `every` is read back OFF the entry, never re-decided here: the
+      // projection must recompile exactly the act that landed, or a cursor
+      // fold would disagree with the history it is folding.
+      const r = applyOps(code ?? "", thread[j].patch?.ops, { every: !!thread[j].patch?.every });
+      if (r.ok) code = r.code;
+      else {
+        patchGap = { seq: thread[j].seq, version: thread[j].version ?? null, ...r.gap };
+        break;
+      }
+    }
+    const seg = seg0?.type === "code" && typeof code === "string" ? { ...seg0, code } : seg0;
     return {
       n: t.n,
       turn: t.turn,
-      seg: t.seg,
+      seg,
       caption: t.caption,
       instruction: propose?.instruction ?? null,
       version: t.version,
-      ground: t.ground ?? 1,
-      code: t.code,
+      ground,
+      code,
+      patchGap,
       reason: t.reason ?? null,
       lastRun: t.result ?? null,
       runParams: t.params ?? null,
@@ -164,7 +369,7 @@ export function makeBuildLog(taskLog) {
    * the model's actual output, so a widget that comes back as a different
    * language says so on the log rather than inheriting the old one's.
    */
-  function rezeroBuild(log, { code, seg = null, caption = null, trigger, tell = null } = {}) {
+  function rezeroBuild(log, { code, seg = null, caption = null, trigger, tell = null, patch = null } = {}) {
     const cur = foldBuild(log);
     if (!cur) return log;
     if (typeof trigger !== "string" || !trigger.trim())
@@ -175,7 +380,15 @@ export function makeBuildLog(taskLog) {
     // Churn is refused here exactly as it is in reviseBuild: an identical
     // projection changes no state, and a ground that concedes nothing is not
     // a concession. The complaint is still real — it just did not land.
-    if (nextCode === cur.code && (seg ?? cur.seg) === cur.seg) return log;
+    //
+    // The comparison is STRUCTURAL, never by reference: foldBuild compiles
+    // the projected seg fresh on every call (the patch carriage means `seg`
+    // is an answer, not a stored object), so `seg === cur.seg` was an
+    // identity test that could only ever hold for the literal null case.
+    const sameSeg =
+      seg == null ||
+      (seg.type === cur.seg?.type && seg.lang === cur.seg?.lang && (seg.code ?? null) === (cur.seg?.code ?? null));
+    if (nextCode === cur.code && sameSeg) return log;
 
     const conceded = append(log, {
       kind: ENTRY_KINDS.EVIDENCE,
@@ -209,6 +422,14 @@ export function makeBuildLog(taskLog) {
       ground,
       code: nextCode,
       trigger,
+      // When the new ground's seed was compiled from the conceded
+      // projection by a patch (the delta the model actually produced), the
+      // ops ride the birth entry as provenance. The code stays FULL here by
+      // design: a ground's PROPOSE is its own base — foldBuild's patch walk
+      // never crosses a ground boundary, so the seed must stand alone. The
+      // field is patchProvenance, NOT patch: foldBuild reads a truthy
+      // `patch` as the delta carriage, and this entry's code is full.
+      ...(patch ? { patchProvenance: patch } : {}),
     });
   }
 
@@ -239,6 +460,53 @@ export function makeBuildLog(taskLog) {
       code,
       reason,
     });
+  }
+
+  /**
+   * A new version stated as its DELTA — the patch carriage of SUPERSEDE
+   * (header: same kind, same SYN · Figure · produced cell, because the act
+   * is the same supersession; what differs is what the entry carries). The
+   * entry holds only {patch: {ops}}; the new whole is compiled by foldBuild,
+   * so the model's job was exactly the ops and nothing else.
+   *
+   * The gate is here, at append: the ops are applied against the live
+   * projection first, and a patch that does not apply NEVER LANDS — the
+   * refusal returns as a typed gap the caller can say out loud. The return
+   * shape is {log, landed, gap, churn, version, code} rather than the bare
+   * log, because "did not land, and here is why" is this function's whole
+   * point — reviseBuild's silent-unchanged-log convention would swallow it.
+   */
+  function patchBuild(log, { ops, reason = "patch", tell = null, every = false } = {}) {
+    const cur = foldBuild(log);
+    if (!cur) return { log, landed: false, gap: { kind: "no-build", reason: "nothing has been proposed on this log" } };
+    if (cur.seg?.type !== "code" || typeof cur.code !== "string") {
+      return { log, landed: false, gap: { kind: "not-code", reason: "only a code build takes a patch" } };
+    }
+    const r = applyOps(cur.code, ops, { every });
+    if (!r.ok) return { log, landed: false, gap: r.gap };
+    if (r.code === cur.code) return { log, landed: false, churn: true };
+    const k = cur.version + 1;
+    const next = append(log, {
+      kind: ENTRY_KINDS.SUPERSEDE,
+      task_id: vid(cur.n, k, cur.ground),
+      supersedes: vid(cur.n, cur.version, cur.ground),
+      description: cur.caption,
+      operator: STRUCTURE_OPERATORS.SYN,
+      operator_basis: OPERATOR_BASIS.PRODUCED,
+      grain: FIGURE,
+      n: cur.n,
+      turn: cur.turn,
+      caption: cur.caption,
+      version: k,
+      ground: cur.ground,
+      patch: {
+        ops: ops.map((o) => ({ op: String(o.op).toUpperCase(), find: o.find, ...(typeof o.add === "string" ? { add: o.add } : {}) })),
+        ...(every ? { every: true, touched: r.touched } : {}),
+      },
+      reason,
+      tell,
+    });
+    return { log: next, landed: true, version: k, code: r.code };
   }
 
   // What a result entry keeps of each output stream. The runner's own cap is
@@ -313,7 +581,9 @@ export function makeBuildLog(taskLog) {
               ? `g${e.ground} v1 · rebuilt`
               : `v1 · built`
             : e.kind === ENTRY_KINDS.SUPERSEDE
-              ? `${(e.ground ?? 1) > 1 ? `g${e.ground} ` : ""}v${e.version} · ${e.reason ?? "revised"}`
+              ? e.patch
+                ? `${(e.ground ?? 1) > 1 ? `g${e.ground} ` : ""}v${e.version} · patch · ${e.patch.ops.length} op${e.patch.ops.length === 1 ? "" : "s"} (${e.patch.ops.map((o) => o.op).join(" ")})`
+                : `${(e.ground ?? 1) > 1 ? `g${e.ground} ` : ""}v${e.version} · ${e.reason ?? "revised"}`
               : e.kind === ENTRY_KINDS.RESULT
                 ? `ran${e.result?.data?.rendered ? " (rendered)" : e.result?.ok === false ? " (failed)" : ""}`
                 : e.kind,
@@ -410,6 +680,10 @@ export function makeBuildLog(taskLog) {
   return Object.freeze({
     proposeBuild,
     reviseBuild,
+    patchBuild,
+    applyOps,
+    readOps,
+    deriveOp,
     rezeroBuild,
     attachRun,
     retractBuild,

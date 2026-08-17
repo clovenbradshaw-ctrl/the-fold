@@ -236,3 +236,212 @@ test("instruction defaults to null when omitted — legacy and mechanical turns"
   const log = buildLog.proposeBuild({ n: 10, turn: 1, seg: codeSeg, caption: "python" });
   assert.equal(buildLog.foldBuild(log).instruction, null);
 });
+
+// ——— The patch carriage: operator-typed deltas (user direction, 2026-08-17:
+// "use the 9 operators as the primitives"). The delta's ops are INS·admit /
+// SEG·snip / SYN·compile; the entry stays SUPERSEDE · SYN because the
+// production order is one-way and per-op entries would run it backward —
+// verified below against the engine's own checker, never restated locally.
+
+import { applyOps, PATCH_OPS } from "./build-log.js";
+
+const widgetSeg = {
+  type: "code",
+  lang: "html",
+  code: '<button style="background:#4CAF50;font-size:12px">go</button>',
+};
+
+test("applyOps: the operators are the primitives — SYN recompiles, INS admits after its anchor, SEG snips", () => {
+  assert.deepEqual(PATCH_OPS, ["INS", "SEG", "SYN"]);
+  const r = applyOps("aa CC bb", [
+    { op: "SYN", find: "CC", add: "dd" },
+    { op: "INS", find: "dd", add: " ee" },
+    { op: "SEG", find: "aa " },
+  ]);
+  assert.equal(r.ok, true);
+  assert.equal(r.code, "dd ee bb");
+});
+
+test("applyOps: an op naming bytes the projection does not hold is a typed gap, atomic — nothing applies", () => {
+  const r = applyOps("aa bb", [
+    { op: "SYN", find: "aa", add: "xx" },
+    { op: "SYN", find: "zz", add: "yy" },
+  ]);
+  assert.equal(r.ok, false);
+  assert.equal(r.gap.kind, "unlocated");
+  assert.equal(r.gap.at, 1);
+  assert.equal(r.gap.find, "zz");
+});
+
+test("applyOps: bytes appearing more than once are ambiguous — a typed gap with the count, never a guess", () => {
+  const r = applyOps("x = 1; y = 1", [{ op: "SYN", find: "1", add: "2" }]);
+  assert.equal(r.ok, false);
+  assert.equal(r.gap.kind, "ambiguous");
+  assert.equal(r.gap.count, 2);
+});
+
+test("applyOps: malformed ops are refused by name — unknown op, empty find, missing add", () => {
+  assert.equal(applyOps("aa", [{ op: "EVA", find: "aa", add: "b" }]).gap.kind, "malformed");
+  assert.equal(applyOps("aa", [{ op: "SYN", find: "", add: "b" }]).gap.kind, "malformed");
+  assert.equal(applyOps("aa", [{ op: "SYN", find: "aa" }]).gap.kind, "malformed");
+  assert.equal(applyOps("aa", []).gap.kind, "malformed");
+});
+
+test("patchBuild lands SUPERSEDE · SYN · Figure carrying the delta and no code; the fold compiles the whole", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  const r = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "#4CAF50", add: "#2196F3" }] });
+  assert.equal(r.landed, true);
+  const e = r.log.entries[1];
+  assert.equal(e.kind, taskLog.ENTRY_KINDS.SUPERSEDE);
+  assert.equal(e.operator, "SYN");
+  assert.equal(e.grain, "Figure");
+  assert.equal(e.code, undefined);
+  assert.deepEqual(e.patch.ops, [{ op: "SYN", find: "#4CAF50", add: "#2196F3" }]);
+  const b = buildLog.foldBuild(r.log);
+  assert.equal(b.version, 2);
+  assert.equal(b.code, '<button style="background:#2196F3;font-size:12px">go</button>');
+  // The seg the panel renders carries the compiled code too.
+  assert.equal(b.seg.code, b.code);
+  assert.equal(b.patchGap, null);
+});
+
+test("a patch that does not apply never lands — the refusal is a typed gap, not a silent no-op", () => {
+  const log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  const r = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "#FF0000", add: "#2196F3" }] });
+  assert.equal(r.landed, false);
+  assert.equal(r.gap.kind, "unlocated");
+  assert.equal(r.log, log);
+  // A patch compiling to the identical projection is churn, refused as ever.
+  const churn = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "#4CAF50", add: "#4CAF50" }] });
+  assert.equal(churn.landed, false);
+  assert.equal(churn.churn, true);
+});
+
+test("patches stack: every cursor position folds back byte-identically, exportAt included", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "#4CAF50", add: "#2196F3" }] }).log;
+  log = buildLog.reviseBuild(log, { code: buildLog.foldBuild(log).code + "<!-- edited -->", reason: "edit" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "12px", add: "18px" }] }).log;
+  const states = log.entries.map((e) => buildLog.foldBuild(log, e.seq).code);
+  assert.equal(states[0], widgetSeg.code);
+  assert.equal(states[1], widgetSeg.code.replace("#4CAF50", "#2196F3"));
+  assert.equal(states[2], states[1] + "<!-- edited -->");
+  assert.equal(states[3], states[2].replace("12px", "18px"));
+  // The full-edit base between two patches is what the second patch applied to.
+  assert.equal(buildLog.exportAt(log, 3).text, states[3]);
+  assert.equal(buildLog.foldBuild(log).version, 4);
+});
+
+test("a patched thread never runs the algebra backward — the engine's own checker stays silent", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "go", add: "run" }] }).log;
+  log = buildLog.reviseBuild(log, { code: buildLog.foldBuild(log).code + " ", reason: "edit" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SEG", find: "font-size:12px" }] }).log;
+  log = buildLog.rezeroBuild(log, {
+    code: "<p>fresh</p>",
+    seg: { ...widgetSeg, code: "<p>fresh</p>" },
+    trigger: "I don't like it",
+    patch: { ops: [{ op: "SYN", find: "x", add: "y" }] },
+  });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "fresh", add: "fresher" }] }).log;
+  assert.deepEqual(checkCubeProgression(log), []);
+  assert.equal(buildLog.foldBuild(log).code, "<p>fresher</p>");
+  assert.equal(buildLog.foldBuild(log).ground, 2);
+});
+
+test("a patch log rebuilds from its serialized entries alone, byte-identical at every cursor", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "INS", find: ">go<", add: "!" }] }).log;
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "background", add: "color" }] }).log;
+  const replayed = buildLog.replayEntries(JSON.parse(JSON.stringify(log.entries)));
+  for (const e of log.entries) {
+    assert.equal(buildLog.foldBuild(replayed, e.seq).code, buildLog.foldBuild(log, e.seq).code);
+  }
+});
+
+test("the rezero seed stands alone: full code on the new ground's PROPOSE, the delta kept as provenance", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  const patched = widgetSeg.code.replace("#4CAF50", "#2196F3");
+  log = buildLog.rezeroBuild(log, {
+    code: patched,
+    seg: { ...widgetSeg, code: patched },
+    trigger: "I don't like the colors",
+    patch: { ops: [{ op: "SYN", find: "#4CAF50", add: "#2196F3" }] },
+  });
+  const birth = log.entries[log.entries.length - 1];
+  assert.equal(birth.kind, taskLog.ENTRY_KINDS.PROPOSE);
+  assert.equal(birth.code, patched);
+  assert.equal(birth.patch, undefined);
+  assert.deepEqual(birth.patchProvenance.ops[0], { op: "SYN", find: "#4CAF50", add: "#2196F3" });
+});
+
+test("a corrupted store degrades honestly: a stored non-applying patch is a typed gap on the fold, never silent", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "go", add: "run" }] }).log;
+  // Corrupt the serialized rows the way a store would: the patch now names
+  // bytes the base never held.
+  const rows = JSON.parse(JSON.stringify(log.entries));
+  rows[1].patch.ops[0].find = "never-there";
+  const replayed = buildLog.replayEntries(rows);
+  const b = buildLog.foldBuild(replayed);
+  assert.equal(b.code, widgetSeg.code);
+  assert.equal(b.patchGap.kind, "unlocated");
+  assert.equal(b.patchGap.seq, rows[1].seq);
+});
+
+test("timeline names a patch row mechanically: version, op count, and the ops themselves", () => {
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "widget" });
+  log = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: "go", add: "run" }, { op: "SEG", find: " style=\"background:#4CAF50;font-size:12px\"" }] }).log;
+  const row = buildLog.timeline(log)[1];
+  assert.equal(row.label, "v2 · patch · 2 ops (SYN SEG)");
+});
+
+// ——— The act is derived from the bytes, never taken from the model's label
+// (L5, measured 2026-08-17: both small models said "INS" while supplying a
+// replacement — applied at their word, the widget grew a second button).
+
+import { deriveOp, readOps } from "./build-log.js";
+
+test("deriveOp reads the act off the delta's own shape: empty add is SEG, containing add is INS, otherwise SYN", () => {
+  assert.equal(deriveOp({ find: "aa", add: "" }), "SEG");
+  assert.equal(deriveOp({ find: "aa", add: "aa bb" }), "INS");
+  assert.equal(deriveOp({ find: "aa", add: "bb" }), "SYN");
+  // A self-identical add is not an admission of anything new.
+  assert.equal(deriveOp({ find: "aa", add: "aa" }), "SYN");
+});
+
+test("readOps normalizes an INS to only the bytes it admits — the anchor is never carried twice", () => {
+  const ops = readOps([{ find: "<b>x</b>", add: "<b>x</b><i>y</i>" }]);
+  assert.deepEqual(ops, [{ op: "INS", find: "<b>x</b>", add: "<i>y</i>" }]);
+  // Bytes on BOTH sides of the anchor are a recompilation, typed SYN.
+  const both = readOps([{ find: "x", add: "axb" }]);
+  assert.equal(both[0].op, "SYN");
+  assert.equal(both[0].add, "axb");
+  // The two forms compile the same whole.
+  assert.equal(applyOps("<b>x</b>", ops).code, "<b>x</b><i>y</i>");
+});
+
+test("every: an edit well-defined on all occurrences applies everywhere, counted — strict stays the default wall", () => {
+  const code = 'a style="s:12px" b style="s:12px" c';
+  const ops = [{ op: "SYN", find: 's:12px', add: "s:20px" }];
+  assert.equal(applyOps(code, ops).gap.kind, "ambiguous");
+  const r = applyOps(code, ops, { every: true });
+  assert.equal(r.ok, true);
+  assert.equal(r.code, 'a style="s:20px" b style="s:20px" c');
+  assert.deepEqual(r.touched, [2]);
+});
+
+test("an every-patch rides the entry with its counts and the cursor recompiles exactly that act", () => {
+  let log = buildLog.proposeBuild({
+    n: 1, turn: 1, caption: "w",
+    seg: { type: "code", lang: "html", code: '<i style="x:1">a</i><i style="x:1">b</i>' },
+  });
+  const r = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: 'style="x:1"', add: 'style="x:2"' }], every: true });
+  assert.equal(r.landed, true);
+  const e = r.log.entries[1];
+  assert.equal(e.patch.every, true);
+  assert.deepEqual(e.patch.touched, [2]);
+  assert.equal(buildLog.foldBuild(r.log).code, '<i style="x:2">a</i><i style="x:2">b</i>');
+  const replayed = buildLog.replayEntries(JSON.parse(JSON.stringify(r.log.entries)));
+  assert.equal(buildLog.foldBuild(replayed).code, buildLog.foldBuild(r.log).code);
+});

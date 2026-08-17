@@ -502,6 +502,63 @@ as every other rejection, never a bare response that would skip the row —
 which is disclosed here as what it is, a narrower check than the rest,
 rather than claimed as equivalent to the others.*
 
+*Amended (2026-08-17, by user direction: "lets DEFINITELY do the diff
+format" / "use the 9 operators as the primitives"): the patch carriage.
+A SUPERSEDE now comes in two carriages — FULL (the entry holds the whole
+code, `reviseBuild`, unchanged) and PATCH (`patchBuild`: the entry holds
+only a delta, and `foldBuild` compiles the new whole by applying the patch
+stack on top of the last full-carriage entry, the way a working tree is
+checked out from a patch series). Same kind, same SYN · Figure · produced
+cell, because the typing is from the ACT and both acts supersede one
+version with the next — and SYN's own verb ("compile: a whole composed
+from parts") is more literally true of the patch carriage than of a full
+retype. The delta's primitives are the operators themselves: INS · admit
+(bytes join after an anchor), SEG · snip (bytes cut out), SYN · compile
+(a span recompiled). They live as ops INSIDE one SYN entry, not as entries
+of their own, because the production order is one-way and a SEG entry
+after an INS entry would run the engine's own referee backward — the same
+wall that forced REC into its own thread, conceded to the same way.
+
+Why: a small model can reliably say "change #4CAF50 to #2196F3"; it cannot
+reliably retype a whole file without breaking something it was not asked
+to touch. The log does the remembering; the model only has to be right
+about the delta. Three facts about the seam, all MEASURED live
+(gemma2:2b / qwen2.5-coder:1.5b, 2026-08-17), none reasoned into place:
+(1) under an array-of-objects grammar gemma2:2b emits an empty array — so
+the ask is ONE flat {find, add} edit per call, the shape a 2B decoder
+physically walks; (2) the operator label is NEVER asked of the model —
+both models said "INS" while supplying a replacement, which applied at
+its word duplicates the span, so `deriveOp` computes the act from the
+delta's own bytes (L5 applied to the delta: the mouth supplies bytes, the
+instrument types the act); (3) the dominant strict-mode failure was
+`ambiguous` on an edit that was well-defined on every occurrence ("make
+the buttons bigger" naming the style attribute both buttons carry), so
+`every` applies at all occurrences, counted, disclosed on the entry and
+in the landing note — and strict stays the default, because `every` also
+admits the bad case (a token living in markup AND script). Application is
+exact-match, atomic, and typed on failure (`unlocated` / `ambiguous` /
+`malformed`); a patch that does not apply NEVER lands; a stored patch
+that stops applying (corrupt store) degrades to the last projectable
+version with the gap named on the fold, never silently. A re-zero's new
+ground still carries FULL code (its PROPOSE is its own base — the patch
+walk never crosses a ground boundary) with the delta as `patchProvenance`.
+
+The mechanical walls verify APPLICABILITY, not intent — measured: a
+landed edit can still be the wrong edit, and the remedy is the fold's own
+iteration loop, one complaint away, with nothing lost. Kinship disclosed:
+this is the same shape as the sibling `bare-metal-eo-matrix-app` (state =
+fold(dispatch, initial, events), operator-typed events, schema in the
+log), with one divergence named — that repo reads DEF as "set a value in
+the current frame"; this repo follows eoreader6's own register (DEF =
+refuse), so a value swap here is SYN · compile, never DEF.
+
+**Enforced:** `build-log.test.mjs` — applyOps' typed gaps and atomicity,
+deriveOp/readOps off the bytes (the INS normalization: the anchor is never
+carried twice), the every-carriage counts riding the entry and recompiling
+identically from serialized entries alone, patch stacks folding
+byte-identically at every cursor, checkCubeProgression silent across
+patched, re-zeroed, re-patched threads, and the corrupt-store degradation.*
+
 ## P17 — A quotation is the source's bytes or it is not printed as one
 
 Quotation marks are the strongest claim an answer makes — "these exact

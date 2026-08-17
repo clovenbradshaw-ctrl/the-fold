@@ -1034,6 +1034,28 @@ landing is `rezeroBuild` (REC, trigger verbatim) rather than `reviseBuild`
 new whole. The two landings, one machine. `routeSegment` remains the
 downstream wall for ordinary turns that happen to produce code.
 
+**The delta carriage (added 2026-08-17, user-directed: "lets DEFINITELY do
+the diff format" / "use the 9 operators as the primitives").** P16's
+amendment is the law; this is the map. `/fold` and every routed complaint
+now ask the model for ONE flat {find, add} edit first — grammar-held
+(`PATCH_SCHEMA`), mechanically read (skills.js's `extractObject`, reused),
+operator-typed off the bytes by `deriveOp`/`readOps` (never off a model
+label — measured: both small models say "INS" while supplying a
+replacement), applied strict-first with `every` as the disclosed rescue of
+an `ambiguous` gap, landed by `patchBuild` as a SUPERSEDE whose entry
+carries only the delta. `foldBuild` compiles every cursor's whole from the
+last full entry plus the patch stack. The descent ladder in `foldTurn` is
+typed and said out loud: ops that apply → patch entry; ops that don't →
+the old full-code ask; neither → a typed gap. And `routeMessage` is NOW
+ACTUALLY WIRED in `send()` (it was documented below as wired before it
+was — the same documented-but-never-called failure routeSegment had):
+checked after every typed door and material detector, a complaint lands
+on its fold as a re-zero whose ground seed is compiled mechanically from
+the conceded projection plus the model's delta, the delta kept as
+`patchProvenance`. Live measurements and their costs are in P16's
+amendment; the honest residue is that the walls verify applicability,
+not intent — the repair is the next iteration, which is the design.
+
 **Three build-log modules exist and only one is wired.** `build-log.js` is
 live (app.js imports it); `builds.js` is unwired except for `referencedBuild`
 and `BUILD_MESSAGE_MAX`, which widget.js now imports rather than re-deriving;

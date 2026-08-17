@@ -99,7 +99,10 @@ if (!existsSync(VENV_PYTHON)) {
 // fresh log, so an entry the engine would refuse to bring into being is
 // refused here too — and the refusal itself lands on the record, typed,
 // with the engine's own reason.
-const RECORD_DIR = join(ROOT, "record");
+// Overridable only for serve-run.test.mjs, so the run-crossing test can point
+// at a throwaway directory instead of appending to this repo's own record —
+// unset in every real boot, where it is exactly `<repo>/record` as always.
+const RECORD_DIR = process.env.THE_FOLD_RECORD_DIR ? resolve(process.env.THE_FOLD_RECORD_DIR) : join(ROOT, "record");
 const BUILD_RECORD_PATH = join(RECORD_DIR, "build-record.jsonl");
 mkdirSync(RECORD_DIR, { recursive: true });
 let buildVocab = null;
@@ -112,6 +115,41 @@ try {
   console.error(`build record: engine task-log unavailable (${e.message}); entries land with vocab:"unchecked"`);
 }
 const recordBuild = (row) => appendFileSync(BUILD_RECORD_PATH, JSON.stringify(row) + "\n");
+// A row whose loss must not take the response with it: the act it describes
+// has already happened, so the honest move is to say so on the console rather
+// than to throw into a socket the page is waiting on. The strict `recordBuild`
+// is used where the record is a PRECONDITION (see the run crossing below).
+const tryRecord = (row) => {
+  try {
+    recordBuild(row);
+    return true;
+  } catch (e) {
+    console.error(`build record: could not append ${row.event} (${e.message}) — row lost`);
+    return false;
+  }
+};
+
+// ── the run crossing ─────────────────────────────────────────────────────────
+//
+// A run is a crossing, not a computation: model-authored text becomes a
+// process with this machine's network and this machine's disk. P16's runner
+// amendment sanctions that path — loopback only, capped, declared — on the
+// condition that it is never invisible, so the wall here is mechanical rather
+// than hoped for: the trace lands FIRST, and a run whose trace cannot be
+// written does not happen. (P6 says a record exists only where a check ran;
+// the runner holds the converse — an act exists only where its record ran.)
+//
+// Two rows per run, sharing one id: the crossing as it is admitted, carrying
+// the code by content address, and the result as the process resolves. The
+// result row says `exit`, not `code`, because in the crossing row `code` is
+// the source that ran. Budgets are named, and what they drop is stated on the
+// row (`kept`/`of`), never silently trimmed: the code text is kept to
+// RUN_CODE_KEPT, and stdout/stderr are already held to RUN_MAX_OUTPUT by the
+// runner itself, so the record reports the true size beside the kept size.
+const RUN_CODE_KEPT = 16 * 1024;
+const BOOT = Date.now().toString(36);
+let runSeq = 0;
+const sha256 = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -156,28 +194,61 @@ createServer((req, res) => {
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
 
   // POST /api/run — run build code as a throwaway process. Loopback only,
-  // JSON in, JSON out, nothing written to this repo.
+  // JSON in, JSON out, nothing written to this repo, every attempt on the
+  // record: a refusal is a row too, so an attempt from off the loopback or a
+  // language with no runner is as visible as a run that happened.
   if (req.method === "POST" && rel === "/api/run") {
-    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
+    const refuse = (status, reason, extra = {}) => {
+      tryRecord({ at: new Date().toISOString(), event: "build-run-refused", reason, ...extra });
+      return json(res, status, { error: reason });
+    };
+    if (!isLoopback(req)) return refuse(403, "loopback only", { from: req.socket.remoteAddress ?? null });
     (async () => {
       const params = await readJsonBody(req, res);
-      if (params === null) return json(res, 413, { error: "body too large" });
-      if (params === false) return json(res, 400, { error: "bad json" });
+      if (params === null) return refuse(413, "body too large");
+      if (params === false) return refuse(400, "bad json");
       const cmd = runnerFor(params.lang);
-      if (!cmd) return json(res, 400, { error: `no runner for "${params.lang}"` });
+      const lang = String(params.lang ?? "");
+      if (!cmd) return refuse(400, `no runner for "${params.lang}"`, { lang });
+      const code = String(params.code ?? "");
+      const run = `${BOOT}.${++runSeq}`;
+      // No record, no run — the one place in this file where a failed append
+      // stops the act instead of being disclosed after it.
+      try {
+        recordBuild({
+          at: new Date().toISOString(),
+          event: "build-run",
+          run,
+          lang,
+          runner: cmd,
+          code: { sha256: sha256(code), text: code.slice(0, RUN_CODE_KEPT), kept: Math.min(code.length, RUN_CODE_KEPT), of: code.length },
+          timeoutMs: RUN_TIMEOUT,
+          maxOutput: RUN_MAX_OUTPUT,
+        });
+      } catch (e) {
+        console.error(`run refused: the record could not be written (${e.message})`);
+        return json(res, 500, { error: "run refused: the record could not be written" });
+      }
       const started = Date.now();
-      const proc = spawn(cmd[0], [...cmd.slice(1), String(params.code ?? "")], {
+      const proc = spawn(cmd[0], [...cmd.slice(1), code], {
         stdio: ["ignore", "pipe", "pipe"],
       });
       let out = "";
       let err = "";
+      // What the caps dropped is counted, not guessed: `of` is everything the
+      // process actually said, `kept` is what fit.
+      let outOf = 0;
+      let errOf = 0;
+      let spawnError = null;
       proc.stdout.on("data", (b) => {
         const s = b.toString();
+        outOf += s.length;
         const room = RUN_MAX_OUTPUT - out.length;
         if (room > 0) out += s.slice(0, room);
       });
       proc.stderr.on("data", (b) => {
         const s = b.toString();
+        errOf += s.length;
         const room = RUN_MAX_OUTPUT - err.length;
         if (room > 0) err += s.slice(0, room);
       });
@@ -186,6 +257,18 @@ createServer((req, res) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
+        const durationMs = Date.now() - started;
+        tryRecord({
+          at: new Date().toISOString(),
+          event: "build-run-result",
+          run,
+          exit: proc.exitCode ?? null,
+          timedOut: proc.killedByTimeout ?? false,
+          durationMs,
+          stdout: { kept: out.length, of: outOf },
+          stderr: { kept: err.length, of: errOf },
+          ...(spawnError ? { spawnError } : {}),
+        });
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
         res.end(
           JSON.stringify({
@@ -193,7 +276,7 @@ createServer((req, res) => {
             stdout: out,
             stderr: err,
             timedOut: proc.killedByTimeout ?? false,
-            durationMs: Date.now() - started,
+            durationMs,
           }),
         );
       };
@@ -202,7 +285,9 @@ createServer((req, res) => {
         proc.kill("SIGKILL");
       }, RUN_TIMEOUT);
       proc.on("error", (e) => {
+        spawnError = e.message;
         out = `could not start ${cmd[0]}: ${e.message}`;
+        outOf = out.length;
         finish();
       });
       proc.on("close", finish);
@@ -309,4 +394,11 @@ createServer((req, res) => {
     "cache-control": "no-store, must-revalidate",
   });
   createReadStream(file).pipe(res);
-}).listen(PORT, () => console.log(`the-fold on http://localhost:${PORT} (no-store)`));
+})
+  // The bound port is read back from the server, not the requested PORT, so
+  // `node serve.mjs 0` (an OS-assigned ephemeral port — what
+  // serve-run.test.mjs asks for, to run without colliding with a real
+  // instance) prints the port it actually got, not the literal 0.
+  .listen(PORT, function () {
+    console.log(`the-fold on http://localhost:${this.address().port} (no-store)`);
+  });

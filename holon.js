@@ -38,6 +38,8 @@ import { buildSourceBlock, checkCitations, foldDiacritics, openQuestions, retrie
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripScaffoldNarration } from "./provenance.js";
+import { relationFindings } from "./hypergraph.js";
+import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -500,6 +502,7 @@ export async function runPart({
   passagesPerPart = PASSAGES_PER_PART,
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
+  makeRelationReader = null,
   onProgress = null,
 }) {
   const question = `${part.label} ${part.description}`;
@@ -524,6 +527,12 @@ export async function runPart({
   // cast the material itself establishes (cast.js), never a wider corpus.
   const resolveName = makeNameResolver?.(passages) ?? null;
 
+  // The relation tier (hypergraph.js), built the same way: the material's
+  // own edges from this part's passages, the closed-class measure from the
+  // live corpus. Injected — this module stays pure and the page supplies
+  // the engine's organs.
+  const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
+
   const inspect = (text) => {
     // The label is model-authored output that ships as a heading, so it is
     // checked with the draft — a figure invented in a label is the same
@@ -536,6 +545,18 @@ export async function runPart({
     });
     const attributions = attribute(text, passages, live);
     const attributed = attributedRefs(attributions);
+    // The answer read against the material's own edges. Contradicted and
+    // unbound edges are claims of fact the material does not make — they
+    // join the unsupported list and drive the same bounded correction;
+    // beyond-reach and unheard stay disclosure-only (limits of the
+    // instrument, not failures of the answer).
+    const relationReport = relations ? relations.read(shipped) : null;
+    // Every quotation followed to the bytes (quotes.js): a fabricated
+    // quotation joins the unsupported list — the strongest claim an answer
+    // makes gets the same bounded correction as an invented figure. Drift
+    // repair happens once, after the correction loop, where the final
+    // draft is rewritten to the source's own bytes and re-inspected.
+    const quotes = passages.length ? verifyQuotes(text, passages, { pool: live }) : null;
     return {
       used,
       attributed,
@@ -543,10 +564,14 @@ export async function runPart({
       channels: [
         ...(used.length ? ["cited"] : []),
         ...(attributed.length ? ["attributed"] : []),
+        ...(relationReport?.examined && !relationReport.vocabulary?.gap ? ["relations"] : []),
+        ...(quotes?.quotes.some((q) => q.status === "verbatim" || q.status === "drifted") ? ["quoted"] : []),
       ],
-      unsupported: [...unsupported, ...unsupportedClaims(grounding)],
+      unsupported: [...unsupported, ...unsupportedClaims(grounding), ...relationFindings(relationReport), ...quoteFindings(quotes)],
       attributions,
       grounding,
+      relations: relationReport,
+      quotes,
     };
   };
 
@@ -744,6 +769,23 @@ export async function runPart({
     verdict = judge(draft);
   }
 
+  // The quote repair, once, on what will actually ship: every located
+  // quotation is rewritten to the source's own bytes (drift dies here, not
+  // on the record) and every quotation located in the offer gains its
+  // chunk's address — mechanical citation, cite.js's own posture, at the
+  // one place a quote's warrant can be attached with certainty. The
+  // repaired draft is re-inspected so the record describes the text the
+  // reader sees, not the text the model wrote.
+  let quoteCorrections = [];
+  if (passages.length && check.quotes) {
+    const fixed = applyQuotes(draft, check.quotes);
+    quoteCorrections = fixed.corrections;
+    if (fixed.text !== draft) {
+      draft = fixed.text;
+      check = inspect(draft);
+    }
+  }
+
   // The output ships without its framing: a sentence that names the act of
   // prompting is never an answer, and a draft that opens by echoing the
   // prompt must not carry that echo to the page, the fold, or the record.
@@ -768,6 +810,9 @@ export async function runPart({
     ...(scaffoldRemoved.length
       ? [`model narrated its own answering process; ${scaffoldRemoved.length} span(s) hidden: ${part.label}`]
       : []),
+    // Real quotations from material the turn was not offered: the model
+    // quoting past its evidence — typed, never silently warranted.
+    ...quoteOpens(check.quotes),
     ...openQuestions(question, passages, check.refs),
     ...(text ? [] : [`part produced no text: ${part.label}`]),
   ];
@@ -779,6 +824,7 @@ export async function runPart({
     passages,
     corrections,
     ...check,
+    quoteCorrections,
     open,
   };
 }
@@ -797,6 +843,7 @@ export async function runHolonicTask({
   passagesPerPart = PASSAGES_PER_PART,
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
+  makeRelationReader = null,
   discourse = "",
   planMode = "model",
   onProgress = null,
@@ -888,6 +935,7 @@ export async function runHolonicTask({
       passagesPerPart,
       maxCorrections,
       makeNameResolver,
+      makeRelationReader,
       onProgress,
     });
     seenRefs.push(...result.refs);

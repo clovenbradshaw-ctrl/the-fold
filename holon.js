@@ -120,7 +120,20 @@ export function needsDecomposition(question) {
     .map((c) => c.trim())
     .filter((c) => c.split(/\s+/).filter(Boolean).length >= MIN_CLAUSE_WORDS);
   if (clauses.length < MIN_SUBSTANTIVE_CLAUSES) return false;
-  if (clauses.length >= 4) return true;
+  // The clause-count shortcut holds only for MULTI-SENTENCE work — steps
+  // stated as steps. Inside one sentence, a comma count is LENGTH, not
+  // structure (P4: decompose only on a counted property, and the property
+  // is anchors, never commas). Measured live in the browser (2026-08-17):
+  // "Make me a counter widget in html, with a plus button, a minus button,
+  // and a number in between." hit this shortcut at four comma-clauses —
+  // but those commas name facets of ONE artifact, none pins an anchor, and
+  // each planned part, sighted only on its own label, regenerated the
+  // whole widget from scratch: five restarts wearing a plan's clothes,
+  // minutes of a 2B model re-answering one ask. A single-sentence ask now
+  // plans only on the anchor count; the build loop's own iteration
+  // (SIG/DEF/EVA aiming each next delta) is how an artifact gets good —
+  // never five blind rewrites of it in one turn.
+  if (clauses.length >= 4 && /[.!?]\s+\S/.test(q)) return true;
   const anchors = clauses.filter(clausePinsAnchor).length;
   return anchors >= 2;
 }

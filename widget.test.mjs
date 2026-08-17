@@ -141,7 +141,7 @@ test("e2e: an html widget is built, then iterated by complaint onto its own log"
   // 2. "I don't like the colors" — no build named, no artifact demanded. It
   //    lands on the widget, as a RE-ZERO on the widget's own log.
   const complained = desk.turn("I don't like the colors", WIDGET_V2);
-  assert.deepEqual(complained, [{ act: "rezero", n: 1, appended: 2 }]);
+  assert.deepEqual(complained, [{ act: "rezero", n: 1, appended: 3 }]);
   assert.equal(desk.builds.length, 1, "a complaint must not fork the widget");
   assert.equal(project(widget).ground, 2);
   assert.match(project(widget).code, /#334155/);
@@ -149,18 +149,19 @@ test("e2e: an html widget is built, then iterated by complaint onto its own log"
   // 3. "it's broken" — the second re-zero, on the SAME log. Iteration is not
   //    a one-shot: a widget is complained at until it is right.
   const fixed = desk.turn("it's broken, the button does nothing", WIDGET_V3);
-  assert.deepEqual(fixed, [{ act: "rezero", n: 1, appended: 2 }]);
+  assert.deepEqual(fixed, [{ act: "rezero", n: 1, appended: 3 }]);
   assert.equal(desk.builds.length, 1);
   assert.equal(project(widget).ground, 3);
   assert.match(project(widget).code, /getElementById/);
 
   // 4. Nothing was overwritten. Every ground the widget ever had is still on
   //    the log and still folds back at its own cursor position, byte-exact.
+  // Each re-zero now lands three entries (concession, amended ask, rebirth).
   const seqs = widget.log.entries.map((e) => e.seq);
-  assert.deepEqual(seqs, [0, 1, 2, 3, 4]);
+  assert.deepEqual(seqs, [0, 1, 2, 3, 4, 5, 6]);
   assert.match(buildLog.foldBuild(widget.log, 0).code, /#f0f/);
-  assert.match(buildLog.foldBuild(widget.log, 2).code, /#334155/);
-  assert.match(buildLog.foldBuild(widget.log, 4).code, /getElementById/);
+  assert.match(buildLog.foldBuild(widget.log, 3).code, /#334155/);
+  assert.match(buildLog.foldBuild(widget.log, 6).code, /getElementById/);
 
   // 5. Downloadable at any cursor, as the rendered document, named by the
   //    address those bytes actually live at.
@@ -168,7 +169,7 @@ test("e2e: an html widget is built, then iterated by complaint onto its own log"
   assert.equal(first.name, "build-1@0.html");
   assert.equal(first.mime, "text/html");
   assert.match(first.text, /#f0f/);
-  assert.match(buildLog.exportAt(widget.log, null, { toDocument }).name, /^build-1@4\.html$/);
+  assert.match(buildLog.exportAt(widget.log, null, { toDocument }).name, /^build-1@6\.html$/);
 
   // 6. The algebra never runs backward, across every ground — the engine's
   //    own checker, not a local restatement of it.
@@ -193,8 +194,9 @@ test("e2e: a demand for a different artifact still forks, and does not touch the
   );
   assert.deepEqual(forked.map((a) => a.act), ["new"]);
   assert.equal(desk.builds.length, 2);
-  // The widget's log did not move: two grounds, three entries, untouched.
-  assert.equal(desk.builds[0].log.entries.length, 3);
+  // The widget's log did not move: two grounds, four entries (the re-zero
+  // lands concession + amended ask + rebirth), untouched.
+  assert.equal(desk.builds[0].log.entries.length, 4);
   assert.equal(project(desk.builds[0]).seg.lang, "html");
   assert.equal(project(desk.builds[1]).seg.lang, "python");
 
@@ -203,7 +205,7 @@ test("e2e: a demand for a different artifact still forks, and does not touch the
   desk.turn("it's broken", "```python\nfor i in range(3, 0, -1):\n    print(i)\nprint('go')\n```\n");
   assert.equal(desk.builds.length, 2);
   assert.equal(buildLog.foldBuild(desk.builds[1].log).ground, 2, "the python build took the complaint");
-  assert.equal(desk.builds[0].log.entries.length, 3, "the widget's log did not move again");
+  assert.equal(desk.builds[0].log.entries.length, 4, "the widget's log did not move again");
 });
 
 test("e2e: a complaint answered in a different language is a new build, not a version of the widget", () => {
@@ -313,6 +315,7 @@ test("a re-zero is EVIDENCE · REC · Figure · produced, carrying the operator'
     tell: "judgment",
   });
 
+  // entries: [PROPOSE] [REC concession] [NUL amended ask] [PROPOSE g2]
   const rec = log.entries[1];
   assert.equal(rec.kind, taskLog.ENTRY_KINDS.EVIDENCE);
   assert.equal(rec.operator, "REC");
@@ -328,7 +331,7 @@ test("a re-zero is EVIDENCE · REC · Figure · produced, carrying the operator'
   // The new ground is born the way any production is born, and does NOT
   // supersede — a re-zero concedes a ground, it does not compile a new whole
   // out of the old one.
-  const seed = log.entries[2];
+  const seed = log.entries[3];
   assert.equal(seed.kind, taskLog.ENTRY_KINDS.PROPOSE);
   assert.equal(seed.operator, "INS");
   assert.equal(seed.task_id, "b1.g2.v1");
@@ -389,9 +392,9 @@ test("the cursor says why the ground moved, in the operator's own words", () => 
   log = buildLog.reviseBuild(log, { code: "<p>b1</p>", reason: "edit" });
   assert.deepEqual(
     buildLog.timeline(log).map((r) => r.label),
-    ["v1 · built", "re-zero · ground 2 · I don't like the colors", "g2 v1 · rebuilt", "g2 v2 · edit"],
+    ["v1 · built", "re-zero · ground 2 · I don't like the colors", "ask · I don't like the colors", "g2 v1 · rebuilt", "g2 v2 · edit"],
   );
-  assert.deepEqual(buildLog.timeline(log).map((r) => r.operator), ["INS", "REC", "INS", "SYN"]);
+  assert.deepEqual(buildLog.timeline(log).map((r) => r.operator), ["INS", "REC", "NUL", "INS", "SYN"]);
 });
 
 test("a log that never re-zeroes is addressed exactly as it always was", () => {

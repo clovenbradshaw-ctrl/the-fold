@@ -325,3 +325,85 @@ export function capture(message) {
   const flat = String(message ?? "").replace(/\s+/g, " ").trim();
   return flat.length > BUILD_MESSAGE_MAX ? `${flat.slice(0, BUILD_MESSAGE_MAX - 1)}…` : flat;
 }
+
+/**
+ * SIG · scout — resolve the operator's own term to the byte-span of the
+ * projection it names, BEFORE any model call. Attention as an act.
+ *
+ * The measured failures this narrows (live e2e, 2026-08-17): `ambiguous`
+ * finds (the model names bytes that appear on both buttons) and
+ * wrong-target hits (a token like "inc" living in markup AND script). An
+ * edit only has to be unique within what attention scoped, and the model
+ * is only shown the scouted region — a smaller arena for a small model.
+ *
+ * Same discipline as the router's own tells, deliberately: the term must
+ * appear in the code through retrieval's one fold, exactly (no stemmer in
+ * this engine, morphology stays unfolded — "the colors" does not resolve
+ * against `color:`; the affordance is narrower, never absent). No match →
+ * null, and the caller keeps the whole-file rule. The span is mechanical:
+ * from the start of the first line holding the term to the end of the
+ * last line holding it.
+ */
+export function scoutSpan(message, code) {
+  const text = String(code ?? "");
+  if (!text) return null;
+  // The fold is NOT length-preserving (NFD + mark-strip shrinks decomposed
+  // input), so positions in the folded string may not be positions in the
+  // text — P5.2's offset lesson. Fold per character and keep the map back.
+  const map = [];
+  let folded = "";
+  for (let i = 0; i < text.length; i++) {
+    const f = foldDiacritics(text[i]).toLowerCase();
+    for (const ch of f) {
+      folded += ch;
+      map.push(i);
+    }
+  }
+  // A term is a WORD the message and the code share — retrieval's own
+  // token rule on both sides, never a substring graze ("don", the fragment
+  // tokenize cuts from "don't", must not land on "done"). Occurrences are
+  // then located with boundary checks for the same reason.
+  const codeTokens = new Set(tokenize(text));
+  const terms = [...new Set(tokenize(String(message ?? "")))].filter((t) => t.length > 2 && codeTokens.has(t));
+  const wordy = (ch) => ch !== undefined && /[a-z0-9_]/.test(ch);
+  const placesOf = (term) => {
+    const places = [];
+    let at = folded.indexOf(term);
+    while (at !== -1) {
+      if (!wordy(folded[at - 1]) && !wordy(folded[at + term.length])) places.push(at);
+      at = folded.indexOf(term, at + 1);
+    }
+    return places;
+  };
+  // The most SELECTIVE shared term decides the arena — fewest occurrences,
+  // ties to the longer term. "The reset button" scopes by "reset" (one
+  // place), never by "button" (every row): a union over every shared word
+  // would re-widen the arena the phrase just narrowed.
+  let hit = null;
+  let hitPlaces = null;
+  for (const term of terms) {
+    const places = placesOf(term);
+    if (!places.length) continue;
+    if (
+      !hitPlaces ||
+      places.length < hitPlaces.length ||
+      (places.length === hitPlaces.length && term.length > hit.length)
+    ) {
+      hit = term;
+      hitPlaces = places;
+    }
+  }
+  if (!hitPlaces) return null;
+  let a = -1;
+  let b = -1;
+  for (const at of hitPlaces) {
+    const t0 = map[at];
+    const t1 = map[at + hit.length - 1] + 1;
+    if (a === -1 || t0 < a) a = t0;
+    if (t1 > b) b = t1;
+  }
+  const start = text.lastIndexOf("\n", a) + 1;
+  const nl = text.indexOf("\n", b);
+  const end = nl === -1 ? text.length : nl;
+  return { term: hit, span: [start, end] };
+}

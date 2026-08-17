@@ -205,12 +205,26 @@ export function readOps(raw) {
  * stays the default, so every existing caller and the whole conformance
  * suite keep the narrower wall.
  */
-export function applyOps(code, ops, { every = false } = {}) {
+export function applyOps(code, ops, { every = false, within = null } = {}) {
   if (typeof code !== "string") {
     return { ok: false, gap: { kind: "no-projection", reason: "there is no code to patch" } };
   }
   if (!Array.isArray(ops) || !ops.length) {
     return { ok: false, gap: { kind: "malformed", reason: "a patch is a non-empty list of ops" } };
+  }
+  // `within` is SIG's gift: attention already scoped the arena, so the ops
+  // apply against that slice alone — uniqueness is judged inside it, and
+  // bytes outside it cannot be touched. The span is the one the scout
+  // landed at patch time and rides the entry, so replay recompiles the
+  // same act against the same arena.
+  if (within) {
+    const [a, b] = within;
+    if (!(Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b > a && b <= code.length)) {
+      return { ok: false, gap: { kind: "malformed", reason: `within must be a valid [start, end) span of the projection (got ${JSON.stringify(within)})` } };
+    }
+    const r = applyOps(code.slice(a, b), ops, { every });
+    if (!r.ok) return r;
+    return { ok: true, code: code.slice(0, a) + r.code + code.slice(b), touched: r.touched };
   }
   let out = code;
   const touched = [];
@@ -251,8 +265,11 @@ export function applyOps(code, ops, { every = false } = {}) {
 export function makeBuildLog(taskLog) {
   const { createTaskLog, append, projectTasks, ENTRY_KINDS, OPERATOR_BASIS, STRUCTURE_OPERATORS, GRAIN_RANK } = taskLog;
 
-  // The Figure grain, read from the engine's own rank table rather than
-  // restated — the name has one source of truth.
+  // The grains, read from the engine's own rank table rather than restated —
+  // the names have one source of truth. Ground is where the ASK lives (NUL:
+  // the first ground is received, never derived); Figure is where the
+  // artifact lives.
+  const GROUND = Object.keys(GRAIN_RANK).find((g) => GRAIN_RANK[g] === 0);
   const FIGURE = Object.keys(GRAIN_RANK).find((g) => GRAIN_RANK[g] === 1);
 
   // Ground 1 keeps the plain `b<n>.v<k>` address it has always had — a
@@ -308,7 +325,7 @@ export function makeBuildLog(taskLog) {
       // `every` is read back OFF the entry, never re-decided here: the
       // projection must recompile exactly the act that landed, or a cursor
       // fold would disagree with the history it is folding.
-      const r = applyOps(code ?? "", thread[j].patch?.ops, { every: !!thread[j].patch?.every });
+      const r = applyOps(code ?? "", thread[j].patch?.ops, { every: !!thread[j].patch?.every, within: thread[j].patch?.within ?? null });
       if (r.ok) code = r.code;
       else {
         patchGap = { seq: thread[j].seq, version: thread[j].version ?? null, ...r.gap };
@@ -346,7 +363,10 @@ export function makeBuildLog(taskLog) {
    *  instruction-following (L5). It lands in the PROPOSE entry and
    *  travels through the fold. */
   function proposeBuild({ n, turn, seg, caption, instruction = null }) {
-    const log = createTaskLog();
+    // The ask precedes the artifact — NUL is received first, the birth
+    // answers it. A build with no stated instruction has no ask entry:
+    // history that was never given is not invented (fromLegacy's own line).
+    let log = askEntry(createTaskLog(), { n, turn, ground: 1, ask: instruction });
     return append(log, {
       kind: ENTRY_KINDS.PROPOSE,
       task_id: vid(n, 1),
@@ -421,7 +441,11 @@ export function makeBuildLog(taskLog) {
       concededGround: cur.ground,
     });
 
-    return append(conceded, {
+    // The new ground's amended ask: the operator's judgment IS what the
+    // next ground answers to, landed beside its birth.
+    const asked = askEntry(conceded, { n: cur.n, turn: cur.turn, ground, ask: trigger });
+
+    return append(asked, {
       kind: ENTRY_KINDS.PROPOSE,
       task_id: vid(cur.n, 1, ground),
       description: caption ?? cur.caption,
@@ -490,13 +514,13 @@ export function makeBuildLog(taskLog) {
    * log, because "did not land, and here is why" is this function's whole
    * point — reviseBuild's silent-unchanged-log convention would swallow it.
    */
-  function patchBuild(log, { ops, reason = "patch", tell = null, every = false } = {}) {
+  function patchBuild(log, { ops, reason = "patch", tell = null, every = false, within = null } = {}) {
     const cur = foldBuild(log);
     if (!cur) return { log, landed: false, gap: { kind: "no-build", reason: "nothing has been proposed on this log" } };
     if (cur.seg?.type !== "code" || typeof cur.code !== "string") {
       return { log, landed: false, gap: { kind: "not-code", reason: "only a code build takes a patch" } };
     }
-    const r = applyOps(cur.code, ops, { every });
+    const r = applyOps(cur.code, ops, { every, within });
     if (!r.ok) return { log, landed: false, gap: r.gap };
     if (r.code === cur.code) return { log, landed: false, churn: true };
     const k = cur.version + 1;
@@ -516,11 +540,122 @@ export function makeBuildLog(taskLog) {
       patch: {
         ops: ops.map((o) => ({ op: String(o.op).toUpperCase(), find: o.find, ...(typeof o.add === "string" ? { add: o.add } : {}) })),
         ...(every ? { every: true, touched: r.touched } : {}),
+        ...(within ? { within: [within[0], within[1]] } : {}),
       },
       reason,
       tell,
     });
     return { log: next, landed: true, version: k, code: r.code };
+  }
+
+  /**
+   * The ASK joins the log — NUL · Ground · produced, its own micro-thread.
+   * "The first ground is received, never derived": what the operator asked
+   * for is the ambient ground the artifact answers to, and until now it
+   * rode the PROPOSE as an untyped field. As an entry it is addressable,
+   * quotable in later prompts, and exactly what a REC concedes — the new
+   * ground's ask lands beside its birth, so a log reads ask → artifact →
+   * versions → (concession → amended ask → artifact …). This is also the
+   * log's first word on the grain axis beyond Figure — the axis the
+   * lexical corpus measured as the strongest of the three.
+   */
+  function askEntry(log, { n, turn, ground, ask }) {
+    if (typeof ask !== "string" || !ask.trim()) return log;
+    return append(log, {
+      kind: ENTRY_KINDS.EVIDENCE,
+      task_id: `b${n}.ask.${ground}`,
+      description: `ask: ${ask.slice(0, 80)}`,
+      operator: "NUL",
+      operator_basis: OPERATOR_BASIS.PRODUCED,
+      grain: GROUND,
+      n,
+      turn,
+      ground,
+      ask,
+    });
+  }
+
+  /**
+   * Attention lands ON the log — SIG · Figure · produced, its own
+   * micro-thread. What the operator's words were looking at when the
+   * change was asked for: the term that resolved and the byte-span it
+   * scoped. Provenance the re-zero already wanted, and the arena the
+   * patch that follows applies within.
+   */
+  function scoutBuild(log, { term, span } = {}) {
+    const cur = foldBuild(log);
+    if (!cur || !term || !Array.isArray(span)) return log;
+    const k = log.entries.filter((e) => e.operator === "SIG").length + 1;
+    return append(log, {
+      kind: ENTRY_KINDS.EVIDENCE,
+      task_id: `b${cur.n}.scout.${k}`,
+      description: `scout: "${term}" → [${span[0]}, ${span[1]})`,
+      operator: "SIG",
+      operator_basis: OPERATOR_BASIS.PRODUCED,
+      grain: FIGURE,
+      n: cur.n,
+      turn: cur.turn,
+      ground: cur.ground,
+      scout: { term, span: [span[0], span[1]] },
+    });
+  }
+
+  /**
+   * A refused patch lands ON the log — DEF · Figure · produced, its own
+   * micro-thread (the REC precedent: DEF fires before INS/SYN in the
+   * one-way order, so it may not join a supersedes-chain that already
+   * compiled). P14 already holds this line for skills: "tried and refused
+   * is evidence" — a refusal that lives only in a return value teaches
+   * nobody, and the next model call walks the same dead end. The entry
+   * carries the gap and the ops that failed, so the next ask can SAY what
+   * was already tried. The projection is untouched: a DEF entry carries no
+   * version and no code, and foldBuild never sees it.
+   */
+  function refuseBuild(log, { ops = null, gap, reason = "patch" } = {}) {
+    const cur = foldBuild(log);
+    if (!cur || !gap) return log;
+    const k = log.entries.filter((e) => e.operator === "DEF").length + 1;
+    return append(log, {
+      kind: ENTRY_KINDS.EVIDENCE,
+      task_id: `b${cur.n}.refuse.${k}`,
+      description: `refused: ${gap.kind ?? "gap"}`,
+      operator: "DEF",
+      operator_basis: OPERATOR_BASIS.PRODUCED,
+      grain: FIGURE,
+      n: cur.n,
+      turn: cur.turn,
+      ground: cur.ground,
+      refusal: { gap, ops },
+      reason,
+    });
+  }
+
+  /**
+   * What a landing actually did, witnessed — EVA · Figure · produced, its
+   * own micro-thread for the same production-order reason as DEF. The
+   * witness is computed mechanically (witness.js — never a model's
+   * self-report; L5 applied to "did it work"), and it is what aims the
+   * next delta: a landing whose witness carries findings feeds them into
+   * the following ask, which is the difference between blind iteration
+   * and directed iteration.
+   */
+  function attachWitness(log, { witness } = {}) {
+    const cur = foldBuild(log);
+    if (!cur || !witness) return log;
+    const k = log.entries.filter((e) => e.operator === "EVA").length + 1;
+    return append(log, {
+      kind: ENTRY_KINDS.EVIDENCE,
+      task_id: `b${cur.n}.witness.${k}`,
+      description: witness.ok ? "witness: clean" : `witness: ${witness.findings?.length ?? 0} finding(s)`,
+      operator: "EVA",
+      operator_basis: OPERATOR_BASIS.PRODUCED,
+      grain: FIGURE,
+      n: cur.n,
+      turn: cur.turn,
+      ground: cur.ground,
+      of: cur.task_id,
+      witness,
+    });
   }
 
   // What a result entry keeps of each output stream. The runner's own cap is
@@ -588,7 +723,17 @@ export function makeBuildLog(taskLog) {
       // cannot carry.
       trigger: e.trigger ?? null,
       label:
-        e.operator === "REC"
+        e.operator === "NUL"
+          ? `ask · ${String(e.ask ?? "").slice(0, 48)}`
+          : e.operator === "SIG"
+            ? `scout · "${e.scout?.term}" → [${e.scout?.span?.[0]}, ${e.scout?.span?.[1]})`
+            : e.operator === "DEF"
+          ? `refused · ${e.refusal?.gap?.kind ?? "gap"}${e.refusal?.gap?.find ? ` · ${String(e.refusal.gap.find).slice(0, 32)}` : ""}`
+          : e.operator === "EVA"
+            ? e.witness?.ok
+              ? "witness · clean"
+              : `witness · ${e.witness?.findings?.length ?? 0} finding(s)`
+            : e.operator === "REC"
           ? `re-zero · ground ${e.ground} · ${e.trigger}`
           : e.kind === ENTRY_KINDS.PROPOSE
             ? (e.ground ?? 1) > 1
@@ -698,6 +843,9 @@ export function makeBuildLog(taskLog) {
     applyOps,
     readOps,
     deriveOp,
+    refuseBuild,
+    attachWitness,
+    scoutBuild,
     rezeroBuild,
     attachRun,
     retractBuild,

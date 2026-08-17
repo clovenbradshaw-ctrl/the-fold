@@ -35,7 +35,7 @@
 // one turn without re-checking anything.
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
-import { checkGrounding, unsupportedClaims } from "./grounding.js";
+import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -63,6 +63,28 @@ const MIN_CLAUSE_WORDS = 3;
 const MIN_SUBSTANTIVE_CLAUSES = 3;
 const NAMED_QUANTITY_RE =
   /\$\s?\d|\b\d{1,2}(?:st|nd|rd|th)\b|\b\d{4}\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b/i;
+const SENTENCE_SPLIT_RE = /(?<=[.!?])\s+(?=\S)/g;
+// A standing preference ("from now on, always number your lists") is not
+// WORK for this turn — it is a configuration change for every future turn.
+// Measured live (2026-08-17): a message naming a standing preference plus an
+// unrelated question ("My name is Jordan. From now on, always use a
+// numbered list. What's the difference between weather and climate?")
+// tripped the clause-count gate on the preference sentence's own commas —
+// three parts, each re-greeting the user and re-answering the whole
+// question, none of them actually numbering anything. The preference isn't
+// a fact to decompose; it's addressed by carrying it forward as state, not
+// by planning it as a part.
+const STANDING_INSTRUCTION_RE =
+  /\b(?:from now on|from here on|going forward|new rule|as a (?:standing )?rule|every time (?:you|i)|whenever (?:you|i) )\b/i;
+
+/** Drop sentences that state a standing preference rather than this turn's
+ * work, before the gate ever counts clauses. */
+function stripStandingInstructions(text) {
+  const sentences = text.split(SENTENCE_SPLIT_RE).filter(Boolean);
+  if (sentences.length < 2) return text;
+  const kept = sentences.filter((s) => !STANDING_INSTRUCTION_RE.test(s));
+  return kept.join(" ");
+}
 
 /** A clause pins an anchor when it names a concrete fact beyond its first word — a figure, a date, or a proper noun mid-clause (sentence-initial capitals are just grammar). */
 function clausePinsAnchor(clause) {
@@ -77,7 +99,9 @@ function clausePinsAnchor(clause) {
  * reaches the anchor scan.
  */
 export function needsDecomposition(question) {
-  const q = String(question || "").trim();
+  let q = String(question || "").trim();
+  if (!q) return false;
+  q = stripStandingInstructions(q).trim();
   if (!q) return false;
   // A question is one ask, however many facets it names. Measured live
   // (2026-08-17): "What river is Nashville on, what US state is it in, and
@@ -594,10 +618,23 @@ export async function runPart({
     // failure as one invented in a sentence, and must land in the same list.
     const shipped = `${part.label}\n${text}`;
     const { used, unsupported } = checkCitations(shipped, passages);
-    const grounding = checkGrounding(shipped, passages, {
-      question: `${task} ${part.description}`,
+    const groundingQuestion = `${task} ${part.description}`;
+    const checkedGrounding = checkGrounding(shipped, passages, {
+      question: groundingQuestion,
       resolveName,
     });
+    // No material means checkGrounding rightly declines to examine anything
+    // (its `examined: false` is a deliberate fact, not a gap — see
+    // grounding.test.mjs). But proof-seeking still needs candidates: with
+    // nothing attached, every atom in the draft is unsupported by
+    // definition, so it is offered to the web tier the same way a
+    // material-unsupported atom would be (see extractCheckableAtoms).
+    const grounding = passages.length
+      ? checkedGrounding
+      : (() => {
+          const findings = extractCheckableAtoms(shipped, { question: groundingQuestion });
+          return { ...checkedGrounding, findings, clean: findings.length === 0 };
+        })();
     const attributions = attribute(text, passages, live);
     const attributed = attributedRefs(attributions);
     // The answer read against the material's own edges. Contradicted and

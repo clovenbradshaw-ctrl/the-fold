@@ -163,6 +163,45 @@ test("a single interrogative sentence never plans, however many facets it names"
   );
 });
 
+test("a standing preference is not WORK, and does not trip the gate on its own commas", () => {
+  // The live failure this pins (2026-08-17): "My name is Jordan. From now
+  // on, whenever you give me more than one item, use a numbered list,
+  // never bullets or a plain paragraph. Let's start: what's the actual
+  // difference between weather and climate?" split into six clauses on the
+  // preference sentence's own commas, tripped the length-4 shortcut, and
+  // planned three redundant parts (each re-greeting Jordan, none of them
+  // ever numbering anything) for what is one plain question.
+  assert.equal(
+    needsDecomposition(
+      "My name is Jordan. From now on, whenever you give me more than one item, use a numbered list, never bullets or a plain paragraph. Let's start: what's the actual difference between weather and climate?",
+    ),
+    false,
+  );
+  // A second live failure (2026-08-17), same shape: replacing the standing
+  // preference plus a marker instruction, both stated as standing rules,
+  // still left a one-sentence question — which must stay exempt.
+  assert.equal(
+    needsDecomposition(
+      'New rule, replacing the old one: stop using any list formatting entirely, always answer in flowing prose sentences. Also, from now on start every reply with the single word "Noted:" as the very first word. Given that, what\'s the difference between renewable and nonrenewable energy?',
+    ),
+    false,
+  );
+  // A standing preference stated ALONE, with no task attached, is not work.
+  assert.equal(
+    needsDecomposition("From now on, whenever you give me a list, number it. Never use bullets."),
+    false,
+  );
+  // The preference-stripping pass must not eat genuine multi-part WORK that
+  // merely happens to share a word with the marker list ("rule" inside a
+  // real clause, not "new rule" / "as a rule").
+  assert.equal(
+    needsDecomposition(
+      "Our budget is $2000, we need wifi at the venue, everyone eats vegetarian, and our CFO cannot attend on the 14th",
+    ),
+    true,
+  );
+});
+
 test("extractArray finds a balanced array inside talk", () => {
   const arr = extractArray('Sure! Here is the plan:\n[{"label":"a [b]","description":"c"}]\nHope that helps.');
   assert.equal(arr.length, 1);
@@ -275,6 +314,31 @@ test("no material is a typed gap on every part, never a guess", async () => {
   assert.ok(result.open.length >= result.sections.length);
   assert.ok(result.open.every((o) => typeof o === "string"));
   assert.ok(result.open.some((o) => o.startsWith("no material matched")));
+});
+
+test("no material still offers a checkable figure to the web tier, not silence", async () => {
+  // The live failure this pins (2026-08-17): a plain question with no
+  // material attached ("what percentage of Earth's atmosphere is nitrogen,
+  // and what year was the Kyoto Protocol signed?") produced zero
+  // proof-seeking chips in the app — not because the web toggle or checking
+  // mode were off, but because checkGrounding's findings are (correctly)
+  // empty at zero passages, and app.js's proofTargets reads findings
+  // straight off the section's `grounding` field with nothing else feeding
+  // it. With no material, every figure and name in the draft is
+  // unsupported by definition and must still reach `findings`.
+  const result = await runHolonicTask({
+    task: "What's the dredging budget?",
+    chunks: [],
+    call: fakeModel(),
+  });
+  const section = result.sections[0];
+  assert.equal(section.passages.length, 0);
+  assert.ok(section.grounding, "the raw grounding result must still be exposed on the section");
+  assert.ok(
+    section.grounding.findings.some((f) => f.text.includes("999")),
+    "the unsupported figure must be a candidate finding for proofTargets, not silently dropped",
+  );
+  assert.ok(result.unbacked.some((u) => u.includes("999")));
 });
 
 test("production retries a strayed part that matched nothing, as a supersede", async () => {

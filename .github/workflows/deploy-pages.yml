@@ -51,6 +51,9 @@ jobs:
       - name: Install vendored packages (monaco-editor, pyodide, sql.js)
         run: npm ci
 
+      - name: Fetch pyodide's numpy/matplotlib/pandas wheels
+        run: sh scripts/fetch-pyodide-packages.sh
+
       - name: Assemble static site
         run: |
           set -e

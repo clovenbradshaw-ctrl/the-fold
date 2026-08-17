@@ -11,7 +11,9 @@
 //   fold     commands over the instrument itself — mechanical, no model
 //   js       javascript in a dedicated Worker whose egress APIs are severed
 //   python   pyodide, vendored in node_modules, served from localhost —
-//            the stdlib only (no PyPI: the page loads nothing remote, P1)
+//            stdlib plus numpy/matplotlib/pandas, also vendored
+//            (scripts/fetch-pyodide-packages.sh; no PyPI: the page loads
+//            nothing remote, P1)
 //   sql      sqlite via sql.js, vendored the same way; loaded CSV material
 //            imports as tables
 //
@@ -39,7 +41,7 @@ export const HINT_AFTER_MS = 10_000; // a long-running command earns one "✕ in
 export const ROSTER = {
   fold: { kind: "builtin", blurb: "commands over the instrument itself — mechanical, no model" },
   js: { kind: "worker", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
-  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~13MB first boot) — stdlib only; material mounts at /material" },
+  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); material mounts at /material" },
   sql: { kind: "worker", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
 };
 
@@ -52,7 +54,7 @@ export const REFUSED = {
   zsh: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
   sh: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
   node: "node runs on the machine — `js` is the sandboxed runtime here",
-  pip: "package installs need the network and the machine — P1 allows neither; the python stdlib is all there is",
+  pip: "package installs need the network and the machine — P1 allows neither; stdlib plus numpy/matplotlib/pandas (vendored) is all there is",
   npm: "package installs need the network and the machine — P1 allows neither",
   webcontainers: "needs a remote CDN and a commercial licence — P1 refuses the first, the licence refuses the second",
   webvm: "boots a full Debian over an external network proxy — P1 refuses the proxy",
@@ -151,6 +153,71 @@ export function formatCells(columns, rows) {
 }
 
 const fmtBytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`);
+
+// ── sandboxed auto-run ───────────────────────────────────────────────────────
+//
+// A second door onto the same two workers the terminal drives, for code a
+// chat turn just wrote as a fold — never for the Folds panel's own ▶ run,
+// which is a REAL machine process via /api/run (P16's runner amendment) and
+// a different risk class entirely. This door never leaves the sandbox: same
+// worker files, same SEVERED egress list, no exception. Throwaway by
+// design — one boot, one exec, terminated after, exactly the "throwaway
+// process" framing /api/run already uses, just backed by WASM instead of
+// the machine.
+const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js" };
+// python pays pyodide's own boot cost (measured: ~9s in Node for the
+// runtime alone, before a single user line runs) on top of whatever the
+// code itself takes — js has no such tax (a plain Worker boots near-
+// instantly), so each runtime's budget is its own rather than one shared
+// guess.
+const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000 };
+
+/** True if `lang` is one this door can actually run. Read by the caller
+ * before it decides to run anything, so a caption never promises a run
+ * that was never going to happen. */
+export function autoRunnable(lang) {
+  return Object.hasOwn(AUTO_RUN_LANGS, String(lang ?? "").toLowerCase());
+}
+
+/**
+ * Runs `code` in a fresh, throwaway sandbox worker and resolves the SAME
+ * shape /api/run's JSON does ({code, stdout, stderr, timedOut, durationMs})
+ * — so attachRun and the Folds panel's own rendering need no branch for
+ * where a result came from. `sources` mounts material the same way the
+ * terminal's own `mount` command does; auto-run gets none by default; a
+ * caller wanting the fold to see loaded material passes them explicitly.
+ */
+export function runSandboxed(lang, code, { sources = {} } = {}) {
+  const key = AUTO_RUN_LANGS[String(lang ?? "").toLowerCase()];
+  if (!key) return Promise.resolve({ code: null, stdout: "", stderr: `no sandboxed runner for "${lang}"`, timedOut: false, durationMs: 0 });
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: "module" });
+    let out = "";
+    let err = "";
+    let settled = false;
+    const finish = (patch) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      worker.terminate();
+      resolve({ code: patch.timedOut || err ? 1 : 0, stdout: out, stderr: err, timedOut: !!patch.timedOut, durationMs: Date.now() - started });
+    };
+    const timer = setTimeout(() => finish({ timedOut: true }), AUTO_RUN_TIMEOUT_MS[key] ?? 10_000);
+    worker.onmessage = (ev) => {
+      const m = ev.data ?? {};
+      if (m.type === "ready") worker.postMessage({ type: "exec", code });
+      else if (m.type === "out") out += m.text.endsWith("\n") ? m.text : m.text + "\n";
+      else if (m.type === "err") err += m.text.endsWith("\n") ? m.text : m.text + "\n";
+      else if (m.type === "done") finish({});
+    };
+    worker.onerror = (ev) => {
+      err += `${ev.message ?? "worker error"}\n`;
+      finish({});
+    };
+    worker.postMessage({ type: "boot", sources });
+  });
+}
 
 // ── the terminal itself ─────────────────────────────────────────────────────
 

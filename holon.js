@@ -34,7 +34,7 @@
 // (refs, channels, unsupported, open), so the app can fold the whole task as
 // one turn without re-checking anything.
 
-import { buildSourceBlock, checkCitations, foldDiacritics, openQuestions, retrieve, tokenize } from "./source.js";
+import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripScaffoldNarration } from "./provenance.js";
@@ -496,6 +496,7 @@ export async function runPart({
   part,
   task = "",
   discourse = "",
+  chatHistory = [],
   chunks,
   call,
   foldedRefs = [],
@@ -553,9 +554,16 @@ export async function runPart({
     const relationReport = relations ? relations.read(shipped) : null;
     // Every quotation followed to the bytes (quotes.js): a fabricated
     // quotation joins the unsupported list — the strongest claim an answer
-    // makes gets the same bounded correction as an invented figure. Drift
-    // repair happens once, after the correction loop, where the final
-    // draft is rewritten to the source's own bytes and re-inspected.
+    // makes gets the same bounded correction as an invented figure. That
+    // includes a quotation fabricated only in PART: an ellipsis quotation
+    // with one segment located nowhere is `partial`, and quoteFindings
+    // reports it here (one line per invented segment, naming it) exactly
+    // as it reports a wholly invented one — the located half is not a
+    // warrant for the other half. `quoted` below is a whitelist for the
+    // same reason: only wholly located quotations are a channel of
+    // support. Drift repair happens once, after the correction loop, where
+    // the final draft is rewritten to the source's own bytes and
+    // re-inspected.
     const quotes = passages.length ? verifyQuotes(text, passages, { pool: live }) : null;
     return {
       used,
@@ -589,17 +597,21 @@ export async function runPart({
   //                  restated and nothing else. Run 6: 8/50 turns.
   //   reproduced   — either the content, rejoined, is one contiguous
   //                  verbatim stretch of an offered passage (the simple
-  //                  whole-copy case), OR MORE OF THE ANSWER'S OWN
-  //                  SENTENCES ARE VERBATIM COPIES THAN ARE NOT — the same
-  //                  "present more often than absent" cut cite.js's
-  //                  commonTerms already uses for terms (`cut =
-  //                  pool.length / 2`), applied here to sentences. The
+  //                  whole-copy case), OR MORE OF THE ANSWER'S SUBSTANCE IS
+  //                  COPIED THAN IS NOT — the same "present more often than
+  //                  absent" cut cite.js's commonTerms already uses for
+  //                  terms (`cut = pool.length / 2`), applied here to the
+  //                  character mass of the answer's own sentences. The
   //                  second test is the one the first version of this check
   //                  missed live: real commentary sentences interleaved
   //                  between long verbatim quotations break contiguity, but
   //                  an answer that is mostly quotation with a little
   //                  commentary stitched between the quotes has still not
   //                  answered the question — it has annotated a photocopy.
+  //                  Mass, not a count of sentences: a count measures the
+  //                  material's punctuation habits, and a page of short
+  //                  dialogue lines transcribed whole reads as clean under
+  //                  one (see reproducedFromContent for the measurement).
   // Either verdict is a FAILURE that triggers the same bounded correction
   // pass as an unsupported claim, with the rewrite told exactly which
   // failure it is fixing. A draft still failing when the budget runs out
@@ -607,8 +619,15 @@ export async function runPart({
   // earns nothing.
   const questionWords = new Set(tokenize(`${task} ${question}`));
   const ADDRESS_RE = /\[?[^\s\]]+#\d+-\d+\]?/g;
-  const foldWs = (s) => foldDiacritics(String(s).toLowerCase()).replace(/\s+/g, " ").trim();
-  const passagesFolded = passages.map((p) => foldWs(p.text));
+  // ONE fold, applied to both sides of every containment below (P11). It is
+  // source.js's `foldTypography`: the source's words, to the source's own
+  // stops, with the typesetting shed. The fold that used to sit here folded
+  // diacritics, case and whitespace only, so a model that retyped a chapter
+  // while straightening its quotation marks, hyphenating its em dashes,
+  // spelling its ellipsis with three dots or dropping one comma slipped past
+  // every test below with the source's words intact — reproduction the
+  // instrument reported clean (audit 2026-08-16).
+  const passagesFolded = passages.map((p) => foldTypography(p.text));
   // A sentence that only NAMES the act of prompting is framing, not content:
   // "The question is: …", "You asked about …", "To answer your question …".
   // The tell is structural and closed-set — every surviving content token is
@@ -639,22 +658,53 @@ export async function runPart({
       .map((s) => s.replace(ADDRESS_RE, " ").trim())
       .filter(Boolean)
       .filter((s) => !isFraming(s));
-  // A sentence needs SOME content to count as evidence either way — the
-  // same magnitude of floor MIN_CLAUSE_WORDS and MIN_RUN already use
-  // elsewhere in this codebase for "enough to mean something."
-  const MIN_CONTENT_TOKENS = 3;
-  const isVerbatimSentence = (sentence) => {
-    if (tokenize(sentence).length < MIN_CONTENT_TOKENS) return false;
-    const sf = foldWs(sentence);
-    return sf.length > 0 && passagesFolded.some((pf) => pf.includes(sf));
-  };
-  /** Reproduction, from an already-extracted list of non-framing sentences. */
+  /** A folded sentence is the material's own if some passage contains it. */
+  const isVerbatimSentence = (sf) => sf.length > 0 && passagesFolded.some((pf) => pf.includes(sf));
+  /**
+   * Reproduction, from an already-extracted list of non-framing sentences.
+   *
+   * The majority cut is over CHARACTER MASS, not over a count of sentences,
+   * and it carries no length floor. That is a deliberate replacement of both
+   * halves of what stood here, for one reason: a count of sentences is a
+   * measurement of the material's punctuation habits, not of how much of the
+   * answer is copied.
+   *
+   * The count had a floor — a sentence under three content tokens could not
+   * COUNT as verbatim, so that a short coincidence ("Yes." appearing
+   * somewhere in a passage) could not buy a whole vote. But the floor only
+   * ever silenced the numerator; those sentences stayed in the denominator.
+   * Dialogue is made of them. Measured on War and Peace (audit 2026-08-16):
+   * 1,137 chunks have half or more of their sentences under the floor, and
+   * every one of them can be transcribed WHOLE — nine lines of speech, word
+   * for word — while at most one line is allowed to count, so the cut
+   * mathematically cannot fire. The novel's entire dialogue face photocopies
+   * past a guard that reports clean.
+   *
+   * Mass fixes the numerator and the denominator at once, and dissolves the
+   * floor rather than tuning it: a sentence contributes exactly what it
+   * weighs, to both sides. A three-character coincidence buys three
+   * characters of numerator instead of a full vote, which is what the floor
+   * was reaching for and could not express — so the floor comes out, and with
+   * it a hand-set constant (P9: no number where a structural rule will do).
+   * Nine short copied lines outweigh one original lead-in, as they should;
+   * two short quoted lines inside a real paragraph of the model's own prose
+   * do not, which a floorless COUNT would have called reproduction at 2 of 3.
+   * The measure is a ratio of the answer's own substance, immune to how the
+   * source happens to distribute its full stops.
+   */
   const reproducedFromContent = (content) => {
     if (!content.length) return false;
-    const contentText = foldWs(content.join(" "));
-    const wholeBlockCopied = contentText.length > 0 && passagesFolded.some((pf) => pf.includes(contentText));
-    const verbatimCount = content.filter(isVerbatimSentence).length;
-    return wholeBlockCopied || verbatimCount > content.length / 2;
+    const folded = content.map(foldTypography).filter(Boolean);
+    if (!folded.length) return false;
+    const contentText = folded.join(" ");
+    const wholeBlockCopied = passagesFolded.some((pf) => pf.includes(contentText));
+    let copiedMass = 0;
+    let totalMass = 0;
+    for (const sf of folded) {
+      totalMass += sf.length;
+      if (isVerbatimSentence(sf)) copiedMass += sf.length;
+    }
+    return wholeBlockCopied || copiedMass > totalMass / 2;
   };
   const judge = (t) => {
     const all = splitSentences(String(t ?? "").replace(ADDRESS_RE, " ")).filter(Boolean);
@@ -697,15 +747,28 @@ export async function runPart({
   // the part would need" on "hi" has nothing to say but that. The first
   // draft for a passage-less part is therefore ONE neutral conversational
   // call: the prompt is a prompt, answered as a person would answer it.
+  //
+  // When verbatim history is available (chatHistory), send it as message
+  // pairs so the model can see the actual back-and-forth. The threshold
+  // is the window itself — RECENCY_WINDOW messages is always small enough
+  // to send raw. Without history, fall back to the one-line discourse
+  // slice.
+  const chatContext = discourse ? `\n\nThe conversation so far: ${discourse}` : "";
   const executeMessages = passages.length
     ? [
         { role: "system", content: EXECUTE_SYSTEM_PROMPT },
         { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
       ]
-    : [
-        { role: "system", content: CHAT_SYSTEM_PROMPT },
-        { role: "user", content: task },
-      ];
+    : chatHistory.length
+      ? [
+          { role: "system", content: CHAT_SYSTEM_PROMPT },
+          ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
+          { role: "user", content: task },
+        ]
+      : [
+          { role: "system", content: CHAT_SYSTEM_PROMPT },
+          { role: "user", content: `${task}${chatContext}` },
+        ];
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.
@@ -738,12 +801,19 @@ export async function runPart({
   // call. Whatever a material-framed prompt cannot answer as a finding it
   // may still answer as a person.
   if (verdict.echoed && !passages.length) {
-    const chat = clean(
-      await call(
-        [
+    const chatMessages = chatHistory.length
+      ? [
+          { role: "system", content: CHAT_SYSTEM_PROMPT },
+          ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
+          { role: "user", content: task },
+        ]
+      : [
           { role: "system", content: CHAT_SYSTEM_PROMPT },
           { role: "user", content: task },
-        ],
+        ];
+    const chat = clean(
+      await call(
+        chatMessages,
         { effort: "low", maxTokens: EXECUTE_MAX_TOKENS },
       ),
     );
@@ -868,6 +938,7 @@ export async function runHolonicTask({
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
   makeRelationReader = null,
+  chatHistory = [],
   discourse = "",
   planMode = "model",
   onProgress = null,
@@ -949,6 +1020,7 @@ export async function runHolonicTask({
       part,
       task,
       discourse,
+      chatHistory,
       chunks,
       call,
       // Passages an earlier part already grounded itself in are deprioritized

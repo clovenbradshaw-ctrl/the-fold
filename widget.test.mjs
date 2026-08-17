@@ -29,7 +29,7 @@ import { makeWidgetRouter } from "./widget.js";
 
 // The router bound to the engine's REAL prior register — the same closed
 // classes the page gets from /engine. No stub carries these walls either.
-const { iterationTell, routeSegment } = makeWidgetRouter(enginePriors);
+const { iterationTell, routeMessage, routeSegment } = makeWidgetRouter(enginePriors);
 
 const buildLog = makeBuildLog(taskLog);
 
@@ -276,6 +276,30 @@ test("a DECLARED different language still forks — silence is the only exceptio
   const acts = desk.turn("it's broken", "```python\nprint('counter')\n```\n");
   assert.deepEqual(acts.map((a) => a.act), ["new"]);
   assert.equal(desk.builds.length, 2);
+});
+
+test("routeMessage: the pre-turn face — a complaint routes before any model call", () => {
+  // This is what makes iteration reliable rather than probabilistic: the
+  // decision is made from the operator's words alone, so the caller can run
+  // a SIGHTED revision (the /fold machinery) instead of hoping the model
+  // re-emits a fence into ordinary chat.
+  const builds = [
+    { n: 1, type: "code", lang: "html", text: 'html\n<div id="counter">0</div><button>+1</button>' },
+    { n: 2, type: "code", lang: "python", text: "python\nprint(3)" },
+  ];
+  // Anaphora and judgment route to the NEWEST code build.
+  assert.deepEqual(routeMessage("it's broken", builds), { n: 2, tell: "anaphora", trigger: "it's broken" });
+  // A definite phrase routes to the build whose OWN bytes contain it.
+  assert.equal(routeMessage("the button does nothing", builds).n, 1);
+  // The number is the reference, read from the operator.
+  assert.equal(routeMessage("build 1 is broken", builds).n, 1);
+  // Creation demands and material questions do not route.
+  assert.equal(routeMessage("make me a countdown timer", builds), null);
+  assert.equal(routeMessage("what does the report say about funding", builds), null);
+  // With nothing built, nothing routes.
+  assert.equal(routeMessage("it's broken", []), null);
+  // A table is not revisable by complaint.
+  assert.equal(routeMessage("it's broken", [{ n: 1, type: "table", text: "a b" }]), null);
 });
 
 // ── the re-zero entry itself ────────────────────────────────────────────────

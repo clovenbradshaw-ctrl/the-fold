@@ -12,7 +12,7 @@
 //
 // Pure: no DOM, no IO, no model.
 
-import { tableFrom } from "./artifact.js";
+import { chartFrom, tableFrom } from "./artifact.js";
 import { foldPace } from "./pace.js";
 import { actsTable, paceTable, surpriseTable } from "./reflex.js";
 
@@ -158,6 +158,91 @@ function caption(table, text) {
 function firstLine(text) {
   const t = String(text).replace(/\s+/g, " ").trim();
   return t.length > 120 ? t.slice(0, 117) + "..." : t;
+}
+
+// ── charts the app already knows the answer to ─────────────────────────────
+//
+// "Chart the filings in monthly-totals-2020.csv" is the tables rule one rung
+// up: the rows are loaded bytes, the aggregation (if any) already happened
+// before the file was loaded, and the drawing is geometry. A model asked to
+// produce this retypes twelve figures at two tokens a second and gets cut
+// off by its own decode budget — measured live, 2026-08-16, before this door
+// existed. Whether a turn is a chart turn is a deterministic function of the
+// question's own words; the source is found by its NAME in the question
+// (P11 — names are referents); the columns are read off the file's own
+// header. No model call anywhere.
+
+/** Words that ask for a drawing rather than an enumeration. */
+const DRAWS = /\b(chart|graph|plot|visuali[sz]e|visuali[sz]ation)\b/i;
+
+export function detectChart(question) {
+  return DRAWS.test(String(question ?? ""));
+}
+
+/**
+ * Split a source's text as delimited rows. The delimiter is whichever of
+ * comma / tab / semicolon splits the header into the most cells — read off
+ * the bytes, never declared. Returns {head, rows} or null when the text is
+ * not tabular (fewer than two columns or two lines).
+ */
+export function delimitedRows(text) {
+  const lines = String(text ?? "").split(/\r?\n/).filter((l) => l.trim().length);
+  if (lines.length < 2) return null;
+  const delim = [",", "\t", ";"]
+    .map((d) => ({ d, n: lines[0].split(d).length }))
+    .sort((a, b) => b.n - a.n)[0];
+  if (delim.n < 2) return null;
+  const split = (l) => l.split(delim.d).map((c) => c.trim());
+  return { head: split(lines[0]), rows: lines.slice(1).map(split) };
+}
+
+/**
+ * A bar chart of a loaded source, or a typed gap saying which leg is
+ * missing. The source is the one whose name the question carries; y is the
+ * first column whose every value is a number (a header word named in the
+ * question wins); x is the first remaining column. The title is the
+ * question's own words after "title it:" when given, the columns' names
+ * otherwise. Returns {seg, caption, source} | {gap}.
+ */
+export function chartOf(question, sources = []) {
+  const q = String(question ?? "");
+  const named = sources
+    .filter((s) => s.name && q.toLowerCase().includes(s.name.toLowerCase()))
+    .sort((a, b) => b.name.length - a.name.length)[0];
+  if (!named)
+    return { gap: "no loaded source is named in the question — a chart draws a file's own rows, so say which file" };
+  const parsed = delimitedRows(named.text);
+  if (!parsed)
+    return { gap: `${named.name} does not read as delimited rows, so there is nothing to chart`, source: named.name };
+  const { head, rows } = parsed;
+  const numeric = head.map((_, c) =>
+    rows.every((r) => r[c] !== undefined && r[c] !== "" && Number.isFinite(Number(r[c]))),
+  );
+  const namedCol = (want) =>
+    head.findIndex(
+      (h, c) => numeric[c] === want && h && new RegExp(`\\b${h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(q),
+    );
+  let yi = namedCol(true);
+  if (yi === -1) yi = numeric.indexOf(true);
+  if (yi === -1)
+    return { gap: `${named.name} has no all-numeric column, so there is no series to draw`, source: named.name };
+  let xi = namedCol(false);
+  if (xi === -1) xi = head.findIndex((_, c) => c !== yi && !numeric[c]);
+  if (xi === -1) xi = head.findIndex((_, c) => c !== yi);
+  const titled = q.match(/title(?:d)?(?:\s+it)?\s*:?\s*["'“]?(.+?)["'”]?\s*$/im);
+  const seg = chartFrom(rows, {
+    x: { label: head[xi], get: (r) => r[xi] },
+    y: { label: head[yi], get: (r) => Number(r[yi]) },
+    title: titled ? titled[1] : `${head[yi]} by ${head[xi]} · ${named.name}`,
+  });
+  return {
+    seg,
+    source: named.name,
+    caption:
+      `bar chart · ${head[yi]} by ${head[xi]} · ${named.name} · ${seg.rows} row(s)` +
+      (seg.dropped ? ` · ${seg.dropped} dropped (non-numeric)` : "") +
+      ` · every figure is the file's own bytes, no model call`,
+  };
 }
 
 /**

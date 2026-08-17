@@ -1,0 +1,504 @@
+// term.js — the terminal, sandboxed. Standalone on purpose: app.js hands
+// this module the accessors the fold runtime reads (the cast.js injection
+// pattern) and owns nothing else about it; log-pane.js goes on owning how
+// the drawer is SHOWN.
+//
+// THE ONE RULE (P18). Nothing typed here reaches the machine. The old
+// terminal was a real zsh under a server PTY — the opposite of a sandbox —
+// and that path is gone from serve.mjs entirely, not just unused. What runs
+// instead is a registry of runtimes that live in this page:
+//
+//   fold     commands over the instrument itself — mechanical, no model
+//   js       javascript in a dedicated Worker whose egress APIs are severed
+//   python   pyodide, vendored in node_modules, served from localhost —
+//            the stdlib only (no PyPI: the page loads nothing remote, P1)
+//   sql      sqlite via sql.js, vendored the same way; loaded CSV material
+//            imports as tables
+//
+// Anything else — a shell, node, pip, a remote box — is refused with its
+// reason, never half-simulated. The registry takes any runtime a localhost-
+// served module can boot; the refusals name why the famous ones cannot.
+//
+// The sandbox is an authority wall by construction (severed globals in the
+// workers, a page that loads nothing remote), not a hardened security
+// boundary — the same posture skills.js discloses, with P1 as the outer
+// wall. term.test.mjs is the assay: the seam scan (no non-local host and
+// no exec route anywhere in these files), the severed-list agreement
+// across workers, and the grammar below.
+
+// ── declared budgets (P9: named, with a duty, never a quality threshold) ────
+export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
+export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
+export const RECORD_SHOWN = 20; // record tail rows shown
+export const SNIPPET_CHARS = 100; // one search row's excerpt
+export const HINT_AFTER_MS = 10_000; // a long-running command earns one "✕ interrupts" hint
+
+// ── the registry ────────────────────────────────────────────────────────────
+export const ROSTER = {
+  fold: { kind: "builtin", blurb: "commands over the instrument itself — mechanical, no model" },
+  js: { kind: "worker", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
+  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~13MB first boot) — stdlib only; material mounts at /material" },
+  sql: { kind: "worker", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
+};
+
+// Refused runtimes, each with its reason — a typed refusal, never a shrug.
+// These are the routes a browser terminal famously offers; the ones that
+// need the machine, the network, or a licence are named so the next reader
+// does not re-derive why they are absent.
+export const REFUSED = {
+  bash: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
+  zsh: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
+  sh: "the machine's shell is out of reach by design — this terminal runs in the browser sandbox only (P18)",
+  node: "node runs on the machine — `js` is the sandboxed runtime here",
+  pip: "package installs need the network and the machine — P1 allows neither; the python stdlib is all there is",
+  npm: "package installs need the network and the machine — P1 allows neither",
+  webcontainers: "needs a remote CDN and a commercial licence — P1 refuses the first, the licence refuses the second",
+  webvm: "boots a full Debian over an external network proxy — P1 refuses the proxy",
+  ssh: "a page has no raw sockets; an ssh relay would be egress — P1 refuses it",
+};
+
+// The severed egress list — the canonical copy. Each worker carries its own
+// (a worker file stays standalone); term.test.mjs asserts the copies agree,
+// so drift is a failing test, not a quiet hole.
+export const SEVERED = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "WebTransport", "importScripts", "Worker", "SharedWorker", "caches"];
+
+// ── the grammar: when does a line continue instead of run ───────────────────
+//
+// One rule per runtime, all mechanical, all familiar from the real REPLs:
+// a trailing backslash continues anywhere; python buffers after a line
+// ending in ":" until an empty line (the "..." prompt); sql buffers until a
+// trailing ";" — except dot-commands, and an empty line always flushes, so
+// a missing semicolon is one keystroke from running, never a trap.
+/** A control word on its own line never joins a statement buffer: `exit`
+ * must leave sql even though the line lacks a semicolon — measured live:
+ * the semicolon rule swallowed it and the prompt wedged at "…". Checked
+ * before `continues`, always. */
+export const isControl = (line, buffer) => !buffer && ["exit", "clear", "mount"].includes(line.trim());
+
+export function continues(runtime, line, buffer) {
+  if (line.endsWith("\\")) return true;
+  if (runtime === "python") {
+    if (buffer) return line.trim() !== "";
+    return line.trimEnd().endsWith(":");
+  }
+  if (runtime === "sql") {
+    const t = line.trim();
+    if (buffer) return t !== "" && !t.endsWith(";");
+    if (t === "" || t.startsWith(".")) return false;
+    return !t.endsWith(";");
+  }
+  return false;
+}
+
+// ── CSV → table, for the sql runtime ────────────────────────────────────────
+//
+// The parse walks quotes (a field legally holds commas, newlines, and ""
+// escapes — the web organ already paid for forgetting that attribute values
+// hold ">"); the typing is all-or-nothing per column — INTEGER if every
+// non-empty value is one, REAL if every one is numeric, TEXT otherwise —
+// never a sampled guess. Empty fields load as NULL.
+export function csvTable(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else quoted = false;
+      } else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") {
+      row.push(field);
+      field = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      field = "";
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+    } else field += ch;
+  }
+  if (field !== "" || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  if (!rows.length) return null;
+  const header = rows[0];
+  const body = rows.slice(1);
+  const width = header.length;
+  const columns = header.map((h, i) => {
+    let name = h.trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+    // CREATE TABLE gets these bare — a name that is empty or starts with a
+    // digit would not survive it.
+    if (!name || /^\d/.test(name)) name = `c${name || i + 1}`;
+    let type = "INTEGER";
+    let any = false;
+    for (const r of body) {
+      const v = (r[i] ?? "").trim();
+      if (v === "") continue;
+      any = true;
+      if (type === "INTEGER" && !/^-?\d+$/.test(v)) type = "REAL";
+      if (type === "REAL" && !/^-?\d*\.?\d+(e-?\d+)?$/i.test(v)) {
+        type = "TEXT";
+        break;
+      }
+    }
+    return { name, type: any ? type : "TEXT" };
+  });
+  const data = body.map((r) => columns.map((c, i) => {
+    const v = r[i] ?? "";
+    if (v.trim() === "") return null;
+    if (c.type === "INTEGER") return parseInt(v, 10);
+    if (c.type === "REAL") return parseFloat(v);
+    return v;
+  }));
+  return { columns, rows: data, ragged: body.some((r) => r.length !== width) };
+}
+
+/** Column-aligned text for result rows — the terminal is a <pre>; alignment
+ * is the whole table affordance it has. */
+export function formatCells(columns, rows) {
+  const all = [columns, ...rows.map((r) => r.map((v) => (v === null || v === undefined ? "" : String(v))))];
+  const widths = columns.map((_, i) => Math.max(...all.map((r) => (r[i] ?? "").length)));
+  const line = (r) => r.map((v, i) => (v ?? "").padEnd(widths[i])).join("  ").trimEnd();
+  return [line(all[0]), line(widths.map((w) => "─".repeat(w))), ...all.slice(1).map(line)].join("\n");
+}
+
+const fmtBytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`);
+
+// ── the terminal itself ─────────────────────────────────────────────────────
+
+export function initTerminal(bridge) {
+  const $ = (id) => document.getElementById(id);
+  const out = $("term-out");
+  const input = $("term-in");
+  const promptEl = $("term-prompt");
+  const kill = $("term-kill");
+  if (!out || !input) return null;
+
+  const term = {
+    runtime: "fold", // the prompt's runtime
+    buffer: "", // continuation lines not yet run
+    busy: false,
+    kept: 0, // display bytes kept this exec (KEEP_PER_EXEC)
+    dropped: false,
+    hintTimer: null,
+    history: [],
+    histAt: null,
+    workers: {}, // name → { worker, ready }
+  };
+
+  const line = (text, cls) => {
+    const span = document.createElement("span");
+    if (cls) span.className = cls;
+    span.textContent = text;
+    out.append(span, document.createTextNode("\n"));
+    out.scrollTop = out.scrollHeight;
+  };
+  const stream = (text, cls) => {
+    // The keep budget: a looping print costs the page its heap through the
+    // DOM long before it costs the worker anything. Overflow is dropped
+    // with the drop stated once, per exec.
+    if (term.kept >= KEEP_PER_EXEC) {
+      if (!term.dropped) {
+        term.dropped = true;
+        line(`…output over the keep budget (${fmtBytes(KEEP_PER_EXEC)}) — the rest of this command's stream is dropped`, "term-mute");
+      }
+      return;
+    }
+    const room = KEEP_PER_EXEC - term.kept;
+    const s = text.length > room ? text.slice(0, room) : text;
+    term.kept += s.length;
+    const span = document.createElement("span");
+    if (cls) span.className = cls;
+    span.textContent = s.endsWith("\n") ? s : s + "\n";
+    out.append(span);
+    out.scrollTop = out.scrollHeight;
+  };
+
+  const promptFor = () => (term.buffer ? "…" : { fold: "fold ›", js: "js ›", python: "py ›", sql: "sql ›" }[term.runtime]);
+  const drawPrompt = () => {
+    if (promptEl) promptEl.textContent = promptFor();
+  };
+
+  const setBusy = (on) => {
+    term.busy = on;
+    kill.disabled = !on;
+    if (on) {
+      term.kept = 0;
+      term.dropped = false;
+      term.hintTimer = setTimeout(() => line("…still running — ✕ interrupts (the runtime restarts fresh)", "term-mute"), HINT_AFTER_MS);
+    } else {
+      clearTimeout(term.hintTimer);
+      input.focus();
+    }
+  };
+
+  // What crosses into a sandbox: every loaded source, muted or not — the
+  // mute silences retrieval, not the operator. The crossing is said out
+  // loud here, where it happens.
+  const sourcesPayload = () => {
+    const src = bridge.sources();
+    const payload = {};
+    let bytes = 0;
+    for (const name of Object.keys(src)) {
+      payload[name] = src[name];
+      bytes += src[name].length;
+    }
+    return { payload, count: Object.keys(payload).length, bytes };
+  };
+
+  // ── worker runtimes ───────────────────────────────────────────────────────
+
+  const spawn = (name) => {
+    const worker = new Worker(new URL(ROSTER[name].src, import.meta.url), { type: name === "sql" ? "classic" : "module" });
+    const entry = { worker, ready: false };
+    term.workers[name] = entry;
+    worker.onmessage = (ev) => {
+      const m = ev.data ?? {};
+      if (m.type === "ready") {
+        entry.ready = true;
+        if (m.note) line(m.note, "term-mute");
+        setBusy(false);
+      } else if (m.type === "out") stream(m.text);
+      else if (m.type === "err") stream(m.text, "term-exit bad");
+      else if (m.type === "result") {
+        stream(formatCells(m.columns, m.values));
+        if (m.of > m.values.length) line(`…${m.values.length} of ${m.of.toLocaleString()} rows carried back (the worker's declared keep)`, "term-mute");
+      } else if (m.type === "done") setBusy(false);
+    };
+    worker.onerror = (ev) => {
+      line(`the ${name} runtime failed: ${ev.message ?? "worker error"}`, "term-exit bad");
+      worker.terminate();
+      delete term.workers[name];
+      setBusy(false);
+    };
+    return entry;
+  };
+
+  const enterRuntime = (name) => {
+    term.runtime = name;
+    term.buffer = "";
+    if (!term.workers[name]) {
+      const { payload, count, bytes } = sourcesPayload();
+      line(`booting the ${name} runtime — ${ROSTER[name].blurb}`, "term-mute");
+      if (count) line(`material crossing into the sandbox: ${count} source${count === 1 ? "" : "s"}, ${fmtBytes(bytes)}`, "term-mute");
+      setBusy(true);
+      spawn(name).worker.postMessage({ type: "boot", sources: payload });
+    } else if (!term.workers[name].ready) setBusy(true);
+    drawPrompt();
+  };
+
+  const interrupt = () => {
+    if (!term.busy) return;
+    const name = term.runtime;
+    const entry = term.workers[name];
+    if (entry) {
+      entry.worker.terminate();
+      delete term.workers[name];
+      line(`interrupted — the ${name} runtime is gone; the next command boots it fresh (its state with it)`, "term-exit bad");
+    }
+    setBusy(false);
+  };
+
+  // ── the fold runtime: the instrument, as commands ─────────────────────────
+
+  const foldCommands = {
+    help() {
+      line(
+        [
+          "the fold terminal — everything runs in this page's sandbox; the machine is out of reach.",
+          "",
+          "fold commands",
+          "  sources              what is loaded (name · passages · bytes · muted)",
+          "  search <words>       passages sharing terms with <words> (top " + SEARCH_SHOWN + " shown)",
+          "  read <name#a-b>      a source's characters a–b (the chat refs' own space)",
+          "  folds                the folds pane's logs (n · turn · entries)",
+          "  record [words]       the append-only record's tail (needs a fold server)",
+          "  runtimes             what can run here — and what is refused, with reasons",
+          "  clear · exit         wipe the screen · close the drawer",
+          "",
+          "runtimes — enter by name, leave with `exit` (the runtime stays warm; ✕ ends it)",
+          ...Object.keys(ROSTER)
+            .filter((r) => r !== "fold")
+            .map((r) => `  ${r.padEnd(8)} ${ROSTER[r].blurb}`),
+        ].join("\n"),
+        "term-mute",
+      );
+    },
+    runtimes() {
+      const rows = Object.keys(ROSTER).map((r) => `  ${r.padEnd(8)} ${ROSTER[r].blurb}`);
+      const refusals = Object.keys(REFUSED).map((r) => `  ${r.padEnd(14)} ${REFUSED[r]}`);
+      line(["runs here, in the page", ...rows, "", "refused, with reasons", ...refusals].join("\n"), "term-mute");
+    },
+    sources() {
+      const src = bridge.sources();
+      const names = Object.keys(src);
+      if (!names.length) return line("nothing loaded — add material in the chat (drop a file anywhere)", "term-mute");
+      const chunks = bridge.chunks();
+      const muted = bridge.muted();
+      for (const name of names) {
+        const n = chunks.filter((c) => c.source === name).length;
+        line(`${name} · ${n.toLocaleString()} passages · ${fmtBytes(src[name].length)}${muted.has(name) ? " · muted" : ""}`);
+      }
+    },
+    search(arg) {
+      if (!arg) return line("search <words> — what should the passages share terms with?", "term-mute");
+      const terms = [...new Set(bridge.tokenize(arg))];
+      if (!terms.length) return line("no searchable terms in that", "term-mute");
+      const scored = [];
+      for (const c of bridge.chunks()) {
+        const has = c.terms?.has ? (t) => c.terms.has(t) : (t) => c.terms?.includes?.(t);
+        const matched = terms.filter(has);
+        if (matched.length) scored.push({ c, matched });
+      }
+      scored.sort((a, b) => b.matched.length - a.matched.length);
+      if (!scored.length) return line(`nothing shares a term with “${arg}”`, "term-mute");
+      for (const { c, matched } of scored.slice(0, SEARCH_SHOWN)) {
+        line(`${c.ref}  (${matched.join(", ")})`);
+        line(`  ${c.text.slice(0, SNIPPET_CHARS).replace(/\s+/g, " ")}…`, "term-mute");
+      }
+      line(`${Math.min(SEARCH_SHOWN, scored.length)} of ${scored.length} shown — the same term overlap the chat's evidence table counts`, "term-mute");
+    },
+    read(arg) {
+      const m = (arg ?? "").match(/^(.+?)#(\d+)-(\d+)$/) ?? (arg ?? "").match(/^(.+?)\s+(\d+)\s+(\d+)$/);
+      if (!m) return line("read <name#a-b> — characters a–b of a loaded source", "term-mute");
+      const src = bridge.sources();
+      const text = src[m[1]];
+      if (text === undefined) return line(`no source named “${m[1]}” — \`sources\` lists what is loaded`, "term-exit bad");
+      const [a, b] = [Number(m[2]), Number(m[3])];
+      stream(text.slice(a, b));
+      line(`${m[1]} · chars ${a}–${Math.min(b, text.length)} of ${text.length.toLocaleString()}`, "term-mute");
+    },
+    folds() {
+      const folds = bridge.folds();
+      if (!folds.length) return line("nothing but prose so far", "term-mute");
+      for (const f of folds) line(`fold ${f.n} · turn ${f.turn} · ${f.log?.entries?.length ?? 0} entries`);
+    },
+    async record(arg) {
+      for (const base of ["", "http://localhost:8812"]) {
+        try {
+          const res = await fetch(`${base}/api/record?tail=200`);
+          if (!res.ok) continue;
+          const body = await res.json();
+          const rows = (body.tail ?? []).filter((raw) => !arg || raw.toLowerCase().includes(arg.toLowerCase())).slice(-RECORD_SHOWN);
+          if (!rows.length) return line(arg ? `nothing in the tail matches “${arg}”` : "the record's tail is empty", "term-mute");
+          for (const raw of rows) {
+            try {
+              const e = JSON.parse(raw);
+              line(`${(e.at ?? "").slice(11, 19)}  ${e.event ?? "?"}  ${raw.length > 120 ? raw.slice(0, 119) + "…" : raw}`, "term-mute");
+            } catch {
+              line(raw.slice(0, 120), "term-mute");
+            }
+          }
+          return line(`${rows.length} of the last ${body.tail?.length ?? 0} events — the Log tab is the full face`, "term-mute");
+        } catch {
+          /* try the next base */
+        }
+      }
+      line("the record lives on a fold server — start explore-server.mjs (or serve.mjs) to read it here", "term-exit bad");
+    },
+    clear() {
+      out.textContent = "";
+    },
+  };
+
+  const runFold = async (text) => {
+    const [word, ...rest] = text.trim().split(/\s+/);
+    const arg = rest.join(" ");
+    const cmd = word.toLowerCase();
+    if (cmd === "exit") return document.body.classList.contains("term-drawer") && $("term-toggle")?.click();
+    if (ROSTER[cmd] && cmd !== "fold") return enterRuntime(cmd);
+    if (REFUSED[cmd]) return line(REFUSED[cmd], "term-exit bad");
+    if (foldCommands[cmd]) return foldCommands[cmd](arg);
+    line(`not a fold command: “${cmd}” — the machine's shell is out of reach by design (P18). \`help\` lists what runs here.`, "term-exit bad");
+  };
+
+  // ── dispatch ──────────────────────────────────────────────────────────────
+
+  const exec = (text) => {
+    const name = term.runtime;
+    const entry = term.workers[name];
+    if (!entry?.ready) return line(`the ${name} runtime is not up — enter \`${name}\` again`, "term-exit bad");
+    setBusy(true);
+    if (name === "sql" && /^\s*\.load\b/.test(text)) {
+      const srcName = text.trim().split(/\s+/)[1];
+      const src = bridge.sources()[srcName];
+      if (src === undefined) {
+        setBusy(false);
+        return line(`no source named “${srcName}” — \`exit\` then \`sources\` lists what is loaded`, "term-exit bad");
+      }
+      const table = csvTable(src);
+      if (!table) {
+        setBusy(false);
+        return line(`${srcName} parsed to nothing — is it a CSV?`, "term-exit bad");
+      }
+      entry.worker.postMessage({ type: "load", name: srcName, table });
+      return;
+    }
+    entry.worker.postMessage({ type: "exec", code: text });
+  };
+
+  const submit = () => {
+    const raw = input.value;
+    if (!raw.trim() && !term.buffer) return;
+    input.value = "";
+    if (term.busy) {
+      line("…still running — ✕ interrupts; there is no stdin in the sandbox", "term-mute");
+      return;
+    }
+    line(`${promptFor()} ${raw}`, "term-cmd");
+    if (raw.trim()) {
+      term.history.push(raw);
+      term.histAt = null;
+    }
+    if (!isControl(raw, term.buffer) && continues(term.runtime, raw, term.buffer)) {
+      term.buffer += (term.buffer ? "\n" : "") + raw.replace(/\\$/, "");
+      drawPrompt();
+      return;
+    }
+    const text = term.buffer ? term.buffer + "\n" + raw : raw;
+    term.buffer = "";
+    drawPrompt();
+    if (!text.trim()) return;
+    if (term.runtime === "fold") runFold(text);
+    else if (text.trim() === "exit") {
+      term.runtime = "fold";
+      line("back in fold — the runtime stays warm; ✕ would have ended it", "term-mute");
+      drawPrompt();
+    } else if (text.trim() === "clear") foldCommands.clear();
+    else if (text.trim() === "mount") {
+      const { payload, count, bytes } = sourcesPayload();
+      line(`material crossing into the sandbox: ${count} source${count === 1 ? "" : "s"}, ${fmtBytes(bytes)}`, "term-mute");
+      term.workers[term.runtime]?.worker.postMessage({ type: "sources", sources: payload });
+    } else exec(text);
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submit();
+    } else if (e.key === "ArrowUp" && !input.value) {
+      if (!term.history.length) return;
+      term.histAt = term.histAt === null ? term.history.length - 1 : Math.max(0, term.histAt - 1);
+      input.value = term.history[term.histAt];
+      e.preventDefault();
+    } else if (e.key === "ArrowDown" && term.histAt !== null) {
+      term.histAt = Math.min(term.history.length, term.histAt + 1);
+      input.value = term.history[term.histAt] ?? "";
+      if (term.histAt >= term.history.length) term.histAt = null;
+      e.preventDefault();
+    } else if (e.key === "c" && e.ctrlKey) {
+      interrupt();
+    }
+  });
+  kill.addEventListener("click", interrupt);
+
+  drawPrompt();
+  return term;
+}

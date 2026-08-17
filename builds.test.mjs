@@ -152,6 +152,13 @@ test("referencedBuild reads only the number — the model's intent is never trus
   assert.equal(referencedBuild("build me a sandcastle"), null);
 });
 
+test("referencedBuild also resolves the panel's visible spelling: fold N", () => {
+  assert.deepEqual(referencedBuild("a fix for fold 2"), { n: 2 });
+  assert.deepEqual(referencedBuild("revise fold #4"), { n: 4 });
+  assert.equal(referencedBuild("unfold 3 of the map"), null); // word boundary holds
+  assert.equal(referencedBuild("the scaffold 9 story"), null);
+});
+
 test("captureMessage takes the first prose line, flattened and capped", () => {
   assert.equal(captureMessage("  \n\nA countdown timer.\n\nLonger notes."), "A countdown timer.");
   assert.equal(captureMessage(""), "");

@@ -101,6 +101,104 @@ test("a real quotation from unoffered material is typed outside-offer, never sil
   assert.ok(!/\[quay\.txt#/.test(text), "no warrant for material the turn was not given");
 });
 
+test("an ellipsis quotation whose every shown segment is in the bytes is verbatim, and cited", () => {
+  // Elision is legitimate: a quotation may skip material. What it SHOWS is
+  // what is judged, and here both shown segments are the source's bytes.
+  const answer =
+    'The minutes say "the harbour committee had disputed the silting figure ... no engineer present would defend it" that night.';
+  const report = verifyQuotes(answer, CHUNKS);
+  assert.equal(report.quotes[0].status, "verbatim");
+  assert.equal(report.quotes[0].segments.length, 2);
+  assert.deepEqual(report.quotes[0].missingSegments, []);
+  assert.equal(quoteFindings(report).length, 0);
+  const { text, cited } = applyQuotes(answer, report);
+  assert.ok(cited.length >= 1, "an elided quotation that is wholly in the bytes still earns its address");
+  assert.match(text, /assembly\.txt#\d+-\d+\]/);
+});
+
+test("an ellipsis quotation with a fabricated segment earns no address and drives correction", () => {
+  // The audit's harbour-committee scenario: the first segment is the
+  // source's bytes, the second was invented. A quotation that shows words
+  // the material never wrote is not verbatim, whatever else it shows — so
+  // the located half must not hand the invented half a warrant.
+  const answer =
+    'The minutes say "the harbour committee had disputed the silting figure ' +
+    '... and agreed to bury the report before the equinox" that night.';
+  const report = verifyQuotes(answer, CHUNKS);
+  const q = report.quotes[0];
+  assert.equal(q.status, "partial");
+  assert.equal(q.unlocatedSegments, 1);
+  assert.deepEqual(q.missingSegments, ["and agreed to bury the report before the equinox"]);
+
+  // (a) never an inline warrant — the located segment's chunk address is
+  // not stamped on a quotation whose other half is invented.
+  const { text, cited } = applyQuotes(answer, report);
+  assert.deepEqual(cited, [], "a partly invented quotation earns no address");
+  assert.ok(!/\[assembly\.txt#\d+-\d+\]/.test(text), text);
+
+  // (b) it drives the correction loop the way a fabricated quotation does —
+  // holon.js folds quoteFindings into `unsupported`, which is the driver.
+  const lines = quoteFindings(report);
+  assert.equal(lines.length, 1);
+  // and the reader is told WHICH segment failed, since that is the useful fact.
+  assert.match(lines[0], /bury the report before the equinox/);
+  assert.match(lines[0], /segment/);
+  // It is an accusation, not an open: nothing here is "real words, wrong warrant".
+  assert.equal(quoteOpens(report).length, 0);
+});
+
+test("a fabricated segment outranks an outside-offer one: a finding, never an open", () => {
+  // One quotation, three segments: offered bytes, live-but-unoffered bytes,
+  // and invention. Precedence must be the fabrication's — typing this
+  // `outside-offer` filed the invented segment as a disclosure and left the
+  // record with no accusation at all.
+  const answer =
+    'One aside noted "the harbour committee had disputed the silting figure ' +
+    '... The northern quay was closed for repairs ' +
+    '... and agreed to bury the report before the equinox" in passing.';
+  const report = verifyQuotes(answer, CHUNKS, { pool: POOL });
+  assert.equal(report.quotes[0].status, "partial");
+  assert.deepEqual(report.quotes[0].missingSegments, ["and agreed to bury the report before the equinox"]);
+  assert.equal(quoteOpens(report).length, 0, "invention is not a disclosure");
+  const lines = quoteFindings(report);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /bury the report before the equinox/);
+  const { text, cited } = applyQuotes(answer, report);
+  assert.deepEqual(cited, []);
+  assert.ok(!/\[assembly\.txt#/.test(text), text);
+  assert.ok(!/\[quay\.txt#/.test(text), text);
+});
+
+test("the invariant, over every verdict: invented words earn a finding and never an address", () => {
+  // The structural rule the statuses are only a naming of: if a quotation
+  // SHOWS a segment that is in no material, it is a finding (one line per
+  // invented segment) and it carries no warrant — whatever else it shows,
+  // and whatever the verdict is called. Stated as a property so a verdict
+  // added later cannot quietly re-open the hole.
+  const answers = [
+    'The minutes say "the harbour committee had disputed the silting figure" that night.',
+    'The minutes say "the harbour committee had disputed the silting figure ... no engineer present would defend it" that night.',
+    'As the record puts it, "That evening Helene spoke plainly to the whole assembly." Nothing more.',
+    'The chair allegedly said "we will bury the report before the equinox arrives" to the clerk.',
+    'One aside noted "The northern quay was closed for repairs" in passing.',
+    'The minutes say "the harbour committee had disputed the silting figure ... and agreed to bury the report before the equinox" that night.',
+    'One aside noted "the harbour committee had disputed the silting figure ... The northern quay was closed for repairs ... and agreed to bury the report before the equinox" in passing.',
+  ];
+  let seen = 0;
+  for (const answer of answers) {
+    const report = verifyQuotes(answer, CHUNKS, { pool: POOL });
+    for (const q of report.quotes) {
+      const invented = q.missingSegments ?? [];
+      if (!invented.length) continue;
+      seen++;
+      const one = { quotes: [q] };
+      assert.equal(quoteFindings(one).length, invented.length, `a finding per invented segment: ${q.text}`);
+      assert.deepEqual(applyQuotes(answer, one).cited, [], `no warrant for invented words: ${q.text}`);
+    }
+  }
+  assert.equal(seen, 3, "the corpus above holds three quotations with invented words");
+});
+
 test("an already-cited quotation is not double-tagged", () => {
   const base = 'It reads "the harbour committee had disputed the silting figure"';
   const first = applyQuotes(`${base} today.`, verifyQuotes(`${base} today.`, CHUNKS));

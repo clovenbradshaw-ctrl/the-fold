@@ -18,6 +18,22 @@ file the page loads.
 *Amended by P13 (2026-08-16, appended below): the Explore server carries one
 narrow, recorded egress — the web organ. Everything P1 says about the model,
 the page, and API keys stands unchanged.*
+*Amended 2026-08-16 (audit finding 4): "any file the page loads" was carried
+by a hand-written list of 17 filenames, and the list was already wrong —
+thirteen page-loaded modules (render.js, log-pane.js, web.js, quotes.js and
+the rest) escaped every host scan in the repo. The scan set is now WALKED
+from index.html by `page-graph.mjs`: its script entry points, then the
+transitive closure of imports, dynamic imports, importScripts, Worker sources
+and relative module paths held as data (term.js's ROSTER). Three kinds of
+edge stay out of scope and each is typed, asserted to resolve on this disk,
+and reported rather than skipped — `/engine` and `/nul` (another repo's bytes,
+governed by eoreader6's own tests), `/node_modules` (vendored third-party,
+where what is checked is that the bytes are served from localhost), and a
+separate document in an iframe (Explore, scanned by web.test.mjs's seam).
+A non-local host literal is a failure unless a TYPED allowance covers it and
+that allowance's mechanical reason is checked in the same test: the SVG
+namespace only inside an `xmlns` attribute, and web.js's archive addresses
+only because web.js holds no egress call at all.*
 
 ## P2 — The model is the mouth, and protocols are physics
 
@@ -408,6 +424,46 @@ seq, rebuild from serialized entries alone, vocabulary violations thrown on
 replay, the engine's own progression checker silent, exports per artifact
 type (code/csv/html/svg) named by address, and the legacy migration floor.
 
+*Amended (2026-08-17, appended): the run crossing itself. Everything above
+governs the log the PAGE keeps; it said nothing about the process that
+`/api/run` actually spawns to produce a RESULT, and the audit of 2026-08-16
+(finding 3) found that gap load-bearing — a direct POST to `/api/run` left
+zero trace, sanctioned by no policy, on the same server whose header
+already admitted pip and npm installs reach the network. That endpoint is
+now sanctioned explicitly, on these terms, stated rather than left as a
+code comment: `/api/run` is loopback-only and capped (`RUN_TIMEOUT`,
+`RUN_MAX_OUTPUT`), but the process it spawns runs with this machine's own
+ambient authority, network included — it is NOT a mediated egress in P13's
+sense (one endpoint, one record, one clearable store) and does not become
+one here. This is disclosed, not fixed: P18's terminal moved to a severed
+browser sandbox precisely because a real process has real network, and a
+build run is that same real process, still. Sandboxing the runner is
+future work; what changes now is that the exception is never silent. Every
+attempt is a crossing on `record/build-record.jsonl`, written by the
+server itself: a `build-run` row lands BEFORE the process starts (code by
+its sha256 and kept to a declared budget) — no record, no run; the one
+place in serve.mjs where a failed append stops the act instead of
+disclosing it after the fact — a `build-run-result` row lands as it
+resolves (exit code, timing, true output size beside what the cap kept),
+and a `build-run-refused` row lands for a rejected attempt
+(off-loopback, no runner for the language, a malformed body) — so refusal
+is as visible as success. This is independent of, and does not replace,
+the page's own mirror (`attachRun` → `/api/build-record`): a UI-started
+run now lands on the record twice, once from each side, addressed by the
+same `run` id, which makes the two cross-checkable rather than either
+standing alone as the only witness. **Enforced:** `serve-run.test.mjs` —
+booting a real server against a throwaway record directory: a successful
+run, a refused language, and a refused malformed body each produce their
+row live, the crossing row precedes the result row and shares its `run`
+id, the code is kept by sha256 and declared budget, and the true size of
+capped output is stated beside what fit. The off-loopback refusal cannot
+be produced live from a same-machine test (any socket this process opens
+to itself is loopback by construction), so that branch is verified by
+source shape instead — it must route through the same recorded `refuse()`
+as every other rejection, never a bare response that would skip the row —
+which is disclosed here as what it is, a narrower check than the rest,
+rather than claimed as equivalent to the others.*
+
 ## P17 — A quotation is the source's bytes or it is not printed as one
 
 Quotation marks are the strongest claim an answer makes — "these exact
@@ -437,6 +493,20 @@ that a quotation is real), against the material through the one shared fold
   the model quoting past its evidence. A typed open entry with the anchor
   where the words actually live — never an inline address, because an
   address is a warrant and the turn was not given that material.
+- **partial** — an ellipsis quotation part of which is invented: some shown
+  segments in the bytes, at least one in no material at all. Eliding is
+  legitimate — a quotation may skip material — but every segment it SHOWS
+  asserts "these exact words are in the source," so one segment located
+  nowhere makes the whole quotation not verbatim. It is a fabrication, not
+  a disclosure: it joins the unsupported list and drives the same bounded
+  correction as `unlocated`, one finding per invented segment, naming the
+  words that failed, and it never earns an inline address — the located
+  half is not a warrant for the invented half. Fabrication outranks
+  `outside-offer`: a quotation holding both an unoffered segment and an
+  invented one is `partial`, so an invention is never filed away as merely
+  quoting past the evidence. The citation gate is therefore a WHITELIST —
+  only `verbatim` and `drifted` earn an address — never a blacklist of
+  known bad verdicts.
 
 The repair is idempotent (a byte-true quote is untouched, an address is
 never doubled), quotes below the declared floor (MIN_QUOTE_WORDS = 5) are
@@ -448,11 +518,76 @@ verbatim quotation was found, on backport, to hold six real drifts, all
 silent re-capitalizations of the sources' own words; and eochatX's
 citation-check lineage, whose "citation snippeting" and "did you mean"
 corrector were left behind by grounding.js as unearned — this policy is
-that capability re-earned at answer time.
+that capability re-earned at answer time. The `partial` clause has its own
+evidence, from the audit of 2026-08-16: the verdict existed and NO consumer
+read it — quoteFindings filtered `unlocated`, quoteOpens `outside-offer`,
+holon folded only quoteFindings — while the citation gate's blacklist
+(`status !== "outside-offer"`) passed it, so an ellipsis quotation whose
+second half was invented shipped with the first half's chunk address
+stamped on it and nothing on the record. Reproduced against quotes.test.mjs's
+own corpus: `"the harbour committee had disputed the silting figure ... and
+agreed to bury the report before the equinox"` → status `partial`,
+quoteFindings `[]`, quoteOpens `[]`, cited `["assembly.txt#0-187"]`.
 **Enforced:** `quotes.test.mjs` — pairing across line breaks, the anchor's
 round trip through `readRange`, backport-and-cite with idempotence, the
 fabricated-quotation finding, the outside-offer refusal to warrant, the
+wholly-located ellipsis quotation that still earns its address, the
+harbour-committee partial (no address, one finding naming the invented
+segment), fabrication outranking outside-offer, the invariant across every
+verdict (invented words ⇒ a finding per segment and never a warrant), the
 no-material unexamined case, and the declared floor.
+
+## P18 — The terminal is the browser sandbox, whole
+
+The terminal ran a real zsh on the machine under a server PTY. That is
+gone — at the user's direction (2026-08-16), removed rather than bypassed:
+serve.mjs holds no exec route of any kind, the PTY helper is deleted from
+disk, and nothing typed at the prompt can reach the machine. What the >_
+opens instead is a registry of runtimes that live entirely in the page:
+
+- **fold** — the instrument itself as commands (sources / search / read /
+  folds / record), mechanical, no model, counting the same term overlap
+  the chat's own evidence table counts;
+- **js** — a dedicated Worker whose egress APIs (fetch, XMLHttpRequest,
+  WebSocket, EventSource, WebTransport, importScripts, Worker,
+  SharedWorker, caches) are severed at boot, before the first operator
+  line runs;
+- **python** — pyodide, vendored in node_modules and served from
+  localhost like every other byte the page loads (P1: no CDN, hence no
+  PyPI — pip is a typed refusal naming this policy; the stdlib is all
+  there is);
+- **sql** — sqlite via sql.js, vendored the same way; loaded CSV material
+  imports as typed tables (the quote-walking parse and the all-or-nothing
+  column typing are term.js's own, tested).
+
+Material reaches a runtime only by a visible crossing — "material
+crossing into the sandbox: N sources, M bytes", printed where it happens —
+mounted read-only (/material in python's MEMFS, material(name) in js,
+.load in sql), re-synced only by the explicit `mount`. Runtimes that
+cannot exist under P1 are refused with their reasons (bash/zsh/sh, node,
+pip/npm, WebContainers, WebVM, ssh) — typed refusals, never
+half-simulations; the registry stays open to any runtime a
+localhost-served module can boot. The sandbox is an authority wall by
+construction (P14's own disclosed posture), never claimed as a hardened
+security boundary; P1 remains the outer wall. Budgets are named: the
+display keeps KEEP_PER_EXEC per command, the sql worker carries
+SQL_ROWS_KEPT rows back, and every drop is stated. There is no stdin
+because there is no PTY — the runtimes themselves are the REPLs, one
+command at a time, and interrupt is worker termination with the state
+loss said out loud.
+
+**Evidence:** the live run of 2026-08-16 — python 3.14.2 booting from
+localhost, `typeof fetch` → undefined inside the js worker, a quoted CSV
+loading as `city TEXT, stops INTEGER, riders INTEGER` and summing
+correctly, and the one measured failure while building: the sql
+continuation grammar swallowed `exit` and wedged the prompt at "…" —
+fixed as the control-word rule, now pinned.
+**Enforced:** `term.test.mjs` — the exec route gone from the server and
+unreachable from every terminal file, the PTY helper absent from disk,
+the seam scan, the severed-list agreement across all three workers, the
+continuation grammar including the control-word rule, the CSV walk and
+typing, and the roster/refusal shapes; `constitution.test.mjs` II.13
+extended over term.js and the workers.
 
 ---
 

@@ -216,3 +216,23 @@ test("a legacy mutable build migrates to the honest floor: what was known become
   const plain = buildLog.fromLegacy({ n: 6, turn: 1, seg: codeSeg, caption: "python", code: "print(1)", lastRun: null });
   assert.equal(plain.entries.length, 1);
 });
+
+test("instruction travels through proposeBuild, foldBuild, and survives replay", () => {
+  const instr = "build a countdown from 10";
+  let log = buildLog.proposeBuild({ n: 9, turn: 1, seg: codeSeg, caption: "python", instruction: instr });
+  const b = buildLog.foldBuild(log);
+  assert.equal(b.instruction, instr);
+  // The instruction lands on the PROPOSE entry itself.
+  assert.equal(log.entries[0].instruction, instr);
+  // Revise does not disturb the instruction — the fold keeps it.
+  log = buildLog.reviseBuild(log, { code: "print(3)", reason: "edit" });
+  assert.equal(buildLog.foldBuild(log).instruction, instr);
+  // Replay from serialized entries preserves it.
+  const replayed = buildLog.replayEntries(JSON.parse(JSON.stringify(log.entries)));
+  assert.equal(buildLog.foldBuild(replayed).instruction, instr);
+});
+
+test("instruction defaults to null when omitted — legacy and mechanical turns", () => {
+  const log = buildLog.proposeBuild({ n: 10, turn: 1, seg: codeSeg, caption: "python" });
+  assert.equal(buildLog.foldBuild(log).instruction, null);
+});

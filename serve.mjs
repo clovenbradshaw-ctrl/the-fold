@@ -12,23 +12,35 @@
 //
 // Beyond static files, the API endpoints live here, all loopback-only:
 //
-//   POST /api/run/<lang>       run a build's code as a throwaway process
+//   POST /api/run              run a build's code as a throwaway process —
+//                              sanctioned by P16's runner amendment, and
+//                              recorded as a crossing BEFORE it runs
 //   POST /api/build-record     mirror one build-log entry to the durable
 //                              record (record/build-record.jsonl, append-only)
-//   POST /api/exec/<id>        start a terminal command under a PTY and
-//                              stream its output back until it exits
-//   POST /api/exec/<id>/stdin  write one line to a running command
-//   POST /api/exec/<id>/signal send a signal (SIGINT) to a running command
 //
-// Python builds and the terminal share ONE project-local virtualenv
-// (`.venv`, created on first boot): `pip install` in the terminal lands where
-// every future build's `python` will import from. npm installs land in this
-// repo's own node_modules the same way. Nothing is installed globally, ever.
+// Both write to the same record. A run is the only path in this instrument
+// that turns model-authored text into a process on this machine, so it is
+// the one that must never be silent: the page's own build-log mirror covers
+// runs the UI started, and this file covers every run, including a direct
+// POST that no page ever saw.
+//
+// THE TERMINAL IS NOT HERE ANY MORE (P18). It used to be: an exec route ran
+// one zsh command per request under a real PTY helper in tools/ — a shell
+// on the machine, streamed to the page. That whole path is gone,
+// deliberately: the terminal now runs entirely in the browser sandbox
+// (term.js and its workers — vendored pyodide, sql.js, a severed JS
+// worker), and this server serves those bytes like any others.
+// term.test.mjs fails if an exec route ever comes back.
+//
+// Python builds use ONE project-local virtualenv (`.venv`, created on first
+// boot). npm installs land in this repo's own node_modules the same way.
+// Nothing is installed globally, ever.
 
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 const ROOT = resolve(import.meta.dirname);
@@ -87,7 +99,10 @@ if (!existsSync(VENV_PYTHON)) {
 // fresh log, so an entry the engine would refuse to bring into being is
 // refused here too — and the refusal itself lands on the record, typed,
 // with the engine's own reason.
-const RECORD_DIR = join(ROOT, "record");
+// Overridable only for serve-run.test.mjs, so the run-crossing test can point
+// at a throwaway directory instead of appending to this repo's own record —
+// unset in every real boot, where it is exactly `<repo>/record` as always.
+const RECORD_DIR = process.env.THE_FOLD_RECORD_DIR ? resolve(process.env.THE_FOLD_RECORD_DIR) : join(ROOT, "record");
 const BUILD_RECORD_PATH = join(RECORD_DIR, "build-record.jsonl");
 mkdirSync(RECORD_DIR, { recursive: true });
 let buildVocab = null;
@@ -100,6 +115,41 @@ try {
   console.error(`build record: engine task-log unavailable (${e.message}); entries land with vocab:"unchecked"`);
 }
 const recordBuild = (row) => appendFileSync(BUILD_RECORD_PATH, JSON.stringify(row) + "\n");
+// A row whose loss must not take the response with it: the act it describes
+// has already happened, so the honest move is to say so on the console rather
+// than to throw into a socket the page is waiting on. The strict `recordBuild`
+// is used where the record is a PRECONDITION (see the run crossing below).
+const tryRecord = (row) => {
+  try {
+    recordBuild(row);
+    return true;
+  } catch (e) {
+    console.error(`build record: could not append ${row.event} (${e.message}) — row lost`);
+    return false;
+  }
+};
+
+// ── the run crossing ─────────────────────────────────────────────────────────
+//
+// A run is a crossing, not a computation: model-authored text becomes a
+// process with this machine's network and this machine's disk. P16's runner
+// amendment sanctions that path — loopback only, capped, declared — on the
+// condition that it is never invisible, so the wall here is mechanical rather
+// than hoped for: the trace lands FIRST, and a run whose trace cannot be
+// written does not happen. (P6 says a record exists only where a check ran;
+// the runner holds the converse — an act exists only where its record ran.)
+//
+// Two rows per run, sharing one id: the crossing as it is admitted, carrying
+// the code by content address, and the result as the process resolves. The
+// result row says `exit`, not `code`, because in the crossing row `code` is
+// the source that ran. Budgets are named, and what they drop is stated on the
+// row (`kept`/`of`), never silently trimmed: the code text is kept to
+// RUN_CODE_KEPT, and stdout/stderr are already held to RUN_MAX_OUTPUT by the
+// runner itself, so the record reports the true size beside the kept size.
+const RUN_CODE_KEPT = 16 * 1024;
+const BOOT = Date.now().toString(36);
+let runSeq = 0;
+const sha256 = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -111,6 +161,10 @@ const TYPES = {
   ".csv": "text/csv; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
   ".svg": "image/svg+xml",
+  // The sandboxed terminal's runtimes are wasm, vendored and served from
+  // here — the right MIME lets the browser stream-compile them.
+  ".wasm": "application/wasm",
+  ".zip": "application/zip",
 };
 
 const json = (res, status, obj) => {
@@ -135,43 +189,66 @@ const readJsonBody = async (req, res, limit = 64 * 1024) => {
   }
 };
 
-// ── the terminal ────────────────────────────────────────────────────────────
-//
-// One command per exec, run under a PTY (`script`) so interactive programs —
-// python, node, pip's prompts — behave like they do in a real terminal. Each
-// exec is a fresh zsh; cwd is tracked per terminal session so `cd` carries
-// over to the next command. Output is streamed raw; the page strips the
-// control sequences.
-const EXEC_ID = /^[a-zA-Z0-9-]{8,64}$/;
-const execs = new Map();
-
 createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
 
   // POST /api/run — run build code as a throwaway process. Loopback only,
-  // JSON in, JSON out, nothing written to this repo.
+  // JSON in, JSON out, nothing written to this repo, every attempt on the
+  // record: a refusal is a row too, so an attempt from off the loopback or a
+  // language with no runner is as visible as a run that happened.
   if (req.method === "POST" && rel === "/api/run") {
-    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
+    const refuse = (status, reason, extra = {}) => {
+      tryRecord({ at: new Date().toISOString(), event: "build-run-refused", reason, ...extra });
+      return json(res, status, { error: reason });
+    };
+    if (!isLoopback(req)) return refuse(403, "loopback only", { from: req.socket.remoteAddress ?? null });
     (async () => {
       const params = await readJsonBody(req, res);
-      if (params === null) return json(res, 413, { error: "body too large" });
-      if (params === false) return json(res, 400, { error: "bad json" });
+      if (params === null) return refuse(413, "body too large");
+      if (params === false) return refuse(400, "bad json");
       const cmd = runnerFor(params.lang);
-      if (!cmd) return json(res, 400, { error: `no runner for "${params.lang}"` });
+      const lang = String(params.lang ?? "");
+      if (!cmd) return refuse(400, `no runner for "${params.lang}"`, { lang });
+      const code = String(params.code ?? "");
+      const run = `${BOOT}.${++runSeq}`;
+      // No record, no run — the one place in this file where a failed append
+      // stops the act instead of being disclosed after it.
+      try {
+        recordBuild({
+          at: new Date().toISOString(),
+          event: "build-run",
+          run,
+          lang,
+          runner: cmd,
+          code: { sha256: sha256(code), text: code.slice(0, RUN_CODE_KEPT), kept: Math.min(code.length, RUN_CODE_KEPT), of: code.length },
+          timeoutMs: RUN_TIMEOUT,
+          maxOutput: RUN_MAX_OUTPUT,
+        });
+      } catch (e) {
+        console.error(`run refused: the record could not be written (${e.message})`);
+        return json(res, 500, { error: "run refused: the record could not be written" });
+      }
       const started = Date.now();
-      const proc = spawn(cmd[0], [...cmd.slice(1), String(params.code ?? "")], {
+      const proc = spawn(cmd[0], [...cmd.slice(1), code], {
         stdio: ["ignore", "pipe", "pipe"],
       });
       let out = "";
       let err = "";
+      // What the caps dropped is counted, not guessed: `of` is everything the
+      // process actually said, `kept` is what fit.
+      let outOf = 0;
+      let errOf = 0;
+      let spawnError = null;
       proc.stdout.on("data", (b) => {
         const s = b.toString();
+        outOf += s.length;
         const room = RUN_MAX_OUTPUT - out.length;
         if (room > 0) out += s.slice(0, room);
       });
       proc.stderr.on("data", (b) => {
         const s = b.toString();
+        errOf += s.length;
         const room = RUN_MAX_OUTPUT - err.length;
         if (room > 0) err += s.slice(0, room);
       });
@@ -180,6 +257,18 @@ createServer((req, res) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
+        const durationMs = Date.now() - started;
+        tryRecord({
+          at: new Date().toISOString(),
+          event: "build-run-result",
+          run,
+          exit: proc.exitCode ?? null,
+          timedOut: proc.killedByTimeout ?? false,
+          durationMs,
+          stdout: { kept: out.length, of: outOf },
+          stderr: { kept: err.length, of: errOf },
+          ...(spawnError ? { spawnError } : {}),
+        });
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
         res.end(
           JSON.stringify({
@@ -187,7 +276,7 @@ createServer((req, res) => {
             stdout: out,
             stderr: err,
             timedOut: proc.killedByTimeout ?? false,
-            durationMs: Date.now() - started,
+            durationMs,
           }),
         );
       };
@@ -196,7 +285,9 @@ createServer((req, res) => {
         proc.kill("SIGKILL");
       }, RUN_TIMEOUT);
       proc.on("error", (e) => {
+        spawnError = e.message;
         out = `could not start ${cmd[0]}: ${e.message}`;
+        outOf = out.length;
         finish();
       });
       proc.on("close", finish);
@@ -257,144 +348,6 @@ createServer((req, res) => {
     return;
   }
 
-  // POST /api/exec/<id> — start a terminal command under a PTY and stream its
-  // combined output back until the process exits. The response stays open:
-  // the page reads the body as it arrives, which is what makes pip's progress
-  // and a python REPL feel live instead of batched.
-  const exec = rel.match(/^\/api\/exec\/([a-zA-Z0-9-]{8,64})$/);
-  if (req.method === "POST" && exec) {
-    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
-    (async () => {
-      const id = exec[1];
-      if (execs.has(id)) return json(res, 409, { error: "already running" });
-      const params = await readJsonBody(req, res, 16 * 1024);
-      if (params === null) return json(res, 413, { error: "body too large" });
-      if (params === false) return json(res, 400, { error: "bad json" });
-      const command = String(params.command ?? "");
-      if (!command.trim()) return json(res, 400, { error: "empty command" });
-
-      const cwd = String(params.cwd ?? ROOT);
-      // A cd in the terminal moves the session; the page sends the session
-      // cwd back on the next command, so `cd` behaves like it does in a
-      // shell instead of being a lie.
-      const cd = command.trim().match(/^cd(?:\s+(.+))?$/);
-      if (cd) {
-        const target = (cd[1] ?? "~").trim().replace(/^~/, process.env.HOME ?? "~");
-        const next = normalize(resolve(cwd, target));
-        if (existsSync(next)) {
-          res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-          res.end(`\x1b]0;fold-cwd:${next}\x1b\\`);
-          return;
-        }
-        res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-        res.end(`no such directory: ${target}\n`);
-        return;
-      }
-
-      // tools/pty-exec.py gives the command a real PTY: interactive programs
-      // see a terminal. TERM=dumb keeps the stream readable — readline's
-      // redraw dance and colour codes stay out of it — while the PTY still
-      // makes python/node/pip interactive. TERM=xterm-256color is one
-      // command-prefix away for something that needs a full terminal. The
-      // zsh is a login shell (-l) so the user's profile PATH survives; the
-      // venv is prepended so `python`/`pip` here are the build environment,
-      // never a surprise other one.
-      const proc = spawn("python3", [join(ROOT, "tools", "pty-exec.py"), command], {
-        cwd,
-        env: {
-          ...process.env,
-          PATH: `${VENV_BIN}:${process.env.PATH ?? ""}`,
-          TERM: "dumb",
-        },
-        stdio: ["pipe", "pipe", "pipe"],
-        detached: true,
-      });
-      execs.set(id, proc);
-
-      res.writeHead(200, {
-        "content-type": "text/plain; charset=utf-8",
-        "cache-control": "no-store",
-        "x-content-type-options": "nosniff",
-      });
-      let paused = false;
-      const pump = (chunk) => {
-        if (res.write(chunk) === false) {
-          paused = true;
-          proc.stdout.pause();
-        }
-      };
-      res.on("drain", () => {
-        if (paused) {
-          paused = false;
-          proc.stdout.resume();
-        }
-      });
-      let finished = false;
-      const killGroup = (sig) => {
-        try {
-          process.kill(-proc.pid, sig);
-        } catch {
-          /* already gone */
-        }
-      };
-      // The client walked away mid-command (closed the tab, navigated): the
-      // command must not survive its own terminal.
-      res.on("close", () => {
-        if (!finished) killGroup("SIGKILL");
-      });
-      proc.stdout.on("data", pump);
-      proc.stderr.on("data", pump);
-      proc.on("error", (e) => {
-        res.write(`\x1b[31m${e.message}\x1b[0m\n`);
-      });
-      proc.on("close", () => {
-        finished = true;
-        execs.delete(id);
-        // The real exit code arrived inside the stream, written by the pty
-        // helper itself; the stream just ends here.
-        res.end();
-      });
-    })();
-    return;
-  }
-
-  // POST /api/exec/<id>/stdin — one line into the running command's PTY.
-  const stdin = rel.match(/^\/api\/exec\/([a-zA-Z0-9-]{8,64})\/stdin$/);
-  if (req.method === "POST" && stdin) {
-    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
-    (async () => {
-      const proc = execs.get(stdin[1]);
-      if (!proc) return json(res, 404, { error: "not running" });
-      const params = await readJsonBody(req, res, 8 * 1024);
-      if (params === false) return json(res, 400, { error: "bad json" });
-      if (proc.stdin.writable) {
-        proc.stdin.write(String(params?.data ?? ""));
-      }
-      json(res, 200, { ok: true });
-    })();
-    return;
-  }
-
-  // POST /api/exec/<id>/signal — SIGINT by default; the process group, so the
-  // command under the PTY receives it, not just the wrapper.
-  const sig = rel.match(/^\/api\/exec\/([a-zA-Z0-9-]{8,64})\/signal$/);
-  if (req.method === "POST" && sig) {
-    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
-    (async () => {
-      const proc = execs.get(sig[1]);
-      if (!proc) return json(res, 404, { error: "not running" });
-      const params = await readJsonBody(req, res, 8 * 1024);
-      const signal = String(params?.signal ?? "SIGINT");
-      try {
-        process.kill(-proc.pid, signal);
-      } catch {
-        /* already gone */
-      }
-      json(res, 200, { ok: true });
-    })();
-    return;
-  }
-
   let file = join(ROOT, rel === "/" ? "index.html" : rel);
 
   // Never serve outside the directory (or the engine/nul mounts), whatever
@@ -441,4 +394,11 @@ createServer((req, res) => {
     "cache-control": "no-store, must-revalidate",
   });
   createReadStream(file).pipe(res);
-}).listen(PORT, () => console.log(`the-fold on http://localhost:${PORT} (no-store)`));
+})
+  // The bound port is read back from the server, not the requested PORT, so
+  // `node serve.mjs 0` (an OS-assigned ephemeral port — what
+  // serve-run.test.mjs asks for, to run without colliding with a real
+  // instance) prints the port it actually got, not the literal 0.
+  .listen(PORT, function () {
+    console.log(`the-fold on http://localhost:${this.address().port} (no-store)`);
+  });

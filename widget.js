@@ -196,6 +196,44 @@ export function makeWidgetRouter(priors) {
   }
 
   /**
+   * The PRE-TURN face of the router: does this message, by itself, point at
+   * an existing build? Decided BEFORE any model call, from the operator's
+   * words and the builds' own bytes — nothing else exists yet.
+   *
+   * This is what makes iteration reliable rather than probabilistic. The
+   * post-answer route (routeSegment, below) can only route code the model
+   * happened to emit — and measured live (gemma2:2b, 2026-08-17), a small
+   * model answers a bare complaint in prose as often as not, so the
+   * complaint routed nowhere. Deciding first lets the caller run a SIGHTED
+   * revision instead: hand the model the target's current code and extract
+   * the returned fence mechanically (the /fold door's own machinery —
+   * pickRevisionSegment tolerates a dropped language tag, churn is refused
+   * by the log, a codeless reply is a typed gap). The model is only the
+   * mouth; the routing never depends on its behaviour.
+   *
+   * `builds` is `[{n, type, lang, text}]` in birth order, code builds only
+   * — a complaint cannot revise a table. Returns `{n, tell, trigger}` or
+   * null; null means the turn is a question or a demand for something new,
+   * and the ordinary path keeps it.
+   */
+  function routeMessage(message, builds = []) {
+    const live = (builds ?? []).filter((b) => b && b.type === "code");
+    if (!live.length) return null;
+
+    const named = referencedBuild(message);
+    if (named) {
+      const target = live.find((b) => b.n === named.n);
+      return target ? { n: target.n, tell: "named", trigger: capture(message) } : null;
+    }
+
+    for (let i = live.length - 1; i >= 0; i--) {
+      const tell = iterationTell(message, live[i].text ?? "");
+      if (tell) return { n: live[i].n, tell, trigger: capture(message) };
+    }
+    return null;
+  }
+
+  /**
    * Route one produced segment: onto an existing build's log, or to a new
    * build of its own.
    *
@@ -240,7 +278,7 @@ export function makeWidgetRouter(priors) {
     return { kind: "new", why: "the turn's words introduce something, they do not point at something" };
   }
 
-  return Object.freeze({ iterationTell, routeSegment });
+  return Object.freeze({ iterationTell, routeMessage, routeSegment });
 }
 
 /** Two names for one runtime — the fold's own RENDERABLE/RUNNERS aliases. */

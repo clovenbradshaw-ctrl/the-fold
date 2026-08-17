@@ -265,6 +265,22 @@ There is no hosted-model path. The Anthropic SDK, provider select, key input,
 and webfonts were all removed 2026-08-16; `constitution.test.mjs` fails on any
 non-localhost host in the files the page loads. Do not add one back.
 
+**The scan set is derived, not listed** (2026-08-16, audit finding 4). It was
+a hardcoded array of filenames, and it had gone stale by thirteen modules —
+render.js, log-pane.js, web.js, quotes.js among them — so the invariant the
+policy claimed was not the one the test enforced. `page-graph.mjs` now walks
+index.html's script entries and the transitive load graph (imports, dynamic
+imports, importScripts, Worker sources, and relative module paths held as
+data — term.js's ROSTER is why that last rule exists: the workers are named
+in a registry, never in a literal `new Worker("…")`). What is out of scope is
+typed and asserted to resolve locally, never silently skipped: `/engine` and
+`/nul` (eoreader6's bytes, its own tests), `/node_modules` (vendored, checked
+only for being on this disk), the Explore iframe (web.test.mjs's own seam).
+Non-local hosts need a TYPED allowance whose reason is itself checked — the
+`xmlns` namespace by its attribute context, web.js's archive addresses by the
+fact that web.js contains no egress call. Adding a module needs no edit here;
+adding a module that reaches a CDN fails the assay.
+
 ## The self plane (added 2026-08-16) — what was decided, so it is not re-derived
 
 The chat has access to its own cognition on request, held on a plane the
@@ -642,9 +658,86 @@ ground-aware ids; app.js's `publishSegment` routes and `buildChip` is shared;
 `constitution.test.mjs`'s II.13 host scan now covers widget.js and builds.js,
 which the page now loads.
 
+**The reliable path is COMPOSITION with the /fold door (added at merge,
+2026-08-17).** The fold-architecture session independently built `foldTurn`
+(`/fold <n> <instruction>`): the model is handed the fold's CURRENT code,
+the returned fence is extracted mechanically (`pickRevisionSegment` —
+tolerates a dropped language tag), churn is refused by the log, and a
+codeless reply is a typed gap. That is exactly what iteration-by-complaint
+needed and did not have: before, a routed complaint depended on the model
+happening to re-emit a fence into ordinary chat — measured live (gemma2:2b),
+a coin flip. Now `widgetRouter.routeMessage` decides in `send()`, BEFORE any
+model call, whether the operator's words point at an existing code build
+(checked after every explicit door and the material's detectors, so nothing
+typed or material-bound can be hijacked), and a hit runs `foldTurn` with
+`{rezero: true}` — same sighted prompt, same mechanical extraction, but the
+landing is `rezeroBuild` (REC, trigger verbatim) rather than `reviseBuild`
+(SYN), because a judgment concedes a ground and an instruction compiles a
+new whole. The two landings, one machine. `routeSegment` remains the
+downstream wall for ordinary turns that happen to produce code.
+
 **Three build-log modules exist and only one is wired.** `build-log.js` is
 live (app.js imports it); `builds.js` is unwired except for `referencedBuild`
 and `BUILD_MESSAGE_MAX`, which widget.js now imports rather than re-deriving;
 `buildlog.js` is unwired entirely — and its SIG/INS/REC/EVA vocabulary is
 where the REC reading here was first written down. Named so the next pass
 does not mistake one for another, as this one nearly did.
+## The terminal (added 2026-08-16, sixth pass) — what was decided, so it is not re-derived
+
+P18 in POLICIES.md is the law; this is the map. The user's direction: the
+terminal only runs in the browser sandbox — and still gets to be a real
+instrument (python, sql, js, and the fold itself as runtimes).
+
+**Files.** `term.js` — the registry (ROSTER + REFUSED, both typed), the
+drawer's command wiring, the fold runtime, the continuation grammar
+(`continues` + `isControl`), the CSV walk (`csvTable`), the named budgets;
+pure parts exported and tested. `term-js-worker.mjs` — module worker, REPL
+over indirect eval (var/function persist, let/const do not — said in its
+ready note, not fixed with a rewriter). `term-py-worker.mjs` — module
+worker; pyodide imported dynamically INSIDE boot so node can import the
+file's severed list without resolving /node_modules URLs. `term-sql-worker.js`
+— a CLASSIC worker on purpose: sql.js is UMD and importScripts is the one
+loader that hands it a global scope; importScripts is then severed with the
+rest right after boot. `term.test.mjs` — P18's assay. app.js's whole
+terminal section is now one `initTerminal(bridge)` call handing over
+accessors (the cast.js pattern); log-pane.js still owns how the drawer is
+SHOWN; serve.mjs lost the exec routes and tools/ entirely.
+
+**Decisions that cost something, kept here:**
+
+- **Vendored, never CDN.** pyodide (13MB) and sql.js land in node_modules
+  like monaco already did; `.wasm`/`.zip` got MIME entries in BOTH servers
+  (each serves the chat page whole). II.13's scan list now includes the
+  terminal's four files. No PyPI at runtime follows from no-CDN: micropip
+  and loadPackage would need egress and are absent, not shimmed — pip is a
+  typed refusal naming P1.
+- **The severed list is one list held in three files**, agreement pinned by
+  test — a worker file stays standalone, and drift is a failing test, not a
+  quiet hole. Severing is defineProperty-on-the-worker-global:
+  construction, not hardening, P14's own disclosed posture.
+- **`exit` is a control word checked before the continuation grammar.**
+  Measured live: sql's own semicolon rule swallowed `exit` and the prompt
+  wedged at "…". The grammar alone still swallows it — the ORDER is the
+  fix, and the test says so.
+- **Material crosses visibly.** A runtime gets a snapshot of every loaded
+  source at boot, `mount` re-syncs on demand, and the crossing is printed
+  where it happens ("material crossing into the sandbox: N sources, M
+  bytes"). The mute stays a retrieval concept — muted sources cross too.
+- **One command at a time, no stdin, no queue.** A submit during flight is
+  dropped with a line (the old pane's own posture); there is no stdin
+  because there is no PTY — the runtimes are the REPLs. Interrupt (✕ or
+  ctrl+c) is worker termination; the state loss is said in the same line.
+- **WebContainers / WebVM / ssh / node stay refused with reasons** in the
+  `runtimes` command — licence + CDN, external proxy, egress, the machine —
+  so the next pass does not re-derive why the famous routes are absent. The
+  registry itself takes any runtime a localhost-served module can boot
+  (ruby.wasm, php-wasm, WebR are one vendored package + one ROSTER row
+  away).
+
+**Known edges, disclosed:** the browser tools' synthetic key events did not
+reach the input during verification (real typing does; the live run drove
+the same handler with dispatched KeyboardEvents); a worker that spins
+synchronously is stoppable only by ✕ (the same one hole the skills sandbox
+discloses for its run budget); terminal acts are not on the record — the
+old terminal's posture, kept deliberately; a term-record mirror is named
+future work, not implied.

@@ -40,12 +40,17 @@ import {
 
 import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
 
-// Which build a produced artifact belongs to. "I don't like the colors" is a
-// turn about something that already exists, and it must land on that thing's
-// log rather than forking a second one beside it — decided mechanically from
-// the OPERATOR's words and the shape of what came back, never from the
-// model's phrasing (L5).
-import { makeWidgetRouter } from "./widget.js";
+// The Folds panel's pure half: search, the declared orderings, the compact
+// list face, and the /fold door's mechanics — all testable in node, all
+// walls; this file only draws what they return.
+import { FOLD_SORTS, filterFolds, parseFoldCommand, pickRevisionSegment, sortFolds } from "./folds-pane.js";
+
+// Which build a produced artifact — or a bare complaint — belongs to.
+// "I don't like the colors" is a turn about something that already exists,
+// and it must land on that thing's log rather than forking a second one
+// beside it. Decided mechanically from the OPERATOR's words and the shape of
+// what came back, never from the model's phrasing (L5).
+import { capture, makeWidgetRouter } from "./widget.js";
 
 import {
   ensureEditor,
@@ -58,7 +63,7 @@ import {
   editorRunShortcut,
 } from "./editor.js";
 
-import { NOTHING, buildTable, detectTable, toMarkdown } from "./tables.js";
+import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } from "./tables.js";
 
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
@@ -69,6 +74,8 @@ import { needsDecomposition, runHolonicTask } from "./holon.js";
 import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
+
+import { initTerminal } from "./term.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
@@ -108,10 +115,10 @@ import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engi
 import { makeCastResolver, makeCastHandles } from "./cast.js";
 
 // The engine's prior register — the closed-class word sets, each naming its
-// giver (Amendment IV). Routing a turn's artifact onto the right build is
-// decided from these, never from a word list this app typed out: a list of
-// English verbs could only ever be a sample standing in for the whole, which
-// is the mistake relations.js's own header records undoing.
+// giver (Amendment IV). Routing is decided from these, never from a word
+// list this app typed out: a list of English verbs could only ever be a
+// sample standing in for the whole, which is the mistake relations.js's own
+// header records undoing.
 import * as enginePriors from "/engine/perceiver/text/priors.js";
 const widgetRouter = makeWidgetRouter(enginePriors);
 
@@ -230,6 +237,7 @@ const state = {
   offeredModels: [],
   ready: false,
   busy: false,
+  queue: [],
 
   /**
    * Proof-seeking consent (P13's amendment): when on, a turn's flagged
@@ -637,9 +645,7 @@ function usageTurn(question, usage) {
   renderFold(node, { fold });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
-  state.busy = false;
-  $("send").disabled = false;
-  $("input").focus();
+  releaseBusy();
 }
 
 async function mechanicalTurn(question, kind) {
@@ -650,7 +656,7 @@ async function mechanicalTurn(question, kind) {
   const built = buildTable(kind, state);
   const answer = built ? toMarkdown(built.table) : NOTHING[kind];
   body.textContent = "";
-  if (built) body.append(publishBuild(built.table, built.caption));
+  if (built) body.append(publishBuild(built.table, built.caption, question));
   else {
     const p = document.createElement("p");
     p.className = "prose";
@@ -679,9 +685,76 @@ async function mechanicalTurn(question, kind) {
   renderFold(node, { fold });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
+ * A chart of a loaded source is drawn, never generated — tables.js's rule
+ * one rung up. The rows are bytes the app can already address, so a model
+ * asked to produce this chart could only retype figures (measured live:
+ * twelve figures at 2 tok/s, cut off by its own decode budget). chartOf
+ * finds the source by its name in the question (P11), reads the columns
+ * off the file's own header, and the segment deposits through the same
+ * fold door a model's code would — downloadable, addressable, revisable.
+ */
+async function chartTurn(question) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const sources = Object.entries(state.sources)
+    .filter(([name]) => !state.muted.has(name))
+    .map(([name, text]) => ({ name, text }));
+  const out = chartOf(question, sources);
+  body.textContent = "";
+  let answer;
+  if (out.seg && out.seg.rows) {
+    body.append(publishBuild(out.seg, out.caption, question));
+    answer = out.caption;
+  } else {
+    // A typed gap: the door was walked and the missing leg is named.
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = out.gap ?? out.caption;
+    body.append(p);
+    answer = out.gap ?? out.caption;
+  }
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: answer },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", { what: "chart" });
+  observeExchange(turn, question, answer);
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
+  drainQueue();
+}
+
+function drainQueue() {
+  if (state.busy || !state.queue.length) return;
+  const next = state.queue.shift();
+  // Remove the queued placeholder message from chat — send() will add the
+  // real one through the turn function's own addMessage.
+  const placeholder = document.querySelector(".msg.queued");
+  if (placeholder) placeholder.remove();
+  send(next);
+}
+
+function releaseBusy() {
+  state.busy = false;
+  $("send").disabled = false;
+  $("input").focus();
+  drainQueue();
 }
 
 async function send(question) {
@@ -695,6 +768,17 @@ async function send(question) {
   // and never by whether a corpus happens to be loaded. The explicit door is
   // checked FIRST: a typed command must never be hijacked by a heuristic
   // that happens to match its wording.
+  // The fold door first: `/fold <n> <instruction>` names its target by
+  // number, mechanically — the door carries the address, so whatever code
+  // the model returns lands as a revision on THAT fold's log, never as a
+  // new fold and never where the model's prose points. Checked before
+  // /task for the same reason /task is checked before the heuristics: a
+  // typed command must never be hijacked by anything downstream of it.
+  const foldCmd = parseFoldCommand(question);
+  if (foldCmd) return foldTurn(foldCmd.n, foldCmd.instruction, question);
+  if (/^\/fold\b/.test(question))
+    return usageTurn(question, "/fold <n> <instruction> — asks the model to revise fold n. Whatever code comes back lands as a new version on that fold's own append-only log — the door carries the target, so the model's prose cannot re-route it.");
+
   const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
   if (task) return holonicTurn(task, question, "model");
   if (/^\/task\s*$/.test(question)) return usageTurn(question, "/task <what to produce> — plans the task into parts and runs each one against the material.");
@@ -730,6 +814,18 @@ async function send(question) {
   const wanted = detectTable(question);
   if (wanted) return mechanicalTurn(question, wanted);
 
+  // A chart word claims the turn only when the question also NAMES a loaded
+  // source — that pairing is the tell that the ask is about loaded rows.
+  // "Visualize the themes" names nothing and falls through to the model,
+  // whose answer is prose under the usual checks, never invented figures.
+  if (detectChart(question)) {
+    const sources = Object.entries(state.sources)
+      .filter(([name]) => !state.muted.has(name))
+      .map(([name, text]) => ({ name, text }));
+    const drawn = chartOf(question, sources);
+    if (drawn.seg || drawn.source !== undefined) return chartTurn(question);
+  }
+
   // Self questions asked in words ("what surprised you most", "how do you
   // think"). Checked AFTER detectTable so a question the app can answer
   // about its material state keeps winning, and gated on the second-person
@@ -738,6 +834,28 @@ async function send(question) {
   const reflex = detectReflex(question);
   if (reflex === "reflect") return reflectTurn(question, question);
   if (reflex) return mechanicalTurn(question, reflex);
+
+  // A complaint about something already built runs as a SIGHTED revision on
+  // that build's own log — the /fold door's machinery, routed mechanically
+  // from the operator's words instead of a typed number. "I don't like the
+  // colors" hands the model the widget's current code and lands the returned
+  // fence as a RE-ZERO (REC) on the widget's log, with the words verbatim as
+  // the trigger. Checked AFTER every explicit door and after the material's
+  // own detectors, so a typed command or a question about the material can
+  // never be hijacked; the router itself refuses creation demands (the
+  // indefinite determiner) and questions that point at nothing a build
+  // contains. Without this, iteration depended on the model happening to
+  // re-emit a fence into ordinary chat — measured live (gemma2:2b,
+  // 2026-08-17), a coin flip. The model is only the mouth; the routing and
+  // the landing never depend on its behaviour.
+  const complaint = widgetRouter.routeMessage(
+    question,
+    state.builds.map((b) => {
+      const fold = buildFold(b, null);
+      return { n: b.n, type: fold?.seg?.type, lang: fold?.seg?.lang, text: `${fold?.caption ?? ""}\n${fold?.code ?? ""}` };
+    }),
+  );
+  if (complaint) return foldTurn(complaint.n, question, question, { rezero: true, tell: complaint.tell });
 
   // Every remaining turn runs as a task — 100% of the time. The one big
   // prompt that carried summary + records + material together is gone; a
@@ -749,6 +867,145 @@ async function send(question) {
   // retrieval: parts carry a one-line discourse slice and re-retrieve what
   // they need, never the whole carried block.
   return holonicTurn(question, question, needsDecomposition(question) ? "model" : "flat");
+}
+
+/**
+ * The /fold turn: a model revision routed onto an existing fold's log by the
+ * door's own number. The model is only the mouth here — it is handed the
+ * fold's current code and the instruction, and whatever fenced code arrives
+ * is extracted mechanically (parseSegments + pickRevisionSegment) and lands
+ * as a SUPERSEDE on fold n's append-only log, mirrored to the durable
+ * record. The model's prose never routes anything: no code in the reply is
+ * a typed gap, identical code is churn the log refuses, and both facts are
+ * said in the answer rather than absorbed.
+ */
+async function foldTurn(n, instruction, typed, { rezero = false, tell = null } = {}) {
+  const entry = state.builds.find((b) => b.n === n);
+  if (!entry) {
+    const have = state.builds.length
+      ? `this conversation holds fold${state.builds.length === 1 ? "" : "s"} ${state.builds.map((b) => b.n).join(", ")}`
+      : "this conversation holds no folds yet";
+    return usageTurn(typed, `fold ${n} does not exist — ${have}.`);
+  }
+
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const cur = buildFold(entry, null);
+  const lang = cur.seg?.lang ?? "";
+  logAct("asked", { text: typed });
+
+  // A request, not a guarantee (II.9): the fence ask is courtesy phrasing;
+  // the mechanical extraction below is the wall, and its failure is a typed
+  // gap, never a retry-harder.
+  const prompt =
+    `${instruction}\n\n` +
+    `The working code of fold ${n}${lang ? ` (${lang})` : ""} is below. ` +
+    (rezero
+      ? `Rewrite it to address the feedback above. Reply with the complete new code in one fenced block.\n\n`
+      : `Reply with the complete revised code in one fenced block.\n\n`) +
+    `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\``;
+
+  $("status").textContent = `revising fold ${n}…`;
+  body.textContent = `revising fold ${n}…`;
+  let answer = "";
+  try {
+    answer = await complete([{ role: "user", content: prompt }], {
+      model: state.model,
+      onDelta: (out) => {
+        body.textContent = out;
+      },
+    });
+  } catch (err) {
+    answer = `[engine error: ${err.message || err}]`;
+    logAct("errored", { where: "fold-revision", message: String(err.message || err) });
+  }
+
+  const seg = pickRevisionSegment(parseSegments(answer), lang);
+  body.textContent = "";
+
+  // The model's prose, kept visible as its own voice — but never a router.
+  for (const s of parseSegments(answer)) {
+    if (s.type !== "prose") continue;
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = s.text;
+    body.append(p);
+  }
+
+  let note;
+  if (!seg) {
+    // Typed gap: the door was walked, the target named, and nothing landed.
+    note = `the reply carried no code — nothing landed on fold ${n}.`;
+    logAct("revised", { fold: n, landed: false, gap: "no code in reply" });
+  } else {
+    const before = entry.log.entries.length;
+    // The two landings differ by WHO moved and what the algebra says about
+    // it. A /fold instruction compiles a new whole from the current one —
+    // SUPERSEDE · SYN. A routed complaint is a judgment: the operator
+    // conceded the ground the code stood on, which is REC's own cell
+    // ("rezero — a new ambient ground begins"), so it lands through
+    // rezeroBuild: the concession entry carries the operator's words
+    // VERBATIM, and the next ground is born fresh (build-log.js's header
+    // says why one thread cannot hold both — REC→SYN runs the algebra
+    // backward).
+    entry.log = rezero
+      ? buildLog.rezeroBuild(entry.log, {
+          seg: { ...cur.seg, code: seg.code },
+          code: seg.code,
+          trigger: capture(typed),
+          tell,
+        })
+      : buildLog.reviseBuild(entry.log, { code: seg.code, reason: "revision" });
+    const landed = entry.log.entries.length > before;
+    if (landed) {
+      entry.cursor = null;
+      entry.draft = null;
+      mirrorBuild(entry, before);
+      persistBuilds();
+      renderBuilds(n);
+      const now = buildFold(entry, null);
+      const last = entry.log.entries[entry.log.entries.length - 1];
+      note = rezero
+        ? `fold ${n} · ground ${now.ground} · re-zeroed on your words ("${capture(typed)}")`
+        : `fold ${n} · v${now.version} · revision landed (+${last.added ?? "?"}/−${last.removed ?? "?"} lines)`;
+      logAct("revised", { fold: n, landed: true, version: now.version, ...(rezero ? { rezero: true, ground: now.ground } : {}) });
+    } else {
+      // The log's own churn refusal: identical code appends nothing, and
+      // that is a result worth saying, not a silence.
+      note = `the model returned identical code — fold ${n} is unchanged (churn refused by the log).`;
+      logAct("revised", { fold: n, landed: false, churn: true });
+    }
+  }
+
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "build-chip";
+  chip.innerHTML = `<span aria-hidden="true">▤</span> `;
+  chip.append(document.createTextNode(note));
+  chip.onclick = () => {
+    showView("builds");
+    renderBuilds(n);
+    document.getElementById(`build-${n}`)?.scrollIntoView({ block: "start" });
+  };
+  body.append(chip);
+
+  // The turn on the conversation's own record. The fold line is mechanical —
+  // the landing note says everything later turns need — so the summary
+  // advances without spending a second model call on restating it.
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: answer });
+  const turn = state.summary.turnCount + 1;
+  observeExchange(turn, typed, answer);
+  const fold = mechanicalFoldLine(typed, note);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  logAct("folded", { line: fold });
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
 }
 
 /**
@@ -904,9 +1161,7 @@ async function boundTurn(question, typed) {
   renderFold(node, { fold, record });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
-  state.busy = false;
-  $("send").disabled = false;
-  $("input").focus();
+  releaseBusy();
 }
 
 /**
@@ -967,7 +1222,7 @@ async function reflectTurn(question, typed) {
   const quoted = offered.flatMap((p) =>
     [...p.text.matchAll(REF_IN_TEXT)].map((m) => m[1]),
   );
-  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, [], question);
+  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, undefined, question, question);
 
   state.history.push(
     { role: "user", content: typed },
@@ -1015,9 +1270,7 @@ async function reflectTurn(question, typed) {
   renderThreads();
   renderEvidence(node, question, offered, used, grounding, "self ledger");
   $("status").textContent = `ready · ${state.model}`;
-  state.busy = false;
-  $("send").disabled = false;
-  $("input").focus();
+  releaseBusy();
 }
 
 /**
@@ -1141,6 +1394,9 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       makeNameResolver: castFor,
       makeRelationReader: relationsFor,
       planMode,
+      // Verbatim recent history for the chat path (no material). The
+      // discourse slice is the folded fallback when this window is empty.
+      chatHistory: state.history.slice(-RECENCY_WINDOW),
       // The discourse slice: one line, not the carried block. Topic, flow,
       // entities — what a part needs to resolve "he" and "the report";
       // anything more it retrieves.
@@ -1230,6 +1486,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     $("status").textContent = `ready · ${state.model}`;
     state.busy = false;
     $("send").disabled = false;
+    drainQueue();
     return;
   }
 
@@ -1293,7 +1550,13 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   // it is stamped with THIS turn's number, not the next one's.
   const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
   const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
-  renderAnswer(body, result.output, offered, attributions, findings, relationClaims, task);
+  // The instruction is the model's own plan — task + plan parts, mechanically
+  // assembled. It goes into the build log's PROPOSE entries (build-log.js)
+  // so the code is always projected from the instruction that produced it.
+  const instruction = result.plan?.parts?.length
+    ? `${task} ${result.plan.parts.map((p) => `${p.label}: ${p.description}`).join("; ")}`
+    : task;
+  renderAnswer(body, result.output, offered, attributions, findings, relationClaims, instruction, task);
   await refreshSummary(fold);
   renderFold(node, { fold, record, ran: log });
   renderThreads();
@@ -1314,9 +1577,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     quoteCorrections: result.sections.flatMap((s) => s.quoteCorrections ?? []),
   });
   $("status").textContent = `ready · ${state.model}`;
-  state.busy = false;
-  $("send").disabled = false;
-  $("input").focus();
+  releaseBusy();
 }
 
 // ── rendering ────────────────────────────────────────────────────────────────
@@ -1353,7 +1614,7 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], message = "") {
+function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, message = "") {
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings, relationClaims);
@@ -1378,8 +1639,10 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   body.textContent = "";
   // Where this turn's artifacts landed, accumulated as they land: the first
   // block of a kind decides, the rest of that kind revise it rather than
-  // opening builds beside it.
+  // opening builds beside it. `touched` keeps the build numbers in first-
+  // touch order for the inline previews drawn after the loop.
   const landedThisTurn = [];
+  const touched = [];
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
@@ -1394,8 +1657,28 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    const chip = publishSegment(seg, message, landedThisTurn);
+    // The chip is the conversation handle. Where the segment lands is the
+    // router's decision — an ordinary turn that happens to produce code can
+    // still be about a build that already exists, and a small model
+    // restating itself in one reply must not fork five builds out of one
+    // request (measured live, gemma2:2b, 2026-08-17). publishSegment routes;
+    // the touched builds render inline AFTER the loop, one frame per build,
+    // at the LIVE head — so a restated reply shows its final state once,
+    // never five drafts stacked.
+    const { chip, n } = publishSegment(seg, message, landedThisTurn, instruction);
     if (chip) body.append(chip);
+    if (n != null && !touched.includes(n)) touched.push(n);
+  }
+
+  // For renderable artifacts (html, svg), the widget itself also appears
+  // inline — no click required. The frame draws the build's live projection,
+  // which is what the turn actually left behind.
+  for (const n of touched) {
+    const entry = state.builds.find((b) => b.n === n);
+    const fold = entry && buildFold(entry, null);
+    if (fold?.seg?.type === "code" && RENDERABLE.has(fold.seg.lang)) {
+      body.append(artifactNode({ ...fold.seg, code: fold.code }, undefined, fold.code, { scripts: true }));
+    }
   }
 
   // The turn's epistemic state, at a glance: how much of what was just said
@@ -1686,16 +1969,16 @@ function taggedProse(text, offered, classified = []) {
  * output wants; the chip is the sentence the conversation wants.
  */
 /**
- * Route one produced segment: onto an existing build's log as a RE-ZERO, or
- * to a new build of its own. `message` is the operator's own words for this
- * turn — the only words trusted with the decision.
+ * Route one produced segment: onto an existing build's log, or to a new
+ * build of its own. `message` is the operator's own words for this turn —
+ * the only words trusted with the decision (the model's `instruction` rides
+ * along only to seed a NEW build's PROPOSE entry; it never routes).
  *
- * The chip that comes back points at whichever build the segment landed on,
- * so a complaint answered with a fix scrolls to the widget it fixed rather
- * than to a stranger with the next number.
+ * Returns `{chip, n}`: the chip may be null (a same-turn restatement adds a
+ * version, not a second handle), `n` is the build the segment landed on.
  */
-function publishSegment(seg, message, landedThisTurn = [], caption) {
-  const kindOf = (s) => ({ type: s?.type, lang: s?.lang });
+function publishSegment(seg, message, landedThisTurn = [], instruction = null) {
+  const kindOf = (x) => ({ type: x?.type, lang: x?.lang });
   const route = widgetRouter.routeSegment(
     seg,
     message,
@@ -1711,9 +1994,10 @@ function publishSegment(seg, message, landedThisTurn = [], caption) {
   );
 
   if (route.kind === "new") {
-    const chip = publishBuild(seg, caption);
-    landedThisTurn.push({ n: state.builds[state.builds.length - 1].n, ...kindOf(seg) });
-    return chip;
+    const chip = publishBuild(seg, undefined, instruction);
+    const n = state.builds[state.builds.length - 1].n;
+    landedThisTurn.push({ n, ...kindOf(seg) });
+    return { chip, n };
   }
 
   const entry = state.builds.find((b) => b.n === route.n);
@@ -1732,7 +2016,7 @@ function publishSegment(seg, message, landedThisTurn = [], caption) {
     persistBuilds();
     renderBuilds(entry.n);
     // No second chip: the turn already has one, pointing at this build.
-    return null;
+    return { chip: null, n: entry.n };
   }
 
   entry.log = buildLog.rezeroBuild(entry.log, {
@@ -1752,12 +2036,13 @@ function publishSegment(seg, message, landedThisTurn = [], caption) {
   if (!matchMedia("(max-width: 900px)").matches) showView("builds");
 
   const fold = buildFold(entry, null);
-  return buildChip(entry, `${fold.caption} · ground ${fold.ground}`, {
+  const chip = buildChip(entry, `${fold.caption} · ground ${fold.ground}`, {
     title: `Re-zeroed on your own words: "${route.trigger}". The previous ground is still on the log, at its own cursor position.`,
   });
+  return { chip, n: entry.n };
 }
 
-function publishBuild(seg, caption) {
+function publishBuild(seg, caption, instruction = null) {
   const n = state.builds.length + 1;
   const turn = state.summary.turnCount + 1;
   const cap = caption ?? defaultCaption(seg);
@@ -1768,7 +2053,7 @@ function publishBuild(seg, caption) {
     // (build-log.js). Nothing here mutates: the working code, the last run,
     // the caption are all answers to "fold the entries", at whatever cursor
     // the reader has scrubbed to. `cursor: null` means live head.
-    log: buildLog.proposeBuild({ n, turn, seg, caption: cap }),
+    log: buildLog.proposeBuild({ n, turn, seg, caption: cap, instruction }),
     cursor: null,
     // Editor keystrokes not yet committed by a run. A draft is not an act —
     // it becomes a SUPERSEDE entry when it runs, not per keypress.
@@ -1917,155 +2202,281 @@ async function runBuild(entry) {
   }
 }
 
+// The Folds panel's rendering state: the search, the declared ordering, the
+// face (cards or the compact list), and which list row stands opened. All of
+// it is a view over the logs — nothing here changes an entry, and what the
+// search hides is counted beside the pane's own heading (III.3: filtered-out
+// is rendered, not merely removed).
+let foldsQuery = "";
+let foldsSort = "newest"; // the panel's declared default: recency
+let foldsView = "cards";
+let foldsOpen = null;
+
+/** One fold, summarized off its own log for the search and the orderings —
+ * derived at render time, never stored. */
+function foldRow(entry) {
+  const live = buildFold(entry, null);
+  if (!live) return null;
+  const file = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
+  return {
+    entry,
+    n: entry.n,
+    caption: live.caption ?? "",
+    lang: live.seg?.lang ?? "",
+    type: live.seg?.type ?? "",
+    address: file?.name ?? "",
+    code: live.code ?? "",
+    addenda: entry.log.entries.length,
+    version: live.version,
+    lastRun: live.lastRun,
+  };
+}
+
 /** Newest first — the thing just produced is the thing being looked at. */
 function renderBuilds(highlight) {
   const list = $("builds-list");
   list.textContent = "";
-  $("builds-count").textContent = state.builds.length
-    ? `${state.builds.length}`
+  const all = state.builds.map(foldRow).filter(Boolean);
+  const rows = sortFolds(filterFolds(all, foldsQuery), foldsSort);
+  // The count says what the filter did, where it did it: "2 of 3" is the
+  // exclusion counted at the same weight as the result.
+  $("builds-count").textContent = all.length
+    ? rows.length === all.length
+      ? `${all.length}`
+      : `${rows.length} of ${all.length}`
     : "";
-  if (!state.builds.length) {
+  if (!all.length) {
     list.innerHTML = '<p class="empty">Nothing but prose so far.</p>';
     return;
   }
-  for (const entry of [...state.builds].reverse()) {
-    // Everything drawn below is a FOLD of the entry's log — at the reader's
-    // cursor. The live head is the default; a scrubbed cursor shows the
-    // build as it stood at that point, downloadable there.
-    const live = buildFold(entry, null);
-    const shown = buildFold(entry) ?? live;
-    if (!shown) continue;
-    const seqMax = entry.log.nextSeq - 1;
-    const atLive = entry.cursor == null || entry.cursor >= seqMax;
-
-    const wrap = document.createElement("div");
-    wrap.id = `build-${entry.n}`;
-    wrap.className = `build-entry${entry.n === highlight ? " current" : ""}`;
-    const from = document.createElement("p");
-    from.className = "build-from";
-    // A build that has been re-zeroed says so: the ground is part of where
-    // the reader is, not a footnote. Ground 1 is unlabelled — a build nobody
-    // has complained at has no ground to talk about.
-    from.textContent =
-      shown.ground > 1
-        ? `turn ${entry.turn} · ground ${shown.ground} · v${shown.version}`
-        : `turn ${entry.turn} · v${shown.version}`;
-    wrap.append(from);
-    if (shown.seg.type === "code" && atLive) {
-      const edit = document.createElement("button");
-      edit.type = "button";
-      edit.className = "build-run";
-      edit.textContent = "✎ edit";
-      edit.onclick = () => openBuild(entry);
-      from.append(edit);
-      if (buildRunnable(entry)) {
-        const run = document.createElement("button");
-        run.type = "button";
-        run.className = "build-run";
-        run.textContent = entry.running ? "running…" : "▶ run";
-        run.onclick = () => runBuild(entry);
-        from.append(run);
-      }
-    }
-    // Scrubbed back to a version whose code differs from the head: offer to
-    // restore it — a SUPERSEDE carrying the old bytes forward, never a
-    // rewind. The log only ever grows.
-    if (!atLive && shown.seg.type === "code" && live && shown.code !== live.code) {
-      const restore = document.createElement("button");
-      restore.type = "button";
-      restore.className = "build-run";
-      restore.textContent = "↩ restore";
-      restore.title = `Bring v${shown.version}'s code forward as a new version — the log keeps everything between.`;
-      restore.onclick = () => {
-        const before = entry.log.entries.length;
-        entry.log = buildLog.reviseBuild(entry.log, { code: shown.code, reason: "restore" });
-        entry.cursor = null;
-        mirrorBuild(entry, before);
-        persistBuilds();
-        renderBuilds(entry.n);
-      };
-      from.append(restore);
-    }
-    // Downloadable at any cursor: the file is the fold at this position,
-    // named by its address (build-N@seq).
-    const dl = document.createElement("button");
-    dl.type = "button";
-    dl.className = "build-run";
-    dl.textContent = "⬇";
-    dl.title = `Download this build as of log position ${entry.cursor ?? seqMax}.`;
-    dl.onclick = () => {
-      const file = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
-      if (!file) return;
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([file.text], { type: file.mime }));
-      a.download = file.name;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      recordExport(entry, file, entry.cursor ?? seqMax);
-    };
-    from.append(dl);
-
-    // The cursor: one position per log entry, labelled mechanically from the
-    // entry itself. Same semantics as the graph's reading cursor — scrubbing
-    // shows the build AS OF that point; nothing is recomputed or invented.
-    if (seqMax > 0) {
-      const tl = buildLog.timeline(entry.log);
-      const row = document.createElement("div");
-      row.className = "build-cursor";
-      const scrub = document.createElement("input");
-      scrub.type = "range";
-      scrub.min = "0";
-      scrub.max = String(seqMax);
-      scrub.step = "1";
-      scrub.value = String(entry.cursor ?? seqMax);
-      const label = document.createElement("span");
-      label.className = "cursor-label";
-      const labelAt = (s) => `${s}/${seqMax} · ${tl[s].label}${s < seqMax ? " · as of" : ""}`;
-      label.textContent = labelAt(Number(scrub.value));
-      scrub.setAttribute("aria-label", "log position");
-      scrub.oninput = () => {
-        label.textContent = labelAt(Number(scrub.value));
-      };
-      scrub.onchange = () => {
-        const v = Number(scrub.value);
-        entry.cursor = v >= seqMax ? null : v;
-        renderBuilds(entry.n);
-      };
-      row.append(scrub, label);
-      wrap.append(row);
-    }
-
-    wrap.append(artifactNode(shown.seg, shown.caption, shown.code));
-    const lastRun = shown.lastRun;
-    if (entry.running || lastRun) {
-      const data = lastRun?.data ?? {};
-      if (entry.running) {
-        const out = document.createElement("pre");
-        out.className = "run-console";
-        out.textContent = "running…";
-        wrap.append(out);
-      } else if (!data.rendered) {
-        const out = document.createElement("pre");
-        out.className = "run-console";
-        if (!lastRun.ok) {
-          out.classList.add("bad");
-          out.textContent = lastRun.error
-            ? `could not reach the fold server (is serve.mjs running?): ${lastRun.error}`
-            : `the fold server refused: ${lastRun.data?.error ?? ""}`;
-        } else {
-          const parts = [];
-          if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
-          if (data.stderr) parts.push(data.stderr.replace(/\n$/, ""));
-          if (!parts.length) parts.push(data.timedOut ? "(timed out — killed after 10s)" : "(no output)");
-          out.textContent = parts.join("\n");
-          out.classList.toggle("bad", !!data.stderr);
-          out.title = `exit ${data.code} · ${data.durationMs}ms${data.timedOut ? " · timed out" : ""}`;
-        }
-        wrap.append(out);
-      }
-    }
-    list.append(wrap);
+  if (!rows.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = `No fold matches “${foldsQuery}” — ${all.length} hidden by the search.`;
+    list.append(p);
+    return;
   }
+  // The operation that asked for this render targeted one fold; on the list
+  // face that fold opens, so the thing just acted on is the thing shown.
+  if (highlight != null && foldsView === "list") foldsOpen = highlight;
+  for (const r of rows) {
+    if (foldsView === "list") {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "fold-row";
+      row.setAttribute("aria-expanded", String(foldsOpen === r.n));
+      const addr = document.createElement("span");
+      addr.className = "addr";
+      addr.textContent = `fold ${r.n}`;
+      const cap = document.createElement("span");
+      cap.className = "cap";
+      cap.textContent = r.caption;
+      const meta = document.createElement("span");
+      meta.className = `meta${r.lastRun && r.lastRun.ok === false ? " bad" : ""}`;
+      meta.textContent =
+        `v${r.version} · ${r.lang || r.type} · ${r.addenda} addend${r.addenda === 1 ? "um" : "a"}` +
+        (r.lastRun ? (r.lastRun.ok === false ? " · run failed" : " · ran") : "");
+      row.append(addr, cap, meta);
+      row.onclick = () => {
+        foldsOpen = foldsOpen === r.n ? null : r.n;
+        renderBuilds();
+      };
+      list.append(row);
+      if (foldsOpen === r.n) {
+        const card = buildCard(r.entry, highlight);
+        if (card) list.append(card);
+      }
+      continue;
+    }
+    const card = buildCard(r.entry, highlight);
+    if (card) list.append(card);
+  }
+}
+
+/** One fold's full card: address, controls, cursor, and the artifact — every
+ * line of it a fold of the entry's log at the reader's cursor. */
+function buildCard(entry, highlight) {
+  // Everything drawn below is a FOLD of the entry's log — at the reader's
+  // cursor. The live head is the default; a scrubbed cursor shows the
+  // build as it stood at that point, downloadable there.
+  const live = buildFold(entry, null);
+  const shown = buildFold(entry) ?? live;
+  if (!shown) return null;
+  const seqMax = entry.log.nextSeq - 1;
+  const atLive = entry.cursor == null || entry.cursor >= seqMax;
+
+  const wrap = document.createElement("div");
+  wrap.id = `build-${entry.n}`;
+  wrap.className = `build-entry${entry.n === highlight ? " current" : ""}`;
+  // Where this fold lives: its chat address (what /fold <n> targets) and
+  // the file the ⬇ control would write at this cursor — the address IS the
+  // download's name, so the two can never disagree.
+  const addrLine = document.createElement("p");
+  addrLine.className = "build-addr";
+  const addrB = document.createElement("b");
+  addrB.textContent = `fold ${entry.n}`;
+  addrLine.append(addrB);
+  const file = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
+  if (file) addrLine.append(document.createTextNode(` · ${file.name}`));
+  wrap.append(addrLine);
+  const from = document.createElement("p");
+  from.className = "build-from";
+  // A build that has been re-zeroed says so: the ground is part of where
+  // the reader is, not a footnote. Ground 1 is unlabelled — a build nobody
+  // has complained at has no ground to talk about.
+  from.textContent =
+    shown.ground > 1
+      ? `turn ${entry.turn} · ground ${shown.ground} · v${shown.version}`
+      : `turn ${entry.turn} · v${shown.version}`;
+  wrap.append(from);
+  if (shown.seg.type === "code" && atLive) {
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "build-run";
+    edit.textContent = "✎ edit";
+    edit.onclick = () => openBuild(entry);
+    from.append(edit);
+    if (buildRunnable(entry)) {
+      const run = document.createElement("button");
+      run.type = "button";
+      run.className = "build-run";
+      run.textContent = entry.running ? "running…" : "▶ run";
+      run.onclick = () => runBuild(entry);
+      from.append(run);
+    }
+  }
+  // Scrubbed back to a version whose code differs from the head: offer to
+  // restore it — a SUPERSEDE carrying the old bytes forward, never a
+  // rewind. The log only ever grows.
+  if (!atLive && shown.seg.type === "code" && live && shown.code !== live.code) {
+    const restore = document.createElement("button");
+    restore.type = "button";
+    restore.className = "build-run";
+    restore.textContent = "↩ restore";
+    restore.title = `Bring v${shown.version}'s code forward as a new version — the log keeps everything between.`;
+    restore.onclick = () => {
+      const before = entry.log.entries.length;
+      entry.log = buildLog.reviseBuild(entry.log, { code: shown.code, reason: "restore" });
+      entry.cursor = null;
+      mirrorBuild(entry, before);
+      persistBuilds();
+      renderBuilds(entry.n);
+    };
+    from.append(restore);
+  }
+  // Downloadable at any cursor: the file is the fold at this position,
+  // named by its address (build-N@seq).
+  const dl = document.createElement("button");
+  dl.type = "button";
+  dl.className = "build-run";
+  dl.textContent = "⬇";
+  dl.title = `Download this fold as of log position ${entry.cursor ?? seqMax}.`;
+  dl.onclick = () => {
+    const dlFile = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
+    if (!dlFile) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([dlFile.text], { type: dlFile.mime }));
+    a.download = dlFile.name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    recordExport(entry, dlFile, entry.cursor ?? seqMax);
+  };
+  from.append(dl);
+  // The whole window for this artifact — a view, not a state change: the
+  // dialog shows the same fold at the same cursor under the same consent.
+  const wide = document.createElement("button");
+  wide.type = "button";
+  wide.className = "build-run";
+  wide.textContent = "⛶";
+  wide.title = "Open this fold full screen.";
+  wide.onclick = () => openFoldViewer(entry);
+  from.append(wide);
+
+  // The cursor: one position per log entry, labelled mechanically from the
+  // entry itself. Same semantics as the graph's reading cursor — scrubbing
+  // shows the build AS OF that point; nothing is recomputed or invented.
+  if (seqMax > 0) {
+    const tl = buildLog.timeline(entry.log);
+    const row = document.createElement("div");
+    row.className = "build-cursor";
+    const scrub = document.createElement("input");
+    scrub.type = "range";
+    scrub.min = "0";
+    scrub.max = String(seqMax);
+    scrub.step = "1";
+    scrub.value = String(entry.cursor ?? seqMax);
+    const label = document.createElement("span");
+    label.className = "cursor-label";
+    const labelAt = (s) => `${s}/${seqMax} · ${tl[s].label}${s < seqMax ? " · as of" : ""}`;
+    label.textContent = labelAt(Number(scrub.value));
+    scrub.setAttribute("aria-label", "log position");
+    scrub.oninput = () => {
+      label.textContent = labelAt(Number(scrub.value));
+    };
+    scrub.onchange = () => {
+      const v = Number(scrub.value);
+      entry.cursor = v >= seqMax ? null : v;
+      renderBuilds(entry.n);
+    };
+    row.append(scrub, label);
+    wrap.append(row);
+  }
+
+  wrap.append(
+    artifactNode(shown.seg, shown.caption, shown.code, {
+      // Consent at the SHOWN cursor: scrub the slider to a version from
+      // before the run and the frame locks again — the projection of the
+      // log at that point had no consent in it yet.
+      scripts: !!shown.lastRun,
+    }),
+  );
+  const lastRun = shown.lastRun;
+  if (entry.running || lastRun) {
+    const data = lastRun?.data ?? {};
+    if (entry.running) {
+      const out = document.createElement("pre");
+      out.className = "run-console";
+      out.textContent = "running…";
+      wrap.append(out);
+    } else if (!data.rendered) {
+      const out = document.createElement("pre");
+      out.className = "run-console";
+      if (!lastRun.ok) {
+        out.classList.add("bad");
+        out.textContent = lastRun.error
+          ? `could not reach the fold server (is serve.mjs running?): ${lastRun.error}`
+          : `the fold server refused: ${lastRun.data?.error ?? ""}`;
+      } else {
+        const parts = [];
+        if (data.stdout) parts.push(data.stdout.replace(/\n$/, ""));
+        if (data.stderr) parts.push(data.stderr.replace(/\n$/, ""));
+        if (!parts.length) parts.push(data.timedOut ? "(timed out — killed after 10s)" : "(no output)");
+        out.textContent = parts.join("\n");
+        out.classList.toggle("bad", !!data.stderr);
+        out.title = `exit ${data.code} · ${data.durationMs}ms${data.timedOut ? " · timed out" : ""}`;
+      }
+      wrap.append(out);
+    }
+  }
+  return wrap;
+}
+
+/**
+ * The full-screen fold viewer: the same artifactNode the card draws, at the
+ * same cursor, with the same run-consent — reused, not rebuilt, so the two
+ * renderings can never disagree. Escape and the backdrop both close it (the
+ * dialog-close list below).
+ */
+function openFoldViewer(entry) {
+  const shown = buildFold(entry) ?? buildFold(entry, null);
+  if (!shown) return;
+  $("fold-view-title").textContent = `fold ${entry.n} · v${shown.version} · turn ${entry.turn}`;
+  const file = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
+  $("fold-view-address").textContent = file?.name ?? "";
+  const body = $("fold-view-body");
+  body.textContent = "";
+  body.append(artifactNode(shown.seg, shown.caption, shown.code, { scripts: !!shown.lastRun }));
+  $("fold-view").showModal();
 }
 
 // ── the editor ──────────────────────────────────────────────────────────────
@@ -2088,7 +2499,7 @@ async function openBuild(entry) {
   // reload); the committed code is the fold's answer.
   editorSet(entry.draft ?? fold.code);
   editorLanguage(fold.seg.lang ?? "code");
-  $("editor-title").textContent = `build ${entry.n} · v${fold.version} · turn ${entry.turn}`;
+  $("editor-title").textContent = `fold ${entry.n} · v${fold.version} · turn ${entry.turn}`;
   $("editor-lang").textContent = fold.seg.lang ?? "code";
   const renderable = RENDERABLE.has(fold.seg.lang);
   $("editor-run").textContent = renderable ? "▶ render" : "▶ run";
@@ -2186,113 +2597,20 @@ function resetBuild() {
 
 // ── the terminal ────────────────────────────────────────────────────────────
 //
-// One command at a time. A command streams its PTY output back live; while it
-// runs, Enter feeds it stdin, so `python` is a REPL. pip/npm installs land in
-// the same .venv / node_modules the build runner imports from. `cd` is
-// handled by the server and moves the session's working directory.
+// Sandboxed (P18): every runtime the terminal offers lives in this page —
+// term.js owns the wiring, the registry (fold commands, a severed JS
+// worker, vendored pyodide and sql.js), the grammar, and the typed
+// refusals. The PTY path is gone from serve.mjs entirely; nothing typed
+// here reaches the machine. app.js only hands over the accessors the fold
+// runtime reads — the same injection pattern cast.js set.
 
-const term = {
-  id: crypto.randomUUID ? crypto.randomUUID() : `fold-${Date.now().toString(16)}`,
-  cwd: null,
-  busy: false,
-  exitCode: null,
-};
-
-function termLine(text, cls) {
-  const pre = $("term-out");
-  const line = document.createElement("span");
-  if (cls) line.className = cls;
-  line.textContent = text;
-  pre.append(line, document.createTextNode("\n"));
-  pre.scrollTop = pre.scrollHeight;
-}
-function termText(text) {
-  const pre = $("term-out");
-  pre.append(document.createTextNode(text));
-  pre.scrollTop = pre.scrollHeight;
-}
-
-/** Strip what a dumb TERM still emits: colour codes, cursor moves, and any
- * stray OSC title that was not ours. */
-function cleanTerm(s) {
-  return s
-    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
-    .replace(/\x1b\][^\x1b\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
-}
-
-async function startCommand(text) {
-  term.busy = true;
-  term.exitCode = null;
-  $("term-kill").disabled = false;
-  termLine(`$ ${text}`, "term-cmd");
-  let moved = false;
-  try {
-    const res = await fetch(`/api/exec/${term.id}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ command: text, cwd: term.cwd }),
-    });
-    if (!res.ok || !res.body) {
-      const body = await res.json().catch(() => null);
-      termLine(body?.error ?? `server ${res.status}`, "term-exit bad");
-      return;
-    }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let pending = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      pending += dec.decode(value, { stream: true });
-      let buf = pending;
-      let m;
-      while ((m = buf.match(/\x1b\]0;fold-exit:([^\x1b]*)\x1b\\/))) {
-        term.exitCode = m[1];
-        termText(cleanTerm(buf.slice(0, m.index)));
-        buf = buf.slice(m.index + m[0].length);
-      }
-      const cd = buf.match(/\x1b\]0;fold-cwd:([^\x1b]*)\x1b\\/);
-      if (cd) {
-        term.cwd = cd[1];
-        moved = true;
-        buf = buf.slice(0, cd.index) + buf.slice(cd.index + cd[0].length);
-      }
-      // A sentinel that arrived mid-sequence is held back, not printed.
-      const partial = buf.match(/\x1b\]0;fold-(?:exit|cwd):[^\x1b]*$/);
-      pending = partial ? partial[0] : "";
-      if (!partial) termText(cleanTerm(buf));
-    }
-    if (moved && term.cwd) termLine(term.cwd, "term-exit");
-    if (term.exitCode != null)
-      termLine(`exit ${term.exitCode}`, term.exitCode === "0" ? "term-exit" : "term-exit bad");
-  } catch (e) {
-    termLine(`could not reach the fold server (is serve.mjs running?): ${e.message}`, "term-exit bad");
-  } finally {
-    term.busy = false;
-    $("term-kill").disabled = true;
-    $("term-in").focus();
-  }
-}
-
-async function submitTerm() {
-  const input = $("term-in");
-  const text = input.value;
-  if (!text.trim()) return;
-  input.value = "";
-  if (term.busy) {
-    // A command is running: this line goes to IT (the REPL case). The PTY
-    // echoes it, so the terminal shows what was typed the way it always does.
-    fetch(`/api/exec/${term.id}/stdin`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ data: text + "\n" }),
-    });
-    return;
-  }
-  startCommand(text);
-}
+initTerminal({
+  sources: () => state.sources,
+  chunks: () => state.chunks,
+  muted: () => state.muted,
+  folds: () => state.builds,
+  tokenize,
+});
 
 // ── builds persist across reloads ───────────────────────────────────────────
 // What persists is the LOG — the entries alone, replayed through the
@@ -2659,7 +2977,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     const go = document.createElement("button");
     go.className = "ref";
     go.textContent = "seek proof online";
-    go.title = `Searches the web on this claim's own words through the recorded egress: ${proofQuery(t)}`;
+    go.title = "Verify this claim online";
     go.onclick = async () => {
       go.disabled = true;
       slot.textContent = "consulting…";
@@ -2682,7 +3000,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
  * and a table the model happened to write arrive here in the same shape, and
  * there is no reason for them to look different.
  */
-function artifactNode(seg, caption, code) {
+function artifactNode(seg, caption, code, { scripts = false } = {}) {
   const art = document.createElement("figure");
   art.className = "artifact";
   const cap = document.createElement("figcaption");
@@ -2712,7 +3030,16 @@ function artifactNode(seg, caption, code) {
     art.append(wrap);
   } else if (RENDERABLE.has(seg.lang)) {
     const frame = document.createElement("iframe");
-    frame.sandbox = "";
+    // Scripts are CONSENT, and consent is a log entry: a build's frame gains
+    // allow-scripts only when the version shown carries a run result — the
+    // operator pressed run, and that press is on the record. Until then the
+    // page renders inert (markup and styles, no execution). Same-origin is
+    // never granted either way, and toDocument's injected CSP keeps even a
+    // script-enabled page off the network — the consent buys compute, not
+    // reach. Model output is content until the operator agrees it is code.
+    frame.sandbox = scripts ? "allow-scripts" : "";
+    if (!scripts && seg.lang === "html")
+      frame.title = "Rendered without scripts — press run to let this page execute";
     frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code });
     frame.loading = "lazy";
     art.append(frame);
@@ -3242,6 +3569,71 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
 // the panels are already beside it, so start them on the prompt.
 showView(matchMedia("(max-width: 900px)").matches ? "chat" : "builds");
 
+// ── the Folds panel's controls ───────────────────────────────────────────────
+//
+// Search, order, and the cards/list switch — rendering state only; the logs
+// beneath never change under any of it. The sort options come from the pure
+// module's own declared list, so the select can never offer a key the sorter
+// would refuse.
+
+for (const { key, label } of FOLD_SORTS) {
+  const opt = document.createElement("option");
+  opt.value = key;
+  opt.textContent = label;
+  $("folds-sort").append(opt);
+}
+$("folds-search").oninput = () => {
+  foldsQuery = $("folds-search").value;
+  renderBuilds();
+};
+$("folds-sort").onchange = () => {
+  foldsSort = $("folds-sort").value;
+  renderBuilds();
+};
+$("folds-view").onclick = () => {
+  foldsView = foldsView === "cards" ? "list" : "cards";
+  $("folds-view").textContent = foldsView === "cards" ? "≡ list" : "▤ cards";
+  renderBuilds();
+};
+
+// ── the theme toggle ─────────────────────────────────────────────────────────
+//
+// Three states, cycled: system (no stamp — the media query rules), light,
+// dark. The choice lives in localStorage under "the-fold.theme" and is
+// stamped on <html> — pre-paint by the inline script in <head>, and here on
+// every click after. The CSS carries the palette three ways already; this
+// button only moves the stamp.
+
+{
+  const THEME_KEY = "the-fold.theme";
+  const themeBtn = $("theme-toggle");
+  const themeLabel = (t) => (t === "light" ? "○ light" : t === "dark" ? "● dark" : "◐ system");
+  const storedTheme = () => {
+    try {
+      const t = localStorage.getItem(THEME_KEY);
+      return t === "light" || t === "dark" ? t : null;
+    } catch {
+      return null;
+    }
+  };
+  const applyTheme = (t) => {
+    if (t) document.documentElement.dataset.theme = t;
+    else delete document.documentElement.dataset.theme;
+    themeBtn.textContent = themeLabel(t);
+  };
+  themeBtn.onclick = () => {
+    const next = { system: "light", light: "dark", dark: "system" }[storedTheme() ?? "system"];
+    try {
+      if (next === "system") localStorage.removeItem(THEME_KEY);
+      else localStorage.setItem(THEME_KEY, next);
+    } catch {
+      /* storage blocked — the stamp below still applies for this page */
+    }
+    applyTheme(next === "system" ? null : next);
+  };
+  applyTheme(storedTheme());
+}
+
 // ── the editor's controls ────────────────────────────────────────────────────
 //
 // A build's code is edited in the browser's own editor — VS Code's Monaco,
@@ -3263,22 +3655,7 @@ editorOnChange((value) => {
 });
 editorRunShortcut(runFromEditor);
 
-// ── the terminal's controls ──────────────────────────────────────────────────
-
-$("term-in").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    submitTerm();
-  }
-});
-$("term-kill").onclick = () => {
-  if (!term.busy) return;
-  fetch(`/api/exec/${term.id}/signal`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ signal: "SIGINT" }),
-  });
-};
+// ── the terminal's controls live in term.js (P18) ───────────────────────────
 
 // ── the settings chip ────────────────────────────────────────────────────────
 //
@@ -3295,7 +3672,7 @@ function openSettings(open) {
 
 // A dialog closes the way it opened — from anywhere around it. Click the
 // backdrop (or press Escape, which <dialog> gives natively) and it goes.
-for (const id of ["reopen", "settings"]) {
+for (const id of ["reopen", "settings", "fold-view"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -3315,9 +3692,7 @@ $("settings-close").onclick = () => openSettings(false);
     box.onchange = () => {
       state.webProof = box.checked;
       localStorage.setItem("fold-web-proof", box.checked ? "on" : "off");
-      $("status").textContent = box.checked
-        ? "proof-seeking on — flagged claims will be searched through the recorded egress"
-        : "proof-seeking off — the per-claim button still works, one click per crossing";
+      $("status").textContent = box.checked ? "proof-seeking on" : "proof-seeking off";
     };
   }
 }
@@ -3353,8 +3728,15 @@ trackHeader();
 $("composer").onsubmit = (e) => {
   e.preventDefault();
   const q = $("input").value.trim();
-  if (!q || state.busy || !state.ready) return;
+  if (!q || !state.ready) return;
   $("input").value = "";
+  if (state.busy) {
+    state.queue.push(q);
+    const el = addMessage("user", q);
+    el.classList.add("queued");
+    el.querySelector(".body").append(Object.assign(document.createElement("span"), { className: "queue-tag", textContent: "queued" }));
+    return;
+  }
   send(q);
 };
 

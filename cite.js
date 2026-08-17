@@ -138,6 +138,40 @@ export const NULL_SAMPLES = 12;
 const ALREADY_CITED = /\[[^\]\s]+#\d+-\d+\]/;
 
 /**
+ * The alphabet these patterns read is the whole one, not ASCII.
+ *
+ * The first version wrote `[A-Z]` and `\w` with no /u flag, and JS means
+ * exactly [A-Za-z0-9_] by both. On a corpus that writes Pávlovna, Bezúkhov
+ * and Hélène that is not a small inaccuracy, it is the veto switching off:
+ * "Anna Pávlovna" extracted as "Anna P" (the name broke at the accent) and
+ * "Éloise Dupré" extracted as nothing at all, because É is not [A-Z] and
+ * "Dupré" alone cannot make the required run of two. A sentence attributing
+ * a real phrase to an INVENTED accented subject then took the address the
+ * identical ASCII sentence is refused — the exact false warrant the veto
+ * below exists to prevent, resurrected for every non-ASCII name.
+ *
+ * The fold at the comparison site cannot rescue this: `namesSupported` folds
+ * both sides, but it folds what extraction handed it, and extraction had
+ * already dropped the name. Reading the right alphabet has to happen here.
+ *
+ * So: `\p{Lu}` for a capital and `[\p{L}\p{N}_]` for a word character, under
+ * /u — the same character classes `grounding.js::PROPER_RE` already uses, so
+ * the two organs agree about what a name is. `\b` cannot come along: it is
+ * defined on ASCII \w even under /u, so `\bÉ` never matches. Its two duties
+ * are carried explicitly instead — a lookbehind so a capital inside a word
+ * does not start a name ("iPhone Pro" is still not a name), and a lookbehind
+ * on the end so a run never closes on the "." or "'" the class carries
+ * inside it ("MNPD BOLO." still yields "MNPD BOLO").
+ *
+ * Differential against the old patterns over War and Peace: identical on all
+ * 30,502 ASCII-only lines, and 1,994 accented lines where a name that had
+ * been truncated or lost now arrives whole.
+ */
+const NAME_RUN_RE =
+  /(?<![\p{L}\p{N}_])(\p{Lu}[\p{L}\p{N}_.'-]*(?:\s+\p{Lu}[\p{L}\p{N}_.'-]*)+)(?<=[\p{L}\p{N}_])/gu;
+const ACRONYM_RE = /(?<![\p{L}\p{N}_])(\p{Lu}{2,})(?![\p{L}\p{N}_])/gu;
+
+/**
  * The names a sentence commits to: runs of two or more capitalised words, and
  * bare acronyms. "Kansas Highway Patrol", "Bryan TX PD", "MNPD", "TBI".
  *
@@ -148,8 +182,8 @@ const ALREADY_CITED = /\[[^\]\s]+#\d+-\d+\]/;
 export function namesIn(text) {
   const s = String(text ?? "");
   const names = new Set();
-  for (const m of s.matchAll(/\b([A-Z][\w.'-]*(?:\s+[A-Z][\w.'-]*)+)\b/g)) names.add(m[1]);
-  for (const m of s.matchAll(/\b([A-Z]{2,})\b/g)) names.add(m[1]);
+  for (const m of s.matchAll(NAME_RUN_RE)) names.add(m[1]);
+  for (const m of s.matchAll(ACRONYM_RE)) names.add(m[1]);
   return [...names];
 }
 

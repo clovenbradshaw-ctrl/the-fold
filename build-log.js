@@ -95,11 +95,18 @@ export function makeBuildLog(taskLog) {
     // is the build as it now stands. projectTasks sorts by first_seq, so
     // "last" is "most recently born", not an accident of Map order.
     const t = tasks[tasks.length - 1];
+    // The instruction is a build-log field, not engine vocabulary —
+    // projectTasks does not carry it. Read it from the PROPOSE entry
+    // that birthed this thread (the one matching this build's n).
+    const propose = entries.find(
+      (e) => e.kind === ENTRY_KINDS.PROPOSE && e.n === t.n,
+    );
     return {
       n: t.n,
       turn: t.turn,
       seg: t.seg,
       caption: t.caption,
+      instruction: propose?.instruction ?? null,
       version: t.version,
       ground: t.ground ?? 1,
       code: t.code,
@@ -117,8 +124,12 @@ export function makeBuildLog(taskLog) {
     return log.entries.reduce((n, e) => Math.max(n, e.ground ?? 1), 1);
   }
 
-  /** A build is born: the artifact the turn produced, snipped and named. */
-  function proposeBuild({ n, turn, seg, caption }) {
+  /** A build is born: the artifact the turn produced, snipped and named.
+   *  `instruction` is the model's own plan for what this code is —
+   *  mechanically derived from the plan log's task, never left to
+   *  instruction-following (L5). It lands in the PROPOSE entry and
+   *  travels through the fold. */
+  function proposeBuild({ n, turn, seg, caption, instruction = null }) {
     const log = createTaskLog();
     return append(log, {
       kind: ENTRY_KINDS.PROPOSE,
@@ -131,6 +142,7 @@ export function makeBuildLog(taskLog) {
       turn,
       seg,
       caption,
+      instruction,
       version: 1,
       ground: 1,
       code: seg?.type === "code" ? seg.code : null,

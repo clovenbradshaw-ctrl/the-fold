@@ -1,0 +1,100 @@
+name: Deploy Pages
+
+# Publishes the static, chat-only build of The Fold to GitHub Pages.
+#
+# GitHub Pages serves static files only — it cannot run serve.mjs or
+# explore-server.mjs, so every /api/* route (web search, priors toggles,
+# builds API, terminal proxy, saved-page history) is unavailable on this
+# deployment. Chat itself works: the in-tab WebLLM rung (webllm-rung.js)
+# exists exactly for this case and loads its weights from the model
+# publisher's own CDN on any non-localhost origin, never from this repo.
+#
+# /engine and /nul are normally served by mounting the sibling eoreader6.1
+# repo from disk (serve.mjs). Pages has no server to do that mounting at
+# request time, so this workflow copies those two directories in as plain
+# static files at build time instead. Same for the vendored node_modules
+# packages the page loads directly (monaco-editor, pyodide, sql.js) — they
+# are fetched fresh by `npm ci` on every run rather than committed here.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the-fold
+        uses: actions/checkout@v4
+
+      - name: Checkout eoreader6.1 (engine + nul, used not copied at dev time — vendored here for Pages only)
+        uses: actions/checkout@v4
+        with:
+          repository: clovenbradshaw-ctrl/eoreader6.1
+          path: _eoreader6.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install vendored packages (monaco-editor, pyodide, sql.js)
+        run: npm ci
+
+      - name: Assemble static site
+        run: |
+          set -e
+          mkdir -p _site
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='_eoreader6.1' \
+            --exclude='_site' \
+            --exclude='*.test.mjs' \
+            --exclude='eval' \
+            --exclude='record' \
+            --exclude='materials' \
+            --exclude='web' \
+            --exclude='library' \
+            --exclude='priors' \
+            --exclude='mnpd' \
+            --exclude='models' \
+            --exclude='skills-demo' \
+            --exclude='.venv' \
+            ./ _site/
+
+          mkdir -p _site/engine _site/nul
+          cp -r _eoreader6.1/packages/engine/. _site/engine/
+          cp -r _eoreader6.1/nul/. _site/nul/
+
+          mkdir -p _site/node_modules
+          cp -r node_modules/monaco-editor _site/node_modules/
+          cp -r node_modules/pyodide _site/node_modules/
+          cp -r node_modules/sql.js _site/node_modules/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

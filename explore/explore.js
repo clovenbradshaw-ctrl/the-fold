@@ -310,7 +310,7 @@ function renderHeaderline() {
   const box = $("source-line");
   box.textContent = "";
   if (!state.source) {
-    box.appendChild(el("span", "muted", state.browseDir ? `browsing ${state.browseDir}` : "no source in focus — browse below, or pick from the rail"));
+    box.appendChild(el("span", "muted", state.browseDir ? `browsing ${state.browseDir}` : "nothing open — pick something from My files"));
     return;
   }
   const s = state.source;
@@ -385,7 +385,10 @@ function renderViews() {
   box.textContent = "";
   const views = visibleViews();
   // If the active view lost its ground (new source), fall back to the source itself.
-  if (!views.some((v) => v.id === state.terrain)) state.terrain = "Field";
+  // If the active view lost its ground (a new source, or none), fall back
+  // to the first view that IS available — "Field" is not a safe default
+  // when no source is open, since Field is not among the views then.
+  if (!views.some((v) => v.id === state.terrain)) state.terrain = views[0]?.id ?? "Field";
   for (const v of views) {
     const b = el("button", `view${v.id === state.terrain ? " active" : ""}`);
     b.setAttribute("role", "tab");
@@ -566,6 +569,11 @@ const surfaceRenderers = {
   Lens: renderLens,
   Paradigm: renderParadigm,
 };
+
+/** Is the files view what the stage is currently showing? The desk shows
+ *  whenever no source is open, whatever `terrain` happens to say — so an
+ *  "is the desk visible" question must ask this, not `terrain === "Desk"`. */
+const showingDesk = () => !state.source || state.terrain === "Desk";
 
 function renderSurface() {
   const surface = $("surface");
@@ -752,7 +760,7 @@ function openPickerDialog() {
         }
       }
       dlg.close();
-      if (state.terrain === "Desk") renderAll();
+      if (showingDesk()) renderAll();
     };
     foot.appendChild(cancel);
     foot.appendChild(addBtn);
@@ -1215,7 +1223,7 @@ async function renderBrowse(surface) {
     if (!FILE_INPUT.files?.length) return;
     await uploadFiles(FILE_INPUT.files);
     FILE_INPUT.value = "";
-    if (state.terrain === "Desk") renderAll();
+    if (showingDesk()) renderAll();
   };
   if (atLibraryRoot) {
     let dragDepth = 0;
@@ -1235,7 +1243,7 @@ async function renderBrowse(surface) {
       main.classList.remove("drag-over");
       if (ev.dataTransfer?.files?.length) {
         await uploadFiles(ev.dataTransfer.files);
-        if (state.terrain === "Desk") renderAll();
+        if (showingDesk()) renderAll();
       }
     });
   }
@@ -2945,13 +2953,31 @@ function renderAll() {
 (async function boot() {
   const q = new URLSearchParams(location.search);
   if (q.get("embed")) {
-    // Inside the Converse pane: the host page carries the chrome, the rail
-    // folds behind a toggle, and picking a source closes it.
+    // Inside the Converse pane: the host page carries the chrome.
     document.body.classList.add("embed");
-    const toggle = $("rail-toggle");
-    toggle.hidden = false;
-    toggle.onclick = () => document.body.classList.toggle("rail-open");
   }
+  // The sidebar collapses everywhere, not just in the pane — and the
+  // choice is remembered, because a reader who hid it once meant it.
+  // Narrow viewports start collapsed (the rail would eat the stage), but
+  // an explicit choice still wins over that default.
+  const railToggle = $("rail-toggle");
+  const narrowQuery = matchMedia("(max-width: 820px)");
+  const markNarrow = () => document.body.classList.toggle("narrow-rail", narrowQuery.matches);
+  markNarrow();
+  narrowQuery.addEventListener("change", markNarrow); // a resized window is a new answer
+  const narrow = narrowQuery.matches;
+  const savedRail = localStorage.getItem("fold-explore-rail");
+  const applyRail = (open) => {
+    document.body.classList.toggle("rail-collapsed", !open);
+    railToggle.setAttribute("aria-expanded", String(open));
+    railToggle.title = open ? "hide the sidebar" : "show the sidebar";
+  };
+  applyRail(savedRail === null ? !narrow : savedRail === "open");
+  railToggle.onclick = () => {
+    const nowOpen = document.body.classList.contains("rail-collapsed");
+    applyRail(nowOpen);
+    localStorage.setItem("fold-explore-rail", nowOpen ? "open" : "closed");
+  };
   await renderRecents();
   renderFilesNav();
   markCurrentInRail();

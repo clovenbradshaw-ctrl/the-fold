@@ -256,6 +256,56 @@ saved, ⚠ in history. And the extraction lesson: attribute values legally
 contain ">" (Wikipedia's data-mw JSON), so every tag regex in web.js walks
 quoted values — the naive `[^>]*` leaked half an infobox into the text face.
 
+**A link handed to the reader is checked, never taken on the far side's own
+word (added 2026-08-17, user direction).** `archivePage` in
+explore-server.mjs used to mark a Save Page Now result "saved" the moment
+Wayback's Content-Location header named a snapshot address — the archive's
+own claim, rendered straight into the "archived ↗" link in history, with
+nothing confirming the address actually resolved to real content before
+the reader saw it as stable. `verifySnapshot` now fetches that named
+address and reads it exactly as any other page is read — `looksLikeChallenge`
+and `extractReadable`, the SAME organs `fetchAndKeep` already uses for this
+exact question, reused rather than a second threshold invented for it. Only
+a page that answers 2xx and reads as real content lands `archive.status:
+"saved"`; anything else — a non-2xx snapshot, a shell/interstitial, an
+empty text face, a network failure on the verification fetch itself —
+lands `"failed"` with a typed detail naming what was actually checked and
+found, never a silent trust of the header. The same discipline generalizes:
+any link this instrument is about to hand to a reader as "this is a real,
+working thing" is checked before it is asserted, not after — the world's
+claim about itself is data, not ground, until read.
+
+**The same generalization, applied to the model's own citations (P20,
+added 2026-08-17, user direction: "it can't make fake url citations").**
+The archive fix above closes the case where an EXTERNAL service's header
+was trusted unchecked; the same failure shape exists one layer in, where
+the far side making an unchecked claim is the model itself, writing a URL
+into an answer. `links.js` (new, pure — mirrors `quotes.js`'s shape one
+register over: verdicts `in-material` / `resolved` / `unreachable` /
+`challenge` / `unexamined`) + `holon.js`'s `runPart`, which now runs the
+tier ONCE after the correction loop settles (a link check is a live P13
+network crossing, not free containment, so it does not re-run every
+correction retry the way a fabricated name or quote does) and fixes what
+it finds MECHANICALLY: an `unreachable` URL is replaced in the shipped
+text with a named marker (`[link removed — did not resolve: …]`) and the
+finding joins the record's unsupported list — never another round trip
+asking the model to fix its own invention, the same posture the
+mechanical fallback already takes when a model cannot be trusted to
+self-correct. `app.js`'s `checkLinkCitation` is the injected fetch,
+reusing `/api/web/fetch` (a model-cited URL lands in web history exactly
+like any page the reader asked to read), gated behind `state.webProof` —
+the same standing web consent proof-seeking already asks for, since this
+is the same class of crossing: automatic, instrument-decided, not a click
+the reader made. **Disclosed scope boundary:** the sentence-level
+MATERIAL/MODEL stripe machinery (P12, `provenance.js`) is NOT extended to
+link verdicts in this pass — `provenance.js` was actively mid-edit by a
+concurrent session (a narration-stripping feature, uncommitted) when this
+landed, and extending the stripe vocabulary touches the same
+sentence-classification core; folding it in here would have compounded
+that collision rather than avoided it. What P20 guarantees today stands on
+its own regardless: a fabricated link never ships as a plain,
+working-looking citation. Full policy text: POLICIES.md P20.
+
 ## The holonic layer, and its one known deviation
 
 `holon.js` runs a task as parts: plan (shape enforced by decoding grammar,
@@ -666,6 +716,36 @@ both places — reusing the control is how the drift stops). The one thing kept
 is the per-kind colour chip, which genuinely earns its place: colour per kind
 is how a folder of mixed contents reads at a glance. It is a 22px mark beside
 the name — the size it already was in list view — not a band across the tile.
+
+**Code and tables render inline in chat now, not chip-only.** Measured live:
+a chip alone forced a reader to leave the turn they were reading just to
+find out whether the code even looked right. `artifactNode` already built
+exactly this box for html/svg; the fix was calling it for every non-prose
+segment in `renderAnswer`'s loop, not building a second renderer. `scripts`
+stays gated to `RENDERABLE.has(seg.lang)` — consent to execute is still
+earned by an explicit ▶ run in the Folds card, never granted just because a
+segment is visible.
+
+**Arithmetic is computed, never generated** (`arithmetic.js` +
+`arithmeticTurn` in app.js) — L5 at its smallest scale. Measured live in
+this repo: asked "What's 17 times 24?", qwen2.5:14b answered 372; the
+product is 408, and nothing caught it because nothing checked it.
+`detectArithmetic` claims a question only when it normalizes (English
+operator words → symbols, word-class matching that never itself computes
+anything, the same L2 discipline as the capitalization veto) to a PURE
+numeric expression with zero free symbols — a real question ("what year was
+Nashville founded") never reaches evaluation. When it claims a turn, the
+model is never sent the question at all: `window.math` (mathjs, vendored
+per P1, `{math}` injected the cast.js way so the module stays Node-testable
+against the real package) evaluates it and the work is shown —
+`17 * 24 = 408`, captioned "computed, not generated", tables.js's own house
+phrase. Order-reversing phrasing ("5 subtracted from 12") is refused rather
+than risked backwards — a wrong mechanical answer is worse than none.
+**Load-bearing gotcha:** mathjs's vendored UMD bundle must load BEFORE
+monaco's AMD loader script, not after — monaco's `loader.js` defines a
+global `define()` with `.amd` set, and a UMD wrapper loaded afterward takes
+the AMD branch and registers as a module instead of falling through to
+`window.math`. Order is the fix; there is no config flag for it.
 
 **Opened off the disk, both pages say so.** A `file://` load blocks module
 execution and has no `/engine`, `/nul` or `/api` mounts, so the reader got

@@ -142,11 +142,14 @@ const ALLOWANCES = [
   },
   {
     host: null, // hostOf builds an authority from user input; there is no literal to name
-    files: ["web.js"],
+    files: ["web.js", "links.js"],
     why:
       "P13: web.js is the PURE half of the web organ — it names archive addresses and parses " +
-      "typed ones; the egress lives in explore-server.mjs. Checked, not asserted: this file " +
-      "holds no egress call at all, so nothing in it can issue a request.",
+      "typed ones; the egress lives in explore-server.mjs. links.js is the same split for the " +
+      "link-citation tier — its doc comments name example addresses (x.org, real/fake.example) " +
+      "to explain the verdicts; the fetch that checks a real one is injected from app.js. " +
+      "Checked, not asserted: neither file holds an egress call at all, so nothing in either " +
+      "can issue a request.",
     holds: (file, src) => egressCalls(src).length === 0,
   },
 ];

@@ -40,6 +40,7 @@ import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
+import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -575,6 +576,12 @@ export async function runPart({
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
   makeRelationReader = null,
+  // The link tier (links.js): an async function url => fetched-shape result,
+  // through the P13 egress — injected because this module owns no network.
+  // null means the standing web consent is off; every cited URL then ships
+  // `unexamined`, never silently treated as checked.
+  checkLink = null,
+  linkBudget = LINK_CHECKS_PER_PART,
   onProgress = null,
 }) {
   const question = `${part.label} ${part.description}`;
@@ -1007,6 +1014,53 @@ export async function runPart({
     }
   }
 
+  // The link tier (links.js), once, on what will actually ship — a URL is
+  // the strongest claim about the WORLD an answer can make ("this address
+  // is real, go look"), and the one claim a correction retry cannot cheaply
+  // re-check every iteration the way an unlocated quote or an invented
+  // figure can, because checking it is a live network crossing (P13's one
+  // egress), not free containment. So this runs ONCE, after the model's own
+  // corrections have settled, and fixes what it finds MECHANICALLY rather
+  // than spending another round trip asking the model to fix its own
+  // invention — the same posture the mechanical fallback above already
+  // takes when a model cannot be trusted to fix something itself. Every
+  // distinct cited URL not already grounded in the loaded material is
+  // fetched, capped at `linkBudget` (an automatic crossing the instrument
+  // decided to make, not a click the reader made — bounded and the bound
+  // stays visible, P13's own discipline for proof-seeking). `checkLink` is
+  // null when the standing web consent is off; every URL then ships
+  // `unexamined` rather than silently passing as checked. In-material is
+  // checked against `live` (the WHOLE loaded corpus), not just this part's
+  // narrower `passages` — quotes.js's own pool/offer distinction: a URL
+  // this part's retrieval did not happen to surface can still be printed in
+  // a sibling part's material, and that is still material, not a model
+  // assertion on its own word.
+  let linkReport = null;
+  let linkCorrections = [];
+  if (checkLink) {
+    const candidates = [
+      ...new Set(extractLinkAtoms(draft).map((a) => a.text).filter((u) => !urlInMaterial(u, live))),
+    ].slice(0, linkBudget);
+    const checked = new Map();
+    for (const url of candidates) {
+      try {
+        checked.set(url, await checkLink(url));
+      } catch (e) {
+        checked.set(url, { gap: { silence: "not-present", detail: e.message } });
+      }
+    }
+    linkReport = verifyLinks(draft, live, checked);
+    const dead = stripDeadLinks(draft, linkReport);
+    linkCorrections = dead.removed;
+    if (dead.removed.length) {
+      draft = dead.text;
+      check = inspect(draft);
+    }
+    if (linkReport.links.some((l) => l.verdict === "unreachable")) {
+      check = { ...check, unsupported: [...check.unsupported, ...linkFindings(linkReport)] };
+    }
+  }
+
   // The output ships without its framing: a sentence that names the act of
   // prompting is never an answer, and a draft that opens by echoing the
   // prompt must not carry that echo to the page, the fold, or the record.
@@ -1094,6 +1148,8 @@ export async function runPart({
     corrections,
     ...check,
     quoteCorrections,
+    links: linkReport,
+    linkCorrections,
     open,
   };
 }
@@ -1113,6 +1169,7 @@ export async function runHolonicTask({
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
   makeRelationReader = null,
+  checkLink = null,
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -1207,6 +1264,7 @@ export async function runHolonicTask({
       maxCorrections,
       makeNameResolver,
       makeRelationReader,
+      checkLink,
       onProgress,
     });
     seenRefs.push(...result.refs);

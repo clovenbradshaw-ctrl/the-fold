@@ -45,13 +45,6 @@ import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js"
 // walls; this file only draws what they return.
 import { FOLD_SORTS, filterFolds, parseFoldCommand, pickRevisionSegment, sortFolds } from "./folds-pane.js";
 
-// Which build a produced artifact — or a bare complaint — belongs to.
-// "I don't like the colors" is a turn about something that already exists,
-// and it must land on that thing's log rather than forking a second one
-// beside it. Decided mechanically from the OPERATOR's words and the shape of
-// what came back, never from the model's phrasing (L5).
-import { capture, makeWidgetRouter } from "./widget.js";
-
 import {
   ensureEditor,
   editorGet,
@@ -63,7 +56,7 @@ import {
   editorRunShortcut,
 } from "./editor.js";
 
-import { NOTHING, buildTable, chartOf, delimitedRows, detectChart, detectTable, toMarkdown } from "./tables.js";
+import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } from "./tables.js";
 
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
@@ -114,14 +107,6 @@ import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
 import { makeCastResolver, makeCastHandles } from "./cast.js";
 
-// The engine's prior register — the closed-class word sets, each naming its
-// giver (Amendment IV). Routing is decided from these, never from a word
-// list this app typed out: a list of English verbs could only ever be a
-// sample standing in for the whole, which is the mistake relations.js's own
-// header records undoing.
-import * as enginePriors from "/engine/perceiver/text/priors.js";
-const widgetRouter = makeWidgetRouter(enginePriors);
-
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
 // pattern: the engine's relation organs arrive as arguments and the module
@@ -165,29 +150,6 @@ import * as engineTaskLog from "/engine/holon/task-log.js";
 import { makeBuildLog } from "./build-log.js";
 
 const buildLog = makeBuildLog(engineTaskLog);
-
-// The measuring door. `nul` is the engine's whole statistical physiology — it
-// builds a nothing by breaking the material on purpose and says where the
-// observation sits in it — and `bindLinks` is the co-arrival organ with its own
-// per-pair null. Both come off the same mounts (binding.js itself imports
-// ../../../nul/index.js, which is why /nul is not optional here either).
-// measure.js is the gate in front of them: pure, engine injected, and the
-// place a declaration is refused before a draw is spent.
-import * as nul from "/nul/index.js";
-import { bindLinks } from "/engine/emergence/binding.js";
-// The engine's pure frame reduction (rms/flux) — the module split from the
-// ffmpeg-importing material.js precisely so a page can load it. This is how
-// a WAV, or any binary, becomes a series at the measuring door.
-import { reduce as audioReduce } from "/engine/perceiver/audio/reduce.js";
-import {
-  admit as admitMeasurement,
-  parseMeasure,
-  phrase as phraseMeasurement,
-  runMeasurement,
-  sniffContainer,
-  toTable as measurementTable,
-  usage as measurementUsage,
-} from "./measure.js";
 
 import {
   BOUND_SYSTEM_PROMPT,
@@ -327,19 +289,6 @@ const state = {
   turnFolds: [],
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
-  /** The /measure door's own session record: {file, question, phrase} per run
-   *  that produced a placement (refusals and probes are not measurements).
-   *  Read by the measurements table — a question about a measurement the app
-   *  made is answered from here, never sent to a model to paraphrase. */
-  measurements: [],
-  /**
-   * Binary material — a WAV, any file the text reader refuses. Held as bytes
-   * beside the text sources, NEVER chunked or retrieved (retrieval is term
-   * overlap and bytes have no terms): the one door into it is /measure,
-   * where it becomes a series through the engine's own frame reduction.
-   * {name: {bytes: Uint8Array, kind: "wav"|"bytes"}}.
-   */
-  media: {},
   /**
    * name → the source's papers, for sources that arrived as priors: the
    * publisher's own frontmatter ({line, fields, path}), read mechanically by
@@ -812,121 +761,6 @@ async function chartTurn(question) {
   drainQueue();
 }
 
-/**
- * A measurement of a loaded file — chartTurn's rule one rung up.
- *
- * A chart shows a file's own rows; this says whether anything in them is more
- * than the file's own arithmetic, and it is the one turn in this app whose
- * whole job is to REFUSE more often than it answers. Everything statistical is
- * the engine's (`nul`, `bindLinks`); measure.js is the gate; this function is
- * only plumbing — find the named file, hand the declaration to the gate, print
- * whichever of the two came back.
- *
- * Zero model calls, by construction. A model asked to place a figure against a
- * null could only retype numbers it cannot compute, which is the failure mode
- * this whole door exists downstream of.
- */
-async function measureTurn(decl, question) {
-  addMessage("user", question);
-  const node = addMessage("assistant", "");
-  const body = node.querySelector(".body");
-
-  const say = (text) => {
-    const p = document.createElement("p");
-    p.className = "prose";
-    p.textContent = text;
-    body.textContent = "";
-    body.append(p);
-    return text;
-  };
-
-  let answer;
-  // The file is found by name (P11), and an ambiguous name is REFUSED rather
-  // than resolved by picking one — measuring the wrong file and saying so
-  // confidently is the exact failure this door is for. Muted sources are still
-  // measurable: the mute is a retrieval concept, and this is not retrieval.
-  const names = [...Object.keys(state.sources), ...Object.keys(state.media)];
-  const token = (decl.file ?? "").toLowerCase();
-  const exact = names.find((n) => n.toLowerCase() === token);
-  const hits = exact ? [exact] : names.filter((n) => token && n.toLowerCase().includes(token));
-
-  if (!hits.length) {
-    answer = say(
-      names.length
-        ? `no loaded file is named "${decl.file}". Loaded: ${names.join(", ")}.`
-        : `no file is loaded, so there is nothing to measure. Drop one in first.`,
-    );
-  } else if (hits.length > 1) {
-    answer = say(`"${decl.file}" names ${hits.length} loaded files (${hits.join(", ")}) — say which one. Measuring the wrong file is worse than measuring nothing.`);
-  } else {
-    const d = { ...decl, file: hits[0] };
-    const refusal = admitMeasurement(d, nul);
-    if (refusal) {
-      answer = say(phraseMeasurement({ refused: refusal }));
-      // An unlicensed pairing is the one refusal worth printing at length: the
-      // reader is being told not just no, but what HAS been established and on
-      // what material, so the next declaration can be a better one.
-      if (refusal.established?.length) {
-        const list = document.createElement("pre");
-        list.className = "prose";
-        list.textContent = refusal.established.map((p) => `${p.pair}\n    earned on: ${p.where}`).join("\n\n");
-        body.append(list);
-      }
-    } else {
-      // The material ladder: binary media stays bytes; a text source becomes
-      // a table through the shared quote-aware walker. The router takes both.
-      const media = state.media[hits[0]];
-      const material = media ?? delimitedRows(state.sources[hits[0]]);
-      if (!material) {
-        answer = say(`${hits[0]} does not read as delimited rows, so there are no columns to measure.`);
-      } else {
-        // One router (measure.js::runMeasurement), so this turn and the
-        // real-data eval can never disagree about which measurement a
-        // declaration named. It re-runs the gate, which is cheap and means
-        // there is no path into a measurement that skipped it.
-        const result = runMeasurement(d, material, { nul, bindLinks, reduce: audioReduce });
-        answer = phraseMeasurement(result);
-        body.textContent = "";
-        if (result.refused || result.kind === "probe") {
-          // A probe or a refusal is prose, preformatted — the probe's example
-          // lines are meant to be copied back into the input verbatim.
-          const pre = document.createElement("pre");
-          pre.className = "prose";
-          pre.textContent = answer;
-          body.append(pre);
-        }
-        // The figures the app computed, printed by the app. The segment
-        // deposits through the same fold door a model's code would, so a
-        // measurement is downloadable and addressable like everything else.
-        else {
-          body.append(publishBuild(measurementTable(result), answer, question));
-          state.measurements.push({ file: hits[0], question, phrase: answer });
-        }
-      }
-    }
-  }
-
-  state.history.push(
-    { role: "user", content: question },
-    { role: "assistant", content: answer },
-  );
-  const turn = state.summary.turnCount + 1;
-  // A new act on the closed ledger. `measured` is not one of the acts reflex.js
-  // was taught to phrase, and that is deliberate — its `stableDetail` fallback
-  // renders an unknown act deterministically from sorted keys, which is the
-  // module's own designed extension point rather than an edit to it.
-  logAct("measured", { what: decl.kind, file: hits[0] ?? decl.file ?? "—" });
-  observeExchange(turn, question, answer);
-  const fold = mechanicalFoldLine(question, answer);
-  state.turnFolds.push(fold);
-  state.summary = advanceSummaryFold(state.summary, fold);
-
-  renderFold(node, { fold });
-  renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
-  releaseBusy();
-}
-
 function drainQueue() {
   if (state.busy || !state.queue.length) return;
   const next = state.queue.shift();
@@ -990,17 +824,6 @@ async function send(question) {
   if (/^\/self\s*$/.test(question)) {
     return usageTurn(question, selfOverview({ ...state, pace: foldPace(state.paceLog, state.model) }));
   }
-  // The measuring door. Typed, so it is checked with the other typed commands
-  // and before any heuristic — a declaration of a measurement must never be
-  // hijacked by a word-match, and its own refusals are the answer when the
-  // declaration is incomplete. Nothing here reaches a model.
-  const measured = parseMeasure(question);
-  if (measured) {
-    if (measured.decl) return measureTurn(measured.decl, question);
-    if (measured.refused) return usageTurn(question, `${phraseMeasurement(measured)}\n\n${measurementUsage(nul)}`);
-    return usageTurn(question, measurementUsage(nul));
-  }
-
   const reflectQ = question.match(/^\/reflect\s+(\S[\s\S]*)/)?.[1];
   if (reflectQ) return reflectTurn(reflectQ, question);
   if (/^\/reflect\s*$/.test(question)) return usageTurn(question, "/reflect <question> — answers about how this instrument has been working, retrieving from its own act ledger instead of the material. The record such a turn earns is typed as self-knowledge, never as a check against the world.");
@@ -1031,28 +854,6 @@ async function send(question) {
   if (reflex === "reflect") return reflectTurn(question, question);
   if (reflex) return mechanicalTurn(question, reflex);
 
-  // A complaint about something already built runs as a SIGHTED revision on
-  // that build's own log — the /fold door's machinery, routed mechanically
-  // from the operator's words instead of a typed number. "I don't like the
-  // colors" hands the model the widget's current code and lands the returned
-  // fence as a RE-ZERO (REC) on the widget's log, with the words verbatim as
-  // the trigger. Checked AFTER every explicit door and after the material's
-  // own detectors, so a typed command or a question about the material can
-  // never be hijacked; the router itself refuses creation demands (the
-  // indefinite determiner) and questions that point at nothing a build
-  // contains. Without this, iteration depended on the model happening to
-  // re-emit a fence into ordinary chat — measured live (gemma2:2b,
-  // 2026-08-17), a coin flip. The model is only the mouth; the routing and
-  // the landing never depend on its behaviour.
-  const complaint = widgetRouter.routeMessage(
-    question,
-    state.builds.map((b) => {
-      const fold = buildFold(b, null);
-      return { n: b.n, type: fold?.seg?.type, lang: fold?.seg?.lang, text: `${fold?.caption ?? ""}\n${fold?.code ?? ""}` };
-    }),
-  );
-  if (complaint) return foldTurn(complaint.n, question, question, { rezero: true, tell: complaint.tell });
-
   // Every remaining turn runs as a task — 100% of the time. The one big
   // prompt that carried summary + records + material together is gone; a
   // turn is a plan log whose fold projects into small part-scoped calls,
@@ -1075,7 +876,7 @@ async function send(question) {
  * a typed gap, identical code is churn the log refuses, and both facts are
  * said in the answer rather than absorbed.
  */
-async function foldTurn(n, instruction, typed, { rezero = false, tell = null } = {}) {
+async function foldTurn(n, instruction, typed) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -1098,9 +899,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, tell = null } =
   const prompt =
     `${instruction}\n\n` +
     `The working code of fold ${n}${lang ? ` (${lang})` : ""} is below. ` +
-    (rezero
-      ? `Rewrite it to address the feedback above. Reply with the complete new code in one fenced block.\n\n`
-      : `Reply with the complete revised code in one fenced block.\n\n`) +
+    `Reply with the complete revised code in one fenced block.\n\n` +
     `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\``;
 
   $("status").textContent = `revising fold ${n}…`;
@@ -1137,23 +936,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, tell = null } =
     logAct("revised", { fold: n, landed: false, gap: "no code in reply" });
   } else {
     const before = entry.log.entries.length;
-    // The two landings differ by WHO moved and what the algebra says about
-    // it. A /fold instruction compiles a new whole from the current one —
-    // SUPERSEDE · SYN. A routed complaint is a judgment: the operator
-    // conceded the ground the code stood on, which is REC's own cell
-    // ("rezero — a new ambient ground begins"), so it lands through
-    // rezeroBuild: the concession entry carries the operator's words
-    // VERBATIM, and the next ground is born fresh (build-log.js's header
-    // says why one thread cannot hold both — REC→SYN runs the algebra
-    // backward).
-    entry.log = rezero
-      ? buildLog.rezeroBuild(entry.log, {
-          seg: { ...cur.seg, code: seg.code },
-          code: seg.code,
-          trigger: capture(typed),
-          tell,
-        })
-      : buildLog.reviseBuild(entry.log, { code: seg.code, reason: "revision" });
+    entry.log = buildLog.reviseBuild(entry.log, { code: seg.code, reason: "revision" });
     const landed = entry.log.entries.length > before;
     if (landed) {
       entry.cursor = null;
@@ -1163,10 +946,8 @@ async function foldTurn(n, instruction, typed, { rezero = false, tell = null } =
       renderBuilds(n);
       const now = buildFold(entry, null);
       const last = entry.log.entries[entry.log.entries.length - 1];
-      note = rezero
-        ? `fold ${n} · ground ${now.ground} · re-zeroed on your words ("${capture(typed)}")`
-        : `fold ${n} · v${now.version} · revision landed (+${last.added ?? "?"}/−${last.removed ?? "?"} lines)`;
-      logAct("revised", { fold: n, landed: true, version: now.version, ...(rezero ? { rezero: true, ground: now.ground } : {}) });
+      note = `fold ${n} · v${now.version} · revision landed (+${last.added ?? "?"}/−${last.removed ?? "?"} lines)`;
+      logAct("revised", { fold: n, landed: true, version: now.version });
     } else {
       // The log's own churn refusal: identical code appends nothing, and
       // that is a result worth saying, not a silence.
@@ -1418,7 +1199,7 @@ async function reflectTurn(question, typed) {
   const quoted = offered.flatMap((p) =>
     [...p.text.matchAll(REF_IN_TEXT)].map((m) => m[1]),
   );
-  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, undefined, question, question);
+  renderAnswer(body, answer, [...offered, ...quoted], attributions, grounding.findings, undefined, question);
 
   state.history.push(
     { role: "user", content: typed },
@@ -1592,6 +1373,12 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
       makeRelationReader: state.grounded ? relationsFor : null,
+      // The link tier (links.js): a cited URL is fetched through the SAME
+      // standing web consent proof-seeking already asks for — an automatic
+      // crossing the instrument decided to make, not a click the reader
+      // made, so it lives behind the same switch. Off means every cited URL
+      // ships `unexamined`, never silently treated as checked.
+      checkLink: state.webProof ? checkLinkCitation : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -1847,7 +1634,7 @@ function addMessage(role, text) {
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
-function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, message = "") {
+function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null) {
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings, relationClaims);
@@ -1870,12 +1657,6 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   }
   const segments = parseSegments(answer);
   body.textContent = "";
-  // Where this turn's artifacts landed, accumulated as they land: the first
-  // block of a kind decides, the rest of that kind revise it rather than
-  // opening builds beside it. `touched` keeps the build numbers in first-
-  // touch order for the inline previews drawn after the loop.
-  const landedThisTurn = [];
-  const touched = [];
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
@@ -1890,27 +1671,12 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    // The chip is the conversation handle. Where the segment lands is the
-    // router's decision — an ordinary turn that happens to produce code can
-    // still be about a build that already exists, and a small model
-    // restating itself in one reply must not fork five builds out of one
-    // request (measured live, gemma2:2b, 2026-08-17). publishSegment routes;
-    // the touched builds render inline AFTER the loop, one frame per build,
-    // at the LIVE head — so a restated reply shows its final state once,
-    // never five drafts stacked.
-    const { chip, n } = publishSegment(seg, message, landedThisTurn, instruction);
-    if (chip) body.append(chip);
-    if (n != null && !touched.includes(n)) touched.push(n);
-  }
-
-  // For renderable artifacts (html, svg), the widget itself also appears
-  // inline — no click required. The frame draws the build's live projection,
-  // which is what the turn actually left behind.
-  for (const n of touched) {
-    const entry = state.builds.find((b) => b.n === n);
-    const fold = entry && buildFold(entry, null);
-    if (fold?.seg?.type === "code" && RENDERABLE.has(fold.seg.lang)) {
-      body.append(artifactNode({ ...fold.seg, code: fold.code }, undefined, fold.code, { scripts: true }));
+    // The chip is the conversation handle; for renderable artifacts (html,
+    // svg), the widget itself also appears inline — no click required.
+    const chip = publishBuild(seg, undefined, instruction);
+    body.append(chip);
+    if (RENDERABLE.has(seg.lang)) {
+      body.append(artifactNode(seg, undefined, seg.code, { scripts: true }));
     }
   }
 
@@ -2223,80 +1989,6 @@ function taggedProse(text, offered, classified = []) {
  * a scrollbar and the conversation gets a wall. The panel is the width the
  * output wants; the chip is the sentence the conversation wants.
  */
-/**
- * Route one produced segment: onto an existing build's log, or to a new
- * build of its own. `message` is the operator's own words for this turn —
- * the only words trusted with the decision (the model's `instruction` rides
- * along only to seed a NEW build's PROPOSE entry; it never routes).
- *
- * Returns `{chip, n}`: the chip may be null (a same-turn restatement adds a
- * version, not a second handle), `n` is the build the segment landed on.
- */
-function publishSegment(seg, message, landedThisTurn = [], instruction = null) {
-  const kindOf = (x) => ({ type: x?.type, lang: x?.lang });
-  const route = widgetRouter.routeSegment(
-    seg,
-    message,
-    state.builds.map((b) => {
-      const fold = buildFold(b, null);
-      // The build's OWN words — its caption and its current projection. A
-      // definite phrase ("the button") lands on the build whose bytes state
-      // it, so the routing is answered by the artifact rather than by a
-      // vocabulary this app would have had to invent.
-      return { n: b.n, ...kindOf(fold?.seg), text: `${fold?.caption ?? ""}\n${fold?.code ?? ""}` };
-    }),
-    { landedThisTurn },
-  );
-
-  if (route.kind === "new") {
-    const chip = publishBuild(seg, undefined, instruction);
-    const n = state.builds[state.builds.length - 1].n;
-    landedThisTurn.push({ n, ...kindOf(seg) });
-    return { chip, n };
-  }
-
-  const entry = state.builds.find((b) => b.n === route.n);
-  const before = entry.log.entries.length;
-  // An untagged fence adopts the build's declared language, so a widget
-  // answered with a bare fence keeps its preview and its .html download.
-  const landed = route.lang && route.lang !== seg.lang ? { ...seg, lang: route.lang } : seg;
-
-  if (route.kind === "revise") {
-    // The same turn, a later block of the same kind: a new whole compiled in
-    // one breath, which is a SUPERSEDE (SYN) and not a re-zero — no ground
-    // was conceded between them, because nobody judged anything in between.
-    entry.log = buildLog.reviseBuild(entry.log, { code: landed.type === "code" ? landed.code : null, reason: "restated" });
-    entry.cursor = null;
-    mirrorBuild(entry, before);
-    persistBuilds();
-    renderBuilds(entry.n);
-    // No second chip: the turn already has one, pointing at this build.
-    return { chip: null, n: entry.n };
-  }
-
-  entry.log = buildLog.rezeroBuild(entry.log, {
-    seg: landed,
-    code: landed.type === "code" ? landed.code : null,
-    trigger: route.trigger,
-    tell: route.tell,
-  });
-  landedThisTurn.push({ n: entry.n, ...kindOf(landed) });
-  // A re-zero that concedes nothing appends nothing (churn is refused in the
-  // log, not papered over here) — the chip is still honest about where the
-  // turn landed, which is on this build either way.
-  entry.cursor = null;
-  mirrorBuild(entry, before);
-  persistBuilds();
-  renderBuilds(entry.n);
-  if (!matchMedia("(max-width: 900px)").matches) showView("builds");
-
-  const fold = buildFold(entry, null);
-  const chip = buildChip(entry, `${fold.caption} · ground ${fold.ground}`, {
-    title: `Re-zeroed on your own words: "${route.trigger}". The previous ground is still on the log, at its own cursor position.`,
-  });
-  return { chip, n: entry.n };
-}
-
 function publishBuild(seg, caption, instruction = null) {
   const n = state.builds.length + 1;
   const turn = state.summary.turnCount + 1;
@@ -2324,18 +2016,11 @@ function publishBuild(seg, caption, instruction = null) {
   // is the wrong trade — the chip is enough.
   if (!matchMedia("(max-width: 900px)").matches) showView("builds");
 
-  return buildChip(entry, cap);
-}
-
-/** The conversation's one-line handle on a build. Code never appears in the
- * chat as a block; the chip is the sentence, the panel is the artifact. */
-function buildChip(entry, label, { title = null } = {}) {
   const chip = document.createElement("button");
   chip.type = "button";
   chip.className = "build-chip";
   chip.innerHTML = `<span aria-hidden="true">▤</span> `;
-  chip.append(document.createTextNode(label));
-  if (title) chip.title = title;
+  chip.append(document.createTextNode(cap));
   chip.onclick = () => {
     showView("builds");
     renderBuilds(entry.n);
@@ -2576,13 +2261,7 @@ function buildCard(entry, highlight) {
   wrap.append(addrLine);
   const from = document.createElement("p");
   from.className = "build-from";
-  // A build that has been re-zeroed says so: the ground is part of where
-  // the reader is, not a footnote. Ground 1 is unlabelled — a build nobody
-  // has complained at has no ground to talk about.
-  from.textContent =
-    shown.ground > 1
-      ? `turn ${entry.turn} · ground ${shown.ground} · v${shown.version}`
-      : `turn ${entry.turn} · v${shown.version}`;
+  from.textContent = `turn ${entry.turn} · v${shown.version}`;
   wrap.append(from);
   if (shown.seg.type === "code" && atLive) {
     const edit = document.createElement("button");
@@ -2982,6 +2661,28 @@ async function webApi(path, payload) {
   });
   if (!res.ok) throw new Error(`${path} answered ${res.status}`);
   return res.json();
+}
+
+/**
+ * The link tier's fetch (links.js, holon.js's `checkLink` injection point):
+ * does a URL the model cited actually resolve? Reuses the SAME recorded
+ * fetch every other page read goes through (`/api/web/fetch` — the P13
+ * egress, one page, never a crawl) rather than a second, unrecorded path —
+ * a model-cited URL lands in web history exactly like any page the reader
+ * asked to read, because from the record's point of view that is what
+ * happened: the instrument decided to look. logAct records the attempt
+ * regardless of the verdict, the same posture `seekProof` already takes.
+ */
+async function checkLinkCitation(url) {
+  const f = await webApi("/api/web/fetch", { url });
+  if (f.gap) {
+    logAct("link-checked", { url, verdict: "unreachable", detail: f.gap.detail ?? f.gap.silence });
+    return { gap: f.gap };
+  }
+  const ok = f.entry?.status >= 200 && f.entry.status < 300;
+  const out = { ok, status: f.entry?.status, textChars: f.entry?.textChars ?? 0, title: f.entry?.title ?? null, challenge: !!f.entry?.challenge };
+  logAct("link-checked", { url, verdict: !ok ? "unreachable" : out.challenge ? "challenge" : out.textChars > 0 ? "resolved" : "unreachable" });
+  return out;
 }
 
 /**
@@ -4050,6 +3751,8 @@ function openAttachSheet(focus = null) {
     if (name === focus) n.onclick();
     list.append(row);
   }
+<<<<<<< HEAD
+=======
 
   // Binary material rides below the text attachments in the same sheet: no
   // checkbox, because the mute is a retrieval concept and bytes are never
@@ -4070,6 +3773,7 @@ function openAttachSheet(focus = null) {
     row.append(line);
     list.append(row);
   }
+>>>>>>> origin/main
   $("attach-sheet").showModal();
 }
 
@@ -4093,19 +3797,9 @@ async function addFiles(fileList) {
       // megabyte file otherwise goes from click to done with no sign anything
       // happened.
       await new Promise((r) => setTimeout(r, 0));
-      // Magic FIRST, text heuristic second. A PDF's first kilobytes are
-      // ASCII ("%PDF-1.4 ... obj"), so a looks-like-text check reads one as
-      // prose, chunks it as paragraphs, and every door downstream then treats
-      // a compression stream as vocabulary. A container declares itself in
-      // its own first bytes; that declaration outranks any guess.
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const container = sniffContainer(bytes);
-      const text = container ? null : await file.text();
-      if (container || looksBinary(text)) {
-        const kind = container ?? "bytes";
-        state.media[file.name] = { bytes, kind };
-        renderSources();
-        $("status").textContent = `${file.name} · ${fmtBytes(bytes.length)} of ${kind === "wav" ? "audio" : kind} — measure it: /measure ${file.name}`;
+      const text = await file.text();
+      if (looksBinary(text)) {
+        $("status").textContent = `${file.name} isn't text — skipped`;
         continue;
       }
       addSource(file.name, text);

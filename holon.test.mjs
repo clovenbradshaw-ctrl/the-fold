@@ -707,3 +707,99 @@ test("a real answer carrying a wh-relative clause is NOT framing and keeps its w
   assert.ok(!result.open.some((o) => o.includes("restates the prompt")), JSON.stringify(result.open));
   assert.ok(result.refs.length >= 1, "content outside the wh-clause is an answer, and it keeps its address");
 });
+
+// ── the link tier (links.js): a cited URL is checked, not taken on its own word ──
+
+test("checkLink off (the default): a cited URL ships untouched — nothing was fetched to accuse it", async () => {
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}] See https://fake.example/report for the filing.`;
+  };
+  const result = await runHolonicTask({ task: "State the harbor figure the Kessington report gives.", chunks, call, planMode: "flat" });
+  const section = result.sections[0];
+  assert.equal(section.links, null, "no checkLink organ was injected — the tier does not run at all");
+  assert.match(section.text, /https:\/\/fake\.example\/report/, "the standing web consent being off never accuses a citation it cannot check");
+});
+
+test("checkLink on: a URL that does not resolve is mechanically removed from the shipped text and joins the record's unsupported list", async () => {
+  const seen = [];
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}] See https://fake.example/report for the filing.`;
+  };
+  const checkLink = async (url) => {
+    seen.push(url);
+    return { ok: false, status: 404 };
+  };
+  const result = await runHolonicTask({
+    task: "State the harbor figure the Kessington report gives.",
+    chunks,
+    call,
+    planMode: "flat",
+    checkLink,
+  });
+  assert.deepEqual(seen, ["https://fake.example/report"]);
+  const section = result.sections[0];
+  assert.equal(section.links.links.length, 1);
+  assert.equal(section.links.links[0].verdict, "unreachable");
+  assert.ok(section.linkCorrections.some((c) => c.url === "https://fake.example/report"));
+  // The bare, working-looking citation is gone from what ships…
+  assert.doesNotMatch(section.text, /See https:\/\/fake\.example\/report for/);
+  // …replaced with a marker that still names what was tried, and the
+  // finding lands on the record's unsupported list, same as an invented
+  // figure or a fabricated quotation would.
+  assert.match(section.text, /\[link removed — did not resolve: https:\/\/fake\.example\/report\]/);
+  assert.ok(result.unsupported.some((u) => u.includes("https://fake.example/report")));
+});
+
+test("checkLink on: a URL that resolves ships exactly as written, no marker, not fetched twice", async () => {
+  let calls = 0;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}] See https://real.example/report for the filing.`;
+  };
+  const checkLink = async (url) => {
+    calls++;
+    return { ok: true, status: 200, textChars: 4000, title: "The Kessington Filing" };
+  };
+  const result = await runHolonicTask({
+    task: "State the harbor figure the Kessington report gives.",
+    chunks,
+    call,
+    planMode: "flat",
+    checkLink,
+  });
+  assert.equal(calls, 1);
+  const section = result.sections[0];
+  assert.equal(section.links.links[0].verdict, "resolved");
+  assert.match(section.text, /See https:\/\/real\.example\/report for the filing\./);
+  assert.ok(!result.unsupported.some((u) => u.includes("real.example")));
+});
+
+test("checkLink on: a URL the loaded material itself already contains is never fetched — it is material-grounded, not a model assertion", async () => {
+  const withUrlChunks = chunkSource(
+    "notes.txt",
+    `${CORPUS}\n\nThe filing is mirrored at https://real.example/mirror for the public record.`,
+  );
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return `The report puts the harbor figure at 12% for the spring quarter, mirrored at https://real.example/mirror. [${refs[0]}]`;
+  };
+  const checkLink = async () => {
+    throw new Error("checkLink must not be called for a URL already in the loaded material");
+  };
+  const result = await runHolonicTask({
+    task: "State the harbor figure the Kessington report gives.",
+    chunks: withUrlChunks,
+    call,
+    planMode: "flat",
+    checkLink,
+  });
+  const section = result.sections[0];
+  assert.equal(section.links.links[0].verdict, "in-material");
+  assert.match(section.text, /https:\/\/real\.example\/mirror/);
+});

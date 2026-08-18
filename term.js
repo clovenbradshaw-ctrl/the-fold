@@ -41,6 +41,36 @@ export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always st
 export const RECORD_SHOWN = 20; // record tail rows shown
 export const SNIPPET_CHARS = 100; // one search row's excerpt
 export const HINT_AFTER_MS = 10_000; // a long-running command earns one "✕ interrupts" hint
+export const TERM_RECORD_LINE_CAP = 2_000; // a mirrored line's own keep budget — unbounded text is not a record, it's a leak
+
+// ── mirroring every submitted line onto the durable record ─────────────────
+//
+// "Terminal acts are not on the record" was a deliberate posture, not an
+// oversight (CLAUDE.md's terminal section names it, and names the mirror as
+// future work) — closed here by reusing explore-server.mjs's own `record()`
+// and its one file (record/explore-record.jsonl), the SAME record every
+// other event in this instrument already lands on, rather than a second
+// file or a second reader. `record`/`priors`/`pip` above already try both
+// bases for a READ; this is the identical shape for a WRITE — sequential
+// with fallback, never both at once, silent when neither base has the
+// route (no fold server running is this terminal's long-standing default,
+// not a mid-command error).
+const RECORD_BASES = ["", "http://localhost:8812"];
+async function mirrorTerm(event, fields) {
+  for (const base of RECORD_BASES) {
+    try {
+      const res = await fetch(`${base}/api/term-record`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event, ...fields }),
+      });
+      if (res.ok) return;
+    } catch {
+      /* try the next base */
+    }
+  }
+}
+const capped = (s) => (s.length > TERM_RECORD_LINE_CAP ? s.slice(0, TERM_RECORD_LINE_CAP) + `…(${s.length - TERM_RECORD_LINE_CAP} more, dropped)` : s);
 
 // ── the registry ────────────────────────────────────────────────────────────
 export const ROSTER = {
@@ -597,9 +627,13 @@ export function initTerminal(bridge) {
       if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
       if (!arg) return line("act <verb> [<object>] at <terrain> from <stance> [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<giver>] — `grid legend` lists the verbs, terrains, and stances", "term-mute");
       const parsed = bridge.grid.parseAct(arg, { log: term.gridLog });
-      if (!parsed.ok) return line(`refused (${parsed.refusal.type}): ${parsed.refusal.detail}`, "term-exit bad");
+      if (!parsed.ok) {
+        mirrorTerm("term-act-refused", { line: capped(arg), refusal: parsed.refusal.type, detail: parsed.refusal.detail });
+        return line(`refused (${parsed.refusal.type}): ${parsed.refusal.detail}`, "term-exit bad");
+      }
       const { log, ids } = bridge.grid.land(term.gridLog, parsed.event);
       term.gridLog = log;
+      mirrorTerm("term-act", { verb: parsed.event.verb, ops: parsed.event.ops, object: parsed.event.object, terrain: parsed.event.terrain, stance: parsed.event.stance.cell, ids });
       const objectPart = parsed.event.object ? `${parsed.event.object} ` : "";
       line(`${parsed.event.verb} ${objectPart}[${parsed.event.ops.join("+")}] at ${parsed.event.terrain} from ${parsed.event.stance.cell} → ${ids.join(", ")}`, "term-mute");
       // Only attempt a real read when the ground candidate names an
@@ -616,6 +650,7 @@ export function initTerminal(bridge) {
         const insId = ids[ids.length - 1];
         const attached = bridge.grid.attachResult(term.gridLog, insId, result);
         if (attached.ok) term.gridLog = attached.log;
+        mirrorTerm("term-capacity-run", { id: "cast", source: parsed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
         line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${parsed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
       }
     },
@@ -758,6 +793,11 @@ export function initTerminal(bridge) {
     term.buffer = "";
     drawPrompt();
     if (!text.trim()) return;
+    // Every line that actually runs mirrors onto the durable record —
+    // "everything gets logged" applies here the same way it already does
+    // to every other act this instrument performs. Fire-and-forget: never
+    // awaited, never blocks the command it is describing.
+    mirrorTerm("term-exec", { runtime: term.runtime, line: capped(text) });
     if (term.runtime === "fold") runFold(text);
     else if (text.trim() === "exit") {
       term.runtime = "fold";

@@ -1224,9 +1224,28 @@ SHOWN; serve.mjs lost the exec routes and tools/ entirely.
 reach the input during verification (real typing does; the live run drove
 the same handler with dispatched KeyboardEvents); a worker that spins
 synchronously is stoppable only by ✕ (the same one hole the skills sandbox
-discloses for its run budget); terminal acts are not on the record — the
-old terminal's posture, kept deliberately; a term-record mirror is named
-future work, not implied.
+discloses for its run budget).
+
+**Amended 2026-08-18 — terminal acts ARE on the record now.** "Terminal
+acts are not on the record... a term-record mirror is named future work"
+is closed, by user direction ("make sure EVERYTHING gets logged in the
+log"): `explore-server.mjs` grew `POST /api/term-record`, a thin route
+that calls the SAME `record(event, fields)` function every other event in
+this instrument already lands through — one file
+(`record/explore-record.jsonl`), never a second one. term.js mirrors two
+grains: every submitted line, any runtime, fire-and-forget
+(`term-exec` — `mirrorTerm` in `submit()`, capped at
+`TERM_RECORD_LINE_CAP` so an unbounded paste can't become an unbounded
+record row), and richer structured detail for the terminal language
+specifically (`term-act` on a landed act, `term-act-refused` on a typed
+refusal, `term-capacity-run` on a real `cast` execution). Sequential
+two-base fallback, same shape `record`/`priors`/`pip` already use for
+reads — silent when neither base has the route, which stays this
+terminal's honest default when no fold server is running, not an error
+surfaced mid-command. Verified live: `sources`/`act distinguish…`/`act
+synthesize…` (one landed, one refused) all appeared in
+`record/explore-record.jsonl` within the same second they were typed, and
+the terminal's own `record` command read them straight back.
 
 ## The measuring door (added 2026-08-17, seventh pass) — what was decided, so it is not re-derived
 

@@ -1977,6 +1977,26 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { name: closure.key, version: closure.version, wheels: closure.wheels.map((w) => w.file_name), fetchedNow });
     }
 
+    // ---- term-record: mirror the sandboxed terminal's own acts onto the
+    // SAME append-only record everything else in this instrument already
+    // lands on (FOLD-CONSTITUTION I.5) — the terminal's long-disclosed gap
+    // ("terminal acts are not on the record... a term-record mirror is
+    // named future work") closed by reusing `record()` rather than a
+    // second file or a second reader. This route computes nothing and
+    // still crosses nothing new — P18 stands: no exec route, the page
+    // decided what happened, this only ever appends it. `event` must be
+    // `term-`-prefixed so a reader can tell a terminal-typed act from a
+    // web fetch or a deposit at a glance; everything else rides through
+    // unchecked, the same posture `record()`'s other 20-odd callers here
+    // already have.
+    if (req.method === "POST" && p === "/api/term-record") {
+      const body = await readJsonBody(req);
+      if (typeof body.event !== "string" || !body.event.startsWith("term-")) return send(res, 400, { error: 'event (string, "term-"-prefixed) is required' });
+      const { event, ...fields } = body;
+      record(event, fields);
+      return send(res, 200, { ok: true });
+    }
+
     // ---- the record's tail, for the UI affordance; the full file is in the tree.
     if (req.method === "GET" && p === "/api/record") {
       const tail = Math.min(Number(url.searchParams.get("tail") ?? 50) || 50, 500);

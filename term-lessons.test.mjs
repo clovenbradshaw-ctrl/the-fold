@@ -31,8 +31,12 @@ test("a non-matching line is a miss, then a hint on the second try, and holds th
 });
 
 test("the last step finishes the walk instead of advancing past the list", () => {
+  // "capacities" is the CURRENT final step's own matching input — update
+  // this literal (as this test's own history already shows: it was
+  // "clear" before the terminal-language steps were appended) whenever a
+  // new step lands at the end of LESSONS.
   const last = LESSONS.length - 1;
-  const r = stepLesson(last, 0, "clear");
+  const r = stepLesson(last, 0, "capacities");
   assert.equal(r.event, "finished");
   assert.equal(r.at, null);
   assert.equal(r.done, LESSONS[last].done);

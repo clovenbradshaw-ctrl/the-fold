@@ -1975,3 +1975,145 @@ policy (the same 4 this repo already carries — `measure.test.mjs`, three
 `webllm-rung.test.mjs` model-file cases, confirmed via `git stash` against
 this exact worktree, not trusted from memory), 741 / 737 / 4 after — zero
 regressions anywhere else in the suite.
+
+## P27 — The model proxy: the fold servable AS a model, amending P1's own direction
+
+Every policy above this line governs the fold as a CLIENT: what it may
+fetch, what it may run, what it may say to a model it calls. P1 never
+considered the opposite direction — another LOCAL tool (the Ollama desktop
+app's "add provider," OpenCode's custom-provider config) pointing AT this
+instrument and asking it to behave as a model. This policy is that
+direction, opened for the first time, and it amends P1 exactly once: P1
+still says no request LEAVES the machine; this adds that a request may now
+ARRIVE from another process on the same machine and be answered by the
+real grounded pipeline, not a bare model wearing the fold's name.
+
+**The one rule that makes this safe to open at all: a servable model id is
+always `fold:<real ollama model>`, never a bare name.** A client asking
+for `gemma2:2b` is asking Ollama directly and gets refused, typed, at the
+door — collapsing "plain Ollama" and "the fold" under one identifier would
+make "did this answer go through the grounded pipeline" a guess, which is
+the same failure mode P20 already refuses for a cited link and the
+grounding ladder's own constitutional statement already refuses for a
+checking organ: never manufacture a warrant the request did not earn.
+
+**Full pipeline by default, not a passthrough with a flag nobody sets.**
+The user's own framing, near-verbatim: most callers of an OpenAI-shaped
+API will never discover an opt-in flag, so a "grounded if you ask for it"
+default would in practice ship "Ollama with extra latency wearing the
+fold's name" to everyone who does not already know this repo's internals.
+Every `/v1/chat/completions` and `/api/chat` request therefore runs
+holon.js's REAL `runHolonicTask` — the mechanical decomposition gate, per-
+part retrieval, the quote and relation tiers, the bounded correction loop
+— exactly the pipeline app.js's own `holonicTurn` calls, not a cheaper
+approximation. `fold_grounded: false` is the one disclosed escape hatch
+from the relation tier specifically (the ladder's most expensive tier),
+for a caller doing high-volume plain chat who has read this far.
+
+**Two wire protocols, one turn.** `proxy-api.js` (pure — no fetch, no
+node:*, no engine import) shapes both OpenAI's and Ollama's identical
+`{model, messages, stream}` request body into one turn (`task` = the last
+user message, `chatHistory` = prior user/assistant turns verbatim, any
+`system` message content folds into the one-line `discourse` app.js's own
+flat-turn path already uses) and formats a finished turn back into either
+wire shape — `GET /v1/models` / `GET /api/tags` (both list Ollama's real
+pulled models, reprefixed, never a hand-maintained second list),
+`POST /v1/chat/completions` / `POST /api/chat` (streaming and not).
+`proxy-runner.mjs` owns what a pure module may not: the same organ bundle
+app.js builds at app.js:208-259 (`makeCastResolver`, `makeRelationReader`
+— one implementation of "the same name" and "the material's own edges,"
+never a second one grown here to quietly drift from the browser's), and
+the Ollama call itself, mirroring `eval/dialogue.mjs`'s own
+`call(messages, {maxTokens, json})` shape and one-retry discipline.
+
+**Disclosed scope, this pass — named, not silently absent.**
+- **No material/attachments.** `chunks: []` on every turn — an OpenAI-
+  shaped request has no composer to attach a file to. A question with no
+  attached material still runs the real pipeline and still reports real
+  findings (`unbacked`, `open`) about what it could not check against;
+  it is not treated as a reason to skip checking, per the standing rule
+  ("absence of material licenses withholding judgment, never
+  manufacturing it," CLAUDE.md). Accepting attachments through a custom
+  request field is named future work, not attempted here.
+- **No link tier.** `checkLink: null` on every turn — P20's web-egress
+  checking needs its own consent posture (the standing web-proof toggle a
+  person sets in the browser), and silently granting it to every proxied
+  call would make an API request a new, unconsented path to the same P13
+  egress. A cited URL from this endpoint ships `unexamined`, exactly as
+  it would from the browser with web consent off.
+- **No persistent session.** Every request already resends its own full
+  message history (the wire protocols' own contract), so each turn folds
+  fresh — `foldedRefs: []`, no running summary, no warrant record —
+  rather than pretending to a server-side conversation state the protocol
+  does not carry. A caller wanting the fold's cross-turn record (P1 of
+  READING-POLICY: "activation decays, identity does not") uses the
+  browser, where that state genuinely persists.
+- **Streaming is single-shot, not token-level, and this is a stated
+  tradeoff, not a shortcut.** Both stream formats emit the WHOLE finished
+  answer as one content chunk, then a stop/done chunk carrying the fold's
+  findings, then the protocol's own terminator. Real token-level streaming
+  would mean showing a draft before the correction loop and the quote/
+  relation tiers have run against it — the one thing this instrument's
+  entire grounding apparatus exists not to do. A client that only needs
+  valid stream framing (most do) sees no difference; one that renders
+  deltas live sees the answer arrive as a single burst.
+- **One model per turn, no routing ladder.** `model-routing.js`'s
+  fast/deep split exists because a person picks once per session and the
+  fold protects the small model's context on their behalf across many
+  turns. An OpenAI-shaped caller instead names a model on every single
+  request — already a per-call routing decision — so every model call the
+  turn makes (plan, each part, each correction) spends exactly the named
+  model, never a silent substitution.
+
+**Loopback only, unchanged from the rest of this server.** The routes live
+on `explore-server.mjs` (already bound to `127.0.0.1` alone, never all
+interfaces) rather than `serve.mjs` (which binds every interface) — this
+widens what a LOCAL tool may treat as a model, never who may reach this
+machine. P1's ban on a non-localhost host anywhere the *browser* loads is
+untouched; this is a second local *server*, not a change to what the page
+itself may fetch.
+
+**Evidence.** `proxy-api.js` tested offline (`proxy-api.test.mjs`, 20
+cases — the prefix wall, every message-shape refusal, both response and
+both stream shapes, model-list reprefixing against a real-shaped and a
+malformed body). The full pipeline was driven live end to end against a
+real running `explore-server.mjs` and a minimal stand-in Ollama (this
+session's sandbox has no Ollama install to test against for real, so the
+stand-in is disclosed as exactly that — a scripted `/api/tags` +
+`/api/chat` that a live model would replace transparently, since
+`proxy-runner.mjs` speaks the identical wire calls `eval/dialogue.mjs`
+already proves work against a real one): `GET /v1/models` and
+`GET /api/tags` each reprefixed the one offered model to `fold:gemma2:2b`;
+`POST /v1/chat/completions` with `{"model":"fold:gemma2:2b","messages":
+[{"role":"user","content":"What is the capital of France?"}]}` ran the
+real flat-turn pipeline (one Ollama call, `planMode: "flat"` — a single
+interrogative sentence never plans, per the propose-then-check rule) and
+returned the answer plus honest `unbacked`/`open` findings (nothing was
+attached, so "Paris" is correctly reported as material the ladder could
+not check, never silently passed); the identical request against
+`POST /api/chat` returned Ollama's own wire shape; both streaming variants
+emitted valid SSE / NDJSON framing carrying the same answer and findings.
+A bare (unprefixed) model name refused with a typed 400 naming the
+required `fold:` form; Ollama unreachable refused with a typed 502 naming
+the configured URL, never a raw stack trace; every attempt landed on
+`record/explore-record.jsonl` (`proxy-chat-requested` before the call,
+`proxy-chat` or `proxy-chat-failed` after) via the same `record()` every
+other event in this instrument already lands through.
+
+**Files.** `proxy-api.js` (new, pure) + `proxy-api.test.mjs` (20 cases).
+`proxy-runner.mjs` (new — the engine organs and the Ollama call).
+`explore-server.mjs` (four new routes; the CORS/OPTIONS gate widened from
+`/api/` alone to `/api/` or `/v1/`, since an OpenAI-compatible client's own
+preflight behavior needs the same treatment this server's JSON API
+already gives).
+
+**Enforced:** `proxy-api.test.mjs`, offline, pure. The live pipeline
+wiring (real `runHolonicTask`, real `makeCastResolver`/`makeRelationReader`
+organ bundle, real route dispatch) has no committed regression test in
+this pass — it was verified live, once, against a scripted stand-in
+Ollama, the same way `eval/measure-real-data.mjs` and `eval/dialogue.mjs`
+verify their own live paths outside the committed suite. A future pass
+that wants this enforced rather than merely demonstrated should add a
+`proxy-runner` test that injects a stub `call()` the way `holon.test.mjs`
+already does for `runPart`/`runHolonicTask` directly — not attempted here,
+named rather than implied as covered.

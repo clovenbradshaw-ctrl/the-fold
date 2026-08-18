@@ -15,7 +15,7 @@
 // The explore server's own default port (explore-server.mjs). Declared here
 // because the Converse page may be served by a different static server; a
 // non-default setup passes exploreBase explicitly.
-export const EXPLORE_BASE = "http://localhost:8812";
+export const EXPLORE_BASE = "http://localhost:8818";
 
 /** `name#from-to` → { name, from, to } (char offsets), or null. Same regex readRange trusts. */
 export function parseRef(ref) {

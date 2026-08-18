@@ -3316,7 +3316,7 @@ $("model").onchange = () => {
 // security model of a message listener — inbound "*" is never trusted, and
 // anything not from the explore server's own origin is ignored unread.
 window.addEventListener("message", (e) => {
-  if (e.origin !== "http://localhost:8812") return;
+  if (e.origin !== "http://localhost:8818") return;
   const d = e.data;
   if (d?.type !== "fold:material:add") return;
   if (typeof d.name !== "string" || typeof d.text !== "string") return;

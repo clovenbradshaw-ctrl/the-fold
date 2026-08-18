@@ -321,6 +321,16 @@ test("iterationTell: the html document's own wrapper tags never count as a conte
   // as before this fix.
   assert.equal(iterationTell("the clear button is broken", drawingApp), "resolved");
   assert.equal(iterationTell("the drawing app's title is wrong", drawingApp), "resolved");
+
+  // The SECOND source of the same token, found completing this same
+  // measurement: production's `known` is always `caption + "\n" + code`
+  // (app.js's buildWords), and an unrenamed caption defaults to the bare
+  // language ("html") — so the string's own first line carries the same
+  // non-discriminating token through a different field. routeMessage's own
+  // build shape (n/type/lang/text) is exactly this concatenation.
+  const builds = [{ n: 1, type: "code", lang: "html", text: "html\n" + drawingApp }];
+  assert.equal(routeMessage("make me a spreadsheet grid in html, each cell editable", builds), null);
+  assert.equal(routeMessage("the clear button is broken", builds).n, 1);
 });
 
 // ── the re-zero entry itself ────────────────────────────────────────────────

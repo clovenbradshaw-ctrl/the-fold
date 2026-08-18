@@ -116,9 +116,20 @@ function sameForm(a, b, suffixes) {
  * format's boilerplate rather than a corpus's); a token contributed SOLELY
  * by it is common to every such build and can never discriminate one
  * build's content from another's.
+ *
+ * A SECOND source of the same non-discriminating token, found completing
+ * this same measurement live: `known` here is always `caption + "\n" +
+ * code` (app.js's `buildWords`), and a caption the operator never renamed
+ * defaults to the bare segment language (`defaultCaption`: `seg.lang ||
+ * "code"`) — so `known`'s own FIRST LINE is literally "html" for every
+ * unrenamed html build, same as the wrapper tags, just arriving through a
+ * different field. Stripped only at that exact position (the string's own
+ * first line, matching `buildWords`'s own construction) so a real word
+ * "html" appearing anywhere in actual content is untouched.
  */
 function stripHtmlWrapper(text) {
   return String(text ?? "")
+    .replace(/^(?:html|head|body)\s*(?=\n|$)/i, " ")
     .replace(/<!doctype\b[^>]*>/gi, " ")
     .replace(/<\/?(?:html|head|body)\b[^>]*>/gi, " ");
 }

@@ -1,0 +1,89 @@
+#!/bin/sh
+# fold — launch The Fold with one command.
+#
+#   ./fold [port]
+#
+# Brings up everything the app needs and nothing it doesn't:
+#   - checks eoreader6.1 is cloned next to this repo (the engine both
+#     servers mount at /engine and /nul, and explore-server.mjs also
+#     imports directly)
+#   - installs node_modules on first run
+#   - starts ollama if it isn't already answering on :11434 (warns,
+#     never blocks — a talking model isn't this script's job to provide)
+#   - starts explore-server.mjs on :8812 if nothing is answering there
+#     already. This port is not configurable: the chat page's Explore
+#     iframe and its postMessage origin check are hardcoded to
+#     localhost:8812 (index.html, app.js), so anything else here would
+#     leave the Explore pane and the priors organ silently dead.
+#   - starts serve.mjs on $1 (default 8811), which opens the browser
+#     itself once it's listening
+#
+# explore-server is left running in the background even after this
+# script's own serve.mjs exits — it's a shared local service, and other
+# the-fold sessions on this machine (this repo carries on with many
+# branches worked concurrently) reuse it rather than each starting their
+# own copy on a port the page can't reach anyway.
+set -e
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ── preflight ────────────────────────────────────────────────────────────────
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "error: node is not installed" >&2
+  exit 1
+fi
+
+EOREADER="$DIR/../eoreader6.1"
+for sub in packages/engine packages/host nul; do
+  if [ ! -d "$EOREADER/$sub" ]; then
+    echo "error: eoreader6.1 not found at $EOREADER/$sub" >&2
+    echo "  clone eoreader6.1 next to the-fold/ (both servers mount its /engine and /nul)" >&2
+    exit 1
+  fi
+done
+
+if [ ! -d "$DIR/node_modules" ]; then
+  echo "installing dependencies..."
+  (cd "$DIR" && npm install --ignore-scripts 2>&1)
+fi
+
+# ── ollama ───────────────────────────────────────────────────────────────────
+
+if command -v ollama >/dev/null 2>&1; then
+  if ! curl -s -o /dev/null -m 1 http://localhost:11434/api/tags; then
+    echo "starting ollama..."
+    ollama serve >/tmp/the-fold-ollama.log 2>&1 &
+    for _ in 1 2 3 4 5; do
+      curl -s -o /dev/null -m 1 http://localhost:11434/api/tags && break
+      sleep 1
+    done
+    curl -s -o /dev/null -m 1 http://localhost:11434/api/tags \
+      || echo "warning: ollama still not answering on :11434 — check /tmp/the-fold-ollama.log" >&2
+  fi
+else
+  echo "warning: ollama not found on PATH" >&2
+  echo "  the fold needs ollama running locally to talk to models" >&2
+fi
+
+# ── explore server (fixed :8812 — see header) ───────────────────────────────
+
+EXPLORE_PORT=8812
+if curl -s -o /dev/null -m 1 "http://localhost:$EXPLORE_PORT/explore.html"; then
+  echo "explore-server already running on :$EXPLORE_PORT — reusing it"
+else
+  echo "starting explore-server on :$EXPLORE_PORT..."
+  (cd "$DIR" && nohup node explore-server.mjs "$EXPLORE_PORT" >/tmp/the-fold-explore.log 2>&1 &)
+  for _ in 1 2 3 4 5; do
+    curl -s -o /dev/null -m 1 "http://localhost:$EXPLORE_PORT/explore.html" && break
+    sleep 1
+  done
+  curl -s -o /dev/null -m 1 "http://localhost:$EXPLORE_PORT/explore.html" \
+    || echo "warning: explore-server didn't come up — check /tmp/the-fold-explore.log" >&2
+fi
+
+# ── chat server (foreground; opens the browser itself once bound) ──────────
+
+PORT="${1:-8811}"
+echo "starting the-fold chat on :$PORT..."
+exec node "$DIR/serve.mjs" "$PORT"

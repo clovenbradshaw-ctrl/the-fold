@@ -102,12 +102,27 @@ pins that at 400 turns.
 ## Running it
 
 ```bash
+./fold
+```
+
+One command, from `the-fold/`. It checks eoreader6.1 is cloned next to this
+repo, installs `node_modules` on first run, starts Ollama if it isn't already
+listening on `:11434`, starts `explore-server.mjs` on `:8812` (the Explore
+pane and the priors organ both need it — reused if another the-fold session
+on this machine already has one running), then starts `serve.mjs` and opens
+the browser on it. Pick an Ollama model and connect. Pass a port to run the
+chat server somewhere other than `:8811` (`./fold 8899`); `:8812` for Explore
+is fixed — the chat page's iframe is hardcoded to it.
+
+Equivalent by hand, in two terminals:
+
+```bash
+node the-fold/explore-server.mjs 8812
 node the-fold/serve.mjs 8811
 ```
 
-Then open `http://localhost:8811`, pick an Ollama model, and connect. (The
-server must be `serve.mjs`, not a generic static server: it mounts eoreader6.1's
-engine at `/engine` and serves everything no-store.)
+(The chat server must be `serve.mjs`, not a generic static server: it mounts
+eoreader6.1's engine at `/engine` and serves everything no-store.)
 
 Two model calls per ordinary turn: the answer, and the summary refresh. The
 refresh runs constrained to JSON at a 300-token cap — it is bookkeeping over

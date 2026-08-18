@@ -1292,7 +1292,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   // they name, mechanically, before any model call. A hit shrinks the
   // arena — the model is shown the scouted region, the edit only has to be
   // unique inside it, and the landing records what attention scoped.
-  const scout = typeof cur.code === "string" ? scoutSpan(instruction, cur.code) : null;
+  const scout = typeof cur.code === "string" ? scoutSpan(instruction, cur.code, enginePriors.INFLECTIONAL_SUFFIXES) : null;
   const arena = scout ? cur.code.slice(scout.span[0], scout.span[1]) : cur.code ?? "";
 
   // What the log already knows, said to the model: dead ends are not

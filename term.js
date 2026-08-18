@@ -36,6 +36,7 @@ import { delimitedTable } from "./source.js";
 import { LESSONS, stepLesson } from "./term-lessons.js";
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 import { landAct } from "./capacity-runner.js";
+import { looksMutating, detectTables, deriveStoreOps, sanitizeTableName, opsFromCsvTable } from "./store-sql.js";
 
 export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
 export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
@@ -226,6 +227,19 @@ export function autoRunnable(lang) {
   return Object.hasOwn(AUTO_RUN_LANGS, String(lang ?? "").toLowerCase());
 }
 
+/** The extra field a sql `exec` worker message carries so term-sql-worker.js
+ * knows which table(s) to snapshot before and after (P25, the database
+ * fold) — module-level and pure (no bridge, no DOM) so both the interactive
+ * terminal (inside `initTerminal`, below) and the standalone `runSandboxed`
+ * call the SAME implementation rather than two copies that could drift, the
+ * exact class of bug this repo's own postmortems keep finding (ROSTER's
+ * `type` field, above, exists for the identical reason). Every runtime
+ * other than sql — and every sql statement store-sql.js::looksMutating does
+ * not claim — gets no extra field at all, so the worker never bothers
+ * snapshotting a bare SELECT or a dot-command. */
+const sqlSnapshotFields = (runtime, code) =>
+  runtime === "sql" && looksMutating(code) ? { snapshotTables: detectTables(code) } : {};
+
 /**
  * The chat's own door onto this same sandbox: `/run <runtime>\n<code>`.
  * Code the auto-run above never sees — that one only ever runs a segment
@@ -291,7 +305,7 @@ export function parseRunCommand(text) {
  * terminal's own `mount` command does; auto-run gets none by default; a
  * caller wanting the fold to see loaded material passes them explicitly.
  *
- * sql gets two extras the interactive prompt already has and this door
+ * sql gets three extras the interactive prompt already has and this door
  * needs too, since it only gets one shot rather than a REPL: (1) `result`-
  * type worker messages — runSql (term-sql-worker.js) emits these for every
  * statement that returns rows, the SAME message the terminal's own
@@ -300,23 +314,30 @@ export function parseRunCommand(text) {
  * `.load <source>` PRE-STEP, when it is the code's own first line — the
  * identical csvTable walk exec()'s own sql `.load` handling (below) uses,
  * so `/run sql\n.load orders\nselect …` can prime a table from already-
- * attached material before the query runs, without a second parser.
+ * attached material before the query runs, without a second parser. (3)
+ * `dbOps` on the resolved object (P25): every row-level change a mutating
+ * statement — or a `.load` — made, as store-sql.js's own typed ops, so the
+ * caller (app.js's `/run` door, `runTurn`) can apply them to the SAME
+ * database fold the interactive terminal writes, without this function
+ * ever calling store.js itself (it has no bridge to inject one through —
+ * `runSandboxed` is a bare function, not `initTerminal`'s closure).
  */
 export function runSandboxed(lang, code, { sources = {} } = {}) {
   const key = AUTO_RUN_LANGS[String(lang ?? "").toLowerCase()];
-  if (!key) return Promise.resolve({ code: null, stdout: "", stderr: `no sandboxed runner for "${lang}"`, timedOut: false, durationMs: 0 });
+  if (!key) return Promise.resolve({ code: null, stdout: "", stderr: `no sandboxed runner for "${lang}"`, timedOut: false, durationMs: 0, dbOps: [] });
   const started = Date.now();
   return new Promise((resolve) => {
     const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: ROSTER[key].type });
     let out = "";
     let err = "";
     let settled = false;
+    const dbOps = [];
     const finish = (patch) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       worker.terminate();
-      resolve({ code: patch.timedOut || err ? 1 : 0, stdout: out, stderr: err, timedOut: !!patch.timedOut, durationMs: Date.now() - started });
+      resolve({ code: patch.timedOut || err ? 1 : 0, stdout: out, stderr: err, timedOut: !!patch.timedOut, durationMs: Date.now() - started, dbOps });
     };
     const timer = setTimeout(() => finish({ timedOut: true }), AUTO_RUN_TIMEOUT_MS[key] ?? 10_000);
 
@@ -344,6 +365,10 @@ export function runSandboxed(lang, code, { sources = {} } = {}) {
             queryCode = null;
           } else {
             pendingLoad = { name: srcName, table };
+            // Same reasoning as the interactive `.load` (exec(), above): a
+            // fresh load is always a birth, derived directly from the
+            // already-parsed table — no diffing, no worker round trip.
+            dbOps.push(...opsFromCsvTable(sanitizeTableName(srcName), table));
           }
         }
       }
@@ -354,19 +379,21 @@ export function runSandboxed(lang, code, { sources = {} } = {}) {
       if (m.type === "ready") {
         if (queryCode === null) finish({});
         else if (pendingLoad) worker.postMessage({ type: "load", name: pendingLoad.name, table: pendingLoad.table });
-        else worker.postMessage({ type: "exec", code: queryCode });
+        else worker.postMessage({ type: "exec", code: queryCode, ...sqlSnapshotFields(key, queryCode) });
       } else if (m.type === "out") out += m.text.endsWith("\n") ? m.text : m.text + "\n";
       else if (m.type === "err") err += m.text.endsWith("\n") ? m.text : m.text + "\n";
       else if (m.type === "result") {
         out += formatCells(m.columns, m.values) + "\n";
         if (m.of > m.values.length) out += `…${m.values.length} of ${m.of.toLocaleString()} rows kept\n`;
+      } else if (m.type === "snapshots") {
+        dbOps.push(...deriveStoreOps(m.before, m.after));
       } else if (m.type === "done") {
         if (pendingLoad) {
           // That "done" was the load step's, not the query's — the load
           // itself already reported its own out/err line above.
           pendingLoad = null;
           if (!queryCode || !queryCode.trim()) finish({});
-          else worker.postMessage({ type: "exec", code: queryCode });
+          else worker.postMessage({ type: "exec", code: queryCode, ...sqlSnapshotFields(key, queryCode) });
         } else finish({});
       }
     };
@@ -487,6 +514,26 @@ export function initTerminal(bridge) {
     return { payload, count: Object.keys(payload).length, bytes };
   };
 
+  // ── database-fold wiring (store.js / store-sql.js) ─────────────────────────
+  //
+  // A mutating sql statement's real effect — never SQL text this file would
+  // have to parse — is what becomes a store.js event. term-sql-worker.js
+  // snapshots the affected table(s) before and after (told which ones by the
+  // module-level `sqlSnapshotFields`, above — shared with `runSandboxed` so
+  // the two never carry two copies of the same check); store-sql.js's
+  // `deriveStoreOps` diffs the two raw snapshots into typed `{type, table,
+  // rowId, columns}` ops; `bridge.applyStoreOps` (app.js) is the ONE place
+  // that turns those into real `store.insertRow`/`updateRow`/`deleteRow`
+  // calls against the database fold's own log — this file never imports
+  // store.js itself, the same injection boundary every other bridge
+  // accessor here already holds (sources/chunks/muted/folds/gridLog).
+  const applyDbOps = (ops) => {
+    if (!ops.length || !bridge.applyStoreOps) return;
+    bridge.applyStoreOps(ops);
+    const n = (t) => ops.filter((o) => o.type === t).length;
+    line(`database fold: ${ops.length} row-level change${ops.length === 1 ? "" : "s"} recorded (${n("insert")} insert, ${n("update")} update, ${n("delete")} delete)`, "term-mute");
+  };
+
   // ── worker runtimes ───────────────────────────────────────────────────────
 
   const spawn = (name) => {
@@ -504,7 +551,8 @@ export function initTerminal(bridge) {
       else if (m.type === "result") {
         stream(formatCells(m.columns, m.values));
         if (m.of > m.values.length) line(`…${m.values.length} of ${m.of.toLocaleString()} rows carried back (the worker's declared keep)`, "term-mute");
-      } else if (m.type === "done") setBusy(false);
+      } else if (m.type === "snapshots") applyDbOps(deriveStoreOps(m.before, m.after));
+      else if (m.type === "done") setBusy(false);
     };
     worker.onerror = (ev) => {
       line(`the ${name} runtime failed: ${ev.message ?? "worker error"}`, "term-exit bad");
@@ -619,7 +667,9 @@ export function initTerminal(bridge) {
     folds() {
       const folds = bridge.folds();
       if (!folds.length) return line("nothing but prose so far", "term-mute");
-      for (const f of folds) line(`fold ${f.n} · turn ${f.turn} · ${f.log?.entries?.length ?? 0} entries`);
+      // A database fold (P25) carries entries on `storeLog`, not `log` —
+      // read either, whichever this fold actually has.
+      for (const f of folds) line(`fold ${f.n} · turn ${f.turn} · ${f.kind === "database" ? "database · " : ""}${(f.log ?? f.storeLog)?.entries?.length ?? 0} entries`);
     },
     async record(arg) {
       for (const base of ["", "http://localhost:8812"]) {
@@ -902,10 +952,19 @@ export function initTerminal(bridge) {
         setBusy(false);
         return line(`${srcName} parsed to nothing — is it a CSV?`, "term-exit bad");
       }
+      // For a DATABASE FOLD specifically (P25): every loaded row becomes its
+      // own real insertRow call — never a raw table dump — walking the
+      // SAME already-parsed {columns, rows} this session's own CREATE
+      // TABLE + batch INSERT below is about to use, so the fold and the
+      // live query session never disagree about what a row is.
+      // sanitizeTableName mirrors term-sql-worker.js's own tableName()
+      // (store-sql.js's own header discloses why) so the fold's table name
+      // matches what `.tables`/`.schema` will show in this same session.
+      applyDbOps(opsFromCsvTable(sanitizeTableName(srcName), table));
       entry.worker.postMessage({ type: "load", name: srcName, table });
       return;
     }
-    entry.worker.postMessage({ type: "exec", code: text });
+    entry.worker.postMessage({ type: "exec", code: text, ...sqlSnapshotFields(name, text) });
   };
 
   const submit = () => {

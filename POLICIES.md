@@ -1088,7 +1088,7 @@ channel, and the local-only excision. The lineage evidence cited here was
 gathered by a five-reader sweep across eochat, eochatX, eoWebLLM, and the
 engine; the full brief is preserved in that session's task output.*
 
-## P22 — A materialless question is answered by fetching first, not by checking after
+## P23 — A materialless question is answered by fetching first, not by checking after
 
 Measured live 2026-08-18: asked "research the weather in NYC right now"
 with nothing attached, a model invented "70 degrees, sunny." `checkGrounding`

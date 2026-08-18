@@ -636,7 +636,7 @@ itself was synthetic, manufactured by the fallback rather than observed —
 so there is nothing honest to disclose by keeping it; withholding the
 finding IS the honest disclosure.
 
-**Amended 2026-08-18 — checked before generation, not only after (P22 in
+**Amended 2026-08-18 — checked before generation, not only after (P23 in
 POLICIES.md is the law; this is the map).** Every organ above this line was
 individually honest and the sequence still manufactured a lie: measured
 live, "research the weather in NYC right now" with nothing attached drafted
@@ -673,7 +673,7 @@ materialless grounded+web-on question, unconditional within the gate —
 never a guess at which questions "need" it, the same argument widget.js's
 word-list rewrite already stands on), and the disclosed residues (decomposed
 tasks out of scope; a preflight-sourced citation's "open in Explore" fails
-caught, not working) are in POLICIES.md P22.
+caught, not working) are in POLICIES.md P23.
 
 ## The UX pass (2026-08-17) — what was decided, so it is not re-derived
 

@@ -35,6 +35,13 @@ import { hostOf } from "./web.js";
 export const PROOF_PAGES_CONSULTED = 3; // pages read per claim — one perspective is anecdote, three is the smallest count where "2 of 3" can disagree with "3 of 3"
 export const PROOF_QUERY_MAX_TERMS = 8; // a search query, not a document — DDG serves short queries; the claim's own most specific words go first
 export const PROOF_TARGETS_PER_TURN = 4; // automatic seeking per turn is bounded and the bound is visible; every further claim keeps its manual button
+// A search of the world, before any claim exists to search for — own name,
+// own duty: PROOF_PAGES_CONSULTED reads pages FOR one already-flagged
+// claim; this reads pages to GIVE a materialless draft something to stand
+// on before it exists. Same value today, declared separately because the
+// two questions are not the same question and may not stay the same number.
+export const PREFLIGHT_PAGES_CONSULTED = 3;
+export const PREFLIGHT_QUERY_MAX_TERMS = 12; // a topic anchor, not a claim — room for the task's own words plus the fold's one-line discourse
 
 /**
  * The search query for a claim, built from the claim's own words — never
@@ -69,6 +76,62 @@ export function proofQuery(claim) {
     .slice(0, Math.max(0, PROOF_QUERY_MAX_TERMS - (atom ? 1 : 0)));
   const quoted = atom && /\s/.test(atom) ? `"${atom}"` : atom;
   return [quoted, ...rest].filter(Boolean).join(" ").trim();
+}
+
+/**
+ * Whether a turn should search the world BEFORE the model drafts anything,
+ * rather than only after — the predictive-processing move this ladder was
+ * missing. `checkGrounding` already tells the truth about absence
+ * (`examined: false` at zero passages — a deliberate fact, grounding.test.mjs)
+ * and `extractCheckableAtoms` already exists for the genuine no-material
+ * factual question (its own docstring: "give the web tier candidates on a
+ * genuine world-claim nobody sourced"). What was missing was WHEN that same
+ * absence acts: today it waits for a draft to exist and manufactures
+ * candidates from the model's own words — which for a topic-less follow-up
+ * ("prove it" after an invented "70 degrees, sunny") are the model's own
+ * invention, not the world. This asks the identical structural question one
+ * step earlier — is there material to check a draft against — so the answer
+ * can be "go get some" instead of "invent something to blame afterward."
+ *
+ * Deliberately NOT a semantic classifier of which questions "need" fresh
+ * information: this repo's own history (widget.js's rewrite away from
+ * hand-typed intent word lists) is the standing argument against exactly
+ * that move, and the same asymmetry holds here. A false positive costs one
+ * wasted search on a turn that didn't need it — checkGrounding runs fine
+ * against irrelevant material, a sentence sharing nothing with it just
+ * stays unattributed, the same honest outcome as no material at all. A
+ * false negative reproduces the bug this exists to close. So the gate is
+ * purely structural, never a guess about the question's own words: a flat
+ * (undecomposed) turn, nothing already attached, and standing consent
+ * already given for both checking and web egress — the same two switches
+ * that already gate every other automatic crossing this ladder makes.
+ */
+export function shouldPreflight({ live = [], grounded = false, webProof = false, planMode = "model" } = {}) {
+  return !live.length && !!grounded && !!webProof && planMode === "flat";
+}
+
+/**
+ * The search anchor for a preflight: the turn's own words plus the fold's
+ * one-line discourse (topic · flow · entities) — the same conversational
+ * anchor `runPart`'s `groundingQuestion` now carries, for the identical
+ * reason (a topic-less follow-up like "prove it" names nothing on its own,
+ * and the discourse line is what still does). Unlike `proofQuery`, there is
+ * no claim yet to quote verbatim — this is a topic search, not a claim
+ * search, so every word is ordinary query material and the term cap is
+ * wider (PREFLIGHT_QUERY_MAX_TERMS, not PROOF_QUERY_MAX_TERMS): the turn's
+ * own words come first, so they survive the cap before the discourse line's
+ * do if the combined anchor runs long.
+ */
+export function preflightQuery(task, discourse = "") {
+  const words = [
+    ...new Set(
+      `${task ?? ""} ${discourse ?? ""}`
+        .split(/[^\p{L}\p{N}'’]+/u)
+        .map((w) => w.replace(/['’]s$/, ""))
+        .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase())),
+    ),
+  ];
+  return words.slice(0, PREFLIGHT_QUERY_MAX_TERMS).join(" ").trim();
 }
 
 /**

@@ -12,12 +12,16 @@ import { readFileSync } from "node:fs";
 import {
   PROOF_PAGES_CONSULTED,
   PROOF_TARGETS_PER_TURN,
+  PREFLIGHT_PAGES_CONSULTED,
+  PREFLIGHT_QUERY_MAX_TERMS,
   assessPage,
   foldProof,
+  preflightQuery,
   proofQuery,
   proofTargets,
+  shouldPreflight,
 } from "./proof.js";
-import { checkGrounding } from "./grounding.js";
+import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({
@@ -142,6 +146,75 @@ test("proof targets come from the turn's own checks, ordered by need, deduplicat
 test("the declared budgets are declarations", () => {
   assert.equal(PROOF_PAGES_CONSULTED, 3);
   assert.equal(PROOF_TARGETS_PER_TURN, 4);
+  assert.equal(PREFLIGHT_PAGES_CONSULTED, 3);
+  assert.equal(PREFLIGHT_QUERY_MAX_TERMS, 12);
+});
+
+// ── the preflight gate: search BEFORE a draft exists, not after ─────────────
+// Measured live 2026-08-18: "research the weather in NYC right now" with
+// nothing attached drafted "70 degrees, sunny" from nowhere; checkGrounding
+// correctly declined to examine it (no material exists), and the no-material
+// fallback then manufactured search candidates FROM the invented sentence.
+// shouldPreflight asks the identical question one step earlier, so the
+// answer can be "go get material" instead of "invent something to check."
+
+test("shouldPreflight fires only on the exact structural conjunction: flat, nothing attached, both standing toggles on", () => {
+  const base = { live: [], grounded: true, webProof: true, planMode: "flat" };
+  assert.equal(shouldPreflight(base), true);
+  assert.equal(shouldPreflight({ ...base, live: [{ ref: "x#0-1" }] }), false, "material already attached — nothing to preflight");
+  assert.equal(shouldPreflight({ ...base, grounded: false }), false, "checking mode off — the whole ladder stands down, not just this door");
+  assert.equal(shouldPreflight({ ...base, webProof: false }), false, "no standing web consent — no automatic egress, preflight included");
+  assert.equal(shouldPreflight({ ...base, planMode: "model" }), false, "a decomposed task's parts retrieve per-part already — out of scope for this door");
+  assert.equal(shouldPreflight({}), false, "every toggle defaults to off/absent — the gate defaults closed, never open");
+});
+
+test("preflightQuery anchors on the turn's own words plus the fold's discourse line, never on drafted text", () => {
+  // The exact second-turn shape of the measured bug: "prove it" alone carries
+  // no content words, so without the discourse anchor there is nothing to
+  // search on at all.
+  const bare = preflightQuery("prove it", "");
+  assert.equal(bare, "prove");
+  const anchored = preflightQuery("prove it", "NYC weather right now · asked and answered · NYC");
+  assert.ok(/weather/i.test(anchored) && /nyc/i.test(anchored), anchored);
+  // The turn's own words survive the cap ahead of the discourse line's —
+  // built first, so a long combined anchor keeps what the reader just typed.
+  const long = preflightQuery(
+    "what is the current population of Springfield Illinois exactly today",
+    "an entirely unrelated prior topic about lighthouses and shipping lanes and maritime law",
+  );
+  assert.ok(/springfield/i.test(long), long);
+  assert.ok(long.split(/\s+/).length <= PREFLIGHT_QUERY_MAX_TERMS);
+  // No question, no discourse, no query — never a bare empty-string search.
+  assert.equal(preflightQuery("", ""), "");
+});
+
+// ── the question travels with the finding, so a topic-less follow-up can
+// still be searched for the real thing, not for the model's own words ─────
+// Same measured case, read from the other end: even once material exists,
+// the CHECK's own findings must carry the conversation's anchor forward
+// into proofQuery — this is what actually fixes turn two, since proofQuery
+// only ever reads `claim.text`/`claim.sentence`, never the question directly.
+
+test("extractCheckableAtoms folds the question into the finding's sentence, so proofQuery inherits real topic words from an anaphoric draft", () => {
+  const findings = extractCheckableAtoms("I did just check a weather app and it's showing sunny skies and 70 degrees.", {
+    question: "prove it NYC weather right now",
+  });
+  const figure = findings.find((f) => f.text === "70");
+  assert.ok(figure, "the figure must still be flagged");
+  assert.ok(/NYC/.test(figure.sentence), figure.sentence);
+  const q = proofQuery({ kind: "number", text: figure.text, tokens: ["70"], sentence: figure.sentence });
+  assert.ok(/weather/i.test(q), q);
+  assert.ok(!/\bapp\b/i.test(q) || /weather/i.test(q), "the query must not be dominated by the model's own unanchored words alone");
+});
+
+test("checkGrounding folds the question into its findings' sentences the same way", () => {
+  const passages = [{ ref: "kessington#0-40", text: "The Kessington report covers 1974 harbor traffic.", terms: new Set(["kessington", "report", "cover", "1974", "harbor", "traffic"]) }];
+  const report = checkGrounding("The 1974 figure was actually 12,000 vessels, per Marlborough.", passages, {
+    question: "what did the report actually say about Marlborough?",
+  });
+  const finding = report.findings.find((f) => f.text === "Marlborough");
+  assert.ok(finding);
+  assert.ok(/Marlborough/.test(finding.sentence));
 });
 
 test("seam: the chat page's own files still fetch nothing remote", () => {

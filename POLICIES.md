@@ -1266,3 +1266,135 @@ onto the real page, `act distinguish who-is-here at Entity from encounter
 ground excerpt.txt broken:rotation` finding and landing its two real
 referents, `grid` still showing them attached after the fact.
 **Enforced:** same two test files; no other suite is touched.
+
+## P23 — A materialless question is answered by fetching first, not by checking after
+
+Measured live 2026-08-18: asked "research the weather in NYC right now"
+with nothing attached, a model invented "70 degrees, sunny." `checkGrounding`
+did exactly what it should — `examined: false`, a deliberate withholding,
+no material exists to check against. The failure was one door up:
+`extractCheckableAtoms` (P4's own disclosed no-material fallback, "give the
+web tier candidates on a genuine world-claim nobody sourced") then treated
+every number and name in the model's OWN drafted sentence as unconditionally
+unsupported, so proof-seeking searched for "70" and read an RV blog and a
+"best year-round climates" page — never NYC weather, because `proofQuery`
+reads only `claim.text`/`claim.sentence`, and both were the model's
+invention. Asked "prove it," it got worse: the follow-up drafted a SECOND
+fabrication ("I did just check a weather app"), and the search ran on that.
+Every organ in the ladder was individually honest; the sequence — draft
+first, check after, search on whatever the draft said — manufactured a
+search for evidence of the hallucination instead of evidence about the
+world.
+
+**The fix is not another check — it is moving the existing checks earlier.**
+Predictive processing, named because that is exactly the shape: the question
+"is there material to check a draft against" is asked BEFORE the draft
+exists, not after, so the answer can be "go get some" instead of "invent
+something to blame." Three changes, one mechanism, no new checking logic:
+
+- **The question travels with the finding.** `checkGrounding` and
+  `extractCheckableAtoms` (grounding.js) now fold the turn's own question
+  into each finding's `sentence` — the same anchor the single-source
+  corroboration door in app.js already carries ("the question is the
+  conversation's own anchor," P13's existing evidence), centralized at the
+  source so every consumer of a finding inherits it, not just that one door.
+  A topic-less follow-up's own drafted sentence may name nothing; the
+  question still does.
+
+- **Discourse anchors a flat turn's retrieval and its grounding question,
+  never a decomposed part's.** `runPart` (holon.js) takes a `flat` flag,
+  true only for the single part `runHolonicTask`'s `planMode: "flat"`
+  proposes. When flat, both retrieval's `question` and the grounding check's
+  `groundingQuestion` fold in `discourse` — the fold's own one-line
+  topic/flow/entities summary. "Prove it" shares zero terms with anything;
+  `retrieve()` (source.js) filters out any passage with zero term overlap by
+  design (P4), so without this a flat follow-up could never retrieve
+  material fetched for exactly its own question. Decomposed multi-part
+  tasks are untouched — `flat` defaults false, and their narrow per-part
+  scoping (the `strayed` disclosure already in holon.js) stays exactly as
+  deliberate as before.
+
+- **A preflight, not a post-hoc label.** `shouldPreflight` and
+  `preflightQuery` (proof.js, pure, tested offline) name the gate and build
+  the anchor; `gatherPreflightMaterial` (app.js, the one crossing, mirrors
+  `seekProof`'s own pure/impure split) is the thin orchestrator. When a flat
+  chat turn has nothing attached and both standing toggles — checking mode
+  (`state.grounded`) and web consent (`state.webProof`) — are already on,
+  it searches ONCE on the turn's own words plus `discourse`, before the
+  model drafts anything, and folds any pages found into that turn's
+  retrievable chunks via the SAME `chunkSource` (source.js) every
+  attachment is chunked with. What follows — retrieve, checkGrounding,
+  attribute, corroborateAtoms, resolveName, the relation tier — is the
+  EXISTING ladder doing real work against real bytes, not a second checking
+  mechanism. Turn-scoped: nothing is written to `state.sources`, so no
+  attachment pill appears and nothing persists past the call — the same
+  posture `seekProof`'s own `faces` pool already has for pages read
+  mid-turn. The raw pages are still durably saved server-side by the same
+  P13 fetch every read goes through; a reader who wants one as a standing
+  attachment still opens it from web history, same as any other saved page.
+
+**Why unconditional within the gate, never a guess at which questions
+"need" it.** `shouldPreflight` is deliberately NOT a semantic classifier of
+question intent — this repo's own history (widget.js's rewrite away from
+hand-typed intent word lists) is the standing argument against exactly that
+move, and the asymmetry here is the same one that argument turns on. A
+false positive costs one wasted search on a turn that didn't need it —
+`checkGrounding` runs fine against irrelevant material, a sentence sharing
+nothing with it just stays unattributed, the same honest outcome as no
+material at all. A false negative reproduces the bug this policy exists to
+close. So the gate is purely structural — flat, nothing attached, both
+toggles on — never a guess about the question's own words.
+
+**Disclosed costs and residues, not hidden.** A materialless
+grounded+web-on question now spends one search before its first token,
+unconditional within the gate — a real latency cost on every such turn,
+including ones (a poem, an explanation) that never needed fresh material;
+`checkGrounding` and `provenance.js`'s classification handle the resulting
+low-overlap material honestly, but the fetch itself is not free and is not
+skipped by guessing it was unnecessary. Decomposed (multi-part) tasks are
+out of scope for the preflight door — each part already retrieves on its
+own words, and adding a second material-gathering pass there is unscoped,
+named rather than silently attempted. A citation the model attributes to a
+preflight-fetched passage resolves to a `web:<host>-<n>` source name not
+present in `state.sources`; "open in Explore" on that chip fails caught
+(app.js's existing `openInExplore().catch`), not working — wiring these
+into the same reopen path attachments use is unscoped for this pass.
+
+**Evidence.** Live, end to end, against a running instrument
+(`qwen2.5:14b-instruct-q4_K_M`, real DuckDuckGo search, real fetched pages):
+"research the weather in NYC right now" with nothing attached now narrates
+"nothing attached — checking the web before answering…" then "found 3
+page(s) · 127 passage(s) to answer from" BEFORE the draft is written; the
+shipped answer carries no fabricated figure. The follow-up "prove it" —
+sharing zero words with weather content — preflights again (turn-scoped,
+nothing persisted from the first turn), finds 3 pages, and RETRIEVES 3
+passages from them; the shipped answer is "standing on the material: 3
+sentence(s)," every sentence cited to `web:accuweather.com-0#…`, not one
+invented figure. 90 auto-generated regression scenarios (diverse topics —
+weather, stocks, sports scores, population figures, historical dates,
+exchange rates, company founding years — diverse topic-less phrasings of
+"prove it") run through the real `runHolonicTask`: 88/90 matched
+expectation exactly; the 2 near-misses were fixture-generation artifacts
+(the scenario's own task words incidentally overlapped its material by a
+common word — "time," "week" — independent of discourse, i.e. baseline
+`retrieve()` behavior unrelated to this policy, confirmed by inspecting the
+fixtures directly rather than assumed).
+
+**Files.** `proof.js` (`PREFLIGHT_PAGES_CONSULTED`, `PREFLIGHT_QUERY_MAX_TERMS`,
+`shouldPreflight`, `preflightQuery`, each declared and tested per P9/P4);
+`grounding.js` (`checkGrounding`, `extractCheckableAtoms` — the
+question-into-sentence fold-in); `holon.js` (`runPart`'s `flat` parameter,
+threaded through `runHolonicTask`'s `runLive`); `app.js`
+(`gatherPreflightMaterial`, and the preflight call site in `holonicTurn`
+right before `runHolonicTask`).
+
+**Enforced:** `proof.test.mjs` (`shouldPreflight`'s exact structural gate;
+`preflightQuery`'s discourse-anchored construction and its term cap;
+`extractCheckableAtoms`/`checkGrounding` carrying the question into
+`sentence`); `holon.test.mjs` (a flat topic-less follow-up retrieves with
+discourse present, retrieves NOTHING without it — proving the anchor is
+causal, not incidental — and a decomposed part stays narrowly scoped even
+when discourse names the exact right topic). 626 of 628 repo tests pass;
+the two failures (`arithmetic.test.mjs`, `measure.test.mjs`) are
+pre-existing and unrelated — a missing `mathjs` dependency and a stale
+`eoreader6` path respectively, neither file touched by this policy.

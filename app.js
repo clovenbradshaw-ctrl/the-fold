@@ -145,11 +145,14 @@ import { corroborateAtoms, CLAIM_STOPWORDS } from "./grounding.js";
 import {
   PROOF_PAGES_CONSULTED,
   PROOF_TARGETS_PER_TURN,
+  PREFLIGHT_PAGES_CONSULTED,
   assessPage,
   foldProof,
+  preflightQuery,
   proofQuery,
   proofTargets,
   rankResults,
+  shouldPreflight,
 } from "./proof.js";
 import { hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
@@ -2032,7 +2035,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   });
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
-  const live = liveChunks();
+  let live = liveChunks();
 
   // The run narrates itself while it works — the thinking, live, in three
   // layers: the log lines (what the turn decided and found), a ticker (what
@@ -2096,6 +2099,53 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   try {
     $("status").textContent = "planning…";
     const s = state.summary;
+    // The discourse slice: one line, not the carried block. Topic, flow,
+    // entities — what a part needs to resolve "he" and "the report";
+    // anything more it retrieves. Computed once, here, because the
+    // preflight search below needs the identical anchor runHolonicTask's
+    // own `discourse:` field carries — one line, not two independently
+    // drifting copies of "the conversation so far."
+    const discourseLine = [s.topic, s.flow, (s.entities || []).join(", ")]
+      .filter(Boolean)
+      .join(" · ")
+      .slice(0, 300);
+
+    // Predictive processing, not post-hoc labeling: a flat chat question
+    // with nothing attached, checking mode on, and standing web consent on
+    // gets ONE search BEFORE the model drafts anything, keyed on the turn's
+    // own words plus discourseLine (never model output — none exists yet).
+    // Measured live (2026-08-18): asked for NYC's current weather with
+    // nothing attached, the model invented "70 degrees, sunny" —
+    // checkGrounding correctly declined to examine it (examined: false, no
+    // material exists), and extractCheckableAtoms then manufactured
+    // proof-seeking candidates FROM the invented sentence, so the search
+    // that followed looked for "70" and read an RV blog, never NYC weather.
+    // A materialless follow-up ("prove it") made it worse: the model
+    // fabricated a second sentence, and the search ran on THAT. Handing the
+    // existing checking ladder real material before the draft exists fixes
+    // both at once — checkGrounding runs for real instead of the
+    // no-material fallback inventing candidates, and any figure the model
+    // still gets wrong is checked against actual fetched bytes, the same
+    // way an invented figure on top of a real attachment already is.
+    // shouldPreflight/gatherPreflightMaterial: proof.js §"the preflight
+    // gate" names the tradeoff this buys — a materialless grounded+web-on
+    // question now spends one search before its first token, unconditional
+    // within those two standing toggles, never a guess at which questions
+    // "need" it. Turn-scoped: these chunks join `live` for this call only
+    // and are never written to state.sources, so no attachment pill
+    // appears and nothing persists.
+    if (shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
+      setPhase("checking for material");
+      show("nothing attached — checking the web before answering…");
+      const preflight = await gatherPreflightMaterial(`${task} ${discourseLine}`);
+      if (preflight.chunks.length) {
+        live = preflight.chunks;
+        show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
+      } else {
+        show(preflight.gap?.detail ? `checked the web: ${preflight.gap.detail}` : "checked the web — nothing usable came back");
+      }
+    }
+
     result = await runHolonicTask({
       task,
       chunks: live,
@@ -2119,13 +2169,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       // reader narrows onto now; the turns that fall out are already in
       // the fold.
       chatHistory: state.history.slice(-present),
-      // The discourse slice: one line, not the carried block. Topic, flow,
-      // entities — what a part needs to resolve "he" and "the report";
-      // anything more it retrieves.
-      discourse: [s.topic, s.flow, (s.entities || []).join(", ")]
-        .filter(Boolean)
-        .join(" · ")
-        .slice(0, 300),
+      discourse: discourseLine,
       onProgress: (phase, part, info) => {
         if (phase === "plan") {
           setPhase("planning");
@@ -3620,6 +3664,79 @@ async function checkLinkCitation(url) {
   const out = { ok, status: f.entry?.status, textChars: f.entry?.textChars ?? 0, title: f.entry?.title ?? null, challenge: !!f.entry?.challenge };
   logAct("link-checked", { url, verdict: !ok ? "unreachable" : out.challenge ? "challenge" : out.textChars > 0 ? "resolved" : "unreachable" });
   return out;
+}
+
+/**
+ * The preflight's one crossing: search on the turn's own words (never the
+ * model's — none has been drafted yet), read what comes back through the
+ * same recorded fetch every other page read goes through, and hand back
+ * ordinary retrievable chunks — the SAME chunkSource (source.js) every
+ * attachment is chunked with, so what follows (retrieve, checkGrounding,
+ * attribute, corroborateAtoms, resolveName, the relation tier) is the
+ * existing ladder doing real work, not a second checking mechanism. Nothing
+ * here is written to state.sources: no attachment pill appears, nothing
+ * persists past this turn's `chunks:` array — the same turn-scoped posture
+ * `faces` already has for pages read mid-turn proof-seeking. The raw pages
+ * themselves are still durably saved server-side by the same P13 fetch
+ * every read goes through (web/pages/, web/history.jsonl); a reader who
+ * wants this specific page as a standing attachment still opens it from
+ * web history, same as any other saved page.
+ *
+ * Disclosed residue: a citation the model attributes to one of these
+ * passages resolves to a `web:<host>-<n>` source name that is not in
+ * state.sources, so "open in Explore" on that chip fails — caught (app.js's
+ * own openInExplore().catch already handles it), not a crash, but not a
+ * working link either. Wiring these into the same reopen path attachments
+ * use is unscoped work for this pass, named rather than silently left.
+ */
+async function gatherPreflightMaterial(anchor) {
+  const query = preflightQuery(anchor);
+  if (!query) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "nothing in the question to search on" } };
+  let search;
+  try {
+    search = await webApi("/api/web/search", { query });
+  } catch (e) {
+    return {
+      chunks: [],
+      pages: [],
+      gap: { silence: "not-present", detail: `the local server that does the fetching didn't answer (${e.message})` },
+    };
+  }
+  if (search.gap) return { chunks: [], pages: [], gap: search.gap };
+  const picks = (search.results ?? []).slice(0, PREFLIGHT_PAGES_CONSULTED);
+  if (!picks.length) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } };
+  const chunks = [];
+  const pages = [];
+  for (const [i, r] of picks.entries()) {
+    try {
+      const f = await webApi("/api/web/fetch", { url: r.url });
+      if (f.gap || !f.entry?.textPath) continue;
+      const url = f.entry.finalUrl ?? r.url;
+      let faceRes;
+      try {
+        faceRes = await fetch(pageFaceUrl(EXPLORE_BASE, f.entry.textPath));
+      } catch {
+        faceRes = await fetch(pageFaceUrl(location.origin, f.entry.textPath));
+      }
+      if (!faceRes.ok) continue;
+      const text = await faceRes.text();
+      if (!text.trim()) continue;
+      // Indexed, not just host-named: two picks from the same host (two
+      // Wikipedia articles, say) must not chunk under one source name and
+      // silently merge their addresses.
+      chunks.push(...chunkSource(`web:${hostOf(url)}-${i}`, text));
+      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
+    } catch {
+      // One page failing to fetch is not the search failing — the other
+      // picks still get their chance, the same posture seekProof takes.
+      continue;
+    }
+  }
+  return {
+    chunks,
+    pages,
+    gap: chunks.length ? null : { silence: "not-present", detail: "pages were found but none had readable text" },
+  };
 }
 
 /**

@@ -636,6 +636,45 @@ itself was synthetic, manufactured by the fallback rather than observed —
 so there is nothing honest to disclose by keeping it; withholding the
 finding IS the honest disclosure.
 
+**Amended 2026-08-18 — checked before generation, not only after (P23 in
+POLICIES.md is the law; this is the map).** Every organ above this line was
+individually honest and the sequence still manufactured a lie: measured
+live, "research the weather in NYC right now" with nothing attached drafted
+"70 degrees, sunny" from nowhere; `checkGrounding` correctly declined
+(`examined: false`), and `extractCheckableAtoms` — this section's own
+no-material fallback, built for "a genuine world-claim nobody sourced" —
+then treated the model's INVENTED sentence as the thing to search for, so
+proof-seeking read an RV blog, never NYC weather. "Prove it" made it worse:
+a second fabrication, searched on in turn. The fix does not add a check —
+it moves the existing ones earlier, predictive-processing style: ask "is
+there material to check a draft against" BEFORE the draft exists, not
+after. `checkGrounding`/`extractCheckableAtoms` now fold the turn's own
+question into each finding's `sentence` (grounding.js), so a topic-less
+follow-up's search still anchors on the real conversation even when the
+model's own drafted words don't. `runPart` (holon.js) takes a `flat` flag —
+true only for the single part a plain chat question runs as — and folds
+`discourse` into both retrieval and the grounding question when flat,
+because `retrieve()`'s zero-relevance-floor design (P4) filters out any
+passage sharing no term with the query, and "prove it" shares none with
+anything on its own; decomposed parts are untouched (`flat` defaults
+false), their deliberate narrow scoping (the `strayed` disclosure, above)
+preserved by construction. And app.js's `holonicTurn` now preflights: a
+flat chat turn with nothing attached, checking mode on, and standing web
+consent on gets ONE search before the model drafts anything
+(`shouldPreflight`/`preflightQuery`, proof.js, pure and tested;
+`gatherPreflightMaterial`, app.js, the one crossing), folding fetched pages
+into that turn's chunks via the same `chunkSource` every attachment uses —
+turn-scoped, never written to `state.sources`. What follows is this
+section's EXISTING ladder doing real work against real bytes, not a second
+mechanism. Verified live end to end (real model, real DuckDuckGo, real
+fetched pages) and against 90 auto-generated regression scenarios; full
+evidence, the disclosed cost (one search before the first token on every
+materialless grounded+web-on question, unconditional within the gate —
+never a guess at which questions "need" it, the same argument widget.js's
+word-list rewrite already stands on), and the disclosed residues (decomposed
+tasks out of scope; a preflight-sourced citation's "open in Explore" fails
+caught, not working) are in POLICIES.md P23.
+
 ## The UX pass (2026-08-17) — what was decided, so it is not re-derived
 
 A working pass over both pages, driven live. The decisions, not the diff:

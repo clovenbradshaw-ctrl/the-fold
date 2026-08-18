@@ -583,8 +583,14 @@ export function checkGrounding(answer, passages, { question = "", resolveName = 
         end: atom.end,
         // The sentence the claim stands in, carried so a proof-seeker can
         // search on the claim's own context (proof.js) without re-locating
-        // it — the same words, no paraphrase.
-        sentence: s.text,
+        // it — the same words, no paraphrase. The question travels with it —
+        // the same anchor app.js's single-source corroboration door already
+        // carries for its own claims ("the question is the conversation's
+        // own anchor," measured live: a casualties sentence whose "it"
+        // pointed a sentence back left the battle's name out of its own
+        // search). Folded in here, at the source, every consumer of a
+        // finding's `sentence` gets it, not just that one door.
+        sentence: [s.text, question].filter(Boolean).join(" ").trim(),
         // A name the question itself supplied is the model repeating the
         // asker, not inventing a source — worth knowing when reading a finding.
         echoesQuestion: atom.tokens.every((t) => questionWords.has(t.toLowerCase())),
@@ -637,7 +643,18 @@ export function extractCheckableAtoms(answer, { question = "" } = {}) {
         absent: atom.tokens,
         start: atom.start,
         end: atom.end,
-        sentence: s.text,
+        // Same anchor as checkGrounding's own findings, and it matters MORE
+        // here: this function exists for sentences with no material behind
+        // them at all, and a topic-less follow-up ("prove it") drafts a
+        // sentence that names nothing the original question named either.
+        // Measured live 2026-08-18: asked to prove a fabricated "70 degrees
+        // in NYC", the model answered "I did just check a weather app" —
+        // with no question folded in, proofQuery had only that sentence's
+        // own words to search on, and searched for a weather app rather
+        // than NYC weather. Folding the question in gives the search
+        // something to anchor to even when the drafted sentence carries
+        // nothing of its own.
+        sentence: [s.text, question].filter(Boolean).join(" ").trim(),
         echoesQuestion: atom.tokens.every((t) => questionWords.has(t.toLowerCase())),
       });
     }

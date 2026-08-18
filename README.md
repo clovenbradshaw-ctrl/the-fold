@@ -106,16 +106,27 @@ pins that at 400 turns.
 ```
 
 One command, from `the-fold/`, that works on a machine that has never run
-this repo before. It installs Node.js if missing (Homebrew on macOS),
-clones `eoreader6.1` next to this repo if it isn't there, installs
-`node_modules`, installs Ollama if missing and starts it if it isn't already
-listening on `:11434`, pulls `gemma2:2b` if nothing at all is pulled yet (so
-there's a model to talk to immediately), starts `explore-server.mjs` on
-`:8812` (the Explore pane and the priors organ both need it — reused if
-another the-fold session on this machine already has one running), then
-starts `serve.mjs` and opens the browser on it. Pass a port to run the chat
-server somewhere other than `:8811` (`./fold 8899`); `:8812` for Explore is
-fixed — the chat page's iframe is hardcoded to it.
+this repo before:
+
+```bash
+git clone https://github.com/clovenbradshaw-ctrl/the-fold.git
+cd the-fold
+./fold
+```
+
+`./fold` installs Node.js if missing (Homebrew on macOS), clones
+`eoreader6.1` next to this repo if it isn't there (the engine both servers
+mount), clones `live_priors` next to this repo if it isn't there (the priors
+organ's corpus — soft dependency, explore-server.mjs shows a typed gap
+without it, so this is best-effort and never blocks the rest of the launch),
+installs `node_modules`, installs Ollama if missing and starts it if it
+isn't already listening on `:11434`, pulls `gemma2:2b` if nothing at all is
+pulled yet (so there's a model to talk to immediately), starts
+`explore-server.mjs` on `:8812` (the Explore pane and the priors organ both
+need it — reused if another the-fold session on this machine already has
+one running), then starts `serve.mjs` and opens the browser on it. Pass a
+port to run the chat server somewhere other than `:8811` (`./fold 8899`);
+`:8812` for Explore is fixed — the chat page's iframe is hardcoded to it.
 
 Equivalent by hand, in two terminals:
 

@@ -9,6 +9,9 @@
 #   - clones eoreader6.1 next to this repo if it isn't there yet (the
 #     engine both servers mount at /engine and /nul, and explore-server.mjs
 #     also imports it directly)
+#   - clones live_priors next to this repo if it isn't there yet (the
+#     priors organ's corpus, ~250MB; soft dependency — explore-server.mjs
+#     degrades to a typed gap without it, so this is best-effort)
 #   - installs this repo's own node_modules
 #   - installs Ollama if it's missing (Homebrew on macOS, the official
 #     install script on Linux), starts it if it isn't already listening,
@@ -60,6 +63,20 @@ if [ ! -d "$EOREADER/packages/engine" ]; then
   fi
   echo "cloning eoreader6.1 next to this repo..."
   git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$EOREADER"
+fi
+
+# ── live_priors (sibling repo; the priors organ's corpus). Soft dependency —
+# explore-server.mjs resolves it at ../live_priors and returns a typed
+# "not-present" gap rather than failing if it's missing, so this is a
+# best-effort fetch: worth having so the priors tab has something to offer
+# on a fresh machine (toggled off by default either way, never active
+# without the reader turning a source or genre on), never worth blocking
+# the rest of the launch over. ~250MB.
+LIVE_PRIORS="$DIR/../live_priors"
+if [ ! -d "$LIVE_PRIORS" ] && command -v git >/dev/null 2>&1; then
+  echo "cloning live_priors next to this repo (priors corpus, ~250MB)..."
+  git clone https://github.com/clovenbradshaw-ctrl/live_priors.git "$LIVE_PRIORS" \
+    || echo "warning: live_priors clone failed — the priors tab will show a typed gap until it's cloned" >&2
 fi
 
 # ── this repo's own deps ────────────────────────────────────────────────────

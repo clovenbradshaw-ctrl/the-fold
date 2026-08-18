@@ -15,6 +15,9 @@ import {
   looksLikeChallenge,
   decodeEntities,
   extractReadable,
+  extractFeed,
+  feedText,
+  extractUrls,
   parseSearchResults,
   unwrapDdgHref,
   foldWebHistory,
@@ -98,6 +101,110 @@ test("extractReadable on a real page keeps the article, drops the chrome", (t) =
   assert.ok(out.text.includes("Tolstoy"));
   assert.ok(!/mw-parser|\{|function\s*\(/.test(out.text.slice(0, 4000)), "no code residue near the head");
   assert.ok(out.text.length > 10_000, "the whole article, not a summary");
+});
+
+// ── explicit URLs named in a message (2026-08-18) ───────────────────────────
+
+test("extractUrls: an explicit http(s) URL in prose is found and normalized, trailing punctuation trimmed", () => {
+  assert.deepEqual(
+    extractUrls("write an essay drawn from https://eolab.substack.com/feed, please"),
+    ["https://eolab.substack.com/feed"],
+  );
+  assert.deepEqual(extractUrls("see (https://example.com/a) and https://example.com/b."), [
+    "https://example.com/a",
+    "https://example.com/b",
+  ]);
+  // A bare domain with no scheme is never inferred — reading one out of
+  // prose would need the same kind of guess normalizeUrl's own bare-domain
+  // leniency exists to avoid for a dedicated address field, not for text
+  // at large.
+  assert.deepEqual(extractUrls("check eolab.substack.com sometime"), []);
+  // Loopback stays refused, same rule as the omnibox.
+  assert.deepEqual(extractUrls("see http://localhost:3000/x"), []);
+  assert.deepEqual(extractUrls("no url here"), []);
+  // Duplicates collapse.
+  assert.deepEqual(extractUrls("https://x.example/a and again https://x.example/a"), ["https://x.example/a"]);
+});
+
+// ── feeds: a list of posts, never one flattened essay (2026-08-18) ──────────
+// Requirement, measured live: gemma2:2b fetched eolab.substack.com/feed
+// through extractReadable (built for one article) and answered as though
+// the whole feed were a single essay — the channel's own title ran
+// straight into the first item's body with no boundary. extractFeed reads
+// the root element and returns every item as its own unit.
+
+const RSS = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>` +
+  `<title><![CDATA[EOlab]]></title>` +
+  `<description><![CDATA[Experiments in instantiating Experiential Ontology.]]></description>` +
+  `<link>https://eolab.substack.com</link>` +
+  `<item><title><![CDATA[Truth-Seeking Is an Architecture]]></title>` +
+  `<link>https://eolab.substack.com/p/truth-seeking-is-an-architecture</link>` +
+  `<pubDate>Fri, 03 Jul 2026 19:25:45 GMT</pubDate>` +
+  `<description><![CDATA[Field notes for anyone building toward the loop that wants to tell the truth.]]></description>` +
+  `</item>` +
+  `<item><title><![CDATA[The Fold, Explained]]></title>` +
+  `<link>https://eolab.substack.com/p/the-fold-explained</link>` +
+  `<pubDate>Mon, 10 Aug 2026 12:00:00 GMT</pubDate>` +
+  `<description><![CDATA[What the log actually is.]]></description>` +
+  `<content:encoded><![CDATA[<p>The log is the primary substrate.</p><p>Everything else projects from it.</p>]]></content:encoded>` +
+  `</item>` +
+  `</channel></rss>`;
+
+const ATOM = `<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom">` +
+  `<title>Example Feed</title><subtitle>An example.</subtitle>` +
+  `<entry><title>First Post</title><link href="https://example.com/first" rel="alternate"/>` +
+  `<published>2026-01-01T00:00:00Z</published><summary>The first one.</summary></entry>` +
+  `<entry><title>Second Post</title><link href="https://example.com/second" rel="alternate"/>` +
+  `<updated>2026-02-01T00:00:00Z</updated><content>The second one.</content></entry>` +
+  `</feed>`;
+
+test("extractFeed recognizes RSS by its root element and returns every item separately", () => {
+  const feed = extractFeed(RSS);
+  assert.equal(feed.title, "EOlab");
+  assert.equal(feed.description, "Experiments in instantiating Experiential Ontology.");
+  assert.equal(feed.items.length, 2);
+  assert.equal(feed.items[0].title, "Truth-Seeking Is an Architecture");
+  assert.equal(feed.items[0].link, "https://eolab.substack.com/p/truth-seeking-is-an-architecture");
+  assert.equal(feed.items[0].pubDate, "Fri, 03 Jul 2026 19:25:45 GMT");
+  assert.match(feed.items[0].summary, /Field notes/);
+  assert.equal(feed.items[1].title, "The Fold, Explained");
+  // The FULL post, not the teaser — <content:encoded> wins when present
+  // (measured live: eolab's own <description> was a 1-2 sentence teaser,
+  // the real article sat in <content:encoded>, and the fix that only read
+  // <description> would have kept every item's actual content out of the
+  // material). Its own inner HTML markup is stripped like any other body.
+  assert.equal(feed.items[1].summary, "The log is the primary substrate. Everything else projects from it.");
+  assert.ok(!/<p>/.test(feed.items[1].summary), "the item's own HTML markup does not leak into the text");
+});
+
+test("extractFeed recognizes Atom by its namespaced root, reading published/updated and rel=alternate", () => {
+  const feed = extractFeed(ATOM);
+  assert.equal(feed.title, "Example Feed");
+  assert.equal(feed.items.length, 2);
+  assert.equal(feed.items[0].link, "https://example.com/first");
+  assert.equal(feed.items[0].pubDate, "2026-01-01T00:00:00Z");
+  assert.match(feed.items[0].summary, /first one/);
+  // No <published> on the second entry — falls back to <updated>.
+  assert.equal(feed.items[1].pubDate, "2026-02-01T00:00:00Z");
+  assert.match(feed.items[1].summary, /second one/);
+});
+
+test("extractFeed returns null for ordinary HTML and non-feed XML — never a false positive", () => {
+  assert.equal(extractFeed("<html><body><p>an article</p></body></html>"), null);
+  assert.equal(extractFeed(`<?xml version="1.0"?><urlset><url><loc>https://x/</loc></url></urlset>`), null);
+});
+
+test("feedText demarcates every item — numbered, titled, dated — never one flattened blob", () => {
+  const text = feedText(extractFeed(RSS));
+  assert.match(text, /^FEED: EOlab — Experiments in instantiating Experiential Ontology\. \(2 items\)/);
+  assert.match(text, /item 1 of 2: Truth-Seeking Is an Architecture \(Fri, 03 Jul 2026 19:25:45 GMT\)/);
+  assert.match(text, /item 2 of 2: The Fold, Explained/);
+  // The measured failure this closes: the channel's title bleeding into
+  // the first item's body with no boundary between them.
+  const firstItemStart = text.indexOf("item 1 of 2");
+  const secondItemStart = text.indexOf("item 2 of 2");
+  assert.ok(firstItemStart < secondItemStart, "items appear in order, each announced before its own content");
+  assert.ok(!/EOlab.*Field notes/s.test(text.replace(/\n/g, " ").slice(0, 40)), "the feed title never runs into an item's body");
 });
 
 // ── search parsing ──────────────────────────────────────────────────────────

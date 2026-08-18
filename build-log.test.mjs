@@ -773,3 +773,45 @@ test("a scout lands SIG · Figure with the term and the span it resolved", () =>
   assert.equal(sig.task_id, "b1.scout.1");
   assert.deepEqual(checkCubeProgression(log), []);
 });
+
+test("the birth is witnessed, so turn-1 corruption is a regression, not a blind spot — the two reconstructed cases", () => {
+  // witnessRegressed's structural blind spot (2026-08-18 diagnosis): with
+  // no EVA until the first revision, `prev` was null on turn 1 and the gate
+  // waved everything through. The discipline that closes it — an EVA on the
+  // PROPOSE, the way app.js's publishBuild now lands one — is reconstructed
+  // here over the two live turn-1 corruptions, so the module-level claim
+  // ("a birth EVA gives the very first landing a real prev") is pinned
+  // where the organs live.
+
+  // CASE 1 — gemma2:2b × tasklist: the edit deleted <input id="what">
+  // outright; locally well-formed, remotely broken (getElementById('what')
+  // now points at nothing). Turn 1, so the old gate never looked.
+  const tasklist = `<input id="what"><button id="add">add</button><script>document.getElementById('what').value; document.getElementById('add').onclick = () => {};</script>`;
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: { type: "code", lang: "html", code: tasklist }, caption: "tasklist" });
+  const birth = witnessCode("html", buildLog.foldBuild(log).code);
+  assert.equal(birth.ok, true);
+  log = buildLog.attachWitness(log, { witness: birth });
+
+  const deleted = tasklist.replace(`<input id="what">`, "");
+  const candidate1 = witnessCode("html", deleted);
+  assert.equal(witnessRegressed(birth, candidate1), true, "the deletion is refused on turn 1, against the birth's own EVA");
+  assert.equal(witnessRegressed(null, candidate1), false, "without the birth EVA the same corruption walks straight through — the blind spot this closes");
+
+  // CASE 2 — qwen2.5-coder:7b × spreadsheet: the every:true rescue spliced
+  // a replacement at both occurrences of a non-unique find, leaving each
+  // original loop body dangling outside any function — the unbalanced-brace
+  // break, caught as script-syntax against a clean birth.
+  const brokenScript = `<div class="cell"></div><script>document.querySelectorAll('.cell').forEach(function(c) { c.textContent = 1; });\n});</script>`;
+  const candidate2 = witnessCode("html", brokenScript);
+  assert.equal(candidate2.ok, false);
+  assert.equal(candidate2.findings[0].kind, "script-syntax");
+  assert.equal(witnessRegressed(birth, candidate2), true);
+
+  // And the kept reading, stated as a test rather than implied: a defect
+  // the birth itself carries is VISIBLE (named on the birth EVA) but never
+  // blocks a later landing that merely fails to fix it — persistence is
+  // not entry, and repair stays the next iteration's job.
+  const bornBroken = witnessCode("html", deleted);
+  assert.equal(bornBroken.ok, false);
+  assert.equal(witnessRegressed(bornBroken, bornBroken), false);
+});

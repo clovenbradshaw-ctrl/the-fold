@@ -44,6 +44,39 @@ export function normalizeUrl(input) {
   return u.href;
 }
 
+/**
+ * Explicit http(s) URLs named in arbitrary prose — the referent-level fact
+ * that a message already points at an exact address, distinct from every
+ * OTHER word in the same message a search would otherwise have to guess
+ * from (measured live, 2026-08-18: "write an essay... drawn from
+ * https://eolab.substack.com/feed" reached the preflight SEARCH path,
+ * which reduces the whole sentence to keyword terms and lost the named
+ * source to generic pages sharing "fold" and "essay" on DuckDuckGo's own
+ * ranking — the address was right there and was never fetched). Only an
+ * EXPLICIT scheme counts: reading a bare domain out of prose ("check
+ * eolab.substack.com") would need the same kind of guess this function
+ * exists to avoid, so a scheme is required, the same discipline
+ * `normalizeUrl`'s bare-domain leniency is for the DEDICATED omnibox
+ * field, not for text at large. Each candidate is re-validated by
+ * `normalizeUrl` (reused, never re-derived), so a URL named in chat is
+ * held to the exact same http(s)-only, non-loopback rule the omnibox and
+ * the server already enforce.
+ */
+export function extractUrls(text) {
+  const s = String(text ?? "");
+  const found = [];
+  const re = /https?:\/\/[^\s<>"')\]}]+/gi;
+  let m;
+  while ((m = re.exec(s))) {
+    // Trailing punctuation almost never belongs to the address itself — a
+    // sentence ending in ".", or a URL closing a parenthetical.
+    const trimmed = m[0].replace(/[.,;:!?)\]}'"]+$/, "");
+    const url = normalizeUrl(trimmed);
+    if (url && !found.includes(url)) found.push(url);
+  }
+  return found;
+}
+
 export const hostOf = (url) => {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -131,6 +164,93 @@ export function extractReadable(html) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return { title, description, text, lang };
+}
+
+/**
+ * Recognizes an RSS 2.0 or Atom feed by its ROOT ELEMENT — magic first, the
+ * same discipline measure.js::sniffContainer already uses for a fetched
+ * file's shape: the bytes' own declared structure decides, never a text
+ * heuristic — and returns it as N separate items, or null for anything
+ * else. Requirement, from a live measurement (2026-08-18): fetched as
+ * MATERIAL and run through `extractReadable` (built for one article's
+ * markup, with no notion of `<item>`/`<entry>`), a feed's many independent
+ * posts flattened into one undifferentiated blob — the channel's own
+ * title ran straight into the first item's body with no boundary
+ * (`extractReadable`'s generic tag-strip has no vocabulary for feed-only
+ * elements), and gemma2:2b answered as though the whole thing were a
+ * single essay. A feed is not an article with unusual formatting; it is a
+ * LIST of them, and the extraction must say so before anything reads the
+ * content — the same P5.3 principle (strip container boilerplate, keep
+ * the content) applied to a container shape that isn't a single document
+ * at all.
+ */
+export function extractFeed(xml) {
+  const s = String(xml ?? "");
+  const isRss = /<rss[\s>]/i.test(s) && /<channel[\s>]/i.test(s);
+  const isAtom = /<feed[\s>]/i.test(s) && /xmlns\s*=\s*["']http:\/\/www\.w3\.org\/2005\/Atom["']/i.test(s);
+  if (!isRss && !isAtom) return null;
+
+  const firstTag = (block, name) => {
+    const m = block.match(new RegExp(`<${name}\\b[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${name}\\s*>`, "i"));
+    return decodeEntities((m?.[1] ?? m?.[2] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")).trim();
+  };
+  const channelBlock = s.match(/<channel[^>]*>([\s\S]*?)<\/channel\s*>/i)?.[1] ?? s;
+  const title = firstTag(channelBlock, "title");
+  const description = firstTag(channelBlock, isAtom ? "subtitle" : "description");
+
+  const itemTag = isAtom ? "entry" : "item";
+  const items = [];
+  const re = new RegExp(`<${itemTag}\\b[^>]*>([\\s\\S]*?)<\\/${itemTag}\\s*>`, "gi");
+  let m;
+  while ((m = re.exec(s))) {
+    const block = m[1];
+    const link = isAtom
+      ? decodeEntities(block.match(/<link\b[^>]*href=["']([^"']+)["']/i)?.[1] ?? "")
+      : firstTag(block, "link");
+    items.push({
+      title: firstTag(block, "title"),
+      link,
+      pubDate: firstTag(block, isAtom ? "published" : "pubDate") || firstTag(block, "updated"),
+      // The FULLEST body available, preferred over a teaser: RSS commonly
+      // carries both a short <description> and the real post in
+      // <content:encoded> (measured live on the eolab feed — description
+      // alone was a 1-2 sentence teaser, content:encoded the actual
+      // article). Atom's <content> is the equivalent full-body element;
+      // <summary> is its own teaser, tried last.
+      summary:
+        firstTag(block, "content:encoded") ||
+        firstTag(block, "content") ||
+        firstTag(block, "description") ||
+        firstTag(block, "summary"),
+    });
+  }
+  return { title, description, items };
+}
+
+/**
+ * A feed's readable text face — every item demarcated and numbered, never
+ * flattened. The number is a real, quotable address ("item 3 of 12"), and
+ * each item carries its own title/date/link so a reader (human or model)
+ * can tell which post said what without opening it — the discrimination
+ * `extractReadable` alone cannot make for feed XML. This is the feed's own
+ * STRUCTURE (its items, their own boundaries) — the same station a
+ * document's discovered headings hold; WHAT KIND OF THING the whole file
+ * is (a feed, at all) is a separate, general concern, carried by every
+ * chunk as `identity` rather than baked into this text — see
+ * `identifyMaterial` (source.js) and its own header for why: a per-chunk
+ * identity travels with whichever passage retrieval actually picks,
+ * without touching this text's own byte-addressable content.
+ */
+export function feedText({ title, description, items }) {
+  const name = title || "untitled";
+  const header = `FEED: ${name}${description ? ` — ${description}` : ""} (${items.length} item${items.length === 1 ? "" : "s"})`;
+  const body = items
+    .map((it, i) => {
+      const head = `--- item ${i + 1} of ${items.length}: ${it.title || "untitled"}${it.pubDate ? ` (${it.pubDate})` : ""} ---`;
+      return [head, it.link, it.summary].filter(Boolean).join("\n");
+    })
+    .join("\n\n");
+  return [header, body].filter(Boolean).join("\n\n");
 }
 
 /**

@@ -28,6 +28,7 @@ import {
   buildSourceBlock,
   checkCitations,
   chunkSource,
+  identifyMaterial,
   openQuestions,
   readRange,
   retrieve,
@@ -299,11 +300,23 @@ test("an uncited turn leaves the question open", () => {
   assert.equal(openQuestions("tell me about penguins", [], []).length, 1);
 });
 
-test("the material block carries every address it offers", () => {
+test("the material block carries passage text, never the address itself", () => {
+  // Requirement, 2026-08-18 (citation-forgery closure): the model must
+  // have zero exposure to this instrument's own addressing scheme, so it
+  // has nothing to imitate. buildSourceBlock used to show the model the
+  // literal `[ref]` for every passage and instruct it to reproduce one —
+  // exactly the string material a self-citation forgery needs. Addresses
+  // are attached AFTERWARD, mechanically, by attribute() (cite.js) reading
+  // which passage's CONTENT the model's own sentence actually overlaps —
+  // the model never needs to see or write the token for that to work.
   const chunks = chunkSource("kess.txt", DOC);
   const offered = retrieve(chunks, "the report figure percent");
   const block = buildSourceBlock(offered);
-  for (const c of offered) assert.ok(block.includes(`[${c.ref}]`));
+  for (const c of offered) {
+    assert.ok(!block.includes(`[${c.ref}]`), "the model must never see its own address token");
+    assert.ok(block.includes(c.text), "the passage's own words still reach the model");
+  }
+  assert.ok(!/\bcite\b/i.test(block), "the model is never instructed to cite anything");
 });
 
 test("container boilerplate is not material", () => {
@@ -360,4 +373,74 @@ test("no boundaries means paragraphs, not an invented structure", () => {
   const chunks = chunkSource("plain.txt", doc, { boundaries: null });
   assert.equal(chunks.length, 2);
   assert.ok(chunks.every((c) => !c.label));
+});
+
+// ── identifyMaterial: a best guess of WHAT a thing is, checked magic and
+// structure first, extension last, never asserted for ordinary prose ──────
+
+test("identifyMaterial: structure wins over guessing — feed, table, JSON, HTML each named by their own unambiguous marker", () => {
+  const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>X</title><item><title>Y</title></item></channel></rss>`;
+  assert.equal(identifyMaterial("feed.xml", rss).kind, "feed:rss");
+  assert.equal(identifyMaterial("feed.xml", rss).certainty, "structure");
+
+  const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><title>X</title></feed>`;
+  assert.equal(identifyMaterial("feed.atom", atom).kind, "feed:atom");
+
+  assert.equal(identifyMaterial("data.csv", "a,b,c,d\n1,2,3,4\n5,6,7,8").kind, "table");
+  // Structure, not the extension: an untitled paste that repeats a
+  // delimiter (looksDelimited's own floor: at least 3 on the first two
+  // lines) is still recognized as a table.
+  assert.equal(identifyMaterial("pasted.txt", "name,age,city,country\nAda,36,London,UK\nGrace,85,NYC,US").kind, "table");
+
+  assert.equal(identifyMaterial("data.json", '{"a": 1, "b": [1,2,3]}').kind, "json");
+  assert.equal(identifyMaterial("page.html", "<!DOCTYPE html><html><body>hi</body></html>").kind, "html");
+});
+
+test("identifyMaterial: an extension is the last, weakest resort — only consulted when nothing structural was found", () => {
+  const py = identifyMaterial("script.py", "def f():\n    return 1\n");
+  assert.equal(py.kind, "code:py");
+  assert.equal(py.certainty, "extension");
+  assert.match(py.guess, /Python/);
+
+  assert.equal(identifyMaterial("notes.md", "# Title\n\nSome notes.").kind, "markdown");
+
+  // A .py-named file whose CONTENT is actually a feed is named by its real
+  // structure, never by the misleading extension — magic/structure always
+  // outranks the filename.
+  const misnamed = identifyMaterial("script.py", `<rss version="2.0"><channel><title>X</title></channel></rss>`);
+  assert.equal(misnamed.kind, "feed:rss");
+});
+
+test("identifyMaterial: ordinary prose says nothing — a guess is only offered when there is something worth guessing", () => {
+  const prose = identifyMaterial("essay.txt", "This is an ordinary essay about harbor traffic in the spring.");
+  assert.equal(prose.kind, "prose");
+  assert.equal(prose.guess, null);
+  assert.equal(prose.certainty, "default");
+});
+
+test("identity travels on every chunk a source produces, never spliced into the addressable text", () => {
+  const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>EOlab</title>` +
+    `<item><title>One</title><description>First post, long enough to be admitted as its own chunk of real prose.</description></item>` +
+    `</channel></rss>`;
+  const identity = identifyMaterial("feed.xml", rss);
+  const chunks = chunkSource("web:eolab-0", rss, { identity });
+  assert.ok(chunks.length > 0);
+  for (const c of chunks) {
+    assert.deepEqual(c.identity, identity);
+    // The byte range still reads back EXACTLY what is on disk — identity
+    // rides beside the passage, the same discipline chunkRows already
+    // holds for a table's column header.
+    assert.equal(readRange({ "web:eolab-0": rss }, c.ref), c.text);
+  }
+});
+
+test("buildSourceBlock shows the identity guess ahead of a passage's text, and says nothing for ordinary prose", () => {
+  const feedIdentity = { kind: "feed:rss", guess: "an RSS feed — a syndicated list of separate posts, not one document", certainty: "structure" };
+  const withIdentity = [{ text: "Post content here.", identity: feedIdentity }];
+  const block = buildSourceBlock(withIdentity);
+  assert.match(block, /\(this looks like: an RSS feed/);
+  assert.match(block, /Post content here\./);
+
+  const plain = [{ text: "Ordinary prose, nothing structural about it.", identity: { kind: "prose", guess: null } }];
+  assert.ok(!buildSourceBlock(plain).includes("this looks like"));
 });

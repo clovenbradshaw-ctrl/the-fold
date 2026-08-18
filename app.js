@@ -42,7 +42,7 @@ import {
 import { RENDERABLE, mergeHtmlScript, parseSegments, tableFrom, toDocument } from "./artifact.js";
 // skills.js's balanced-object walk, reused as the one mechanical reading of
 // "the JSON an ollama reply carried" (the delta grammar's extractor).
-import { extractObject } from "./skills.js";
+import { extractObject, createSkillLog, appendSkill, SKILL_ENTRY_KINDS, projectLibrary, skillDigest, claimSkill, fillSlots, checkSkillShape, scanBody } from "./skills.js";
 
 // The Folds panel's pure half: search, the declared orderings, the compact
 // list face, and the /fold door's mechanics — all testable in node, all
@@ -64,7 +64,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
-import { attribute, attributedRefs } from "./cite.js";
+import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
 import { needsDecomposition, runHolonicTask } from "./holon.js";
 
@@ -154,7 +154,7 @@ import {
   rankResults,
   shouldPreflight,
 } from "./proof.js";
-import { hostOf, pageFaceUrl } from "./web.js";
+import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
@@ -224,7 +224,19 @@ const referentIndexFor = makeReferentIndex({
   namesCorefer,
   diaNorm,
 });
-const runCapacity = makeCapacityRunner({ referentIndexFor });
+// `skillLibrary`/`callModel` are live accessors, not values captured now —
+// `state` and `complete` are both declared later in this module (`state` a
+// plain const, `complete` a hoisted function declaration), safe to close
+// over here because neither arrow runs until an actual `skill` capacity
+// call, well after module evaluation finishes (B.3, SPEC v2).
+const runCapacity = makeCapacityRunner({
+  referentIndexFor,
+  witnessCode,
+  claimSkill,
+  fillSlots,
+  skillLibrary: () => projectLibrary(state.skillLog),
+  callModel: (messages, opts) => complete(messages, opts),
+});
 
 const handlesFor = makeCastHandles({
   splitSentences: engineSentences,
@@ -261,6 +273,7 @@ import {
   buildSourceBlock,
   checkCitations,
   chunkSource,
+  identifyMaterial,
   retrieve,
   tokenize,
 } from "./source.js";
@@ -415,6 +428,18 @@ const state = {
    * own gamma, consumed as a contraction of the raw present. State the
    * reader is IN — no surface renders it. */
   regime: 0,
+
+  /**
+   * The browser-side skill library (B.3, SPEC v2) — an append-only log in
+   * skills.js's own plan-log discipline, folded on read. Starts seeded
+   * with the one demo skill this repo already carries in skills-demo/
+   * (greet-visitor) so the terminal's `skill` capacity has something real
+   * to claim against; there is no admission UI yet, so this is the whole
+   * library until one is built. A real admission pipeline (the model
+   * authoring a candidate, gated through skill-runner.mjs's Node-side
+   * admitSkill) is unbuilt — named future work, not implied here.
+   */
+  skillLog: createSkillLog(),
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -577,7 +602,12 @@ async function fillModels() {
       opt.textContent = `${m.name} · ${(m.size / 1e9).toFixed(1)}GB`;
       sel.append(opt);
     }
-    sel.value = MODEL_PICKER[MODEL_PICKER.length - 1];
+    // Default to the smallest offered rung, not the largest — the fastest
+    // model is what most turns actually run on (routeModel only reaches for
+    // `selected` on DEEP turns), and it is what a first connection should
+    // cost. Degrades to the next offered rung if the smallest isn't pulled,
+    // the same graceful-degradation model-routing.js already documents.
+    sel.value = state.offeredModels[0] ?? MODEL_PICKER[0];
     if (!offered.length) $("status").textContent = "ollama has no models pulled";
   } catch {
     $("status").textContent = "ollama not reachable on :11434";
@@ -617,9 +647,13 @@ async function connect() {
  * turns — and Ollama takes that array as-is. Callers may pass options this
  * endpoint has no use for (holon.js passes `effort`); they are ignored here
  * rather than policed, because the seam's shape is the contract, not the
- * host behind it.
+ * host behind it. Returns `{text, doneReason}` — Ollama's own
+ * `done_reason` ("stop" a natural end, "length" the token cap arrived
+ * first, absent when the caller cancelled via `onDelta`) — never just a
+ * bare string, so a caller can tell "the model finished" from "the cap
+ * cut it off" without re-deriving that fact by guessing at the text.
  */
-async function complete(messages, { onDelta, maxTokens, json, model } = {}) {
+async function completeOnce(messages, { onDelta, maxTokens, json, model } = {}) {
   // One request, to the one place a model lives. `model` is routed: plain
   // turns and the summary refresh spend the fastest rung; deep work (task,
   // bound, reflect) spends the model the user chose. Whatever it is, the
@@ -649,6 +683,7 @@ async function complete(messages, { onDelta, maxTokens, json, model } = {}) {
   const decoder = new TextDecoder();
   let buffer = "";
   let out = "";
+  let doneReason = null;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -664,6 +699,7 @@ async function complete(messages, { onDelta, maxTokens, json, model } = {}) {
       // real durations. That is the pace ledger's only source — the system's
       // sense of its own speed is measured, never assumed.
       if (chunk.done) {
+        doneReason = chunk.done_reason ?? null;
         state.paceLog = recordCall(state.paceLog, {
           model: modelName,
           promptChars: messages.reduce((n, m) => n + m.content.length, 0),
@@ -692,18 +728,66 @@ async function complete(messages, { onDelta, maxTokens, json, model } = {}) {
       // draft already provably heading toward pure reproduction is stopped
       // before it burns the rest of its decode budget confirming what is
       // already known. The socket is cancelled, not just abandoned, so
-      // Ollama stops computing tokens nobody will read.
+      // Ollama stops computing tokens nobody will read. Cancellation is its
+      // own reason, distinct from "stop" and "length": the caller chose to
+      // stop this, so it must never be read as eligible for continuation.
       if (onDelta?.(out) === true) {
         try {
           await reader.cancel();
         } catch {
           // already closed — nothing to do
         }
-        return out;
+        return { text: out, doneReason: "cancelled" };
       }
     }
   }
-  return out;
+  return { text: out, doneReason };
+}
+
+// A continuation asks the model to keep writing, never to restate what it
+// already wrote — measured live, the failure mode a naive "continue" nudge
+// invites (2026-08-18, this session's own diagnosis of gemma2:2b's essay
+// getting cut off mid-sentence at the token cap).
+const CONTINUE_NUDGE =
+  "Continue exactly where you left off. Do not repeat anything you already wrote, do not restate the question, and do not add a new introduction — pick up mid-thought if that is where you stopped.";
+
+// A chained continuation is still bounded (P9): seven calls at MAX_TOKENS
+// each is a generous ceiling for one answer, not an unlimited one — a
+// model that cannot converge in that budget is a separate problem this
+// cap turns into a visible, finite cost rather than a runaway one.
+const MAX_AUTO_CONTINUATIONS = 6;
+
+/**
+ * `complete()`, transparent to every existing caller (same signature, same
+ * plain-string return) — with one addition, opted into per call:
+ * `autoContinue: true` chains a follow-up request whenever Ollama's own
+ * `done_reason` says the token cap cut the model off mid-thought, rather
+ * than the model choosing to stop, and stitches the result into ONE
+ * seamless answer. Measured live (2026-08-18): asked to write an essay
+ * from a real, full-length fetched source, gemma2:2b's draft stopped
+ * mid-sentence at MAX_TOKENS ("**Expand on the connection between") —
+ * the cap, not the model, decided the essay was finished. Never chained
+ * for `json`-mode calls (a truncated schema-constrained object has no
+ * sane "continue" — Ollama's own grammar keeps those short by
+ * construction, per this function's own comment above) and bounded by
+ * `MAX_AUTO_CONTINUATIONS` so a model that never naturally stops costs a
+ * finite, disclosed number of calls rather than an unbounded one.
+ */
+async function complete(messages, { onDelta, maxTokens, json, model, autoContinue = false } = {}) {
+  let fullText = "";
+  let convo = messages;
+  for (let i = 0; ; i++) {
+    const { text, doneReason } = await completeOnce(convo, {
+      onDelta: onDelta ? (partial) => onDelta(fullText + partial) : undefined,
+      maxTokens,
+      json,
+      model,
+    });
+    fullText += text;
+    if (!autoContinue || json || doneReason !== "length" || i >= MAX_AUTO_CONTINUATIONS) break;
+    convo = [...convo, { role: "assistant", content: text }, { role: "user", content: CONTINUE_NUDGE }];
+  }
+  return fullText;
 }
 
 // ── the turn ─────────────────────────────────────────────────────────────────
@@ -1935,11 +2019,16 @@ async function boundTurn(question, typed) {
         { role: "system", content: BASE_PROMPT },
         { role: "user", content: sourceBlock ? `${question}\n\n${sourceBlock}` : question },
       ],
-      { model: state.model },
+      { model: state.model, autoContinue: true },
     );
   } catch (err) {
     free = `[engine error: ${err.message || err}]`;
   }
+  // Scrubbed before anything downstream reads it — same discipline as
+  // holonicTurn's own `call` wrapper (2026-08-18): the model is never
+  // shown this instrument's address format, so any bracket surviving into
+  // its output is neutralized rather than measured or rendered as one.
+  free = stripSelfCitations(free).text;
   const freeGrounding = checkGrounding(free, passages, { question, resolveName });
   const freeAttr = attribute(free, passages, live);
 
@@ -1958,7 +2047,9 @@ async function boundTurn(question, typed) {
     boundRaw = "";
   }
   const parsed = parseBound(boundRaw);
-  const flat = parsed.degraded ? boundRaw || "(bound reply unusable — typed degradation)" : flattenBound(parsed);
+  const flat = stripSelfCitations(
+    parsed.degraded ? boundRaw || "(bound reply unusable — typed degradation)" : flattenBound(parsed),
+  ).text;
   const boundGrounding = checkGrounding(flat, passages, { question, resolveName });
   const boundAttr = attribute(flat, passages, live);
 
@@ -2093,11 +2184,19 @@ async function reflectTurn(question, typed) {
         { role: "system", content: sys },
         { role: "user", content: question },
       ],
-      { onDelta: (out) => { body.textContent = out; }, model: state.model },
+      { onDelta: (out) => { body.textContent = out; }, model: state.model, autoContinue: true },
     );
   } catch (err) {
     answer = `[engine error: ${err.message || err}]`;
   }
+  // Same scrub as the material plane's turns (2026-08-18): whatever the
+  // model wrote is neutralized of any bracket shaped like this
+  // instrument's own address before anything measures or renders it. The
+  // self plane still shows the model its OWN address format in `sys`
+  // above (buildSelfBlock, unlike buildSourceBlock, unchanged, scoped out
+  // of this pass) — this scrub is what stands between that and the
+  // rendered answer regardless.
+  answer = stripSelfCitations(answer).text;
 
   const resolveName = castFor(offered);
   const grounding = checkGrounding(answer, offered, { question, resolveName });
@@ -2236,6 +2335,11 @@ async function refreshSummary(fold, arrivals = null) {
  * The model in the loop is whatever complete() points at. On Ollama the whole
  * task — plan, every part, every correction — runs on the machine.
  */
+// An explicit ask rarely names more than a couple of sources at once, and
+// each is a real fetch (plus, now, a real archive request) — giver: this
+// file, engineering starting point (P9).
+const NAMED_URL_MAX = 3;
+
 async function holonicTurn(task, typed = task, planMode = "model") {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
@@ -2259,7 +2363,9 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   // phase it is in and for how long, against the measured pace), and the
   // draft streaming in as the model writes it. The log is kept and
   // disclosed under the answer afterward; the draft area is display-only
-  // and is replaced by the checked rendering when the turn lands.
+  // and is replaced by the checked rendering when the turn lands. Defined
+  // early — before the named-URL fetch below — because that step narrates
+  // through the same `show`.
   const log = [];
   const logEl = document.createElement("div");
   logEl.className = "thinking";
@@ -2274,6 +2380,78 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     logEl.textContent = log.join("\n");
     node.scrollIntoView({ block: "end" });
   };
+
+  // A message can point at an address as directly as at a build's own
+  // bytes (widget.js's own lesson, applied here): an explicit http(s) URL
+  // in the operator's own words is a POINTER, not a bag of search terms,
+  // and treating it as the latter is the category error routeMessage was
+  // rewritten away from. Measured live (2026-08-18): an essay request
+  // naming an explicit substack feed address reached
+  // gatherPreflightMaterial's own search path, which reduces to letters
+  // and numbers and keeps every word as ordinary search material — the
+  // feed's own distinctive term survived the stopword filter but lost
+  // DuckDuckGo's own ranking to generic pages merely sharing the request's
+  // other words, and the named source was never fetched at all. Fetched
+  // DIRECTLY here and
+  // gated on the SAME standing web consent every other automatic crossing
+  // already uses (state.webProof, P13) — never on state.grounded, because
+  // pointing the instrument at a source is a material question, the same
+  // way attaching a file needs no checking-mode toggle, not a checking-
+  // ladder one. Persisted as a REAL source (addSource) rather than
+  // turn-scoped, unlike gatherPreflightMaterial's own speculative search
+  // picks: an EXPLICITLY named source is worth keeping and reopening, and
+  // doing so closes THIS case of the residue that function's own docstring
+  // discloses ("open in Explore fails... not a working link") — search-
+  // guessed pages stay exactly as turn-scoped and disclosed as before.
+  // Archived on request (archive: true) so a citation into it survives the
+  // live page changing or disappearing; the permanent address lands later
+  // via the deferred archive patch, the same posture every archived fetch
+  // already has — never awaited inline, since Save Page Now can take a
+  // minute the turn must not block on.
+  if (state.webProof) {
+    for (const [i, url] of extractUrls(task).slice(0, NAMED_URL_MAX).entries()) {
+      const name = `web:${hostOf(url)}-${i}`;
+      if (state.sources[name]) continue; // already attached, this turn or a prior one
+      try {
+        const f = await webApi("/api/web/fetch", { url, archive: true });
+        if (f.gap || !f.entry?.textPath) {
+          show(`named source ${hostOf(url)}: ${f.gap?.detail ?? "no readable text"}`);
+          continue;
+        }
+        let faceRes;
+        try {
+          faceRes = await fetch(pageFaceUrl(EXPLORE_BASE, f.entry.textPath));
+        } catch {
+          faceRes = await fetch(pageFaceUrl(location.origin, f.entry.textPath));
+        }
+        if (!faceRes.ok) continue;
+        const text = await faceRes.text();
+        if (!text.trim()) {
+          show(`named source ${hostOf(url)}: fetched, but no readable text`);
+          continue;
+        }
+        addSource(name, text);
+        state.provenance[name] = {
+          line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
+          fields: { url: f.entry.finalUrl ?? url },
+        };
+        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested`);
+      } catch (e) {
+        show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
+      }
+    }
+    live = liveChunks();
+  }
+
+  // Every messages array actually sent to the model this turn, verbatim —
+  // wired to renderFold's `sent` disclosure below. That parameter existed
+  // and rendered nothing (no caller ever passed it — the same documented-
+  // but-never-called shape this file's own CLAUDE.md names for
+  // routeMessage): built for exactly this, never connected. Captured at
+  // the `call` boundary rather than inside holon.js, which this repo's own
+  // CLAUDE.md marks as another session's contract — this needs no edit
+  // there at all.
+  const sentCalls = [];
 
   let phaseLabel = "planning";
   let phaseStart = performance.now();
@@ -2366,7 +2544,24 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     result = await runHolonicTask({
       task,
       chunks: live,
-      call: (messages, opts) => complete(messages, { ...opts, model: turnModel }),
+      // Wrapped, never holon.js itself (another session's contract, per
+      // CLAUDE.md — this needs no edit there): every messages array is
+      // captured verbatim for the "what was sent" disclosure, and every
+      // completion is scrubbed of any bracket shaped like this
+      // instrument's own address (stripSelfCitations, cite.js) before
+      // holon.js's own inspect/attribute/render pipeline ever sees it —
+      // the model is never shown the address format (source.js's
+      // buildSourceBlock no longer carries one) and now cannot ship one
+      // even by coincidence (a training habit, or text copied verbatim
+      // from retrieved material that happens to carry bracket notation).
+      call: async (messages, opts) => {
+        sentCalls.push({ n: sentCalls.length + 1, messages });
+        // autoContinue is safe to pass unconditionally — complete()'s own
+        // guard skips it for any json-mode call (the plan ask, notably),
+        // so this needs no per-call-kind branching here.
+        const out = await complete(messages, { ...opts, model: turnModel, autoContinue: true });
+        return stripSelfCitations(out).text;
+      },
       foldedRefs,
       makeNameResolver: castFor,
       // The relation tier is the expensive check and the one with a whole
@@ -2464,7 +2659,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     const fold = mechanicalFoldLine(task, answer);
     state.turnFolds.push(fold);
     state.summary = advanceSummaryFold(state.summary, fold);
-    renderFold(node, { fold, ran: log });
+    renderFold(node, { fold, ran: log, sent: sentCalls });
     renderThreads();
     $("status").textContent = `ready · ${state.model}`;
     state.busy = false;
@@ -2554,7 +2749,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
   await refreshSummary(fold, arrivals);
-  renderFold(node, { fold, record, ran: log });
+  renderFold(node, { fold, record, ran: log, sent: sentCalls });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
@@ -3115,6 +3310,47 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
   const entry = state.builds.find((b) => b.n === route.n);
   const landed = { ...seg, lang: route.lang && route.lang !== seg.lang ? route.lang : seg.lang };
   const before = entry.log.entries.length;
+
+  // THE SAME GATE foldTurn HAS, on the path that had none (2026-08-18).
+  // This landing takes the model's FULL code — it never passes through
+  // applyOps, so until now it landed with zero checks of any kind: a
+  // rezero here stamped whatever the model emitted as a fresh, valid
+  // ground (the laundering the diagnosis named). The candidate is
+  // witnessed BEFORE the branch decides rezero vs revise — both landings,
+  // one reading — and judged against the log's last EVA, which foldBuild's
+  // cross-ground entries array already carries across a re-zero.
+  const candidateWitness = landed.type === "code" ? witnessCode(landed.lang, landed.code) : null;
+  const prevWitness = entry.log.entries.filter((e) => e.operator === "EVA").at(-1)?.witness ?? null;
+  if (candidateWitness && witnessRegressed(prevWitness, candidateWitness)) {
+    entry.log = buildLog.refuseBuild(entry.log, {
+      gap: {
+        kind: "regressed",
+        reason: "this change would introduce a defect the current version does not have",
+        findings: candidateWitness.findings,
+      },
+      reason: "witness",
+    });
+    mirrorBuild(entry, before);
+    persistBuilds();
+    renderBuilds(entry.n);
+    // The refusal NAMES what it saw — foldTurn's own lesson ("why does it
+    // think it's adding defects?"). A plain chip, not buildChip: refused
+    // code must not reach the auto-run door.
+    const named = candidateWitness.findings
+      .map((f) => (f.id ? `${f.kind} "${f.id}"` : `${f.kind} (${String(f.detail ?? "").slice(0, 60)})`))
+      .join("; ");
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "build-chip";
+    chip.append(document.createTextNode(`fold ${entry.n} · refused · the change would introduce: ${named} — the current version does not have this defect`));
+    chip.onclick = () => {
+      showView("builds");
+      renderBuilds(entry.n);
+      document.getElementById(`build-${entry.n}`)?.scrollIntoView({ block: "start" });
+    };
+    return chip;
+  }
+
   entry.log =
     route.kind === "rezero"
       ? buildLog.rezeroBuild(entry.log, {
@@ -3129,6 +3365,12 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
   if (entry.log.entries.length > before) {
     entry.cursor = null;
     entry.draft = null;
+    // The witness closes the loop here exactly as it does in foldTurn —
+    // the landing's EVA is what gives the NEXT candidate a prev to be
+    // judged against, on this path as on that one.
+    if (candidateWitness && candidateWitness.ok !== null) {
+      entry.log = buildLog.attachWitness(entry.log, { witness: candidateWitness });
+    }
     mirrorBuild(entry, before);
   }
   persistBuilds();
@@ -3169,6 +3411,22 @@ function publishBuild(seg, caption, instruction = null, received = null) {
     // it becomes a SUPERSEDE entry when it runs, not per keypress.
     draft: null,
   };
+  // THE BIRTH IS WITNESSED (2026-08-18). Turn 1 was witnessRegressed's
+  // structural blind spot: no EVA existed until the first revision, so
+  // `prev` was null and the gate waved everything through — a build born
+  // broken (measured: a SEG op deleting `<input id="what">` passed every
+  // wall and left getElementById pointing at nothing) seeded a log whose
+  // gate could never see the defect as NEW, because it was there from
+  // entry one, unwitnessed. An EVA on the PROPOSE gives every later
+  // landing a real `prev` without redefining regression: corruption can
+  // now only ENTER at a landing where it is new — and is refused there —
+  // while a defect the birth already carried stays visible (named on this
+  // EVA, fed to every ask) but non-blocking, repair being the next
+  // iteration's job by design.
+  if (seg?.type === "code") {
+    const w = witnessCode(seg.lang, seg.code);
+    if (w.ok !== null) entry.log = buildLog.attachWitness(entry.log, { witness: w });
+  }
   state.builds.push(entry);
   mirrorBuild(entry, 0);
   persistBuilds();
@@ -3704,6 +3962,49 @@ function resetBuild() {
   renderBuilds(editorBuild.n);
 }
 
+// The demo skill this repo already carries (skills-demo/…json — "demo
+// only" per its own description), admitted into the browser-side library
+// so the terminal's `skill` capacity (B.3) has something real to claim
+// against. Inlined rather than fetched: one small, static object needs no
+// boot-time network round trip, and its digest is computed for real
+// (skillDigest, the exact identity skill-runner.mjs's own admission would
+// compute), never hand-typed.
+const GREET_VISITOR_SKILL = Object.freeze({
+  name: "greet-visitor",
+  description: "builds a one-line greeting for a named visitor — demo only",
+  anchors: Object.freeze(["greet", "visitor", "demo"]),
+  slots: Object.freeze([Object.freeze({ name: "visitorName", type: "string", required: true })]),
+  needs: Object.freeze([]),
+  body: "(slots) => `Hello, ${slots.visitorName}, thanks for trying the skills demo.`",
+  check: "async (run, organs, assert) => { const out = await run({ visitorName: 'Test Visitor' }); assert(out.includes('Test Visitor'), 'greeting must include the name'); }",
+});
+// Runs the same shape/forbidden-token checks skill-runner.mjs's real
+// admitSkill gate would (both pure, both exported from skills.js) —
+// code review found the first version of this seed skipped the gate
+// entirely and admitted unconditionally. What it still cannot do in the
+// browser is admitSkill's THIRD check: compiling the body/check and
+// running the check against the body in a real vm sandbox (Node-only,
+// same disclosed boundary as capacity-runner.js's "execution_not_wired").
+// Disclosed residue, not fixed here: this seed races `state.skillLog`
+// against the very first `skill` capacity call — `skillDigest` awaits a
+// real `crypto.subtle.digest`, a microtask that resolves long before a
+// human could type into the terminal, but nothing STRUCTURALLY prevents
+// an automated caller from winning that race.
+const demoSkillDefects = [...checkSkillShape(GREET_VISITOR_SKILL), ...scanBody(GREET_VISITOR_SKILL.body), ...scanBody(GREET_VISITOR_SKILL.check)];
+if (demoSkillDefects.length) {
+  console.error("demo skill failed its own admission gate — not seeded", demoSkillDefects);
+} else {
+  skillDigest(GREET_VISITOR_SKILL).then((digest) => {
+    state.skillLog = appendSkill(state.skillLog, {
+      kind: SKILL_ENTRY_KINDS.ADMIT,
+      name: GREET_VISITOR_SKILL.name,
+      skill: GREET_VISITOR_SKILL,
+      digest,
+      provenance: { giver: "skills-demo/", note: "seeded at boot — demo only, no real admission pipeline exists yet" },
+    });
+  });
+}
+
 // ── the terminal ────────────────────────────────────────────────────────────
 //
 // Sandboxed (P18): every runtime the terminal offers lives in this page —
@@ -3733,6 +4034,16 @@ initTerminal({
   grid,
   capacities: listCapacities(),
   runCapacity,
+  // The compose door (A.2, SPEC v2): a model distributes over the SAME act
+  // space the grammar defines — never a second one. `completeJSON` is the
+  // one crossing term.js needs to author an event: app.js's own
+  // `complete(messages, { json })` already passes a JSON Schema through
+  // Ollama's `format` parameter (grammar-constrained decoding, see its own
+  // comment), so no new model-calling mechanism is built here — this is a
+  // thin passthrough plus the same defensive `extractObject` every other
+  // structured call in this file already reads its answer through.
+  completeJSON: async (messages, schema) => extractObject(await complete(messages, { json: schema })),
+  modelName: () => state.model,
   gridLog: () => state.gridLog,
   setGridLog: (log) => {
     state.gridLog = log;
@@ -3949,7 +4260,7 @@ async function gatherPreflightMaterial(anchor) {
       // Indexed, not just host-named: two picks from the same host (two
       // Wikipedia articles, say) must not chunk under one source name and
       // silently merge their addresses.
-      chunks.push(...chunkSource(`web:${hostOf(url)}-${i}`, text));
+      chunks.push(...chunkSource(`web:${hostOf(url)}-${i}`, text, { identity: identifyMaterial(url, text) }));
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
     } catch {
       // One page failing to fetch is not the search failing — the other
@@ -4678,18 +4989,28 @@ function renderFold(node, { fold, record, sent, ran }) {
     out.append(det);
   }
 
+  // The verbatim prompt, one block per model call — an explicit affordance
+  // (user-directed, 2026-08-18), not a re-narrated summary of it. This
+  // parameter existed and rendered nothing (no caller ever passed `sent` —
+  // the same documented-but-never-called shape CLAUDE.md names for
+  // routeMessage) until holonicTurn's own `call` wrapper started
+  // capturing every messages array it actually hands to the model.
+  // Rendered as raw JSON.stringify, not this app's own pretty-printed
+  // role/content style, because "verbatim" is the whole point — a reader
+  // asking to see the actual wire payload should see exactly that, not a
+  // second-hand restatement of it.
   if (sent?.length) {
     const det = document.createElement("details");
     det.className = "fold";
-    det.innerHTML = "<summary>what was sent</summary>";
+    det.innerHTML = "<summary>what was sent — the verbatim prompt, one call at a time</summary>";
     const wrap = document.createElement("div");
-    for (const m of sent) {
+    for (const call of sent) {
       const pre = document.createElement("pre");
       pre.className = "block";
       const role = document.createElement("span");
       role.className = "role";
-      role.textContent = `${m.role} · ${m.content.length} chars`;
-      pre.append(role, document.createTextNode(m.content));
+      role.textContent = `call ${call.n} · ${call.messages.length} message(s)`;
+      pre.append(role, document.createTextNode("\n" + JSON.stringify(call.messages, null, 2)));
       wrap.append(pre);
     }
     det.append(wrap);
@@ -4884,9 +5205,14 @@ function addSource(name, text) {
     return;
   }
   state.sources[name] = text;
+  // WHAT KIND OF THING this is, computed once and carried on every chunk —
+  // the ONE choke-point every attachment/paste/upload/library pull already
+  // passes through, so this needs no per-caller change to reach any of
+  // them (identifyMaterial, source.js).
+  const identity = identifyMaterial(name, text);
   state.chunks = state.chunks
     .filter((c) => c.source !== name)
-    .concat(chunkSource(name, text, { boundaries: discoverBoundaries(text) }));
+    .concat(chunkSource(name, text, { boundaries: discoverBoundaries(text), identity }));
   renderSources();
 }
 

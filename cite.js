@@ -165,8 +165,39 @@ function bestRival(sentence, sentenceTerms, pool, offered, samples, common) {
 
 export const NULL_SAMPLES = 12;
 
-/** An address the model wrote for itself, in the shape source.js emits. */
+/**
+ * An address shape a model's own output could contain, in the form
+ * source.js emits — used ONLY by `stripSelfCitations` below, never as a
+ * reason to trust or skip measuring a sentence (see that function's own
+ * header for why the trust half of this was removed, 2026-08-18).
+ */
 const ALREADY_CITED = /\[[^\]\s]+#\d+-\d+\]/;
+
+/**
+ * A bracketed address in the model's OWN output, mechanically neutralized
+ * before anything downstream sees it — never measured as a hint, never
+ * rendered as a working link. Requirement, stated directly (user,
+ * 2026-08-18): the model must have zero ability to produce text a reader
+ * could mistake for this instrument's own citation. `buildSourceBlock`
+ * (source.js) no longer shows the model an address or asks it to cite
+ * anything, so a match here can only be a coincidence — the model's own
+ * training habit surfacing unprompted, or text quoted verbatim from
+ * retrieved material that happens to carry bracket-style notation of its
+ * own. Either way it is not a real address into THIS turn's material, and
+ * the discipline is the one P20 already uses for an unresolved link: never
+ * silently left in place, never re-asked of the model to fix, replaced
+ * with a NAMED marker so a reader sees a scrub happened rather than a
+ * plausible-looking citation that was never checked.
+ */
+export function stripSelfCitations(text) {
+  const s = String(text ?? "");
+  let removed = 0;
+  const out = s.replace(new RegExp(ALREADY_CITED.source, "g"), () => {
+    removed++;
+    return "[citation removed — not issued by this instrument]";
+  });
+  return { text: out, removed };
+}
 
 /**
  * The alphabet these patterns read is the whole one, not ASCII.
@@ -256,11 +287,17 @@ export function attribute(answer, offered, pool = [], { samples = NULL_SAMPLES }
   // What the corpus says everywhere cannot say where anything came from.
   const common = commonTerms(pool.length ? pool : offered);
   return splitSentences(answer).map((text) => {
-    // A sentence that already carries an address is not attributed. Measuring
-    // it again would put two tags on one claim — the model's and this app's,
-    // saying the same thing twice — and attribution exists to fill the gap
-    // where the model said nothing, not to sign its work.
-    if (ALREADY_CITED.test(text)) return { text, ref: null, score: 0, floor: 0, cited: true };
+    // EVERY sentence is measured, unconditionally — no bracket in the
+    // model's own text short-circuits this anymore (removed 2026-08-18).
+    // The old rule deferred to a sentence that "already carries an
+    // address," trusting the model's OWN claim about which passage backs
+    // it rather than measuring the claim itself — exactly the compliance-
+    // critical self-report L5 exists to distrust everywhere else. Since
+    // the model is no longer shown an address or asked to cite one
+    // (source.js::buildSourceBlock), a bracket surviving into its output
+    // is never a real reference to defer to; `stripSelfCitations` removes
+    // any such text from what ships, and this function never treats its
+    // presence as evidence either way.
     const terms = tokenize(text);
     let ref = null;
     let score = 0;
@@ -372,9 +409,9 @@ export function coverage(answer, offered = [], pool = [], { samples = NULL_SAMPL
   if (!corpus.length) return [];
   const common = commonTerms(corpus);
   return splitSentences(answer).map((text) => {
-    // A sentence that already carries an address needs no rescue — same
-    // rule, same reason as `attribute`: one claim, one tag.
-    if (ALREADY_CITED.test(text)) return { text, ref: null, score: 0, floor: 0, cited: true };
+    // Same removal, same reason as `attribute` (2026-08-18): no bracket in
+    // the model's own text is trusted or skipped — every sentence is
+    // measured on its own merit.
     const terms = tokenize(text);
     // The offered side's argmax — first maximum wins, `attribute`'s own rule.
     let offeredBest = null;

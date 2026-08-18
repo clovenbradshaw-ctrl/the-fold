@@ -456,6 +456,7 @@ test("an every-patch rides the entry with its counts and the cursor recompiles e
 
 import { witnessCode, witnessHtml, scriptBodies } from "./witness.js";
 import { scoutSpan } from "./widget.js";
+import { INFLECTIONAL_SUFFIXES } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the ask is NUL · Ground, its own thread, and a re-zero lands the amended ask beside its rebirth", () => {
   let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w", instruction: "make me a counter" });
@@ -528,23 +529,79 @@ test("witnessCode: a script that does not parse is a finding; material it cannot
 
 test("scoutSpan resolves the operator's own term to a byte-span through the fold, or null — never a guess", () => {
   const code = `<div id="top">hi</div>\n<button id="inc">+</button>\n<p>done</p>`;
-  const s = scoutSpan("I don't like the button", code);
+  const s = scoutSpan("I don't like the button", code, INFLECTIONAL_SUFFIXES);
   assert.equal(s.term, "button");
   const [a, b] = s.span;
   assert.equal(code.slice(a, b), `<button id="inc">+</button>`);
   // No exact-fold match → null (morphology stays unfolded — the stated limit).
-  assert.equal(scoutSpan("make the header taller", code), null);
+  assert.equal(scoutSpan("make the header taller", code, INFLECTIONAL_SUFFIXES), null);
   // Diacritics fold with offsets that survive decomposed input (P5.2).
   const deco = `x\n<p class="hélene">y</p>\nz`;
-  const d = scoutSpan("fix helene please", deco);
+  const d = scoutSpan("fix helene please", deco, INFLECTIONAL_SUFFIXES);
   assert.equal(deco.slice(d.span[0], d.span[1]), `<p class="hélene">y</p>`);
+});
+
+test("scoutSpan shares the router's inflectional fold (P11) and no longer scopes to the artifact's own <title> by accident", () => {
+  // Measured live (gemma2:2b, e2e scenario 2, 2026-08-17): this exact widget,
+  // this exact complaint. Before this fix, "buttons" had no exact match in
+  // the code (only the singular "button" appears, in the tag names), so the
+  // scout fell back to "widget" -- a single accidental hit inside the title
+  // tag, which NAMES THE WHOLE ARTIFACT and nothing a visual complaint could
+  // ever be about -- and the edit landed there instead of anywhere useful.
+  //
+  // DISCLOSED RESIDUE, not fixed here (see the referent-model note on
+  // scoutSpan's own docstring): "counter" (2 non-title places: the CSS
+  // selector and the div id) still out-selects "button" (4 places, the
+  // complaint's actual referent) on raw rarity, so the arena still does not
+  // reach the buttons. This test pins what IS fixed -- the scout no longer
+  // confidently commits to the artifact's own inert name -- without
+  // pretending the deeper fix (an entity model where "buttons" resolves to
+  // the two button elements as referents, not to a rarity contest) is done.
+  const code = [
+    "<!DOCTYPE html>", "<html>", "<head>",
+    "  <title>Counter Widget</title>",
+    "  <style>", "    #counter { font-size: 24px; }", "  </style>",
+    "</head>", "<body>",
+    '  <div id="counter">0</div>',
+    '  <button id="add">+</button>',
+    '  <button id="sub">-</button>',
+    "</body>", "</html>",
+  ].join("\n");
+  const complaint = "I don't like the colors on the counter widget, make the buttons bigger with some color.";
+  const s = scoutSpan(complaint, code, INFLECTIONAL_SUFFIXES);
+  assert.notEqual(s.term, "widget");
+  assert.ok(!code.slice(s.span[0], s.span[1]).includes("<title>"));
+});
+
+test("scoutSpan: a complaint sharing ONLY an inflected form with the code now resolves at all, instead of falling through to null", () => {
+  // The clean, unambiguous win from the P11 fix, isolated from the "widget"
+  // residue above: when the resolved term is the ONLY candidate, it decides
+  // the arena outright, exactly as an exact match already did.
+  const code = `<div id="top">hi</div>\n<button id="inc">+</button>\n<p>done</p>`;
+  const s = scoutSpan("please fix these buttons", code, INFLECTIONAL_SUFFIXES);
+  assert.equal(s.term, "button");
+  assert.equal(code.slice(s.span[0], s.span[1]), `<button id="inc">+</button>`);
+});
+
+test("scoutSpan: an inflectional match still loses to a more selective EXACT match -- resolution is a fallback, not a preference", () => {
+  // "reset" appears once (exact); "button" appears on every row. Even though
+  // "buttons" in the message could resolve to "button", "reset" is both an
+  // exact hit and more selective, so it still wins.
+  const code2 = `<button id="inc" style="s:1">+</button>\n<button id="reset" style="s:1">reset</button>`;
+  const s2 = scoutSpan("make the reset buttons bigger", code2, INFLECTIONAL_SUFFIXES);
+  assert.equal(s2.term, "reset");
+});
+
+test("scoutSpan: suffixes must come from the engine's prior register", () => {
+  assert.throws(() => scoutSpan("x", "y", null), TypeError);
+  assert.throws(() => scoutSpan("x", "y", new Set()), TypeError);
 });
 
 test("a patch applies within the scouted span: unique inside it even when the file holds two, and replay recompiles the same arena", () => {
   const code = `<button id="inc" style="s:1">+</button>\n<button id="reset" style="s:1">reset</button>`;
   let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: { type: "code", lang: "html", code }, caption: "w" });
   // "reset" (one place) decides the arena, never "button" (every row).
-  const s = scoutSpan("make the reset button bigger", code);
+  const s = scoutSpan("make the reset button bigger", code, INFLECTIONAL_SUFFIXES);
   assert.equal(s.term, "reset");
   const r = buildLog.patchBuild(log, { ops: [{ op: "SYN", find: 'style="s:1"', add: 'style="s:2"' }], within: s.span });
   assert.equal(r.landed, true, JSON.stringify(r.gap ?? null));

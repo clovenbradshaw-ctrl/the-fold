@@ -417,19 +417,29 @@ test("the tell is read from closed classes and the build's own bytes, never a wo
   for (const m of ["it's broken", "it doesn't work", "make it bigger", "center it", "this is hideous", "that's too big"])
     assert.equal(iterationTell(m, known), "anaphora", m);
 
-  // JUDGMENT — negation with a first-person subject. Nothing here knows what
-  // "like" means, and it does not need to.
-  for (const m of ["I don't like the colors", "I don\u2019t like the colors", "I do not like the palette"])
+  // JUDGMENT — negation with a first-person subject, LABELLING a tell that
+  // still has to resolve: "the colors" resolves against the build's own
+  // color: bytes through the register's inflection class (forms of one
+  // referent — the quotient, not the spelling). A judgment of something
+  // the build does not hold ("the palette") points at nothing and stays
+  // unrouted — judging is not pointing.
+  for (const m of ["I don't like the colors", "I don\u2019t like the colors"])
     assert.equal(iterationTell(m, known), "judgment", m);
+  assert.equal(iterationTell("I do not like the palette", known), null);
   // A judgment that also carries an anaphor is reported as the anaphor: both
   // are true, and the pointer is the more specific fact.
   assert.equal(iterationTell("I do not like this palette", known), "anaphora");
 
-  // DEFINITE REFERENCE — resolved against the artifact, not a vocabulary.
-  for (const m of ["fix the counter", "the button does nothing", "the button is wrong"])
-    assert.equal(iterationTell(m, known), "definite-reference", m);
+  // RESOLUTION — a content word of the message is a form the artifact's
+  // own bytes hold. No determiner needed on either side: "fix the counter"
+  // and "fix counter" resolve identically, because the reading is of
+  // forms, not grammar words.
+  for (const m of ["fix the counter", "the button does nothing", "the button is wrong", "buttons bigger please"])
+    assert.equal(iterationTell(m, known), "resolved", m);
 
-  // An INDEFINITE determiner introduces its noun, and that decides outright.
+  // A demand whose words resolve into NOTHING built stays unrouted — the
+  // introduction of something new needs no article to say so; its words
+  // simply are not this artifact's.
   for (const m of [
     "make me a countdown timer",
     "build a dashboard",
@@ -459,7 +469,13 @@ test("a definite phrase the artifact does not contain does not route — the sta
   // The affordance is narrower, never absent: an anaphor routes the same ask.
   assert.equal(iterationTell("make it blue", known), "anaphora");
   // And it resolves once the artifact does contain the thing.
-  assert.equal(iterationTell("change the background to blue", 'html\n<div style="background:#fff">0</div>'), "definite-reference");
+  assert.equal(iterationTell("change the background to blue", 'html\n<div style="background:#fff">0</div>'), "resolved");
+  // Inflection resolves through the register's received class — forms of
+  // one referent (colors ↔ color:). Dialect spelling does NOT (colour needs
+  // a received spelling prior with its own giver; a missing giver is a
+  // wall, never a derivation) — the typed limit, stated.
+  assert.equal(iterationTell("the colors are wrong", 'html\n<b style="color:#fff">x</b>'), "resolved");
+  assert.equal(iterationTell("the colours are wrong", 'html\n<b style="color:#fff">x</b>'), null);
 });
 
 test("the closed classes come from the engine's register, never from this repo", () => {
@@ -470,6 +486,7 @@ test("the closed classes come from the engine's register, never from this repo",
   assert.equal(enginePriors.ANAPHORIC_PRONOUNS_META.giver, "lang/en");
   assert.equal(enginePriors.DEFINITE_DETERMINERS_META.giver, "lang/en");
   assert.equal(enginePriors.NEGATION_WORDS_META.giver, "lang/en");
+  assert.equal(enginePriors.INFLECTIONAL_SUFFIXES_META.giver, "lang/en");
   // And a router handed something that is not the register refuses to exist.
   assert.throws(() => makeWidgetRouter({}), /prior register/);
   assert.throws(
@@ -478,12 +495,24 @@ test("the closed classes come from the engine's register, never from this repo",
   );
 });
 
-test("a creation demand beats every iteration tell in the same sentence", () => {
-  // "another one with better colours" carries a judgment AND a presupposing
-  // verb AND anaphora, and is still a demand for a second artifact. The
-  // indefinite article is what decides, and it decides first.
-  assert.equal(iterationTell("make me another one, I don't like the colors on this"), null);
-  assert.equal(iterationTell("that's broken — build a new one from scratch"), null);
+test("a creation demand carrying a pointer now routes BY the pointer — the doctrine flip, disclosed", () => {
+  // Before: any indefinite determiner vetoed routing, so "make me another
+  // one, I don't like the colors on this" forked a sibling. The user
+  // refused the veto outright ("no hardcoded list of english articles"),
+  // and the cost cuts the other way now: a demand-for-a-sibling whose
+  // words also point at the existing build ROUTES TO IT. Both errors
+  // existed; this doctrine chooses resolution over introduction because
+  // resolution is a reading and introduction-by-article was a word list.
+  // The residue is disclosed here, not papered over: an operator who
+  // wants a true sibling of an existing build says so without pointing
+  // ("make me a second counter in html" forks — nothing resolves), or
+  // forks from the panel.
+  const known = 'html\n<div style="color:#f0f">0</div>';
+  assert.equal(iterationTell("make me another one, I don't like the colors on this", known), "judgment");
+  assert.equal(iterationTell("that's broken — build a new one from scratch", known), "anaphora");
+  // Without a resolving word or an anaphor, a creation demand stays its
+  // own act, articles or none.
+  assert.equal(iterationTell("make me another one, nicer", known), null);
 });
 
 test("the number is the reference, and it is read from the operator, never the model", () => {
@@ -500,13 +529,14 @@ test("the number is the reference, and it is read from the operator, never the m
 
 test("routing carries the trigger, capped, so the re-zero can record it", () => {
   const html = { type: "code", lang: "html", code: "<p>x</p>" };
-  const builds = [{ n: 1, type: "code", lang: "html" }];
+  const builds = [{ n: 1, type: "code", lang: "html", text: 'widget <b style="color:#eee">x</b>' }];
   const route = routeSegment(html, "  I don't\n like  the colors  ", builds);
   assert.equal(route.kind, "rezero");
   assert.equal(route.trigger, "I don't like the colors", "whitespace folded, words untouched");
   assert.equal(route.tell, "judgment");
 
   const long = routeSegment(html, `it's broken ${"x".repeat(500)}`, builds);
+  assert.equal(long.kind, "rezero");
   assert.ok(long.trigger.length <= 200);
   assert.ok(long.trigger.endsWith("…"), "the cap is visible, never a silent truncation");
 });

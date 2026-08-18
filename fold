@@ -1,0 +1,140 @@
+#!/bin/sh
+# fold — get The Fold running with one command, from a totally fresh machine.
+#
+#   ./fold [port]
+#
+# What this does, in order, each step skipped if already satisfied:
+#   - installs Node.js if it's missing (Homebrew on macOS; prints
+#     instructions on Linux/Windows, since there's no one safe installer)
+#   - clones eoreader6.1 next to this repo if it isn't there yet (the
+#     engine both servers mount at /engine and /nul, and explore-server.mjs
+#     also imports it directly)
+#   - clones live_priors next to this repo if it isn't there yet (the
+#     priors organ's corpus, ~250MB; soft dependency — explore-server.mjs
+#     degrades to a typed gap without it, so this is best-effort)
+#   - installs this repo's own node_modules
+#   - installs Ollama if it's missing (Homebrew on macOS, the official
+#     install script on Linux), starts it if it isn't already listening,
+#     and pulls gemma2:2b if nothing at all is pulled yet — small (~1.6GB)
+#     and fast, so a brand-new machine ends up with something to actually
+#     talk to instead of just a running server and an empty model picker
+#   - starts explore-server.mjs on :8812 if nothing is answering there
+#     already. This port is not configurable: the chat page's Explore
+#     iframe and its postMessage origin check are hardcoded to
+#     localhost:8812 (index.html, app.js)
+#   - starts serve.mjs on $1 (default 8811), which opens the browser
+#     itself once it's listening
+#
+# explore-server is left running in the background even after this
+# script's own serve.mjs exits — it's a shared local service, and other
+# the-fold sessions on this machine (this repo carries on with many
+# branches worked concurrently) reuse it rather than each starting their
+# own copy on a port the page can't reach anyway.
+set -e
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+OS="$(uname -s)"
+
+# ── node ─────────────────────────────────────────────────────────────────
+
+if ! command -v node >/dev/null 2>&1; then
+  if [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    echo "Node.js not found — installing via Homebrew..."
+    brew install node
+  else
+    echo "error: Node.js is required and wasn't found." >&2
+    echo "  install it, then re-run ./fold:" >&2
+    if [ "$OS" = "Darwin" ]; then
+      echo "  brew install node   (or https://nodejs.org)" >&2
+    else
+      echo "  https://nodejs.org, or your distro's package manager" >&2
+    fi
+    exit 1
+  fi
+fi
+
+# ── eoreader6.1 (sibling repo; clone it if it's not there) ─────────────────
+
+EOREADER="$DIR/../eoreader6.1"
+if [ ! -d "$EOREADER/packages/engine" ]; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git is required to fetch eoreader6.1 and wasn't found" >&2
+    exit 1
+  fi
+  echo "cloning eoreader6.1 next to this repo..."
+  git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$EOREADER"
+fi
+
+# ── live_priors (sibling repo; the priors organ's corpus). Soft dependency —
+# explore-server.mjs resolves it at ../live_priors and returns a typed
+# "not-present" gap rather than failing if it's missing, so this is a
+# best-effort fetch: worth having so the priors tab has something to offer
+# on a fresh machine (toggled off by default either way, never active
+# without the reader turning a source or genre on), never worth blocking
+# the rest of the launch over. ~250MB.
+LIVE_PRIORS="$DIR/../live_priors"
+if [ ! -d "$LIVE_PRIORS" ] && command -v git >/dev/null 2>&1; then
+  echo "cloning live_priors next to this repo (priors corpus, ~250MB)..."
+  git clone https://github.com/clovenbradshaw-ctrl/live_priors.git "$LIVE_PRIORS" \
+    || echo "warning: live_priors clone failed — the priors tab will show a typed gap until it's cloned" >&2
+fi
+
+# ── this repo's own deps ────────────────────────────────────────────────────
+
+if [ ! -d "$DIR/node_modules" ]; then
+  echo "installing dependencies..."
+  (cd "$DIR" && npm install --ignore-scripts)
+fi
+
+# ── ollama: install, start, seed a model ────────────────────────────────────
+
+if ! command -v ollama >/dev/null 2>&1; then
+  echo "Ollama not found — installing..."
+  if [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    brew install ollama
+  elif [ "$OS" = "Linux" ]; then
+    curl -fsSL https://ollama.com/install.sh | sh
+  else
+    echo "error: install Ollama from https://ollama.com/download, then re-run ./fold" >&2
+    exit 1
+  fi
+fi
+
+if ! curl -s -o /dev/null -m 1 http://localhost:11434/api/tags; then
+  echo "starting ollama..."
+  ollama serve >/tmp/the-fold-ollama.log 2>&1 &
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    curl -s -o /dev/null -m 1 http://localhost:11434/api/tags && break
+    sleep 1
+  done
+  curl -s -o /dev/null -m 1 http://localhost:11434/api/tags \
+    || echo "warning: ollama still not answering on :11434 — check /tmp/the-fold-ollama.log" >&2
+fi
+
+if ! curl -s -m 1 http://localhost:11434/api/tags 2>/dev/null | grep -q '"name"'; then
+  echo "no models pulled yet — pulling gemma2:2b (~1.6GB) to get you talking fast..."
+  ollama pull gemma2:2b
+  echo "for a stronger model later: ollama pull qwen2.5:14b-instruct-q4_K_M (~9GB)"
+fi
+
+# ── explore server (fixed :8812 — see header) ───────────────────────────────
+
+EXPLORE_PORT=8812
+if curl -s -o /dev/null -m 1 "http://localhost:$EXPLORE_PORT/explore.html"; then
+  echo "explore-server already running on :$EXPLORE_PORT — reusing it"
+else
+  echo "starting explore-server on :$EXPLORE_PORT..."
+  (cd "$DIR" && nohup node explore-server.mjs "$EXPLORE_PORT" >/tmp/the-fold-explore.log 2>&1 &)
+  for _ in 1 2 3 4 5; do
+    curl -s -o /dev/null -m 1 "http://localhost:$EXPLORE_PORT/explore.html" && break
+    sleep 1
+  done
+  curl -s -o /dev/null -m 1 "http://localhost:$EXPLORE_PORT/explore.html" \
+    || echo "warning: explore-server didn't come up — check /tmp/the-fold-explore.log" >&2
+fi
+
+# ── chat server (foreground; opens the browser itself once bound) ──────────
+
+PORT="${1:-8811}"
+echo "starting the-fold chat on :$PORT..."
+exec node "$DIR/serve.mjs" "$PORT"

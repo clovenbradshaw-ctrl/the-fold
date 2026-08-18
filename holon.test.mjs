@@ -653,6 +653,31 @@ test("a draft that narrates the dialogue is an echo: refused, material's own sen
   assert.ok(result.output.includes("[weather.txt#"), "every shipped sentence wears its address");
 });
 
+test("a dialogue-act verb inside a LATER clause never convicts an earlier, unrelated subject", async () => {
+  // Chorus review (2026-08-18, Dijkstra persona): the narration guard's
+  // gap-between-subject-and-verb originally excluded only sentence-final
+  // punctuation, so a verb from the closed list sitting inside a relative
+  // clause anywhere later in the sentence still matched — "The question of
+  // emancipation, WHICH CONTEMPORARIES SAID would ruin the gentry, defined
+  // the decade" has "the question" as subject and "said" downstream, with
+  // nothing narrating anything. Fixed by stopping the gap at the same
+  // clause boundaries WH_CLAUSE already respects (comma/semicolon/colon/
+  // dash), not just end-of-sentence punctuation.
+  const history = chunkSource("history.txt", "The question of emancipation defined the decade for the gentry.");
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    return "The question of emancipation, which contemporaries said would ruin the gentry, defined the decade.";
+  };
+  const result = await runHolonicTask({
+    task: "what defined the decade for the gentry?",
+    chunks: history,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(!result.open.some((o) => o.includes("restates the prompt")), "a real answer with a relative clause is not an echo");
+  assert.ok(result.output.includes("defined the decade"), result.output);
+});
+
 test("material genuinely about a user keeps its non-narration sentences", async () => {
   // The disclosed residue's other side, pinned so the guard never widens
   // into stripping real content: a sentence whose subject happens to open

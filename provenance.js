@@ -140,7 +140,13 @@ const DEFLATE_RE = new RegExp(
 );
 const CUT_RES = [
   new RegExp(
-    `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:asks?|asked|aims?|wants?|wanted|focuse[sd]|transitions?|discusse[sd]|begins?|starts?|revolves|details?|describe[sd]|provides?|provided|is\\s+about|is\\s+asking|seeks?)\\b`,
+    // waits?|waiting and looks?|looking measured live 2026-08-18: a NYC-
+    // weather turn with real forecast pages fetched and offered drafted
+    // "The user is waiting for more information about the weather." and
+    // "The user is looking for the weather in New York." across three
+    // consecutive turns — the same register this list already names, two
+    // verb lemmas it had not yet seen.
+    `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:asks?|asked|aims?|wants?|wanted|focuse[sd]|transitions?|discusse[sd]|begins?|starts?|revolves|details?|describe[sd]|provides?|provided|is\\s+about|is\\s+asking|seeks?|waits?|waiting|looks?|looking)\\b`,
     "i",
   ),
   /^\s*it\s+(?:then\s+)?(?:asks?|aims?|transitions?|shifts?|moves|focuse[sd]|discusse[sd]|goes\s+on)\b/i,

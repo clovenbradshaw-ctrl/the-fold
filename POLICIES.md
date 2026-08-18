@@ -1798,3 +1798,180 @@ additive (`sqlSnapshotFields`, `applyDbOps`, the `dbOps` field) and touch
 no function that file already tests. Full-suite count: 706 tests / 702
 passing / 4 failing before this policy (the same 4 this repo already
 carries), 720 / 716 / 4 after.
+
+## P26 — Three more terminal languages, two of them full parity, one honestly narrower
+
+P18's registry "takes any runtime a localhost-served module can boot" — this
+policy is that clause exercised, three more times, on real npm packages, not
+a hypothetical. Ruby (`@ruby/wasm-wasi` + `@ruby/3.3-wasm-wasi`, ruby/ruby.wasm
+on wasm32-wasi, MIT), PHP (`php-wasm`, seanmorris/php-wasm on Emscripten,
+Apache-2.0), and R (`webr`, r-wasm/webr, Posit-backed) are vendored in
+`node_modules` and served from localhost exactly as pyodide and sql.js
+already are — no CDN, no PyPI-shaped tier, nothing this policy's own P1
+would refuse.
+
+**Ruby and PHP earn full parity with js/python/sql — fully severed, no
+nested Worker, `AUTO_RUN_LANGS` reachable.** `term-ruby-worker.mjs` uses
+`RubyVM.instantiateModule` + `consolePrinter` (the low-level path — never
+`DefaultRubyVM`, whose stdout hardcodes to `console.log`) to get real
+streamed out/err capture; `sever()` runs once boot resolves, because Ruby's
+one `.wasm` carries the full interpreter AND stdlib, so nothing more is ever
+fetched. `term-php-worker.mjs` uses the `PhpWeb` class, with `onoutput`/
+`onerror` wired to real per-newline streaming. Both run directly in
+whatever Worker `term.js` itself spawns for them — confirmed by reading
+every file each imports, the same standard `web.js`'s pure/impure split
+already holds this repo to.
+
+**R is real and works, with one disclosed, load-bearing narrower guarantee:
+it is not fully severable by this repo, and it is not offered where that
+would matter.** `new WebR(...)` unconditionally spawns a SECOND, nested
+Worker (r-wasm's own `webr-worker.js`) to run the actual R engine — a file
+this repo did not author and cannot inject a `sever()` into before it runs.
+Ordinary R code execution still touches no network (no proxy configured;
+`download.file()`/`url()` fail the ordinary offline way); the one real path
+is R's own package installer (`webr::install()`/`install.packages()`,
+reaching webR's own default package-repository host from inside that
+nested worker) — reachable only by operator-typed R code calling it
+directly, the same class of residue P14 already discloses for the skills
+sandbox's vm context ("an authority wall by construction... not a hardened
+security boundary"). **The consequence is drawn, not left implicit:** `r`
+is never added to `AUTO_RUN_LANGS`. It is unreachable from both automatic,
+instrument-decided crossings this repo already has for the fully-severed
+five — a model's own fold auto-running, and the chat's one-shot `/run`
+door — and reachable ONLY by a person typing `r` at the fold prompt and
+driving it themselves, the identical posture P22's `/act` and P24's `/run`
+already hold for every crossing that needs a human's own deliberate
+trigger. Verified live: `/run r\n1+1` in the real chat composer refuses
+`unsupported_runtime` by name, mechanically, with no model call and no
+worker ever spawned for it.
+
+**Two live corrections to what the vendoring research could not have
+caught without loading the packages in THIS repo's own bundler-free,
+Worker-sandboxed architecture — found by running real code, not by
+re-reading documentation (P5.5's discipline, both directions).**
+
+1. The PHP candidate the research ranked first — `@php-wasm/web` +
+   `@php-wasm/universal` (WordPress Playground) — does not load here at
+   all: its per-version build glue opens with a static `import
+   dependencyFilename from './8_3_32/php_8_3.wasm'`, a Vite-only asset-URL
+   pattern that only resolves under a bundler and fails outright at the
+   browser's module-script parse step against this repo's plain
+   `import()`-from-disk serving. The research's own second-named
+   candidate, `php-wasm` (seanmorris/php-wasm), was substituted — verified
+   by reading its actual source (plain relative dynamic imports, real
+   `fetch()`, no bundler assumptions) rather than trusted from its README.
+   Its disclosed cost: no per-version npm install exists for it, so
+   vendoring it means vendoring PHP 8.0 through 8.5 together (~182MB
+   unpacked), of which only one ~13MB `.wasm` is ever fetched by the
+   browser at runtime — a real, stated size tradeoff for the only candidate
+   that actually works here, not a silent one.
+2. Two Worker-compatibility gaps existed in the vendored bytes THEMSELVES,
+   invisible to reading documentation and found only by booting in a real
+   dedicated Worker: `php-wasm`'s Emscripten build references the bare
+   identifiers `document`/`window` unconditionally at its own top level
+   (dead fullscreen/canvas/audio-context runtime glue a text-mode SAPI
+   never calls), fixed by assigning `globalThis.document = undefined;
+   globalThis.window = undefined;` before import — `undefined`, never a
+   functional stub, so the package's own environment detection (which
+   reads `typeof window`) still correctly resolves WORKER, unchanged.
+   Separately, `webr`'s declared "main" entry (`dist/webr.mjs`) opens with
+   unconditional top-level `import {createRequire} from 'module'` — a
+   genuine Node built-in the package's own `package.json` `exports` map
+   already routes browsers AWAY from (the `"browser"` condition names
+   `dist/webr.js`, verified to carry the identical exported surface with
+   zero Node-only imports) — but a literal path import, unlike a bundler
+   or Node's own resolver, cannot see `exports` map conditions, so the
+   correct file had to be named explicitly rather than assumed from the
+   package's own declared main. Both fixes are disclosed at their point of
+   use in the worker files' own headers, not only here.
+
+**A testing-tool artifact, disclosed so it is not re-chased as a code
+defect.** The first live attempt at R's boot, run inside an AI coding
+assistant's own sandboxed preview pane, failed with an opaque,
+detail-stripped Worker error. A minimal control — a plain Worker spawning
+ANOTHER plain Worker, no webR involved — failed identically in that same
+pane and succeeded cleanly on the first try in a real, unsandboxed Chrome
+tab against the same server. The restriction belongs to that specific
+testing tool, not to a real browser, not to webR's own architecture, and
+not to this repo's code — stated here because the wrong conclusion (that R
+cannot run in a nested Worker at all) would have been a strictly worse,
+and false, policy to write down.
+
+**Continuation grammar, mechanical, not a parser, disclosed narrower
+scope.** Ruby needs multi-line def/end blocks; `rubyBlockDepth` (term.js)
+opens one level on a line-initial `def`/`class`/`module`/`case`/`begin`/
+`for`/`if`/`unless`/`while`/`until` or a trailing `do`, and closes one per
+free-standing `end` — the statement-modifier form ("puts x if y") never
+opens, because it never starts a line with the keyword. R needs bracket-
+spanning expressions; `rBracketDepth` tracks `(`/`{`/`[` depth per
+character, skipping anything inside a `"…"`/`'…'` string or a `#` comment
+so a bracket mentioned in either is never miscounted. Both are word/
+character-boundary walks, not parsers — heredocs, %-literals, and R's raw
+strings are not excluded — and both inherit the universal trailing-
+backslash continuation every runtime already has as the disclosed escape
+hatch when the heuristic misjudges. PHP gets no analogous rule this pass:
+its primary REPL use (single-statement echo/var_dump) does not need one,
+and a wrong heuristic risks wedging the prompt worse than the absence of
+one — a deliberately narrower scope, named rather than silently assumed
+complete.
+
+**A finding that contradicted this policy's own drafting assumption,
+corrected before being asserted.** The task that produced this policy
+assumed `serve.mjs`'s static-file routing allow-lists specific
+`node_modules` subpaths, matching how pyodide and sql.js are exposed.
+Reading the actual routing code found the opposite: both `serve.mjs` and
+`explore-server.mjs` serve the WHOLE repo directory generically (`join(ROOT,
+rel)` plus a path-escape guard, nothing narrower), so no server change was
+needed for any of the three new packages — the `.wasm` → `application/wasm`
+MIME entry, needed for `WebAssembly.compileStreaming`, was already present
+in both servers from the pyodide/sql.js pass. Stated here because the
+policy's own premise turning out false, and being corrected rather than
+assumed, is itself the P5.5 discipline this repo holds everywhere else.
+
+**Evidence.** Driven live end to end, twice — once in a sandboxed preview
+pane (caught the PHP and R bugs above), once in a real, unsandboxed Chrome
+tab against the same `node serve.mjs` instance (confirmed every fix and
+the pane-specific nested-Worker artifact). Ruby: `def greet(name)` / multi-
+line body / `end` landed correctly, `greet("world")` printed `hi, world`
+via Ruby's own auto-print of a visible return value; a `NameError` on an
+undefined method printed as a clean typed error, not a crash. PHP: `echo 1
++ 1;` printed `2` (after the tag-ownership fix — before it, the bare
+statement echoed back as literal text); `var_dump`/`array_sum` over a real
+array printed correct structured output. R: `1 + 1` auto-printed `[1] 2`;
+a multi-line `function(x) { x * 2 }` spanning three prompts via bracket
+continuation, called as `f(21)`, printed `[1] 42`. Material crossing
+(`File.read("/material/…")`, PHP's `file_exists("/material")`, the `mount`
+re-sync command) confirmed for ruby and php against a real dropped file.
+`/run ruby` and `/run php`, typed in the real chat composer against a real
+running model (`gemma2:2b`), executed in fresh throwaway workers and
+printed correct results (`42`, `hi from php: 42`); `/run r` refused as
+designed; all three attempts and both non-R successes landed `term-run`/
+`term-run-refused` rows on `record/explore-record.jsonl` with `via:"chat"`
+within the same second, read back live via the record API, confirming the
+identical recording path P24 already established is reused unchanged, not
+duplicated. Boot times, measured live and repeatedly: ruby ~9-12s typical
+(the `AUTO_RUN_TIMEOUT_MS` comment discloses a real, once-observed minute-
+plus outlier under heavy concurrent load, not treated as the common case),
+php ~9-10s, r ~13-15s — all the same order of magnitude as python's own
+already-documented ~9s pyodide boot.
+
+**Enforced:** `term.test.mjs` — the severed-egress list checked to agree
+across all six workers (not three); `mountName` checked to agree across
+all four material-mounting workers; `rubyBlockDepth`/`rBracketDepth` tested
+directly as pure functions AND through `continues()`; `autoRunnable` and
+`parseRunCommand` re-tested against the actual new boundary (ruby/php now
+true, r now the disclosed false — two pre-existing tests that had encoded
+"ruby is not runnable yet" as their own worked example were corrected to
+test the real, current boundary rather than left to quietly assert a fact
+this policy just changed). `constitution.test.mjs`'s II.13 scan passes with
+all three new worker files walked from `term.js`'s `ROSTER` data (the
+walker's own `module-path` extraction rule, built for exactly this
+indirection) and zero non-local host literals — including in the new
+files' own header comments, which name real remote hosts (`repo.r-wasm.org`
+et al.) as PROSE, deliberately without a literal `https://` prefix, so the
+disclosure is legible without tripping the same scan it is disclosing
+against. Full suite: 735 tests / 731 passing / 4 failing before this
+policy (the same 4 this repo already carries — `measure.test.mjs`, three
+`webllm-rung.test.mjs` model-file cases, confirmed via `git stash` against
+this exact worktree, not trusted from memory), 741 / 737 / 4 after — zero
+regressions anywhere else in the suite.

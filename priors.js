@@ -348,32 +348,67 @@ export function rankPriorCandidates(claim, entries) {
  * "priors" aspect carries (claims.js reads `consulted` and `stating` as
  * numbers; `documents` is the provenance the projection may open).
  *
+ * `documents` may carry gapped rows — a candidate the walk saw but the read
+ * lost (moved, no longer UTF-8; explore-server.mjs's own `{..., gap: {...}}`
+ * shape). Those never count as consulted: a gap is inherited, never derived
+ * through (FOLD-CONSTITUTION IV.3) — the same discipline proof.js/primary.js
+ * already apply to a failed web fetch (their `failed` list, kept apart from
+ * `read`).
+ *
+ * `independence` counts DISTINCT WORKS among the stating documents — by
+ * title, falling back to path when a document carries none — because this
+ * corpus shelves hundreds of same-work files under one label (516 UDHR
+ * translations, every one titled "Universal Declaration of Human Rights"):
+ * N copies of one document are one perspective, not N (POLICIES P12), the
+ * same discipline proof.js/primary.js apply to distinct hosts. The `basis`
+ * names what independence is NOT tested against, same as its siblings.
+ *
  * Verdicts:
  *   stated-by-library     — at least one consulted document states the
  *                           claim; the snips are the addresses.
  *   unstated-by-consulted — documents were read and none states it. NOT
  *                           falsity: the counted fact is "0 of N read".
- *   no-candidates         — no document shares the claim's words; nothing
- *                           was read. A gap in the shelf, not a verdict.
+ *   not-consulted         — candidates existed but every attempted read
+ *                           failed (moved files, non-UTF-8) — a gap, not a
+ *                           verdict about content.
+ *   no-candidates         — no document's name or title shares the claim's
+ *                           words; nothing was read. A gap in the shelf.
  */
 export function foldPriors(claim, { candidates = 0, documents = [] } = {}) {
-  const stating = documents.filter((d) => d?.stating);
-  const consulted = documents.length;
-  const verdict = stating.length ? "stated-by-library" : consulted ? "unstated-by-consulted" : "no-candidates";
-  const sentence = !consulted
-    ? "the reference library holds no document sharing the claim's words — a gap in the shelf, not a verdict"
-    : `the reference library: ${stating.length} of ${consulted} document(s) consulted state it` +
-      (stating.length ? "" : " — a library that does not state a claim is a result, never a refutation") +
-      (candidates > consulted
-        ? `; ${candidates} documents shared the claim's words and the ${consulted} best-matching were read (PRIORS_DOCS_CONSULTED)`
-        : "");
+  const read = documents.filter((d) => d && !d.gap);
+  const failed = documents.filter((d) => d && d.gap);
+  const stating = read.filter((d) => d?.stating);
+  const consulted = read.length;
+  const works = new Set(stating.map((d) => d.title ?? d.path)).size;
+  const verdict = stating.length ? "stated-by-library" : consulted ? "unstated-by-consulted" : candidates > 0 ? "not-consulted" : "no-candidates";
+  const rankNote =
+    candidates > documents.length
+      ? `; ${candidates} document(s) shared the claim's words (ranked by overlap, ties broken by category then file path) and the first ${documents.length} were read (PRIORS_DOCS_CONSULTED)`
+      : "";
+  const failedNote = failed.length ? `; ${failed.length} could not be read, counted separately` : "";
+  const sentence =
+    verdict === "no-candidates"
+      ? "no document's name or title shares the claim's words — a gap in the shelf, not a verdict"
+      : verdict === "not-consulted"
+        ? `${candidates} document(s) shared the claim's words; none of the ${failed.length} attempted could be read — a gap, not a verdict`
+        : `the reference library: ${stating.length} of ${consulted} document(s) consulted state it` +
+          (stating.length
+            ? ` (${works} distinct work(s) — documents sharing an identical title count once)`
+            : " — a library that does not state a claim is a result, never a refutation") +
+          rankNote +
+          failedNote;
   return {
     verdict,
     claim: claim?.text ?? null,
     kind: claim?.kind ?? null,
     candidates,
     consulted,
+    failed: failed.length,
     stating: stating.length,
+    independence: {
+      works,
+      basis: "distinct titles among the corpus's own documents; two differently-titled documents may still trace to one upstream work, which is not tested",
+    },
     documents,
     sentence,
   };

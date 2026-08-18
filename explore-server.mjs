@@ -531,7 +531,7 @@ async function verifySnapshot(archiveUrl) {
  * the archive setting is honoured — exactly what /api/web/fetch always did.
  * Returns { url, entry, fold, text } or { url, gap } with the gap typed.
  */
-async function fetchAndKeep(url) {
+async function fetchAndKeep(url, { forceArchive = false } = {}) {
   const retrievedAt = new Date().toISOString();
   let fetched;
   try {
@@ -581,6 +581,13 @@ async function fetchAndKeep(url) {
   }
 
   const settings = webSettings();
+  // `forceArchive` is a PER-CALL override, never a change to the standing
+  // setting: a source the app is about to cite (an explicitly-named URL,
+  // never a speculative search hit) is worth archiving regardless of
+  // whether the reader has turned on general browsing archival — the same
+  // way `every` overrides applyOps' default for one call without touching
+  // its default. `archiveAsked` on the record names which reason applied.
+  const willArchive = settings.archiveOrg || forceArchive;
   const entry = {
     id: crypto.randomUUID(),
     url,
@@ -595,11 +602,11 @@ async function fetchAndKeep(url) {
     rawPath: relOf(rawFile),
     textPath: textFile ? relOf(textFile) : null,
     ...(looksLikeChallenge({ title, textChars: text?.length }) ? { challenge: true } : {}),
-    archive: settings.archiveOrg ? { status: "pending", askedAt: retrievedAt } : null,
+    archive: willArchive ? { status: "pending", askedAt: retrievedAt } : null,
   };
   appendWebHistory(entry);
-  record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: !!settings.archiveOrg });
-  if (settings.archiveOrg) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
+  record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: willArchive });
+  if (willArchive) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
   return { url, entry, fold, text };
 }
 
@@ -1625,7 +1632,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const url = normalizeUrl(body.url);
       if (!url) return send(res, 400, { error: "url must be http(s), not loopback — the tree already serves local files" });
-      const got = await fetchAndKeep(url);
+      const got = await fetchAndKeep(url, { forceArchive: !!body.archive });
       if (got.gap) return send(res, 200, { url, gap: got.gap });
       return send(res, 200, { entry: got.entry, fold: got.fold });
     }
@@ -1998,16 +2005,27 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- the record's tail, for the UI affordance; the full file is in the tree.
+    // tail=N returns the last N lines (default 50); offset=M+N returns lines
+    // M..M+N for lazy loading older batches. The file is append-only and never
+    // truncated — every line is recorded, and the client loads what it needs.
     if (req.method === "GET" && p === "/api/record") {
-      const tail = Math.min(Number(url.searchParams.get("tail") ?? 50) || 50, 500);
+      const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0);
+      const tail = Math.max(Number(url.searchParams.get("tail")) || 50, 0);
       let lines = [];
+      let total = 0;
       try {
         const all = (await import("node:fs/promises")).readFile;
         lines = (await all(RECORD_PATH, "utf8")).trimEnd().split("\n");
+        total = lines.length;
       } catch {
         /* no record yet */
       }
-      return send(res, 200, { path: relOf(RECORD_PATH), total: lines.length, tail: lines.slice(-tail) });
+      // tail=N: last N lines. offset=M: lines starting at M (from the start).
+      // When both are given, offset wins — it names a window.
+      const slice = offset > 0
+        ? lines.slice(offset, offset + (tail || 50))
+        : lines.slice(-tail || -50);
+      return send(res, 200, { path: relOf(RECORD_PATH), total, offset, tail: slice });
     }
 
     if (req.method === "GET") return serveStatic(req, res, p);

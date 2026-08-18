@@ -3,9 +3,11 @@
 // only fills #pane-log and toggles how #pane-terminal is SHOWN.
 //
 // LOG. The record (record/explore-record.jsonl) is the floor under every
-// standing — append-only, one line per computed event. This pane is its
-// readable face: the same lines, newest first, filterable, refreshed while
-// you watch. Reading it is display, not computation; nothing here writes.
+// standing — append-only, one line per computed event, no cap, never
+// truncated. This pane is its readable face: the same lines, newest first,
+// filterable, lazy-loaded in batches, refreshed while you watch. Every line
+// is auditable; the full file is exportable from the pane. Reading it is
+// display, not computation; nothing here writes.
 //
 // TERMINAL AS DRAWER. The terminal is not a place, it is a second grammar —
 // so it slides up OVER whatever tab you are on (ctrl+`, or the >_ button)
@@ -18,10 +20,23 @@ const $id = (x) => document.getElementById(x);
 // The record lives on the Sources server. Same-origin first (one server can
 // serve the whole app); the default explore port as fallback (the chat page
 // may be served by plain serve.mjs, which has no API).
-async function fetchRecordTail() {
+//
+// Lazy loading: the first fetch gets the most recent BATCH_SIZE lines
+// (tail=BATCH_SIZE). "Load older" fetches the next batch via offset.
+// Every line in the file is accessible — no cap, full auditability.
+const BATCH_SIZE = 100;
+
+/** Fetch a batch of record lines. tail=N returns the last N (newest).
+ *  offset=M returns lines starting at M from the start (for older batches).
+ *  Returns {path, total, offset, tail: [...lines]} or null. */
+async function fetchRecordBatch({ tail, offset } = {}) {
   for (const base of ["", "http://localhost:8812"]) {
     try {
-      const res = await fetch(`${base}/api/record?tail=200`);
+      const params = new URLSearchParams();
+      if (offset != null) params.set("offset", String(offset));
+      if (tail != null) params.set("tail", String(tail));
+      const qs = params.toString();
+      const res = await fetch(`${base}/api/record${qs ? "?" + qs : ""}`);
       if (!res.ok) continue;
       return await res.json();
     } catch {
@@ -31,14 +46,19 @@ async function fetchRecordTail() {
   return null;
 }
 
-/** One record line, compacted for a row: the essentials, never a paraphrase. */
+/** One record line, compacted for a row: every field the event carries,
+ *  so no entry appears blank. Skips internal/bookkeeping fields and the
+ *  event name itself (already shown in its own column). */
 function summarizeEvent(e) {
-  const keep = ["path", "q", "query", "url", "kinds", "records", "bytes", "elapsedMs", "results", "kept", "of", "scope", "error", "gap", "port"];
+  const skip = new Set(["event", "at", "ts"]);
   const parts = [];
-  for (const k of keep) {
-    if (e[k] === undefined || e[k] === null) continue;
-    const v = typeof e[k] === "object" ? JSON.stringify(e[k]) : String(e[k]);
-    parts.push(`${k}=${v.length > 60 ? v.slice(0, 59) + "…" : v}`);
+  for (const [k, v] of Object.entries(e)) {
+    if (skip.has(k)) continue;
+    if (v === undefined || v === null) continue;
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    const short = s.length > 80 ? s.slice(0, 79) + "…" : s;
+    parts.push(`${k}=${short}`);
+    if (parts.length >= 6) break;
   }
   return parts.join("  ");
 }
@@ -68,6 +88,14 @@ let logTimer = null;
 // 5s refresh leaves it in peace (a profile being read must not repaint).
 let logSel = null;
 
+// Lazy-load state. Every line is in the file; we load batches and remember
+// how far back we've gone. On refresh we re-fetch the top only, preserving
+// the loaded window — a log you are watching should not lose its place.
+let logLoaded = [];      // [{entry, raw}] — all loaded lines, newest first
+let logOlderOffset = null; // next offset for "load older" (null = exhausted)
+let logTotal = 0;        // total lines in the file
+let logFilePath = "";    // the record file path
+
 /** The row list is a fold of the file; the profile is the descent — every
  *  field of the line, and the line itself, verbatim, underneath. */
 function renderLogProfile(holder, note) {
@@ -85,10 +113,10 @@ function renderLogProfile(holder, note) {
     renderLogPane();
   };
   const sep = document.createElement("span");
-  sep.textContent = " › ";
+  sep.textContent = " \u203a ";
   const here = document.createElement("span");
   here.className = "log-crumb-here";
-  here.textContent = `${entry.event ?? "?"} · ${(entry.at ?? "").replace("T", " ").slice(0, 19)}`;
+  here.textContent = `${entry.event ?? "?"} \u00b7 ${(entry.at ?? "").replace("T", " ").slice(0, 19)}`;
   crumbs.append(back, sep, here);
   holder.appendChild(crumbs);
 
@@ -112,7 +140,7 @@ function renderLogProfile(holder, note) {
     tr.className = "log-tbl-more";
     const td = document.createElement("td");
     td.colSpan = 2;
-    td.textContent = `+${rows.length - PROFILE_ROW_CAP} more fields — the raw line below holds them all`;
+    td.textContent = `+${rows.length - PROFILE_ROW_CAP} more fields \u2014 the raw line below holds them all`;
     tr.appendChild(td);
     tbody.appendChild(tr);
   }
@@ -157,7 +185,7 @@ function renderLogProfile(holder, note) {
   det.className = "log-raw-wrap";
   const rawHead = document.createElement("summary");
   rawHead.className = "log-raw-head";
-  rawHead.textContent = "the line as it sits in the record — the fields above are a fold of exactly this";
+  rawHead.textContent = "the line as it sits in the record \u2014 the fields above are a fold of exactly this";
   const pre = document.createElement("pre");
   pre.className = "log-raw";
   pre.textContent = raw;
@@ -167,6 +195,108 @@ function renderLogProfile(holder, note) {
   note.textContent = "";
 }
 
+/** Render one record row into the holder. */
+function appendLogRow(holder, { entry: e, raw }) {
+  const row = document.createElement("div");
+  row.className = "log-row";
+  row.tabIndex = 0;
+  row.title = "open this event";
+  const t = document.createElement("span");
+  t.className = "log-time";
+  t.textContent = (e.at ?? "").slice(11, 19) || "\u2014";
+  const ev = document.createElement("span");
+  ev.className = `log-event${/error|gap/.test(e.event ?? "") ? " warn" : ""}`;
+  ev.textContent = e.event ?? "?";
+  const detail = document.createElement("span");
+  detail.className = "log-detail";
+  detail.textContent = summarizeEvent(e);
+  row.append(t, ev, detail);
+  const open = () => {
+    logSel = { entry: e, raw };
+    renderLogPane();
+  };
+  row.onclick = open;
+  row.onkeydown = (kev) => {
+    if (kev.key === "Enter") open();
+  };
+  holder.appendChild(row);
+}
+
+/** Parse raw lines into {entry, raw}, skipping unparseable lines. */
+function parseLines(rawLines) {
+  const out = [];
+  for (const raw of rawLines ?? []) {
+    try {
+      out.push({ entry: JSON.parse(raw), raw });
+    } catch {
+      /* unparseable line still in file; this face cannot row it */
+    }
+  }
+  return out;
+}
+
+/** Render the loaded rows, newest first, with a "load older" button
+ *  and an export-all button at the bottom. */
+function renderLogRows(holder, note, filter) {
+  holder.textContent = "";
+  const filtered = filter
+    ? logLoaded.filter((l) => l.raw.toLowerCase().includes(filter))
+    : logLoaded;
+  for (const pair of filtered) {
+    appendLogRow(holder, pair);
+  }
+  // "Load older" button
+  if (logOlderOffset != null && logOlderOffset > 0) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "log-load-older";
+    btn.textContent = `load older (${logOlderOffset} lines before the current view)`;
+    btn.onclick = async () => {
+      const offset = Math.max(logOlderOffset - BATCH_SIZE, 0);
+      const body = await fetchRecordBatch({ offset, tail: BATCH_SIZE });
+      if (!body) return;
+      const older = parseLines(body.tail);
+      older.reverse();
+      logLoaded = [...logLoaded, ...older];
+      logOlderOffset = offset;
+      renderLogRows(holder, note, ($id("log-filter")?.value ?? "").trim().toLowerCase());
+    };
+    holder.appendChild(btn);
+  }
+  // Export button — downloads the full record as a .jsonl file
+  if (logTotal > 0) {
+    const exp = document.createElement("button");
+    exp.type = "button";
+    exp.className = "log-load-older";
+    exp.textContent = `export full record (${logTotal} lines)`;
+    exp.onclick = async () => {
+      exp.textContent = "exporting\u2026";
+      exp.disabled = true;
+      const body = await fetchRecordBatch({ tail: logTotal });
+      if (!body?.tail?.length) { exp.textContent = "export failed"; return; }
+      const blob = new Blob([body.tail.join("\n") + "\n"], { type: "application/x-ndjson" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "explore-record.jsonl";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      exp.textContent = `export full record (${logTotal} lines)`;
+      exp.disabled = false;
+    };
+    holder.appendChild(exp);
+  }
+  const loadedCount = logLoaded.length;
+  const remaining = Math.max(logTotal - loadedCount, 0);
+  const noteParts = [`${loadedCount} loaded`];
+  if (remaining > 0) noteParts.push(`${remaining} older`);
+  noteParts.push("newest first \u00b7 click a row for its profile \u00b7 full record exportable below");
+  note.textContent = noteParts.join(" \u00b7 ") + (filter ? ` \u00b7 filter: "${filter}"` : "");
+}
+
+/** The main render. On first load, fetches the most recent BATCH_SIZE lines.
+ *  On refresh (5s timer), re-fetches only the top to pick up new entries
+ *  without losing the loaded window or scroll position. Filter changes
+ *  re-render from what is already loaded. */
 async function renderLogPane() {
   const pane = $id("pane-log");
   if (!pane) return;
@@ -177,53 +307,40 @@ async function renderLogPane() {
     renderLogProfile(holder, note);
     return;
   }
-  const body = await fetchRecordTail();
-  if (logSel) return; // a profile opened while the tail was in flight — leave it be
+
+  const filter = ($id("log-filter")?.value ?? "").trim().toLowerCase();
+
+  // Refresh: we already have loaded lines — re-fetch the top only and merge.
+  if (logLoaded.length > 0) {
+    const top = await fetchRecordBatch({ tail: BATCH_SIZE });
+    if (logSel) return;
+    if (!top) return;
+    logTotal = top.total;
+    logFilePath = top.path ?? "";
+    const fresh = parseLines(top.tail);
+    fresh.reverse();
+    const freshRaws = new Set(fresh.map((f) => f.raw));
+    const older = logLoaded.filter((l) => !freshRaws.has(l.raw));
+    logLoaded = [...fresh, ...older];
+    logOlderOffset = top.total - BATCH_SIZE;
+    renderLogRows(holder, note, filter);
+    return;
+  }
+
+  // First load: fetch the most recent batch
+  const body = await fetchRecordBatch({ tail: BATCH_SIZE });
+  if (logSel) return;
   if (!body) {
-    note.textContent = "the record lives on the Sources server — start explore-server.mjs to read it here";
+    note.textContent = "the record lives on the Sources server \u2014 start explore-server.mjs to read it here";
     holder.textContent = "";
     return;
   }
-  const filter = ($id("log-filter")?.value ?? "").trim().toLowerCase();
-  const lines = [];
-  for (const raw of body.tail ?? []) {
-    let e;
-    try {
-      e = JSON.parse(raw);
-    } catch {
-      continue; // an unparseable line still exists in the file; this face just cannot row it
-    }
-    if (filter && !raw.toLowerCase().includes(filter)) continue;
-    lines.push({ entry: e, raw });
-  }
-  lines.reverse(); // newest first — this is a log being watched, not read cover to cover
-  holder.textContent = "";
-  for (const { entry: e, raw } of lines) {
-    const row = document.createElement("div");
-    row.className = "log-row";
-    row.tabIndex = 0;
-    row.title = "open this event";
-    const t = document.createElement("span");
-    t.className = "log-time";
-    t.textContent = (e.at ?? "").slice(11, 19) || "—";
-    const ev = document.createElement("span");
-    ev.className = `log-event${/error|gap/.test(e.event ?? "") ? " warn" : ""}`;
-    ev.textContent = e.event ?? "?";
-    const detail = document.createElement("span");
-    detail.className = "log-detail";
-    detail.textContent = summarizeEvent(e);
-    row.append(t, ev, detail);
-    const open = () => {
-      logSel = { entry: e, raw };
-      renderLogPane();
-    };
-    row.onclick = open;
-    row.onkeydown = (kev) => {
-      if (kev.key === "Enter") open();
-    };
-    holder.appendChild(row);
-  }
-  note.textContent = `${lines.length} of the last ${body.tail?.length ?? 0} events${filter ? ` matching “${filter}”` : ""} · newest first · click a row for its profile · the file itself: ${body.path}`;
+  logTotal = body.total;
+  logFilePath = body.path ?? "";
+  logLoaded = parseLines(body.tail);
+  logLoaded.reverse();
+  logOlderOffset = body.total - BATCH_SIZE;
+  renderLogRows(holder, note, filter);
 }
 
 function logPaneVisible() {
@@ -258,15 +375,15 @@ function buildTermControls(pane) {
   bar.className = "term-controls";
   const full = document.createElement("button");
   full.type = "button";
-  full.textContent = "⤢";
+  full.textContent = "\u2922";
   full.title = "full screen (and back)";
   full.onclick = () => {
     const now = document.body.classList.toggle("term-full");
-    full.textContent = now ? "⤡" : "⤢";
+    full.textContent = now ? "\u2921" : "\u2922";
   };
   const close = document.createElement("button");
   close.type = "button";
-  close.textContent = "✕";
+  close.textContent = "\u2715";
   close.title = "close the terminal (ctrl+`)";
   close.onclick = () => toggleTermDrawer(false);
   bar.append(full, close);
@@ -286,7 +403,7 @@ function toggleTermDrawer(open) {
   if (!now && document.body.classList.contains("term-drawer")) {
     document.body.classList.remove("term-full");
     const fullBtn = pane.querySelector(".term-controls button");
-    if (fullBtn) fullBtn.textContent = "⤢";
+    if (fullBtn) fullBtn.textContent = "\u2922";
     if (termHome.parent) termHome.parent.insertBefore(pane, termHome.next);
   }
   document.body.classList.toggle("term-drawer", now);

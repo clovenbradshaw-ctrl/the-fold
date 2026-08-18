@@ -2529,10 +2529,15 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     // "need" it. Turn-scoped: these chunks join `live` for this call only
     // and are never written to state.sources, so no attachment pill
     // appears and nothing persists.
+    // The turn's own URL ledger, shared by the preflight and the re-surf
+    // loop so no page is fetched-and-chunked twice in one turn under two
+    // names — and so a re-surf round that finds only what was already read
+    // honestly reports "nothing new."
+    const webSeen = new Set();
     if (shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
       setPhase("checking for material");
       show("nothing attached — checking the web before answering…");
-      const preflight = await gatherPreflightMaterial(`${task} ${discourseLine}`);
+      const preflight = await gatherPreflightMaterial(`${task} ${discourseLine}`, { seen: webSeen });
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -2574,6 +2579,18 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       // made, so it lives behind the same switch. Off means every cited URL
       // ships `unexamined`, never silently treated as checked.
       checkLink: state.webProof ? checkLinkCitation : null,
+      // The re-surf loop (resurf.js + holon.js's runPart, P25): when the
+      // question's own words are not in the material — or the draft comes
+      // back a detected non-answer — the turn goes BACK to the world,
+      // bounded, mechanically, on the question's own words only. Same gate
+      // as the preflight, its sibling (P23): checking mode AND standing web
+      // consent, because this is the same kind of crossing — automatic,
+      // instrument-decided, not a click the reader made. Off means null,
+      // and the loop never runs.
+      resurf:
+        state.grounded && state.webProof
+          ? (query, { round = 0 } = {}) => gatherWebMaterial(query, { tag: `r${round}-`, seen: webSeen })
+          : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -2603,6 +2620,16 @@ async function holonicTurn(task, typed = task, planMode = "model") {
             part: part.label,
             refs: info.passages.map((p) => p.ref),
           });
+        } else if (phase === "resurf") {
+          setPhase(`searching the web again (round ${info.round})`);
+          show(
+            `the material doesn't hold: ${info.missing.length ? info.missing.join(", ") : "the question's words"} — searching: “${info.query}”`,
+          );
+          // The ledger hears the crossing the moment it is decided —
+          // mechanical, from the turn loop, like every other act (P15).
+          logAct("resurfed", { round: info.round, query: info.query, missing: info.missing });
+        } else if (phase === "resurfed") {
+          show(info.gained ? `round ${info.round}: ${info.gained} new passage(s)` : `round ${info.round}: nothing new came back`);
         } else if (phase === "execute") {
           setPhase(`writing ${part.label}`, info.promptChars ?? 0);
           $("status").textContent = `writing: ${part.label}…`;
@@ -4225,8 +4252,23 @@ async function checkLinkCitation(url) {
  * working link either. Wiring these into the same reopen path attachments
  * use is unscoped work for this pass, named rather than silently left.
  */
-async function gatherPreflightMaterial(anchor) {
-  const query = preflightQuery(anchor);
+async function gatherPreflightMaterial(anchor, { seen = null } = {}) {
+  return gatherWebMaterial(preflightQuery(anchor), { seen });
+}
+
+/**
+ * The shared search→fetch→chunk core the preflight and the re-surf loop
+ * both stand on — one crossing pipeline, not two drifting copies. `tag`
+ * keeps a re-surf round's source names distinct from the preflight's
+ * (`web:host-0` vs `web:host-r1-0`) so two fetches of different pages can
+ * never chunk under one address. `seen` is the turn's own URL ledger: a
+ * page already fetched this turn (by the preflight or an earlier round) is
+ * skipped, so a repeated search that returns the same results honestly
+ * gains nothing instead of re-chunking the same bytes under a new name —
+ * which is also what lets the re-surf loop's "nothing new came back" exit
+ * actually fire.
+ */
+async function gatherWebMaterial(query, { tag = "", seen = null } = {}) {
   if (!query) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "nothing in the question to search on" } };
   let search;
   try {
@@ -4239,15 +4281,19 @@ async function gatherPreflightMaterial(anchor) {
     };
   }
   if (search.gap) return { chunks: [], pages: [], gap: search.gap };
-  const picks = (search.results ?? []).slice(0, PREFLIGHT_PAGES_CONSULTED);
+  const picks = (search.results ?? [])
+    .filter((r) => !seen?.has(r.url))
+    .slice(0, PREFLIGHT_PAGES_CONSULTED);
   if (!picks.length) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } };
   const chunks = [];
   const pages = [];
   for (const [i, r] of picks.entries()) {
     try {
+      seen?.add(r.url);
       const f = await webApi("/api/web/fetch", { url: r.url });
       if (f.gap || !f.entry?.textPath) continue;
       const url = f.entry.finalUrl ?? r.url;
+      seen?.add(url);
       let faceRes;
       try {
         faceRes = await fetch(pageFaceUrl(EXPLORE_BASE, f.entry.textPath));
@@ -4260,7 +4306,7 @@ async function gatherPreflightMaterial(anchor) {
       // Indexed, not just host-named: two picks from the same host (two
       // Wikipedia articles, say) must not chunk under one source name and
       // silently merge their addresses.
-      chunks.push(...chunkSource(`web:${hostOf(url)}-${i}`, text, { identity: identifyMaterial(url, text) }));
+      chunks.push(...chunkSource(`web:${hostOf(url)}-${tag}${i}`, text, { identity: identifyMaterial(url, text) }));
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
     } catch {
       // One page failing to fetch is not the search failing — the other

@@ -41,6 +41,7 @@ import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js
 import { relationFindings } from "./hypergraph.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
+import { RESURF_MAX_ROUNDS, resurfQuery, uncoveredTerms } from "./resurf.js";
 import { parseSegments } from "./artifact.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
@@ -596,6 +597,12 @@ export async function runPart({
   // `unexamined`, never silently treated as checked.
   checkLink = null,
   linkBudget = LINK_CHECKS_PER_PART,
+  // The re-surf crossing (resurf.js): an async (query, { round }) =>
+  // { chunks, pages, gap } through the P13 egress — injected exactly the
+  // way checkLink is, because this module owns no network. null means the
+  // standing consents (checking mode + web) are off; the loop then never
+  // runs and the part is byte-identical to before this parameter existed.
+  resurf = null,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -616,9 +623,8 @@ export async function runPart({
   // narrow scoping is untouched.
   const question =
     flat && discourse ? `${part.label} ${part.description} ${discourse}` : `${part.label} ${part.description}`;
-  const live = chunks ?? [];
-  const passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
-  const sourceBlock = buildSourceBlock(passages);
+  let live = chunks ?? [];
+  let passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
   onProgress?.("research", part, { passages: passages.map((p) => p.ref) });
 
   // The plan steers this part's retrieval — that is what a plan is for — but
@@ -629,19 +635,81 @@ export async function runPart({
   const strayed =
     taskTerms.size > 0 && !tokenize(question).some((t) => taskTerms.has(t));
 
+  // The conversational anchor every check below shares: the task, this
+  // part's words, and — flat only — the discourse line, for P23's own
+  // reason ("prove it" names nothing on its own). Lifted here, once,
+  // because THREE consumers now need the identical string: the grounding
+  // check inside inspect(), and the re-surf loop's coverage test and query
+  // — two independently drifting copies of "the conversation's anchor"
+  // would be exactly the class of bug this repo keeps re-finding.
+  const groundingQuestion =
+    flat && discourse ? `${task} ${part.description} ${discourse}` : `${task} ${part.description}`;
+
+  // ── the re-surf loop: keep looking until the material can hold the
+  // answer (P25 in POLICIES.md). Mechanical end to end — the model never
+  // decides to search. The trigger is the question's own words measured
+  // against the material actually held (uncoveredTerms — draft-free by
+  // construction); the query is built ONLY from the question's own words
+  // (resurfQuery's wall — the P23 lesson: a model-drafted sentence once
+  // polluted a search and the instrument went looking for evidence of the
+  // hallucination); the crossing is the injected `resurf`, recorded by its
+  // owner (app.js → the P13 egress). Flat parts only — P23's own scoping:
+  // a decomposed part's narrow retrieval is deliberate. Bounded by
+  // RESURF_MAX_ROUNDS across BOTH moments the loop can act (the pre-draft
+  // rounds here, and the one post-draft round below); when the budget runs
+  // out the last state stands with its failures on the record (P9). An
+  // identical query is refused as a repeat, not spent — a variant that
+  // cannot vary has nothing new to ask the world.
+  const canResurf = flat && typeof resurf === "function";
+  let resurfRounds = 0;
+  const resurfTrail = [];
+  const runResurfRound = async (missing) => {
+    const query = resurfQuery(groundingQuestion, missing, resurfRounds + 1);
+    if (!query || resurfTrail.some((r) => r.query === query)) return false;
+    resurfRounds++;
+    onProgress?.("resurf", part, { round: resurfRounds, query, missing });
+    let gained = [];
+    try {
+      gained = (await resurf(query, { round: resurfRounds }))?.chunks ?? [];
+    } catch {
+      // A failed crossing is a round spent — it stays on the trail like any
+      // other, never silently retried outside the budget.
+      gained = [];
+    }
+    resurfTrail.push({ round: resurfRounds, query, missing, gained: gained.length });
+    onProgress?.("resurfed", part, { round: resurfRounds, gained: gained.length });
+    if (!gained.length) return true;
+    live = [...live, ...gained];
+    passages = retrieve(live, question, passagesPerPart, foldedRefs);
+    onProgress?.("research", part, { passages: passages.map((p) => p.ref) });
+    return true;
+  };
+  if (canResurf) {
+    let missing = uncoveredTerms(groundingQuestion, live);
+    while (missing.length && resurfRounds < RESURF_MAX_ROUNDS) {
+      if (!(await runResurfRound(missing))) break;
+      missing = uncoveredTerms(groundingQuestion, live);
+    }
+  }
+
   let draft = "";
   let check = null;
   let corrections = 0;
 
+  let sourceBlock = buildSourceBlock(passages);
+
   // Built once per part from its own passages — names resolve against the
   // cast the material itself establishes (cast.js), never a wider corpus.
-  const resolveName = makeNameResolver?.(passages) ?? null;
+  // `let`, not `const`: the post-draft re-surf round below re-arms them
+  // when a crossing gains material, and inspect() reads the bindings at
+  // call time.
+  let resolveName = makeNameResolver?.(passages) ?? null;
 
   // The relation tier (hypergraph.js), built the same way: the material's
   // own edges from this part's passages, the closed-class measure from the
   // live corpus. Injected — this module stays pure and the page supplies
   // the engine's organs.
-  const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
+  let relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
 
   const inspect = (text) => {
     // The label is model-authored output that ships as a heading, so it is
@@ -649,8 +717,8 @@ export async function runPart({
     // failure as one invented in a sentence, and must land in the same list.
     const shipped = `${part.label}\n${text}`;
     const { used, unsupported } = checkCitations(shipped, passages);
-    const groundingQuestion =
-      flat && discourse ? `${task} ${part.description} ${discourse}` : `${task} ${part.description}`;
+    // groundingQuestion is the lifted anchor above — one string, shared
+    // with the re-surf loop, never a second drifting copy.
     const checkedGrounding = checkGrounding(shipped, passages, {
       question: groundingQuestion,
       resolveName,
@@ -1067,6 +1135,51 @@ export async function runPart({
     else verdict = chatVerdict;
   }
 
+  // The post-draft re-surf round: the draft is a DETECTED non-answer with
+  // material present, and correcting against the SAME passages cannot fix
+  // an answer the material does not hold — so one more bounded round goes
+  // back to the world first. The single trigger is `verdict.echoed` — the
+  // echo/narration judge, the one place "this turn didn't really answer"
+  // is already computed. That verdict now ALSO covers a draft `clean()`
+  // stripped to nothing (wholly narration): `judge("")`'s own empty-input
+  // branch would read that as not-echoed, but the fix one step up (this
+  // file, above — "a wholly-narrated draft that cleans to nothing must
+  // still verdict echoed") forces `verdict.echoed = true` in exactly that
+  // case before this check ever runs, so no second sentinel is needed here
+  // — a cross-session review (2026-08-18) flagged the original draft of
+  // this loop for building one anyway, and it is gone. `reproduced`
+  // deliberately does NOT trigger a round: a photocopied answer means the
+  // material was on-topic enough to copy, and the mechanical fallback is
+  // its designed treatment, not another crossing. The missing words are
+  // measured against the RETRIEVED SLICE first (the narrower fact the
+  // draft actually faced), the pool as fallback — still the question's own
+  // words either way, never the draft's (the wall). If the round gains
+  // material the part is re-armed and redrafted ONCE; the ordinary
+  // correction machinery then proceeds on whatever stands.
+  if (canResurf && passages.length && verdict.echoed && resurfRounds < RESURF_MAX_ROUNDS) {
+    const missingNow = (() => {
+      const m = uncoveredTerms(groundingQuestion, passages);
+      return m.length ? m : uncoveredTerms(groundingQuestion, live);
+    })();
+    const before = passages;
+    const ran = await runResurfRound(missingNow);
+    if (ran && passages !== before && passages.length) {
+      sourceBlock = buildSourceBlock(passages);
+      resolveName = makeNameResolver?.(passages) ?? null;
+      relations = makeRelationReader?.(passages, { pool: live }) ?? null;
+      const redraftMessages = [
+        { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+        { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
+      ];
+      onProgress?.("execute", part, {
+        promptChars: redraftMessages.reduce((n, m) => n + m.content.length, 0),
+      });
+      draft = clean(await call(redraftMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
+      check = inspect(draft);
+      verdict = judge(draft);
+    }
+  }
+
   while (
     (check.unsupported.length || verdict.echoed || verdict.reproduced) &&
     // The correction prompt answers "from the material" — with no passages
@@ -1241,8 +1354,22 @@ export async function runPart({
   if ((verdict.echoed || verdict.reproduced) && !mechanical) {
     check = { ...check, refs: [], used: [], attributed: [], channels: [] };
   }
+  // The re-surf disclosure: every crossing on the trail, and — when the
+  // budget spent without the material ever holding the question's words —
+  // the gap as a result (P4), never a silent shrug.
+  const stillMissing = resurfTrail.length ? uncoveredTerms(groundingQuestion, live) : [];
   const open = [
     ...(strayed ? [`part searched on words the task never used: ${part.label}`] : []),
+    ...(resurfTrail.length
+      ? [
+          `went back to the web ${resurfTrail.length} time(s) for the question's own words the material lacked (${resurfTrail
+            .map((r) => `“${r.query}”`)
+            .join("; ")}): ${part.label}`,
+        ]
+      : []),
+    ...(stillMissing.length
+      ? [`the question's own words still absent from every material after searching: ${stillMissing.join(", ")}`]
+      : []),
     ...(verdict.echoed ? [`answer restates the prompt; nothing established: ${part.label}`] : []),
     ...(verdict.reproduced
       ? [`answer reproduces the material verbatim; it does not answer the prompt: ${part.label}`]
@@ -1270,6 +1397,9 @@ export async function runPart({
     quoteCorrections,
     links: linkReport,
     linkCorrections,
+    // The re-surf trail, for the record: each round's query, the words it
+    // went for, and what it gained. null when no crossing ran.
+    resurf: resurfTrail.length ? resurfTrail : null,
     open,
   };
 }
@@ -1290,6 +1420,7 @@ export async function runHolonicTask({
   makeNameResolver = null,
   makeRelationReader = null,
   checkLink = null,
+  resurf = null,
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -1385,6 +1516,10 @@ export async function runHolonicTask({
       makeNameResolver,
       makeRelationReader,
       checkLink,
+      // The re-surf crossing rides the same injection: runPart itself gates
+      // it to the flat part, so a decomposed part never crosses (P23's own
+      // scoping, kept).
+      resurf,
       // planMode is task-wide, not per-part: a flat task runs exactly one
       // part (however many times retryStrayedRule retries it), so there is
       // no case where this callback runs for a part that isn't the flat one

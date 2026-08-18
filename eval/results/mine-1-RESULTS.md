@@ -125,3 +125,16 @@ pattern, visible essay by essay in `mine-1-run.json`.
 This result **stays in the repository regardless of how modest the number
 is** — the agency-civic golden's own rule, applied here: a golden that only
 gets committed when it confirms the thing under test is not a golden.
+
+## Follow-up: does `live_priors` help? No — see `mine-1-priors-RESULTS.md`
+
+The obvious next question is whether letting the reader consult
+`live_priors` — the curated reference corpus `priors.js` already knows how
+to check a claim against — would recover more of these facts than the
+essay's own material alone. It was tested directly (`eval/mine-1-priors.mjs`,
+whole corpus treated as activated, no toggle gating): **0 of 1,575 facts**
+landed `stated-by-library`. `live_priors` is a curated philosophy/classics/
+law/foundational-science canon, not a general trivia encyclopedia — it has
+no shelf for roller coasters, board games, or butterfly metamorphosis, so
+there was nothing there to find. Full write-up in
+`eval/results/mine-1-priors-RESULTS.md`.

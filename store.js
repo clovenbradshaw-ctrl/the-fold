@@ -255,15 +255,25 @@ export function makeStore(taskLog) {
   }
 
   /**
-   * Retract a row. One entry: RETRACT · NUL · produced. RETRACT entries
-   * carry no grain — checked against append()'s real validation, not
-   * assumed: append() requires an operator whenever a grain is supplied,
-   * but the reverse is not required, so an operator with no grain at all is
-   * legal. projectTasks() drops any task_id carrying a RETRACT entry out of
-   * the live projection entirely (`retracted.add(e.task_id); continue`) —
-   * the row's own payload on this entry is therefore never read by the
-   * fold either way, so none is written here beyond what a reader of the
-   * raw log needs to know an act happened and why.
+   * Retract a row. One entry: RETRACT · NUL · produced. NUL, not a bare
+   * RETRACT with no operator: this repo's own grid.js already names NUL as
+   * true destruction (the `void` verb, VERBS.void.ops === ["NUL"]), and it
+   * is Choreo's own reading too — "the only operator that truly destroys...
+   * the thing was here, and now it isn't" — the exact lineage this module
+   * is built from. There is no build-log.js precedent to match here:
+   * build-log.js's own retractBuild sets no operator on its RETRACT entry
+   * at all, because a build's re-zero/retraction is a different act than a
+   * row's death; NUL is chosen on its own merits, not borrowed.
+   *
+   * RETRACT entries carry no grain — checked against append()'s real
+   * validation, not assumed: append() requires an operator whenever a grain
+   * is supplied, but the reverse is not required, so an operator with no
+   * grain at all is legal. projectTasks() drops any task_id carrying a
+   * RETRACT entry out of the live projection entirely
+   * (`retracted.add(e.task_id); continue`) — the row's own payload on this
+   * entry is therefore never read by the fold either way, so none is
+   * written here beyond what a reader of the raw log needs to know an act
+   * happened and why.
    *
    * The entries themselves stay on the log forever — real deletion of
    * VISIBILITY, never of history.

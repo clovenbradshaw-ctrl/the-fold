@@ -1438,6 +1438,162 @@ never a live two-way sync — there is no polling, no background sync, and
 no automatic push on every skill admission or build; every crossing is the
 three named buttons.
 
+## System 1's own ground, measured (added 2026-08-17) — what was decided, so it is not re-derived
+
+The ask, from a conversation about what fold.js's two folds are missing: S1
+(the running summary) and S2 (the warrant record) are Ground and Figure in
+the engine's own sense, and the engine already has a name and a built,
+tested primitive for the third term — `eoreader6.1/nul/index.js`'s own
+header states it before this repo ever needed it: "figure — difference from
+its own ground; pattern — the difference that figure made to the next
+ground... Bateson's: a difference that makes a difference." That module's
+`pattern()` already carries the sign this section's title borrows from —
+"a difference that narrows the ground is still a pattern, and it is
+extraction. Only widening is encounter" — null-corrected, measured against
+its own false-positive rate, not a bare inequality. This was found by
+searching before writing anything, the way eoreader6.1's own CLAUDE.md
+insists on: `grep`-adjacent reading of `nul/index.js` and
+`emergence/tiers.js`, not a new statistic invented from the conversation
+alone.
+
+**What tiers.js itself already discloses, and does not paper over.** The
+self-plane's own surprise meter (reflex.js, wired to `emergence/tiers.js`)
+has Ground and Figure — a tier's decaying prior, and `bayesianSurprise`
+placed against `priorContinuationNull` — and tiers.js's header says outright
+that it has no Pattern term: "nothing asks whether the shift changed what
+the tier does next. `witness()` is deliberately NOT called: it would
+refuse, and supplying a third term it did not measure is the confabulation
+the gate exists to prevent." That refusal is also, independently, this
+repo's own witness gate (the reflex ledger's `made_no_difference` shape,
+`nul.witness()`'s own refusal, and the fold's echo/reproduction detectors
+in holon.js) — the same rule, discovered separately at three altitudes and
+named here once, together.
+
+**What this closes, and what it deliberately does not.** `aperture.js`
+(new, pure, organs injected the cast.js/reflex.js way) gives S1 its own
+Ground+Figure: a SECOND tier-stack meter, same declared numbers as
+reflex.js's (`SURPRISE_WINDOW`/`DRAWS`/`ALPHA`/`SEED` — re-exported from
+reflex.js, never re-declared), pointed at the conversation's own discourse
+stream instead of the instrument's acts — one meter per plane, never a
+shared instance, for the same reason reflex.js's four walls exist. Wired
+into `app.js`'s `observeExchange` (the one choke-point every turn-ending
+path already calls through) and `state.aperture`/`PER_CONVO`, alongside
+`state.meter` — never into `state.reflexLog`, which stays the self plane's
+alone. It does NOT close tiers.js's own disclosed gap: no Pattern term was
+added to the engine, and no null-tested `opened` sign (`nul.pattern()`'s)
+was computed for S1. What `aperture.js` adds beyond Ground+Figure is a
+DIRECT, un-nulled Shannon-entropy reading of the discourse tier's own
+decayed prior (`entropy`, `apertureDelta`, `apertureDirection` on every
+observation) — a textbook width-of-belief measure, disclosed as exactly
+that and never dressed up as the null-corrected signal `opened` is.
+Measured, not assumed (`aperture.test.mjs`, against the real engine
+module): repeating one sentence does not widen the ground; a genuinely
+foreign one does, by a margin larger than the repeat's own settling noise.
+
+**Two residues, named so the next pass does not have to re-find them.** (1)
+A real `opened` for S1 would mean reframing the entropy series (or a
+comparable numeric one) as material for `nul.ground()`/`nul.pattern()`
+(the licensed `windowMean/shuffle` pair) so the sign earns the same
+reseed-noise null `opened` already has — not attempted here. (2) The
+engine's third use of the same operation, `level()` (one figure measured
+against another figure's ground — "does this ground constrain more than
+that one") is unconnected to S1, and is a different question from cast.js's
+referent-identity machinery ("is this the same name") — cross-turn
+corroboration in the `level()` sense is real, unbuilt future work, not the
+same thing as coreference.
+
+Not yet drawn anywhere in the UI — and now BY LAW rather than by
+deferral: see the amendment below. (`apertureLine`, this paragraph's
+original "future disclosure surface," was removed the same day.)
+
+**Amended same day — the meter consumed, not displayed: the refresh gate,
+the startle regime, and the rule that self-state is never a rendered
+metric.** The user's direction, near-verbatim: the system registering
+surprise to itself matters, "not in just like a number — never show it
+metrics of its own self state"; make it aware of its surprise in an
+analogue way; surprise causes a narrowing of attention, a focus, time
+dilated. Three things landed, each measured e2e against live models
+before being trusted.
+
+(1) **The summary refresh is gated on the meter's own verdict**
+(`exchangeHeldGround` in aperture.js; `refreshSummary` in app.js). When
+every arrival of the exchange was measured and none landed on the
+surprising side of its continuation null, the summary is CARRIED
+(advanceSummaryFold — the fold line still lands, turnCount still counts)
+instead of rewritten by a model call; a `carried` act goes on the ledger;
+the hold is bounded by MAX_FOLDS_IN_PROMPT so no held fold line ever
+falls out of the refresh prompt's window unseen. The gate's reading is
+tiers.js's own propagation gate carried over ("nothing to say upward: the
+ground did not change" — foldThrough, verbatim), which is also this
+repo's own closure rule (holonic closure on the fold digest, not entry
+count) applied to S1: a turn that moved no ground has nothing for the
+state transition to record. TWO measured corrections got it here, both
+worth not re-deriving. First, the strict both-censored-below reading was
+UNREACHABLE on any realistic stream (zero fires across eight exchanges
+including near-verbatim repeats — a repeat's KL sits inside the null's
+support, not below it; a gate nothing can trigger is a comment, not a
+wall). Second, the censored-above-only reading was UNSAFE, and only a
+LIVE model showed it: qwen2.5:14b paraphrases even its own repeats, which
+widens the null enough that a genuine topic pivot placed at rank 0.01 —
+99th percentile of surprise, one step inside the support's edge — and
+the gate held straight through it; the gated summary's topic stayed
+"Harbor Traffic in Spring" while the conversation had moved to crops in
+volcanic soil. The shipped cut is the null's own median (`rank > 0.5` on
+placed arrivals; censored-below holds, censored-above refuses, gaps
+refuse — withheld is never "nothing moved"). That transcript is pinned
+verbatim as the regression in aperture.test.mjs. Honest cost accounting
+(eval/summary-refresh-gate-eval.mjs, live): the unsafe gate saved 8/9
+refresh calls and went stale; the safe gate saved 2/9 on the same stream
+(~800 tokens, ~9s) and refreshed exactly where the ground moved. Safety
+bought at 6 calls — the right side to be wrong on.
+
+(2) **Surprise is consumed as posture, never displayed** (aperture.js's
+regime block; `regimeAfter`/`presentWindow`; app.js's `state.regime`).
+A standing 0..1 regime: raised to the exchange's own measured surprise
+(max over the exchange's arrivals; censored-above is the ceiling, a
+placed arrival reads 1−rank, so the scale is continuous through the
+gate's own cut), released at the discourse tier's own gamma — belief's
+own forgetting clock, not a second number. Consumed as a CONTRACTION of
+the raw present: `chatHistory` slices at `presentWindow(regime,
+RECENCY_WINDOW)` — calm is the declared baseline untouched, full startle
+narrows to ONE exchange (the structural floor: the exchange that caused
+the startle is what attention narrowed onto). The first draft WIDENED the
+window under surprise and that reads the phenomenology backwards — time
+dilates because the grain got finer, not because the reader reached
+further back. When the contraction is actually in effect it lands on the
+ledger as a `narrowed` act (registered to itself; the ledger and its
+/self doors remain the one place self-state is readable, on request).
+`apertureLine` was deleted: a phrasing helper for self-state metrics is
+exactly the thing the direction forbids. Verified live end to end:
+settle → `carried: streak 1` (161-token turn vs 458 baseline) → pivot
+(10/200, 8/200 — hold refused, refresh ran) → next turn `narrowed: of 4
+· window 2`, answer still correct because the two raw messages kept were
+exactly the pivot exchange.
+
+(3) **Tracking, so "how does learning affect surprise" is a readable
+series, not a vibe:** every measured observation now carries the tier's
+own learning state (novelRate — the continuation null's expected novelty,
+falling = the ground settling; mass; forms) beside its surprise
+(bits/rank/censored) — the two causes a stateless engine can't tell apart
+(reader fatigue vs material gone quiet) on one row. `meterSnapshot` reads
+the whole ladder (all three tiers: observations, mass, forms, novelRate,
+shifts, entropy). One negative result recorded so nobody re-asserts it
+untested: on the captured 9-turn transcript, exchange surprise vs
+per-turn entropy delta ("surprise widens aperture") correlates NEGATIVELY
+mid-scale (Spearman −0.33, n=9) while the ceiling case matches (the
+pivot produced the run's largest widening, +0.34 bits). The claim holds
+at the extreme and is unproven in the middle — at this n, on this
+stream. Not a law yet.
+
+**Open work this pass names and does not take:** finer record grain
+under startle (a high-surprise turn decomposing into sub-turn atoms on
+the record — the record's grain matching the reader's grain); a
+tightened retrieval pool and raised correction budget under the same
+regime (holon.js's knobs — another session's contract today); the
+regime as a conversation-scale diagnostic (extraction narrows /
+encounter widens, with the aperture series as its measurement, pending
+the null-tested `opened` sign named above).
+
 ## The wheel organ (added 2026-08-17) — what was decided, so it is not re-derived
 
 P21 in POLICIES.md is the law; this is the map. The ask, from the user

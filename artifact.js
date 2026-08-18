@@ -60,6 +60,41 @@ export function parseSegments(answer) {
   return out;
 }
 
+const SCRIPTABLE = new Set(["javascript", "js"]);
+
+/**
+ * A model asked for one html widget routinely answers with the markup as one
+ * fence and "you'll need to add some JavaScript" as prose before a SEPARATE
+ * fence — one artifact in the model's own head, two segments on the page.
+ * Left alone, widget.js's kind match (html ≠ javascript) forks them into two
+ * builds, and the javascript one auto-runs standalone with no DOM at all
+ * (term.js's sandbox is a bare Worker) — a guaranteed ReferenceError, and a
+ * counter whose buttons do nothing because the code that would wire them
+ * never reaches the markup it names by id.
+ *
+ * The merge is deliberately narrow — exactly one html segment and exactly
+ * one javascript/js segment, html first — because that is the one shape
+ * unambiguous enough to act on mechanically: which script belongs to which
+ * markup is a guess the moment either count is more than one, and a guess is
+ * what this repo's own doctrine refuses elsewhere (widget.js's routing, the
+ * skill slot-filler). `toDocument` drops html code into a bare `<!doctype>`
+ * shell with no head/body requirement, so appending the script tag at the
+ * end is sufficient — the browser completes the fragment either way.
+ */
+export function mergeHtmlScript(segments) {
+  const isHtml = (s) => s.type === "code" && s.lang === "html";
+  const isJs = (s) => s.type === "code" && SCRIPTABLE.has(s.lang);
+  const htmlIdx = segments.reduce((a, s, i) => (isHtml(s) ? [...a, i] : a), []);
+  const jsIdx = segments.reduce((a, s, i) => (isJs(s) ? [...a, i] : a), []);
+  if (htmlIdx.length !== 1 || jsIdx.length !== 1 || htmlIdx[0] > jsIdx[0]) return segments;
+  const [hi] = htmlIdx;
+  const [ji] = jsIdx;
+  const merged = segments.slice();
+  merged[hi] = { ...merged[hi], code: `${merged[hi].code}\n<script>\n${merged[ji].code}\n</script>` };
+  merged.splice(ji, 1);
+  return merged;
+}
+
 /**
  * A pipe table is a header row, a delimiter row of dashes, and rows until the
  * pipes stop. The delimiter row is what distinguishes a table from a sentence

@@ -38,7 +38,7 @@ import {
   updateSummaryWithFold,
 } from "./fold.js";
 
-import { RENDERABLE, parseSegments, tableFrom, toDocument } from "./artifact.js";
+import { RENDERABLE, mergeHtmlScript, parseSegments, tableFrom, toDocument } from "./artifact.js";
 // skills.js's balanced-object walk, reused as the one mechanical reading of
 // "the JSON an ollama reply carried" (the delta grammar's extractor).
 import { extractObject } from "./skills.js";
@@ -2180,7 +2180,11 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       lastRef = null;
     }
   }
-  const segments = parseSegments(answer);
+  // A same-turn html fence with its own trailing javascript fence is one
+  // artifact wearing two segments (artifact.js::mergeHtmlScript) — merged
+  // before routing so the widget lands as one build, wired, not two forked
+  // builds where the script half auto-runs with no DOM and throws.
+  const segments = mergeHtmlScript(parseSegments(answer));
   body.textContent = "";
   // One turn is one act (widget.js): a later block of the same kind in this
   // SAME turn is a version of the first, never a sibling — tracked here so

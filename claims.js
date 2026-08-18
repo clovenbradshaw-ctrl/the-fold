@@ -160,9 +160,15 @@ export function composedSentence(state) {
     // distinction foldProof draws; reproduced here 2026-08-17 when a
     // zero-result search composed as "not reached").
     parts.push(w.gap?.detail ? `web: ${w.gap.detail}` : "the web was not reached");
+  // Phrased from the counts, never the verdict token: rankPrimary ranks
+  // EVERY class of citation (primary.test.mjs pins a tertiary essay site as
+  // a real "other"-class candidate), so "stated-by-primary" is a container
+  // label, not a claim that the class was checked. CLAUDE.md's own line:
+  // "nothing anywhere phrases a web verdict stronger than 'stated by N of M
+  // pages (K distinct hosts)'".
   const p = state.primary;
-  if (p?.verdict === "stated-by-primary") parts.push("a primary source states it");
-  else if (p?.verdict === "unstated-by-consulted") parts.push("the primary sources read do not state it");
+  if (p?.verdict === "stated-by-primary") parts.push(`stated by ${p.stating ?? 0} of ${p.read ?? 0} source(s) the article cites`);
+  else if (p?.verdict === "unstated-by-consulted") parts.push(`${p.read ?? 0} source(s) the article cites were read; none states it`);
   // The reference library (live_priors): the local, versioned prior every
   // belief revises from — checked with zero egress. THE PROVENANCE RULE
   // (user, 2026-08-17): a prior referenced in the surf is a citation like

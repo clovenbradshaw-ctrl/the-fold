@@ -2232,3 +2232,79 @@ after: the same 4 pre-existing failures the baseline names (`measure.test.mjs`,
 three `webllm-rung.test.mjs` model-file cases) plus the one disclosed
 worktree-nesting artifact above, itself confirmed unaffected by this
 change (identical failure, identical file, both before and after).
+
+## Re-surf: "keep looking until it got it" (added 2026-08-18) — what was decided, so it is not re-derived
+
+P25 in POLICIES.md is the law; this is the map. P23 gave a materialless
+turn one search before its first token; the correction loop gave a bad
+draft one retry against the SAME passages, then the mechanical fallback.
+Nothing ever went back to search when the checking ladder — absent atoms,
+unbound edges, the echo/reproduction judge — already knew the material
+couldn't hold the answer. Findings were recorded and never re-entered
+retrieval. Re-surf is the missing loop: bounded, mechanical, on the
+question's own words only.
+
+**Files.** `resurf.js` (new, pure — `RESURF_MAX_ROUNDS`,
+`uncoveredTerms`, `resurfQuery`, `resurf.test.mjs`); `holon.js`
+(`runPart`'s injected `resurf` — the `checkLink` pattern exactly — a
+pre-draft loop keyed on `uncoveredTerms` and one post-draft round keyed on
+`judge()`'s own `echoed` verdict plus a stripped-to-nothing sentinel,
+never a third narration detector); `app.js` (`gatherWebMaterial` factored
+out of P23's `gatherPreflightMaterial`, which now calls it — one
+search→fetch→chunk pipeline, not two).
+
+**The query wall is a filter, not a convention.** Every term a query
+carries passes through the question's own token set before it can reach
+`resurfQuery` — the P23 lesson (a model-invented sentence once polluted a
+search) enforced by construction: a caller can hand in tokens from
+anywhere and anything the question itself doesn't contain is dropped.
+Pinned as its own regression, named "THE WALL" in resurf.test.mjs.
+
+**Two rounds, two different casts, never a repeat** (P9: budget named,
+`RESURF_MAX_ROUNDS = 2`). Round one leads with the missing words plus the
+question's context; round two is the missing words alone — genuinely
+different queries, not a repeat of a failed search. An identical query is
+refused, not spent. The budget spans both the pre-draft rounds and the
+one post-draft round together.
+
+**Gated on the same two standing consents proof-seeking already uses**
+(checking mode + web consent) — automatic, instrument-decided crossings
+share one gate. A turn-scoped seen-URL set is shared between the
+preflight and every re-surf round so a repeated search that returns the
+same pages honestly gains nothing rather than re-chunking duplicate bytes.
+
+**Disclosed cost, measured live, not hidden:** `uncoveredTerms` has no
+stemmer (the same disclosed gap widget.js's own router carries). Driven
+live against `qwen2.5:14b-instruct-q4_K_M` with real DuckDuckGo egress:
+material already stating "Nashville **sits** on the Cumberland River"
+still cost two wasted rounds against the question "What river does
+Nashville **sit** on?" (inflection mismatch); material reading "the
+report **was written by** Maria Alvarez" cost one wasted round against
+"Who **wrote** the report?" (voice mismatch). Rephrasing to avoid the
+mismatch triggered zero rounds against the identical material, isolating
+the cause. In both cases the final answer still shipped correctly
+grounded in the local material, never the polluted web results — the
+cost is wasted latency and egress on an already-answered question, not a
+corrupted answer. No stemmer or hand-typed irregular-verb list was added
+(P9 rules out tuned detection constants for this shape of fix); the same
+false-positive/false-negative cost asymmetry P23 already established for
+its own gate applies here.
+
+**Evidence, live end to end, real crossing (not a fixture).** Attached-
+but-insufficient material plus "Who was the mayor of Nashville in 2019?":
+one pre-draft round, gained 514 real Wikipedia passages, shipped John
+Cooper correctly (he won the runoff against sitting mayor David Briley)
+cited to `web:en.wikipedia.org-r1-0#…`. An unrelated second topic
+("What is the current population of Reykjavik, Iceland?") independently
+triggered, searched, and shipped a real current figure from a real fetched
+page — not overfit to one worked example. A control with material that
+already held the answer, phrased without a lexical mismatch, triggered
+zero rounds and answered instantly from local material alone
+(`resurf: null`).
+
+**Scoped out, disclosed rather than silently attempted:** feeding a
+grounding finding's own tokens into a re-surf query as a second trigger
+alongside `uncoveredTerms` — the wall would filter most of them out
+anyway (a finding's tokens come from the draft, not the question), and the
+post-draft `echoed`/stripped-to-nothing trigger already reaches the cases
+measured live. Real future work, not built here.

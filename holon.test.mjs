@@ -23,6 +23,7 @@ import {
   runHolonicTask,
 } from "./holon.js";
 import { chunkSource } from "./source.js";
+import { RESURF_MAX_ROUNDS } from "./resurf.js";
 
 const CORPUS = [
   "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.",
@@ -910,4 +911,160 @@ test("checkLink on: a URL the loaded material itself already contains is never f
   const section = result.sections[0];
   assert.equal(section.links.links[0].verdict, "in-material");
   assert.match(section.text, /https:\/\/real\.example\/mirror/);
+});
+
+// ── the re-surf loop (P25): keep looking until the material can hold the
+// answer. The crossing is a stub with the injected shape (query → chunks);
+// the material it returns is real chunkSource chunks, so retrieval, the
+// checks, and the record all do real work against it.
+
+const RIVER_ONLY = chunkSource(
+  "notes.txt",
+  "Nashville sits on the Cumberland River, in the heart of Tennessee, where the water bends past the old wharves.",
+);
+const BRILEY_PAGE = () =>
+  chunkSource(
+    "web:example.com-r1-0",
+    "David Briley served as mayor of Nashville through most of 2019, leaving office after the September runoff.",
+  );
+
+test("re-surf pre-draft: the question's words the material lacks drive a bounded search, and the answer stands on what came back", async () => {
+  const queries = [];
+  const resurf = async (query) => {
+    queries.push(query);
+    return { chunks: BRILEY_PAGE(), pages: [{ url: "https://example.com/mayor" }] };
+  };
+  const call = async (messages) => {
+    const user = messages[1]?.content ?? "";
+    const refs = offeredRefs(user);
+    // The model answers from whatever material it was actually handed —
+    // it can only name Briley if the crossing's chunks reached its prompt.
+    if (user.includes("Briley")) {
+      const webRef = refs.find((r) => r.startsWith("web:")) ?? refs[0];
+      return `David Briley was the mayor of Nashville in 2019. [${webRef}]`;
+    }
+    return "Who was the mayor of Nashville in 2019?";
+  };
+  const result = await runHolonicTask({
+    task: "Who was the mayor of Nashville in 2019?",
+    chunks: RIVER_ONLY,
+    call,
+    planMode: "flat",
+    resurf,
+  });
+  const section = result.sections[0];
+  // One round sufficed: the gained material covered the missing words.
+  assert.equal(queries.length, 1);
+  // The query leads with the missing words, and EVERY term is the
+  // question's own (the wall, held at the integration seam too).
+  assert.match(queries[0], /^mayor 2019/);
+  const own = new Set(["mayor", "2019", "nashville"]);
+  for (const w of queries[0].split(" ")) assert.ok(own.has(w), `query term "${w}" is not the question's own`);
+  // The trail is on the result, and the crossing is a typed open.
+  assert.equal(section.resurf.length, 1);
+  assert.equal(section.resurf[0].gained > 0, true);
+  assert.ok(result.open.some((o) => o.includes("went back to the web 1 time(s)")));
+  assert.ok(!result.open.some((o) => o.includes("still absent")));
+  // And the answer actually stands on the fetched material.
+  assert.match(result.output, /Briley/);
+  assert.ok(result.refs.some((r) => r.startsWith("web:")));
+});
+
+test("re-surf budget: a world that never answers costs exactly RESURF_MAX_ROUNDS differently-shaped casts, and the gap is a result", async () => {
+  const queries = [];
+  const resurf = async (query) => {
+    queries.push(query);
+    return { chunks: [], pages: [] };
+  };
+  const call = async (messages) => {
+    const refs = offeredRefs(messages[1]?.content ?? "");
+    return `The city of Nashville lies along the Cumberland, whose bends shaped its wharves. [${refs[0]}]`;
+  };
+  const result = await runHolonicTask({
+    task: "Who was the mayor of Nashville in 2019?",
+    chunks: RIVER_ONLY,
+    call,
+    planMode: "flat",
+    resurf,
+  });
+  assert.equal(queries.length, RESURF_MAX_ROUNDS);
+  // Round two is a genuinely different cast, never a repeat of round one.
+  assert.notEqual(queries[0], queries[1]);
+  const section = result.sections[0];
+  assert.equal(section.resurf.length, RESURF_MAX_ROUNDS);
+  assert.ok(result.open.some((o) => o.includes("went back to the web 2 time(s)")));
+  assert.ok(result.open.some((o) => o.includes("still absent") && o.includes("mayor") && o.includes("2019")));
+});
+
+test("re-surf post-draft: material holds the words but the draft is a detected non-answer — one more round, then a redraft on what came back", async () => {
+  const WORDS_NO_ANSWER = chunkSource(
+    "notes.txt",
+    "Nashville elects a mayor every four years, and in 2019 the office changed hands mid-term.",
+  );
+  const queries = [];
+  const resurf = async (query) => {
+    queries.push(query);
+    return { chunks: BRILEY_PAGE(), pages: [{ url: "https://example.com/mayor" }] };
+  };
+  const call = async (messages) => {
+    const user = messages[1]?.content ?? "";
+    const refs = offeredRefs(user);
+    if (user.includes("Briley")) {
+      const webRef = refs.find((r) => r.startsWith("web:")) ?? refs[0];
+      return `David Briley was the mayor of Nashville in 2019. [${webRef}]`;
+    }
+    // A pure echo: the question restated, nothing established.
+    return "Who was the mayor of Nashville in 2019?";
+  };
+  const result = await runHolonicTask({
+    task: "Who was the mayor of Nashville in 2019?",
+    chunks: WORDS_NO_ANSWER,
+    call,
+    planMode: "flat",
+    resurf,
+  });
+  // No pre-draft round ran (every question word was in the material); the
+  // echoed verdict is what sent the turn back to the world.
+  assert.equal(queries.length, 1);
+  assert.match(result.output, /Briley/);
+  assert.equal(result.sections[0].resurf.length, 1);
+  // The redraft answered, so the echo never reached the record as the verdict.
+  assert.ok(!result.open.some((o) => o.includes("restates the prompt")));
+});
+
+test("re-surf stays off for decomposed parts and when no crossing is injected", async () => {
+  let crossings = 0;
+  const resurf = async () => {
+    crossings++;
+    return { chunks: [] };
+  };
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) {
+      return JSON.stringify([{ label: "the mayor", description: "Who was the mayor of Nashville in 2019?" }]);
+    }
+    const refs = offeredRefs(messages[1]?.content ?? "");
+    return refs.length
+      ? `The city of Nashville lies along the Cumberland, whose bends shaped its wharves. [${refs[0]}]`
+      : "The city sits on the river.";
+  };
+  // Decomposed: the crossing is injected but the part is not flat.
+  const decomposed = await runHolonicTask({
+    task: "Who was the mayor of Nashville in 2019?",
+    chunks: RIVER_ONLY,
+    call,
+    planMode: "model",
+    resurf,
+  });
+  assert.equal(crossings, 0);
+  assert.equal(decomposed.sections[0].resurf, null);
+  // Flat with no injection: byte-identical behavior to before the parameter
+  // existed — no trail, no resurf opens.
+  const uninjected = await runHolonicTask({
+    task: "Who was the mayor of Nashville in 2019?",
+    chunks: RIVER_ONLY,
+    call,
+    planMode: "flat",
+  });
+  assert.equal(uninjected.sections[0].resurf, null);
+  assert.ok(!uninjected.open.some((o) => o.includes("went back to the web")));
 });

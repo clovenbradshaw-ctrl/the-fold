@@ -1643,3 +1643,163 @@ code. A future pass could bound `formatRunOutcome`'s own text the way
 build-log.js's run entries already bound theirs (16K chars/stream,
 `kept/of` stated); not attempted here, named rather than silently
 absent.
+
+## P25 — Re-surf: keep looking until the material can hold the answer
+
+P23 gave a materialless turn ONE search before its first token. P4's
+propose-then-check split gave the correction loop ONE retry against the
+SAME passages (`MAX_CORRECTIONS = 1`), then the mechanical fallback. What
+neither closed: the checking ladder already computes, per turn, that the
+answer is not in the material — `checkGrounding`'s absent atoms, the
+relation tier's `unbound`/`contradicted` edges, the echo/reproduction
+judge's `verdict`, proof-seeking's own web verdicts — and none of it ever
+re-entered retrieval. A turn could KNOW its material was insufficient and
+still never go look again. This closes that gap: a bounded, mechanical
+loop that goes back to the world on the question's own words when the
+material provably cannot hold the answer, before the draft (the cheap,
+draft-free signal) and once more after it (when a detected non-answer
+proves the pre-draft check missed something).
+
+**The trigger is draft-free where it can be.** `resurf.js::uncoveredTerms`
+compares the question's own tokenized words (the exact fold `retrieve`
+itself uses — P11, one fold on both sides) against every chunk's own term
+set. A word the pool holds NOWHERE is a mechanical fact, computed before
+any model call — the cheapest true signal available, and the reason a
+"prove it" follow-up or a bare factual question with attached-but-
+unrelated material can trigger a search before the model ever gets a
+chance to invent something to blame (P23's own failure shape, one level
+narrower: P23 gates on *nothing attached at all*; this gates on *attached
+material that doesn't cover the words*, which P23's own gate cannot see).
+
+**The post-draft trigger is not a fourth detector.** A cross-session
+review (2026-08-18, the concurrent dialogue-narration fix to `isFraming`)
+flagged exactly the right thing to guard against here: this module must
+not reimplement "did the turn actually answer." It doesn't — it reads
+`judge()`'s own `echoed` verdict, the one place that question is already
+computed, strengthened for free by whichever narration detector reconciles
+`isFraming`'s classification with provenance.js's own measured register.
+One case `judge()` itself cannot see is handled explicitly: a draft
+`clean()` strips to nothing (wholly scaffold narration) hits `judge()`'s
+early-return branch (`!all.length → {echoed:false}`), so the sentinel here
+is emptiness-after-stripping, not a second echo test. `reproduced`
+deliberately does NOT trigger a round — a photocopied answer means the
+material was on-topic enough to copy, and the mechanical fallback (P4) is
+its own designed treatment, not a reason to cross again.
+
+**The query wall, enforced by construction, not convention (the P23
+lesson).** Every term a re-surf query carries is filtered through the
+question's own token set before it can reach `resurfQuery` — a caller can
+hand in tokens from anywhere (a grounding finding, an unbound edge's
+subject), and any token the question does not itself contain is dropped.
+P23's own measured failure was a search built from the model's invented
+sentence, which went looking for evidence of the hallucination; the wall
+here is not "remember to build the query from the question" as a
+convention two call sites could drift on — it is a filter every query
+passes through regardless of what a caller supplies. Pinned as its own
+regression (`resurf.test.mjs`, "THE WALL").
+
+**Two rounds, two different casts, never a repeat.** `RESURF_MAX_ROUNDS =
+2` (P9: a budget with a name — round one leads with the missing words and
+keeps the question's remaining context (a bare figure like "2019" is not
+searched naked); round two is the missing words alone, a narrower,
+differently-shaped query, because a second search built the same way as a
+failed first is not a new question to the world, it is the same one asked
+twice. A query identical to one already on the trail is refused as a
+repeat and costs nothing. The budget spans BOTH moments the loop can act —
+the pre-draft rounds and the one post-draft round share the same counter —
+so a part that already spent its two rounds before drafting does not get a
+third chance after. When the budget runs out with words still missing,
+the last state stands and the gap is a typed open (P4: gaps are results),
+never a silent shrug.
+
+**The crossing is injected, gated, and shares the turn's own ledger.**
+`runPart`/`runHolonicTask` (holon.js) take a `resurf` function the same
+way they already take `checkLink` — this module owns no network. app.js's
+`gatherWebMaterial` is the one crossing, factored out of P23's own
+`gatherPreflightMaterial` (which now calls it) rather than duplicated: one
+search→fetch→chunk pipeline, not two drifting copies. Gated on the
+identical two standing consents proof-seeking and the link tier already
+gate on — checking mode (`state.grounded`) and web consent
+(`state.webProof`) — because this is the same class of crossing: automatic
+and instrument-decided, never a click the reader made. A turn-scoped
+`Set` of already-fetched URLs is shared between the preflight and every
+re-surf round, so a repeated search that returns the same top results
+honestly gains nothing rather than re-chunking identical bytes under a new
+address — which is also what lets a genuinely exhausted search exit
+cleanly instead of looping on its own prior finds. Flat parts only
+(P23's own scoping, unchanged): a decomposed part's narrow retrieval stays
+deliberate.
+
+**Scoped OUT of this pass, disclosed rather than silently attempted: the
+findings-as-query-seed direction named in the original ask.** Absent
+tokens, unbound edges, and proof verdicts are RECORDED (as they always
+were) but this pass does not feed a finding's own tokens into a re-surf
+query as an independent trigger alongside `uncoveredTerms` — the wall
+would apply identically (a finding's tokens are drawn from the DRAFT, not
+the question, so most would be dropped at the filter), and the marginal
+case it would catch — the material covers the question's words lexically
+but the draft's claim is still unsupported — is already reached by the
+post-draft `echoed`/stripped-to-nothing trigger for the cases measured
+live. A finding-seeded round is real future work, not built here.
+
+**Disclosed cost, measured live, not a hidden residue.** `uncoveredTerms`
+has no morphological folding — the same disclosed gap widget.js's own
+router carries ("there is no stemmer in this engine to borrow"), inherited
+here rather than newly introduced. Driven live end to end
+(`qwen2.5:14b-instruct-q4_K_M`, real DuckDuckGo, real fetched pages)
+against material that already held the answer: "What river does Nashville
+sit on?" against material reading "Nashville **sits** on the Cumberland
+River" spent two wasted rounds on the word "sit" (present in the question,
+absent from the material only because of its inflection); "Who wrote the
+Kessington report?" against material reading "The Kessington report **was
+written by** Maria Alvarez" spent one wasted round on "wrote" for the
+identical reason (voice, not tense, this time). Rephrasing the first
+question to avoid the mismatched form ("Which river is Nashville on?")
+triggered zero rounds against the same material — isolating the cause
+cleanly as lexical form, not a retrieval failure. In both wasted-round
+cases the FINAL answer still shipped correctly grounded in the original
+local material, citing `notes.txt`, never the polluted web results — the
+cost is wasted latency and real network egress on a question that already
+had its answer, not a corrupted one. No stemmer or hand-typed irregular-
+verb list was added to narrow this: P9 rules out tuned detection constants
+for exactly this shape of fix, and the cost asymmetry P23 already
+established for its own gate holds here too — a false positive spends one
+bounded, recorded, budget-capped search; a false negative reproduces the
+bug this policy exists to close.
+
+**Evidence, live end to end, real crossing.** Same model and real egress
+as above. Attached-but-insufficient material ("Nashville sits on the
+Cumberland River...") plus "Who was the mayor of Nashville in 2019?": one
+pre-draft round, query `"mayor 2019 nashville"`, gained 514 passages from
+a real Wikipedia fetch; the shipped answer correctly named John Cooper
+(who won the runoff against the sitting mayor David Briley), cited to
+`web:en.wikipedia.org-r1-0#…`. A second, unrelated topic ("What is the
+current population of Reykjavik, Iceland?" against Iceland-adjacent but
+population-silent material): one round, query `"current population
+reykjavik iceland"`, gained 688 passages, shipped a real current figure
+cited to a real fetched page — confirming the loop is not overfit to one
+worked example. A control with material that already held the answer and
+no lexical mismatch triggered zero rounds and answered instantly from the
+local material alone, refs `["notes.txt#0-66"]`, `resurf: null` — the loop
+costs nothing when the material already suffices.
+
+**Files.** `resurf.js` (new, pure, organs injected the checkLink/proof.js
+way: `RESURF_MAX_ROUNDS`, `questionTerms`, `uncoveredTerms`, `resurfQuery`
+— tested against real `chunkSource` chunks and the real diacritics fold,
+`resurf.test.mjs`); `holon.js` (`runPart`'s `resurf` parameter, the
+pre-draft loop, the post-draft round, the `groundingQuestion` anchor
+lifted once for three consumers instead of two independently-computed
+copies, the trail on the part's result, the typed opens —
+`holon.test.mjs` grew 4 cases: pre-draft crossing with a grounded answer,
+budget exhaustion with the gap on record, post-draft redraft on a detected
+non-answer, and the off-switch for decomposed parts / no injection);
+`app.js` (`gatherWebMaterial` factored out of `gatherPreflightMaterial`,
+the turn-scoped `webSeen` set, the `resurf` injection at the
+`runHolonicTask` call site, the `resurf`/`resurfed` progress branches, the
+`resurfed` ledger act).
+
+**Enforced:** `resurf.test.mjs` (9 cases, including the wall as its own
+named case) and the 4 new `holon.test.mjs` cases; both run clean against
+the real engine organs (698/702 of this worktree's full suite passing,
+the remaining 4 the same pre-existing disk-fixture failures CLAUDE.md's
+terminal-language section already documents, unrelated to this change).

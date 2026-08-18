@@ -109,6 +109,21 @@ function sameForm(a, b, suffixes) {
 }
 
 /**
+ * Strip an html document's own wrapper tags — <!DOCTYPE>, <html>, <head>,
+ * <body>, open and close, whatever attributes they carry — never their
+ * content. Every html-typed build carries this exact wrapper by
+ * construction (P5.3's own container-stripping precedent, applied to this
+ * format's boilerplate rather than a corpus's); a token contributed SOLELY
+ * by it is common to every such build and can never discriminate one
+ * build's content from another's.
+ */
+function stripHtmlWrapper(text) {
+  return String(text ?? "")
+    .replace(/<!doctype\b[^>]*>/gi, " ")
+    .replace(/<\/?(?:html|head|body)\b[^>]*>/gi, " ");
+}
+
+/**
  * Bind the router to the engine's prior register.
  *
  * `makeWidgetRouter(priors)` → `{ iterationTell, routeSegment }`, where
@@ -203,9 +218,26 @@ export function makeWidgetRouter(priors) {
 
   /** Does any content word of the message resolve into the build's own
    * bytes? Both sides through retrieval's one fold (tokenize — stopwords
-   * and short forms drop on both sides), then form identity. */
+   * and short forms drop on both sides), then form identity.
+   *
+   * `known` is stripped of the html document's own wrapper tags first
+   * (P5.3's own precedent — strip container boilerplate, keep the
+   * content). Measured live, 2026-08-17: a session with one existing html
+   * build (a canvas drawing app) asked "make me a 5-column by 5-row
+   * spreadsheet grid in html, with column headers..." — a birth request
+   * naming its OUTPUT FORMAT, pointing at nothing the drawing app
+   * contains — and it resolved onto the drawing app anyway, because
+   * `<!DOCTYPE html><html>...` contributes the token "html" to every
+   * single html-typed build's bytes by construction. That token carries
+   * zero discriminating signal: it is common to every build of this kind,
+   * so it can never be evidence that a message points at THIS one. Only
+   * the four wrapper tag names are stripped (doctype/html/head/body,
+   * open and close, whatever attributes they carry) — everything nested
+   * inside (title text, style rules, real content) is untouched, so a
+   * genuine referent living inside <head> or the body is exactly as
+   * resolvable as it always was. */
   function resolvesInto(message, known) {
-    const have = [...new Set(terms(known))];
+    const have = [...new Set(terms(stripHtmlWrapper(known)))];
     if (!have.length) return false;
     for (const t of new Set(terms(message))) {
       for (const s of have) if (sameForm(t, s, INFLECTIONAL_SUFFIXES)) return true;

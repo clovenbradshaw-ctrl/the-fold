@@ -304,6 +304,25 @@ test("routeMessage: the pre-turn face — a complaint routes before any model ca
   assert.equal(routeMessage("it's broken", [{ n: 1, type: "table", text: "a b" }]), null);
 });
 
+test("iterationTell: the html document's own wrapper tags never count as a content match", () => {
+  // Measured live, 2026-08-17: a session with one existing html build (a
+  // canvas drawing app) asked to build a SECOND, unrelated html widget —
+  // "make me a spreadsheet grid in html, each cell editable" — and it
+  // re-zeroed the drawing app instead of opening a new build, because
+  // <!DOCTYPE html><html>...</html> contributes the token "html" to every
+  // html-typed build's bytes by construction. That token can never
+  // discriminate one build's content from another's, so it must not count.
+  const drawingApp =
+    '<!DOCTYPE html><html><head><title>Simple Drawing App</title></head>' +
+    '<body><canvas id="myCanvas"></canvas><button id="clearButton">Clear</button></body></html>';
+  assert.equal(iterationTell("make me a spreadsheet grid in html, each cell editable", drawingApp), null);
+  // The wrapper tags are stripped; everything nested inside them is not —
+  // a real referent living in <title> or the body still resolves exactly
+  // as before this fix.
+  assert.equal(iterationTell("the clear button is broken", drawingApp), "resolved");
+  assert.equal(iterationTell("the drawing app's title is wrong", drawingApp), "resolved");
+});
+
 // ── the re-zero entry itself ────────────────────────────────────────────────
 
 test("a re-zero is EVIDENCE · REC · Figure · produced, carrying the operator's words verbatim", () => {

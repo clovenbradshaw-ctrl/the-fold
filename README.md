@@ -2,6 +2,21 @@
 
 A conversation whose context window does not grow, on a machine nothing leaves.
 
+## Quickstart
+
+```bash
+git clone https://github.com/clovenbradshaw-ctrl/the-fold.git
+cd the-fold
+./fold
+```
+
+One command, from nothing. `./fold` installs Node.js and Ollama if they're
+missing, clones the two sibling repos it needs (`eoreader6.1` for the
+reading engine, `live_priors` for the priors organ's corpus), installs this
+repo's own dependencies, pulls a starter model if none is pulled yet, and
+opens the browser once everything is up. What each step does, and how to run
+the pieces by hand, is in [Running it](#running-it) below.
+
 Open `index.html` over `serve.mjs`, pick an Ollama model, and talk. Every
 finished turn is folded to one line of about a hundred characters; a running
 summary tracks how the discourse evolved; and what gets sent on turn four
@@ -101,19 +116,7 @@ pins that at 400 turns.
 
 ## Running it
 
-```bash
-./fold
-```
-
-One command, from `the-fold/`, that works on a machine that has never run
-this repo before:
-
-```bash
-git clone https://github.com/clovenbradshaw-ctrl/the-fold.git
-cd the-fold
-./fold
-```
-
+See [Quickstart](#quickstart) above for the one-command path. In full,
 `./fold` installs Node.js if missing (Homebrew on macOS), clones
 `eoreader6.1` next to this repo if it isn't there (the engine both servers
 mount), clones `live_priors` next to this repo if it isn't there (the priors

@@ -820,11 +820,59 @@ export async function runPart({
   // question's verb ("who was in command" for "who commanded") slips this
   // test — the guard catches the measured shapes, it is not a parser.
   const WH_CLAUSE = /\b(?:who|whom|whose|what|which|when|where|why|how)\b[^,;:—–]*?(?=\b(?:is|are|was|were|and|but|or)\b|[,;:—–]|$)/gi;
+  // The dialogue-narration echo, measured live 2026-08-18 ("what is the
+  // weather in NYC today?", real weather pages fetched and offered): "The
+  // conversation starts with a question about the weather in New York
+  // City." / "The user is waiting for more information about the weather."
+  // / "The user is looking for the weather in New York." A third echo
+  // shape neither test above can see: it narrates the dialogue in the
+  // third person instead of restating the question's own words, so its
+  // content tokens (user, conversation, waiting, looking) come from the
+  // dialogue apparatus, not the question — and the word-coverage test
+  // reads them as content. Vocabulary held to exactly what was measured —
+  // subjects {user(s), conversation}, verb lemmas {ask, start, wait,
+  // look} — the same II.11 earned-constant discipline ACT_WORDS' own
+  // dated amendments follow; a wider guess list is future work, not
+  // shipped here as if it were already measured.
+  //
+  // provenance.js's own `NARRATION_SUBJECT`/`CUT_RES` (imported above as
+  // stripNarrationSentences, already run inside this function's `clean`,
+  // before this text is ever reached) is the SAME register, earned
+  // against a real null (194 live_priors documents, ~460k sentences).
+  // This is deliberately NOT a second copy of that list: clean() DELETES
+  // a matching sentence from the draft outright, with no verdict signal,
+  // before judge() runs; DIALOGUE_NARRATION_RE below classifies whatever
+  // SURVIVES that cut, feeding the echoed/reproduced verdict, the
+  // correction retry, and the mechanical fallback — a job clean() cannot
+  // do (an all-narration draft that clean() empties out entirely still
+  // needs a verdict, and the code below is what supplies one). The two
+  // lists were extended together on this date (provenance.js gained
+  // wait(s)/waiting and look(s)/looking in the same pass) precisely so
+  // they name the same measured register rather than drifting apart —
+  // extend both together, never one alone.
+  //
+  // Disclosed residue, both directions, the guard's own standing posture:
+  // material genuinely ABOUT a user or a conversation that also carries
+  // one of these four verbs ("The user requests an access token." is
+  // outside this measured set and ships; "The user starts the session."
+  // would not) can be misread as narration — this corrupts not only the
+  // framing-cut but also the reproduction-mass denominator, since a
+  // misclassified sentence never reaches contentSentencesOf either. And
+  // in the other direction, only a PREFIX or SUFFIX of framing sentences
+  // is cut at ship time (below); a narration sentence classified here as
+  // framing but sitting in the MIDDLE of an otherwise-real answer still
+  // ships to the page, the fold, and the record. Neither residue is
+  // pinned by a test; both are named here so a widened vocabulary or a
+  // mid-draft cut are recognized as the next measured passes, not
+  // rediscovered from scratch.
+  const DIALOGUE_NARRATION_RE =
+    /^[\s"'“”‘’(\[]*(?:the|this|that|your|our)\s+(?:user|users|conversation)\b[^.,;:—–!?]*?\b(?:ask|asks|asked|asking|start|starts|started|starting|wait|waits|waited|waiting|look|looks|looked|looking)\b/i;
   const isFraming = (sentence) => {
     if (FENCE_LINE.test(sentence)) return false;
     // A sentence that ends by asking is asking, not answering — two of the
     // three live echoes shipped with the question mark still on them.
     if (/\?\s*["'”’)\]]*\s*$/.test(sentence)) return true;
+    if (DIALOGUE_NARRATION_RE.test(sentence)) return true;
     const toks = tokenize(sentence);
     if (!toks.length) return false;
     if (toks.every((w) => questionWords.has(w) || ACT_WORDS.has(w))) return true;

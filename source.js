@@ -13,6 +13,8 @@
 //   - Whatever cannot be addressed is a typed gap, never a guess. A chunk with
 //     no term overlap is simply absent; nothing is invented to fill it.
 
+import { sniffContainer } from "./measure.js";
+
 const STOPWORDS = new Set(
   ("a an and are as at be but by for from had has have he her his i in into is it its of on or " +
     "our she that the their them there these they this to was were what when where which who why " +
@@ -261,14 +263,76 @@ export function delimitedTable(text) {
  * at a discovered boundary is the unit the document itself claims — which is
  * what a reader means by "the chapter where", and what an address should name.
  */
-export function chunkSource(name, text, { boundaries } = {}) {
-  if (looksDelimited(name, text)) return chunkRows(name, text);
+/**
+ * A best guess of WHAT KIND OF THING a piece of material is — never a
+ * certainty, always disclosed as a guess, checked magic/structure FIRST and
+ * a filename extension only as the last, weakest resort (the same
+ * discipline `measure.js::sniffContainer` already states for binary bytes:
+ * "a container is named only when its magic is unambiguous... magic is
+ * checked BEFORE any text heuristic, always" — reused here for the binary
+ * case, not re-derived, so a WAV is named the same way whether it reaches
+ * the measuring door or a chat attachment).
+ *
+ * Requirement, from a live measurement (2026-08-18): a fetched RSS feed of
+ * 8 separate posts read, to both a person skimming it and a small model
+ * asked to write about it, as one continuous essay — nothing anywhere said
+ * what the material actually WAS before its content was read. `chunkSource`
+ * carries the result on every chunk as `identity` (never baked into a
+ * chunk's own byte-addressed `.text` — the same reason `chunkRows` already
+ * keeps a table's column header BESIDE the passage rather than inside it:
+ * "splicing them into the text would make the passage disagree with the
+ * bytes at its own address"), so whichever passage retrieval actually picks
+ * still says what kind of thing it came from — omnimodal by construction,
+ * since every chunking path threads the same one field.
+ *
+ * Ordinary prose (no structural marker, no informative extension) returns
+ * `guess: null` on purpose: stating "this is text" on every ordinary
+ * attachment would be noise dressed as a finding, and the whole point of a
+ * disclosed guess is that it says something only when there IS something
+ * worth saying.
+ */
+export function identifyMaterial(name, text, { bytes } = {}) {
+  if (bytes) {
+    const container = sniffContainer(bytes);
+    if (container) return { kind: `binary:${container}`, guess: `a ${container.toUpperCase()} file`, certainty: "magic" };
+  }
+  const s = String(text ?? "");
+  if (/<rss[\s>]/i.test(s) && /<channel[\s>]/i.test(s))
+    return { kind: "feed:rss", guess: "an RSS feed — a syndicated list of separate posts, not one document", certainty: "structure" };
+  if (/<feed[\s>]/i.test(s) && /xmlns\s*=\s*["']http:\/\/www\.w3\.org\/2005\/Atom["']/i.test(s))
+    return { kind: "feed:atom", guess: "an Atom feed — a syndicated list of separate posts, not one document", certainty: "structure" };
+  if (looksDelimited(name, s)) return { kind: "table", guess: "a delimited table — rows and columns, not prose", certainty: "structure" };
+  const trimmed = s.trimStart();
+  if ((trimmed.startsWith("{") || trimmed.startsWith("[")) && isParseableJson(trimmed))
+    return { kind: "json", guess: "a JSON document", certainty: "structure" };
+  if (/^\s*<!doctype html/i.test(s) || /<html[\s>]/i.test(s)) return { kind: "html", guess: "an HTML page", certainty: "structure" };
+  const ext = (String(name ?? "").match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
+  const CODE_EXT = {
+    py: "Python", js: "JavaScript", mjs: "JavaScript", ts: "TypeScript", java: "Java",
+    rb: "Ruby", go: "Go", rs: "Rust", c: "C", cpp: "C++", sh: "shell script",
+  };
+  if (CODE_EXT[ext]) return { kind: `code:${ext}`, guess: `${CODE_EXT[ext]} source code`, certainty: "extension" };
+  if (ext === "md" || ext === "markdown") return { kind: "markdown", guess: "a Markdown document", certainty: "extension" };
+  return { kind: "prose", guess: null, certainty: "default" };
+}
+
+function isParseableJson(s) {
+  try {
+    JSON.parse(s);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function chunkSource(name, text, { boundaries, identity } = {}) {
+  if (looksDelimited(name, text)) return chunkRows(name, text, identity);
   // The addresses stay true to the file as it sits on disk: the container is
   // skipped, not renumbered.
   const { text: body, offset } = stripContainer(text);
-  if (boundaries?.length) return chunkByBoundaries(name, text, boundaries, offset);
-  if (offset) return chunkProse(name, body, offset);
-  return chunkProse(name, text, 0);
+  if (boundaries?.length) return chunkByBoundaries(name, text, boundaries, offset, identity);
+  if (offset) return chunkProse(name, body, offset, identity);
+  return chunkProse(name, text, 0, identity);
 }
 
 /**
@@ -280,7 +344,7 @@ export function chunkSource(name, text, { boundaries } = {}) {
  */
 const SEGMENT_MAX_CHARS = 4000;
 
-function chunkByBoundaries(name, text, boundaries, containerOffset) {
+function chunkByBoundaries(name, text, boundaries, containerOffset, identity) {
   const chunks = [];
   for (const b of boundaries) {
     // Anything before the first boundary is the preamble; the container strip
@@ -291,7 +355,7 @@ function chunkByBoundaries(name, text, boundaries, containerOffset) {
     if (body.trim().length < 20) continue;
 
     if (body.length <= SEGMENT_MAX_CHARS) {
-      chunks.push(makeChunk(name, text, start, b.end, b.label));
+      chunks.push(makeChunk(name, text, start, b.end, b.label, identity));
       continue;
     }
     // Split inside the segment at blank lines, never mid-paragraph: take
@@ -318,17 +382,17 @@ function chunkByBoundaries(name, text, boundaries, containerOffset) {
       // paragraph itself is larger than the reach and is kept whole rather
       // than cut mid-sentence.
       const cut = lastFit ?? br;
-      chunks.push(makeChunk(name, text, start + from, start + cut.at, b.label));
+      chunks.push(makeChunk(name, text, start + from, start + cut.at, b.label, identity));
       from = cut.next;
       lastFit = null;
       if (br.at - from <= SEGMENT_MAX_CHARS) lastFit = br;
     }
-    if (from < rel.length) chunks.push(makeChunk(name, text, start + from, b.end, b.label));
+    if (from < rel.length) chunks.push(makeChunk(name, text, start + from, b.end, b.label, identity));
   }
   return chunks;
 }
 
-function makeChunk(name, text, start, end, label) {
+function makeChunk(name, text, start, end, label, identity) {
   const body = text.slice(start, end);
   return {
     source: name,
@@ -340,10 +404,14 @@ function makeChunk(name, text, start, end, label) {
     // The label is part of what the passage says it is, so it is searchable
     // too — "chapter xviii" should find the chapter.
     terms: new Set([...tokenize(body), ...tokenize(label ?? "")]),
+    // Carried beside the text, never inside it — identifyMaterial's own
+    // header states why (the same reason chunkRows keeps a table's column
+    // header beside the passage, not spliced into it).
+    identity: identity ?? null,
   };
 }
 
-function chunkProse(name, text, base) {
+function chunkProse(name, text, base, identity) {
   const chunks = [];
   const re = /\n\s*\n/g;
   let start = 0;
@@ -361,6 +429,7 @@ function chunkProse(name, text, base) {
       end,
       text: body.trim(),
       ref: `${name}#${start}-${end}`,
+      identity: identity ?? null,
       terms: new Set(tokenize(body)),
     });
   };
@@ -400,7 +469,7 @@ function looksDelimited(name, text) {
  * the rows, and splicing them into the text would make the passage disagree
  * with the bytes at its own address.
  */
-function chunkRows(name, text) {
+function chunkRows(name, text, identity) {
   const nl = text.indexOf("\n");
   const header = nl === -1 ? text : text.slice(0, nl);
   const headerTerms = tokenize(header);
@@ -420,6 +489,7 @@ function chunkRows(name, text) {
         header,
         ref: `${name}#${start}-${end}`,
         terms: new Set([...tokenize(body), ...headerTerms]),
+        identity: identity ?? null,
       });
     }
     start = end;
@@ -474,15 +544,41 @@ export function retrieve(chunks, question, limit = 3, foldedRefs = []) {
   return scored.slice(0, limit).map((s) => s.chunk);
 }
 
+/**
+ * The MATERIAL block, carrying passage TEXT alone — never an address, never
+ * an instruction to cite one. Requirement, stated directly (user,
+ * 2026-08-18): the model must have zero idea citations are even happening,
+ * let alone be able to write one. Before this, every passage shipped as
+ * `[${c.ref}]\n${c.text}` with the instruction "cite the address in
+ * brackets exactly as written" — handing the model a working example of
+ * this instrument's own address syntax in every single prompt, then asking
+ * it to reproduce one. `checkCitations` (below) could only ever verify that
+ * a self-reported address EXISTED among what was offered, never that the
+ * specific sentence it was stapled to was actually about that passage — a
+ * model could staple any real address to any sentence and pass. The
+ * correspondence is computed entirely afterward, mechanically, by
+ * `attribute()` (cite.js) reading which passage's CONTENT the model's own
+ * words actually overlap — the model never needs to see or write the token
+ * for that to work, so it never gets the chance to fake one.
+ *
+ * A chunk's `identity` (identifyMaterial, above) rides ahead of its text
+ * exactly the way `header` already does for a tabular chunk's column names
+ * — carried beside the passage, never spliced into it, so the address it
+ * came from still reads back the bytes exactly as they sit on disk. Shown
+ * only when there is something worth saying (identifyMaterial returns
+ * `guess: null` for ordinary prose on purpose): the measured failure this
+ * closes is a model treating a fetched feed's 8 separate posts as one
+ * essay because nothing anywhere said what the material actually was.
+ */
 export function buildSourceBlock(chunks) {
   if (!chunks.length) return null;
   const parts = [
-    "MATERIAL — the passages retrieved for this turn, each with the address it was read from. Answer from these when they cover the question, and cite the address in brackets exactly as written. If they do not cover it, say so rather than filling the gap.",
+    "MATERIAL — passages retrieved for this turn. Answer from these when they cover the question; if they do not, say so rather than filling the gap.",
   ];
-  for (const c of chunks)
-    parts.push(
-      c.header ? `[${c.ref}]\ncolumns: ${c.header}\n${c.text}` : `[${c.ref}]\n${c.text}`,
-    );
+  for (const c of chunks) {
+    const body = c.header ? `columns: ${c.header}\n${c.text}` : c.text;
+    parts.push(c.identity?.guess ? `(this looks like: ${c.identity.guess})\n${body}` : body);
+  }
   return parts.join("\n\n");
 }
 

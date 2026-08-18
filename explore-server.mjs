@@ -41,6 +41,8 @@ import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, 
 import { gradeLicense, admissibleFiles, pickSeedFile, seedProvenance, INGEST_MAX_BYTES } from "./seed.js";
 import {
   extractReadable,
+  extractFeed,
+  feedText,
   looksLikeChallenge,
   parseSearchResults,
   foldWebHistory,
@@ -556,9 +558,15 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
   let text = null;
   let textFile = null;
   if (ext === ".html" || ext === ".xml") {
-    const readable = extractReadable(buf.toString("utf8"));
-    title = readable.title || null;
-    text = readable.text;
+    // A feed is not an article with unusual markup — it is a LIST of them
+    // (extractFeed's own header, web.js). Tried FIRST for .xml, by the
+    // bytes' own declared root element, never by extension alone (an .xml
+    // save can be a sitemap or any other non-feed document, which falls
+    // through to extractReadable exactly as before).
+    const feed = ext === ".xml" ? extractFeed(buf.toString("utf8")) : null;
+    const readable = feed ? null : extractReadable(buf.toString("utf8"));
+    title = feed ? feed.title || null : readable.title || null;
+    text = feed ? feedText(feed) : readable.text;
     textFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}.txt`);
     if (!existsSync(textFile)) writeFileSync(textFile, text);
   } else {

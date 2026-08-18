@@ -148,9 +148,11 @@ export function makeWidgetRouter(priors) {
     NEGATION_WORDS,
     FIRST_PERSON,
     INFLECTIONAL_SUFFIXES,
+    INDEFINITE_DETERMINERS,
+    DEFINITE_DETERMINERS,
   } = priors;
 
-  for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES })) {
+  for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES, INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS })) {
     if (!(set instanceof Set) || !set.size)
       throw new TypeError(`makeWidgetRouter: ${name} must come from the engine's prior register`);
   }
@@ -199,7 +201,16 @@ export function makeWidgetRouter(priors) {
     // colours point to the same referent"). The earlier rule here let ANY
     // indefinite determiner veto routing, and the brief's own canonical
     // complaint — "I don't like the counter widget, make the buttons
-    // bigger with SOME color" — was thereby unroutable. What decides now:
+    // bigger with SOME color" — was thereby unroutable. Deleting the veto
+    // outright left the symmetric false positive open (measured, 2026-08-18
+    // diagnosis: "make me a counter widget" resolved onto the existing
+    // counter build, because overlap alone cannot tell introducing from
+    // pointing). What replaced both is a PER-TERM reading, not a
+    // per-message veto: each matched term is read with the determiner
+    // governing ITS OWN phrase (pointedTerms, below) — "the buttons"
+    // points while "some color" in the same sentence introduces, so the
+    // canonical complaint routes AND the symmetric birth request does not.
+    // What decides:
     //
     //   · FORM RESOLUTION. A content word of the message resolves into the
     //     build when the build's own bytes hold the same FORM — identical
@@ -248,7 +259,87 @@ export function makeWidgetRouter(priors) {
    * genuine referent living inside <head> or the body is exactly as
    * resolvable as it always was. */
   function resolvesInto(message, known) {
-    return matchedTerms(message, known).length > 0;
+    return pointedTerms(message, known).length > 0;
+  }
+
+  /** The message's clauses, in the `forms` fold — the determiner walk must
+   * not cross a clause boundary ("I don't like the layout, make a cleaner
+   * version": "a" governs nothing in the first clause), and `forms` alone
+   * drops the punctuation that marks one. */
+  const clauseForms = (s) =>
+    foldDiacritics(String(s ?? ""))
+      .toLowerCase()
+      .replace(/[‘’]/g, "'")
+      .split(/[.!?;,:]+/)
+      .map((c) => c.split(/[^a-z0-9']+/).filter(Boolean))
+      .filter((c) => c.length);
+
+  /**
+   * Does the message INTRODUCE this term rather than point at it? True only
+   * when every occurrence of the term sits in a clause whose nearest
+   * determiner to its left is INDEFINITE — the closed grammatical fact the
+   * register states ("an indefinite determiner INTRODUCES its noun"): "a
+   * counter widget" introduces "counter" AND "widget" (both inside the
+   * phrase "a" opens), "the counter" points, and a bare term (no determiner
+   * in its clause) keeps today's behavior and points. One pointing
+   * occurrence anywhere is enough — pointing is the more specific fact. A
+   * term the `forms` fold never surfaces (a tokenizer normalization this
+   * fold doesn't share, e.g. "don't"→"don") fails OPEN to pointing, so
+   * nothing routable today stops routing.
+   */
+  function introducesTerm(message, term) {
+    let seen = false;
+    for (const clause of clauseForms(message)) {
+      for (let i = 0; i < clause.length; i++) {
+        if (clause[i] !== term) continue;
+        seen = true;
+        let introduced = false;
+        for (let j = i - 1; j >= 0; j--) {
+          if (DEFINITE_DETERMINERS.has(clause[j])) break;
+          if (INDEFINITE_DETERMINERS.has(clause[j])) { introduced = true; break; }
+        }
+        if (!introduced) return false;
+      }
+    }
+    return seen;
+  }
+
+  /** matchedTerms, kept only where the message actually POINTS — the
+   * determiner reading applied per term. The hit's message-side token (the
+   * half before `~`) is the one whose phrase is read. */
+  function pointedTerms(message, known) {
+    return matchedTerms(message, known).filter((hit) => !introducesTerm(message, hit.split("~")[0]));
+  }
+
+  /**
+   * Does the message introduce ANYTHING at all — any word governed by an
+   * INDEFINITE_DETERMINER, anywhere in the message, whether or not that
+   * word also happens to match the build's own bytes? This is a coarser
+   * question than `introducesTerm` (which reads one already-matched term's
+   * own phrase) and answers a different one: not "is this specific match a
+   * pointer or an introduction" but "does this message's own grammar carry
+   * the shape of an addition at all."
+   *
+   * Why a second question is needed, found by a live regression (this
+   * repo's own conformance suite, "it's broken, the button does nothing"):
+   * a message can point at existing content (tell:"resolved", via "the
+   * button") while carrying no addition whatsoever — a bug report, not a
+   * feature request. `judged` (NEGATION_WORDS + FIRST_PERSON) does not
+   * catch this phrasing either — no negation word, no first person — so
+   * tell:"resolved" alone is not enough evidence that an operator is
+   * ASKING FOR something new; it only says the operator's words touch
+   * something that already exists. Requiring a positive indefinite
+   * introduction somewhere in the message is the same closed-class
+   * discipline `introducesTerm` already uses, read at the message level
+   * instead of the single-term level.
+   */
+  function introducesAnything(message) {
+    for (const clause of clauseForms(message)) {
+      for (let i = 0; i < clause.length - 1; i++) {
+        if (INDEFINITE_DETERMINERS.has(clause[i])) return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -335,7 +426,10 @@ export function makeWidgetRouter(priors) {
    * "named" and "anaphora" are already self-explaining from the tell alone. */
   function evidenceOf(tell, message, known) {
     if (tell !== "resolved" && tell !== "judgment") return {};
-    const matchedOn = matchedTerms(message, known ?? "");
+    // The evidence is what actually drove the decision — the POINTED terms,
+    // not every overlap (an introduced term on the record would claim a
+    // match the router deliberately declined to act on).
+    const matchedOn = pointedTerms(message, known ?? "");
     return matchedOn.length ? { matchedOn } : {};
   }
 
@@ -379,12 +473,47 @@ export function makeWidgetRouter(priors) {
     // build that actually contains it rather than on whichever came last.
     for (let i = live.length - 1; i >= 0; i--) {
       const tell = iterationTell(message, live[i].text ?? "");
-      if (tell) return { kind: "rezero", n: live[i].n, lang: resolveLang(live[i], seg), tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
+      if (tell) {
+        // REC vs SUPERSEDE is not the routing decision, and conflating them
+        // is the defect a live stress-eval measured (2026-08-18): every
+        // pre-turn hit landed as a re-zero regardless of `tell`, so a plain
+        // feature-add ("add a button that clears all the cells") that
+        // merely POINTS at existing content — iterationTell's own `judged`
+        // computed false, tell:"resolved" — conceded a ground it never
+        // judged.
+        //
+        // tell:"resolved" ALONE is not enough evidence, found by the same
+        // measurement's own regression case ("it's broken, the button does
+        // nothing" — points at "button", carries no negation+first-person,
+        // tell:"resolved" too, and is NOT a feature request). The second,
+        // narrower gate: land as a revision only when the message ALSO
+        // introduces something (introducesAnything — a positive indefinite-
+        // determiner signal, not merely the absence of a judgment one). A
+        // message that only points, with nothing indefinite anywhere in it,
+        // still concedes a ground — a bug report about something already
+        // there is exactly what REC exists for. "judgment" (explicit
+        // negation+first-person) and "named" (an explicit build reference,
+        // no judgment signal computed for it at all) still concede a
+        // ground, unconditionally. "anaphora" stays REC too, conservatively:
+        // it is the tell for both an ordinary pointing pronoun AND an
+        // implicit complaint ("it's broken", "fix it") with no
+        // negation+first-person to tell them apart, and misreading a real
+        // complaint as an ordinary revision costs more than the reverse.
+        const kind = tell === "resolved" && introducesAnything(message) ? "revise" : "rezero";
+        return { kind, n: live[i].n, lang: resolveLang(live[i], seg), tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
+      }
     }
     return { kind: "new", why: "the turn's words introduce something, they do not point at something" };
   }
 
-  return Object.freeze({ iterationTell, routeMessage, routeSegment, matchedTerms });
+  // Exported so a `routeMessage` caller (routeMessage itself carries no
+  // `kind` — several existing callers pin its exact return shape, `tell`/
+  // `trigger`/`n`/`matchedOn` only, deepEqual — see widget.test.mjs) can
+  // compute the SAME rezero-vs-revise decision routeSegment now makes,
+  // rather than re-deriving it or defaulting to rezero unconditionally
+  // (app.js's send(), as of 2026-08-18, still does the latter — named in
+  // this pass's own handoff note, not fixed here).
+  return Object.freeze({ iterationTell, routeMessage, routeSegment, matchedTerms, pointedTerms, introducesAnything });
 }
 
 /** Two names for one runtime — the fold's own RENDERABLE/RUNNERS aliases. */

@@ -21,6 +21,7 @@
 // proof: everything the page loads and every call it makes names localhost.
 
 import {
+  MAX_FOLDS_IN_PROMPT,
   RECENCY_WINDOW,
   RECORD_OPEN_MAX,
   RECORD_REFS_MAX,
@@ -96,6 +97,16 @@ import {
   selfOverview,
   selfRefContext,
 } from "./reflex.js";
+
+// S1's own ground, measured — the same tier-stack organ above, pointed at
+// the conversation's own discourse instead of the instrument's acts. A
+// second meter, never a second plane: aperture.js's header says why this
+// cannot share reflexMeter's instance. exchangeHeldGround is the summary
+// refresh's gate — the engine's own "the ground did not change" verdict.
+// regimeAfter/presentWindow are the startle posture: surprise consumed as
+// a contraction of the raw present, registered on the ledger, drawn
+// nowhere (aperture.js's regime block says why).
+import { exchangeHeldGround, makeApertureMeter, presentWindow, regimeAfter } from "./aperture.js";
 
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
 // Boundaries are found by form there and received here — this app does not
@@ -213,6 +224,12 @@ const relationsFor = makeRelationReader({
 // declares the numbers (window from the fold's own present, draws and alpha
 // from read-frankenstein) — nothing here picks any.
 const reflexMeter = makeReflexMeter({ createTierStack, foldThrough });
+
+// S1's own meter — the same organ, the same declared numbers (aperture.js
+// re-exports them from reflex.js rather than picking a second set), a
+// separate instance so the world plane's belief never shares state with
+// the self plane's.
+const apertureMeter = makeApertureMeter({ createTierStack, foldThrough });
 
 import {
   buildSourceBlock,
@@ -346,6 +363,19 @@ const state = {
    */
   reflexLog: emptyReflexLog(),
   meter: reflexMeter.create(),
+  /** The world plane's own meter (aperture.js) — S1's ground, measured. Not
+   * a ledger: nothing here is written to `reflexLog`, which is the self
+   * plane's alone. */
+  aperture: apertureMeter.create(),
+  /** Consecutive summary refreshes skipped because the exchange held the
+   * ground (refreshSummary's gate). Bounded by MAX_FOLDS_IN_PROMPT so a
+   * held fold line never falls out of the refresh prompt's window unseen. */
+  heldFolds: 0,
+  /** The standing startle posture (aperture.js's regime, 0..1): raised by
+   * an exchange's own measured surprise, released at the discourse tier's
+   * own gamma, consumed as a contraction of the raw present. State the
+   * reader is IN — no surface renders it. */
+  regime: 0,
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -359,6 +389,9 @@ const PER_CONVO = [
   "lastMaterialChars",
   "reflexLog",
   "meter",
+  "aperture",
+  "heldFolds",
+  "regime",
 ];
 
 function newConvo() {
@@ -375,6 +408,9 @@ function newConvo() {
     lastMaterialChars: 0,
     reflexLog: emptyReflexLog(),
     meter: reflexMeter.create(),
+    aperture: apertureMeter.create(),
+    heldFolds: 0,
+    regime: 0,
   };
 }
 
@@ -656,8 +692,16 @@ function logAct(act, detail = {}) {
  * from state are not an arrival). Each observation is also an act on the
  * ledger, so a reflective turn can retrieve and cite what the meter
  * measured.
+ *
+ * The SAME two arrivals also feed `state.aperture` — S1's own ground,
+ * measured (aperture.js). Never the ledger: an aperture observation is not
+ * an act the instrument performed, it is a reading of what the CONVERSATION
+ * now holds, so it stays off `reflexLog` the same way material stays out of
+ * it in the other direction (reflex.js's four walls). Not yet drawn
+ * anywhere — see CLAUDE.md, "System 1's own ground".
  */
 function observeExchange(turn, question, answer) {
+  const arrivals = [];
   for (const [role, text] of [["user", question], ["assistant", answer]]) {
     const o = reflexMeter.observe(state.meter, { turn, role, text });
     state.reflexLog = recordAct(state.reflexLog, {
@@ -668,7 +712,13 @@ function observeExchange(turn, question, answer) {
         ? { gap: o.gap }
         : { bits: o.bits, standing: o.standing ?? "unplaced", reach: o.top }),
     });
+    arrivals.push(apertureMeter.observe(state.aperture, { turn, role, text }));
   }
+  // The startle posture advances on the exchange's own measured surprise
+  // and releases at the discourse tier's own gamma — one clock, belief's
+  // own. Consumed at the next turn's raw-history slice; drawn nowhere.
+  state.regime = regimeAfter(state.regime, arrivals, state.aperture.tiers[0]);
+  return arrivals;
 }
 
 /** A command that arrived without its argument gets its usage line back — a
@@ -1652,9 +1702,9 @@ async function boundTurn(question, typed) {
       open: record.open.length,
     });
   logAct("folded", { line: fold });
-  observeExchange(turn, question, flat);
+  const arrivals = observeExchange(turn, question, flat);
 
-  await refreshSummary(fold);
+  await refreshSummary(fold, arrivals);
   renderFold(node, { fold, record });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
@@ -1760,9 +1810,9 @@ async function reflectTurn(question, typed) {
     });
   logAct("reflected", { refs: offered.map((p) => p.ref) });
   logAct("folded", { line: fold });
-  observeExchange(turn, question, answer);
+  const arrivals = observeExchange(turn, question, answer);
 
-  await refreshSummary(fold);
+  await refreshSummary(fold, arrivals);
   renderFold(node, { fold, record });
   renderThreads();
   renderEvidence(node, question, offered, used, grounding, "self ledger");
@@ -1778,9 +1828,39 @@ async function reflectTurn(question, typed) {
  * token headroom — on it would double the turn's latency for nothing, which
  * is exactly what a local 3B did until it was capped. It routes to the
  * fastest rung for the same reason.
+ *
+ * GATED on the aperture meter's own verdict (2026-08-17): when every
+ * arrival of the exchange was measured and none exceeded its continuation
+ * null — tiers.js's own "nothing to say upward: the ground did not change"
+ * — the summary is CARRIED forward mechanically instead of rewritten by a
+ * model call. The refresh is S1's state transition; a turn measured to
+ * have moved nothing has nothing for it to record, and letting a small
+ * model rewrite topic/flow/entities anyway is a per-turn chance for the
+ * ground to drift under a conversation that is holding still. Measured
+ * before wiring (aperture.js::exchangeHeldGround's own header): on a
+ * settled eight-exchange stream the gate holds six, and refreshes exactly
+ * where it must — the first turn (gaps refuse the hold) and a topic pivot
+ * (the swerve arrived censored above). The fold LINE still lands either
+ * way; a deferred refresh reads every held line when the ground next
+ * moves. The one bound: a hold may not outlast the refresh prompt's own
+ * fold window (MAX_FOLDS_IN_PROMPT — fold.js's declared constant, not a
+ * number picked here), or a held line would fall out of the window
+ * unseen by any refresh. The skip is on the ledger as a `carried` act —
+ * a decision the instrument made is never silent.
  */
-async function refreshSummary(fold) {
+async function refreshSummary(fold, arrivals = null) {
   state.turnFolds.push(fold);
+  if (
+    arrivals &&
+    exchangeHeldGround(arrivals) &&
+    state.heldFolds < MAX_FOLDS_IN_PROMPT - 1
+  ) {
+    logAct("carried", { streak: state.heldFolds + 1 });
+    state.heldFolds += 1;
+    state.summary = advanceSummaryFold(state.summary, fold);
+    return;
+  }
+  state.heldFolds = 0;
   try {
     $("status").textContent = "folding…";
     const raw = await complete(
@@ -1879,6 +1959,17 @@ async function holonicTurn(task, typed = task, planMode = "model") {
 
   let lastDraftPaint = 0;
 
+  // The reach of the present, under the standing regime: calm is fold.js's
+  // declared RECENCY_WINDOW untouched; a startled reader's present
+  // contracts toward the exchange that startled it (aperture.js's regime
+  // block — posture consumed as behavior, not displayed). The contraction
+  // is an act the instrument performs, so when it is actually in effect it
+  // goes on the ledger like any other act — registered to itself, drawn
+  // nowhere.
+  const present = presentWindow(state.regime, RECENCY_WINDOW);
+  if (present < RECENCY_WINDOW && state.history.length > present)
+    logAct("narrowed", { window: present, of: RECENCY_WINDOW });
+
   let result;
   try {
     $("status").textContent = "planning…";
@@ -1902,7 +1993,10 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
-      chatHistory: state.history.slice(-RECENCY_WINDOW),
+      // Sliced at the regime's present, not the constant: a startled
+      // reader narrows onto now; the turns that fall out are already in
+      // the fold.
+      chatHistory: state.history.slice(-present),
       // The discourse slice: one line, not the carried block. Topic, flow,
       // entities — what a part needs to resolve "he" and "the report";
       // anything more it retrieves.
@@ -2046,7 +2140,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
       open: record.open.length,
     });
   logAct("folded", { line: fold });
-  observeExchange(turn, task, result.output);
+  const arrivals = observeExchange(turn, task, result.output);
   // The meter counts material against the task's parts, not the fold: what
   // was retrieved here was retrieved for the parts and does not grow with
   // the conversation.
@@ -2076,7 +2170,7 @@ async function holonicTurn(task, typed = task, planMode = "model") {
   } else {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
-  await refreshSummary(fold);
+  await refreshSummary(fold, arrivals);
   renderFold(node, { fold, record, ran: log });
   renderThreads();
   if (!state.grounded) {

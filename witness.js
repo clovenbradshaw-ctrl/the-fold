@@ -120,6 +120,41 @@ export function witnessHtml(code) {
 }
 
 /**
+ * Does `next`'s witness introduce a defect `prev`'s did not already have?
+ *
+ * The measured gap this closes (2026-08-17, live e2e against gemma2:2b): a
+ * canvas drawing app's clear button lost its `addEventListener('click', …)`
+ * to one patch, then lost its `id` entirely to the next — three complaints
+ * in a row, each one witnessed dirty, each one LANDED anyway, because the
+ * witness ran only after the fact and never compared against what came
+ * before. Every attempt passed the only gate that existed (does it apply?)
+ * while the artifact got steadily worse. This is P5 (production closes on
+ * the fold) applied to a patch: a repair is only promoted if it does not
+ * regress on a check the ground already had an answer for.
+ *
+ * The comparison is by finding IDENTITY (kind + the specific id or detail
+ * it names), never by count alone — two DIFFERENT dangling-id findings do
+ * not cancel out just because there is "still one finding". A candidate
+ * that clears every prior finding (a subset, including the empty set) is
+ * an improvement and is never a regression, whatever its count.
+ *
+ * `prev` may be null — the very first landing has nothing to regress
+ * against. Either witness being `unexamined` (a language this module
+ * cannot read) means there is nothing to compare: neither a pass nor a
+ * fail can regress against a gap.
+ */
+export function witnessRegressed(prev, next) {
+  if (!prev || prev.unexamined || !next || next.unexamined) return false;
+  if (prev.ok === true) return next.ok !== true;
+  const keyOf = (f) => `${f.kind}:${f.id ?? f.detail ?? ""}`;
+  const prevKeys = new Set((prev.findings ?? []).map(keyOf));
+  for (const f of next.findings ?? []) {
+    if (!prevKeys.has(keyOf(f))) return true;
+  }
+  return false;
+}
+
+/**
  * Witness any artifact the module knows how to read. Languages it cannot
  * judge return `{ok: null, unexamined: true}` — a typed gap, never a
  * silent clean.

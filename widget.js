@@ -473,3 +473,96 @@ export function scoutSpan(message, code, suffixes) {
   const end = nl === -1 ? text.length : nl;
   return { term: hit, span: [start, end] };
 }
+
+/**
+ * The MECHANICAL rung of the edit ladder: when the instruction itself names
+ * both ends of a value change, the edit is computed from the operator's own
+ * words and the projection's own bytes — no model call at all.
+ *
+ * The measured need (2026-08-17, live e2e, gemma2:2b): asked to "change the
+ * brush size slider's max from 30 to 60" — an ask that NAMES both values —
+ * the model rewrote an unrelated event listener and broke the script's
+ * syntax. The witness gate refused it (correctly), but a refusal is not an
+ * edit: the user's direction is that edits must land easily, reliably, fast,
+ * and at scale, a little at a time. For the value-change class, the model
+ * was never needed: the instruction holds the old value and the new one,
+ * the code holds exactly one of them, and which is which is decided by
+ * OCCURRENCE, not by English — the literal the code contains is `from`, the
+ * one it lacks is `to`. No preposition list, no phrasing pattern: identity
+ * under presence, readable in any word order and any language.
+ *
+ * The shape is deliberately narrow (the mergeHtmlScript discipline — act
+ * only on the unambiguous case, descend otherwise):
+ *   · LITERALS are numbers (30, 2.5), hex colors (#2196F3), and quoted
+ *     strings — token shapes, not vocabulary.
+ *   · Exactly TWO distinct literals in the instruction, exactly ONE of them
+ *     present in the code (word-boundary, through the scout's own fold
+ *     discipline), the other absent. Anything else — both present, neither,
+ *     three literals — is not this rung's case and returns null.
+ *   · The present literal must occur exactly ONCE in the arena (`within`
+ *     when the scout resolved one, the whole projection otherwise) — an
+ *     ambiguous value falls to the model, never to a guess.
+ *   · The op's `find` is the whole LINE holding the value (unique context
+ *     for applyOps's strict wall), `add` is that line with old → new.
+ *
+ * Returns `{ops, from, to}` or null. The caller lands it as an ordinary
+ * SYN patch — same append-only stack, same witness gate, same record — so
+ * a mechanical landing is indistinguishable in the log from any other,
+ * except that its reason says no model was asked.
+ */
+export function literalSwap(instruction, code, { within = null } = {}) {
+  const text = String(code ?? "");
+  if (!text) return null;
+  const ask = String(instruction ?? "");
+  // Token shapes, not vocabulary: hex colors first (so #30 is a color, not
+  // the number 30), then quoted strings, then bare numbers.
+  const LITERAL = /#[0-9a-fA-F]{3,8}\b|"[^"\n]{1,60}"|'[^'\n]{1,60}'|\b\d+(?:\.\d+)?\b/g;
+  const seen = [];
+  for (const m of ask.match(LITERAL) ?? []) {
+    const v = m.replace(/^['"]|['"]$/g, "");
+    if (!seen.includes(v)) seen.push(v);
+  }
+  if (seen.length !== 2) return null;
+
+  const arena = within ? text.slice(within[0], within[1]) : text;
+  const wordy = (ch) => ch !== undefined && /[a-z0-9_]/i.test(ch);
+  const placesIn = (hay, needle) => {
+    const places = [];
+    let at = hay.indexOf(needle);
+    while (at !== -1) {
+      // Word-boundary only where the literal's own edge is wordy — a hex
+      // color's "#" is its own edge, a quoted string brings its context.
+      const leftOk = !wordy(needle[0]) || !wordy(hay[at - 1]);
+      const rightOk = !wordy(needle[needle.length - 1]) || !wordy(hay[at + needle.length]);
+      if (leftOk && rightOk) places.push(at);
+      at = hay.indexOf(needle, at + 1);
+    }
+    return places;
+  };
+
+  const counts = seen.map((v) => placesIn(arena, v).length);
+  // Occurrence decides direction: the value the code holds is what changes,
+  // the value it lacks is what it becomes. Both present or both absent is
+  // not this rung's case.
+  let from = null;
+  let to = null;
+  if (counts[0] > 0 && counts[1] === 0) [from, to] = seen;
+  else if (counts[1] > 0 && counts[0] === 0) [from, to] = [seen[1], seen[0]];
+  else return null;
+  const places = placesIn(arena, from);
+  if (places.length !== 1) return null;
+
+  // The find is the whole line holding the value — unique context for the
+  // strict wall, and the line is scoutSpan's own unit of arena.
+  const at = places[0] + (within ? within[0] : 0);
+  const lineStart = text.lastIndexOf("\n", at) + 1;
+  const lineEnd = text.indexOf("\n", at);
+  const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+  // The line itself must be unique in the projection, and hold the value
+  // exactly once — otherwise applyOps would be handed an ambiguity this
+  // rung exists to avoid.
+  if (text.split(line).length - 1 !== 1 || placesIn(line, from).length !== 1) return null;
+  const swapAt = placesIn(line, from)[0];
+  const newLine = line.slice(0, swapAt) + to + line.slice(swapAt + from.length);
+  return { ops: [{ op: "SYN", find: line, add: newLine }], from, to };
+}

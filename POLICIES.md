@@ -1643,3 +1643,158 @@ code. A future pass could bound `formatRunOutcome`'s own text the way
 build-log.js's run entries already bound theirs (16K chars/stream,
 `kept/of` stated); not attempted here, named rather than silently
 absent.
+
+## P25 — A database is an event stream, current state always projected
+
+store.js (a prior pass) already holds the invariant, the user's own words,
+verbatim: "the reality of the database should be the EOT event stream, the
+current state always projected." This policy is that invariant wired into
+the terminal's REAL `sql` runtime (and chat's `/run sql` door), so a
+database a person actually populates — not only store.js's own test
+fixtures — is stored AS A FOLD: it appears in the Folds panel, persists the
+same way a code/table/html build already does, and reopens after a reload
+rebuilt by REPLAYING the log, never by reading back a saved database
+export. The one thing this policy forbids absolutely: calling
+`db.export()` (or any equivalent) and stashing the bytes as "the persisted
+current state." What is persisted is store.js's own task-log — a plain,
+JSON-serializable array of entries — and nothing else.
+
+**Ops are derived from real execution, never from parsing SQL.** sql.js
+exposes no AST, and this repo's own house rule ("search for the organ
+before you hand-roll one") points the same direction store.js's own header
+already does: let the statement run against the live database exactly as
+it already does, then DIFF the affected table's rows before and after,
+using SQLite's own `rowid` as each row's stable identity. A rowid present
+after but not before is a birth (`insertRow`); present in both with
+different column values is a revision (`updateRow`, changed columns ONLY —
+never a whole-row resend, which would defeat store.js's own per-key merge
+semantics); present before but not after is a retraction (`deleteRow`). A
+bare SELECT diffs to zero ops and never touches the store log — no
+special-casing needed, the diff is simply empty. This is Choreo's own
+"snapshot ingest generates operations" pattern (github.com/
+clovenbradshaw-ctrl/Choreo), one register over: diff raw state, emit
+granular typed ops, never trust a caller's own account of what it did —
+applied here to a source of raw state (a live sqlite session) rather than
+an externally-handed snapshot, and named as the borrowing it is, not
+reinvented quietly.
+
+**The worker stays dumb; the diffing intelligence lives in one ES module.**
+term-sql-worker.js is a CLASSIC worker (P18's own reason: sql.js is UMD and
+`importScripts` is the one loader that hands it a global scope) and cannot
+`import` a plain ES module the way the rest of this codebase shares logic.
+Rather than duplicate the diff algorithm inside the worker, the worker is
+told — per `exec` message, from the caller — which table names to snapshot
+before and after (an explicit list the caller cheaply detected off the
+statement's own text, or an empty list meaning "use your own catalog"),
+and hands the two raw `SELECT rowid, *` result sets back UNEXAMINED. All
+of the actual diffing (`store-sql.js`, a plain ES module, imported
+normally by term.js on the main thread) runs where ES module imports
+already work. The worker never imports store.js or store-sql.js, and never
+decides what a change means — only what a table currently holds.
+
+**`.load` needs no diffing at all.** For a database fold specifically,
+each row of a CSV `.load` becomes its own real `insertRow` call — never a
+raw table dump — because the caller already holds the parsed
+`{columns, rows}` shape BEFORE the worker ever sees it: every row of a
+fresh load is a birth by construction, so `opsFromCsvTable` derives the
+ops directly, with the row's 1-based position as `rowId`. `sanitizeTableName`
+mirrors term-sql-worker.js's own `tableName()` exactly (disclosed, not
+silently duplicated — the identical posture store.js's own header already
+takes for `materializeSql` mirroring that same worker's CREATE TABLE
+shape) so the fold's table name and the live session's table name never
+disagree.
+
+**One shared log, two doors, by construction, not by two authors keeping
+two copies in step.** `term.js`'s module-level `sqlSnapshotFields` is the
+ONE place that decides whether an `exec` message carries `snapshotTables`
+and what it contains — used by BOTH the interactive terminal's `exec()`
+and the standalone `runSandboxed()` (which chat's `/run sql` door and the
+model's own auto-run both call), so the two never carry two copies of the
+same check that could drift — this repo's own postmortems have already
+caught that exact drift class twice (P22's DEF/EVA `Array.find` bug,
+`synthesize`'s `String.includes` bug; P24's `type` ternary). `app.js`'s
+`applyStoreOps` is the identical landing either door reaches: the
+interactive terminal calls it directly via a new `bridge.applyStoreOps`
+accessor (the same injection shape `gridLog`/`setGridLog` already
+established for the terminal language); `/run sql`'s `runTurn` calls it
+after `runSandboxed` resolves, reading the `dbOps` field that function's
+resolved object now carries.
+
+**Deliberately its own top-level `state.builds` entry kind, not a fifth
+thread on build-log.js.** A database fold carries `entry.kind ===
+"database"` and `entry.storeLog` (store.js's own log) where a code/table/
+html build carries `entry.log` (build-log.js's) — it does NOT route
+through build-log.js's PROPOSE/SUPERSEDE-per-edit versioning chain, because
+that model fits one person or model editing one version at a time, not a
+stream of many small granular row operations. Its "version"/"revision"
+display is simply `entry.storeLog.entries.length` ("N operations
+recorded"), read straight off the log. What IS reused, stated so nothing
+here reads as a silent half-integration: `state.builds` itself (one array,
+one numbering scheme, one persistence key); `renderBuilds`/`foldRow`'s
+search-and-sort pipeline (folds-pane.js never learns a database fold's
+shape — it only ever sees the same row shape every other kind already
+produces); `artifactNode`'s table renderer, factored into a shared
+`tableWrap` helper rather than built a second time. What is NOT reused:
+build-log.js's PROPOSE/SUPERSEDE/RESULT vocabulary, its cursor scrubbing (a
+database fold has no versioned "as of" position — the store log's own
+entries ARE its history, always live), its editor, its run/restore/
+download controls. Full CLAUDE.md section carries the reasoning for each.
+
+**Scope: one database fold, app-wide.** The first row-level mutation from
+either door lazily creates the ONE database fold this policy keeps; every
+later mutation from either door lands on the same log — the identical
+"belongs to the instrument, not one conversation" reasoning
+`state.gridLog`/`state.builds` already state elsewhere. Several
+simultaneous database folds is real, named future work, not attempted.
+
+**Disclosed limitations, found while building.** A SQL column literally
+named `id`, `table`, `row`, `because`, or any of task-log's reserved entry
+keys collides with store.js's OWN disclosed collision guard and throws —
+this pass does not work around it (renaming a column would silently
+disagree with what the operator typed); `applyStoreOps` catches the
+failure per op, keeps whatever succeeded, and reports what could not be
+recorded rather than crashing or silently dropping the row. Re-entering
+the interactive `sql` runtime after `exit` boots a genuinely fresh, empty
+sqlite database — the store log remembers every row forever, but the live
+session does not remember schema, and sqlite's own rowid counter resets
+too, so a later session's rows can in principle collide with an earlier
+session's already-recorded rowId for a same-named table; not reconciled
+here. "Reopening" a fold means the Folds panel shows its live projection,
+fresh on every render — it does NOT mean a freshly booted `sql` runtime is
+pre-loaded with the fold's prior rows for continued live querying, which
+would need `materializeSql` run inside the classic worker and was not
+built this pass. `.load` run twice against the same source name is not
+diffed against its own prior load. None of these are silent; each is
+stated in code comments and in CLAUDE.md's own section.
+
+**Evidence:** driven live end to end through a real browser against `node
+serve.mjs` (not only in test files) — `CREATE TABLE t (...); INSERT ...;
+INSERT ...;` landed 2 insert ops and rendered a 2-row table; `UPDATE ...`
+landed exactly 1 update op (Bob's untouched row produced none); `DELETE
+...` removed the row from the live view; **reloading the page** showed the
+identical fold, and a console inspection of `localStorage["fold-builds"]`
+showed the persisted object's only keys are `entries`/`kind`/`n`/`turn` —
+`entries` an ordinary array of task-log entries (`propose`/`propose`/
+`supersede`/`retract`), never a `db.export()` byte array. A pasted CSV,
+`.load`ed, produced 3 separate insert ops (op count 4→7, not a single
+table-dump entry) and a live `SELECT` immediately after produced no
+`database fold:` line at all. Chat's `/run sql` door, in a fresh THROWAWAY
+worker, landed on the SAME fold as the terminal — "one shared log, two
+doors" proven live, not only asserted. Full CLAUDE.md section carries the
+complete transcript.
+**Enforced:** `store-sql.test.mjs` — 14 conformance tests against the REAL
+sql.js package (every before/after pair a genuine `db.exec()` result, never
+a hand-typed fixture): mutation/table detection, the zero-rows/no-such-
+table/undefined collapse, insert/update/delete derivation off real CREATE
+TABLE + INSERT/UPDATE/DELETE batches (including a same-batch insert-then-
+delete netting to zero ops, and a table created and populated within one
+batch), `deriveStoreOps`'s union-of-tables flattening, `sanitizeTableName`'s
+mirror of the worker's own sanitizer, `opsFromCsvTable`'s row derivation
+including a null cell, and one full end-to-end round trip (real sql.js →
+`deriveStoreOps` → store.js's `insertRow`/`updateRow`/`deleteRow` →
+`foldStore` → `materializeSql` against the real package). `term.test.mjs`
+unchanged and still passing (23/23) — this policy's term.js changes are
+additive (`sqlSnapshotFields`, `applyDbOps`, the `dbOps` field) and touch
+no function that file already tests. Full-suite count: 706 tests / 702
+passing / 4 failing before this policy (the same 4 this repo already
+carries), 720 / 716 / 4 after.

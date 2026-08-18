@@ -2232,3 +2232,181 @@ after: the same 4 pre-existing failures the baseline names (`measure.test.mjs`,
 three `webllm-rung.test.mjs` model-file cases) plus the one disclosed
 worktree-nesting artifact above, itself confirmed unaffected by this
 change (identical failure, identical file, both before and after).
+
+## The database fold (added 2026-08-18) — what was decided, so it is not re-derived
+
+P25 in POLICIES.md is the law; this is the map. `store.js`/`store.test.mjs`
+(a prior pass, already tested — read in full, not redesigned) hold the load-
+bearing invariant, the user's own words, verbatim: **"the reality of the
+database should be the EOT event stream, the current state always
+projected."** This pass is the wiring that makes that true of a database a
+person actually populates, at the terminal's real `sql` runtime or through
+chat's `/run sql` door, rather than only in store.js's own tests: a mutation
+lands on a fold, the fold appears in the Folds panel, persists the same way
+a code/table/html build already does, and reopens after a reload — rebuilt
+by REPLAYING the log, never by reading back a saved database export. The
+Choreo lineage store.js's own header already claims (github.com/
+clovenbradshaw-ctrl/Choreo — "the log is truth, projection is convenience")
+is this pass's lineage too, one register over: **"snapshot ingest generates
+operations"** — diff raw state, emit granular typed ops — read directly off
+sql.js's own before/after row snapshots rather than off a hand-rolled SQL
+parser, since sql.js exposes no AST to search for one.
+
+**Files.** `store-sql.js` (new, pure: `looksMutating`/`detectTables` — cheap
+text regexes, never a parser, and a caller's cue to fall back when they find
+nothing; `snapshotFromExec`/`diffSnapshots`/`deriveStoreOps` — the diff
+itself, over sql.js's own real `{columns, values}` result shape;
+`sanitizeTableName`/`opsFromCsvTable` — the `.load` path, disclosed as a
+deliberate mirror of term-sql-worker.js's own `tableName()`, the same
+posture store.js's own header already takes for materializeSql mirroring
+that worker's CREATE TABLE shape) + `store-sql.test.mjs` (14 conformance
+tests against the REAL sql.js package — every "before"/"after" pair is a
+genuine `db.exec("SELECT rowid, * FROM t")` result, not a hand-typed
+fixture). `term-sql-worker.js` grew `listTables`/`snapshotNames` and one
+new `exec` protocol field (`snapshotTables`) — the worker stays a dumb
+executor: it is TOLD which tables to snapshot (or told to use its own
+catalog) and hands the raw before/after row-sets back UNEXAMINED; all the
+diffing intelligence lives in store-sql.js, a plain ES module the caller
+(term.js, main thread) already imports normally — the worker never imports
+store.js or store-sql.js, and never decides what a change means. `term.js`
+grew the module-level `sqlSnapshotFields` (shared by BOTH the interactive
+terminal's `exec()` and the standalone `runSandboxed()`, one implementation
+rather than two that could drift — this repo's own postmortems have already
+caught that exact drift twice under P22/P24), `applyDbOps` (the terminal's
+own closure, prints "database fold: N row-level change(s) recorded" where
+it happens), and `runSandboxed`'s resolved object grew a `dbOps` field so
+`/run sql` can apply the identical landing after a throwaway worker settles.
+`app.js` grew the database-fold section (`findDatabaseFold`/
+`createDatabaseFold`/`applyStoreOps`/`databaseProjection`), a `buildFold`
+guard (`entry.kind === "database"` → `null`, which is what makes every OTHER
+reader of a build — `kindOf`, `buildWords`, `buildChip`'s auto-run — already
+safe on a database entry without each needing its own guard), an early
+refusal in `foldTurn` (`/fold <n>` is text revision; a database fold is not
+text revision's to touch), `persistBuilds`/`restoreBuilds` branches, a
+`databaseFoldCard` (deliberately NOT `buildCard` — no cursor scrubber, no
+edit/run/restore controls, none of build-log.js's machinery applies), and
+`artifactNode`'s new `"database"` branch (drawing through a newly factored
+`tableWrap` helper — the SAME table renderer `seg.type === "table"` already
+used, not a second one built for this).
+
+**The operator-typing decision, stated because it costs something.** A
+diffed row change is landed as `store.insertRow`/`updateRow`/`deleteRow`
+exactly as store.js's own header already types them (INS · Figure ·
+produced for a birth; SUPERSEDE · SYN · Figure · produced, changed columns
+only, for a revision; RETRACT · NUL for a retraction) — nothing new is
+typed here, because the typing question was already answered by the module
+this pass builds on. What THIS pass decided: a mutating statement is
+detected by a bare keyword regex (`INSERT`/`UPDATE`/`DELETE`/`REPLACE`),
+never a parser — sql.js exposes no AST, and this repo's own house rule
+("search for the organ before you hand-roll one") pointed at diffing
+sql.js's own real execution rather than attempting one. Table names are
+detected the same cheap way, with an EXPLICIT, disclosed fallback (an empty
+detection list tells the worker "snapshot your own full catalog") rather
+than a guess dressed as certainty. `.load` needs no diffing at all — every
+row of a fresh CSV load is a birth by construction, so it calls `insertRow`
+directly off the already-parsed `{columns, rows}` term.js already holds,
+never round-tripping through the worker to ask what changed.
+
+**Scope, decided and stated rather than silently assumed — one fold,
+app-wide, not per-conversation or per-session.** The first row-level
+mutation from EITHER door (the terminal, or chat's `/run sql`) lazily
+creates the ONE database fold this pass keeps; every later mutation from
+either door lands on the same log — the identical "belongs to the
+instrument, not one conversation" reasoning `state.gridLog`/`state.builds`
+already state elsewhere in this repo. A "new database" affordance (several
+simultaneous database folds) is real, named future work, not attempted:
+nothing that motivated this pass asked for more than one.
+
+**Deliberately NOT routed through build-log.js.** A database fold is its
+OWN top-level `state.builds` entry kind (`entry.kind === "database"`,
+carrying `storeLog` where a code/table/html build carries `log`) rather than
+a fifth thread on build-log.js's PROPOSE/SUPERSEDE-per-edit versioning
+chain — that model fits a code revision (one person or model editing one
+version at a time), not a stream of many small granular row operations; a
+database fold's "version" display is simply `entry.storeLog.entries.length`
+("N operations recorded"), read straight off the log the same way
+build-log.js's own `timeline` reads a code build's addenda count. What IS
+reused, named plainly so nothing here reads as a silent half-integration:
+`state.builds` itself (one array, one numbering scheme, one persistence
+key, `n` allocated the identical `state.builds.length + 1` way every other
+kind already is); `renderBuilds`/`foldRow`'s search-and-sort pipeline
+(folds-pane.js never learns a database fold's shape — it only ever sees the
+same `{n, caption, lang, type, address, code, addenda}` row every other kind
+already produces); `artifactNode`'s table renderer, factored into
+`tableWrap` so there is exactly one table-drawing implementation. What is
+NOT reused: build-log.js's PROPOSE/SUPERSEDE/RESULT vocabulary, its cursor
+scrubbing (a database fold has no versioned "as of" position to scrub — the
+store log's own entries ARE its history, always shown at the live head),
+its editor, its run/restore/download controls.
+
+**Disclosed limitations, found while building, not glossed over.** (1) A
+SQL column literally named `id`, `table`, `row`, `because`, `operator`,
+`grain`, or any of task-log's other reserved entry keys — `id` especially,
+extremely common in ordinary schemas — collides with store.js's OWN
+disclosed collision guard and throws at `insertRow`/`updateRow`. This is
+store.js's own documented deviation, not something this pass invented, and
+this pass does not work around it (renaming or escaping a column would
+silently disagree with what the operator actually typed): `applyStoreOps`
+catches the failure per-op, keeps whatever succeeded before it, and reports
+what could not be recorded, plainly, rather than crashing the batch or
+silently dropping the row. (2) Re-entering the interactive `sql` runtime
+after `exit` boots a genuinely FRESH, empty in-memory sqlite database — the
+STORE LOG remembers every row forever, but the live session does not
+remember SCHEMA, so a bare `INSERT` without a matching `CREATE TABLE` in
+the new session fails exactly as it would against any fresh sqlite
+connection. A second-order consequence, disclosed rather than silently
+risked: sqlite's own `rowid` counter also resets to 1 in that fresh
+session, so a NEW row inserted into a same-named table in a later session
+can collide with an EARLIER session's already-recorded rowId for that
+table if the two are never reconciled — not attempted here. (3) "Reopening"
+a database fold means the Folds panel shows its live projection
+(`store.foldStore`, fresh on every render) — it does NOT mean a freshly
+booted `sql` runtime is pre-loaded with the fold's prior rows so a person
+can keep querying it live; that would need `materializeSql` (or the
+equivalent CREATE-TABLE-plus-INSERT priming) run INSIDE the classic sql
+worker, which this pass did not build. (4) `.load`, run a second time
+against the same source name, is not diffed against its own prior load —
+every row lands as a birth again; a shrink (fewer rows the second time)
+leaves the earlier rows' fold entries live and stale. None of these are
+silent: each is stated here, and (1) additionally surfaces to the operator
+at the moment it happens.
+
+**Evidence, driven live end to end through a real browser against `node
+serve.mjs`, not only in test files.** Typed at the terminal:
+`CREATE TABLE t (name TEXT, age INTEGER); INSERT INTO t VALUES ('Alice',
+30); INSERT INTO t VALUES ('Bob', 25);` landed `database fold: 2 row-level
+changes recorded (2 insert, 0 update, 0 delete)`; the Folds panel showed
+`DATABASE · 2 OPERATIONS RECORDED` with a rendered `t` table of exactly
+those two rows. `UPDATE t SET age = 31 WHERE name = 'Alice';` landed
+`(0 insert, 1 update, 0 delete)` — the op count rose by exactly one, Alice
+read 31, Bob's row was untouched (not resent). `DELETE FROM t WHERE name =
+'Bob';` removed Bob from the live view, op count at 4. **Reloading the
+page** — the actual test that matters — showed the identical fold, `4
+OPERATIONS RECORDED`, Alice still at 31; a console inspection of
+`localStorage["fold-builds"]` both immediately before and immediately after
+the reload showed the persisted object's only keys are `["entries", "kind",
+"n", "turn"]` — `entries` an ordinary JSON array of task-log entries
+(`kind: "propose"/"propose"/"supersede"/"retract"`, the first one literally
+`{kind:"propose", operator:"INS", task_id:"t:1", table:"t", row:"1",
+name:"Alice", age:30, ...}`) — never a `db.export()` byte array, never
+anything resembling a serialized sql.js database. A real CSV
+(`city,riders\nNashville,1200\nMemphis,900\nKnoxville,450`) pasted as an
+attachment, then `.load pasted.txt` at the terminal, printed `database
+fold: 3 row-level changes recorded (3 insert, 0 update, 0 delete)` and the
+panel grew a second table (`PASTED · 3 ROWS`) with exactly those three
+rows — three separate `insertRow` calls, confirmed by the operation count
+(4 → 7) rather than a single table-dump entry; `SELECT * FROM pasted;`
+immediately after read back all three rows from the live session AND
+produced no new `database fold:` line at all — a bare SELECT genuinely
+never touches the store log. Finally, chat's own `/run sql` door —
+`/run sql\nCREATE TABLE orders (item TEXT, qty INTEGER); INSERT INTO
+orders VALUES ('widget', 5);` — ran in a fresh THROWAWAY worker (a
+different door entirely) and still landed `database fold 1: 1 row-level
+change recorded`, and the SAME Folds panel grew to `8 OPERATIONS RECORDED
+— currently 5 live rows across 3 tables`, proving the "one shared log, two
+doors" claim live rather than only by code inspection. The full suite ran
+before and after: 706 tests / 702 passing / 4 failing before this pass
+(the same 4 this repo already carries — `measure.test.mjs`, three
+`webllm-rung.test.mjs` model-file cases), 720 / 716 / 4 after — the 14 new
+`store-sql.test.mjs` cases all passing, the same 4 pre-existing failures
+untouched, zero regressions anywhere else in the suite.

@@ -41,6 +41,36 @@ export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always st
 export const RECORD_SHOWN = 20; // record tail rows shown
 export const SNIPPET_CHARS = 100; // one search row's excerpt
 export const HINT_AFTER_MS = 10_000; // a long-running command earns one "✕ interrupts" hint
+export const TERM_RECORD_LINE_CAP = 2_000; // a mirrored line's own keep budget — unbounded text is not a record, it's a leak
+
+// ── mirroring every submitted line onto the durable record ─────────────────
+//
+// "Terminal acts are not on the record" was a deliberate posture, not an
+// oversight (CLAUDE.md's terminal section names it, and names the mirror as
+// future work) — closed here by reusing explore-server.mjs's own `record()`
+// and its one file (record/explore-record.jsonl), the SAME record every
+// other event in this instrument already lands on, rather than a second
+// file or a second reader. `record`/`priors`/`pip` above already try both
+// bases for a READ; this is the identical shape for a WRITE — sequential
+// with fallback, never both at once, silent when neither base has the
+// route (no fold server running is this terminal's long-standing default,
+// not a mid-command error).
+const RECORD_BASES = ["", "http://localhost:8812"];
+async function mirrorTerm(event, fields) {
+  for (const base of RECORD_BASES) {
+    try {
+      const res = await fetch(`${base}/api/term-record`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event, ...fields }),
+      });
+      if (res.ok) return;
+    } catch {
+      /* try the next base */
+    }
+  }
+}
+const capped = (s) => (s.length > TERM_RECORD_LINE_CAP ? s.slice(0, TERM_RECORD_LINE_CAP) + `…(${s.length - TERM_RECORD_LINE_CAP} more, dropped)` : s);
 
 // ── the registry ────────────────────────────────────────────────────────────
 export const ROSTER = {
@@ -245,6 +275,14 @@ export function initTerminal(bridge) {
     workers: {}, // name → { worker, ready }
     learnAt: null, // lesson index, or null when no lesson is running
     learnTries: 0,
+    // The terminal language's own append-only log (grid.js), one per
+    // terminal session, never persisted — a fresh page is a fresh log,
+    // same posture term.js already has for "terminal acts are not on the
+    // record" (CLAUDE.md, the terminal section). `bridge.grid` is optional:
+    // a caller that has not wired it (or a Node test importing this module
+    // for its pure functions alone) still boots a working terminal, with
+    // `act`/`grid`/`capacities` refusing gracefully instead of throwing.
+    gridLog: bridge.grid ? bridge.grid.createLog() : null,
   };
 
   const line = (text, cls) => {
@@ -377,6 +415,9 @@ export function initTerminal(bridge) {
           "  priors [on|off <p>]  live_priors' toggle state · flip a document, folder, or the whole corpus",
           "  handbook [n]         the eoreaderhandbook, vendored whole — chapter list, or one chapter's text",
           "  pip install <name>   fetch a wheel from pyodide's own ~350-package build (P21) — never arbitrary PyPI",
+          "  act <line>           compose one act of the terminal language — verb at terrain from stance (P22)",
+          "  grid [legend]        this session's landed acts and define/evaluate landings · the 9×9×9 reference table",
+          "  capacities [id]      the small, disclosed capacity registry `synthesize` checks its parts against",
           "  runtimes             what can run here — and what is refused, with reasons",
           "  learn · learn stop   walk this terminal's own commands, one step at a time · leave the lesson early",
           "  clear · exit         wipe the screen · close the drawer",
@@ -568,6 +609,92 @@ export function initTerminal(bridge) {
       line(`${body.name} v${body.version} ready (${fresh}) — sha256-pinned against pyodide's own lock.`, "term-mute");
       line(`this session's python runtime won't see it — its network already severed. \`exit\` then \`python\` starts fresh; \`import ${body.name}\` as that session's FIRST line loads it, same as numpy/pandas/matplotlib always have.`, "term-mute");
     },
+    // act / grid / capacities — the terminal language (grid.js): the nine
+    // operators, nine terrains, nine postures, one composition law. `act`
+    // parses and lands one line on this session's own append-only log
+    // (never persisted — see term.gridLog's own comment above); `grid`
+    // folds that log into what currently stands, or shows the fixed
+    // 9×9×9 reference table on request (`grid legend`) — kept one command
+    // away rather than fronting the page, the same posture Explore's own
+    // legend view already holds for the nine terrains. `capacities` lists
+    // the small, disclosed capacity registry `synthesize` checks its parts
+    // against. One capacity actually EXECUTES: a landed `distinguish`
+    // whose `ground` names an already-loaded source runs `cast` for real
+    // (capacity-runner.js) and attaches the referents found as a RESULT —
+    // every other capacity stays reference-only, and `runCapacity` says so
+    // itself (a typed `not_yet_executable` gap), never a silent no-op.
+    act(arg) {
+      if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
+      if (!arg) return line("act <verb> [<object>] at <terrain> from <stance> [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<giver>] — `grid legend` lists the verbs, terrains, and stances", "term-mute");
+      const parsed = bridge.grid.parseAct(arg, { log: term.gridLog });
+      if (!parsed.ok) {
+        mirrorTerm("term-act-refused", { line: capped(arg), refusal: parsed.refusal.type, detail: parsed.refusal.detail });
+        return line(`refused (${parsed.refusal.type}): ${parsed.refusal.detail}`, "term-exit bad");
+      }
+      const { log, ids } = bridge.grid.land(term.gridLog, parsed.event);
+      term.gridLog = log;
+      mirrorTerm("term-act", { verb: parsed.event.verb, ops: parsed.event.ops, object: parsed.event.object, terrain: parsed.event.terrain, stance: parsed.event.stance.cell, ids });
+      const objectPart = parsed.event.object ? `${parsed.event.object} ` : "";
+      line(`${parsed.event.verb} ${objectPart}[${parsed.event.ops.join("+")}] at ${parsed.event.terrain} from ${parsed.event.stance.cell} → ${ids.join(", ")}`, "term-mute");
+      // Only attempt a real read when the ground candidate names an
+      // ACTUAL loaded source — checked by key presence, not truthiness, so
+      // the two different facts stay distinct: a name that resolves to
+      // nothing loaded is silently an ordinary abstract `distinguish` (no
+      // capacity ran, no gap printed); a name that DOES resolve but to
+      // empty content is a real, printed `no_material` gap, correctly
+      // naming that as what happened rather than "no such source."
+      const sources = bridge.sources();
+      if (parsed.event.verb === "distinguish" && parsed.event.ground && bridge.runCapacity && Object.hasOwn(sources, parsed.event.ground)) {
+        const result = bridge.runCapacity("cast", { text: sources[parsed.event.ground], name: parsed.event.ground });
+        if (result.gap === "no_material") return line(result.detail, "term-exit bad");
+        const insId = ids[ids.length - 1];
+        const attached = bridge.grid.attachResult(term.gridLog, insId, result);
+        if (attached.ok) term.gridLog = attached.log;
+        mirrorTerm("term-capacity-run", { id: "cast", source: parsed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
+        line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${parsed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+      }
+    },
+    grid(arg) {
+      if ((arg ?? "").trim().toLowerCase() === "legend") {
+        const verbs = Object.entries(bridge.grid ? bridge.grid.VERBS : {}).map(([v, { ops }]) => `  ${v.padEnd(12)} ${ops.join("+")}`);
+        const shorthands = Object.entries(bridge.grid ? bridge.grid.STANCE_SHORTHANDS : {}).map(([s, { mode, grain }]) => `  ${s.padEnd(12)} ${mode}${grain ? "·" + grain : " (any grain)"}`);
+        return line(
+          [
+            "nine operators, eight surface verbs (`distinguish` carries two):",
+            ...verbs,
+            "",
+            "nine terrains — Void Entity Kind (Existence) · Field Link Network (Structure) · Atmosphere Lens Paradigm (Interpretation)",
+            "",
+            "stance = a mode (differentiate/relate/generate) crossed with the terrain's own grain; four named shorthands:",
+            ...shorthands,
+          ].join("\n"),
+          "term-mute",
+        );
+      }
+      if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
+      const { acts, landings } = bridge.grid.foldGrid(term.gridLog);
+      if (!acts.length) return line("nothing landed yet — `act <line>` composes one; `grid legend` lists the verbs, terrains, and stances", "term-mute");
+      for (const a of acts) {
+        line(`${a.task_id}  ${a.operator}·${a.grain}  ${a.verb} ${a.object ?? ""}`.trim());
+        if (a.result?.count !== undefined) line(`  → ${a.result.count} referent${a.result.count === 1 ? "" : "s"}: ${a.result.referents?.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+      }
+      if (landings.length) {
+        line("", "term-mute");
+        line("define landings (testimony only if a companion evaluate cleared):", "term-mute");
+        for (const l of landings) line(`  ${l.task_id}  ${l.object ?? ""}  ${l.status}${l.reason ? " — " + l.reason : ""}`, "term-mute");
+      }
+    },
+    capacities(arg) {
+      const list = bridge.capacities ?? [];
+      if (!list.length) return line("no capacities registered", "term-mute");
+      const want = (arg ?? "").trim().toLowerCase();
+      if (want) {
+        const hit = list.find((c) => c.id === want);
+        if (!hit) return line(`no capacity named "${want}" — \`capacities\` lists them`, "term-exit bad");
+        return line(`${hit.id} · ${hit.terrain} · ${hit.op}\n  ${hit.module}::${hit.fn}\n  ${hit.what}`, "term-mute");
+      }
+      for (const c of list) line(`  ${c.id.padEnd(12)} ${c.terrain.padEnd(10)} ${c.what}`, "term-mute");
+    },
     clear() {
       out.textContent = "";
     },
@@ -666,6 +793,11 @@ export function initTerminal(bridge) {
     term.buffer = "";
     drawPrompt();
     if (!text.trim()) return;
+    // Every line that actually runs mirrors onto the durable record —
+    // "everything gets logged" applies here the same way it already does
+    // to every other act this instrument performs. Fire-and-forget: never
+    // awaited, never blocks the command it is describing.
+    mirrorTerm("term-exec", { runtime: term.runtime, line: capped(text) });
     if (term.runtime === "fold") runFold(text);
     else if (text.trim() === "exit") {
       term.runtime = "fold";

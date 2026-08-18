@@ -1088,6 +1088,185 @@ channel, and the local-only excision. The lineage evidence cited here was
 gathered by a five-reader sweep across eochat, eochatX, eoWebLLM, and the
 engine; the full brief is preserved in that session's task output.*
 
+## P22 — The terminal language: nine operators, one composition law, one capacity executing
+
+`grid.js` (+ `capacities.js`, `grid.test.mjs`) implements the near-horizon
+build `SEED-CREATION-LANGUAGE.md` names first and the fuller Terminal
+Language document specs in full: a composition law —
+
+    <verb> [<object>] at <terrain> from <stance>
+      [ground <ground> broken:<perturbation>] [because <trigger>]
+      [supersedes <event>] [warrant:<giver>]
+
+— parsed into a typed event or a typed refusal, landed on the engine's own
+append-only task log (`holon/task-log.js`, injected — the same
+`createTaskLog`/`append`/`projectTasks`/`checkCubeProgression` machinery
+build-log.js already trusts), folded on request. Reachable at the terminal
+as three new fold commands: `act <line>` (parse and land one act on this
+session's own log — never persisted, matching term.js's standing "terminal
+acts are not on the record" posture), `grid` (fold the live acts, plus
+DEF/EVA landing status; `grid legend` prints the fixed 9×9×9 reference
+table, one command away rather than fronting the page — the same posture
+Explore's own legend view already holds), and `capacities` (list the small
+capacity registry `synthesize`'s parts are checked against).
+
+**Reused, not re-derived.** The nine operators (NUL SIG INS SEG CON SYN DEF
+EVA REC), the terrain grid (`TERRAIN_BY_DOMAIN`), and the append-only log
+discipline all come from `packages/engine/operators.js` and
+`holon/task-log.js` (`../eoreader6.1`) — grid.js adds the composition-law
+surface and the stance axis on top, never a second copy of the algebra.
+Three reconciliations were necessary between the Terminal Language document
+as handed down and what this repo already ships, and grid.js's own header
+carries the full reasoning; the load-bearing facts:
+
+- **Operator order.** The document's prose names a "HELIX order" (NUL SIG
+  INS SEG CON SYN DEF EVA REC). `task-log.js`'s own header — without
+  spelling out that sequence's own letters — records that "an invented
+  HELIX ordering" existed once as a hand-rolled application copy, and was
+  superseded by the engine's real `OPERATOR_ORDER` (NUL SEG
+  SIG CON EVA DEF INS SYN REC) — the one `validateChain`/
+  `checkCubeProgression` actually enforce. grid.js uses the engine's order.
+- **Terrain is medium-blind, even past the engine's own domain lock.**
+  `operators.js::cellOf` ties an operator's terrain to its own fixed
+  domain (SIG/INS are always Existence-domain, so `cellOf` alone could
+  only ever land a `distinguish` on Void/Entity/Kind). The document's own
+  §5 worked example uses `distinguish at Network from encounter` — Network
+  is Structure-domain — and states why directly ("the operator is
+  medium-blind"). `at <terrain>` is therefore taken as authoritative here,
+  never re-derived from the verb's own operator letters; `cellOf` is not
+  called to second-guess it.
+- **Stance is a genuinely new, independent axis**, not derived from the
+  operator's own fixed mode the way `operators.js::STANCE_BY_MODE` is. Its
+  labels (Clearing, Dissecting, Cultivating…) only mean something when an
+  operator and its terrain share one domain — exactly what the point above
+  says this module does not require — so grid.js does not import or
+  display them; the document's own mode/grain vocabulary is the only
+  stance vocabulary landed here.
+- **`encounter` is grain-flexible**, unlike the other three named
+  shorthands (`extraction`, `cultivation`, `closure`, each locked to one
+  grain). The document's own table format wants one fixed cell per
+  shorthand, but its prose introduces `encounter` loosely across two
+  cells, and §5's own worked example (`distinguish at Network from
+  encounter`, Pattern-grain) and §2 ("read launchers default to
+  `encounter`" across launchers of every grain) both only parse if
+  `encounter` resolves like bare `generate` — any grain, taken from the
+  terrain. Pinned as a regression in grid.test.mjs, verbatim against the
+  worked example.
+
+**What actually gates, checked against the real algebra, not decorated.**
+Every refusal named in the document's own operator table is implemented as
+a real, tested check — `void`/`distinguish`/`evaluate` require a named
+`ground … broken:<perturbation>`; `separate` refuses at a Ground-grain
+terrain or against an object not yet individuated on this log;
+`relate` refuses two referents that are not yet established on the log
+unless the edge carries `warrant:<giver>` (offered rather than
+established — the document's own referent-resolution ladder); `synthesize`
+refuses parts sharing no warranting relation and matching no capacity;
+`revise` refuses without both a trigger and a target already on the log;
+the one stance-law rule the document names (`synthesize` may not declare
+`from relate`) is enforced directly. `define` is the one exception, by
+design: no refusal fires at parse time for a missing companion `evaluate`
+— the document is explicit that this is a FOLD-time fact ("a define lands
+on the record only if its evaluate clears"), so `foldGrid` computes each
+`define`'s landing (`wish` / `testimony` / `refused`) by matching it to a
+same-object `evaluate` and its declared verdict.
+
+**Disclosed, not silently absent.** `capacities.js` seeds the SEED doc's
+own "prior set" with ten entries naming real modules/functions already in
+this repo (cast.js, hypergraph.js, measure.js, build-log.js, witness.js
+among them) — a DATA TABLE, checked against the real engine's own
+domain/grain algebra by hand while it was written (two entries were caught
+domain-illegal this way and fixed — see the module's own header). No
+capacity is executed from the terminal this pass: `distinguish`'s deeper
+refusal ("the figure doesn't clear it," a real statistical clearance) and
+`void`'s perturbation-licensing check (nul/index.js's own LICENSED table,
+or measure.js's `admit`) are both named as the natural next integration
+and not faked here. `evaluate`'s verdict (`verdict:holds` / `verdict:
+refused`) is DECLARED by whoever writes the line, not yet mechanically
+computed — the SEED doc's own third named thread ("EVA need not be
+hand-coded per capacity") is exactly this gap, still open. Read launchers
+(§2 of the document), make launchers (§2), `spin`/the Python sandbox (§3),
+and the retrieval-compose-slotfill authoring path (§7) are all unbuilt —
+named in the document's own §9 build order as later passes, not implied
+done by this one.
+
+**Evidence:** `grid.test.mjs` — 47 conformance tests against the REAL
+`operators.js`/`task-log.js` (grammar acceptance per verb, every named
+refusal, the illegal stance-law cell, `distinguish` landing two real
+task-log entries with `checkCubeProgression` staying silent on the pair,
+append-only supersession via `revise`, and the three DEF landing states).
+Driven live end to end through the real terminal UI (not just the module
+in isolation): the §5 worked example's own `distinguish at Network from
+encounter ground drone-log broken:rotation` lands two entries and prints
+`SIG·Pattern`/`INS·Pattern`; a `relate … warrant:` lands without either
+referent pre-established; `synthesize cast, zone-2` lands because `cast`
+resolves against the capacity registry; a bare `define finding` folds as
+`wish` until a same-object `evaluate … verdict:holds` lands, at which
+point `grid` reports it `testimony` — exactly the document's own
+load-bearing rule, live.
+
+**Five real bugs, caught by an independent adversarial review before this
+policy was written, fixed rather than shipped and disclosed after the
+fact.** DEF/EVA companion matching used `Array.find` (first-match, so a
+second same-object define could borrow the first one's verdict, and a
+corrected re-evaluate could never win); `synthesize`'s relation check used
+`String.includes` against a `relate` act's raw text (`"zone"` matched
+inside `"zone-99"` though never itself related); the `ground`/`broken:`
+check used `||` where the grammar means `&&`; `relate`'s "to" split and
+`synthesize`'s comma split both ran on the already-joined, quote-stripped
+object string, fracturing a referent whose own name contained the
+separator; `capacities.js`'s only test checked terrain validity, never
+domain-consistency with the declared op — the exact class of bug its
+header already says was caught "by hand" twice. All five are now
+regressions among the 47 cases (CLAUDE.md's own section has the full
+account, bug by bug).
+**Enforced:** `grid.test.mjs` — 47 cases total, capacities.js's own
+(terrain/field validity, domain-consistency, id lookup, the refusal shape)
+folded into the same file rather than a separate one, since capacities.js
+is a small data table grid.js's tests already exercise directly;
+`term.test.mjs` is unchanged (it tests only term.js's pure
+exports, never `initTerminal`) — the new `act`/`grid`/`capacities` fold
+commands are additive and `bridge.grid` is optional, so a caller (or a
+Node test) that has not wired it still boots a working terminal;
+`constitution.test.mjs` II.13 passes unchanged — grid.js/capacities.js are
+plain relative imports and the one new `/engine/operators.js` import sits
+beside the already-allowed `/engine/holon/task-log.js` import next to it.
+
+**Amended same day — `cast` executes.** `capacity-runner.js` (new, pure,
+organs injected — the exact bundle `app.js` already builds for `castFor`)
+runs `cast.js::makeReferentIndex` for real when a landed `distinguish`'s
+`ground` clause names an already-loaded source (checked by key presence,
+not truthiness, so a name that resolves to nothing loaded stays a silent
+ordinary abstract `distinguish` — no capacity runs, no gap prints — while
+a name that resolves to an empty source correctly prints `no_material`);
+the referents found attach as a task-log RESULT on the act's INS entry
+(`grid.js`'s new `attachResult`). The other nine registered capacities
+still refuse to run — `not_yet_executable`, named — never a silent no-op.
+`cast.js` has no null test of its own, so this closes "nothing is
+callable," not "`distinguish`'s statistical clearance is checked" — that
+refusal (and `void`'s perturbation-licensing check) remain open, as P22's
+own text above already said. Two further limits, found by a second
+adversarial review and disclosed rather than fixed under time pressure
+(capacity-runner.js's own header carries the full reasoning): `cast` runs
+synchronously on the calling thread, unbounded and uninterruptible —
+unlike term.js's other three runtimes, which are Workers for exactly this
+reason; and a result attached to a `distinguish`'s INS entry does not
+survive the SIG half of its own pair being superseded on its own —
+`revise`-ing the wrong id of a SIG/INS pair orphans the surviving one,
+result and all. Neither is attempted this pass. **Evidence:**
+`capacity-runner.test.mjs` — 5 tests against the real engine perceiver
+organs and real prose (referents actually discovered for a two-name
+passage; a DIFFERENTIAL test — two different passages, two different
+names — proving the output tracks the real input rather than two
+hardcoded strings; an unknown id refused by name; empty text refused as
+`no_material`; referent-free prose landing a real empty result rather
+than a gap); `grid.test.mjs` grew 2 more for `attachResult` (49 total).
+Driven live end to end, not only in test files: a real source dropped
+onto the real page, `act distinguish who-is-here at Entity from encounter
+ground excerpt.txt broken:rotation` finding and landing its two real
+referents, `grid` still showing them attached after the fact.
+**Enforced:** same two test files; no other suite is touched.
+
 ## P23 — A materialless question is answered by fetching first, not by checking after
 
 Measured live 2026-08-18: asked "research the weather in NYC right now"

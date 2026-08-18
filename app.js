@@ -74,6 +74,10 @@ import { renderBlocksInto } from "./render.js";
 
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, runSandboxed } from "./term.js";
 
+import { makeGrid } from "./grid.js";
+import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
+import { makeCapacityRunner } from "./capacity-runner.js";
+
 import { openInExplore, refContext } from "./explore-bridge.js";
 
 import { classifySentences } from "./provenance.js";
@@ -119,7 +123,7 @@ import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 // means. cast.js injects these so it stays pure and node-testable.
 import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
-import { makeCastResolver, makeCastHandles } from "./cast.js";
+import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
@@ -165,8 +169,14 @@ import { createTierStack, foldThrough } from "/engine/emergence/tiers.js";
 // injects it (cast.js pattern) so the mapping stays pure and node-testable.
 import * as engineTaskLog from "/engine/holon/task-log.js";
 import { makeBuildLog } from "./build-log.js";
+// The engine's operator algebra, same injection pattern, for grid.js (the
+// terminal language, P22) — the nine operators and terrain grid it reuses
+// rather than re-derives.
+import * as engineOperators from "/engine/operators.js";
 
 const buildLog = makeBuildLog(engineTaskLog);
+const grid = makeGrid({ operators: engineOperators, taskLog: engineTaskLog });
+grid.withCapacities({ findCapacity, unresolvedCapacity });
 
 // The widget router (widget.js): does a code-bearing turn point at a build
 // that already exists, or introduce a new one? Decided from the operator's
@@ -174,8 +184,8 @@ const buildLog = makeBuildLog(engineTaskLog);
 // same injection pattern as buildLog above, so this stays node-testable
 // against the real register (widget.test.mjs).
 import * as enginePriors from "/engine/perceiver/text/priors.js";
-import { makeWidgetRouter, scoutSpan } from "./widget.js";
-import { witnessCode } from "./witness.js";
+import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
+import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
 
 const widgetRouter = makeWidgetRouter(enginePriors);
@@ -202,6 +212,19 @@ const castFor = makeCastResolver({
   namesCorefer,
   diaNorm,
 });
+
+// Same organ bundle as castFor above, one level less collapsed — the
+// referent INDEX itself (identities, not a boolean), which is what
+// capacity-runner.js's one wired capacity (`cast`) needs. One
+// implementation of "the same name" either way; no second discovery pass.
+const referentIndexFor = makeReferentIndex({
+  splitSentences: engineSentences,
+  extractSurfaces,
+  discoverReferents,
+  namesCorefer,
+  diaNorm,
+});
+const runCapacity = makeCapacityRunner({ referentIndexFor });
 
 const handlesFor = makeCastHandles({
   splitSentences: engineSentences,
@@ -1053,6 +1076,7 @@ async function send(question) {
       rezero: true,
       trigger: pointed.trigger,
       tell: pointed.tell,
+      matchedOn: pointed.matchedOn,
     });
   }
 
@@ -1324,7 +1348,7 @@ function parseOps(text) {
  * trigger) rather than a revision — a judgment concedes a ground, an
  * instruction compiles a new whole. Same machine, two landings.
  */
-async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null } = {}) {
+async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null, matchedOn = null } = {}) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -1351,13 +1375,24 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   // What the log already knows, said to the model: dead ends are not
   // re-walked (DEF entries) and known defects aim the ask (the last EVA
   // witness). Both are the log's own entries, quoted — never a model's
-  // memory of itself.
+  // memory of itself. A regression refusal is quoted as a CONSTRAINT, not
+  // just a dead end: the refusal's own findings are the shape of the
+  // acceptable next attempt ("last patch would have broken script syntax —
+  // leave that region alone"), which is the difference between trying
+  // harder and trying elsewhere.
   const refusals = entry.log.entries.filter((e) => e.operator === "DEF").slice(-2);
   const lastWitness = entry.log.entries.filter((e) => e.operator === "EVA").at(-1);
   const known =
     (refusals.length
       ? `\nEdits already tried and refused (do not repeat): ${refusals
-          .map((e) => `find ${JSON.stringify(String(e.refusal?.ops?.[0]?.find ?? "").slice(0, 48))} — ${e.refusal?.gap?.kind}`)
+          .map((e) => {
+            const g = e.refusal?.gap;
+            const base = `find ${JSON.stringify(String(e.refusal?.ops?.[0]?.find ?? "").slice(0, 48))} — ${g?.kind}`;
+            const broke = g?.kind === "regressed" && g.findings?.length
+              ? ` (it would have introduced: ${g.findings.map((f) => (f.id ? `${f.kind} "${f.id}"` : `${f.kind}: ${String(f.detail ?? "").slice(0, 50)}`)).join("; ")} — change something else)`
+              : "";
+            return base + broke;
+          })
           .join("; ")}.`
       : "") +
     (lastWitness && lastWitness.witness?.ok === false
@@ -1385,7 +1420,37 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   let answer = "";
   let landedPatch = null;
   let opsGap = null;
-  try {
+
+  // THE MECHANICAL RUNG FIRST (widget.js::literalSwap): an ask that names
+  // both ends of a value change — "from 30 to 60", "#4CAF50 to #2196F3" —
+  // is an edit computed from the operator's own words and the projection's
+  // own bytes, no model call at all. Zero tokens, milliseconds, and immune
+  // to the measured failure class where the model rewrites an unrelated
+  // listener to change one attribute. Direction is decided by OCCURRENCE
+  // (the value the code holds is what changes), never by English. The
+  // landing is an ordinary SYN patch — same stack, same witness gate, same
+  // record — its reason says no model was asked.
+  // The arena is a hint, never a cage: the scout can resolve an
+  // instruction VERB against code bytes ("change the max…" scoping to the
+  // addEventListener('change') line — measured live, and it is also why a
+  // model handed that arena rewrote the wrong listener). The swap's own
+  // uniqueness walls hold globally, so an arena that starves it falls back
+  // to the whole projection rather than to the model.
+  const swap =
+    typeof cur.code === "string"
+      ? literalSwap(instruction, cur.code, { within: scout?.span ?? null }) ??
+        (scout ? literalSwap(instruction, cur.code, {}) : null)
+      : null;
+  if (swap) {
+    const applied = buildLog.applyOps(cur.code ?? "", swap.ops, {});
+    if (applied.ok) {
+      landedPatch = { ops: swap.ops, code: applied.code, every: false, touched: applied.touched, within: null, mechanical: true };
+      answer = "";
+      logAct("revised", { fold: n, mechanical: true, from: swap.from, to: swap.to });
+    }
+  }
+
+  if (!landedPatch) try {
     const reply = await complete([{ role: "user", content: opsPrompt }], {
       model: state.model,
       json: PATCH_SCHEMA,
@@ -1464,11 +1529,65 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   let note;
   const before = entry.log.entries.length;
   const code = landedPatch ? landedPatch.code : seg?.code ?? null;
+  // The candidate's witness, computed ONCE, before anything lands — the
+  // gate below and the EVA entry after landing both read this one reading.
+  const candidateWitness = code == null ? null : witnessCode(lang, code);
 
   if (code == null) {
     // Typed gap: the door was walked, the target named, and nothing landed.
     note = `the reply carried no code — nothing landed on fold ${n}.`;
     logAct("revised", { fold: n, landed: false, gap: opsGap ?? "no code in reply" });
+  } else if (witnessRegressed(lastWitness?.witness ?? null, candidateWitness)) {
+    // THE WITNESS GATES THE LANDING, not just the disclosure — measured
+    // live (2026-08-17, gemma2:2b on a canvas drawing app): three complaints
+    // in a row each landed a witnessed-dirty patch, because witnessCode ran
+    // only AFTER commit and never compared against what came before. Every
+    // attempt passed the one wall that existed (does it apply?) while the
+    // artifact steadily lost its clear button's listener, then its id, then
+    // its identifying tag entirely. Witnessing the CANDIDATE before it joins
+    // the log — against the last EVA this ground already carries — is P5
+    // (production closes on the fold) read onto a patch: a repair that
+    // REGRESSES on a check the ground already had an answer for is refused,
+    // not promoted. This is the metacognitive seat of the parliament (user
+    // direction, 2026-08-17: several small witnesses, disagreements landing
+    // typed on the record — "the pursuit loop needs a parliament, not a
+    // supreme court"): the witness that watches whether the attempts are
+    // getting better or worse. The refusal is DEF evidence the next ask is
+    // shown, exactly like an unlocated patch — tried-and-refused teaches.
+    // GROUND FRESHNESS, typed rather than assumed: the gate judges against
+    // the last EVA, and if landings have happened since (a write path that
+    // skipped the witness — the measured editor-commit gap), the ground is
+    // stale by that many and the refusal SAYS so. "Refused against the
+    // current state" and "refused against a witness three landings behind"
+    // are different disclosures, and only one of them is fully trusted —
+    // distance from the last witness widens the noise floor on this gate
+    // the way distance from a re-zero widens it on activation.
+    const staleBy = lastWitness
+      ? entry.log.entries.filter((e) => e.seq > lastWitness.seq && e.version != null).length
+      : 0;
+    entry.log = buildLog.refuseBuild(entry.log, {
+      ops: landedPatch?.ops ?? null,
+      gap: {
+        kind: "regressed",
+        reason: "this change would introduce a defect the current version does not have",
+        findings: candidateWitness.findings,
+        ...(staleBy > 0 ? { staleBy } : {}),
+      },
+      reason: "witness",
+    });
+    mirrorBuild(entry, before);
+    persistBuilds();
+    // The refusal NAMES what it saw — a count with no finding reads as a
+    // mystery, and a reader who cannot see why a change was refused cannot
+    // judge whether the refusal was right (measured live: the first thing
+    // the operator asked was "why does it think it's adding defects?").
+    const named = candidateWitness.findings
+      .map((f) => (f.id ? `${f.kind} "${f.id}"` : `${f.kind} (${String(f.detail ?? "").slice(0, 60)})`))
+      .join("; ");
+    note =
+      `fold ${n} · refused · the change would introduce: ${named} — the current version does not have this defect` +
+      (staleBy > 0 ? ` · judged against a witness ${staleBy} landing(s) old` : "");
+    logAct("revised", { fold: n, landed: false, regressed: true, findings: candidateWitness.findings.length, ...(staleBy ? { staleBy } : {}) });
   } else {
     // Three landings, one machine. A judgment concedes a ground (REC,
     // carrying the operator's own words); an instruction supersedes — as a
@@ -1485,6 +1604,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
         seg: { ...(cur.seg ?? {}), code },
         trigger: trigger ?? instruction,
         tell,
+        matchedOn,
         patch: landedPatch ? { ops: landedPatch.ops, ...(landedPatch.within ? { within: landedPatch.within } : {}) } : null,
       });
     } else if (landedPatch) {
@@ -1498,9 +1618,9 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
       // The witness closes the loop — what the landing actually did, read
       // mechanically (witness.js), landed as EVA and fed to the NEXT ask.
       // Unexamined languages attach nothing: a gap is not a clean bill.
-      const wNow = buildFold(entry, null);
-      const w = witnessCode(wNow?.seg?.lang, wNow?.code);
-      if (w.ok !== null) entry.log = buildLog.attachWitness(entry.log, { witness: w });
+      // Computed BEFORE landing (the gate above already needed it) and
+      // reused rather than re-run against the same bytes.
+      if (candidateWitness.ok !== null) entry.log = buildLog.attachWitness(entry.log, { witness: candidateWitness });
       entry.cursor = null;
       entry.draft = null;
       mirrorBuild(entry, before);
@@ -1512,12 +1632,14 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
       const how =
         (landedPatch
           ? `${landedPatch.ops.length} edit${landedPatch.ops.length === 1 ? "" : "s"} (${landedPatch.ops.map((o) => o.op).join(" ")})` +
+            (landedPatch.mechanical ? ` · computed from your words — no model call` : "") +
             (scout && landedPatch.within ? ` · within "${scout.term}"` : "") +
             (landedPatch.every ? ` · changed in ${places} places` : "")
           : "whole file") +
         (lastW ? (lastW.ok ? " · witness clean" : ` · witness: ${lastW.findings.length} finding(s)`) : "");
       note = rezero
-        ? `fold ${n} · ground ${now.ground} · re-zeroed from your words · ${how}`
+        ? `fold ${n} · ground ${now.ground} · re-zeroed from your words · ${how}` +
+          (matchedOn && matchedOn.length ? ` · matched on: ${matchedOn.join(", ")}` : "")
         : `fold ${n} · v${now.version} · revision landed · ${how}`;
       logAct("revised", { fold: n, landed: true, version: now.version, patch: !!landedPatch, ops: landedPatch?.ops.length ?? 0 });
     } else {
@@ -2783,6 +2905,7 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
           caption: defaultCaption(landed),
           trigger: route.trigger,
           tell: route.tell,
+          matchedOn: route.matchedOn,
         })
       : buildLog.reviseBuild(entry.log, { code: landed.code, reason: "restated" });
   if (entry.log.entries.length > before) {
@@ -2925,6 +3048,17 @@ function commitDraft(entry) {
   const before = entry.log.entries.length;
   entry.log = buildLog.reviseBuild(entry.log, { code: draft, reason: "edit" });
   if (entry.log.entries.length > before) {
+    // EVERY landing path attaches a witness — measured gap (2026-08-17):
+    // an editor commit landed with no EVA, so the regression gate's ground
+    // stayed three landings behind the code it was defending, and a later
+    // patch was judged against defects the operator had already fixed by
+    // hand. The gate reads the last EVA; a write path that skips the
+    // witness makes the ground drift under the gate's feet. The operator
+    // is not exempt from the witness — the witness is not a judgment of
+    // the operator, it is the ground's freshness.
+    const now = buildFold(entry, null);
+    const w = witnessCode(now?.seg?.lang, now?.code);
+    if (w.ok !== null) entry.log = buildLog.attachWitness(entry.log, { witness: w });
     entry.cursor = null;
     mirrorBuild(entry, before);
     renderBuilds(entry.n);
@@ -3367,6 +3501,17 @@ initTerminal({
   muted: () => state.muted,
   folds: () => state.builds,
   tokenize,
+  // The terminal language (P22, grid.js): a single grid instance, one
+  // append-only log per terminal session (term.js's own state, never
+  // persisted — see its comment). `capacities` is the plain registry
+  // array so the `capacities` fold command needs no round trip through
+  // the grid instance for a simple listing. `runCapacity` is the one
+  // capacity actually wired to execute (`cast`, capacity-runner.js) —
+  // everything else in the registry stays reference-only, and asking to
+  // run one is a typed gap the runner itself returns, not a silent no-op.
+  grid,
+  capacities: listCapacities(),
+  runCapacity,
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────

@@ -454,8 +454,8 @@ test("an every-patch rides the entry with its counts and the cursor recompiles e
 // refusals, EVA witnesses — each its own micro-thread (the REC precedent),
 // none touching the projection, all pinned against the engine's checker.
 
-import { witnessCode, witnessHtml, scriptBodies } from "./witness.js";
-import { scoutSpan } from "./widget.js";
+import { witnessCode, witnessHtml, witnessRegressed, scriptBodies } from "./witness.js";
+import { scoutSpan, literalSwap } from "./widget.js";
 import { INFLECTIONAL_SUFFIXES } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the ask is NUL · Ground, its own thread, and a re-zero lands the amended ask beside its rebirth", () => {
@@ -471,6 +471,30 @@ test("the ask is NUL · Ground, its own thread, and a re-zero lands the amended 
   assert.deepEqual(checkCubeProgression(log), []);
   // The projection never sees an ask.
   assert.equal(buildLog.foldBuild(log).code, "<p>x</p>");
+});
+
+test("a re-zero's matchedOn rides the REC entry as disclosed evidence, never silently", () => {
+  // The router's routing decision (widget.js) is measured, not asked for —
+  // but a decision with nothing on the record showing what it matched on
+  // is exactly as opaque as a model's unchecked self-report. matchedOn is
+  // payload (P3: unrecognized keys ride the fold), named so a reader can
+  // see WHY a build was re-zeroed instead of re-deriving it from bytes.
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  log = buildLog.rezeroBuild(log, {
+    code: "<p>x</p>",
+    seg: { ...widgetSeg, code: "<p>x</p>" },
+    trigger: "the row is broken",
+    tell: "resolved",
+    matchedOn: ["row"],
+  });
+  const rec = log.entries.find((e) => e.operator === "REC");
+  assert.deepEqual(rec.matchedOn, ["row"]);
+
+  // A tell with nothing to disclose (or matchedOn simply not supplied)
+  // never fabricates an empty array pretending to be evidence.
+  let log2 = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  log2 = buildLog.rezeroBuild(log2, { code: "<p>y</p>", seg: { ...widgetSeg, code: "<p>y</p>" }, trigger: "build 1 is broken", tell: "named" });
+  assert.equal(log2.entries.find((e) => e.operator === "REC").matchedOn, undefined);
 });
 
 test("a refused patch lands DEF · Figure with the gap and the ops — evidence, not a vanished return value", () => {
@@ -514,6 +538,49 @@ test("witnessHtml catches the measured clobber: a script addressing an id no ele
   // The healthy original is clean.
   const fine = `<button id="inc">+</button><script>document.getElementById('inc').onclick = () => {};</script>`;
   assert.equal(witnessHtml(fine).ok, true);
+});
+
+test("witnessRegressed: a repair that introduces a defect the ground did not have is a regression — the metacognitive seat", () => {
+  // The measured degradation this gates (2026-08-17, gemma2:2b, live e2e on
+  // a canvas drawing app): three complaints in a row each landed a
+  // witnessed-dirty patch — the clear button lost its listener, then its
+  // id, then its identifying tag entirely ("<>Clear</>") — because the
+  // witness ran only after commit and nothing ever compared attempt N
+  // against attempt N-1. Every row here is a case from that session.
+  const clean = { ok: true, lang: "html", findings: [] };
+  const syntaxBreak = { ok: false, lang: "html", findings: [{ kind: "script-syntax", detail: "Unexpected token '}'" }] };
+  const danglingClear = { ok: false, lang: "html", findings: [{ kind: "dangling-id", detail: `script addresses id "clearButton" but no element declares it`, id: "clearButton" }] };
+
+  // A first landing has nothing to regress against.
+  assert.equal(witnessRegressed(null, syntaxBreak), false);
+  // Clean ground, dirty candidate: the canonical regression.
+  assert.equal(witnessRegressed(clean, syntaxBreak), true);
+  // The same defect persisting is NOT a regression — the ground already
+  // had that answer, and refusing here would wall off every repair that
+  // fixes one thing while the pre-existing defect stays.
+  assert.equal(witnessRegressed(syntaxBreak, syntaxBreak), false);
+  // A DIFFERENT defect appearing is a regression even at the same count —
+  // identity, never arithmetic (the second live patch: the syntax break
+  // "went away" because the button it addressed went away with it).
+  assert.equal(witnessRegressed(syntaxBreak, danglingClear), true);
+  // Improvement is never a regression.
+  assert.equal(witnessRegressed(danglingClear, clean), false);
+  // A gap is not a ground: unexamined on either side compares nothing.
+  assert.equal(witnessRegressed({ ok: null, unexamined: true, findings: [] }, danglingClear), false);
+  assert.equal(witnessRegressed(clean, { ok: null, unexamined: true, findings: [] }), false);
+});
+
+test("witnessRegressed: clearing one defect while keeping another is progress, not regression", () => {
+  const two = { ok: false, lang: "html", findings: [
+    { kind: "script-syntax", detail: "Unexpected token '}'" },
+    { kind: "dangling-id", detail: `script addresses id "inc" but no element declares it`, id: "inc" },
+  ] };
+  const one = { ok: false, lang: "html", findings: [
+    { kind: "dangling-id", detail: `script addresses id "inc" but no element declares it`, id: "inc" },
+  ] };
+  assert.equal(witnessRegressed(two, one), false);
+  // And the reverse direction — regaining the cleared defect — regresses.
+  assert.equal(witnessRegressed(one, two), true);
 });
 
 test("witnessCode: a script that does not parse is a finding; material it cannot judge is unexamined, never clean", () => {
@@ -595,6 +662,90 @@ test("scoutSpan: an inflectional match still loses to a more selective EXACT mat
 test("scoutSpan: suffixes must come from the engine's prior register", () => {
   assert.throws(() => scoutSpan("x", "y", null), TypeError);
   assert.throws(() => scoutSpan("x", "y", new Set()), TypeError);
+});
+
+test("literalSwap: an ask naming both values is an edit computed from the operator's own words — no model call", () => {
+  // The measured case, verbatim (2026-08-17, live e2e): asked exactly this,
+  // gemma2:2b rewrote an unrelated event listener and broke the script.
+  // The instruction names 30 and 60; the code holds 30 and lacks 60; the
+  // direction is decided by occurrence, never by the words "from"/"to".
+  const code = `<input type="color" id="colorPicker" value="#000000">\n<input type="range" id="brushSize" min="1" max="30" value="10">\n<button id="clearButton">Clear</button>`;
+  const r = literalSwap("change the brush size slider's max from 30 to 60", code);
+  assert.ok(r);
+  assert.equal(r.from, "30");
+  assert.equal(r.to, "60");
+  assert.equal(r.ops.length, 1);
+  assert.equal(r.ops[0].op, "SYN");
+  assert.equal(r.ops[0].find, `<input type="range" id="brushSize" min="1" max="30" value="10">`);
+  assert.equal(r.ops[0].add, `<input type="range" id="brushSize" min="1" max="30" value="10">`.replace('max="30"', 'max="60"'));
+});
+
+test("literalSwap: direction is occurrence, not word order — '60 instead of 30' swaps the same way", () => {
+  const code = `speed = 30;`;
+  const r = literalSwap("make it 60 instead of 30", code);
+  assert.ok(r);
+  assert.equal(r.from, "30");
+  assert.equal(r.to, "60");
+  assert.equal(r.ops[0].add, "speed = 60;");
+});
+
+test("literalSwap: hex colors are literals — the counter-widget recolour is mechanical", () => {
+  const code = `button { background: #4CAF50; }`;
+  const r = literalSwap("change #4CAF50 to #2196F3", code);
+  assert.ok(r);
+  assert.equal(r.ops[0].add, "button { background: #2196F3; }");
+});
+
+test("literalSwap: every ambiguous shape descends to the model, never to a guess", () => {
+  // Both values present in the code — which is old and which is new is not
+  // decidable by occurrence.
+  assert.equal(literalSwap("change 30 to 60", "a = 30; b = 60;"), null);
+  // Neither present.
+  assert.equal(literalSwap("change 30 to 60", "a = 10;"), null);
+  // One literal only — the other end of the change was never named.
+  assert.equal(literalSwap("set width to 600", "width = 300;"), null);
+  // Three literals — not the two-ended shape.
+  assert.equal(literalSwap("change 30 to 60 or maybe 90", "a = 30;"), null);
+  // The present value occurs twice — ambiguous placement.
+  assert.equal(literalSwap("change 30 to 60", "a = 30; b = 30;"), null);
+  // No literals at all — the ordinary complaint stays the model's.
+  assert.equal(literalSwap("make the buttons bigger with some color", "a = 30;"), null);
+});
+
+test("literalSwap: word boundaries hold — 30 never matches inside 300", () => {
+  const code = `a = 300;\nb = 30;`;
+  const r = literalSwap("change 30 to 60", code);
+  assert.ok(r);
+  assert.equal(r.ops[0].find, "b = 30;");
+  assert.equal(r.ops[0].add, "b = 60;");
+});
+
+test("literalSwap: an arena that starves the swap yields null there — the caller's global retry is what rescues it", () => {
+  // Measured live (2026-08-17): "change the brush size slider's max from 30
+  // to 60" — the scout resolved the instruction's VERB "change" against the
+  // code's addEventListener('change') line, so the arena held neither 30
+  // nor 60 and the swap starved inside it, while the whole projection held
+  // exactly one 30. (The same mis-scope is why a model handed that arena
+  // rewrote the wrong listener.) The swap stays arena-honest — null inside
+  // a starving arena — and the caller retries globally, where the walls
+  // still hold.
+  const code = `colorPicker.addEventListener('change', () => {\n  color = colorPicker.value;\n});\n<input type="range" max="30">`;
+  const changeLine = [0, code.indexOf("\n")];
+  assert.equal(literalSwap("change the max from 30 to 60", code, { within: changeLine }), null);
+  const global = literalSwap("change the max from 30 to 60", code);
+  assert.ok(global);
+  assert.equal(global.ops[0].add, `<input type="range" max="60">`);
+});
+
+test("literalSwap: the scout's arena scopes the swap the way it scopes a patch", () => {
+  // "30" appears twice in the file but once inside the arena — the swap is
+  // unambiguous within what attention already scoped.
+  const code = `retries = 30;\n<input max="30">`;
+  const within = [code.indexOf("<input"), code.length];
+  const r = literalSwap("change 30 to 60", code, { within });
+  assert.ok(r);
+  assert.equal(r.ops[0].find, `<input max="30">`);
+  assert.equal(r.ops[0].add, `<input max="60">`);
 });
 
 test("a patch applies within the scouted span: unique inside it even when the file holds two, and replay recompiles the same arena", () => {

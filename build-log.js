@@ -416,7 +416,7 @@ export function makeBuildLog(taskLog) {
    * the model's actual output, so a widget that comes back as a different
    * language says so on the log rather than inheriting the old one's.
    */
-  function rezeroBuild(log, { code, seg = null, caption = null, trigger, tell = null, patch = null } = {}) {
+  function rezeroBuild(log, { code, seg = null, caption = null, trigger, tell = null, patch = null, matchedOn = null } = {}) {
     const cur = foldBuild(log);
     if (!cur) return log;
     if (typeof trigger !== "string" || !trigger.trim())
@@ -449,6 +449,12 @@ export function makeBuildLog(taskLog) {
       ground,
       trigger,
       tell,
+      // The router's own evidence for a "resolved"/"judgment" tell — which
+      // of the operator's words it matched, and against which of the
+      // build's own (P3: unrecognized keys ride the fold as payload; this
+      // one is named so the record — not just the log — can show it).
+      // Never present for "named"/"anaphora", which are self-explaining.
+      ...(matchedOn && matchedOn.length ? { matchedOn } : {}),
       concedes: cur.task_id,
       concededVersion: cur.version,
       concededGround: cur.ground,

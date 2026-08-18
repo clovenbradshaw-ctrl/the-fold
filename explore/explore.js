@@ -148,6 +148,76 @@ function* wordOccurrences(lowerHaystack, lowerNeedle) {
   }
 }
 
+/**
+ * Field only ever received pivots (marking occurrences of a selection made
+ * elsewhere); it never made one. A name in the prose is the most natural
+ * place to START a hop — this is the other direction, matched against the
+ * SAME cast the Entity surface already found, through the SAME fold
+ * (diaNorm) the rest of this file's containment already shares (CLAUDE.md's
+ * diacritics lesson). No new discovery — a lookup against a landed read.
+ */
+function referentForSurface(text) {
+  const referents = state.read?.terrains?.Entity?.referents ?? [];
+  const needle = diaNorm(text);
+  if (!needle || needle.length < 2) return null;
+  for (const r of referents) {
+    if (diaNorm(r.display) === needle) return r;
+    for (const s of r.surfaces ?? []) {
+      if (diaNorm(typeof s === "string" ? s : s.surface) === needle) return r;
+    }
+  }
+  return null;
+}
+
+/**
+ * Selecting a word in Field's own text is the tap-out: if it names a
+ * referent the read already found, the pivot chip opens on it, exactly as
+ * if the same referent had been clicked as a cast card. An ordinary
+ * selection that matches nothing is left alone — copy/paste is unaffected.
+ */
+function wireSelectToPivot(container) {
+  container.addEventListener("mouseup", () => {
+    const picked = String(window.getSelection?.().toString() ?? "").trim();
+    if (!picked || picked.length > 80 || /\n/.test(picked)) return;
+    const r = referentForSurface(picked);
+    if (!r) return;
+    if (state.sel?.type === "referent" && state.sel.label === r.display) return;
+    state.sel = { type: "referent", label: r.display, surfaces: (r.surfaces ?? []).map((s) => (typeof s === "string" ? s : s.surface)).filter(Boolean) };
+    renderAll();
+  });
+}
+
+/** The one hint that Field's prose can be tapped, wherever a doc/holder earns it. */
+function noteSelectToPivot(surface) {
+  const known = state.read?.terrains?.Entity?.referents?.length ?? 0;
+  if (known) {
+    note(
+      surface,
+      "shown",
+      `select a name to open its cast · relations · graph entry — ${known} known`,
+      "matches the same cast (sessionReferents) the Entity surface already found; an ordinary selection that matches nothing is left alone",
+    );
+  }
+}
+
+/**
+ * Whether the standing selection points at this referent — not only when it
+ * WAS the referent card clicked (state.sel.type === "referent"), but also
+ * when it arrived as a relation or graph node whose subject/object surfaces
+ * name the same cast member. Without this, a hop from Link or Network into
+ * Entity landed on an unhighlighted list — present, but not answering "why
+ * am I here."
+ */
+function selMatchesReferent(r) {
+  if (!state.sel) return false;
+  if (state.sel.type === "referent" && state.sel.label === r.display) return true;
+  if (!state.sel.surfaces?.length) return false;
+  const names = new Set(
+    [r.display, ...(r.surfaces ?? []).map((s) => (typeof s === "string" ? s : s.surface))].filter(Boolean).map((s) => diaNorm(s)),
+  );
+  return state.sel.surfaces.some((s) => names.has(diaNorm(s)));
+}
+
 // ── the sidebar ─────────────────────────────────────────────────────────────
 // Not a filesystem tree. "My files" is the one destination, and it holds
 // nothing until a reader adds something — library.js's own header. Recents
@@ -793,7 +863,7 @@ function renderMeta() {
     const HOPS = {
       referent: ["Field", "Link", "Network", "Entity"],
       node: ["Field", "Link", "Network", "Entity"],
-      relation: ["Field", "Link", "Network"],
+      relation: ["Field", "Link", "Network", "Entity"],
       member: ["Field", "Kind"],
       frame: ["Field", "Atmosphere"],
     };
@@ -2376,10 +2446,12 @@ function renderTextField(surface) {
   const main = el("div", "field-main");
   const doc = el("div", `doc${state.source.modality === "code" || state.source.modality === "json" ? " code" : ""}`);
   fillDocWithMarks(doc, state.text);
+  wireSelectToPivot(doc);
   main.appendChild(doc);
   wrap.appendChild(main);
   surface.appendChild(wrap);
   doc.querySelector("mark")?.scrollIntoView({ block: "center" });
+  noteSelectToPivot(surface);
 }
 
 /** The document text with focus + selection occurrences marked. Marks are drawn, counted, and capped out loud. */
@@ -2450,14 +2522,18 @@ function renderMarkdownField(surface) {
   if (state.mdRaw) {
     const doc = el("div", "doc mono");
     fillDocWithMarks(doc, state.text);
+    wireSelectToPivot(doc);
     surface.appendChild(doc);
     doc.querySelector("mark")?.scrollIntoView({ block: "center" });
+    noteSelectToPivot(surface);
     return;
   }
   const holder = el("div", "md");
   mdInto(holder, state.text, state.sel?.surfaces ?? []);
+  wireSelectToPivot(holder);
   surface.appendChild(holder);
   holder.querySelector("mark")?.scrollIntoView({ block: "center" });
+  noteSelectToPivot(surface);
 }
 
 /**
@@ -2673,7 +2749,7 @@ function renderEntity(surface) {
   note(surface, "shown", `${referents.length} referents discovered by recurrence (sessionReferents) · ordered by mentions, apparatus demoted — the engine's own rule${gaps.length ? ` · ${gaps.length} typed gap${gaps.length > 1 ? "s" : ""} in Void` : ""}`);
   const cards = el("div", "cards");
   for (const r of referents) {
-    const card = el("button", `card${state.sel?.type === "referent" && state.sel.label === r.display ? " sel" : ""}`);
+    const card = el("button", `card${selMatchesReferent(r) ? " sel" : ""}`);
     const nm = el("div", "nm", r.display);
     if (r.individuation) nm.appendChild(el("span", "ind", r.individuation));
     card.appendChild(nm);

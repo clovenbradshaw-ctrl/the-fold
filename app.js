@@ -2684,13 +2684,14 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
     }
     const chip = routeAndPublish(seg, routingTask, instruction, landedThisTurn);
     body.append(chip);
-    // The chip is the conversation handle; for renderable artifacts (html,
-    // svg), the widget itself also appears inline — no click required. This
-    // is the segment's OWN code, so a revision's preview is the revision's,
-    // not stale bytes left over from the build's first version.
-    if (RENDERABLE.has(seg.lang)) {
-      body.append(artifactNode(seg, undefined, seg.code, { scripts: true }));
-    }
+    // The chip is the conversation handle; the widget itself also appears
+    // inline — no click required, for every non-prose segment (code and
+    // table alike). Renderable artifacts (html, svg) get a sandboxed,
+    // scripted frame; every other language falls through to artifactNode's
+    // plain-text branch, so code reads as code in the transcript itself.
+    // This is the segment's OWN code, so a revision's preview is the
+    // revision's, not stale bytes left over from the build's first version.
+    body.append(artifactNode(seg, undefined, seg.code, { scripts: RENDERABLE.has(seg.lang) }));
   }
 
   // Fold membership decides the register (user direction, 2026-08-17: "just

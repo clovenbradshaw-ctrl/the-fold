@@ -851,7 +851,12 @@ exactly this box for html/svg; the fix was calling it for every non-prose
 segment in `renderAnswer`'s loop, not building a second renderer. `scripts`
 stays gated to `RENDERABLE.has(seg.lang)` — consent to execute is still
 earned by an explicit ▶ run in the Folds card, never granted just because a
-segment is visible.
+segment is visible. (This paragraph named the fix before the matching
+`renderAnswer` edit actually landed — the call site was still gated on
+`RENDERABLE.has(seg.lang)` alone, so python/sql/ruby/every non-html-svg
+language and every table stayed chip-only. Closed for real this pass, live
+against qwen2.5:14b: a 3-row fruit table and a ruby method both now render
+their box inline, unprompted, beside the chip.)
 
 **Arithmetic is computed, never generated** (`arithmetic.js` +
 `arithmeticTurn` in app.js) — L5 at its smallest scale. Measured live in

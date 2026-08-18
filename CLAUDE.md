@@ -2008,3 +2008,113 @@ a subsequent `grid` call showed the same two referents still attached to
 `act-1`'s result — the capacity ran, found real referents in real dropped
 material, and the result persisted on the fold, not only in the command's
 own echo.
+
+## The chat's own `/act` door (added 2026-08-18) — what was decided, so it is not re-derived
+
+P22 in POLICIES.md carries the full amendment text (its "third occurrence"
+paragraph); this is the map. The ask, near-verbatim from the user: "think
+the chat should be able to drive terminal work and things using python and
+what not." That sentence names TWO things, of different sizes, and this
+pass deliberately builds only the smaller one.
+
+**Why the smaller half first, stated rather than assumed.** `grid.js`
+already refuses a malformed or unwarranted act BY GRAMMAR, so a chat
+message that reaches this door was already bounded before any of this
+landed — composing an act from chat costs nothing new in blast radius that
+composing one at the terminal didn't already have. Running arbitrary
+Python/JS/SQL FROM a chat message is a different, larger crossing: P18's
+own law ("nothing typed here reaches the machine... the terminal runs
+entirely in the browser sandbox") and the Folds panel's own consent
+posture ("consent to execute is still earned by an explicit ▶ run...
+never granted just because a segment is visible") both point the same
+way — real code execution should stay gated behind a visible, explicit
+person-made action, never something a model decides mid-answer. That
+recommendation is written up below as a PROPOSAL, not built — it needs
+the user's confirmation first, the same posture this repo already holds
+for every other consent-shaped crossing (P13's web toggle, the GitHub
+organ's button-only egress).
+
+**One door, explicit-trigger only, no new policy.** `/act <line>` joins
+`/self`/`/priors`/`/reflect`/`/learn` in `app.js`'s turn dispatcher —
+checked among the other typed doors, before any automatic detector (
+`detectTable`, `detectChart`, `detectReflex`) or the widget router gets a
+look at the question, so the model never decides on its own to compose an
+act; only a person typing the door reaches this grammar. `actTurn`
+renders MECHANICALLY via `usageTurn` (no model call), matching every other
+door's shape exactly: parse the argument, act on it, print a computed
+answer.
+
+**`landAct`: the parse→land→maybe-execute orchestration, moved to one
+place.** Before this, "a landed `distinguish` whose `ground` names an
+already-loaded source runs `cast` for real" lived only inside term.js's
+own DOM-bound `act` handler — policy embedded in a UI handler, which is
+exactly the shape of bug P22's own postmortem already caught twice
+(DEF/EVA's `Array.find` first-match bug, `synthesize`'s `String.includes`
+substring bug). Rather than copy that check into `app.js` and hope the two
+never drift, it moved into `capacity-runner.js` as `landAct(grid, log,
+line, { sources, runCapacity })` — the ONE implementation both term.js's
+`act` fold command and app.js's `actTurn` now call. Each caller still owns
+its own formatting (DOM lines for the terminal, a joined string for
+`usageTurn`) and its own recording — `landAct` itself touches no DOM, no
+chat message, no record file.
+
+**The log is shared, app-wide.** `state.gridLog` (app.js) is the SAME log
+the terminal reads and writes — `grid.createLog()` once, held beside
+`state.builds` rather than in `PER_CONVO` (the identical reasoning
+`builds` already states there: an act belongs to the instrument, not to
+one conversation). `initTerminal`'s bridge grew `gridLog`/`setGridLog`
+accessors — the same accessor-pair shape `sources`/`chunks`/`muted`/
+`folds` already have — and term.js's own `readGridLog`/`writeGridLog`
+fall back to a page-local log when a caller hasn't wired sharing (a bare
+bridge, a Node test), so nothing that worked before this lands
+differently now. A prior session had sketched this exact accessor pair
+directly in `app.js`'s `initTerminal` call, then reverted it unmerged
+before running out of context — relayed as part of this pass's own
+handoff, not a file in this repo. On reconsideration the shape held (the
+reasoning above is why, derived fresh here rather than assumed from that
+sketch); the rest of that earlier sketch (a `/act` door of some form) was
+not assumed and was designed and built from the ask itself.
+
+**Recording reuses the identical route.** `actTurn` posts onto
+`record/explore-record.jsonl` through the SAME `POST /api/term-record` →
+`record(event, fields)` path term.js's own `mirrorTerm` already uses,
+adding one field (`via: "chat"`) so the record can tell which door an act
+came through without a second event vocabulary or a second file.
+
+**A pre-existing quirk, surfaced by sharing rather than caused by it.**
+`attachResult` appends a RESULT entry, and `task-log.js`'s `append`
+advances `nextSeq` on EVERY entry it accepts, RESULT included — so a
+`distinguish` that triggers `cast` consumes three sequence numbers (SIG,
+INS, then the invisible RESULT), and visible act ids run 0, 1, 3, 4, 6, 7
+rather than a plain count whenever capacity execution is in the mix. This
+already happened in term.js's own original `act` handler, unrelated to
+this pass; sharing the log across two doors just makes it visible in one
+place instead of two. Ids stay unique and monotonic either way — nothing
+collides — so this is named rather than fixed.
+
+**Evidence, driven live end to end through the real chat UI.** Bare
+`/act` renders the usage line. `/act distinguish zone-3 at Network from
+encounter` (no ground) refuses with the typed `no_ground` detail. Real
+material pasted as an attachment (`pasted.txt`), then `/act distinguish
+who-is-here at Entity from encounter ground pasted.txt broken:rotation`
+typed in the composer lands two entries and runs `cast` for real
+(`Bezukhov, Rostova` found) — opening the terminal and typing `grid`
+immediately afterward shows the IDENTICAL entries with the IDENTICAL
+attached result. The reverse direction was driven too: composing at the
+terminal, then reading from chat, continues the same id sequence rather
+than starting over. A brand-new second conversation tab, opened after
+acts already existed, saw and continued the same log on its first `/act`
+— proving `gridLog` is genuinely app-wide. `capacity-runner.test.mjs`
+grew 6 cases for `landAct` (670 tests total, 666 passing, the same 4
+pre-existing unrelated failures this repo already carries).
+
+**The bigger half — raw Python/JS/SQL driven from chat — is a proposal,
+not code.** Recommendation, for confirmation before anything is built:
+trigger stays EXPLICIT ONLY (a `/run <runtime>` chat door, or a visible
+button on a code segment already in the turn — never the model deciding
+mid-answer to execute something); scope stays the SAME sandboxed runtimes
+term.js already has (js/python/sql Workers, severed egress, P18 unchanged)
+— never a new capability, only a new door onto the existing one; consent
+posture matches the Folds panel's own ▶ run and P13's web toggle, i.e. a
+visible, person-made action per execution, not a standing switch that
+silently authorizes every future one. Not started here.

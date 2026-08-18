@@ -76,7 +76,7 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, runSandboxed } from "./term.
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
-import { makeCapacityRunner } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct } from "./capacity-runner.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
@@ -378,6 +378,19 @@ const state = {
   builds: [],
   lastMessages: [],
   lastMaterialChars: 0,
+
+  /**
+   * The terminal language's own append-only log (grid.js, P22). App-wide,
+   * NOT per conversation — the same reasoning `builds` above already
+   * states ("a build belongs to the instrument, not to one conversation"):
+   * an act composed from the chat's `/act` door or from the sandboxed
+   * terminal is one instrument's log either way, so it must read the same
+   * from both places and from any conversation. Never persisted (a fresh
+   * page load is a fresh log — acts still mirror onto the durable record
+   * one-way, via actTurn/term.js's mirrorTerm, but the log itself is not
+   * restored from it).
+   */
+  gridLog: grid.createLog(),
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -770,6 +783,78 @@ function usageTurn(question, usage) {
 }
 
 /**
+ * Fire-and-forget mirror onto the SAME durable record every terminal-typed
+ * act already lands on (explore-server.mjs's `POST /api/term-record` →
+ * its one `record(event, fields)` function, `record/explore-record.jsonl`)
+ * — reused rather than a second file or a second reader, the same
+ * discipline `mirrorBuild` above already holds for build records. `via:
+ * "chat"` is the one thing this door adds to the event shape term.js's own
+ * `mirrorTerm` already writes, so the record can tell which door an act
+ * came through without a second event vocabulary. A miss (no explore
+ * server reachable at EXPLORE_BASE) is silent — the terminal's own
+ * long-standing default, not a mid-turn error over a best-effort crossing.
+ */
+function mirrorTermRecord(event, fields) {
+  fetch(`${EXPLORE_BASE}/api/term-record`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ event, ...fields }),
+  }).catch(() => {});
+}
+
+/**
+ * /act — the terminal language's chat door (P22's grid.js, opened to chat).
+ * EXPLICIT-TRIGGER ONLY: the model never decides to compose an act, and
+ * never sees this door at all — only a person typing `/act …` reaches it,
+ * the same posture every other slash door in this dispatcher already has.
+ * Mechanical end to end, no model call: `landAct` (capacity-runner.js) is
+ * the SAME parse→land→maybe-execute orchestration the terminal's own `act`
+ * fold command calls, so a line means the same thing composed from either
+ * surface. Acts land on `state.gridLog` — app-wide, not per conversation,
+ * shared with the terminal via the `gridLog`/`setGridLog` bridge accessors
+ * `initTerminal` receives below — so an act composed here shows up in the
+ * terminal's `grid`/`capacities`, and vice versa. Refusals stay refusals:
+ * grid.js's own grammar is what gates a malformed or unwarranted act, not
+ * anything added here.
+ */
+async function actTurn(argstr, typed) {
+  const actLine = argstr.trim();
+  if (!actLine) {
+    return usageTurn(
+      typed,
+      "/act <verb> [<object>] at <terrain> from <stance> [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<giver>] — the same composition law the terminal's `act` command reads (open the terminal and type `grid legend` for the verbs, terrains, and stances). Acts land on the SAME log the terminal's `grid`/`capacities` commands read — compose from either surface, see it from both.",
+    );
+  }
+  const landed = landAct(grid, state.gridLog, actLine, { sources: state.sources, runCapacity });
+  if (!landed.ok) {
+    mirrorTermRecord("term-act-refused", { line: actLine.slice(0, 2000), refusal: landed.refusal.type, detail: landed.refusal.detail, via: "chat" });
+    return usageTurn(typed, `refused (${landed.refusal.type}): ${landed.refusal.detail}`);
+  }
+  state.gridLog = landed.log;
+  mirrorTermRecord("term-act", {
+    verb: landed.event.verb,
+    ops: landed.event.ops,
+    object: landed.event.object,
+    terrain: landed.event.terrain,
+    stance: landed.event.stance.cell,
+    ids: landed.ids,
+    via: "chat",
+  });
+  const objectPart = landed.event.object ? `${landed.event.object} ` : "";
+  const lines = [`${landed.event.verb} ${objectPart}[${landed.event.ops.join("+")}] at ${landed.event.terrain} from ${landed.event.stance.cell} → ${landed.ids.join(", ")}`];
+  if (landed.capacity) {
+    const { result } = landed.capacity;
+    if (result.gap === "no_material") {
+      lines.push(result.detail);
+    } else {
+      mirrorTermRecord("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface), via: "chat" });
+      lines.push(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`);
+    }
+  }
+  return usageTurn(typed, lines.join("\n"));
+}
+
+/**
  * /priors — the toggle ledger's chat door. One ledger, three doors (the
  * Priors tab, the terminal's `priors` command, this one) all reading and
  * writing the same explore-server.mjs routes, so a flip made anywhere is
@@ -1020,6 +1105,16 @@ async function send(question) {
   // on disk, not a thing to phrase.
   const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
   if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
+
+  // The terminal language's chat door (P22's grid.js, opened to chat):
+  // compose one act of the nine-operator composition law directly from the
+  // composer, landing on the SAME log the sandboxed terminal's own `act`/
+  // `grid`/`capacities` commands read and write. Explicit-trigger only —
+  // checked here among the other typed doors, before any automatic
+  // detector or the widget router gets a look at the question, so nothing
+  // the model decides on its own can reach this grammar.
+  const actCmd = question.match(/^\/act\b\s*(.*)$/s);
+  if (actCmd) return actTurn(actCmd[1] ?? "", question);
 
   // /learn's door: the terminal's own `learn` walk is graded on real
   // keystrokes there, which chat cannot offer — so here it points to
@@ -3501,17 +3596,24 @@ initTerminal({
   muted: () => state.muted,
   folds: () => state.builds,
   tokenize,
-  // The terminal language (P22, grid.js): a single grid instance, one
-  // append-only log per terminal session (term.js's own state, never
-  // persisted — see its comment). `capacities` is the plain registry
-  // array so the `capacities` fold command needs no round trip through
-  // the grid instance for a simple listing. `runCapacity` is the one
-  // capacity actually wired to execute (`cast`, capacity-runner.js) —
-  // everything else in the registry stays reference-only, and asking to
-  // run one is a typed gap the runner itself returns, not a silent no-op.
+  // The terminal language (P22, grid.js): a single grid instance.
+  // `capacities` is the plain registry array so the `capacities` fold
+  // command needs no round trip through the grid instance for a simple
+  // listing. `runCapacity` is the one capacity actually wired to execute
+  // (`cast`, capacity-runner.js) — everything else in the registry stays
+  // reference-only, and asking to run one is a typed gap the runner itself
+  // returns, not a silent no-op. `gridLog`/`setGridLog` share the SAME
+  // log the chat's own `/act` door reads and writes (state.gridLog,
+  // app-wide) — the same accessor-pair shape as sources/chunks/muted/
+  // folds above, so an act composed in either place is visible from the
+  // other: type `/act …` in chat, then open the terminal and type `grid`.
   grid,
   capacities: listCapacities(),
   runCapacity,
+  gridLog: () => state.gridLog,
+  setGridLog: (log) => {
+    state.gridLog = log;
+  },
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────

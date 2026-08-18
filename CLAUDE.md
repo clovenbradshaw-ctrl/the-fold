@@ -343,6 +343,74 @@ what, `constitution.test.mjs` is the assay that walks it, and the unwired
 articles (III.1 anchor, III.4 opposite, III.5 prediction) are listed there as
 unwired — VI.3 — rather than implied as compliant.
 
+## The model proxy (added 2026-08-18) — what was decided, so it is not re-derived
+
+P25 in POLICIES.md is the law; this is the map. The ask, from the user
+directly: the fold should show up as a usable model in the Ollama desktop
+app or in OpenCode — a proxy onto the fold, in addition to the browser.
+
+**The reframe.** Both named clients add a custom model provider by base
+URL and speak an OpenAI-compatible `POST /v1/chat/completions` +
+`GET /v1/models` (OpenCode's provider config, and the Ollama app's own
+"add provider"); the Ollama app can additionally be pointed at something
+that speaks Ollama's own native `/api/chat` + `/api/tags`. So "make the
+fold a model" reduces to standing up both wire shapes on the already-
+loopback-bound `explore-server.mjs` and, behind them, running the SAME
+turn app.js's `holonicTurn` runs — `holon.js`'s real `runHolonicTask`, not
+a lighter reimplementation — headlessly.
+
+**Every servable model id is `fold:<real ollama model>`, never bare.**
+Decided first, because it is what makes the rest safe: a request naming
+plain `gemma2:2b` is asking Ollama, not the fold, and is refused rather
+than quietly answered as if the grounded pipeline had run. `GET /v1/models`
+/ `GET /api/tags` list Ollama's real pulled models, reprefixed — never a
+second, hand-maintained list that could name something Ollama does not
+actually have.
+
+**Full pipeline by default.** Chosen over a passthrough-with-an-opt-in-flag
+specifically because most callers of an OpenAI-shaped endpoint will never
+discover the flag — a quiet default of "raw Ollama, checked if you ask"
+would in practice ship exactly the confusion the `fold:` prefix exists to
+prevent. `fold_grounded: false` is the one disclosed opt-out, and it only
+turns off the relation tier (the ladder's most expensive part), never the
+rest of the pipeline.
+
+**Files.** `proxy-api.js` (new, pure — no fetch, no engine import: the
+`fold:` prefix wall, both wire protocols' identical `{model, messages,
+stream}` parse into one turn shape, both response/stream formatters) +
+`proxy-api.test.mjs` (20 cases, offline). `proxy-runner.mjs` (new — the
+one place the engine organs and the Ollama network call live: the SAME
+`makeCastResolver`/`makeRelationReader` bundle app.js builds at
+app.js:208-259, and a `call()` shaped exactly like `eval/dialogue.mjs`'s
+own). `explore-server.mjs` gained four routes (`GET /v1/models`,
+`POST /v1/chat/completions`, `GET /api/tags`, `POST /api/chat`) and its
+CORS/OPTIONS gate widened from `/api/` alone to `/api/` or `/v1/`.
+
+**Disclosed scope, named rather than silently absent.** No material/
+attachments this pass (`chunks: []` — an OpenAI-shaped request has no
+composer); no link tier (`checkLink: null` — P20's web egress keeps its
+own consent posture, not silently granted to a proxied call); no
+persistent session (each turn folds fresh off the request's own resent
+history, since the wire protocols already carry it that way — no running
+summary, no warrant record; that state lives in the browser, not here);
+streaming is single-shot (the whole checked answer as one chunk, then
+stop/done) rather than token-level, because token streaming would mean
+showing a draft before the correction loop and the quote/relation tiers
+have run against it — the one thing this instrument's grounding apparatus
+exists not to do; one model per turn, no fast/deep routing-ladder
+substitution, because an API caller naming a model on every request has
+already made the routing decision app.js's picker makes once per session.
+
+**Loopback only, unchanged.** The routes live on `explore-server.mjs`
+(bound to `127.0.0.1` alone), never `serve.mjs` (which binds every
+interface) — this widens what a LOCAL tool may address as a model, never
+who may reach this machine. Nothing here touches what the browser page
+itself may fetch; P1's host ban is untouched.
+
+**Evidence.** Full detail and the live-driven transcript (a scripted
+stand-in Ollama — this pass's own sandbox had no real Ollama install to
+test against, disclosed as exactly that) are in POLICIES.md P25.
+
 ## Local only
 
 There is no hosted-model path. The Anthropic SDK, provider select, key input,

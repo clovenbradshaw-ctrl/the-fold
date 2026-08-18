@@ -152,6 +152,21 @@ Tests — no engine, no network, no install:
 cd the-fold && npm test
 ```
 
+## The fold as a model, not only a client
+
+`explore-server.mjs` (`:8812`) also serves the fold AS a model — point the
+Ollama desktop app's "add provider," OpenCode's custom-provider config, or
+any OpenAI-compatible client at `http://localhost:8812/v1` (or Ollama's
+own native shape at the same host's `/api/tags` and `/api/chat`). Every
+answer runs the real grounded pipeline (`holon.js`'s plan gate, retrieval,
+quote/relation tiers, bounded correction) — never a raw passthrough to
+Ollama — so a servable model id is always `fold:<real ollama model>`
+(e.g. `fold:gemma2:2b`), never a bare name: naming a bare model asks
+Ollama directly and is refused, typed, at the door, on purpose. See
+POLICIES.md P25 for the full policy and CLAUDE.md's "the model proxy" for
+the disclosed scope of this pass (no attachments, no link tier, no
+persistent session, single-shot streaming — each named rather than silent).
+
 ## Testing it honestly
 
 Models are extremely good at plausible, so "did it give a reasonable

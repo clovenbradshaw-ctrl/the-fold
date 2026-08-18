@@ -1,20 +1,24 @@
 #!/bin/sh
-# fold — launch The Fold with one command.
+# fold — get The Fold running with one command, from a totally fresh machine.
 #
 #   ./fold [port]
 #
-# Brings up everything the app needs and nothing it doesn't:
-#   - checks eoreader6.1 is cloned next to this repo (the engine both
-#     servers mount at /engine and /nul, and explore-server.mjs also
-#     imports directly)
-#   - installs node_modules on first run
-#   - starts ollama if it isn't already answering on :11434 (warns,
-#     never blocks — a talking model isn't this script's job to provide)
+# What this does, in order, each step skipped if already satisfied:
+#   - installs Node.js if it's missing (Homebrew on macOS; prints
+#     instructions on Linux/Windows, since there's no one safe installer)
+#   - clones eoreader6.1 next to this repo if it isn't there yet (the
+#     engine both servers mount at /engine and /nul, and explore-server.mjs
+#     also imports it directly)
+#   - installs this repo's own node_modules
+#   - installs Ollama if it's missing (Homebrew on macOS, the official
+#     install script on Linux), starts it if it isn't already listening,
+#     and pulls gemma2:2b if nothing at all is pulled yet — small (~1.6GB)
+#     and fast, so a brand-new machine ends up with something to actually
+#     talk to instead of just a running server and an empty model picker
 #   - starts explore-server.mjs on :8812 if nothing is answering there
 #     already. This port is not configurable: the chat page's Explore
 #     iframe and its postMessage origin check are hardcoded to
-#     localhost:8812 (index.html, app.js), so anything else here would
-#     leave the Explore pane and the priors organ silently dead.
+#     localhost:8812 (index.html, app.js)
 #   - starts serve.mjs on $1 (default 8811), which opens the browser
 #     itself once it's listening
 #
@@ -26,44 +30,74 @@
 set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+OS="$(uname -s)"
 
-# ── preflight ────────────────────────────────────────────────────────────────
+# ── node ─────────────────────────────────────────────────────────────────
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "error: node is not installed" >&2
-  exit 1
-fi
-
-EOREADER="$DIR/../eoreader6.1"
-for sub in packages/engine packages/host nul; do
-  if [ ! -d "$EOREADER/$sub" ]; then
-    echo "error: eoreader6.1 not found at $EOREADER/$sub" >&2
-    echo "  clone eoreader6.1 next to the-fold/ (both servers mount its /engine and /nul)" >&2
+  if [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    echo "Node.js not found — installing via Homebrew..."
+    brew install node
+  else
+    echo "error: Node.js is required and wasn't found." >&2
+    echo "  install it, then re-run ./fold:" >&2
+    if [ "$OS" = "Darwin" ]; then
+      echo "  brew install node   (or https://nodejs.org)" >&2
+    else
+      echo "  https://nodejs.org, or your distro's package manager" >&2
+    fi
     exit 1
   fi
-done
+fi
+
+# ── eoreader6.1 (sibling repo; clone it if it's not there) ─────────────────
+
+EOREADER="$DIR/../eoreader6.1"
+if [ ! -d "$EOREADER/packages/engine" ]; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git is required to fetch eoreader6.1 and wasn't found" >&2
+    exit 1
+  fi
+  echo "cloning eoreader6.1 next to this repo..."
+  git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$EOREADER"
+fi
+
+# ── this repo's own deps ────────────────────────────────────────────────────
 
 if [ ! -d "$DIR/node_modules" ]; then
   echo "installing dependencies..."
-  (cd "$DIR" && npm install --ignore-scripts 2>&1)
+  (cd "$DIR" && npm install --ignore-scripts)
 fi
 
-# ── ollama ───────────────────────────────────────────────────────────────────
+# ── ollama: install, start, seed a model ────────────────────────────────────
 
-if command -v ollama >/dev/null 2>&1; then
-  if ! curl -s -o /dev/null -m 1 http://localhost:11434/api/tags; then
-    echo "starting ollama..."
-    ollama serve >/tmp/the-fold-ollama.log 2>&1 &
-    for _ in 1 2 3 4 5; do
-      curl -s -o /dev/null -m 1 http://localhost:11434/api/tags && break
-      sleep 1
-    done
-    curl -s -o /dev/null -m 1 http://localhost:11434/api/tags \
-      || echo "warning: ollama still not answering on :11434 — check /tmp/the-fold-ollama.log" >&2
+if ! command -v ollama >/dev/null 2>&1; then
+  echo "Ollama not found — installing..."
+  if [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    brew install ollama
+  elif [ "$OS" = "Linux" ]; then
+    curl -fsSL https://ollama.com/install.sh | sh
+  else
+    echo "error: install Ollama from https://ollama.com/download, then re-run ./fold" >&2
+    exit 1
   fi
-else
-  echo "warning: ollama not found on PATH" >&2
-  echo "  the fold needs ollama running locally to talk to models" >&2
+fi
+
+if ! curl -s -o /dev/null -m 1 http://localhost:11434/api/tags; then
+  echo "starting ollama..."
+  ollama serve >/tmp/the-fold-ollama.log 2>&1 &
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    curl -s -o /dev/null -m 1 http://localhost:11434/api/tags && break
+    sleep 1
+  done
+  curl -s -o /dev/null -m 1 http://localhost:11434/api/tags \
+    || echo "warning: ollama still not answering on :11434 — check /tmp/the-fold-ollama.log" >&2
+fi
+
+if ! curl -s -m 1 http://localhost:11434/api/tags 2>/dev/null | grep -q '"name"'; then
+  echo "no models pulled yet — pulling gemma2:2b (~1.6GB) to get you talking fast..."
+  ollama pull gemma2:2b
+  echo "for a stronger model later: ollama pull qwen2.5:14b-instruct-q4_K_M (~9GB)"
 fi
 
 # ── explore server (fixed :8812 — see header) ───────────────────────────────

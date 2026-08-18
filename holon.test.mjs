@@ -479,6 +479,63 @@ test("the discourse slice reaches the part prompt, and only as one line", async 
   assert.ok(sawDiscourse);
 });
 
+// ── the conversation's own anchor, extended to a topic-less flat follow-up ──
+// Measured live 2026-08-18: asked "research the weather in NYC right now"
+// with nothing attached, then "prove it" — the second turn's own words carry
+// no topic at all. A decomposed part stays narrowly scoped to exactly that
+// emptiness on purpose (the `strayed` disclosure, above); a flat turn IS the
+// whole conversation, and discourse is the fold's own record of what it was
+// about. app.js's preflight (proof.js's shouldPreflight/gatherPreflightMaterial)
+// hands a materialless flat turn real chunks before it drafts; this is the
+// other half — that retrieval must actually find them on "prove it" alone.
+
+const weatherChunks = chunkSource(
+  "web:weather.gov-0",
+  "The National Weather Service forecast for New York City: 68 degrees, partly cloudy, updated this afternoon.",
+);
+
+test("a flat, topic-less follow-up retrieves on the fold's discourse, not just its own empty words", async () => {
+  const call = async (messages) => {
+    const refs = offeredRefs(messages[1].content);
+    return refs.length
+      ? `Confirmed: the National Weather Service forecast lists 68 degrees for New York City. [${refs[0]}]`
+      : "I don't have enough information to confirm that.";
+  };
+  const result = await runHolonicTask({
+    task: "prove it",
+    chunks: weatherChunks,
+    call,
+    planMode: "flat",
+    discourse: "NYC weather right now · asked and answered · NYC",
+  });
+  assert.ok(result.refs.length >= 1, "the discourse anchor must pull the weather material into retrieval");
+});
+
+test("without the discourse anchor, the same topic-less follow-up retrieves nothing — the fix is the anchor, not luck", async () => {
+  const call = async (messages) => {
+    const refs = offeredRefs(messages[1].content);
+    return refs.length ? `Confirmed. [${refs[0]}]` : "I don't have enough information.";
+  };
+  const result = await runHolonicTask({ task: "prove it", chunks: weatherChunks, call, planMode: "flat" });
+  assert.equal(result.refs.length, 0, "no discourse, no anchor — retrieval correctly finds nothing in 'prove it' alone");
+});
+
+test("a decomposed part stays narrowly scoped even when discourse is set — the flat-only fold-in does not leak into planned parts", async () => {
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const refs = offeredRefs(messages[1].content);
+    return refs.length ? `Confirmed. [${refs[0]}]` : "I don't have enough information.";
+  };
+  const result = await runHolonicTask({
+    task: "prove it",
+    chunks: weatherChunks,
+    call,
+    planMode: "model",
+    discourse: "NYC weather right now · asked and answered · NYC",
+  });
+  assert.equal(result.refs.length, 0, "a decomposed part's own words stay the only anchor — discourse fold-in is flat-only by design");
+});
+
 test("a verbatim reproduction fails as not-answering, and the correction can save it", async () => {
   let corrected = false;
   const call = async (messages) => {

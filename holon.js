@@ -596,9 +596,26 @@ export async function runPart({
   // `unexamined`, never silently treated as checked.
   checkLink = null,
   linkBudget = LINK_CHECKS_PER_PART,
+  // True only for the single flat part a plain chat question runs as
+  // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
+  // conversation, never a plan-scoped slice). Distinguishes this part from
+  // a decomposed part, whose narrow scoping is deliberate: `strayed` below
+  // already discloses rather than silently widens when a part's words share
+  // nothing with the task. A flat part gets no such protection by staying
+  // narrow — the opposite failure is the live one: asked "prove it" after a
+  // weather question, the part's own words are the whole content, and
+  // retrieval on "the question prove it" alone shares no term with whatever
+  // this turn just fetched to answer it. Default false so every existing
+  // caller — every decomposed part — is byte-identical to before.
+  flat = false,
   onProgress = null,
 }) {
-  const question = `${part.label} ${part.description}`;
+  // The conversation's own anchor (the same fix already applied to app.js's
+  // single-source corroboration door, moved one level earlier): folded into
+  // retrieval only for the flat part, so a decomposed part's deliberately
+  // narrow scoping is untouched.
+  const question =
+    flat && discourse ? `${part.label} ${part.description} ${discourse}` : `${part.label} ${part.description}`;
   const live = chunks ?? [];
   const passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
   const sourceBlock = buildSourceBlock(passages);
@@ -632,7 +649,8 @@ export async function runPart({
     // failure as one invented in a sentence, and must land in the same list.
     const shipped = `${part.label}\n${text}`;
     const { used, unsupported } = checkCitations(shipped, passages);
-    const groundingQuestion = `${task} ${part.description}`;
+    const groundingQuestion =
+      flat && discourse ? `${task} ${part.description} ${discourse}` : `${task} ${part.description}`;
     const checkedGrounding = checkGrounding(shipped, passages, {
       question: groundingQuestion,
       resolveName,
@@ -1296,6 +1314,11 @@ export async function runHolonicTask({
       makeNameResolver,
       makeRelationReader,
       checkLink,
+      // planMode is task-wide, not per-part: a flat task runs exactly one
+      // part (however many times retryStrayedRule retries it), so there is
+      // no case where this callback runs for a part that isn't the flat one
+      // when planMode is "flat".
+      flat: planMode === "flat",
       onProgress,
     });
     seenRefs.push(...result.refs);

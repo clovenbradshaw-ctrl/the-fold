@@ -1267,6 +1267,127 @@ ground excerpt.txt broken:rotation` finding and landing its two real
 referents, `grid` still showing them attached after the fact.
 **Enforced:** same two test files; no other suite is touched.
 
+**Amended 2026-08-18 (third occurrence) — the chat's own `/act` door, and
+`landAct` as the one shared landing.** The user's direction, verbatim:
+"think the chat should be able to drive terminal work and things using
+python and what not." This amendment builds the lower-risk half only —
+composing the SAME nine-operator composition law from the chat composer,
+never a raw-execution door — and states the reasoning for scoping it that
+way rather than assuming it: `grid.js` already refuses a malformed or
+unwarranted act BY GRAMMAR, so the blast radius of a chat-triggered act was
+already bounded before this landed; running arbitrary Python/JS/SQL from a
+chat message is a materially bigger step (P18's "nothing typed here
+reaches the machine" and the Folds panel's own "consent to execute is
+still earned by an explicit ▶ run" both cut against a model-triggered
+execution door), and is deliberately NOT built here — see CLAUDE.md's own
+section on this amendment for the recommendation held open pending
+confirmation, not silently assumed.
+
+**No new policy substance — a second door onto the identical, already-
+governed mechanism.** The refusal grammar, the terrain/stance rules, the
+one-capacity-executes boundary — all unchanged; a line means the same
+thing whether composed at the terminal or in chat, and grid.js was not
+touched to make this true. EXPLICIT-TRIGGER ONLY, matching this repo's
+`/self`/`/priors`/`/reflect` doors: `/act <line>` is checked among the
+other typed doors (`app.js`, before any automatic detector or the widget
+router), so the model never decides on its own to compose an act — only a
+person typing the door reaches this grammar, the same posture every other
+slash door already has.
+
+**One shared implementation, not two.** Before this, "a landed
+`distinguish` whose `ground` names an already-loaded source runs `cast`
+for real" was policy embedded inside term.js's own DOM-bound `act` handler
+— exactly the shape of bug this policy's own postmortem already caught
+twice (DEF/EVA's `Array.find` first-match bug, `synthesize`'s
+`String.includes` substring bug: one correct implementation, and a second
+place nobody kept in sync with it). `landAct(grid, log, line, { sources,
+runCapacity })` (capacity-runner.js, new) is that orchestration moved to
+one place and called by both doors — term.js's `act` fold command and
+app.js's `actTurn` — so the terminal and chat compose against the
+identical policy by construction, not by two authors remembering to keep
+two copies in step.
+
+**The log is shared, app-wide, not per conversation.** `state.gridLog`
+(app.js) holds the SAME log both doors read and write — `grid.createLog()`
+once, alongside `state.builds` rather than in `PER_CONVO` (the same
+reasoning `builds` already states: "a build belongs to the instrument, not
+to one conversation" — an act belongs to the instrument the same way).
+`initTerminal`'s bridge gained `gridLog`/`setGridLog` accessors, the same
+shape `sources`/`chunks`/`muted`/`folds` already have; term.js's own
+`readGridLog`/`writeGridLog` fall back to a page-local log when a caller
+hasn't wired sharing (a bare bridge, a Node test), so nothing that worked
+before this lands differently now.
+
+**Recording follows the same rule this policy already states: one file,
+reused.** `actTurn` mirrors onto the identical
+`record/explore-record.jsonl` via the SAME `POST /api/term-record` →
+`record(event, fields)` route term.js's own `mirrorTerm` already uses —
+never a second file or a second reader — adding one field, `via: "chat"`,
+so the record can tell which door an act came through without a second
+event vocabulary. A miss (no explore server reachable) is silent, matching
+`mirrorTerm`'s own long-standing default.
+
+**Evidence, driven live end to end through the real chat UI, not only in
+test files.** Bare `/act` renders the usage line, mechanically, no model
+call. `/act distinguish zone-3 at Network from encounter` (no ground)
+refuses with the typed `no_ground` detail, exactly as the terminal does.
+Real material pasted as an attachment (`pasted.txt`), then `/act
+distinguish who-is-here at Entity from encounter ground pasted.txt
+broken:rotation` typed in the chat composer lands two entries and runs
+`cast` for real, printing the two real referents found (Bezukhov,
+Rostova) — then opening the terminal and typing `grid` shows the
+IDENTICAL entries with the IDENTICAL attached result, proving the shared
+log, not a parallel one. The reverse direction was also driven live: an
+act composed AT THE TERMINAL appeared correctly folded when the NEXT
+chat-composed act read the log (continuing its own id sequence rather than
+starting over). A brand-new second conversation tab, opened after acts
+already existed on the log, saw and continued the SAME log immediately —
+proving `gridLog` is genuinely app-wide, not scoped to the conversation
+that composed it. `capacity-runner.test.mjs` grew 6 new cases for
+`landAct` itself (a parse refusal lands nothing; an ordinary act lands
+with `capacity: null`; a `ground` naming nothing loaded stays silently
+ordinary; a `ground` naming a loaded-but-empty source reports
+`no_material` without attaching; a `ground` naming real material runs
+`cast` for real and attaches the result, re-discoverable by folding the
+returned log; and two sequential `landAct` calls compose — the second
+call's refusal proves it folded against the first call's own landed
+acts, not a fresh log) — 670 total, 666 passing, the same 4 pre-existing,
+unrelated failures (`measure.test.mjs`, three `webllm-rung.test.mjs`
+cases — missing large vendored files, not something this amendment
+touches).
+
+**One pre-existing, harmless characteristic surfaced by sharing, disclosed
+rather than silently absorbed.** `attachResult` appends a RESULT entry to
+the log, and EVERY append — RESULT included — advances `task-log.js`'s own
+`nextSeq`, which `grid.js`'s `nextEventId` reads to name the next act. A
+`distinguish` whose ground triggers `cast` therefore consumes THREE
+sequence numbers (SIG, INS, then the invisible RESULT), so visible act ids
+run 0, 1, 3, 4, 6, 7 rather than 0, 1, 2, 3 whenever capacity execution is
+in the mix. This predates this amendment — the identical id-consuming
+call sequence (`land` then `attachResult`) already existed in term.js's
+own original `act` handler — and is harmless (ids stay unique and
+monotonic; nothing collides or overwrites); it is simply more OBSERVABLE
+now that both doors write the same counter. Not fixed here — a cosmetic
+numbering gap, not a correctness defect — but named so a future reader
+does not mistake it for one.
+
+**Two limits carried over unchanged, not touched by this amendment.**
+`cast` still runs synchronously and unbounded on the calling thread from
+EITHER door (capacity-runner.js's own disclosed limit, above); a `revise`
+superseding the wrong half of a `distinguish`'s SIG/INS pair still orphans
+the surviving entry's result. Neither is this amendment's to fix.
+
+**Files.** `capacity-runner.js` grew `landAct` (+6 tests,
+`capacity-runner.test.mjs`); `term.js`'s `act`/`grid` fold commands now
+call `landAct` and read/write the log through `readGridLog`/`writeGridLog`
+rather than a private field (`term.test.mjs` untouched — it never exercises
+`initTerminal`); `app.js` grew `state.gridLog`, `actTurn`,
+`mirrorTermRecord`, the `/act` door in the turn dispatcher, and the
+`gridLog`/`setGridLog` accessors on the `initTerminal` bridge call.
+**Enforced:** `capacity-runner.test.mjs` (11 cases total); `term.test.mjs`
+and `grid.test.mjs` unchanged and still passing, confirming the refactor
+changed no behavior their own suites already pin.
+
 ## P23 — A materialless question is answered by fetching first, not by checking after
 
 Measured live 2026-08-18: asked "research the weather in NYC right now"
@@ -1398,3 +1519,127 @@ when discourse names the exact right topic). 626 of 628 repo tests pass;
 the two failures (`arithmetic.test.mjs`, `measure.test.mjs`) are
 pre-existing and unrelated — a missing `mathjs` dependency and a stale
 `eoreader6` path respectively, neither file touched by this policy.
+
+## P24 — `/run`: the chat door onto the sandbox, for code a PERSON wrote
+
+The P22 amendment named this as a recommendation, held open pending
+confirmation, rather than assumed: "think the chat should be able to
+drive terminal work and things using python and what not" names two
+things of different sizes, and only the smaller one (composing the
+nine-operator language via `/act`) had been built. This closes the
+larger half — but a materially narrower slice of it than "run arbitrary
+code from chat" might suggest, because most of that ground was already
+covered.
+
+**The decision: `/run <runtime>\n<code>`, a typed door, never a button on
+a rendered segment.** `term.js` already had `runSandboxed` and app.js
+already had `autoRunAndDisclose` — automatic, fire-and-forget sandboxed
+execution of code the MODEL just wrote inside a turn's own fold, no click
+needed, before this policy existed. That mechanism already answers "does
+the model's own code run safely." The actual gap was code a PERSON types
+or pastes straight into the composer, which had no door at all. A ▶
+button drawn onto the same rendered segments auto-run already executes
+would be redundant with a mechanism that already runs those exact
+segments; a typed command is also the shape every other explicit trigger
+in this dispatcher already takes (`/act`, `/self`, `/priors`, `/learn`),
+so `/run` invents no new class of affordance, only fills the one gap that
+was actually open.
+
+**No new machine-execution path, ever — the identical sandbox, called the
+identical way.** Every `/run` terminates in the SAME `runSandboxed`
+function (term.js) that auto-run already calls, which terminates in the
+SAME three Workers P18 already sandboxes (`term-js-worker.mjs`,
+`term-py-worker.mjs`, `term-sql-worker.js` — network severed at boot,
+before the first operator line runs). `serve.mjs` gained no exec route;
+`term.test.mjs`'s existing seam scan (no non-local host, no exec call, in
+any terminal file) was not weakened to make this land — it was not
+touched at all, and still passes.
+
+**The model never decides to execute; there is no standing switch.**
+`parseRunCommand` (term.js, pure) only claims a turn typed EXACTLY as
+`/run <runtime>\n<code>` this exact turn — checked among the other typed
+doors in `send()`'s dispatcher (`app.js`), right after `/act`'s own check,
+before any automatic detector or the widget router gets a look at the
+question, the identical ordering discipline `/act`'s own policy states
+("explicit typed doors are checked before anything downstream, in a fixed
+order, so nothing typed can be hijacked"). Each `/run` is its own one-shot
+action — like the Folds panel's own ▶ run, or `/act`'s own mechanical
+land — never a toggle that authorizes a future turn to run something on
+its own.
+
+**What actually needed to change, and why.** Two small gaps closed rather
+than one large door opened:
+
+- **ROSTER's `type` field, consolidating a ternary that had already drifted
+  into two copies.** `spawn()` and `runSandboxed` each separately
+  hardcoded `name === "sql" ? "classic" : "module"` — the exact drift class
+  this repo's own postmortems have already named twice under P22 (the
+  DEF/EVA `Array.find` bug, `synthesize`'s `String.includes` bug: one
+  correct implementation and a second place nobody kept in sync). `type`
+  now lives once, on each `ROSTER` entry, read by both call sites.
+- **`runSandboxed` grew what sql needed and js/python never did.** `result`-
+  type worker messages (sql's `runSql` emits one per statement that
+  returns rows; formatted with the SAME `formatCells` the interactive
+  prompt's own message handler already uses) and a `.load <source>`
+  pre-step read off the code's own first line (the SAME `csvTable` walk
+  `exec()`'s own sql `.load` handling already uses). Without these, `/run
+  sql` could only ever run a bare query against an empty database —
+  auto-run never needed them because the model-authored fold path never
+  routes SQL through this door at all.
+
+**Disclosed choice: material crosses unfiltered.** `runTurn` (app.js)
+hands `runSandboxed` `state.sources` exactly as written — every loaded
+source, muted or not — matching `actTurn`/`landAct`'s own precedent rather
+than diverging from it: the mute toggle is a retrieval concept (it governs
+what a model turn is HANDED to answer from), not an execution concept, and
+term.js's own `sourcesPayload()` already mounts every loaded source into
+every sandboxed runtime for the identical reason. A `.load <source>`
+inside `/run sql` code can therefore reach a muted source — the same as
+typing `.load <source>` at the interactive terminal prompt already could.
+
+**Evidence, driven live end to end through the real chat UI.** `/run
+python\nprint(2+2)` printed `4` (10,191ms, matching P18's own ~9s pyodide
+boot figure). `/run js\nconsole.log(3*7); 6*7` printed `21` then `42`
+(29ms). Real CSV material pasted as an attachment, then `/run sql\n.load
+pasted.txt\nselect city, riders from pasted where riders > 1500;` printed
+the load line (`pasted: 3 rows · city TEXT, riders INTEGER`) followed by a
+column-aligned table of exactly the two matching rows (359ms) — proving
+both new `runSandboxed` capabilities against real attached bytes, not a
+fixture. `/run ruby\nputs 1` refused mechanically (`unsupported_runtime`)
+with no model call and no worker ever spawned; bare `/run` rendered the
+usage line. Every run and refusal landed on `record/explore-record.jsonl`
+within the same second, `via: "chat"`, read back via `curl
+localhost:8812/api/record?tail=…`. The browser's own network log across
+every one of these turns showed nothing beyond the sandbox worker files
+and `POST /api/term-record` — no call to the model at :11434, and nothing
+resembling a machine-execution route. `/act distinguish zone-3 at Network
+from encounter` composed immediately afterward still refused with the
+identical `no_ground` detail P22's own evidence names, confirming the new
+door sitting beside it in the dispatcher disturbed nothing.
+
+**Files.** `term.js` (`ROSTER[*].type`; `AUTO_RUN_LANGS`/
+`AUTO_RUN_TIMEOUT_MS` grew a `sql` entry; `runSandboxed`'s `result`
+handling and `.load` pre-step; the new pure `parseRunCommand`); `app.js`
+(`runTurn`, `formatRunOutcome`, the `/run` dispatcher check, both new
+`mirrorTermRecord` event types).
+
+**Enforced:** `term.test.mjs` grew 7 cases — `autoRunnable`'s sql support;
+`parseRunCommand`'s four parsing rules (valid runtime+code, missing code,
+unknown runtime, no `/run` prefix at all → null); ROSTER's `type` field
+checked against each worker file's OWN module shape (a real ESM `export`
+detected in the file's text, not a hardcoded map); a source-scan
+regression confirming the `name === "sql" ? "classic" : "module"` ternary
+is gone from both call sites, not merely duplicated a third time.
+`capacity-runner.test.mjs`/`grid.test.mjs` untouched and still passing,
+confirming `/act`'s own machinery was not disturbed by sharing the
+dispatcher with a sibling door.
+
+**Disclosed limit, carried over unchanged, not this policy's to fix.**
+`runSandboxed`'s worker-message accumulation has no output budget of its
+own beyond what each worker already caps (KEEP_PER_EXEC-scale) — a `/run`
+that prints an unbounded amount ships it whole into the turn's answer,
+the same posture auto-run's own disclosure already accepts for a fold's
+code. A future pass could bound `formatRunOutcome`'s own text the way
+build-log.js's run entries already bound theirs (16K chars/stream,
+`kept/of` stated); not attempted here, named rather than silently
+absent.

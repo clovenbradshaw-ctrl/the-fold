@@ -80,3 +80,66 @@ export function makeCapacityRunner({ referentIndexFor }) {
     return { id, name: name ?? null, count: referents.length, referents };
   };
 }
+
+// ── landAct: the one shared "parse a line, land it, maybe execute a
+// capacity" orchestration (added when the chat grew its own /act door
+// alongside the terminal's) ─────────────────────────────────────────────
+//
+// Before this, "distinguish's ground names an already-loaded source →
+// run cast for real → attach the result" lived ONLY inside term.js's own
+// `act` fold-command handler — the CHECK (`parsed.event.verb ===
+// "distinguish" && parsed.event.ground && Object.hasOwn(sources,
+// parsed.event.ground)`) was policy, not formatting, and policy embedded
+// in one DOM-bound handler is exactly the shape of bug this pass's own
+// postmortem already caught twice (grid.test.mjs: DEF/EVA's Array.find
+// first-match bug, synthesize's String.includes substring bug — both
+// "one correct implementation, and a second place nobody kept in sync
+// with it," just not yet a SECOND place at the time they were fixed). The
+// chat's /act door needs the identical policy, so rather than copy the
+// check into app.js and hope the two never drift, it moved here once and
+// both callers (term.js's `act` handler, app.js's `actTurn`) call this.
+//
+// This is still not a third module's worth of scope: it composes grid.js
+// (injected as `grid`, the same `makeGrid(...)` instance both callers
+// already hold) and `runCapacity` (this file's own export, above) — no
+// new engine import, no new organ.
+
+/**
+ * Parse `line` against `grid`, land it on `log`, and — only when it lands
+ * as a `distinguish` whose `ground` clause names an ALREADY-LOADED source
+ * (checked by key presence in `sources`, not truthiness, so "nothing by
+ * that name is loaded" and "what's loaded there is empty" stay the two
+ * different, correctly-typed facts term.js's own comment already
+ * documented) — run `cast` for real and attach the referents found as a
+ * RESULT on the act's own INS entry.
+ *
+ * Returns `{ ok: false, refusal }` on a parse/grammar refusal (nothing
+ * lands, `log` is untouched), or `{ ok: true, log, ids, event, capacity }`
+ * where `capacity` is `null` when no capacity was triggered (an ordinary
+ * act, OR a `ground` candidate naming nothing loaded — deliberately
+ * silent either way, matching the disclosed rule above), or
+ * `{ result }` when one was: `result.gap === "no_material"` on real-but-
+ * empty material (nothing attached), otherwise the real referents `cast`
+ * found (`{ id, name, count, referents }`, attached).
+ *
+ * Callers own ALL formatting/recording — this function only computes what
+ * landed and what (if anything) ran; it never touches a DOM, a chat
+ * message, or the durable record itself.
+ */
+export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
+  const parsed = grid.parseAct(line, { log });
+  if (!parsed.ok) return { ok: false, refusal: parsed.refusal };
+  const { log: landedLog, ids } = grid.land(log, parsed.event);
+  let finalLog = landedLog;
+  let capacity = null;
+  if (parsed.event.verb === "distinguish" && parsed.event.ground && runCapacity && Object.hasOwn(sources, parsed.event.ground)) {
+    const result = runCapacity("cast", { text: sources[parsed.event.ground], name: parsed.event.ground });
+    if (result.gap !== "no_material") {
+      const insId = ids[ids.length - 1];
+      const attached = grid.attachResult(finalLog, insId, result);
+      if (attached.ok) finalLog = attached.log;
+    }
+    capacity = { result };
+  }
+  return { ok: true, log: finalLog, ids, event: parsed.event, capacity };
+}

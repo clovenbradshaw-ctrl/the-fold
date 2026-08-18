@@ -35,6 +35,7 @@
 import { delimitedTable } from "./source.js";
 import { LESSONS, stepLesson } from "./term-lessons.js";
 import { parseHandbookIndex, findChapter } from "./handbook.js";
+import { landAct } from "./capacity-runner.js";
 
 export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
 export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
@@ -73,11 +74,21 @@ async function mirrorTerm(event, fields) {
 const capped = (s) => (s.length > TERM_RECORD_LINE_CAP ? s.slice(0, TERM_RECORD_LINE_CAP) + `…(${s.length - TERM_RECORD_LINE_CAP} more, dropped)` : s);
 
 // ── the registry ────────────────────────────────────────────────────────────
+//
+// `type` names the Worker constructor's own `type` option this runtime's
+// file needs to load correctly — held here once rather than re-derived by a
+// sql-vs-everything-else ternary wherever a worker is spawned (spawn()
+// below and runSandboxed both used to hardcode that same three-way check
+// separately, and two copies of one fact is exactly the drift class this
+// repo's postmortems keep naming). "module" for js/python (both ship ESM
+// `export`, per their own file headers); "classic" for sql (sql.js is UMD
+// and importScripts is the one loader that hands it a global scope — its
+// own header says so).
 export const ROSTER = {
   fold: { kind: "builtin", blurb: "commands over the instrument itself — mechanical, no model" },
-  js: { kind: "worker", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
-  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); `pip install <name>` (fold command) fetches any of ~350 others; material mounts at /material" },
-  sql: { kind: "worker", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
+  js: { kind: "worker", type: "module", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
+  python: { kind: "worker", type: "module", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); `pip install <name>` (fold command) fetches any of ~350 others; material mounts at /material" },
+  sql: { kind: "worker", type: "classic", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
 };
 
 // Refused runtimes, each with its reason — a typed refusal, never a shrug.
@@ -198,13 +209,15 @@ const fmtBytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toF
 // design — one boot, one exec, terminated after, exactly the "throwaway
 // process" framing /api/run already uses, just backed by WASM instead of
 // the machine.
-const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js" };
+const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js", sql: "sql" };
 // python pays pyodide's own boot cost (measured: ~9s in Node for the
 // runtime alone, before a single user line runs) on top of whatever the
 // code itself takes — js has no such tax (a plain Worker boots near-
 // instantly), so each runtime's budget is its own rather than one shared
-// guess.
-const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000 };
+// guess. sql pays sql.js's own wasm boot over importScripts — lighter than
+// pyodide's, heavier than a bare js Worker's — so its budget sits between
+// the two rather than reusing either.
+const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000, sql: 15_000 };
 
 /** True if `lang` is one this door can actually run. Read by the caller
  * before it decides to run anything, so a caption never promises a run
@@ -214,19 +227,87 @@ export function autoRunnable(lang) {
 }
 
 /**
+ * The chat's own door onto this same sandbox: `/run <runtime>\n<code>`.
+ * Code the auto-run above never sees — that one only ever runs a segment
+ * the MODEL just produced inside this turn's own fold, fire-and-forget, no
+ * click needed; it already covers "the model's own code runs safely."
+ * What has no door at all is code a PERSON just typed or pasted straight
+ * into the composer. `/run` fills exactly that gap, and deliberately as a
+ * typed command rather than a button drawn onto a rendered segment: a
+ * button there would sit on the identical segments auto-run already runs
+ * automatically, which is redundant with a mechanism that already exists;
+ * a typed door is also the shape every other explicit trigger in this
+ * repo already takes (/act, /self, /priors, /learn — and, one register
+ * over, the Folds panel's own ▶ run), so nothing new is invented to read
+ * "did a person, this exact turn, ask for this to run."
+ *
+ * Shape: the FIRST LINE's second token names the runtime; everything
+ * after the first newline is the code, byte-for-byte (no trimming — a
+ * python body's own indentation and blank lines are the author's, not
+ * this parser's to touch). Three outcomes, matching this codebase's own
+ * "a parse function returns null to let the caller's door fall through"
+ * convention (parseMeasure in measure.js, parseFoldCommand in
+ * folds-pane.js — both return null on a shape mismatch rather than a
+ * refusal, so a caller can print its OWN usage line only when the text
+ * was clearly meant for this door at all):
+ *
+ *   - `null` — not this command's shape at all: no leading `/run`, or a
+ *     `/run <runtime>` with no code (no second line, or a second line
+ *     that is blank). The caller falls through rather than refusing.
+ *   - `{ refused: { type: "unsupported_runtime", detail } }` — the shape
+ *     is whole but the named runtime is not one `autoRunnable` accepts.
+ *     `/run` only ever reaches the sandboxed runtimes auto-run already
+ *     trusts (python, js/javascript, sql) — never `fold` (composing a
+ *     terminal-language act or reading a source is not "running code")
+ *     and never a runtime this repo refuses outright (REFUSED, above).
+ *   - `{ runtime, code }` — a whole, runnable command.
+ */
+export function parseRunCommand(text) {
+  const raw = String(text ?? "");
+  const nl = raw.indexOf("\n");
+  if (nl === -1) return null; // no second line at all — nothing to run
+  const firstLine = raw.slice(0, nl);
+  const code = raw.slice(nl + 1);
+  const tokens = firstLine.trim().split(/\s+/);
+  if ((tokens[0] ?? "").toLowerCase() !== "/run") return null;
+  const runtime = (tokens[1] ?? "").toLowerCase();
+  if (!runtime || !code.trim()) return null;
+  if (!autoRunnable(runtime)) {
+    return {
+      refused: {
+        type: "unsupported_runtime",
+        detail: `"${runtime}" cannot be run from chat — /run only reaches the sandboxed runtimes this door already trusts (${[...new Set(Object.keys(AUTO_RUN_LANGS))].join(", ")}). The terminal (›_) has more runtimes at its own prompt (fold, sql included) but they are not all reachable from this door — only actual code execution is.`,
+      },
+    };
+  }
+  return { runtime, code };
+}
+
+/**
  * Runs `code` in a fresh, throwaway sandbox worker and resolves the SAME
  * shape /api/run's JSON does ({code, stdout, stderr, timedOut, durationMs})
  * — so attachRun and the Folds panel's own rendering need no branch for
  * where a result came from. `sources` mounts material the same way the
  * terminal's own `mount` command does; auto-run gets none by default; a
  * caller wanting the fold to see loaded material passes them explicitly.
+ *
+ * sql gets two extras the interactive prompt already has and this door
+ * needs too, since it only gets one shot rather than a REPL: (1) `result`-
+ * type worker messages — runSql (term-sql-worker.js) emits these for every
+ * statement that returns rows, the SAME message the terminal's own
+ * spawn() handler already formats with formatCells; auto-run used to only
+ * listen for out/err/done because python/js never emit `result`. (2) a
+ * `.load <source>` PRE-STEP, when it is the code's own first line — the
+ * identical csvTable walk exec()'s own sql `.load` handling (below) uses,
+ * so `/run sql\n.load orders\nselect …` can prime a table from already-
+ * attached material before the query runs, without a second parser.
  */
 export function runSandboxed(lang, code, { sources = {} } = {}) {
   const key = AUTO_RUN_LANGS[String(lang ?? "").toLowerCase()];
   if (!key) return Promise.resolve({ code: null, stdout: "", stderr: `no sandboxed runner for "${lang}"`, timedOut: false, durationMs: 0 });
   const started = Date.now();
   return new Promise((resolve) => {
-    const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: "module" });
+    const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: ROSTER[key].type });
     let out = "";
     let err = "";
     let settled = false;
@@ -238,12 +319,56 @@ export function runSandboxed(lang, code, { sources = {} } = {}) {
       resolve({ code: patch.timedOut || err ? 1 : 0, stdout: out, stderr: err, timedOut: !!patch.timedOut, durationMs: Date.now() - started });
     };
     const timer = setTimeout(() => finish({ timedOut: true }), AUTO_RUN_TIMEOUT_MS[key] ?? 10_000);
+
+    // The `.load` pre-step: only the code's own FIRST line is checked, the
+    // same one-dot-command-per-statement grammar the interactive prompt
+    // holds. A name that isn't loaded, or doesn't parse as a CSV, ends the
+    // run right there with a typed stderr line rather than running the
+    // query against a table that was never created.
+    let queryCode = code;
+    let pendingLoad = null;
+    if (key === "sql") {
+      const firstNL = code.indexOf("\n");
+      const firstLine = firstNL === -1 ? code : code.slice(0, firstNL);
+      const m = firstLine.match(/^\s*\.load\s+(\S+)/);
+      if (m) {
+        const srcName = m[1];
+        queryCode = firstNL === -1 ? "" : code.slice(firstNL + 1);
+        if (sources[srcName] === undefined) {
+          err += `no source named "${srcName}" — nothing to .load\n`;
+          queryCode = null;
+        } else {
+          const table = csvTable(sources[srcName]);
+          if (!table) {
+            err += `${srcName} parsed to nothing — is it a CSV?\n`;
+            queryCode = null;
+          } else {
+            pendingLoad = { name: srcName, table };
+          }
+        }
+      }
+    }
+
     worker.onmessage = (ev) => {
       const m = ev.data ?? {};
-      if (m.type === "ready") worker.postMessage({ type: "exec", code });
-      else if (m.type === "out") out += m.text.endsWith("\n") ? m.text : m.text + "\n";
+      if (m.type === "ready") {
+        if (queryCode === null) finish({});
+        else if (pendingLoad) worker.postMessage({ type: "load", name: pendingLoad.name, table: pendingLoad.table });
+        else worker.postMessage({ type: "exec", code: queryCode });
+      } else if (m.type === "out") out += m.text.endsWith("\n") ? m.text : m.text + "\n";
       else if (m.type === "err") err += m.text.endsWith("\n") ? m.text : m.text + "\n";
-      else if (m.type === "done") finish({});
+      else if (m.type === "result") {
+        out += formatCells(m.columns, m.values) + "\n";
+        if (m.of > m.values.length) out += `…${m.values.length} of ${m.of.toLocaleString()} rows kept\n`;
+      } else if (m.type === "done") {
+        if (pendingLoad) {
+          // That "done" was the load step's, not the query's — the load
+          // itself already reported its own out/err line above.
+          pendingLoad = null;
+          if (!queryCode || !queryCode.trim()) finish({});
+          else worker.postMessage({ type: "exec", code: queryCode });
+        } else finish({});
+      }
     };
     worker.onerror = (ev) => {
       err += `${ev.message ?? "worker error"}\n`;
@@ -275,14 +400,31 @@ export function initTerminal(bridge) {
     workers: {}, // name → { worker, ready }
     learnAt: null, // lesson index, or null when no lesson is running
     learnTries: 0,
-    // The terminal language's own append-only log (grid.js), one per
-    // terminal session, never persisted — a fresh page is a fresh log,
-    // same posture term.js already has for "terminal acts are not on the
-    // record" (CLAUDE.md, the terminal section). `bridge.grid` is optional:
-    // a caller that has not wired it (or a Node test importing this module
-    // for its pure functions alone) still boots a working terminal, with
-    // `act`/`grid`/`capacities` refusing gracefully instead of throwing.
+    // The terminal language's own append-only log (grid.js). A page-local
+    // fallback — used only when the bridge does not share one (below) —
+    // never persisted, same posture term.js already has for "terminal acts
+    // are not on the record" (their mirroring onto the durable record,
+    // below, is a one-way copy, not a restore source). `bridge.grid` is
+    // optional: a caller that has not wired it (or a Node test importing
+    // this module for its pure functions alone) still boots a working
+    // terminal, with `act`/`grid`/`capacities` refusing gracefully instead
+    // of throwing.
     gridLog: bridge.grid ? bridge.grid.createLog() : null,
+  };
+
+  // Chat grew its own `/act` door onto the SAME composition law (P22 →
+  // the chat-door amendment) — an act composed from either surface should
+  // be visible from the other, the way sources/chunks/muted/folds already
+  // are (all bridge accessors over app.js's own `state`). `gridLog`/
+  // `setGridLog` are that same shape, optional like the rest: when the
+  // bridge wires them, the terminal reads and writes app.js's
+  // `state.gridLog` directly and `term.gridLog` above sits unused; when it
+  // doesn't (a bare bridge, a Node test), the terminal falls back to its
+  // own local log so it still boots and works standalone.
+  const readGridLog = () => (bridge.gridLog ? bridge.gridLog() : term.gridLog);
+  const writeGridLog = (log) => {
+    if (bridge.setGridLog) bridge.setGridLog(log);
+    else term.gridLog = log;
   };
 
   const line = (text, cls) => {
@@ -348,7 +490,7 @@ export function initTerminal(bridge) {
   // ── worker runtimes ───────────────────────────────────────────────────────
 
   const spawn = (name) => {
-    const worker = new Worker(new URL(ROSTER[name].src, import.meta.url), { type: name === "sql" ? "classic" : "module" });
+    const worker = new Worker(new URL(ROSTER[name].src, import.meta.url), { type: ROSTER[name].type });
     const entry = { worker, ready: false };
     term.workers[name] = entry;
     worker.onmessage = (ev) => {
@@ -611,47 +753,42 @@ export function initTerminal(bridge) {
     },
     // act / grid / capacities — the terminal language (grid.js): the nine
     // operators, nine terrains, nine postures, one composition law. `act`
-    // parses and lands one line on this session's own append-only log
-    // (never persisted — see term.gridLog's own comment above); `grid`
-    // folds that log into what currently stands, or shows the fixed
-    // 9×9×9 reference table on request (`grid legend`) — kept one command
-    // away rather than fronting the page, the same posture Explore's own
-    // legend view already holds for the nine terrains. `capacities` lists
-    // the small, disclosed capacity registry `synthesize` checks its parts
-    // against. One capacity actually EXECUTES: a landed `distinguish`
-    // whose `ground` names an already-loaded source runs `cast` for real
-    // (capacity-runner.js) and attaches the referents found as a RESULT —
-    // every other capacity stays reference-only, and `runCapacity` says so
-    // itself (a typed `not_yet_executable` gap), never a silent no-op.
+    // parses and lands one line on the shared log (readGridLog/writeGridLog
+    // above — this session's own local log when the bridge hasn't wired
+    // sharing with chat, `state.gridLog` when it has); `grid` folds that
+    // log into what currently stands, or shows the fixed 9×9×9 reference
+    // table on request (`grid legend`) — kept one command away rather than
+    // fronting the page, the same posture Explore's own legend view
+    // already holds for the nine terrains. `capacities` lists the small,
+    // disclosed capacity registry `synthesize` checks its parts against.
+    // One capacity actually EXECUTES: a landed `distinguish` whose `ground`
+    // names an already-loaded source runs `cast` for real and attaches the
+    // referents found as a RESULT — every other capacity stays
+    // reference-only, and `runCapacity` says so itself (a typed
+    // `not_yet_executable` gap), never a silent no-op. The parse→land→
+    // maybe-execute orchestration itself is `landAct` (capacity-runner.js)
+    // — the SAME function the chat's own `/act` door calls, so the two
+    // doors can never silently diverge on what a line means.
     act(arg) {
       if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
       if (!arg) return line("act <verb> [<object>] at <terrain> from <stance> [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<giver>] — `grid legend` lists the verbs, terrains, and stances", "term-mute");
-      const parsed = bridge.grid.parseAct(arg, { log: term.gridLog });
-      if (!parsed.ok) {
-        mirrorTerm("term-act-refused", { line: capped(arg), refusal: parsed.refusal.type, detail: parsed.refusal.detail });
-        return line(`refused (${parsed.refusal.type}): ${parsed.refusal.detail}`, "term-exit bad");
+      const landed = landAct(bridge.grid, readGridLog(), arg, { sources: bridge.sources(), runCapacity: bridge.runCapacity });
+      if (!landed.ok) {
+        mirrorTerm("term-act-refused", { line: capped(arg), refusal: landed.refusal.type, detail: landed.refusal.detail });
+        return line(`refused (${landed.refusal.type}): ${landed.refusal.detail}`, "term-exit bad");
       }
-      const { log, ids } = bridge.grid.land(term.gridLog, parsed.event);
-      term.gridLog = log;
-      mirrorTerm("term-act", { verb: parsed.event.verb, ops: parsed.event.ops, object: parsed.event.object, terrain: parsed.event.terrain, stance: parsed.event.stance.cell, ids });
-      const objectPart = parsed.event.object ? `${parsed.event.object} ` : "";
-      line(`${parsed.event.verb} ${objectPart}[${parsed.event.ops.join("+")}] at ${parsed.event.terrain} from ${parsed.event.stance.cell} → ${ids.join(", ")}`, "term-mute");
-      // Only attempt a real read when the ground candidate names an
-      // ACTUAL loaded source — checked by key presence, not truthiness, so
-      // the two different facts stay distinct: a name that resolves to
-      // nothing loaded is silently an ordinary abstract `distinguish` (no
-      // capacity ran, no gap printed); a name that DOES resolve but to
-      // empty content is a real, printed `no_material` gap, correctly
-      // naming that as what happened rather than "no such source."
-      const sources = bridge.sources();
-      if (parsed.event.verb === "distinguish" && parsed.event.ground && bridge.runCapacity && Object.hasOwn(sources, parsed.event.ground)) {
-        const result = bridge.runCapacity("cast", { text: sources[parsed.event.ground], name: parsed.event.ground });
-        if (result.gap === "no_material") return line(result.detail, "term-exit bad");
-        const insId = ids[ids.length - 1];
-        const attached = bridge.grid.attachResult(term.gridLog, insId, result);
-        if (attached.ok) term.gridLog = attached.log;
-        mirrorTerm("term-capacity-run", { id: "cast", source: parsed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
-        line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${parsed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+      writeGridLog(landed.log);
+      mirrorTerm("term-act", { verb: landed.event.verb, ops: landed.event.ops, object: landed.event.object, terrain: landed.event.terrain, stance: landed.event.stance.cell, ids: landed.ids });
+      const objectPart = landed.event.object ? `${landed.event.object} ` : "";
+      line(`${landed.event.verb} ${objectPart}[${landed.event.ops.join("+")}] at ${landed.event.terrain} from ${landed.event.stance.cell} → ${landed.ids.join(", ")}`, "term-mute");
+      if (landed.capacity) {
+        const { result } = landed.capacity;
+        if (result.gap === "no_material") {
+          line(result.detail, "term-exit bad");
+        } else {
+          mirrorTerm("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
+          line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+        }
       }
     },
     grid(arg) {
@@ -672,7 +809,7 @@ export function initTerminal(bridge) {
         );
       }
       if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
-      const { acts, landings } = bridge.grid.foldGrid(term.gridLog);
+      const { acts, landings } = bridge.grid.foldGrid(readGridLog());
       if (!acts.length) return line("nothing landed yet — `act <line>` composes one; `grid legend` lists the verbs, terrains, and stances", "term-mute");
       for (const a of acts) {
         line(`${a.task_id}  ${a.operator}·${a.grain}  ${a.verb} ${a.object ?? ""}`.trim());

@@ -19,6 +19,21 @@
 //            arbitrary PyPI, and only the local SERVER ever crosses out.
 //   sql      sqlite via sql.js, vendored the same way; loaded CSV material
 //            imports as tables
+//   ruby     CRuby 3.3 on wasm32-wasi (ruby/ruby.wasm), vendored the same
+//            way — one .wasm ships the full interpreter and stdlib, fully
+//            severed like js/python/sql
+//   php      PHP 8.3 via php-wasm (seanmorris/php-wasm — the vendoring
+//            research's own fallback candidate, substituted for the
+//            WordPress-Playground package after that one was found, live,
+//            to statically import a `.wasm` file the way only a bundler
+//            can resolve; term-php-worker.mjs's header has the full
+//            account), fully severed the same way
+//   r        R via webR — DISCLOSED NARROWER SANDBOX than the five above:
+//            webR spawns its own nested Worker to run the R engine, which
+//            this repo does not author and therefore cannot sever the way
+//            it severs the runtimes it does author (term-r-worker.mjs's
+//            own header has the full account). Terminal-only by design —
+//            never in AUTO_RUN_LANGS, never reachable from /run.
 //
 // Anything else — a shell, node, npm, a remote box — is refused with its
 // reason, never half-simulated. The registry takes any runtime a localhost-
@@ -90,6 +105,9 @@ export const ROSTER = {
   js: { kind: "worker", type: "module", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
   python: { kind: "worker", type: "module", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); `pip install <name>` (fold command) fetches any of ~350 others; material mounts at /material" },
   sql: { kind: "worker", type: "classic", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
+  ruby: { kind: "worker", type: "module", src: "./term-ruby-worker.mjs", blurb: "CRuby 3.3 on wasm32-wasi (ruby/ruby.wasm, vendored, ~34MB — one .wasm, full interpreter + stdlib, no separate fetch) — fully severed like js/python/sql; no gem organ, require reaches the stdlib only; material mounts at /material" },
+  php: { kind: "worker", type: "module", src: "./term-php-worker.mjs", blurb: "PHP 8.3 via php-wasm (vendored, ~182MB install / ~13MB actually loaded — one npm package bundles PHP 8.0-8.5 together, disclosed in CLAUDE.md) — fully severed; no <?php tag needed; material mounts at /material" },
+  r: { kind: "worker", type: "module", src: "./term-r-worker.mjs", blurb: "R via webR (vendored, ~52MB) — DISCLOSED narrower sandbox: R code runs in webR's own nested Worker, which this repo does not author and cannot sever the way the other five runtimes are (see term-r-worker.mjs's own header); never auto-run, terminal-only; material mounts at /material" },
 };
 
 // Refused runtimes, each with its reason — a typed refusal, never a shrug.
@@ -125,6 +143,77 @@ export const SEVERED = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "
  * before `continues`, always. */
 export const isControl = (line, buffer) => !buffer && ["exit", "clear", "mount"].includes(line.trim());
 
+/**
+ * Ruby's own block/end nesting depth — mechanical, not a parser.
+ * `def`/`class`/`module`/`case`/`begin`/`for` and a LINE-INITIAL
+ * `if`/`unless`/`while`/`until` each open one level (the statement-
+ * modifier form — `puts "hi" if x` — never starts a line with the
+ * keyword, so it never opens); a trailing `do` (bare, or with
+ * `|block, params|`) opens one; every free-standing `end` closes one.
+ * Disclosed narrower scope, the same posture widget.js's router already
+ * takes for English generally: heredocs, %-literals, comments, and
+ * strings that happen to CONTAIN these words are not excluded — a real
+ * parser, not this mechanical word-boundary walk, would be needed for
+ * that; the universal trailing-backslash rule above is the escape hatch
+ * when the heuristic misjudges.
+ */
+export function rubyBlockDepth(text) {
+  let depth = 0;
+  for (const raw of String(text ?? "").split("\n")) {
+    const t = raw.trim();
+    if (/^(def|class|module|case|begin|for)\b/.test(t)) depth += 1;
+    if (/^(if|unless|while|until)\b/.test(t)) depth += 1;
+    if (/\bdo(\s*\|[^|]*\|)?\s*$/.test(t)) depth += 1;
+    depth -= (t.match(/(?:^|[^A-Za-z0-9_!?])end(?:$|[^A-Za-z0-9_!?])/g) ?? []).length;
+  }
+  return depth;
+}
+
+/**
+ * R's own bracket-nesting depth — mechanical: `(`, `{`, `[` open a level,
+ * their closers close one, tracked per character so a bracket sitting
+ * inside a `"…"`/`'…'` string or a `#` comment is never counted (comments
+ * run to end of line; a backslash escapes the next character inside a
+ * string, matching R's own string grammar for the common case).
+ * Deliberately NOT covered: a raw string (`r"(...)"`), and a trailing
+ * binary operator with balanced brackets (`1 +` at end of line) — the
+ * latter still has an escape hatch, the SAME trailing-backslash rule
+ * every runtime already gets.
+ */
+export function rBracketDepth(text) {
+  let depth = 0;
+  let quote = null;
+  let commented = false;
+  const s = String(text ?? "");
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "\n") {
+      commented = false;
+      continue;
+    }
+    if (commented) continue;
+    if (quote) {
+      if (c === "\\") {
+        i += 1;
+        continue;
+      }
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "#") {
+      commented = true;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === "(" || c === "{" || c === "[") depth += 1;
+    else if (c === ")" || c === "}" || c === "]") depth -= 1;
+  }
+  return depth;
+}
+
 export function continues(runtime, line, buffer) {
   if (line.endsWith("\\")) return true;
   if (runtime === "python") {
@@ -136,6 +225,14 @@ export function continues(runtime, line, buffer) {
     if (buffer) return t !== "" && !t.endsWith(";");
     if (t === "" || t.startsWith(".")) return false;
     return !t.endsWith(";");
+  }
+  if (runtime === "ruby") {
+    const whole = buffer ? buffer + "\n" + line : line;
+    return rubyBlockDepth(whole) > 0;
+  }
+  if (runtime === "r") {
+    const whole = buffer ? buffer + "\n" + line : line;
+    return rBracketDepth(whole) > 0;
   }
   return false;
 }
@@ -210,15 +307,31 @@ const fmtBytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toF
 // design — one boot, one exec, terminated after, exactly the "throwaway
 // process" framing /api/run already uses, just backed by WASM instead of
 // the machine.
-const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js", sql: "sql" };
+// ruby and php join this set — both boot fully severed, the same guarantee
+// js/python/sql already have (RubyVM.instantiateModule and PhpWeb both run
+// directly in whatever Worker calls them, no nested worker, verified by
+// reading their source — see term-ruby-worker.mjs's and
+// term-php-worker.mjs's own headers). r is deliberately NOT here: webR
+// spawns its own nested Worker to run the R engine, which this repo does
+// not author and cannot sever the way the other five are (term-r-worker.mjs's
+// header has the full disclosure) — auto-run and /run are both automatic,
+// instrument-decided crossings, and this runtime does not yet earn that;
+// it stays reachable only by a person typing `r` at the fold prompt.
+const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js", sql: "sql", ruby: "ruby", php: "php" };
 // python pays pyodide's own boot cost (measured: ~9s in Node for the
 // runtime alone, before a single user line runs) on top of whatever the
 // code itself takes — js has no such tax (a plain Worker boots near-
 // instantly), so each runtime's budget is its own rather than one shared
 // guess. sql pays sql.js's own wasm boot over importScripts — lighter than
 // pyodide's, heavier than a bare js Worker's — so its budget sits between
-// the two rather than reusing either.
-const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000, sql: 15_000 };
+// the two rather than reusing either. ruby streams a 34MB .wasm compile
+// (measured live, real browser, cold: ~9-12s typical, once over a minute
+// under heavy concurrent tab/worker load — a real ceiling, not the common
+// case) and php a 13MB one (measured: ~9-10s typical); neither pays
+// pyodide's numpy-style package-loading tax, but both get real headroom
+// above their typical measured boot rather than a tight fit to one good
+// run. CLAUDE.md's dated entry for this pass carries the full numbers.
+const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000, sql: 15_000, ruby: 30_000, php: 20_000 };
 
 /** True if `lang` is one this door can actually run. Read by the caller
  * before it decides to run anything, so a caption never promises a run
@@ -482,7 +595,7 @@ export function initTerminal(bridge) {
     out.scrollTop = out.scrollHeight;
   };
 
-  const promptFor = () => (term.buffer ? "…" : { fold: "fold ›", js: "js ›", python: "py ›", sql: "sql ›" }[term.runtime]);
+  const promptFor = () => (term.buffer ? "…" : { fold: "fold ›", js: "js ›", python: "py ›", sql: "sql ›", ruby: "rb ›", php: "php ›", r: "r ›" }[term.runtime]);
   const drawPrompt = () => {
     if (promptEl) promptEl.textContent = promptFor();
   };

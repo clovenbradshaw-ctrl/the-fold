@@ -2410,3 +2410,189 @@ before and after: 706 tests / 702 passing / 4 failing before this pass
 `webllm-rung.test.mjs` model-file cases), 720 / 716 / 4 after — the 14 new
 `store-sql.test.mjs` cases all passing, the same 4 pre-existing failures
 untouched, zero regressions anywhere else in the suite.
+
+## Three more terminal languages — ruby, php, r (added 2026-08-18, ninth pass) — what was decided, so it is not re-derived
+
+P26 in POLICIES.md is the law; this is the map. The user's direction, near-
+verbatim: extend the terminal's ROSTER with real Ruby, PHP, and R runtimes,
+following term-py-worker.mjs's own message protocol exactly. All three were
+accepted by prior research (trusted, not re-litigated) as real, currently-
+maintained, vendorable-via-npm candidates; this pass is the actual vendoring,
+wiring, live verification, and — twice — a correction of what the research
+could not have caught without loading the packages in this repo's own
+bundler-free, Worker-sandboxed architecture and running real code in them.
+
+**Ruby lands clean, full parity with js/python/sql.** `@ruby/wasm-wasi` +
+`@ruby/3.3-wasm-wasi` (npm, MIT), ~102MB vendored (`ruby.wasm` 16MB no-stdlib,
+`ruby+stdlib.wasm` 34MB — the one actually served, `ruby.debug+stdlib.wasm`
+54MB never touched). `term-ruby-worker.mjs` uses the LOW-LEVEL boot path —
+`RubyVM.instantiateModule` + `consolePrinter({stdout, stderr})` — never the
+package's own `DefaultRubyVM` convenience wrapper, which hardcodes stdout to
+`console.log` and would give this terminal no real capture at all. Material
+mounts at `/material` through a WASI `PreopenDirectory` whose backing
+`Directory.contents` is a plain JS `Map` — re-mounting just clears and
+refills it, the identical shape python's MEMFS mount already has. Ruby ships
+the full interpreter AND stdlib in one `.wasm`, so — unlike python, which
+defers `sever()` past the first exec's own package-loading fetch — nothing
+more is ever fetched once boot resolves, and `sever()` runs at the end of
+boot, matching js's simpler timing. `def`/`class`/`module`/`case`/`begin`/
+`for` and line-initial `if`/`unless`/`while`/`until`, plus a trailing `do`,
+open one continuation level each; every free-standing `end` closes one —
+`rubyBlockDepth` in term.js, mechanical word-boundary walk, not a parser,
+with the universal trailing-backslash rule as the disclosed escape hatch
+when it misjudges. No gem/bundler organ exists (no P21-style wheel organ for
+Ruby) — out of scope for this pass, said plainly in the ready note rather
+than silently promised.
+
+**PHP required a live substitution the research itself named as a fallback,
+found necessary by actually loading the package, not by re-reading its
+docs.** The research's own top pick — `@php-wasm/web` + `@php-wasm/universal`
+(WordPress Playground) — was installed and read, and its per-version glue
+file (`@php-wasm/web-8-3/asyncify/php_8_3.js`) opens with `import
+dependencyFilename from './8_3_32/php_8_3.wasm'` — a Vite-only asset-URL
+import that only resolves under a bundler. serve.mjs's own header states the
+house rule this collides with: "plain ES modules loaded straight from disk."
+A raw `import()` of that file fails at the browser's module-script step (the
+server answers `.wasm` with `application/wasm`, not a JS content type, so
+the static import cannot even parse) — verified live, not assumed. The
+research's own-named fallback, `php-wasm` (seanmorris/php-wasm, npm,
+Apache-2.0), uses plain relative dynamic imports and `fetch()` throughout —
+confirmed by reading every file this worker imports — and was substituted
+in. Its cost, disclosed rather than hidden: this package has no per-version
+install (unlike `@ruby/3.3-wasm-wasi`'s scoped package name) — `npm install
+php-wasm` vendors PHP 8.0 through 8.5 together, ~182MB unpacked, of which
+`PhpWeb`'s own per-version dynamic import ever loads ONE ~13MB `.wasm` at
+runtime. node_modules is gitignored, so this is a one-time local install
+cost, never a git-history cost. `term-php-worker.mjs` uses the `PhpWeb`
+class (`new PhpWeb({version:"8.3"})`), `onoutput`/`onerror` event handlers
+wired to real streaming (OutputBuffer flushes per newline, the same posture
+consolePrinter gives ruby), and `mkdir`/`writeFile` for material.
+
+Two more bugs, found only by booting in a REAL dedicated Worker rather than
+trusted from the package's own "web" label: (1) the vendored Emscripten
+build's factory function references the bare identifiers `document` and
+`window` UNCONDITIONALLY at its own top level
+(`specialHTMLTargets=[0,document,window]`, dead fullscreen/canvas/audio-
+context runtime glue this text-mode SAPI never calls) — a genuine Worker
+compatibility gap in the vendored bytes themselves, not something the
+research could see without instantiating it. Fixed by assigning
+`globalThis.document = undefined; globalThis.window = undefined;` before
+importing — the minimal fix, because assigning `undefined` (never a
+functional stub) makes the bare identifiers referenceable without making
+`typeof window` report anything but `"undefined"`, so the package's own
+Node/Web/Worker environment detection (which reads exactly that) still
+correctly resolves WORKER, unchanged. (2) `PhpWeb.run()`'s own documented
+`?>${phpCode}` prefix trick — meant to let bare statements run without a
+`<?php` tag — does NOT do that for this SAPI: measured live, `echo 1+1;`
+typed with no tag came back ECHOED AS LITERAL TEXT ("echo 1+1;", not "2"),
+because the leading `?>` only closes an ALREADY-open PHP context, and with
+none open the whole string starts and stays in HTML-passthrough mode.
+`term-php-worker.mjs` now owns the tag itself — every exec is wrapped
+`<?php\n${code}` before reaching `run()` — so the ready note's promise ("no
+`<?php>` tag needed") holds regardless of what the library's own trick
+actually does. Both fixes are disclosed in the file's own header, not just
+here, because a future reader touching this file needs them at the point of
+use, not three files away.
+
+**R is real, vendored, and works — with the one runtime here whose sandbox
+guarantee is honestly narrower, and that narrowness is a design decision,
+not an oversight.** `webr` (r-wasm/webr, Posit-backed, npm), ~52MB vendored.
+The package's declared "main" entry (`dist/webr.mjs`) is NOT the browser
+build — it opens with unconditional top-level `import {createRequire} from
+'module'` (plus `'url'`/`'path'`), genuine Node built-ins, so it fails to
+even PARSE in a Worker ("Failed to resolve module specifier 'module'"),
+found live, not from documentation. package.json's own `exports` map names
+the real one: `dist/webr.js` under the `"browser"` condition — confirmed by
+reading it directly (same exported surface: `WebR`, `Shelter`,
+`ChannelType`, …, zero Node-only imports anywhere). `term-r-worker.mjs`
+imports that one explicitly, since a literal path import bypasses
+`exports`-map condition resolution entirely — a bundler or Node's own
+resolver would have picked the right file automatically; a raw browser
+`import()` of an absolute path does not.
+
+The disclosed gap: `new WebR(...)` unconditionally spawns a SECOND, nested
+Worker to run the actual R engine (`webr-worker.js`, r-wasm's own vendored
+file). This repo authors and severs the FIRST four runtimes' own single
+Worker; it does not author webR's nested one and cannot inject a `sever()`
+into its global scope before it runs. Plain R code execution still touches
+no network (`download.file()`/`url()` need a configured proxy this file
+never sets); the one real path is R's own package installer
+(`webr::install()`/`install.packages()`, reaching `repoUrl`, webR's own
+default, deliberately left unset here rather than restated to the identical
+value — restating it as a literal would have failed this repo's own II.13
+host scan for the very reason this paragraph names the risk). Nothing here
+wires an R-equivalent of P21's wheel organ, so that path is reached only by
+operator-typed R code calling it directly. **Consequence, drawn rather than
+left implicit:** `r` is not in `AUTO_RUN_LANGS` — never auto-run, never
+reachable from `/run` — reachable only by a person typing `r` at the fold
+prompt themselves. Verified live: `/run r\n1+1` in chat refuses
+`unsupported_runtime` by name, mechanically, no model call.
+
+**A verification-methodology finding, worth keeping so it is not re-chased.**
+The FIRST live attempt at R's boot, in an AI coding assistant's own
+sandboxed preview pane, failed with an opaque, detail-stripped worker error
+("An error occurred initialising the webR PostMessageChannel worker.",
+`console.error` logging a bare `Event` with no message/filename/lineno). A
+minimal control — a plain Worker spawning ANOTHER plain Worker, no webR
+involved at all — failed IDENTICALLY in that same pane, and succeeded
+cleanly in a real, unsandboxed Chrome tab (`claude-in-chrome`, a real local
+browser, not an embedded preview) against this same server, on the first
+try. The pane itself restricts nested Worker creation; that restriction is
+real but belongs to the testing tool, not to a real browser, not to webR,
+and not to this repo's code. Every runtime in this pass was re-verified end
+to end in that real Chrome tab: `def`/`end` and bracket continuation working
+live, `puts`/`echo`/`readLines`/`var_dump`/`array_sum` all producing real
+correct output, material crossing (`File.read("/material/…")`,
+`file_exists("/material")`, `mount` re-sync) confirmed for ruby and php,
+`/run ruby` and `/run php` executing from the real chat composer with the
+real model (`gemma2:2b`) and landing `term-run` rows on
+`record/explore-record.jsonl` with `via:"chat"`, `/run r` refusing exactly
+as designed, and `exit` returning cleanly to `fold ›` from all three. Boot
+times, measured live and repeatedly rather than guessed: ruby ~9-12s typical
+(once past a minute under heavy concurrent tab/worker load — a real ceiling
+disclosed in `AUTO_RUN_TIMEOUT_MS`'s own comment, not the common case), php
+~9-10s typical, r ~13-15s typical (a heavier boot: R.wasm plus the vfs
+asset set plus the nested-worker handshake) — all in the same order of
+magnitude as python's own already-documented ~9s pyodide boot, no worse.
+
+**Decided, not implied: ruby and php join `AUTO_RUN_LANGS`; r does not.**
+Both new fully-severed runtimes earn the identical automatic-execution
+posture js/python/sql already have — no disclosed sandbox gap, no reason to
+withhold. r's disclosed nested-worker gap is precisely the kind of thing
+that should never be reachable without a person's own awareness of what
+they typed, so it stays terminal-only by explicit design, not by omission.
+
+**Files.** `term-ruby-worker.mjs`, `term-php-worker.mjs`, `term-r-worker.mjs`
+(new); `term.js` (three new `ROSTER` rows with measured blurbs;
+`rubyBlockDepth`/`rBracketDepth` + their `continues()` cases;
+`promptFor()`'s hardcoded runtime→prompt map extended — checked and
+confirmed this one does NOT generalize off `ROSTER` the way `spawn()`/
+`runSandboxed` already do, so it needed the same three-line addition
+`AUTO_RUN_LANGS`/`REFUSED` did not; `AUTO_RUN_LANGS`/`AUTO_RUN_TIMEOUT_MS`
+grew ruby and php with measured budgets); `term.test.mjs` (SEVERED
+cross-check extended to all three new workers; `mountName` cross-checked
+against all three; new continuation-grammar cases for ruby and r;
+`autoRunnable`/`parseRunCommand` cases updated for the new true/false split
+— two PRE-EXISTING tests had encoded "ruby is not runnable yet" as their
+own example and were corrected to test the now-different, real boundary,
+never just widened to keep passing); `package.json` (six new dependencies:
+`@ruby/wasm-wasi`, `@ruby/3.3-wasm-wasi`, `php-wasm`, `webr` — the
+`@php-wasm/web-8-3`/`@php-wasm/universal` packages installed during the PHP
+candidate's live rejection were uninstalled again rather than left as dead
+weight). No change to serve.mjs or explore-server.mjs: both already serve
+the whole repo directory generically (checked directly — neither has a
+node_modules subpath allow-list the way the task's own framing guessed one
+might; `.wasm`'s `application/wasm` MIME entry, needed for
+`WebAssembly.compileStreaming`, was already present in both from the
+python/sql.js pass).
+
+**Enforced:** `term.test.mjs` — 29 cases total (up from 16), including the
+severed-list agreement across all six workers, mountName agreement across
+all four material-mounting workers, ruby's def/end and r's bracket
+continuation grammar as their own pure functions AND through `continues()`,
+and the corrected autoRunnable/parseRunCommand boundary. Full suite: 735
+tests / 731 passing / 4 failing before this pass (the same 4 this repo
+already carries — `measure.test.mjs`, three `webllm-rung.test.mjs`
+model-file cases, confirmed via `git stash` against this exact worktree
+rather than trusted from memory), 741 / 737 / 4 after — zero regressions
+anywhere else in the suite.

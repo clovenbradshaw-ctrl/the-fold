@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { attribute, attributedRefs, coverage, namesIn, overlap, splitSentences } from "./cite.js";
+import { attribute, attributedRefs, coverage, namesIn, overlap, splitSentences, stripSelfCitations } from "./cite.js";
 import { chunkSource, readRange } from "./source.js";
 import { classifySentences } from "./provenance.js";
 
@@ -169,15 +169,28 @@ test("a real accented name in the material is seen whole and is not vetoed", () 
   assert.ok(folded.ref, "a folded spelling of an accented name must still be supported");
 });
 
-test("a sentence the model already cited is not attributed again", () => {
-  // Live bug: the model cited a passage, the app attributed the same sentence
-  // to the same passage, and the answer rendered the address twice.
+test("a bracket the model writes itself is never trusted — it is measured like any other text, and stripped from what ships", () => {
+  // Requirement, stated directly (user, 2026-08-18): the model must have
+  // zero ability to produce text a reader could mistake for this
+  // instrument's own citation. The old rule deferred to a sentence that
+  // "already carries an address" (ALREADY_CITED), trusting the model's OWN
+  // claim about which passage backs it rather than measuring the claim —
+  // exactly the compliance-critical self-report L5 exists to distrust
+  // everywhere else. Removed: every sentence is measured, unconditionally.
   const passage = chunks.find((c) => c.text.includes("12 percent"));
   const answer = `The report put the silting figure at 12 percent per decade [${passage.ref}].`;
   const [entry] = attribute(answer, chunks, pool);
-  assert.equal(entry.ref, null);
-  assert.equal(entry.cited, true);
-  assert.deepEqual(attributedRefs(attribute(answer, chunks, pool)), []);
+  // The sentence's own words genuinely overlap the passage, so it is
+  // attributed on that measured merit — never because the model asked to
+  // be believed.
+  assert.equal(entry.ref, passage.ref);
+  assert.equal(entry.cited, undefined);
+
+  // And whatever the model wrote never ships looking like a citation:
+  // stripSelfCitations neutralizes it before render.
+  const { text, removed } = stripSelfCitations(answer);
+  assert.equal(removed, 1);
+  assert.ok(!text.includes(`[${passage.ref}]`));
 });
 
 test("attribution is deterministic across runs", () => {
@@ -360,13 +373,16 @@ test("web-style refs attach exactly like file refs, and read back", () => {
   const bytes = readRange({ "web/pages/ab12cd34.txt": PAGE }, sCov[0].ref);
   assert.ok(bytes.includes("7 September 1812"), "the attached web ref re-opens to the supporting bytes");
 
-  // A model-cited slashed address is left alone — one claim, one tag.
+  // A bracket the model writes itself carries zero weight now (2026-08-18,
+  // removed ALREADY_CITED) — a claim sharing nothing with the material is
+  // still refused, on its own merit, whatever address it wears; the
+  // bracket is never consulted either way.
   const cited = coverage(
-    `The battle was fought near the village of Marrowfen [${slashed[1].ref}].`,
+    `A peace treaty was signed the following spring in a neutral city [${slashed[1].ref}].`,
     sOffered,
     slashed,
   )[0];
-  assert.equal(cited.cited, true);
+  assert.equal(cited.cited, undefined);
   assert.equal(cited.ref, null);
 });
 

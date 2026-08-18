@@ -607,3 +607,55 @@ test("language aliases are one runtime, not two builds", () => {
   const sh = { type: "code", lang: "bash", code: "ls" };
   assert.equal(routeSegment(sh, "it's broken", [{ n: 1, type: "code", lang: "shell" }]).kind, "rezero");
 });
+
+test("a determiner is read on the MATCHED term's own phrase — introducing never routes, pointing still does", () => {
+  const known = 'html\n<div id="counter" style="color:#f0f">0</div><button class="button">+1</button>';
+
+  // THE SYMMETRIC FALSE POSITIVE (2026-08-18 diagnosis): a birth request
+  // whose indefinite phrase happens to share a word with a standing build.
+  // Content-word overlap alone cannot tell "introduces a referent that
+  // shares a word" from "points at something already here"; the determiner
+  // governing the matched term's own phrase can, and it is the register's
+  // own closed class ("an indefinite determiner INTRODUCES its noun" —
+  // priors.js, giver lang/en), never a word list of this repo's.
+  for (const m of ["make me a counter widget", "build me a counter for laps", "I want another counter"])
+    assert.equal(iterationTell(m, known), null, m);
+
+  // THE CANONICAL COMPLAINT that killed the old per-message veto stays
+  // routable — this is why the reading is PER TERM: "the counter" and
+  // "the buttons" point while "some color" in the same sentence
+  // introduces. The old veto refused the whole message for the one
+  // indefinite; the old deletion routed the birth request above. Both
+  // pinned here so the decision does not oscillate a third time.
+  assert.equal(
+    iterationTell("I don't like the counter widget, make the buttons bigger with some color", known),
+    "judgment",
+  );
+
+  // Definite and bare terms keep pointing exactly as before — the
+  // determiner reading only ever SUPPRESSES an introduced term, so nothing
+  // routable yesterday stops routing today.
+  assert.equal(iterationTell("fix counter", known), "resolved");
+  assert.equal(iterationTell("the counter is off by one", known), "resolved");
+
+  // The determiner walk stays inside its own clause: the indefinite in the
+  // second clause cannot reach back and suppress the pointer in the first.
+  assert.equal(iterationTell("the counter is broken, give me a fix", known), "resolved");
+
+  // The routers agree with the tell, both faces.
+  const builds = [{ n: 1, type: "code", lang: "html", text: known }];
+  assert.equal(routeMessage("make me a counter widget", builds), null);
+  assert.equal(
+    routeSegment({ type: "code", lang: "html", code: "<p>new</p>" }, "make me a counter widget", builds).kind,
+    "new",
+  );
+  assert.equal(routeMessage("I don't like the counter", builds)?.n, 1);
+
+  // The disclosed evidence is what DROVE the decision: an introduced term
+  // never appears in matchedOn — a match the router declined to act on
+  // must not ride the record as if it had.
+  const routed = routeMessage("I don't like the counter, give it some color", builds);
+  assert.equal(routed?.n, 1);
+  assert.ok(routed.matchedOn.includes("counter"));
+  assert.ok(!routed.matchedOn.some((t) => t.startsWith("color")));
+});

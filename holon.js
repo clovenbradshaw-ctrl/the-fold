@@ -888,11 +888,59 @@ export async function runPart({
   // question's verb ("who was in command" for "who commanded") slips this
   // test — the guard catches the measured shapes, it is not a parser.
   const WH_CLAUSE = /\b(?:who|whom|whose|what|which|when|where|why|how)\b[^,;:—–]*?(?=\b(?:is|are|was|were|and|but|or)\b|[,;:—–]|$)/gi;
+  // The dialogue-narration echo, measured live 2026-08-18 ("what is the
+  // weather in NYC today?", real weather pages fetched and offered): "The
+  // conversation starts with a question about the weather in New York
+  // City." / "The user is waiting for more information about the weather."
+  // / "The user is looking for the weather in New York." A third echo
+  // shape neither test above can see: it narrates the dialogue in the
+  // third person instead of restating the question's own words, so its
+  // content tokens (user, conversation, waiting, looking) come from the
+  // dialogue apparatus, not the question — and the word-coverage test
+  // reads them as content. Vocabulary held to exactly what was measured —
+  // subjects {user(s), conversation}, verb lemmas {ask, start, wait,
+  // look} — the same II.11 earned-constant discipline ACT_WORDS' own
+  // dated amendments follow; a wider guess list is future work, not
+  // shipped here as if it were already measured.
+  //
+  // provenance.js's own `NARRATION_SUBJECT`/`CUT_RES` (imported above as
+  // stripNarrationSentences, already run inside this function's `clean`,
+  // before this text is ever reached) is the SAME register, earned
+  // against a real null (194 live_priors documents, ~460k sentences).
+  // This is deliberately NOT a second copy of that list: clean() DELETES
+  // a matching sentence from the draft outright, with no verdict signal,
+  // before judge() runs; DIALOGUE_NARRATION_RE below classifies whatever
+  // SURVIVES that cut, feeding the echoed/reproduced verdict, the
+  // correction retry, and the mechanical fallback — a job clean() cannot
+  // do (an all-narration draft that clean() empties out entirely still
+  // needs a verdict, and the code below is what supplies one). The two
+  // lists were extended together on this date (provenance.js gained
+  // wait(s)/waiting and look(s)/looking in the same pass) precisely so
+  // they name the same measured register rather than drifting apart —
+  // extend both together, never one alone.
+  //
+  // Disclosed residue, both directions, the guard's own standing posture:
+  // material genuinely ABOUT a user or a conversation that also carries
+  // one of these four verbs ("The user requests an access token." is
+  // outside this measured set and ships; "The user starts the session."
+  // would not) can be misread as narration — this corrupts not only the
+  // framing-cut but also the reproduction-mass denominator, since a
+  // misclassified sentence never reaches contentSentencesOf either. And
+  // in the other direction, only a PREFIX or SUFFIX of framing sentences
+  // is cut at ship time (below); a narration sentence classified here as
+  // framing but sitting in the MIDDLE of an otherwise-real answer still
+  // ships to the page, the fold, and the record. Neither residue is
+  // pinned by a test; both are named here so a widened vocabulary or a
+  // mid-draft cut are recognized as the next measured passes, not
+  // rediscovered from scratch.
+  const DIALOGUE_NARRATION_RE =
+    /^[\s"'“”‘’(\[]*(?:the|this|that|your|our)\s+(?:user|users|conversation)\b[^.,;:—–!?]*?\b(?:ask|asks|asked|asking|start|starts|started|starting|wait|waits|waited|waiting|look|looks|looked|looking)\b/i;
   const isFraming = (sentence) => {
     if (FENCE_LINE.test(sentence)) return false;
     // A sentence that ends by asking is asking, not answering — two of the
     // three live echoes shipped with the question mark still on them.
     if (/\?\s*["'”’)\]]*\s*$/.test(sentence)) return true;
+    if (DIALOGUE_NARRATION_RE.test(sentence)) return true;
     const toks = tokenize(sentence);
     if (!toks.length) return false;
     if (toks.every((w) => questionWords.has(w) || ACT_WORDS.has(w))) return true;
@@ -1039,9 +1087,24 @@ export async function runPart({
     return second.text;
   };
 
-  draft = clean(await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
+  const rawDraft = await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
+  draft = clean(rawDraft);
   check = inspect(draft);
   let verdict = judge(draft);
+  // clean() has no verdict vocabulary of its own — it only knows how to
+  // delete a matched sentence, never how to say why. A draft that was ALL
+  // narration cleans to nothing, and judge("")'s empty-input branch reads
+  // that as "no text produced," a materially weaker finding than "the
+  // model narrated instead of answering": it skips the correction retry
+  // and the mechanical fallback, so a wholly-narrated turn ships nothing
+  // at all rather than the material's own addressed sentences. Measured
+  // 2026-08-18 by this file's own regression the moment it met the
+  // now-landed clean()-level narration strip on main: the exact 3-turn
+  // NYC-weather transcript regressed from "echoed, mechanical fallback
+  // ships the real forecast" to silently empty. A draft that HAD real
+  // sentences before cleaning and has none after is exactly the case
+  // judge() cannot see from `draft` alone, so it is named here instead.
+  if (!draft.trim() && String(rawDraft ?? "").trim()) verdict = { echoed: true, reproduced: false };
 
   // A prompt that matched no material and whose draft only restates it is
   // plain chat, not a research gap: "hi" should be greeted, not diagnosed.
@@ -1075,25 +1138,25 @@ export async function runPart({
   // The post-draft re-surf round: the draft is a DETECTED non-answer with
   // material present, and correcting against the SAME passages cannot fix
   // an answer the material does not hold — so one more bounded round goes
-  // back to the world first. Two triggers, neither a new detector:
-  // `verdict.echoed` (the echo/narration judge — the one place "this turn
-  // didn't really answer" is already computed; the 2026-08-18 narration fix
-  // is what makes the dialogue-narration shape land there), and a draft
-  // clean() stripped to NOTHING — wholly narration, which judge() cannot
-  // see because its empty-input branch deliberately returns not-echoed, so
-  // the signal is clean()'s own removals plus emptiness (a cross-session
-  // review finding, 2026-08-18: without this, a fully-stripped draft
-  // shipped "produced no text" and nothing ever went back to search).
-  // `reproduced` deliberately does NOT trigger a round: a photocopied
-  // answer means the material was on-topic enough to copy, and the
-  // mechanical fallback is its designed treatment, not another crossing.
-  // The missing words are measured against the RETRIEVED SLICE first (the
-  // narrower fact the draft actually faced), the pool as fallback — still
-  // the question's own words either way, never the draft's (the wall). If
-  // the round gains material the part is re-armed and redrafted ONCE; the
-  // ordinary correction machinery then proceeds on whatever stands.
-  const strippedToNothing = !String(draft ?? "").trim() && scaffoldRemoved.length > 0;
-  if (canResurf && passages.length && (verdict.echoed || strippedToNothing) && resurfRounds < RESURF_MAX_ROUNDS) {
+  // back to the world first. The single trigger is `verdict.echoed` — the
+  // echo/narration judge, the one place "this turn didn't really answer"
+  // is already computed. That verdict now ALSO covers a draft `clean()`
+  // stripped to nothing (wholly narration): `judge("")`'s own empty-input
+  // branch would read that as not-echoed, but the fix one step up (this
+  // file, above — "a wholly-narrated draft that cleans to nothing must
+  // still verdict echoed") forces `verdict.echoed = true` in exactly that
+  // case before this check ever runs, so no second sentinel is needed here
+  // — a cross-session review (2026-08-18) flagged the original draft of
+  // this loop for building one anyway, and it is gone. `reproduced`
+  // deliberately does NOT trigger a round: a photocopied answer means the
+  // material was on-topic enough to copy, and the mechanical fallback is
+  // its designed treatment, not another crossing. The missing words are
+  // measured against the RETRIEVED SLICE first (the narrower fact the
+  // draft actually faced), the pool as fallback — still the question's own
+  // words either way, never the draft's (the wall). If the round gains
+  // material the part is re-armed and redrafted ONCE; the ordinary
+  // correction machinery then proceeds on whatever stands.
+  if (canResurf && passages.length && verdict.echoed && resurfRounds < RESURF_MAX_ROUNDS) {
     const missingNow = (() => {
       const m = uncoveredTerms(groundingQuestion, passages);
       return m.length ? m : uncoveredTerms(groundingQuestion, live);
@@ -1137,9 +1200,14 @@ export async function runPart({
       mode,
       promptChars: correctionMessages.reduce((n, m) => n + m.content.length, 0),
     });
-    draft = clean(await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
+    const rawCorrected = await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
+    draft = clean(rawCorrected);
     check = inspect(draft);
     verdict = judge(draft);
+    // Same empty-after-cleaning gap as the first draft, above — a
+    // correction that answers with more narration must not read as a
+    // quieter failure than the draft it was correcting.
+    if (!draft.trim() && String(rawCorrected ?? "").trim()) verdict = { echoed: true, reproduced: false };
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction

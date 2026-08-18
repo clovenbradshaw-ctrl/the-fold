@@ -33,9 +33,18 @@ const CORPUS = [
 
 const chunks = chunkSource("notes.txt", CORPUS);
 
-/** The refs a prompt actually offered, read back out of its MATERIAL block. */
-function offeredRefs(userContent) {
-  return [...userContent.matchAll(/\[([^\]\s]+#\d+-\d+)\]/g)].map((m) => m[1]);
+/**
+ * The refs a prompt actually offered, read back by recognizing which known
+ * chunk's own TEXT the MATERIAL block carries — not a bracket anymore
+ * (2026-08-18: buildSourceBlock stopped labeling every passage with its
+ * address and instructing the model to reproduce one — the model must
+ * have zero exposure to this instrument's own addressing scheme, so this
+ * fake model can no longer read one back out of its own prompt either).
+ * `pool` defaults to this file's default corpus; tests built on a
+ * different one pass it explicitly.
+ */
+function offeredRefs(userContent, pool = chunks) {
+  return pool.filter((c) => userContent.includes(c.text)).map((c) => c.ref);
 }
 
 /**
@@ -497,7 +506,7 @@ const weatherChunks = chunkSource(
 
 test("a flat, topic-less follow-up retrieves on the fold's discourse, not just its own empty words", async () => {
   const call = async (messages) => {
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, weatherChunks);
     return refs.length
       ? `Confirmed: the National Weather Service forecast lists 68 degrees for New York City. [${refs[0]}]`
       : "I don't have enough information to confirm that.";
@@ -514,7 +523,7 @@ test("a flat, topic-less follow-up retrieves on the fold's discourse, not just i
 
 test("without the discourse anchor, the same topic-less follow-up retrieves nothing — the fix is the anchor, not luck", async () => {
   const call = async (messages) => {
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, weatherChunks);
     return refs.length ? `Confirmed. [${refs[0]}]` : "I don't have enough information.";
   };
   const result = await runHolonicTask({ task: "prove it", chunks: weatherChunks, call, planMode: "flat" });
@@ -524,7 +533,7 @@ test("without the discourse anchor, the same topic-less follow-up retrieves noth
 test("a decomposed part stays narrowly scoped even when discourse is set — the flat-only fold-in does not leak into planned parts", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, weatherChunks);
     return refs.length ? `Confirmed. [${refs[0]}]` : "I don't have enough information.";
   };
   const result = await runHolonicTask({
@@ -604,6 +613,92 @@ test("an echo answer establishes nothing: typed open, no refs granted", async ()
   assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
   assert.ok(result.output.includes("12%"), result.output);
   assert.ok(result.output.includes("[notes.txt#"), "every shipped sentence wears its address");
+});
+
+// ── the dialogue-narration echo, from the live NYC-weather runs ──────────────
+// Measured 2026-08-18: asked "what is the weather in NYC today?" with real
+// weather pages fetched and offered, the model narrated the dialogue in the
+// third person — "The conversation starts with a question about the weather
+// in New York City. The user is waiting for more information about the
+// weather." — across three consecutive turns. Neither existing echo test can
+// see it: the content words (user, conversation, waiting, information) come
+// from the dialogue apparatus, not the question, so the word-coverage test
+// reads them as content, and the draft shipped as "the model's own words"
+// while the fetched forecast sat unread in the offered passages.
+test("a draft that narrates the dialogue is an echo: refused, material's own sentences ship instead", async () => {
+  const weather = chunkSource(
+    "weather.txt",
+    [
+      "New York City, NY 10-Day Weather Forecast: Location: New York City, NY Elevation: 1 ft. Today's forecast calls for partly cloudy skies with a high near 82 and a low around 68.",
+      "New York City sees heavy rain during Monday morning commute, with skies clearing by afternoon and temperatures reaching the mid 70s.",
+    ].join("\n\n"),
+  );
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    // The live failure, verbatim shape: every draft narrates the dialogue.
+    return "The conversation starts with a question about the weather in New York City. The user is waiting for more information about the weather.";
+  };
+  const result = await runHolonicTask({
+    task: "yeah i want you to look it up",
+    chunks: weather,
+    call,
+    planMode: "flat",
+    discourse: "asked about the weather in New York City today",
+  });
+  assert.ok(result.open.some((o) => o.includes("restates the prompt")), "narration is typed as an echo");
+  assert.ok(!result.output.includes("The user is waiting"), "the narration never ships");
+  assert.ok(!result.output.includes("The conversation starts"), "the narration never ships");
+  // What ships instead is the material's own forecast, with its address —
+  // the mechanical assembly the narration was standing in front of.
+  assert.ok(result.output.includes("partly cloudy") || result.output.includes("heavy rain"), result.output);
+  assert.ok(result.output.includes("[weather.txt#"), "every shipped sentence wears its address");
+});
+
+test("a dialogue-act verb inside a LATER clause never convicts an earlier, unrelated subject", async () => {
+  // Chorus review (2026-08-18, Dijkstra persona): the narration guard's
+  // gap-between-subject-and-verb originally excluded only sentence-final
+  // punctuation, so a verb from the closed list sitting inside a relative
+  // clause anywhere later in the sentence still matched — "The question of
+  // emancipation, WHICH CONTEMPORARIES SAID would ruin the gentry, defined
+  // the decade" has "the question" as subject and "said" downstream, with
+  // nothing narrating anything. Fixed by stopping the gap at the same
+  // clause boundaries WH_CLAUSE already respects (comma/semicolon/colon/
+  // dash), not just end-of-sentence punctuation.
+  const history = chunkSource("history.txt", "The question of emancipation defined the decade for the gentry.");
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    return "The question of emancipation, which contemporaries said would ruin the gentry, defined the decade.";
+  };
+  const result = await runHolonicTask({
+    task: "what defined the decade for the gentry?",
+    chunks: history,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(!result.open.some((o) => o.includes("restates the prompt")), "a real answer with a relative clause is not an echo");
+  assert.ok(result.output.includes("defined the decade"), result.output);
+});
+
+test("material genuinely about a user keeps its non-narration sentences", async () => {
+  // The disclosed residue's other side, pinned so the guard never widens
+  // into stripping real content: a sentence whose subject happens to open
+  // "The user" but carries no dialogue-act verb is content, not narration.
+  const manual = chunkSource(
+    "manual.txt",
+    "The user account is locked after three failed attempts. The reset procedure requires an administrator token issued by the operations desk.",
+  );
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    return "The user account is locked after three failed attempts, and the reset procedure requires an administrator token.";
+  };
+  const result = await runHolonicTask({
+    task: "when does an account lock and how is it reset?",
+    chunks: manual,
+    call,
+    planMode: "flat",
+  });
+  assert.ok(!result.open.some((o) => o.includes("restates the prompt")), "a locked-account answer is not an echo");
+  assert.ok(result.output.includes("locked after three failed attempts"), "the content ships");
 });
 
 test("a prompt that matched no material gets one plain-chat reply, not a diagnosis", async () => {
@@ -742,7 +837,7 @@ test("an original short answer holding two verbatim lines is NOT a reproduction"
     "The audit is finished. The berths reopened in May. What the ledger will not tell you is why the committee let the silting number stand for so long, and nothing in these pages connects the closure of the berths to that decision.";
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, LEDGER);
     return `${answer} [${refs[0] ?? "ledger.txt#0-1"}]`;
   };
   const result = await runHolonicTask({
@@ -789,7 +884,7 @@ test("an echo that resolves the question's own deixis is still an echo: typed op
   let drafts = 0;
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, borodinoChunks);
     // First draft: the declarative echo. Correction: the ?-terminated echo.
     // Both are the live shapes, byte for byte in structure.
     drafts++;
@@ -809,7 +904,7 @@ test("an echo that resolves the question's own deixis is still an echo: typed op
 test("a real answer carrying a wh-relative clause is NOT framing and keeps its warrant", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, borodinoChunks);
     return `Napoleon, who led the French, entered Moscow a week later. [${refs[0] ?? "x#0-1"}]`;
   };
   const result = await runHolonicTask({ task: "who led the French at this battle?", chunks: borodinoChunks, call, planMode: "flat" });
@@ -895,7 +990,7 @@ test("checkLink on: a URL the loaded material itself already contains is never f
   );
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(messages[1].content, withUrlChunks);
     return `The report puts the harbor figure at 12% for the spring quarter, mirrored at https://real.example/mirror. [${refs[0]}]`;
   };
   const checkLink = async () => {

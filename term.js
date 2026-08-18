@@ -35,6 +35,7 @@
 import { delimitedTable } from "./source.js";
 import { LESSONS, stepLesson } from "./term-lessons.js";
 import { parseHandbookIndex, findChapter } from "./handbook.js";
+import { landAct } from "./capacity-runner.js";
 
 export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
 export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
@@ -275,14 +276,31 @@ export function initTerminal(bridge) {
     workers: {}, // name → { worker, ready }
     learnAt: null, // lesson index, or null when no lesson is running
     learnTries: 0,
-    // The terminal language's own append-only log (grid.js), one per
-    // terminal session, never persisted — a fresh page is a fresh log,
-    // same posture term.js already has for "terminal acts are not on the
-    // record" (CLAUDE.md, the terminal section). `bridge.grid` is optional:
-    // a caller that has not wired it (or a Node test importing this module
-    // for its pure functions alone) still boots a working terminal, with
-    // `act`/`grid`/`capacities` refusing gracefully instead of throwing.
+    // The terminal language's own append-only log (grid.js). A page-local
+    // fallback — used only when the bridge does not share one (below) —
+    // never persisted, same posture term.js already has for "terminal acts
+    // are not on the record" (their mirroring onto the durable record,
+    // below, is a one-way copy, not a restore source). `bridge.grid` is
+    // optional: a caller that has not wired it (or a Node test importing
+    // this module for its pure functions alone) still boots a working
+    // terminal, with `act`/`grid`/`capacities` refusing gracefully instead
+    // of throwing.
     gridLog: bridge.grid ? bridge.grid.createLog() : null,
+  };
+
+  // Chat grew its own `/act` door onto the SAME composition law (P22 →
+  // the chat-door amendment) — an act composed from either surface should
+  // be visible from the other, the way sources/chunks/muted/folds already
+  // are (all bridge accessors over app.js's own `state`). `gridLog`/
+  // `setGridLog` are that same shape, optional like the rest: when the
+  // bridge wires them, the terminal reads and writes app.js's
+  // `state.gridLog` directly and `term.gridLog` above sits unused; when it
+  // doesn't (a bare bridge, a Node test), the terminal falls back to its
+  // own local log so it still boots and works standalone.
+  const readGridLog = () => (bridge.gridLog ? bridge.gridLog() : term.gridLog);
+  const writeGridLog = (log) => {
+    if (bridge.setGridLog) bridge.setGridLog(log);
+    else term.gridLog = log;
   };
 
   const line = (text, cls) => {
@@ -611,47 +629,42 @@ export function initTerminal(bridge) {
     },
     // act / grid / capacities — the terminal language (grid.js): the nine
     // operators, nine terrains, nine postures, one composition law. `act`
-    // parses and lands one line on this session's own append-only log
-    // (never persisted — see term.gridLog's own comment above); `grid`
-    // folds that log into what currently stands, or shows the fixed
-    // 9×9×9 reference table on request (`grid legend`) — kept one command
-    // away rather than fronting the page, the same posture Explore's own
-    // legend view already holds for the nine terrains. `capacities` lists
-    // the small, disclosed capacity registry `synthesize` checks its parts
-    // against. One capacity actually EXECUTES: a landed `distinguish`
-    // whose `ground` names an already-loaded source runs `cast` for real
-    // (capacity-runner.js) and attaches the referents found as a RESULT —
-    // every other capacity stays reference-only, and `runCapacity` says so
-    // itself (a typed `not_yet_executable` gap), never a silent no-op.
+    // parses and lands one line on the shared log (readGridLog/writeGridLog
+    // above — this session's own local log when the bridge hasn't wired
+    // sharing with chat, `state.gridLog` when it has); `grid` folds that
+    // log into what currently stands, or shows the fixed 9×9×9 reference
+    // table on request (`grid legend`) — kept one command away rather than
+    // fronting the page, the same posture Explore's own legend view
+    // already holds for the nine terrains. `capacities` lists the small,
+    // disclosed capacity registry `synthesize` checks its parts against.
+    // One capacity actually EXECUTES: a landed `distinguish` whose `ground`
+    // names an already-loaded source runs `cast` for real and attaches the
+    // referents found as a RESULT — every other capacity stays
+    // reference-only, and `runCapacity` says so itself (a typed
+    // `not_yet_executable` gap), never a silent no-op. The parse→land→
+    // maybe-execute orchestration itself is `landAct` (capacity-runner.js)
+    // — the SAME function the chat's own `/act` door calls, so the two
+    // doors can never silently diverge on what a line means.
     act(arg) {
       if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
       if (!arg) return line("act <verb> [<object>] at <terrain> from <stance> [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<giver>] — `grid legend` lists the verbs, terrains, and stances", "term-mute");
-      const parsed = bridge.grid.parseAct(arg, { log: term.gridLog });
-      if (!parsed.ok) {
-        mirrorTerm("term-act-refused", { line: capped(arg), refusal: parsed.refusal.type, detail: parsed.refusal.detail });
-        return line(`refused (${parsed.refusal.type}): ${parsed.refusal.detail}`, "term-exit bad");
+      const landed = landAct(bridge.grid, readGridLog(), arg, { sources: bridge.sources(), runCapacity: bridge.runCapacity });
+      if (!landed.ok) {
+        mirrorTerm("term-act-refused", { line: capped(arg), refusal: landed.refusal.type, detail: landed.refusal.detail });
+        return line(`refused (${landed.refusal.type}): ${landed.refusal.detail}`, "term-exit bad");
       }
-      const { log, ids } = bridge.grid.land(term.gridLog, parsed.event);
-      term.gridLog = log;
-      mirrorTerm("term-act", { verb: parsed.event.verb, ops: parsed.event.ops, object: parsed.event.object, terrain: parsed.event.terrain, stance: parsed.event.stance.cell, ids });
-      const objectPart = parsed.event.object ? `${parsed.event.object} ` : "";
-      line(`${parsed.event.verb} ${objectPart}[${parsed.event.ops.join("+")}] at ${parsed.event.terrain} from ${parsed.event.stance.cell} → ${ids.join(", ")}`, "term-mute");
-      // Only attempt a real read when the ground candidate names an
-      // ACTUAL loaded source — checked by key presence, not truthiness, so
-      // the two different facts stay distinct: a name that resolves to
-      // nothing loaded is silently an ordinary abstract `distinguish` (no
-      // capacity ran, no gap printed); a name that DOES resolve but to
-      // empty content is a real, printed `no_material` gap, correctly
-      // naming that as what happened rather than "no such source."
-      const sources = bridge.sources();
-      if (parsed.event.verb === "distinguish" && parsed.event.ground && bridge.runCapacity && Object.hasOwn(sources, parsed.event.ground)) {
-        const result = bridge.runCapacity("cast", { text: sources[parsed.event.ground], name: parsed.event.ground });
-        if (result.gap === "no_material") return line(result.detail, "term-exit bad");
-        const insId = ids[ids.length - 1];
-        const attached = bridge.grid.attachResult(term.gridLog, insId, result);
-        if (attached.ok) term.gridLog = attached.log;
-        mirrorTerm("term-capacity-run", { id: "cast", source: parsed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
-        line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${parsed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+      writeGridLog(landed.log);
+      mirrorTerm("term-act", { verb: landed.event.verb, ops: landed.event.ops, object: landed.event.object, terrain: landed.event.terrain, stance: landed.event.stance.cell, ids: landed.ids });
+      const objectPart = landed.event.object ? `${landed.event.object} ` : "";
+      line(`${landed.event.verb} ${objectPart}[${landed.event.ops.join("+")}] at ${landed.event.terrain} from ${landed.event.stance.cell} → ${landed.ids.join(", ")}`, "term-mute");
+      if (landed.capacity) {
+        const { result } = landed.capacity;
+        if (result.gap === "no_material") {
+          line(result.detail, "term-exit bad");
+        } else {
+          mirrorTerm("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
+          line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+        }
       }
     },
     grid(arg) {
@@ -672,7 +685,7 @@ export function initTerminal(bridge) {
         );
       }
       if (!bridge.grid) return line("the terminal language lives behind `bridge.grid` — this page has not wired it in yet", "term-exit bad");
-      const { acts, landings } = bridge.grid.foldGrid(term.gridLog);
+      const { acts, landings } = bridge.grid.foldGrid(readGridLog());
       if (!acts.length) return line("nothing landed yet — `act <line>` composes one; `grid legend` lists the verbs, terrains, and stances", "term-mute");
       for (const a of acts) {
         line(`${a.task_id}  ${a.operator}·${a.grain}  ${a.verb} ${a.object ?? ""}`.trim());

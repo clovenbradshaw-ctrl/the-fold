@@ -1266,3 +1266,124 @@ onto the real page, `act distinguish who-is-here at Entity from encounter
 ground excerpt.txt broken:rotation` finding and landing its two real
 referents, `grid` still showing them attached after the fact.
 **Enforced:** same two test files; no other suite is touched.
+
+**Amended 2026-08-18 (third occurrence) — the chat's own `/act` door, and
+`landAct` as the one shared landing.** The user's direction, verbatim:
+"think the chat should be able to drive terminal work and things using
+python and what not." This amendment builds the lower-risk half only —
+composing the SAME nine-operator composition law from the chat composer,
+never a raw-execution door — and states the reasoning for scoping it that
+way rather than assuming it: `grid.js` already refuses a malformed or
+unwarranted act BY GRAMMAR, so the blast radius of a chat-triggered act was
+already bounded before this landed; running arbitrary Python/JS/SQL from a
+chat message is a materially bigger step (P18's "nothing typed here
+reaches the machine" and the Folds panel's own "consent to execute is
+still earned by an explicit ▶ run" both cut against a model-triggered
+execution door), and is deliberately NOT built here — see CLAUDE.md's own
+section on this amendment for the recommendation held open pending
+confirmation, not silently assumed.
+
+**No new policy substance — a second door onto the identical, already-
+governed mechanism.** The refusal grammar, the terrain/stance rules, the
+one-capacity-executes boundary — all unchanged; a line means the same
+thing whether composed at the terminal or in chat, and grid.js was not
+touched to make this true. EXPLICIT-TRIGGER ONLY, matching this repo's
+`/self`/`/priors`/`/reflect` doors: `/act <line>` is checked among the
+other typed doors (`app.js`, before any automatic detector or the widget
+router), so the model never decides on its own to compose an act — only a
+person typing the door reaches this grammar, the same posture every other
+slash door already has.
+
+**One shared implementation, not two.** Before this, "a landed
+`distinguish` whose `ground` names an already-loaded source runs `cast`
+for real" was policy embedded inside term.js's own DOM-bound `act` handler
+— exactly the shape of bug this policy's own postmortem already caught
+twice (DEF/EVA's `Array.find` first-match bug, `synthesize`'s
+`String.includes` substring bug: one correct implementation, and a second
+place nobody kept in sync with it). `landAct(grid, log, line, { sources,
+runCapacity })` (capacity-runner.js, new) is that orchestration moved to
+one place and called by both doors — term.js's `act` fold command and
+app.js's `actTurn` — so the terminal and chat compose against the
+identical policy by construction, not by two authors remembering to keep
+two copies in step.
+
+**The log is shared, app-wide, not per conversation.** `state.gridLog`
+(app.js) holds the SAME log both doors read and write — `grid.createLog()`
+once, alongside `state.builds` rather than in `PER_CONVO` (the same
+reasoning `builds` already states: "a build belongs to the instrument, not
+to one conversation" — an act belongs to the instrument the same way).
+`initTerminal`'s bridge gained `gridLog`/`setGridLog` accessors, the same
+shape `sources`/`chunks`/`muted`/`folds` already have; term.js's own
+`readGridLog`/`writeGridLog` fall back to a page-local log when a caller
+hasn't wired sharing (a bare bridge, a Node test), so nothing that worked
+before this lands differently now.
+
+**Recording follows the same rule this policy already states: one file,
+reused.** `actTurn` mirrors onto the identical
+`record/explore-record.jsonl` via the SAME `POST /api/term-record` →
+`record(event, fields)` route term.js's own `mirrorTerm` already uses —
+never a second file or a second reader — adding one field, `via: "chat"`,
+so the record can tell which door an act came through without a second
+event vocabulary. A miss (no explore server reachable) is silent, matching
+`mirrorTerm`'s own long-standing default.
+
+**Evidence, driven live end to end through the real chat UI, not only in
+test files.** Bare `/act` renders the usage line, mechanically, no model
+call. `/act distinguish zone-3 at Network from encounter` (no ground)
+refuses with the typed `no_ground` detail, exactly as the terminal does.
+Real material pasted as an attachment (`pasted.txt`), then `/act
+distinguish who-is-here at Entity from encounter ground pasted.txt
+broken:rotation` typed in the chat composer lands two entries and runs
+`cast` for real, printing the two real referents found (Bezukhov,
+Rostova) — then opening the terminal and typing `grid` shows the
+IDENTICAL entries with the IDENTICAL attached result, proving the shared
+log, not a parallel one. The reverse direction was also driven live: an
+act composed AT THE TERMINAL appeared correctly folded when the NEXT
+chat-composed act read the log (continuing its own id sequence rather than
+starting over). A brand-new second conversation tab, opened after acts
+already existed on the log, saw and continued the SAME log immediately —
+proving `gridLog` is genuinely app-wide, not scoped to the conversation
+that composed it. `capacity-runner.test.mjs` grew 6 new cases for
+`landAct` itself (a parse refusal lands nothing; an ordinary act lands
+with `capacity: null`; a `ground` naming nothing loaded stays silently
+ordinary; a `ground` naming a loaded-but-empty source reports
+`no_material` without attaching; a `ground` naming real material runs
+`cast` for real and attaches the result, re-discoverable by folding the
+returned log; and two sequential `landAct` calls compose — the second
+call's refusal proves it folded against the first call's own landed
+acts, not a fresh log) — 670 total, 666 passing, the same 4 pre-existing,
+unrelated failures (`measure.test.mjs`, three `webllm-rung.test.mjs`
+cases — missing large vendored files, not something this amendment
+touches).
+
+**One pre-existing, harmless characteristic surfaced by sharing, disclosed
+rather than silently absorbed.** `attachResult` appends a RESULT entry to
+the log, and EVERY append — RESULT included — advances `task-log.js`'s own
+`nextSeq`, which `grid.js`'s `nextEventId` reads to name the next act. A
+`distinguish` whose ground triggers `cast` therefore consumes THREE
+sequence numbers (SIG, INS, then the invisible RESULT), so visible act ids
+run 0, 1, 3, 4, 6, 7 rather than 0, 1, 2, 3 whenever capacity execution is
+in the mix. This predates this amendment — the identical id-consuming
+call sequence (`land` then `attachResult`) already existed in term.js's
+own original `act` handler — and is harmless (ids stay unique and
+monotonic; nothing collides or overwrites); it is simply more OBSERVABLE
+now that both doors write the same counter. Not fixed here — a cosmetic
+numbering gap, not a correctness defect — but named so a future reader
+does not mistake it for one.
+
+**Two limits carried over unchanged, not touched by this amendment.**
+`cast` still runs synchronously and unbounded on the calling thread from
+EITHER door (capacity-runner.js's own disclosed limit, above); a `revise`
+superseding the wrong half of a `distinguish`'s SIG/INS pair still orphans
+the surviving entry's result. Neither is this amendment's to fix.
+
+**Files.** `capacity-runner.js` grew `landAct` (+6 tests,
+`capacity-runner.test.mjs`); `term.js`'s `act`/`grid` fold commands now
+call `landAct` and read/write the log through `readGridLog`/`writeGridLog`
+rather than a private field (`term.test.mjs` untouched — it never exercises
+`initTerminal`); `app.js` grew `state.gridLog`, `actTurn`,
+`mirrorTermRecord`, the `/act` door in the turn dispatcher, and the
+`gridLog`/`setGridLog` accessors on the `initTerminal` bridge call.
+**Enforced:** `capacity-runner.test.mjs` (11 cases total); `term.test.mjs`
+and `grid.test.mjs` unchanged and still passing, confirming the refactor
+changed no behavior their own suites already pin.

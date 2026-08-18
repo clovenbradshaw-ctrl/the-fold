@@ -163,7 +163,7 @@ quote/relation tiers, bounded correction) — never a raw passthrough to
 Ollama — so a servable model id is always `fold:<real ollama model>`
 (e.g. `fold:gemma2:2b`), never a bare name: naming a bare model asks
 Ollama directly and is refused, typed, at the door, on purpose. See
-POLICIES.md P25 for the full policy and CLAUDE.md's "the model proxy" for
+POLICIES.md P27 for the full policy and CLAUDE.md's "the model proxy" for
 the disclosed scope of this pass (no attachments, no link tier, no
 persistent session, single-shot streaming — each named rather than silent).
 

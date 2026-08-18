@@ -1644,7 +1644,339 @@ build-log.js's run entries already bound theirs (16K chars/stream,
 `kept/of` stated); not attempted here, named rather than silently
 absent.
 
-## P25 — The model proxy: the fold servable AS a model, amending P1's own direction
+## P25 — A database is an event stream, current state always projected
+
+store.js (a prior pass) already holds the invariant, the user's own words,
+verbatim: "the reality of the database should be the EOT event stream, the
+current state always projected." This policy is that invariant wired into
+the terminal's REAL `sql` runtime (and chat's `/run sql` door), so a
+database a person actually populates — not only store.js's own test
+fixtures — is stored AS A FOLD: it appears in the Folds panel, persists the
+same way a code/table/html build already does, and reopens after a reload
+rebuilt by REPLAYING the log, never by reading back a saved database
+export. The one thing this policy forbids absolutely: calling
+`db.export()` (or any equivalent) and stashing the bytes as "the persisted
+current state." What is persisted is store.js's own task-log — a plain,
+JSON-serializable array of entries — and nothing else.
+
+**Ops are derived from real execution, never from parsing SQL.** sql.js
+exposes no AST, and this repo's own house rule ("search for the organ
+before you hand-roll one") points the same direction store.js's own header
+already does: let the statement run against the live database exactly as
+it already does, then DIFF the affected table's rows before and after,
+using SQLite's own `rowid` as each row's stable identity. A rowid present
+after but not before is a birth (`insertRow`); present in both with
+different column values is a revision (`updateRow`, changed columns ONLY —
+never a whole-row resend, which would defeat store.js's own per-key merge
+semantics); present before but not after is a retraction (`deleteRow`). A
+bare SELECT diffs to zero ops and never touches the store log — no
+special-casing needed, the diff is simply empty. This is Choreo's own
+"snapshot ingest generates operations" pattern (github.com/
+clovenbradshaw-ctrl/Choreo), one register over: diff raw state, emit
+granular typed ops, never trust a caller's own account of what it did —
+applied here to a source of raw state (a live sqlite session) rather than
+an externally-handed snapshot, and named as the borrowing it is, not
+reinvented quietly.
+
+**The worker stays dumb; the diffing intelligence lives in one ES module.**
+term-sql-worker.js is a CLASSIC worker (P18's own reason: sql.js is UMD and
+`importScripts` is the one loader that hands it a global scope) and cannot
+`import` a plain ES module the way the rest of this codebase shares logic.
+Rather than duplicate the diff algorithm inside the worker, the worker is
+told — per `exec` message, from the caller — which table names to snapshot
+before and after (an explicit list the caller cheaply detected off the
+statement's own text, or an empty list meaning "use your own catalog"),
+and hands the two raw `SELECT rowid, *` result sets back UNEXAMINED. All
+of the actual diffing (`store-sql.js`, a plain ES module, imported
+normally by term.js on the main thread) runs where ES module imports
+already work. The worker never imports store.js or store-sql.js, and never
+decides what a change means — only what a table currently holds.
+
+**`.load` needs no diffing at all.** For a database fold specifically,
+each row of a CSV `.load` becomes its own real `insertRow` call — never a
+raw table dump — because the caller already holds the parsed
+`{columns, rows}` shape BEFORE the worker ever sees it: every row of a
+fresh load is a birth by construction, so `opsFromCsvTable` derives the
+ops directly, with the row's 1-based position as `rowId`. `sanitizeTableName`
+mirrors term-sql-worker.js's own `tableName()` exactly (disclosed, not
+silently duplicated — the identical posture store.js's own header already
+takes for `materializeSql` mirroring that same worker's CREATE TABLE
+shape) so the fold's table name and the live session's table name never
+disagree.
+
+**One shared log, two doors, by construction, not by two authors keeping
+two copies in step.** `term.js`'s module-level `sqlSnapshotFields` is the
+ONE place that decides whether an `exec` message carries `snapshotTables`
+and what it contains — used by BOTH the interactive terminal's `exec()`
+and the standalone `runSandboxed()` (which chat's `/run sql` door and the
+model's own auto-run both call), so the two never carry two copies of the
+same check that could drift — this repo's own postmortems have already
+caught that exact drift class twice (P22's DEF/EVA `Array.find` bug,
+`synthesize`'s `String.includes` bug; P24's `type` ternary). `app.js`'s
+`applyStoreOps` is the identical landing either door reaches: the
+interactive terminal calls it directly via a new `bridge.applyStoreOps`
+accessor (the same injection shape `gridLog`/`setGridLog` already
+established for the terminal language); `/run sql`'s `runTurn` calls it
+after `runSandboxed` resolves, reading the `dbOps` field that function's
+resolved object now carries.
+
+**Deliberately its own top-level `state.builds` entry kind, not a fifth
+thread on build-log.js.** A database fold carries `entry.kind ===
+"database"` and `entry.storeLog` (store.js's own log) where a code/table/
+html build carries `entry.log` (build-log.js's) — it does NOT route
+through build-log.js's PROPOSE/SUPERSEDE-per-edit versioning chain, because
+that model fits one person or model editing one version at a time, not a
+stream of many small granular row operations. Its "version"/"revision"
+display is simply `entry.storeLog.entries.length` ("N operations
+recorded"), read straight off the log. What IS reused, stated so nothing
+here reads as a silent half-integration: `state.builds` itself (one array,
+one numbering scheme, one persistence key); `renderBuilds`/`foldRow`'s
+search-and-sort pipeline (folds-pane.js never learns a database fold's
+shape — it only ever sees the same row shape every other kind already
+produces); `artifactNode`'s table renderer, factored into a shared
+`tableWrap` helper rather than built a second time. What is NOT reused:
+build-log.js's PROPOSE/SUPERSEDE/RESULT vocabulary, its cursor scrubbing (a
+database fold has no versioned "as of" position — the store log's own
+entries ARE its history, always live), its editor, its run/restore/
+download controls. Full CLAUDE.md section carries the reasoning for each.
+
+**Scope: one database fold, app-wide.** The first row-level mutation from
+either door lazily creates the ONE database fold this policy keeps; every
+later mutation from either door lands on the same log — the identical
+"belongs to the instrument, not one conversation" reasoning
+`state.gridLog`/`state.builds` already state elsewhere. Several
+simultaneous database folds is real, named future work, not attempted.
+
+**Disclosed limitations, found while building.** A SQL column literally
+named `id`, `table`, `row`, `because`, or any of task-log's reserved entry
+keys collides with store.js's OWN disclosed collision guard and throws —
+this pass does not work around it (renaming a column would silently
+disagree with what the operator typed); `applyStoreOps` catches the
+failure per op, keeps whatever succeeded, and reports what could not be
+recorded rather than crashing or silently dropping the row. Re-entering
+the interactive `sql` runtime after `exit` boots a genuinely fresh, empty
+sqlite database — the store log remembers every row forever, but the live
+session does not remember schema, and sqlite's own rowid counter resets
+too, so a later session's rows can in principle collide with an earlier
+session's already-recorded rowId for a same-named table; not reconciled
+here. "Reopening" a fold means the Folds panel shows its live projection,
+fresh on every render — it does NOT mean a freshly booted `sql` runtime is
+pre-loaded with the fold's prior rows for continued live querying, which
+would need `materializeSql` run inside the classic worker and was not
+built this pass. `.load` run twice against the same source name is not
+diffed against its own prior load. None of these are silent; each is
+stated in code comments and in CLAUDE.md's own section.
+
+**Evidence:** driven live end to end through a real browser against `node
+serve.mjs` (not only in test files) — `CREATE TABLE t (...); INSERT ...;
+INSERT ...;` landed 2 insert ops and rendered a 2-row table; `UPDATE ...`
+landed exactly 1 update op (Bob's untouched row produced none); `DELETE
+...` removed the row from the live view; **reloading the page** showed the
+identical fold, and a console inspection of `localStorage["fold-builds"]`
+showed the persisted object's only keys are `entries`/`kind`/`n`/`turn` —
+`entries` an ordinary array of task-log entries (`propose`/`propose`/
+`supersede`/`retract`), never a `db.export()` byte array. A pasted CSV,
+`.load`ed, produced 3 separate insert ops (op count 4→7, not a single
+table-dump entry) and a live `SELECT` immediately after produced no
+`database fold:` line at all. Chat's `/run sql` door, in a fresh THROWAWAY
+worker, landed on the SAME fold as the terminal — "one shared log, two
+doors" proven live, not only asserted. Full CLAUDE.md section carries the
+complete transcript.
+**Enforced:** `store-sql.test.mjs` — 14 conformance tests against the REAL
+sql.js package (every before/after pair a genuine `db.exec()` result, never
+a hand-typed fixture): mutation/table detection, the zero-rows/no-such-
+table/undefined collapse, insert/update/delete derivation off real CREATE
+TABLE + INSERT/UPDATE/DELETE batches (including a same-batch insert-then-
+delete netting to zero ops, and a table created and populated within one
+batch), `deriveStoreOps`'s union-of-tables flattening, `sanitizeTableName`'s
+mirror of the worker's own sanitizer, `opsFromCsvTable`'s row derivation
+including a null cell, and one full end-to-end round trip (real sql.js →
+`deriveStoreOps` → store.js's `insertRow`/`updateRow`/`deleteRow` →
+`foldStore` → `materializeSql` against the real package). `term.test.mjs`
+unchanged and still passing (23/23) — this policy's term.js changes are
+additive (`sqlSnapshotFields`, `applyDbOps`, the `dbOps` field) and touch
+no function that file already tests. Full-suite count: 706 tests / 702
+passing / 4 failing before this policy (the same 4 this repo already
+carries), 720 / 716 / 4 after.
+
+## P26 — Three more terminal languages, two of them full parity, one honestly narrower
+
+P18's registry "takes any runtime a localhost-served module can boot" — this
+policy is that clause exercised, three more times, on real npm packages, not
+a hypothetical. Ruby (`@ruby/wasm-wasi` + `@ruby/3.3-wasm-wasi`, ruby/ruby.wasm
+on wasm32-wasi, MIT), PHP (`php-wasm`, seanmorris/php-wasm on Emscripten,
+Apache-2.0), and R (`webr`, r-wasm/webr, Posit-backed) are vendored in
+`node_modules` and served from localhost exactly as pyodide and sql.js
+already are — no CDN, no PyPI-shaped tier, nothing this policy's own P1
+would refuse.
+
+**Ruby and PHP earn full parity with js/python/sql — fully severed, no
+nested Worker, `AUTO_RUN_LANGS` reachable.** `term-ruby-worker.mjs` uses
+`RubyVM.instantiateModule` + `consolePrinter` (the low-level path — never
+`DefaultRubyVM`, whose stdout hardcodes to `console.log`) to get real
+streamed out/err capture; `sever()` runs once boot resolves, because Ruby's
+one `.wasm` carries the full interpreter AND stdlib, so nothing more is ever
+fetched. `term-php-worker.mjs` uses the `PhpWeb` class, with `onoutput`/
+`onerror` wired to real per-newline streaming. Both run directly in
+whatever Worker `term.js` itself spawns for them — confirmed by reading
+every file each imports, the same standard `web.js`'s pure/impure split
+already holds this repo to.
+
+**R is real and works, with one disclosed, load-bearing narrower guarantee:
+it is not fully severable by this repo, and it is not offered where that
+would matter.** `new WebR(...)` unconditionally spawns a SECOND, nested
+Worker (r-wasm's own `webr-worker.js`) to run the actual R engine — a file
+this repo did not author and cannot inject a `sever()` into before it runs.
+Ordinary R code execution still touches no network (no proxy configured;
+`download.file()`/`url()` fail the ordinary offline way); the one real path
+is R's own package installer (`webr::install()`/`install.packages()`,
+reaching webR's own default package-repository host from inside that
+nested worker) — reachable only by operator-typed R code calling it
+directly, the same class of residue P14 already discloses for the skills
+sandbox's vm context ("an authority wall by construction... not a hardened
+security boundary"). **The consequence is drawn, not left implicit:** `r`
+is never added to `AUTO_RUN_LANGS`. It is unreachable from both automatic,
+instrument-decided crossings this repo already has for the fully-severed
+five — a model's own fold auto-running, and the chat's one-shot `/run`
+door — and reachable ONLY by a person typing `r` at the fold prompt and
+driving it themselves, the identical posture P22's `/act` and P24's `/run`
+already hold for every crossing that needs a human's own deliberate
+trigger. Verified live: `/run r\n1+1` in the real chat composer refuses
+`unsupported_runtime` by name, mechanically, with no model call and no
+worker ever spawned for it.
+
+**Two live corrections to what the vendoring research could not have
+caught without loading the packages in THIS repo's own bundler-free,
+Worker-sandboxed architecture — found by running real code, not by
+re-reading documentation (P5.5's discipline, both directions).**
+
+1. The PHP candidate the research ranked first — `@php-wasm/web` +
+   `@php-wasm/universal` (WordPress Playground) — does not load here at
+   all: its per-version build glue opens with a static `import
+   dependencyFilename from './8_3_32/php_8_3.wasm'`, a Vite-only asset-URL
+   pattern that only resolves under a bundler and fails outright at the
+   browser's module-script parse step against this repo's plain
+   `import()`-from-disk serving. The research's own second-named
+   candidate, `php-wasm` (seanmorris/php-wasm), was substituted — verified
+   by reading its actual source (plain relative dynamic imports, real
+   `fetch()`, no bundler assumptions) rather than trusted from its README.
+   Its disclosed cost: no per-version npm install exists for it, so
+   vendoring it means vendoring PHP 8.0 through 8.5 together (~182MB
+   unpacked), of which only one ~13MB `.wasm` is ever fetched by the
+   browser at runtime — a real, stated size tradeoff for the only candidate
+   that actually works here, not a silent one.
+2. Two Worker-compatibility gaps existed in the vendored bytes THEMSELVES,
+   invisible to reading documentation and found only by booting in a real
+   dedicated Worker: `php-wasm`'s Emscripten build references the bare
+   identifiers `document`/`window` unconditionally at its own top level
+   (dead fullscreen/canvas/audio-context runtime glue a text-mode SAPI
+   never calls), fixed by assigning `globalThis.document = undefined;
+   globalThis.window = undefined;` before import — `undefined`, never a
+   functional stub, so the package's own environment detection (which
+   reads `typeof window`) still correctly resolves WORKER, unchanged.
+   Separately, `webr`'s declared "main" entry (`dist/webr.mjs`) opens with
+   unconditional top-level `import {createRequire} from 'module'` — a
+   genuine Node built-in the package's own `package.json` `exports` map
+   already routes browsers AWAY from (the `"browser"` condition names
+   `dist/webr.js`, verified to carry the identical exported surface with
+   zero Node-only imports) — but a literal path import, unlike a bundler
+   or Node's own resolver, cannot see `exports` map conditions, so the
+   correct file had to be named explicitly rather than assumed from the
+   package's own declared main. Both fixes are disclosed at their point of
+   use in the worker files' own headers, not only here.
+
+**A testing-tool artifact, disclosed so it is not re-chased as a code
+defect.** The first live attempt at R's boot, run inside an AI coding
+assistant's own sandboxed preview pane, failed with an opaque,
+detail-stripped Worker error. A minimal control — a plain Worker spawning
+ANOTHER plain Worker, no webR involved — failed identically in that same
+pane and succeeded cleanly on the first try in a real, unsandboxed Chrome
+tab against the same server. The restriction belongs to that specific
+testing tool, not to a real browser, not to webR's own architecture, and
+not to this repo's code — stated here because the wrong conclusion (that R
+cannot run in a nested Worker at all) would have been a strictly worse,
+and false, policy to write down.
+
+**Continuation grammar, mechanical, not a parser, disclosed narrower
+scope.** Ruby needs multi-line def/end blocks; `rubyBlockDepth` (term.js)
+opens one level on a line-initial `def`/`class`/`module`/`case`/`begin`/
+`for`/`if`/`unless`/`while`/`until` or a trailing `do`, and closes one per
+free-standing `end` — the statement-modifier form ("puts x if y") never
+opens, because it never starts a line with the keyword. R needs bracket-
+spanning expressions; `rBracketDepth` tracks `(`/`{`/`[` depth per
+character, skipping anything inside a `"…"`/`'…'` string or a `#` comment
+so a bracket mentioned in either is never miscounted. Both are word/
+character-boundary walks, not parsers — heredocs, %-literals, and R's raw
+strings are not excluded — and both inherit the universal trailing-
+backslash continuation every runtime already has as the disclosed escape
+hatch when the heuristic misjudges. PHP gets no analogous rule this pass:
+its primary REPL use (single-statement echo/var_dump) does not need one,
+and a wrong heuristic risks wedging the prompt worse than the absence of
+one — a deliberately narrower scope, named rather than silently assumed
+complete.
+
+**A finding that contradicted this policy's own drafting assumption,
+corrected before being asserted.** The task that produced this policy
+assumed `serve.mjs`'s static-file routing allow-lists specific
+`node_modules` subpaths, matching how pyodide and sql.js are exposed.
+Reading the actual routing code found the opposite: both `serve.mjs` and
+`explore-server.mjs` serve the WHOLE repo directory generically (`join(ROOT,
+rel)` plus a path-escape guard, nothing narrower), so no server change was
+needed for any of the three new packages — the `.wasm` → `application/wasm`
+MIME entry, needed for `WebAssembly.compileStreaming`, was already present
+in both servers from the pyodide/sql.js pass. Stated here because the
+policy's own premise turning out false, and being corrected rather than
+assumed, is itself the P5.5 discipline this repo holds everywhere else.
+
+**Evidence.** Driven live end to end, twice — once in a sandboxed preview
+pane (caught the PHP and R bugs above), once in a real, unsandboxed Chrome
+tab against the same `node serve.mjs` instance (confirmed every fix and
+the pane-specific nested-Worker artifact). Ruby: `def greet(name)` / multi-
+line body / `end` landed correctly, `greet("world")` printed `hi, world`
+via Ruby's own auto-print of a visible return value; a `NameError` on an
+undefined method printed as a clean typed error, not a crash. PHP: `echo 1
++ 1;` printed `2` (after the tag-ownership fix — before it, the bare
+statement echoed back as literal text); `var_dump`/`array_sum` over a real
+array printed correct structured output. R: `1 + 1` auto-printed `[1] 2`;
+a multi-line `function(x) { x * 2 }` spanning three prompts via bracket
+continuation, called as `f(21)`, printed `[1] 42`. Material crossing
+(`File.read("/material/…")`, PHP's `file_exists("/material")`, the `mount`
+re-sync command) confirmed for ruby and php against a real dropped file.
+`/run ruby` and `/run php`, typed in the real chat composer against a real
+running model (`gemma2:2b`), executed in fresh throwaway workers and
+printed correct results (`42`, `hi from php: 42`); `/run r` refused as
+designed; all three attempts and both non-R successes landed `term-run`/
+`term-run-refused` rows on `record/explore-record.jsonl` with `via:"chat"`
+within the same second, read back live via the record API, confirming the
+identical recording path P24 already established is reused unchanged, not
+duplicated. Boot times, measured live and repeatedly: ruby ~9-12s typical
+(the `AUTO_RUN_TIMEOUT_MS` comment discloses a real, once-observed minute-
+plus outlier under heavy concurrent load, not treated as the common case),
+php ~9-10s, r ~13-15s — all the same order of magnitude as python's own
+already-documented ~9s pyodide boot.
+
+**Enforced:** `term.test.mjs` — the severed-egress list checked to agree
+across all six workers (not three); `mountName` checked to agree across
+all four material-mounting workers; `rubyBlockDepth`/`rBracketDepth` tested
+directly as pure functions AND through `continues()`; `autoRunnable` and
+`parseRunCommand` re-tested against the actual new boundary (ruby/php now
+true, r now the disclosed false — two pre-existing tests that had encoded
+"ruby is not runnable yet" as their own worked example were corrected to
+test the real, current boundary rather than left to quietly assert a fact
+this policy just changed). `constitution.test.mjs`'s II.13 scan passes with
+all three new worker files walked from `term.js`'s `ROSTER` data (the
+walker's own `module-path` extraction rule, built for exactly this
+indirection) and zero non-local host literals — including in the new
+files' own header comments, which name real remote hosts (`repo.r-wasm.org`
+et al.) as PROSE, deliberately without a literal `https://` prefix, so the
+disclosure is legible without tripping the same scan it is disclosing
+against. Full suite: 735 tests / 731 passing / 4 failing before this
+policy (the same 4 this repo already carries — `measure.test.mjs`, three
+`webllm-rung.test.mjs` model-file cases, confirmed via `git stash` against
+this exact worktree, not trusted from memory), 741 / 737 / 4 after — zero
+regressions anywhere else in the suite.
+
+## P27 — The model proxy: the fold servable AS a model, amending P1's own direction
 
 Every policy above this line governs the fold as a CLIENT: what it may
 fetch, what it may run, what it may say to a model it calls. P1 never

@@ -19,7 +19,11 @@ export const LESSONS = [
   { id: "exit-python", match: /^exit$/i, ask: "Type `exit` again to leave python.", done: "Back in fold." },
   { id: "enter-sql", match: /^sql$/i, ask: "Type `sql` — sqlite via sql.js. `.load <source>` would import a loaded CSV as a table.", done: "You're in `sql ›`. Any CSV in `sources` can become a table here." },
   { id: "exit-sql", match: /^exit$/i, ask: "Type `exit` once more to leave sql.", done: "Back in fold — all three runtimes you visited are still warm." },
-  { id: "clear", match: /^clear$/i, ask: "Last one: `clear` wipes the screen. Type it now.", done: "Done. `help` any time you forget one of these — this lesson just walked its own list." },
+  { id: "clear", match: /^clear$/i, ask: "`clear` wipes the screen. Type it now.", done: "Done. That's the whole sandboxed side — but this terminal also speaks a second, smaller language." },
+  { id: "grid-legend", match: /^grid\s+legend$/i, ask: "Type `grid legend` — nine operators, nine terrains, nine postures, one grammar. The cheat sheet.", done: "Those are the eight verbs and the four named stances. An act is one verb, aimed at one terrain, held from one stance." },
+  { id: "act-distinguish", match: /^act\s+distinguish\s+\S+\s+at\s+entity\s+from\s+encounter\s+ground\s+\S+\s+broken:\S+/i, ask: "Compose one. Type exactly: `act distinguish idea at Entity from encounter ground something broken:rotation`", done: "That landed on this session's own log — never saved, gone on reload. `grid` shows what's on it." },
+  { id: "grid-fold", match: /^grid$/i, ask: "Type `grid` with no argument — the fold: everything landed so far, in order.", done: "That's every act you've composed, each one typed by operator and terrain." },
+  { id: "capacities", match: /^capacities$/i, ask: "Last one: type `capacities` — the small, real things `synthesize` and a loaded-material `distinguish` can check themselves against.", done: "Only `cast` actually reads anything today. If a file is attached, try `act distinguish x at Entity from encounter ground <its name> broken:rotation` for a real read — it names who or what it finds. `help` any time you forget one of these — this lesson just walked its own list." },
 ];
 
 /** Advance the lesson state by one typed line. Pure: no DOM, no I/O.

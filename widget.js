@@ -116,9 +116,20 @@ function sameForm(a, b, suffixes) {
  * format's boilerplate rather than a corpus's); a token contributed SOLELY
  * by it is common to every such build and can never discriminate one
  * build's content from another's.
+ *
+ * A SECOND source of the same non-discriminating token, found completing
+ * this same measurement live: `known` here is always `caption + "\n" +
+ * code` (app.js's `buildWords`), and a caption the operator never renamed
+ * defaults to the bare segment language (`defaultCaption`: `seg.lang ||
+ * "code"`) — so `known`'s own FIRST LINE is literally "html" for every
+ * unrenamed html build, same as the wrapper tags, just arriving through a
+ * different field. Stripped only at that exact position (the string's own
+ * first line, matching `buildWords`'s own construction) so a real word
+ * "html" appearing anywhere in actual content is untouched.
  */
 function stripHtmlWrapper(text) {
   return String(text ?? "")
+    .replace(/^(?:html|head|body)\s*(?=\n|$)/i, " ")
     .replace(/<!doctype\b[^>]*>/gi, " ")
     .replace(/<\/?(?:html|head|body)\b[^>]*>/gi, " ");
 }
@@ -237,12 +248,47 @@ export function makeWidgetRouter(priors) {
    * genuine referent living inside <head> or the body is exactly as
    * resolvable as it always was. */
   function resolvesInto(message, known) {
+    return matchedTerms(message, known).length > 0;
+  }
+
+  /**
+   * WHICH of the message's own words actually drove a resolvesInto match —
+   * the router's decision, made legible rather than a silent boolean.
+   *
+   * Found necessary by the SAME live measurement the wrapper/caption fixes
+   * came from: two consecutive false-positive routings, through two
+   * different channels (raw markup, then the default caption), were each
+   * fixed narrowly without ever seeing what the router had actually
+   * matched on — and a THIRD routing (this time onto genuinely shared
+   * vocabulary: an earlier misrouted turn had already merged a
+   * `generateGrid()` using "row"/"col" into the build it was never meant
+   * to touch, so the next ask matched on real, if accidental, overlap)
+   * would have been diagnosed in seconds instead of by hand-fetching
+   * localStorage, if the match evidence had been on the record from the
+   * start. This does not fix the underlying category error — `resolvesInto`
+   * still compares SPANS (token overlap) where the actual question is
+   * about REFERENTS ("is this ask a continuation of what this build is
+   * ABOUT"), the same gap P11 already names for prose ("a name is a
+   * reference to a referent, never a byte sequence") — it only makes each
+   * routing decision legible enough that the next collision is a five-
+   * minute read of the record instead of a two-hour reproduction. The
+   * referent-level fix (routing through the engine's own cast/referent
+   * organs instead of this module's tokenizer) is named, not built, here —
+   * see the routing amendment this measurement produced.
+   */
+  function matchedTerms(message, known) {
     const have = [...new Set(terms(stripHtmlWrapper(known)))];
-    if (!have.length) return false;
+    if (!have.length) return [];
+    const hits = [];
     for (const t of new Set(terms(message))) {
-      for (const s of have) if (sameForm(t, s, INFLECTIONAL_SUFFIXES)) return true;
+      for (const s of have) {
+        if (sameForm(t, s, INFLECTIONAL_SUFFIXES)) {
+          hits.push(s === t ? t : `${t}~${s}`);
+          break;
+        }
+      }
     }
-    return false;
+    return hits;
   }
 
   /**
@@ -278,9 +324,19 @@ export function makeWidgetRouter(priors) {
 
     for (let i = live.length - 1; i >= 0; i--) {
       const tell = iterationTell(message, live[i].text ?? "");
-      if (tell) return { n: live[i].n, tell, trigger: capture(message) };
+      if (tell) return { n: live[i].n, tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
     }
     return null;
+  }
+
+  /** The router's own evidence for a routing decision, as a payload ready
+   * to ride the record (P3: unrecognized keys ride the fold as payload).
+   * Only "resolved"/"judgment" decisions have span evidence to disclose —
+   * "named" and "anaphora" are already self-explaining from the tell alone. */
+  function evidenceOf(tell, message, known) {
+    if (tell !== "resolved" && tell !== "judgment") return {};
+    const matchedOn = matchedTerms(message, known ?? "");
+    return matchedOn.length ? { matchedOn } : {};
   }
 
   /**
@@ -323,12 +379,12 @@ export function makeWidgetRouter(priors) {
     // build that actually contains it rather than on whichever came last.
     for (let i = live.length - 1; i >= 0; i--) {
       const tell = iterationTell(message, live[i].text ?? "");
-      if (tell) return { kind: "rezero", n: live[i].n, lang: resolveLang(live[i], seg), tell, trigger: capture(message) };
+      if (tell) return { kind: "rezero", n: live[i].n, lang: resolveLang(live[i], seg), tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
     }
     return { kind: "new", why: "the turn's words introduce something, they do not point at something" };
   }
 
-  return Object.freeze({ iterationTell, routeMessage, routeSegment });
+  return Object.freeze({ iterationTell, routeMessage, routeSegment, matchedTerms });
 }
 
 /** Two names for one runtime — the fold's own RENDERABLE/RUNNERS aliases. */

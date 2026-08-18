@@ -1050,6 +1050,7 @@ async function send(question) {
       rezero: true,
       trigger: pointed.trigger,
       tell: pointed.tell,
+      matchedOn: pointed.matchedOn,
     });
   }
 
@@ -1321,7 +1322,7 @@ function parseOps(text) {
  * trigger) rather than a revision — a judgment concedes a ground, an
  * instruction compiles a new whole. Same machine, two landings.
  */
-async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null } = {}) {
+async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null, matchedOn = null } = {}) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -1577,6 +1578,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
         seg: { ...(cur.seg ?? {}), code },
         trigger: trigger ?? instruction,
         tell,
+        matchedOn,
         patch: landedPatch ? { ops: landedPatch.ops, ...(landedPatch.within ? { within: landedPatch.within } : {}) } : null,
       });
     } else if (landedPatch) {
@@ -1610,7 +1612,8 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
           : "whole file") +
         (lastW ? (lastW.ok ? " · witness clean" : ` · witness: ${lastW.findings.length} finding(s)`) : "");
       note = rezero
-        ? `fold ${n} · ground ${now.ground} · re-zeroed from your words · ${how}`
+        ? `fold ${n} · ground ${now.ground} · re-zeroed from your words · ${how}` +
+          (matchedOn && matchedOn.length ? ` · matched on: ${matchedOn.join(", ")}` : "")
         : `fold ${n} · v${now.version} · revision landed · ${how}`;
       logAct("revised", { fold: n, landed: true, version: now.version, patch: !!landedPatch, ops: landedPatch?.ops.length ?? 0 });
     } else {
@@ -2835,6 +2838,7 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
           caption: defaultCaption(landed),
           trigger: route.trigger,
           tell: route.tell,
+          matchedOn: route.matchedOn,
         })
       : buildLog.reviseBuild(entry.log, { code: landed.code, reason: "restated" });
   if (entry.log.entries.length > before) {

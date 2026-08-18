@@ -321,6 +321,40 @@ test("iterationTell: the html document's own wrapper tags never count as a conte
   // as before this fix.
   assert.equal(iterationTell("the clear button is broken", drawingApp), "resolved");
   assert.equal(iterationTell("the drawing app's title is wrong", drawingApp), "resolved");
+
+  // The SECOND source of the same token, found completing this same
+  // measurement: production's `known` is always `caption + "\n" + code`
+  // (app.js's buildWords), and an unrenamed caption defaults to the bare
+  // language ("html") — so the string's own first line carries the same
+  // non-discriminating token through a different field. routeMessage's own
+  // build shape (n/type/lang/text) is exactly this concatenation.
+  const builds = [{ n: 1, type: "code", lang: "html", text: "html\n" + drawingApp }];
+  assert.equal(routeMessage("make me a spreadsheet grid in html, each cell editable", builds), null);
+  assert.equal(routeMessage("the clear button is broken", builds).n, 1);
+});
+
+test("routeMessage/routeSegment: a resolved/judgment tell always discloses which words it matched on", () => {
+  // A THIRD instance of the same failure shape surfaced completing this
+  // measurement, and it was the diagnostic: build 1 had already been
+  // (mis-)rezeroed once into carrying a generateGrid() using "row"/"col",
+  // so the NEXT ask matched on real — if accidentally acquired — overlap,
+  // and diagnosing that by hand meant fetching localStorage and reading
+  // raw bytes. A routing decision must say what it matched on, on the
+  // record, not only in a debugger. This does not fix the underlying
+  // category error (span/token overlap standing in for referent identity,
+  // the same gap P11 names for prose) — it makes each decision legible
+  // enough that the next collision is a fast read, not a reproduction.
+  const builds = [{ n: 1, type: "code", lang: "html", text: 'html\n<table><td row="1"></td></table>' }];
+  const routed = routeMessage("the row is broken", builds);
+  assert.equal(routed.tell, "resolved");
+  assert.deepEqual(routed.matchedOn, ["row"]);
+
+  // "named" and "anaphora" carry no span evidence to disclose — they are
+  // already self-explaining from the tell alone, and evidenceOf says so
+  // by omitting the field entirely rather than an empty array pretending
+  // to be evidence.
+  assert.equal(routeMessage("build 1 is broken", builds).matchedOn, undefined);
+  assert.equal(routeMessage("it's broken", builds).matchedOn, undefined);
 });
 
 // ── the re-zero entry itself ────────────────────────────────────────────────

@@ -473,6 +473,30 @@ test("the ask is NUL · Ground, its own thread, and a re-zero lands the amended 
   assert.equal(buildLog.foldBuild(log).code, "<p>x</p>");
 });
 
+test("a re-zero's matchedOn rides the REC entry as disclosed evidence, never silently", () => {
+  // The router's routing decision (widget.js) is measured, not asked for —
+  // but a decision with nothing on the record showing what it matched on
+  // is exactly as opaque as a model's unchecked self-report. matchedOn is
+  // payload (P3: unrecognized keys ride the fold), named so a reader can
+  // see WHY a build was re-zeroed instead of re-deriving it from bytes.
+  let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  log = buildLog.rezeroBuild(log, {
+    code: "<p>x</p>",
+    seg: { ...widgetSeg, code: "<p>x</p>" },
+    trigger: "the row is broken",
+    tell: "resolved",
+    matchedOn: ["row"],
+  });
+  const rec = log.entries.find((e) => e.operator === "REC");
+  assert.deepEqual(rec.matchedOn, ["row"]);
+
+  // A tell with nothing to disclose (or matchedOn simply not supplied)
+  // never fabricates an empty array pretending to be evidence.
+  let log2 = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
+  log2 = buildLog.rezeroBuild(log2, { code: "<p>y</p>", seg: { ...widgetSeg, code: "<p>y</p>" }, trigger: "build 1 is broken", tell: "named" });
+  assert.equal(log2.entries.find((e) => e.operator === "REC").matchedOn, undefined);
+});
+
 test("a refused patch lands DEF · Figure with the gap and the ops — evidence, not a vanished return value", () => {
   let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w" });
   const ops = [{ op: "SYN", find: "#FF0000", add: "#2196F3" }];

@@ -72,7 +72,7 @@ import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
-import { autoRunnable, initTerminal, KEEP_PER_EXEC, runSandboxed } from "./term.js";
+import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxed } from "./term.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
@@ -855,6 +855,109 @@ async function actTurn(argstr, typed) {
 }
 
 /**
+ * The plain-language account of a sandboxed run — `/run`'s own version of
+ * autoRunAndDisclose's `autoRunSummary`, unabridged. That one truncates
+ * to fit inline in a build chip's own text; here the run's captured
+ * output IS the turn's answer, so the full stdout/stderr ships (already
+ * bounded by the sandbox worker's own output, exactly as any other
+ * terminal command's is). Plain text, not a markdown fence: `.body`/
+ * `.prose` both render `white-space: pre-wrap` (index.html), so a python
+ * body's own indentation and a sql table's column alignment already read
+ * correctly without one.
+ */
+function formatRunOutcome(outcome) {
+  const head = outcome.timedOut
+    ? `timed out after ${outcome.durationMs.toLocaleString()}ms — nothing more ran within this runtime's own budget`
+    : `finished in ${outcome.durationMs.toLocaleString()}ms`;
+  const out = (outcome.stdout ?? "").trim();
+  const err = (outcome.stderr ?? "").trim();
+  const parts = [head];
+  if (out) parts.push(out);
+  if (err) parts.push(outcome.code === 0 && !outcome.timedOut ? `stderr:\n${err}` : err);
+  if (!out && !err && !outcome.timedOut) parts.push("(no output)");
+  return parts.join("\n\n");
+}
+
+/**
+ * /run <runtime>\n<code> — the chat's own door onto the SAME sandboxed
+ * Workers the terminal's own runtimes and the model's own auto-run
+ * (autoRunAndDisclose, above) already execute inside: `runSandboxed`
+ * (term.js), the identical function, called the identical way. No new
+ * machine-execution path exists anywhere in this repo for this door to
+ * add — P18 stands exactly as written: nothing typed here reaches the
+ * machine, every run still terminates in the js/python/sql Workers with
+ * their egress severed at boot.
+ *
+ * What this door actually closes: auto-run only ever sees a code segment
+ * the MODEL just produced inside this turn's own fold, fire-and-forget,
+ * no click needed — it already covers "the model's own code runs
+ * safely." A person typing or pasting code straight into the composer had
+ * no door at all until this one; that is the gap `/run` fills, and it is
+ * deliberately a typed command rather than a ▶-style button drawn onto a
+ * rendered segment, which would sit on the identical segments auto-run
+ * already runs and add nothing.
+ *
+ * EXPLICIT-TRIGGER ONLY, matching /act/self/priors/learn — checked among
+ * the other typed doors in send(), before any automatic detector or the
+ * widget router gets a look at the question. `parseRunCommand` only
+ * claims a turn typed as `/run <runtime>\n<code>` this exact turn; the
+ * model never decides to run anything and never sees this door. There is
+ * no standing switch either: every `/run` is its own one-shot action,
+ * exactly like the Folds panel's own ▶ run — never a toggle that
+ * authorizes a future turn to run something on its own.
+ *
+ * `runSandboxed` is a real worker boot + exec (measured: pyodide alone is
+ * ~9s before a line of user code runs), so this follows `ingestTurn`'s
+ * async shape — addMessage first, fill in the result once the sandbox
+ * settles — rather than `actTurn`'s fully synchronous one (landAct never
+ * awaits anything).
+ *
+ * Material: `state.sources` UNFILTERED, matching `actTurn`/`landAct`'s own
+ * precedent above (the mute toggle silences retrieval, not what crosses
+ * into a sandbox — term.js's own `sourcesPayload()` mounts every loaded
+ * source, muted or not, for the identical reason). A `.load <source>`
+ * pre-step inside sql code (runSandboxed's own new handling) can only ever
+ * reach a name in this same unfiltered set.
+ */
+async function runTurn(runCmd, typed) {
+  if (runCmd.refused) {
+    mirrorTermRecord("term-run-refused", { line: typed.slice(0, 2000), refusal: runCmd.refused.type, detail: runCmd.refused.detail, via: "chat" });
+    return usageTurn(typed, `refused (${runCmd.refused.type}): ${runCmd.refused.detail}`);
+  }
+  const { runtime, code } = runCmd;
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = `running ${runtime} in the sandbox…`;
+  $("status").textContent = `running ${runtime}…`;
+  logAct("asked", { text: typed });
+
+  const outcome = await runSandboxed(runtime, code, { sources: state.sources });
+  body.textContent = "";
+
+  const ok = outcome.code === 0 && !outcome.timedOut;
+  const note = formatRunOutcome(outcome);
+  mirrorTermRecord("term-run", { runtime, code: code.slice(0, 2000), ok, timedOut: outcome.timedOut, durationMs: outcome.durationMs, via: "chat" });
+  logAct(ok ? "recorded" : "errored", { where: "run", runtime, timedOut: outcome.timedOut });
+
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = note;
+  body.append(p);
+
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: note });
+  const turn = state.summary.turnCount + 1;
+  observeExchange(turn, typed, note);
+  const fold = mechanicalFoldLine(typed, note);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
  * /priors — the toggle ledger's chat door. One ledger, three doors (the
  * Priors tab, the terminal's `priors` command, this one) all reading and
  * writing the same explore-server.mjs routes, so a flip made anywhere is
@@ -1115,6 +1218,25 @@ async function send(question) {
   // the model decides on its own can reach this grammar.
   const actCmd = question.match(/^\/act\b\s*(.*)$/s);
   if (actCmd) return actTurn(actCmd[1] ?? "", question);
+
+  // /run <runtime>\n<code> — code a PERSON just typed or pasted, run in
+  // the same sandboxed Workers the model's own auto-run already executes
+  // inside (term.js's runSandboxed — no new execution path). Checked right
+  // after /act, for the identical reason: an explicit typed door must
+  // never be hijacked by anything downstream of it, and the model must
+  // never be the one deciding whether this line runs. `parseRunCommand`
+  // returns null for anything that isn't the whole `/run <runtime>\n<code>`
+  // shape (parseFoldCommand/parseMeasure's own convention) — including a
+  // bare `/run` or a `/run <runtime>` with nothing after it — so the
+  // `/^\/run\b/` fallback below is what actually renders that usage line,
+  // the same two-step shape /fold and /ingest already use above.
+  const runCmd = parseRunCommand(question);
+  if (runCmd) return runTurn(runCmd, question);
+  if (/^\/run\b/.test(question))
+    return usageTurn(
+      question,
+      "/run <runtime>\\n<code> — runs code YOU typed or pasted, in the same sandboxed, network-severed Worker the model's own code already runs inside (python, js/javascript, or sql — put the runtime as the first line's second word, then the code starting on the next line). One-shot: each /run is its own action, never a standing switch. Code the MODEL writes in this turn's own fold already runs automatically — this door is for code you wrote yourself.",
+    );
 
   // /learn's door: the terminal's own `learn` walk is graded on real
   // keystrokes there, which chat cannot offer — so here it points to

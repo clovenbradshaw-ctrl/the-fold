@@ -28,6 +28,13 @@
 
 import { wordSet, numberSet, hasWord, hasNumber, CLAIM_STOPWORDS } from "./grounding.js";
 import { hostOf } from "./web.js";
+// The SAME construction every caller must key a claim by (claims.js's own
+// header: "held here once so no two callers can drift apart"). A hand-
+// written copy here previously diverged on the no-tokens fallback (claimKey
+// drops words of length <=2 and joins per-token; the old inline version
+// lowercased the whole unsplit text) — dormant today only because every
+// real target already carries non-empty tokens before this runs.
+import { claimKey } from "./claims.js";
 
 // ── declared numbers, each with its giver ───────────────────────────────────
 // Budgets with names and stated duties (P9), not quality thresholds. None
@@ -81,21 +88,30 @@ export function proofQuery(claim) {
  * count (argmax ordering, no threshold, P4); ties keep the engine's order.
  */
 export function rankResults(claim, results) {
-  const want = new Set(
-    [
-      ...String(claim?.sentence ?? "")
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}'’]+/u)
-        .map((w) => w.replace(/['’]s$/, "")),
-      ...(claim?.tokens ?? []).map((t) => String(t).toLowerCase()),
-    ].filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w)),
-  );
-  if (!want.size) return [...(results ?? [])];
+  // Both sides through the one fold (P11 — grounding.js's own wordSet/
+  // hasWord, the same organs primary.js::rankPrimary and priors.js::
+  // rankPriorCandidates already use for this identical overlap-counting
+  // task): an unfolded raw split let a claim sentence naming an accented
+  // figure ("Kutúzov") under-count against a search result spelling it
+  // plain ("Kutuzov"), or the reverse — silently letting an off-topic
+  // result outrank the true source on the diacritic axis instead of the
+  // raw-relevance axis this function exists to fix.
+  const want = [
+    ...new Set(
+      [
+        ...String(claim?.sentence ?? "")
+          .toLowerCase()
+          .split(/[^\p{L}\p{N}'’]+/u)
+          .map((w) => w.replace(/['’]s$/, "")),
+        ...(claim?.tokens ?? []).map((t) => String(t).toLowerCase()),
+      ].filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w)),
+    ),
+  ];
+  if (!want.length) return [...(results ?? [])];
   const scored = (results ?? []).map((r, i) => {
-    const face = `${r?.title ?? ""} ${r?.snippet ?? ""}`.toLowerCase();
-    const toks = new Set(face.split(/[^\p{L}\p{N}'’]+/u).map((w) => w.replace(/['’]s$/, "")));
+    const face = wordSet(`${r?.title ?? ""} ${r?.snippet ?? ""}`);
     let n = 0;
-    for (const w of want) if (toks.has(w)) n++;
+    for (const w of want) if (hasWord(face, w)) n++;
     return { r, i, n };
   });
   scored.sort((a, b) => b.n - a.n || a.i - b.i);
@@ -264,9 +280,12 @@ export function proofTargets({ findings = [], relationReport = null } = {}) {
   // one thing to look up, not three crossings. Keyed on the claim's TOKENS,
   // not its surface text: "The Kessington Report" opening a sentence and
   // "Kessington Report" mid-sentence are the same thing to look up.
+  // claimKey (claims.js), never a local recomputation — its own header
+  // names exactly this risk: two callers must not drift on what "the same
+  // claim" means.
   const seen = new Set();
   return targets.filter((t) => {
-    const key = (t.tokens?.length ? t.tokens : [t.text]).join(" ").toLowerCase();
+    const key = claimKey(t);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

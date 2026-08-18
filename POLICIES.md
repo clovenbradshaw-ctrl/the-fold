@@ -1519,3 +1519,127 @@ when discourse names the exact right topic). 626 of 628 repo tests pass;
 the two failures (`arithmetic.test.mjs`, `measure.test.mjs`) are
 pre-existing and unrelated — a missing `mathjs` dependency and a stale
 `eoreader6` path respectively, neither file touched by this policy.
+
+## P24 — `/run`: the chat door onto the sandbox, for code a PERSON wrote
+
+The P22 amendment named this as a recommendation, held open pending
+confirmation, rather than assumed: "think the chat should be able to
+drive terminal work and things using python and what not" names two
+things of different sizes, and only the smaller one (composing the
+nine-operator language via `/act`) had been built. This closes the
+larger half — but a materially narrower slice of it than "run arbitrary
+code from chat" might suggest, because most of that ground was already
+covered.
+
+**The decision: `/run <runtime>\n<code>`, a typed door, never a button on
+a rendered segment.** `term.js` already had `runSandboxed` and app.js
+already had `autoRunAndDisclose` — automatic, fire-and-forget sandboxed
+execution of code the MODEL just wrote inside a turn's own fold, no click
+needed, before this policy existed. That mechanism already answers "does
+the model's own code run safely." The actual gap was code a PERSON types
+or pastes straight into the composer, which had no door at all. A ▶
+button drawn onto the same rendered segments auto-run already executes
+would be redundant with a mechanism that already runs those exact
+segments; a typed command is also the shape every other explicit trigger
+in this dispatcher already takes (`/act`, `/self`, `/priors`, `/learn`),
+so `/run` invents no new class of affordance, only fills the one gap that
+was actually open.
+
+**No new machine-execution path, ever — the identical sandbox, called the
+identical way.** Every `/run` terminates in the SAME `runSandboxed`
+function (term.js) that auto-run already calls, which terminates in the
+SAME three Workers P18 already sandboxes (`term-js-worker.mjs`,
+`term-py-worker.mjs`, `term-sql-worker.js` — network severed at boot,
+before the first operator line runs). `serve.mjs` gained no exec route;
+`term.test.mjs`'s existing seam scan (no non-local host, no exec call, in
+any terminal file) was not weakened to make this land — it was not
+touched at all, and still passes.
+
+**The model never decides to execute; there is no standing switch.**
+`parseRunCommand` (term.js, pure) only claims a turn typed EXACTLY as
+`/run <runtime>\n<code>` this exact turn — checked among the other typed
+doors in `send()`'s dispatcher (`app.js`), right after `/act`'s own check,
+before any automatic detector or the widget router gets a look at the
+question, the identical ordering discipline `/act`'s own policy states
+("explicit typed doors are checked before anything downstream, in a fixed
+order, so nothing typed can be hijacked"). Each `/run` is its own one-shot
+action — like the Folds panel's own ▶ run, or `/act`'s own mechanical
+land — never a toggle that authorizes a future turn to run something on
+its own.
+
+**What actually needed to change, and why.** Two small gaps closed rather
+than one large door opened:
+
+- **ROSTER's `type` field, consolidating a ternary that had already drifted
+  into two copies.** `spawn()` and `runSandboxed` each separately
+  hardcoded `name === "sql" ? "classic" : "module"` — the exact drift class
+  this repo's own postmortems have already named twice under P22 (the
+  DEF/EVA `Array.find` bug, `synthesize`'s `String.includes` bug: one
+  correct implementation and a second place nobody kept in sync). `type`
+  now lives once, on each `ROSTER` entry, read by both call sites.
+- **`runSandboxed` grew what sql needed and js/python never did.** `result`-
+  type worker messages (sql's `runSql` emits one per statement that
+  returns rows; formatted with the SAME `formatCells` the interactive
+  prompt's own message handler already uses) and a `.load <source>`
+  pre-step read off the code's own first line (the SAME `csvTable` walk
+  `exec()`'s own sql `.load` handling already uses). Without these, `/run
+  sql` could only ever run a bare query against an empty database —
+  auto-run never needed them because the model-authored fold path never
+  routes SQL through this door at all.
+
+**Disclosed choice: material crosses unfiltered.** `runTurn` (app.js)
+hands `runSandboxed` `state.sources` exactly as written — every loaded
+source, muted or not — matching `actTurn`/`landAct`'s own precedent rather
+than diverging from it: the mute toggle is a retrieval concept (it governs
+what a model turn is HANDED to answer from), not an execution concept, and
+term.js's own `sourcesPayload()` already mounts every loaded source into
+every sandboxed runtime for the identical reason. A `.load <source>`
+inside `/run sql` code can therefore reach a muted source — the same as
+typing `.load <source>` at the interactive terminal prompt already could.
+
+**Evidence, driven live end to end through the real chat UI.** `/run
+python\nprint(2+2)` printed `4` (10,191ms, matching P18's own ~9s pyodide
+boot figure). `/run js\nconsole.log(3*7); 6*7` printed `21` then `42`
+(29ms). Real CSV material pasted as an attachment, then `/run sql\n.load
+pasted.txt\nselect city, riders from pasted where riders > 1500;` printed
+the load line (`pasted: 3 rows · city TEXT, riders INTEGER`) followed by a
+column-aligned table of exactly the two matching rows (359ms) — proving
+both new `runSandboxed` capabilities against real attached bytes, not a
+fixture. `/run ruby\nputs 1` refused mechanically (`unsupported_runtime`)
+with no model call and no worker ever spawned; bare `/run` rendered the
+usage line. Every run and refusal landed on `record/explore-record.jsonl`
+within the same second, `via: "chat"`, read back via `curl
+localhost:8812/api/record?tail=…`. The browser's own network log across
+every one of these turns showed nothing beyond the sandbox worker files
+and `POST /api/term-record` — no call to the model at :11434, and nothing
+resembling a machine-execution route. `/act distinguish zone-3 at Network
+from encounter` composed immediately afterward still refused with the
+identical `no_ground` detail P22's own evidence names, confirming the new
+door sitting beside it in the dispatcher disturbed nothing.
+
+**Files.** `term.js` (`ROSTER[*].type`; `AUTO_RUN_LANGS`/
+`AUTO_RUN_TIMEOUT_MS` grew a `sql` entry; `runSandboxed`'s `result`
+handling and `.load` pre-step; the new pure `parseRunCommand`); `app.js`
+(`runTurn`, `formatRunOutcome`, the `/run` dispatcher check, both new
+`mirrorTermRecord` event types).
+
+**Enforced:** `term.test.mjs` grew 7 cases — `autoRunnable`'s sql support;
+`parseRunCommand`'s four parsing rules (valid runtime+code, missing code,
+unknown runtime, no `/run` prefix at all → null); ROSTER's `type` field
+checked against each worker file's OWN module shape (a real ESM `export`
+detected in the file's text, not a hardcoded map); a source-scan
+regression confirming the `name === "sql" ? "classic" : "module"` ternary
+is gone from both call sites, not merely duplicated a third time.
+`capacity-runner.test.mjs`/`grid.test.mjs` untouched and still passing,
+confirming `/act`'s own machinery was not disturbed by sharing the
+dispatcher with a sibling door.
+
+**Disclosed limit, carried over unchanged, not this policy's to fix.**
+`runSandboxed`'s worker-message accumulation has no output budget of its
+own beyond what each worker already caps (KEEP_PER_EXEC-scale) — a `/run`
+that prints an unbounded amount ships it whole into the turn's answer,
+the same posture auto-run's own disclosure already accepts for a fold's
+code. A future pass could bound `formatRunOutcome`'s own text the way
+build-log.js's run entries already bound theirs (16K chars/stream,
+`kept/of` stated); not attempted here, named rather than silently
+absent.

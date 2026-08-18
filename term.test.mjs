@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { ROSTER, REFUSED, SEVERED, continues, isControl, csvTable, formatCells } from "./term.js";
+import { ROSTER, REFUSED, SEVERED, continues, isControl, csvTable, formatCells, autoRunnable, parseRunCommand } from "./term.js";
 import { SEVERED as JS_SEVERED } from "./term-js-worker.mjs";
 import { SEVERED as PY_SEVERED, mountName } from "./term-py-worker.mjs";
 
@@ -137,4 +137,64 @@ test("a mounted source name cannot carry a path", () => {
   assert.ok(!mountName("..\\up").includes("\\"));
   assert.ok(!mountName("../../etc").startsWith("."));
   assert.equal(mountName(""), "_");
+});
+
+// ── /run: the chat door onto the same sandbox (added 2026-08-18) ───────────
+
+test("ROSTER's type field is consolidated, not a duplicated ternary in spawn()/runSandboxed", () => {
+  const body = src("term.js");
+  assert.ok(
+    !/name === "sql" \? "classic" : "module"/.test(body) && !/key === "sql" \? "classic" : "module"/.test(body),
+    "the module/classic ternary this consolidation was supposed to remove still exists somewhere",
+  );
+  assert.ok(/ROSTER\[name\]\.type/.test(body), "spawn() no longer reads the worker type off ROSTER");
+  assert.ok(/ROSTER\[key\]\.type/.test(body), "runSandboxed no longer reads the worker type off ROSTER");
+});
+
+test("ROSTER's type field agrees with each worker file's own module shape", () => {
+  for (const [name, r] of Object.entries(ROSTER)) {
+    if (r.kind !== "worker") continue;
+    assert.ok(r.type === "module" || r.type === "classic", `${name} has no valid type field`);
+    const body = src(r.src.slice(2));
+    const isESM = /\bexport\s+(const|function|class|\{)/.test(body);
+    if (r.type === "module") assert.ok(isESM, `${name} is typed "module" but ${r.src} has no ESM export`);
+    else assert.ok(!isESM, `${name} is typed "classic" but ${r.src} uses ESM export syntax, which a classic worker cannot load`);
+  }
+});
+
+test("autoRunnable now accepts sql, alongside python and js/javascript", () => {
+  assert.equal(autoRunnable("sql"), true);
+  assert.equal(autoRunnable("SQL"), true, "case-insensitive, like the other runtimes");
+  assert.equal(autoRunnable("python"), true);
+  assert.equal(autoRunnable("javascript"), true);
+  assert.equal(autoRunnable("ruby"), false, "not every runtime is sandboxed — only what AUTO_RUN_LANGS names");
+});
+
+test("parseRunCommand: a whole /run <runtime>\\n<code> parses to {runtime, code}", () => {
+  assert.deepEqual(parseRunCommand("/run python\nprint(2+2)"), { runtime: "python", code: "print(2+2)" });
+  assert.deepEqual(parseRunCommand("/run SQL\nselect 1;"), { runtime: "sql", code: "select 1;" }, "the runtime folds case; the code does not");
+  // Multi-line code carries every line verbatim, including a python body's
+  // own indentation — the parser must not trim what the author wrote.
+  assert.deepEqual(parseRunCommand("/run python\ndef f():\n    return 1\n"), { runtime: "python", code: "def f():\n    return 1\n" });
+});
+
+test("parseRunCommand: missing code (no second line, or a blank one) falls through as null", () => {
+  assert.equal(parseRunCommand("/run python"), null, "no newline at all — nothing follows the runtime");
+  assert.equal(parseRunCommand("/run python\n"), null, "a second line that is empty");
+  assert.equal(parseRunCommand("/run python\n   \n  "), null, "a second line that is only whitespace");
+  assert.equal(parseRunCommand("/run\nprint(1)"), null, "no runtime named at all");
+});
+
+test("parseRunCommand: an unrunnable runtime is a typed refusal, never null and never a silent run", () => {
+  const r = parseRunCommand("/run ruby\nputs 1");
+  assert.equal(r.refused.type, "unsupported_runtime");
+  assert.match(r.refused.detail, /ruby/);
+  const foldAttempt = parseRunCommand("/run fold\nsources");
+  assert.equal(foldAttempt.refused.type, "unsupported_runtime", "fold is a terminal runtime, not sandboxed code — /run does not reach it either");
+});
+
+test("parseRunCommand: text with no /run prefix at all is null — the door falls through, never refuses", () => {
+  assert.equal(parseRunCommand("just some ordinary chat\nwith a second line too"), null);
+  assert.equal(parseRunCommand("print(2+2)"), null);
+  assert.equal(parseRunCommand(""), null);
 });

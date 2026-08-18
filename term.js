@@ -74,11 +74,21 @@ async function mirrorTerm(event, fields) {
 const capped = (s) => (s.length > TERM_RECORD_LINE_CAP ? s.slice(0, TERM_RECORD_LINE_CAP) + `…(${s.length - TERM_RECORD_LINE_CAP} more, dropped)` : s);
 
 // ── the registry ────────────────────────────────────────────────────────────
+//
+// `type` names the Worker constructor's own `type` option this runtime's
+// file needs to load correctly — held here once rather than re-derived by a
+// sql-vs-everything-else ternary wherever a worker is spawned (spawn()
+// below and runSandboxed both used to hardcode that same three-way check
+// separately, and two copies of one fact is exactly the drift class this
+// repo's postmortems keep naming). "module" for js/python (both ship ESM
+// `export`, per their own file headers); "classic" for sql (sql.js is UMD
+// and importScripts is the one loader that hands it a global scope — its
+// own header says so).
 export const ROSTER = {
   fold: { kind: "builtin", blurb: "commands over the instrument itself — mechanical, no model" },
-  js: { kind: "worker", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
-  python: { kind: "worker", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); `pip install <name>` (fold command) fetches any of ~350 others; material mounts at /material" },
-  sql: { kind: "worker", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
+  js: { kind: "worker", type: "module", src: "./term-js-worker.mjs", blurb: "javascript in a Worker with its network severed" },
+  python: { kind: "worker", type: "module", src: "./term-py-worker.mjs", blurb: "pyodide (vendored, ~30MB first boot) — stdlib plus numpy, matplotlib, pandas (vendored); `pip install <name>` (fold command) fetches any of ~350 others; material mounts at /material" },
+  sql: { kind: "worker", type: "classic", src: "./term-sql-worker.js", blurb: "sqlite via sql.js (vendored) — .load <source> imports a loaded CSV as a table" },
 };
 
 // Refused runtimes, each with its reason — a typed refusal, never a shrug.
@@ -199,13 +209,15 @@ const fmtBytes = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toF
 // design — one boot, one exec, terminated after, exactly the "throwaway
 // process" framing /api/run already uses, just backed by WASM instead of
 // the machine.
-const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js" };
+const AUTO_RUN_LANGS = { python: "python", javascript: "js", js: "js", sql: "sql" };
 // python pays pyodide's own boot cost (measured: ~9s in Node for the
 // runtime alone, before a single user line runs) on top of whatever the
 // code itself takes — js has no such tax (a plain Worker boots near-
 // instantly), so each runtime's budget is its own rather than one shared
-// guess.
-const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000 };
+// guess. sql pays sql.js's own wasm boot over importScripts — lighter than
+// pyodide's, heavier than a bare js Worker's — so its budget sits between
+// the two rather than reusing either.
+const AUTO_RUN_TIMEOUT_MS = { python: 45_000, js: 10_000, sql: 15_000 };
 
 /** True if `lang` is one this door can actually run. Read by the caller
  * before it decides to run anything, so a caption never promises a run
@@ -215,19 +227,87 @@ export function autoRunnable(lang) {
 }
 
 /**
+ * The chat's own door onto this same sandbox: `/run <runtime>\n<code>`.
+ * Code the auto-run above never sees — that one only ever runs a segment
+ * the MODEL just produced inside this turn's own fold, fire-and-forget, no
+ * click needed; it already covers "the model's own code runs safely."
+ * What has no door at all is code a PERSON just typed or pasted straight
+ * into the composer. `/run` fills exactly that gap, and deliberately as a
+ * typed command rather than a button drawn onto a rendered segment: a
+ * button there would sit on the identical segments auto-run already runs
+ * automatically, which is redundant with a mechanism that already exists;
+ * a typed door is also the shape every other explicit trigger in this
+ * repo already takes (/act, /self, /priors, /learn — and, one register
+ * over, the Folds panel's own ▶ run), so nothing new is invented to read
+ * "did a person, this exact turn, ask for this to run."
+ *
+ * Shape: the FIRST LINE's second token names the runtime; everything
+ * after the first newline is the code, byte-for-byte (no trimming — a
+ * python body's own indentation and blank lines are the author's, not
+ * this parser's to touch). Three outcomes, matching this codebase's own
+ * "a parse function returns null to let the caller's door fall through"
+ * convention (parseMeasure in measure.js, parseFoldCommand in
+ * folds-pane.js — both return null on a shape mismatch rather than a
+ * refusal, so a caller can print its OWN usage line only when the text
+ * was clearly meant for this door at all):
+ *
+ *   - `null` — not this command's shape at all: no leading `/run`, or a
+ *     `/run <runtime>` with no code (no second line, or a second line
+ *     that is blank). The caller falls through rather than refusing.
+ *   - `{ refused: { type: "unsupported_runtime", detail } }` — the shape
+ *     is whole but the named runtime is not one `autoRunnable` accepts.
+ *     `/run` only ever reaches the sandboxed runtimes auto-run already
+ *     trusts (python, js/javascript, sql) — never `fold` (composing a
+ *     terminal-language act or reading a source is not "running code")
+ *     and never a runtime this repo refuses outright (REFUSED, above).
+ *   - `{ runtime, code }` — a whole, runnable command.
+ */
+export function parseRunCommand(text) {
+  const raw = String(text ?? "");
+  const nl = raw.indexOf("\n");
+  if (nl === -1) return null; // no second line at all — nothing to run
+  const firstLine = raw.slice(0, nl);
+  const code = raw.slice(nl + 1);
+  const tokens = firstLine.trim().split(/\s+/);
+  if ((tokens[0] ?? "").toLowerCase() !== "/run") return null;
+  const runtime = (tokens[1] ?? "").toLowerCase();
+  if (!runtime || !code.trim()) return null;
+  if (!autoRunnable(runtime)) {
+    return {
+      refused: {
+        type: "unsupported_runtime",
+        detail: `"${runtime}" cannot be run from chat — /run only reaches the sandboxed runtimes this door already trusts (${[...new Set(Object.keys(AUTO_RUN_LANGS))].join(", ")}). The terminal (›_) has more runtimes at its own prompt (fold, sql included) but they are not all reachable from this door — only actual code execution is.`,
+      },
+    };
+  }
+  return { runtime, code };
+}
+
+/**
  * Runs `code` in a fresh, throwaway sandbox worker and resolves the SAME
  * shape /api/run's JSON does ({code, stdout, stderr, timedOut, durationMs})
  * — so attachRun and the Folds panel's own rendering need no branch for
  * where a result came from. `sources` mounts material the same way the
  * terminal's own `mount` command does; auto-run gets none by default; a
  * caller wanting the fold to see loaded material passes them explicitly.
+ *
+ * sql gets two extras the interactive prompt already has and this door
+ * needs too, since it only gets one shot rather than a REPL: (1) `result`-
+ * type worker messages — runSql (term-sql-worker.js) emits these for every
+ * statement that returns rows, the SAME message the terminal's own
+ * spawn() handler already formats with formatCells; auto-run used to only
+ * listen for out/err/done because python/js never emit `result`. (2) a
+ * `.load <source>` PRE-STEP, when it is the code's own first line — the
+ * identical csvTable walk exec()'s own sql `.load` handling (below) uses,
+ * so `/run sql\n.load orders\nselect …` can prime a table from already-
+ * attached material before the query runs, without a second parser.
  */
 export function runSandboxed(lang, code, { sources = {} } = {}) {
   const key = AUTO_RUN_LANGS[String(lang ?? "").toLowerCase()];
   if (!key) return Promise.resolve({ code: null, stdout: "", stderr: `no sandboxed runner for "${lang}"`, timedOut: false, durationMs: 0 });
   const started = Date.now();
   return new Promise((resolve) => {
-    const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: "module" });
+    const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: ROSTER[key].type });
     let out = "";
     let err = "";
     let settled = false;
@@ -239,12 +319,56 @@ export function runSandboxed(lang, code, { sources = {} } = {}) {
       resolve({ code: patch.timedOut || err ? 1 : 0, stdout: out, stderr: err, timedOut: !!patch.timedOut, durationMs: Date.now() - started });
     };
     const timer = setTimeout(() => finish({ timedOut: true }), AUTO_RUN_TIMEOUT_MS[key] ?? 10_000);
+
+    // The `.load` pre-step: only the code's own FIRST line is checked, the
+    // same one-dot-command-per-statement grammar the interactive prompt
+    // holds. A name that isn't loaded, or doesn't parse as a CSV, ends the
+    // run right there with a typed stderr line rather than running the
+    // query against a table that was never created.
+    let queryCode = code;
+    let pendingLoad = null;
+    if (key === "sql") {
+      const firstNL = code.indexOf("\n");
+      const firstLine = firstNL === -1 ? code : code.slice(0, firstNL);
+      const m = firstLine.match(/^\s*\.load\s+(\S+)/);
+      if (m) {
+        const srcName = m[1];
+        queryCode = firstNL === -1 ? "" : code.slice(firstNL + 1);
+        if (sources[srcName] === undefined) {
+          err += `no source named "${srcName}" — nothing to .load\n`;
+          queryCode = null;
+        } else {
+          const table = csvTable(sources[srcName]);
+          if (!table) {
+            err += `${srcName} parsed to nothing — is it a CSV?\n`;
+            queryCode = null;
+          } else {
+            pendingLoad = { name: srcName, table };
+          }
+        }
+      }
+    }
+
     worker.onmessage = (ev) => {
       const m = ev.data ?? {};
-      if (m.type === "ready") worker.postMessage({ type: "exec", code });
-      else if (m.type === "out") out += m.text.endsWith("\n") ? m.text : m.text + "\n";
+      if (m.type === "ready") {
+        if (queryCode === null) finish({});
+        else if (pendingLoad) worker.postMessage({ type: "load", name: pendingLoad.name, table: pendingLoad.table });
+        else worker.postMessage({ type: "exec", code: queryCode });
+      } else if (m.type === "out") out += m.text.endsWith("\n") ? m.text : m.text + "\n";
       else if (m.type === "err") err += m.text.endsWith("\n") ? m.text : m.text + "\n";
-      else if (m.type === "done") finish({});
+      else if (m.type === "result") {
+        out += formatCells(m.columns, m.values) + "\n";
+        if (m.of > m.values.length) out += `…${m.values.length} of ${m.of.toLocaleString()} rows kept\n`;
+      } else if (m.type === "done") {
+        if (pendingLoad) {
+          // That "done" was the load step's, not the query's — the load
+          // itself already reported its own out/err line above.
+          pendingLoad = null;
+          if (!queryCode || !queryCode.trim()) finish({});
+          else worker.postMessage({ type: "exec", code: queryCode });
+        } else finish({});
+      }
     };
     worker.onerror = (ev) => {
       err += `${ev.message ?? "worker error"}\n`;
@@ -366,7 +490,7 @@ export function initTerminal(bridge) {
   // ── worker runtimes ───────────────────────────────────────────────────────
 
   const spawn = (name) => {
-    const worker = new Worker(new URL(ROSTER[name].src, import.meta.url), { type: name === "sql" ? "classic" : "module" });
+    const worker = new Worker(new URL(ROSTER[name].src, import.meta.url), { type: ROSTER[name].type });
     const entry = { worker, ready: false };
     term.workers[name] = entry;
     worker.onmessage = (ev) => {

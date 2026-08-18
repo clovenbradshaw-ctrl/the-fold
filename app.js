@@ -74,6 +74,10 @@ import { renderBlocksInto } from "./render.js";
 
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, runSandboxed } from "./term.js";
 
+import { makeGrid } from "./grid.js";
+import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
+import { makeCapacityRunner } from "./capacity-runner.js";
+
 import { openInExplore, refContext } from "./explore-bridge.js";
 
 import { classifySentences } from "./provenance.js";
@@ -119,7 +123,7 @@ import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 // means. cast.js injects these so it stays pure and node-testable.
 import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
-import { makeCastResolver, makeCastHandles } from "./cast.js";
+import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
@@ -162,8 +166,14 @@ import { createTierStack, foldThrough } from "/engine/emergence/tiers.js";
 // injects it (cast.js pattern) so the mapping stays pure and node-testable.
 import * as engineTaskLog from "/engine/holon/task-log.js";
 import { makeBuildLog } from "./build-log.js";
+// The engine's operator algebra, same injection pattern, for grid.js (the
+// terminal language, P22) — the nine operators and terrain grid it reuses
+// rather than re-derives.
+import * as engineOperators from "/engine/operators.js";
 
 const buildLog = makeBuildLog(engineTaskLog);
+const grid = makeGrid({ operators: engineOperators, taskLog: engineTaskLog });
+grid.withCapacities({ findCapacity, unresolvedCapacity });
 
 // The widget router (widget.js): does a code-bearing turn point at a build
 // that already exists, or introduce a new one? Decided from the operator's
@@ -199,6 +209,19 @@ const castFor = makeCastResolver({
   namesCorefer,
   diaNorm,
 });
+
+// Same organ bundle as castFor above, one level less collapsed — the
+// referent INDEX itself (identities, not a boolean), which is what
+// capacity-runner.js's one wired capacity (`cast`) needs. One
+// implementation of "the same name" either way; no second discovery pass.
+const referentIndexFor = makeReferentIndex({
+  splitSentences: engineSentences,
+  extractSurfaces,
+  discoverReferents,
+  namesCorefer,
+  diaNorm,
+});
+const runCapacity = makeCapacityRunner({ referentIndexFor });
 
 const handlesFor = makeCastHandles({
   splitSentences: engineSentences,
@@ -3434,6 +3457,17 @@ initTerminal({
   muted: () => state.muted,
   folds: () => state.builds,
   tokenize,
+  // The terminal language (P22, grid.js): a single grid instance, one
+  // append-only log per terminal session (term.js's own state, never
+  // persisted — see its comment). `capacities` is the plain registry
+  // array so the `capacities` fold command needs no round trip through
+  // the grid instance for a simple listing. `runCapacity` is the one
+  // capacity actually wired to execute (`cast`, capacity-runner.js) —
+  // everything else in the registry stays reference-only, and asking to
+  // run one is a typed gap the runner itself returns, not a silent no-op.
+  grid,
+  capacities: listCapacities(),
+  runCapacity,
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────

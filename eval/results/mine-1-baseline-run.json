@@ -3,11 +3,11 @@
   "essays": 105,
   "facts": 1575,
   "no_vocabulary_essays": 29,
-  "bound": 222,
+  "bound": 92,
   "contradicted": 0,
-  "unbound": 150,
-  "beyond-reach": 87,
-  "unheard": 78,
+  "unbound": 76,
+  "beyond-reach": 307,
+  "unheard": 62,
   "no_claims_extracted": 1038
  },
  "examined": 537,
@@ -17,11 +17,10 @@
    "topic": "The Life Cycle of a Butterfly",
    "facts": 15,
    "vocabularyVerbs": 1,
-   "edges": 13,
+   "edges": 12,
    "verdicts": {
     "no_claims_extracted": 11,
-    "bound": 2,
-    "beyond-reach": 2
+    "beyond-reach": 4
    }
   },
   {
@@ -43,9 +42,9 @@
    "edges": 13,
    "verdicts": {
     "unheard": 2,
-    "bound": 1,
+    "beyond-reach": 3,
     "no_claims_extracted": 9,
-    "unbound": 3
+    "unbound": 1
    }
   },
   {
@@ -69,11 +68,9 @@
    "vocabularyVerbs": 10,
    "edges": 34,
    "verdicts": {
-    "unbound": 9,
+    "unbound": 6,
     "no_claims_extracted": 2,
-    "unheard": 1,
-    "beyond-reach": 1,
-    "bound": 2
+    "beyond-reach": 7
    }
   },
   {
@@ -103,12 +100,12 @@
    "topic": "Space Exploration: Past, Present, and Future",
    "facts": 15,
    "vocabularyVerbs": 11,
-   "edges": 30,
+   "edges": 29,
    "verdicts": {
-    "beyond-reach": 4,
-    "bound": 5,
+    "beyond-reach": 7,
+    "bound": 3,
     "unheard": 3,
-    "unbound": 2,
+    "unbound": 1,
     "no_claims_extracted": 1
    }
   },
@@ -151,10 +148,10 @@
    "edges": 29,
    "verdicts": {
     "no_claims_extracted": 1,
-    "unbound": 3,
-    "bound": 4,
-    "unheard": 4,
-    "beyond-reach": 3
+    "beyond-reach": 9,
+    "unheard": 3,
+    "unbound": 1,
+    "bound": 1
    }
   },
   {
@@ -186,10 +183,9 @@
    "edges": 19,
    "verdicts": {
     "bound": 5,
-    "unbound": 5,
-    "no_claims_extracted": 3,
-    "unheard": 1,
-    "beyond-reach": 1
+    "beyond-reach": 5,
+    "unbound": 2,
+    "no_claims_extracted": 3
    }
   },
   {
@@ -223,9 +219,8 @@
    "edges": 25,
    "verdicts": {
     "no_claims_extracted": 5,
-    "bound": 7,
-    "beyond-reach": 2,
-    "unbound": 1
+    "beyond-reach": 6,
+    "bound": 4
    }
   },
   {
@@ -235,10 +230,10 @@
    "vocabularyVerbs": 10,
    "edges": 37,
    "verdicts": {
-    "bound": 8,
+    "beyond-reach": 7,
     "unbound": 3,
-    "unheard": 2,
-    "beyond-reach": 2
+    "bound": 3,
+    "unheard": 2
    }
   },
   {
@@ -248,10 +243,11 @@
    "vocabularyVerbs": 5,
    "edges": 14,
    "verdicts": {
-    "unbound": 3,
+    "unbound": 2,
     "no_claims_extracted": 6,
-    "bound": 4,
-    "unheard": 2
+    "beyond-reach": 4,
+    "unheard": 2,
+    "bound": 1
    }
   },
   {
@@ -273,9 +269,7 @@
    "edges": 11,
    "verdicts": {
     "no_claims_extracted": 8,
-    "beyond-reach": 2,
-    "bound": 2,
-    "unbound": 3
+    "beyond-reach": 7
    }
   },
   {
@@ -318,9 +312,8 @@
    "edges": 31,
    "verdicts": {
     "no_claims_extracted": 8,
-    "unbound": 2,
-    "beyond-reach": 2,
-    "bound": 3
+    "beyond-reach": 6,
+    "unbound": 1
    }
   },
   {
@@ -330,10 +323,10 @@
    "vocabularyVerbs": 19,
    "edges": 35,
    "verdicts": {
-    "beyond-reach": 2,
+    "beyond-reach": 4,
     "no_claims_extracted": 1,
-    "bound": 7,
     "unbound": 4,
+    "bound": 5,
     "unheard": 1
    }
   },
@@ -344,10 +337,10 @@
    "vocabularyVerbs": 20,
    "edges": 32,
    "verdicts": {
-    "unbound": 2,
+    "unbound": 1,
     "unheard": 2,
-    "bound": 8,
-    "beyond-reach": 2,
+    "bound": 4,
+    "beyond-reach": 7,
     "no_claims_extracted": 1
    }
   },
@@ -356,12 +349,12 @@
    "topic": "The Discovery of Penicillin",
    "facts": 15,
    "vocabularyVerbs": 11,
-   "edges": 22,
+   "edges": 21,
    "verdicts": {
-    "unbound": 5,
-    "bound": 6,
-    "unheard": 3,
-    "beyond-reach": 1
+    "beyond-reach": 11,
+    "bound": 1,
+    "unheard": 2,
+    "unbound": 1
    }
   },
   {
@@ -372,9 +365,8 @@
    "edges": 21,
    "verdicts": {
     "no_claims_extracted": 6,
-    "bound": 2,
-    "unbound": 4,
-    "beyond-reach": 3
+    "bound": 1,
+    "beyond-reach": 8
    }
   },
   {
@@ -385,7 +377,8 @@
    "edges": 9,
    "verdicts": {
     "no_claims_extracted": 11,
-    "unheard": 4
+    "unheard": 3,
+    "beyond-reach": 1
    }
   },
   {
@@ -396,9 +389,10 @@
    "edges": 17,
    "verdicts": {
     "no_claims_extracted": 8,
-    "unbound": 4,
+    "beyond-reach": 3,
     "bound": 1,
-    "unheard": 2
+    "unheard": 2,
+    "unbound": 1
    }
   },
   {
@@ -408,11 +402,11 @@
    "vocabularyVerbs": 14,
    "edges": 25,
    "verdicts": {
-    "bound": 8,
+    "bound": 6,
     "unbound": 3,
     "unheard": 1,
-    "no_claims_extracted": 1,
-    "beyond-reach": 2
+    "beyond-reach": 4,
+    "no_claims_extracted": 1
    }
   },
   {
@@ -422,11 +416,11 @@
    "vocabularyVerbs": 8,
    "edges": 31,
    "verdicts": {
-    "bound": 5,
+    "beyond-reach": 8,
     "no_claims_extracted": 4,
-    "unheard": 2,
-    "unbound": 2,
-    "beyond-reach": 2
+    "unheard": 1,
+    "bound": 1,
+    "unbound": 1
    }
   },
   {
@@ -457,12 +451,12 @@
    "topic": "The Cultural Significance of Tattoos",
    "facts": 15,
    "vocabularyVerbs": 6,
-   "edges": 20,
+   "edges": 19,
    "verdicts": {
-    "bound": 3,
-    "beyond-reach": 3,
+    "beyond-reach": 6,
     "no_claims_extracted": 5,
-    "unbound": 4
+    "unbound": 3,
+    "bound": 1
    }
   },
   {
@@ -482,10 +476,10 @@
    "vocabularyVerbs": 12,
    "edges": 37,
    "verdicts": {
-    "unbound": 4,
-    "beyond-reach": 1,
+    "beyond-reach": 7,
     "unheard": 2,
-    "bound": 6,
+    "unbound": 2,
+    "bound": 2,
     "no_claims_extracted": 2
    }
   },
@@ -526,13 +520,12 @@
    "topic": "Famous Conspiracy Theories",
    "facts": 15,
    "vocabularyVerbs": 11,
-   "edges": 38,
+   "edges": 37,
    "verdicts": {
     "no_claims_extracted": 2,
-    "bound": 5,
-    "unbound": 4,
-    "unheard": 1,
-    "beyond-reach": 3
+    "bound": 1,
+    "beyond-reach": 11,
+    "unheard": 1
    }
   },
   {
@@ -551,12 +544,11 @@
    "topic": "A History of Fashion Trends",
    "facts": 15,
    "vocabularyVerbs": 9,
-   "edges": 36,
+   "edges": 35,
    "verdicts": {
-    "bound": 7,
+    "beyond-reach": 11,
     "no_claims_extracted": 1,
-    "unbound": 3,
-    "beyond-reach": 4
+    "bound": 3
    }
   },
   {
@@ -566,10 +558,11 @@
    "vocabularyVerbs": 22,
    "edges": 21,
    "verdicts": {
-    "bound": 9,
+    "bound": 7,
     "unbound": 2,
     "unheard": 3,
-    "no_claims_extracted": 1
+    "no_claims_extracted": 1,
+    "beyond-reach": 2
    }
   },
   {
@@ -657,9 +650,9 @@
    "vocabularyVerbs": 2,
    "edges": 17,
    "verdicts": {
-    "unbound": 3,
+    "beyond-reach": 3,
     "no_claims_extracted": 11,
-    "bound": 1
+    "unbound": 1
    }
   },
   {
@@ -669,8 +662,9 @@
    "vocabularyVerbs": 18,
    "edges": 32,
    "verdicts": {
-    "bound": 11,
+    "bound": 10,
     "unbound": 3,
+    "beyond-reach": 1,
     "unheard": 1
    }
   },
@@ -702,10 +696,8 @@
    "edges": 32,
    "verdicts": {
     "no_claims_extracted": 6,
-    "beyond-reach": 3,
-    "unbound": 1,
-    "unheard": 3,
-    "bound": 2
+    "beyond-reach": 7,
+    "unheard": 2
    }
   },
   {
@@ -715,10 +707,10 @@
    "vocabularyVerbs": 6,
    "edges": 26,
    "verdicts": {
-    "unbound": 5,
+    "beyond-reach": 8,
     "no_claims_extracted": 4,
-    "bound": 3,
-    "beyond-reach": 3
+    "unbound": 2,
+    "bound": 1
    }
   },
   {
@@ -751,8 +743,7 @@
    "verdicts": {
     "no_claims_extracted": 10,
     "unheard": 1,
-    "beyond-reach": 2,
-    "bound": 2
+    "beyond-reach": 4
    }
   },
   {
@@ -762,9 +753,9 @@
    "vocabularyVerbs": 3,
    "edges": 35,
    "verdicts": {
-    "bound": 10,
-    "unbound": 2,
-    "beyond-reach": 2,
+    "bound": 3,
+    "beyond-reach": 10,
+    "unbound": 1,
     "no_claims_extracted": 1
    }
   },
@@ -776,9 +767,8 @@
    "edges": 35,
    "verdicts": {
     "no_claims_extracted": 6,
-    "unheard": 5,
-    "unbound": 3,
-    "bound": 1
+    "unheard": 3,
+    "beyond-reach": 6
    }
   },
   {
@@ -811,9 +801,10 @@
    "edges": 36,
    "verdicts": {
     "no_claims_extracted": 4,
-    "unheard": 4,
+    "beyond-reach": 5,
     "unbound": 2,
-    "bound": 5
+    "bound": 3,
+    "unheard": 1
    }
   },
   {
@@ -823,10 +814,9 @@
    "vocabularyVerbs": 1,
    "edges": 11,
    "verdicts": {
-    "bound": 6,
+    "beyond-reach": 9,
     "no_claims_extracted": 5,
-    "beyond-reach": 2,
-    "unbound": 2
+    "bound": 1
    }
   },
   {
@@ -837,9 +827,7 @@
    "edges": 18,
    "verdicts": {
     "no_claims_extracted": 12,
-    "beyond-reach": 1,
-    "bound": 1,
-    "unbound": 1
+    "beyond-reach": 3
    }
   },
   {
@@ -849,11 +837,10 @@
    "vocabularyVerbs": 5,
    "edges": 24,
    "verdicts": {
-    "unbound": 2,
-    "beyond-reach": 3,
-    "bound": 4,
+    "beyond-reach": 8,
     "no_claims_extracted": 4,
-    "unheard": 2
+    "unheard": 2,
+    "bound": 1
    }
   },
   {
@@ -864,8 +851,7 @@
    "edges": 11,
    "verdicts": {
     "no_claims_extracted": 10,
-    "beyond-reach": 4,
-    "unbound": 1
+    "beyond-reach": 5
    }
   },
   {
@@ -876,9 +862,9 @@
    "edges": 33,
    "verdicts": {
     "no_claims_extracted": 3,
-    "bound": 5,
-    "unbound": 6,
-    "beyond-reach": 1
+    "beyond-reach": 6,
+    "unbound": 5,
+    "bound": 1
    }
   },
   {
@@ -934,9 +920,10 @@
    "vocabularyVerbs": 15,
    "edges": 41,
    "verdicts": {
-    "unbound": 7,
-    "bound": 3,
-    "unheard": 5
+    "unbound": 6,
+    "bound": 1,
+    "beyond-reach": 5,
+    "unheard": 3
    }
   },
   {
@@ -1021,10 +1008,10 @@
    "vocabularyVerbs": 8,
    "edges": 29,
    "verdicts": {
-    "bound": 5,
+    "bound": 3,
     "no_claims_extracted": 3,
-    "unheard": 6,
-    "beyond-reach": 1
+    "unheard": 4,
+    "beyond-reach": 5
    }
   },
   {
@@ -1035,9 +1022,9 @@
    "edges": 36,
    "verdicts": {
     "unheard": 3,
-    "beyond-reach": 1,
-    "unbound": 6,
-    "bound": 5
+    "beyond-reach": 8,
+    "bound": 2,
+    "unbound": 2
    }
   },
   {
@@ -1047,9 +1034,9 @@
    "vocabularyVerbs": 1,
    "edges": 16,
    "verdicts": {
-    "bound": 6,
+    "beyond-reach": 5,
     "no_claims_extracted": 8,
-    "beyond-reach": 1
+    "bound": 2
    }
   },
   {
@@ -1071,9 +1058,9 @@
    "edges": 28,
    "verdicts": {
     "no_claims_extracted": 3,
-    "beyond-reach": 4,
-    "bound": 6,
-    "unbound": 2
+    "beyond-reach": 10,
+    "bound": 1,
+    "unbound": 1
    }
   },
   {
@@ -1116,8 +1103,8 @@
    "verdicts": {
     "no_claims_extracted": 6,
     "unbound": 2,
-    "bound": 5,
-    "beyond-reach": 2
+    "beyond-reach": 6,
+    "bound": 1
    }
   },
   {
@@ -1161,9 +1148,8 @@
    "edges": 23,
    "verdicts": {
     "no_claims_extracted": 2,
-    "unbound": 7,
-    "bound": 2,
-    "beyond-reach": 3,
+    "beyond-reach": 11,
+    "unbound": 1,
     "unheard": 1
    }
   },
@@ -1175,9 +1161,8 @@
    "edges": 26,
    "verdicts": {
     "no_claims_extracted": 5,
-    "bound": 6,
-    "unbound": 3,
-    "beyond-reach": 1
+    "beyond-reach": 9,
+    "bound": 1
    }
   },
   {
@@ -1188,8 +1173,7 @@
    "edges": 21,
    "verdicts": {
     "no_claims_extracted": 12,
-    "beyond-reach": 2,
-    "bound": 1
+    "beyond-reach": 3
    }
   },
   {
@@ -1200,9 +1184,8 @@
    "edges": 23,
    "verdicts": {
     "no_claims_extracted": 6,
-    "bound": 4,
-    "beyond-reach": 3,
-    "unbound": 2
+    "beyond-reach": 8,
+    "unbound": 1
    }
   },
   {
@@ -1233,9 +1216,8 @@
    "vocabularyVerbs": 1,
    "edges": 8,
    "verdicts": {
-    "bound": 3,
-    "no_claims_extracted": 11,
-    "beyond-reach": 1
+    "beyond-reach": 4,
+    "no_claims_extracted": 11
    }
   },
   {
@@ -1245,8 +1227,9 @@
    "vocabularyVerbs": 3,
    "edges": 10,
    "verdicts": {
-    "bound": 9,
+    "bound": 7,
     "no_claims_extracted": 5,
+    "beyond-reach": 2,
     "unbound": 1
    }
   },
@@ -1258,9 +1241,7 @@
    "edges": 19,
    "verdicts": {
     "no_claims_extracted": 11,
-    "bound": 2,
-    "unbound": 1,
-    "beyond-reach": 1
+    "beyond-reach": 4
    }
   }
  ]

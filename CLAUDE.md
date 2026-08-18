@@ -2596,3 +2596,104 @@ already carries — `measure.test.mjs`, three `webllm-rung.test.mjs`
 model-file cases, confirmed via `git stash` against this exact worktree
 rather than trusted from memory), 741 / 737 / 4 after — zero regressions
 anywhere else in the suite.
+
+## Closing the MINE-1 gap — recurring-form subjects (added 2026-08-18, tenth pass)
+
+`goldens/EXTERNAL-BENCHMARKS.md` ("The Goldens", eoreader6.1) named MINE-1
+as priority 1; `eval/mine-1-RESULTS.md` ran it and measured a weak result
+(5.8%/17.1% bound) with a diagnosed cause: 57.2% of the facts that even
+extracted a claim failed `beyond-reach` — the subject (`"Butterflies"`,
+`"Caterpillars"`) never resolves to a referent, because `cast.js` requires
+a proper name or a resolved pronoun and MINE-1's essays are encyclopedic.
+The user's own direction, asked to work backwards from the score: consider
+every real lever, with nothing hardcoded.
+
+**Priors was tried first, honestly, and closed as a dead end for THIS
+benchmark** — see `eval/mine-1-priors-RESULTS.md`: 0/1,575 facts landed
+`stated-by-library` against the WHOLE `live_priors` corpus treated as
+activated (no toggle gate). Not a broken mechanism (85% of facts found
+real candidate documents and were genuinely read) — `live_priors` is a
+curated philosophy/classics/law/foundational-science canon, and has no
+shelf for roller coasters or butterfly metamorphosis. Ruled out by
+running it, not by argument.
+
+**What actually closed most of the gap was already sitting in this
+project, one repo over, solving a differently-named version of the exact
+same problem.** `host/terrains.js`'s Network-graph organ had already
+diagnosed "concept documents starve the cast ladder" (measured on
+SEED-SPEAKER.md: four sentence-initial capitals at one arrival each, vs.
+21 form nodes once recurring content words are counted) and built the fix
+for the GRAPH surface: recurring-form co-arrival binding, admitted at
+`arrivals >= 2` sentences — "binding's structural minimum, not a tuned
+floor: one arrival has no co-arrival to test." `hypergraph.js`'s own
+`beyond-reach` verdict was the identical starvation, one tier over, never
+connected to that organ before. The search-for-the-organ-first rule
+(eoreader6.1's own CLAUDE.md), applied one level up: search for the organ
+before inventing a new threshold, even inside your own repo.
+
+**The fix.** `hypergraph.js`'s `endpoint()` now grants a SUBJECT the same
+identity `host/terrains.js` already grants a graph node — a content word
+recurring at least `FORM_MIN_ARRIVALS` (= 2, reused whole from
+`FORM_BINDING`'s own structural minimum, not re-derived) sentences in the
+material — namespaced `form:<word>` so it can never be mistaken for a real
+cast referent, and every claim resting on one is marked `formBased: true`
+on the claim itself so a reader can tell a form-anchored `bound` from a
+name-anchored one (P11: "the same name" and "the same recurring word" are
+never the same claim). Confined to SUBJECTS ONLY — `endpoint(str, true)`
+at every subject call site, `endpoint(str)` (forms off, unchanged) at
+every object call site — because the object side already had a working,
+tested `tokensShare` stem-tolerant fallback for "no referent," and merging
+forms into it too would have made `endpointsMatch` take the STRICTER
+exact-id `intersects` branch instead, whenever both sides happened to
+share a form — a real regression to already-shipped matching that this
+benchmark's own score would never have surfaced (MINE-1 only exercises the
+subject gate). The function-word exclusion reuses `hypergraph.js`'s own
+already-computed `commonTerms`-based measure (the one this file's own
+header already documented choosing over `material.js`'s document-scale
+`functionWordSet`, which degenerates at this material's size) — one
+measure, not a second one at a different scale.
+
+**Measured, not assumed.** `eval/mine-1-forms-RESULTS.md`: bound facts
+92 → 222 (a 2.4x lift on both denominators, 5.8%→14.1% / 17.1%→41.3%),
+`beyond-reach` 307 → 87, essays with ≥1 bound fact 37/105 → 52/105, zero
+contradictions both before and after (537 claims read either way — claim
+EXTRACTION is untouched by this fix, only what happens after extraction).
+`no_claims_extracted` stayed exactly 1,038 (65.9%) — this fix cannot touch
+it, and it remains the dominant, larger bottleneck, the same one
+`goldens/agency-civic`'s own README already named as its next concrete
+step (widening `relations.js`'s clause-terminal SVO match to relative
+clauses, fronted adverbials, coordinated verb phrases). The realistic
+ceiling for THIS fix alone, stated before running and checked after:
+best case ~25.3%/~74.3% if every recovered `beyond-reach` case turned out
+bound; the real result landed well short of that, honestly, because most
+recovered subjects turned out `unbound` or `unheard` rather than `bound`
+— a referent-resolution fix can only let the reader FORM an opinion about
+more claims, never make the essay have said more than it did.
+
+**Two bugs caught building this, not smoothed over.** (1) The first cut
+captured `named` (does this endpoint already have a real referent) BEFORE
+the surface-pattern match ran, so a subject like "Darwin" — which
+resolves only through the surface-MENTION pass, not `index.resolve()`
+alone — read as `formOnly: true`, wrongly; caught by this file's own new
+regression test, fixed by moving the capture after both real resolution
+paths run. (2) The confine-to-subjects decision above was found by
+REASONING about `endpointsMatch`'s two branches before writing the object
+call sites, not discovered as a live failure — disclosed as a design
+decision the tests now pin, not a bug that shipped and was later found.
+
+**Test coverage.** `hypergraph.test.mjs` grew from 9 to 13 cases: a
+recurring plain-noun subject resolving as a form and landing
+`bound`/`formBased: true`; a named subject under the SAME material never
+marked `formBased` (bug (1) above, pinned so it cannot silently regress);
+a subject recurring exactly once still refused `beyond-reach` (the floor
+is real); a form-resolved subject with no matching edge landing `unbound`,
+not a silent beyond-reach. All 9 pre-existing cases pass unchanged. Full
+repo suite (46 files, 699 cases) shows 5 failures — confirmed via
+`git stash` to be identical with or without this change, all missing
+vendored `node_modules` this particular checkout never received
+(`sql.js` for `store.test.mjs`/`store-sql.test.mjs`, model files for
+`webllm-rung.test.mjs`/`measure.test.mjs`, `monaco-editor` for one
+`constitution.test.mjs` II.13 case) — an environment gap, not a
+regression, and a count worth restating honestly here since it differs
+from the "4 failing" this file's own prior passes recorded: this
+particular worktree's `node_modules` is missing more than that one was.

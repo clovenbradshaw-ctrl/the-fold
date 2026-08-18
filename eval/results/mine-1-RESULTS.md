@@ -1,9 +1,18 @@
-# MINE-1 against the house verdict reader — results
+# MINE-1 against the house verdict reader — the baseline run (name-only)
 
-Run 2026-08-18. `node eval/mine-1.mjs` reproduces every number below;
-`mine-1-run.json` in this directory is the machine-readable per-essay
-breakdown. Priority 1 of `goldens/EXTERNAL-BENCHMARKS.md` ("The Goldens"),
-Section A.
+**Superseded as the live number, kept as the frozen baseline.** This
+document and its numbers describe the reader BEFORE `hypergraph.js` grew
+recurring-form subject resolution (same day, later). `eval/mine-1.mjs` is
+unchanged and still reproduces the CURRENT numbers, which are higher — see
+`mine-1-forms-RESULTS.md` for the after-fix results and exactly what
+changed. The machine-readable record of THIS run is frozen at
+`mine-1-baseline-run.json` (a copy of `mine-1-run.json` taken before the
+fix landed) — `mine-1-run.json` itself now holds the current, post-fix
+numbers, since re-running the unchanged script against the changed reader
+naturally overwrites it. This document's own prose and numbers below are
+left exactly as originally written, as the historical record of what the
+name-only reader scored. Priority 1 of `goldens/EXTERNAL-BENCHMARKS.md`
+("The Goldens"), Section A.
 
 ## What ran, and what didn't
 
@@ -125,6 +134,19 @@ pattern, visible essay by essay in `mine-1-run.json`.
 This result **stays in the repository regardless of how modest the number
 is** — the agency-civic golden's own rule, applied here: a golden that only
 gets committed when it confirms the thing under test is not a golden.
+
+## Follow-up: what DID close the gap — see `mine-1-forms-RESULTS.md`
+
+Priors (below) didn't move the number — wrong corpus, not a broken
+mechanism. What did: `beyond-reach` (the dominant failure below) was mostly
+subjects like "Butterflies" that never resolve to a referent at all,
+because `cast.js` requires a proper name. `host/terrains.js` had already
+solved this exact starvation for the Network graph ("recurring-form
+co-arrival binding" — concept documents starve the cast ladder). Applying
+the same identity to `hypergraph.js`'s subject gate nearly tripled bound
+facts (92 → 222) and dropped `beyond-reach` from 307 to 87. Full write-up,
+before/after numbers, and the two bugs caught while building it:
+`mine-1-forms-RESULTS.md`.
 
 ## Follow-up: does `live_priors` help? No — see `mine-1-priors-RESULTS.md`
 

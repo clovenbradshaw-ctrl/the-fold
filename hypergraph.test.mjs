@@ -165,6 +165,68 @@ test("a verb the material never measures is unheard — the reach ends visibly",
   assert.equal(relationFindings(report).length, 0);
 });
 
+// A concept-scale material: one named surface ("Darwin") to seed the cast
+// ladder and the relation vocabulary, plus a recurring PLAIN-NOUN subject
+// ("Butterflies") that cast.js never names — the exact starvation
+// host/terrains.js's own recurring-form binding was built to answer,
+// applied here to the relation tier's referent gate instead of the graph.
+// "Butterflies" recurs across two sentences (FORM_MIN_ARRIVALS); "Moths"
+// appears exactly once, on purpose, so the floor's own refusal is pinned
+// too, not just its admission.
+const FORM_PASSAGES = [
+  {
+    ref: "insects.txt#0-200",
+    text:
+      "Naturalists have long studied insects in the field. " +
+      "Charles Darwin himself observed specimens for many years, and Darwin wrote about their metamorphosis in his notebooks.",
+  },
+  {
+    ref: "insects.txt#200-400",
+    text:
+      "Butterflies wrote nothing themselves, but their metamorphosis is well documented. " +
+      "Butterflies wrote across the historical record only through patterns naturalists observed. " +
+      "Moths crossed the meadow once at dusk.",
+  },
+];
+
+test("a recurring plain-noun subject resolves as a FORM — the concept-document starvation host/terrains.js already named", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Butterflies wrote across the historical record.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Butterflies");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "bound");
+  assert.equal(claim.formBased, true, "a subject with no cast referent must disclose it rested on a form");
+  assert.ok(claim.refs.includes("insects.txt#200-400"));
+});
+
+test("a form is never mistaken for a name — a claim resting on a real referent is never marked formBased", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Darwin wrote about their metamorphosis.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Darwin");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "bound");
+  assert.equal(claim.formBased, false, "Darwin resolves through the real referent index, not a form");
+});
+
+test("a subject that recurs only once is still beyond reach — FORM_MIN_ARRIVALS is a floor, not a courtesy", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Moths wrote about the meadow.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Moths");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "beyond-reach");
+  assert.equal(relationFindings(report).length, 0, "a limit of the instrument is never a finding against the answer");
+});
+
+test("a form-resolved subject with no matching edge is unbound, not silently beyond-reach", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Butterflies wrote about a treaty.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Butterflies");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "unbound");
+  assert.equal(claim.formBased, true);
+  assert.ok(claim.nearest.length > 0, "the nearest-edge disclosure fires here exactly as it does for a named subject");
+});
+
 test("no material means not examined; nameless material means a typed vocabulary gap", async () => {
   const make = makeRelationReader(await organs());
   const empty = make([]);

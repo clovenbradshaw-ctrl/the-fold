@@ -52,6 +52,29 @@
 // arrive as arguments because this module is imported by both the page
 // (which loads them from /engine) and the node tests (which load them by
 // relative path). The organs are used, never copied.
+//
+// AMENDED 2026-08-18 — recurring forms as a second, weaker identity for
+// endpoint resolution. `beyond-reach`'s own justification above ("a
+// pronoun subject, an abstract object") describes only PART of what was
+// driving that verdict: measured against MINE-1 (an external benchmark of
+// 105 short informational essays, goldens/EXTERNAL-BENCHMARKS.md),
+// beyond-reach was firing on ordinary, non-abstract, non-pronoun common
+// nouns — "butterflies", "caterpillars" — subjects a concept-scale
+// document states real relations about, that simply never get named the
+// way cast.js's referent index requires (a proper name, or a pronoun
+// resolved through its own floor). host/terrains.js's Network-graph organ
+// had already solved exactly this starvation, for the graph surface, not
+// this one: recurring-form co-arrival binding, built because "concept
+// documents starve the cast ladder" (measured there on SEED-SPEAKER.md).
+// `endpoint()` now grants a subject or object the SAME identity — a
+// content word recurring at least FORM_MIN_ARRIVALS sentences in the
+// material — namespaced `form:<word>` so it can never be mistaken for a
+// cast referent, and every claim built on one is marked `formBased` so a
+// reader can tell a form-anchored "bound" from a name-anchored one. This
+// widens what the tier can READ; it fabricates nothing — the SAME edges
+// extractRelations already found in the material, now checkable because
+// their subject can finally resolve. Measured effect, not assumed: see
+// the-fold/eval/mine-1-forms-RESULTS.md.
 
 import { makeReferentIndex } from "./cast.js";
 import { blankStructure } from "./grounding.js";
@@ -75,6 +98,23 @@ export const MIN_SURFACES_PER_VERB = 1;
 // stays in the report's own graph; only the per-claim nearest list is
 // capped, and the cap is stated where it applies.
 export const NEAREST_EDGES_MAX = 3;
+
+// FORM_MIN_ARRIVALS = 2 — a recurring-content-word identity for a subject
+// or object that cast.js's referent index never establishes (no proper
+// name: "butterflies", "the caterpillar", a concept document's own real
+// vocabulary — SEED-SPEAKER.md, measured in host/terrains.js: cast ladder
+// of four sentence-initial capitals at one arrival each, vs. 21 form nodes
+// once recurring content words are counted). Not tuned for this repo's own
+// evaluation runs — reused whole from host/terrains.js's own FORM_BINDING
+// organ, which already states the justification for this exact floor:
+// "binding's structural minimum, not a tuned floor: one arrival has no
+// co-arrival to test." One occurrence carries no recurrence signal to
+// trust as an identity either, for the identical reason. Distinguished
+// from a cast referent everywhere a claim is reported (P11 — "the same
+// name" is never the same claim as "the same recurring word") — a form
+// id is namespaced `form:<word>` so it can never collide with a real
+// referent id and a bound claim built on one alone stays disclosable.
+export const FORM_MIN_ARRIVALS = 2;
 
 // The same stem floor grounding.js and cast.js earned: four characters is
 // the shortest thing that can be a stem rather than a coincidence.
@@ -164,15 +204,47 @@ export function makeRelationReader(organs) {
       }
     }
 
+    // ── recurring forms: identity for a subject cast.js never names ──────
+    // host/terrains.js's own Network-graph organ already measured the gap
+    // this closes: a concept document's real vocabulary is made of
+    // recurring content words, not proper names, and the cast ladder
+    // starves on it. Reused here for IDENTITY, not for a new co-arrival
+    // edge (that is a different question, with its own null test, that
+    // this tier does not need) — a form is admitted the moment it recurs
+    // at least FORM_MIN_ARRIVALS sentences, using the SAME functionWords
+    // already measured above for vocabulary discovery, not a second
+    // measure at a different scale (the exact drift hypergraph.js's own
+    // header already warns material.js's functionWordSet invites at this
+    // size). One arrival is a hapax, not a topic — no signal to trust as
+    // an identity a claim's subject could stand on.
+    let forms = new Set();
+    try {
+      const arrivals = new Map();
+      for (const sentence of splitSentences(text)) {
+        const sText = typeof sentence === "string" ? sentence : sentence?.text ?? "";
+        for (const w of new Set(tokenize(sText))) {
+          if (w.length < 3 || functionWords?.has(w)) continue;
+          arrivals.set(w, (arrivals.get(w) ?? 0) + 1);
+        }
+      }
+      forms = new Set([...arrivals.entries()].filter(([, n]) => n >= FORM_MIN_ARRIVALS).map(([w]) => w));
+    } catch {
+      forms = new Set();
+    }
+
     // ── endpoint resolution ──────────────────────────────────────────────
     // An endpoint is read two ways at once, and both ride the comparison:
     // the REFERENTS it mentions (any established surface appearing in it,
     // word-bounded and folded, plus the index's own resolution of the whole
-    // string) and its content TOKENS (folded, function words dropped). Two
-    // endpoints match when they share a referent, or — only when neither
-    // resolves to any referent — when they share a content token. Referent
-    // identity outranks token overlap because a name is a reference to a
-    // referent, never a byte sequence (P11).
+    // string, PLUS any recurring FORM it carries — namespaced `form:<word>`
+    // so it is never mistaken for a real referent, disclosed on the claim
+    // wherever one is the only reason a subject resolved at all) and its
+    // content TOKENS (folded, function words dropped). Two endpoints match
+    // when they share a referent or form, or — only when neither resolves
+    // to either — when they share a content token. Referent/form identity
+    // outranks bare token overlap because a name (or a material's own
+    // recurring word) is a reference to something, never a byte sequence
+    // (P11).
     const surfacePatterns = surfaces.map((s) => ({
       surface: s,
       re: new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRe(diaNorm(s))}(?:$|[^\\p{L}\\p{N}])`, "iu"),
@@ -183,19 +255,43 @@ export function makeRelationReader(organs) {
       referentsBySurface.get(e.surface).add(e.referent_id);
     }
 
-    function endpoint(str) {
+    // `useForms` is true ONLY for a SUBJECT endpoint (every call site below
+    // says so at the call). Confined there on purpose: the beyond-reach gate
+    // this fix targets is the subject-only check in judge()/the unheard
+    // pass, and the object side already has a working, tested fallback
+    // (tokensShare, stem-tolerant) for "no referent" that this change must
+    // not perturb — merging forms into an OBJECT's referents would make
+    // endpointsMatch take the stricter exact-id `intersects` branch instead
+    // of that fallback for cases that used to match on a stem alone (e.g.
+    // "married"/"marriage"), a real regression caught by hand while testing
+    // this fix, not assumed safe.
+    function endpoint(str, useForms = false) {
       const referents = new Set(index.resolve(str));
       const folded = diaNorm(String(str ?? ""));
       for (const { surface, re } of surfacePatterns) {
         if (re.test(folded)) for (const id of referentsBySurface.get(surface)) referents.add(id);
       }
+      // Named BEFORE any form id ever joins the set — captured here, after
+      // both real resolution paths (index.resolve, surface mention) have
+      // had their say, never earlier. Capturing it before the surface-
+      // pattern loop was a real bug caught by this file's own new tests: a
+      // subject like "Darwin" that resolves only through a SURFACE MENTION
+      // (not index.resolve(str) alone) read as formOnly, which is false —
+      // Darwin is a name, not a recurring word standing in for one.
+      const named = referents.size > 0;
       const tokens = new Set();
       for (const t of folded.toLowerCase().split(/[^\p{L}\p{N}'’]+/u)) {
         if (t.length < 3) continue;
         if (functionWords?.has(t)) continue;
         tokens.add(t);
       }
-      return { text: String(str ?? ""), referents, tokens };
+      // A form only ever ADDS a way to resolve — it never overrides a real
+      // referent, and its own ids never merge with a real referent's id
+      // space (the `form:` prefix, checked against P11 nowhere colliding
+      // with cast.js's own referent_id shape).
+      if (useForms) for (const t of tokens) if (forms.has(t)) referents.add(`form:${t}`);
+      const formOnly = !named && referents.size > 0;
+      return { text: String(str ?? ""), referents, tokens, formOnly };
     }
 
     const stemEq = (a, b) =>
@@ -229,7 +325,7 @@ export function makeRelationReader(organs) {
         triples = [];
       }
       for (const t of triples) {
-        const subjectEnd = endpoint(t.subject);
+        const subjectEnd = endpoint(t.subject, true);
         const objectEnd = endpoint(t.object);
         const existing = edges.find(
           (e) =>
@@ -268,8 +364,16 @@ export function makeRelationReader(organs) {
         object: t.object,
         polarity: t.polarity,
       };
-      const subj = endpoint(t.subject);
+      const subj = endpoint(t.subject, true);
       const obj = endpoint(t.object);
+      // Disclosed on EVERY claim, whatever the verdict — a bound claim
+      // resting on a recurring-form subject ("Butterflies") is real, but
+      // it is not the same strength of fact as one resting on a named
+      // referent ("Pierre Bezukhov"), and a reader comparing two "bound"
+      // claims should be able to tell which is which (P11). Subject-only:
+      // `obj` is never built with forms (see endpoint()'s own comment), so
+      // `obj.formOnly` is always false and is not read here.
+      claim.formBased = Boolean(subj.formOnly);
       if (!subj.referents.size) {
         return {
           ...claim,
@@ -378,7 +482,7 @@ export function makeRelationReader(organs) {
           const unheardVerbs = new Set([...answerVerbs].filter((v) => !verbs.has(v)));
           if (unheardVerbs.size) {
             for (const t of extractRelations(sentence, { verbs: unheardVerbs, functionWords })) {
-              const subj = endpoint(t.subject);
+              const subj = endpoint(t.subject, true);
               if (!subj.referents.size) continue; // a pronoun subject is noise here, not a claim about the cast
               report.claims.push({
                 sentence,

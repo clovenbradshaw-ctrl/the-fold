@@ -200,3 +200,20 @@ test("the modifier-gap narration with an appositive quote is cut; a content subj
   );
   assert.equal(guard.removed.length, 0);
 });
+
+test("a bare-\"it\" continuation carries the SAME narration verb its determiner+noun opener does — the live Lincoln VP specimen", () => {
+  // Measured live 2026-08-19: this exact two-sentence draft shipped as the
+  // WHOLE answer to "who was abraham lincoln's vice president?" — the
+  // opener was cut (its verb, "details", already on the determiner+noun
+  // pattern) but the second sentence's bare "It details…" survived,
+  // because CUT_RES's "it …" pattern carried a narrower, separately
+  // maintained verb list. One sentence cut out of two put the mass-
+  // majority test under 50%, so `narrated` never fired and the whole
+  // narration-framed, Johnson-less draft shipped uncaught.
+  const specimen =
+    "This biographical passage details the life of Hannibal Hamlin, outlining his various political positions throughout his career. " +
+    "It details his time serving as Vice President under President Lincoln, as well as his earlier roles in the U.S. House of Representatives and state government positions.";
+  const { text, removed } = stripNarrationSentences(specimen, { hasMaterial: true });
+  assert.equal(removed.length, 2, "both narration sentences must be caught, not just the one with a determiner+noun subject");
+  assert.equal(text, "");
+});

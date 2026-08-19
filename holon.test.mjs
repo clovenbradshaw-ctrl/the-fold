@@ -1090,6 +1090,54 @@ test("a single-filler slot never trips the completeness gate — singular is the
   assert.equal(corrections, 1, "a single real filler is the unremarked case — no completeness call spent on it");
 });
 
+test("reproduction and incompleteness each get their own correction round — the live Lincoln/Hamlin/Johnson specimen", async () => {
+  // The live failure this closes: draft 1 was a bare, correct, but
+  // VERBATIM name ("Hannibal Hamlin" in the real trace; "Hamlin" here) —
+  // reproducedFromContent convicts it (a short answer is a substring of
+  // the material's own sentence, so copiedMass === totalMass). The single
+  // correction budget went to fixing reproduction; the fix produced a
+  // fuller, paraphrased clause that was STILL incomplete (missing
+  // Johnson), and with only one shot spent, that second failure shipped
+  // unaddressed. This test pins that the reproduction fix and the
+  // completeness fix each get their own round.
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let reproductionRound = 0;
+  let incompleteRound = 0;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material also states")) {
+      incompleteRound++;
+      assert.match(user, /Johnson/, "the completeness correction must name the real missing filler");
+      return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
+    }
+    if (user.includes("copies the passage word for word")) {
+      reproductionRound++;
+      // Paraphrased, not verbatim — clears reproduction, but is now a
+      // full clause the completeness gate can examine, and it names only
+      // Hamlin, exactly like the live specimen's own draft 2.
+      return "Lincoln appointed Hamlin in 1861.";
+    }
+    // First draft: a bare, verbatim, correct-but-incomplete name — too
+    // short and clauseless for the completeness gate to see at all, but
+    // caught as reproduction because it is a substring of the material's
+    // own sentence.
+    return "Hamlin";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln appoint?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.equal(reproductionRound, 1, "the bare verbatim draft must trigger exactly one reproduction correction");
+  assert.equal(incompleteRound, 1, "the fuller-but-incomplete draft must get its OWN correction round, not be silently shipped");
+  assert.match(result.output, /Johnson/, "Johnson must surface in the final shipped answer");
+  assert.ok(!result.open.some((o) => o.includes("reproduces the material verbatim")));
+  assert.ok(!result.open.some((o) => o.includes("names only one of several")));
+});
+
 test("a fenced code answer survives byte-exact — fences are structure, never framing", async () => {
   // Measured live: ```python read as framing (its one token was in the
   // prompt), the opening fence was dropped, and the framing trim's rejoin

@@ -1340,26 +1340,46 @@ export async function runPart({
   // correction loop (already passage-gated below), and no framing cut (also
   // gated below). What the person gets is what the model said, as a person.
   let verdict = verdictOf(draft, check);
+  // The mode a round's failure is filed under — the SAME priority order as
+  // before (reproduced > echoed > narrated > incomplete > unsupported),
+  // pulled into its own function so the budget below can key on it.
+  const modeOf = (v, c) =>
+    v.reproduced
+      ? "reproduction"
+      : v.echoed
+        ? "echo"
+        : v.narrated
+          ? "narrated"
+          : v.incomplete
+            ? "incomplete"
+            : c.unsupported.length
+              ? "unsupported"
+              : null;
+  let mode = modeOf(verdict, check);
+
+  // A correction budget spent per FAILURE MODE, not per call: without this,
+  // the loop's one shot went to whichever failure the priority order named
+  // first, and a different failure that only became visible once the first
+  // was fixed (the live Lincoln/Hamlin/Johnson specimen: reproduction fired
+  // on a bare "Hannibal Hamlin", its own fix produced a fuller draft, THAT
+  // draft was incomplete — missing Johnson — and the budget was already
+  // spent) never got a turn. `mode` has exactly five possible values plus
+  // null, so bounding each at `maxCorrections` attempts bounds the whole
+  // loop at 5*maxCorrections iterations structurally — no new hand-picked
+  // ceiling (P9: no number where a structural rule will do).
+  const triedCounts = new Map();
 
   while (
-    (check.unsupported.length || verdict.echoed || verdict.reproduced || verdict.narrated || verdict.incomplete) &&
+    mode &&
     // The correction prompt answers "from the material" — with no passages
     // it cannot, and a material-framed rewrite of a passage-less echo just
     // produces a diagnosis of the prompt. The chat path above is the whole
     // answer to a passage-less echo; nothing in this loop fixes it.
     passages.length &&
-    corrections < maxCorrections
+    (triedCounts.get(mode) ?? 0) < maxCorrections
   ) {
     corrections++;
-    const mode = verdict.reproduced
-      ? "reproduction"
-      : verdict.echoed
-        ? "echo"
-        : verdict.narrated
-          ? "narrated"
-          : verdict.incomplete
-            ? "incomplete"
-            : "unsupported";
+    triedCounts.set(mode, (triedCounts.get(mode) ?? 0) + 1);
     const correctionFailures = mode === "incomplete" ? incompleteFindings(check) : check.unsupported;
     const correctionMessages = [
       { role: "system", content: EXECUTE_SYSTEM_PROMPT },
@@ -1374,6 +1394,7 @@ export async function runPart({
     draft = clean(rawCorrected);
     check = inspect(draft);
     verdict = verdictOf(draft, check);
+    mode = modeOf(verdict, check);
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction

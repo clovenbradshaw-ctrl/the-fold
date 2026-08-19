@@ -357,6 +357,105 @@ export function tokenSupported(index, isNumber, token) {
   return false;
 }
 
+/**
+ * A passage exploded into its own sentences, each indexed the way
+ * buildUnionIndex indexes a whole passage — the unit the number-company
+ * check below requires LOCAL support against. `buildUnionIndex(passages)`
+ * flattens every passage into one bag with no notion of what stood next to
+ * what; "30" and "60" mentioned in two unrelated sentences of the same page
+ * (or two unrelated passages) could together "support" a claim that needs
+ * them said in the same breath, and that is exactly bare occurrence
+ * counting over strings — the failure this function exists to end (user
+ * direction, 2026-08-19: grounding must read the material's own
+ * hypergraphical context, not raw word counts — "you can tell a word by
+ * the company it keeps"). The header row's words ride every sentence: a
+ * row group's own column names apply throughout it, the same fact
+ * buildUnionIndex already carries for the whole-passage bag.
+ */
+export function buildLocalIndex(passage) {
+  const headerWords = passage?.header ? wordSet(passage.header) : null;
+  return splitSentences(String(passage?.text ?? "")).map((s) => {
+    const index = buildUnionIndex([{ text: s.text }]);
+    if (headerWords) for (const w of headerWords) index.words.add(w);
+    return { text: s.text, index };
+  });
+}
+
+/**
+ * A number's "company": every content word of its OWN sentence, excluding
+ * stopwords and every atom's own tokens in that sentence (numbers and
+ * names alike) — a sibling atom is a separate, independently-checked
+ * claim, not context that should gate this one.
+ *
+ * Two things this is NOT, each ruled out by a live test case rather than
+ * assumed. (1) Not applied to NAME atoms: grounding.test.mjs's "an
+ * invented figure, agency and year are each caught" wraps a REAL name
+ * around a FABRICATED predicate — "The Kessington Report gave a figure of
+ * 21 percent" — and the two share no words with the source at all (the
+ * report was "commissioned", never "gave a figure"); requiring the real
+ * name's company to include the fabrication's own words made the real
+ * name fail too. A multi-word name phrase already carries its own
+ * specificity (PROPER_RE's run-of-capitals) and, in checkGrounding, a
+ * referent-resolution rescue — a bare "30" has neither, and is the
+ * single-token, zero-context case this instrument had no defense for. (2)
+ * Not narrowed to the number's nearest neighbour word: a first version
+ * tried that, and a row-group answer ("The case_number column lists
+ * 24-0011 for Gary IN PD") failed it — the words immediately beside "24"
+ * are the model's own narrative gloss ("column", "lists"), absent from
+ * the terse CSV row itself, while the genuinely matching word
+ * ("case_number", from the header) sits three words back. Company is an
+ * OR-match (`numberSupporters` below): a passage sentence must hold ONE
+ * of these words, so a larger company set only widens what CAN pass — it
+ * never lets an unrelated passage sentence pass on padding alone, because
+ * an unrelated sentence about something else typically shares NONE of a
+ * claim's real vocabulary (measured in the trazodone case this fix was
+ * built against: an adversarial passage mentioning "30 dogs" shares no
+ * word with "trazodone... 30 to 60 minutes" and is correctly refused).
+ * "Sentence" is the locality unit — structural, the same boundary this
+ * file already uses everywhere else — never a hand-picked token count
+ * (P4's open debt, CLAUDE.md: ROWS_PER_CHUNK, NULL_SAMPLES and friends are
+ * already named there as constants that should be derived, not tuned).
+ *
+ * Disclosed residue, and the real next step (POLICIES.md P25 has the full
+ * writeup): "sentence" is a structural boundary, not a tuned token count,
+ * but it is still a HAND-CHOSEN unit — the same class of debt P4 already
+ * names for ROWS_PER_CHUNK/NULL_SAMPLES. The sharper design, named but not
+ * built: a word's universe here is bounded by how many hops out you can
+ * go (nearest word → next word → ... → whole sentence → adjacent
+ * sentence) before an additional hop stops moving the verdict beyond what
+ * a retrieval-drawn null of unrelated candidate company would move it by
+ * chance — nul/index.js's pattern() ("a difference that makes a
+ * difference"), asked a question it has never been asked. Not attempted
+ * here: that null needs its own design and its own measurement before it
+ * earns a name, and a claimed null test that was not actually validated
+ * would be worse than this honest, disclosed heuristic.
+ */
+function numberCompany(sentenceText, exclude) {
+  const company = new Set();
+  for (const w of wordSet(sentenceText)) if (!CLAIM_STOPWORDS.has(w) && !exclude.has(w)) company.add(w);
+  return company;
+}
+
+/**
+ * Which of `entries` support a number atom IN CONTEXT: a passage counts
+ * only when some SENTENCE of it carries both the number and at least one
+ * word from its company (see numberCompany above). With no company
+ * available (a bare number with nothing but stopwords and sibling atoms
+ * around it), this falls back to the old whole-passage containment — there
+ * is no context signal to require, and refusing on that ground would be a
+ * new false negative, not a fix. `entries` are the passages, each
+ * pre-indexed once per call site (`index`: whole-passage bag, for the
+ * fallback; `local`: buildLocalIndex's per-sentence indexes, for the real
+ * check) — built once per corroboration/check run and reused across every
+ * atom, the same amortization buildUnionIndex's callers already rely on.
+ */
+function numberSupporters(token, company, entries) {
+  if (!company.size) return entries.filter(({ index }) => hasNumber(index.numbers, token));
+  return entries.filter(({ local }) =>
+    local.some((ls) => hasNumber(ls.index.numbers, token) && [...company].some((w) => hasWord(ls.index.words, w))),
+  );
+}
+
 const ABBREV =
   /(?:\b(?:mr|mrs|ms|dr|st|prof|rev|hon|vol|no|pp?|ch|ed|fig|cf|vs|etc|al|inc|ltd|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)|\b[A-Z])\.$/i;
 
@@ -504,13 +603,27 @@ export function corroborateAtoms(answer, passages) {
     ref: p.ref ?? null,
     source: String(p.ref ?? "").split("#")[0] || null,
     index: buildUnionIndex([p]),
+    local: buildLocalIndex(p),
   }));
   const atoms = [];
   for (const s of splitSentences(blankStructure(answer))) {
-    for (const atom of extractAtoms(s.text, s.start)) {
-      const supporters = per.filter(({ index }) =>
-        atom.tokens.every((t) => tokenSupported(index, atom.kind === "number", t)),
-      );
+    const sentAtoms = extractAtoms(s.text, s.start);
+    // Every atom in THIS sentence is excluded from being another atom's
+    // "company" — a sibling figure or name is a separate, independently
+    // checked claim, not context (numberCompany's own header has the case
+    // that proved this matters).
+    const exclude = new Set(sentAtoms.flatMap((a) => a.tokens.map((t) => foldDiacritics(String(t).toLowerCase()))));
+    // Same company for every number atom in this sentence — it does not
+    // depend on where in the sentence a given atom sits, only on what the
+    // sentence's OTHER (non-atom) words are.
+    const company = numberCompany(s.text, exclude);
+    for (const atom of sentAtoms) {
+      let supporters;
+      if (atom.kind === "number") {
+        supporters = numberSupporters(atom.tokens[0], company, per);
+      } else {
+        supporters = per.filter(({ index }) => atom.tokens.every((t) => tokenSupported(index, false, t)));
+      }
       atoms.push({
         kind: atom.kind,
         text: atom.text,
@@ -540,6 +653,11 @@ export function checkGrounding(answer, passages, { question = "", resolveName = 
     return { sentences: 0, atomsChecked: 0, findings: [], clean: true, examined: false, truncated: null };
   }
   const index = buildUnionIndex(passages);
+  // Per-passage entries for the number-company check only (numberSupporters,
+  // below) — `index` above is untouched and still what every NAME atom's
+  // check reads (see numberCompany's header for why names are excluded from
+  // this fix).
+  const entries = passages.map((p) => ({ index: buildUnionIndex([p]), local: buildLocalIndex(p) }));
   const questionWords = wordSet(question);
   // An address is not a claim. `kessington.txt#80-174` carries two numbers
   // that are byte offsets this app asked for, and checking them against the
@@ -561,9 +679,18 @@ export function checkGrounding(answer, passages, { question = "", resolveName = 
   let atomsChecked = 0;
 
   for (const s of sentences) {
-    for (const atom of extractAtoms(s.text, s.start)) {
+    const sentAtoms = extractAtoms(s.text, s.start);
+    // A sibling atom is never company — see numberCompany's own header.
+    const exclude = new Set(sentAtoms.flatMap((a) => a.tokens.map((t) => foldDiacritics(String(t).toLowerCase()))));
+    const company = numberCompany(s.text, exclude);
+    for (const atom of sentAtoms) {
       atomsChecked++;
-      const absent = atom.tokens.filter((t) => !tokenSupported(index, atom.kind === "number", t));
+      let absent;
+      if (atom.kind === "number") {
+        absent = numberSupporters(atom.tokens[0], company, entries).length ? [] : [atom.tokens[0]];
+      } else {
+        absent = atom.tokens.filter((t) => !tokenSupported(index, false, t));
+      }
       if (!absent.length) continue;
       // A name is a reference to a REFERENT, not a byte sequence, and the
       // byte test above cannot see that "Bezukhov" and "Pierre Bezúkhov"

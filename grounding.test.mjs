@@ -278,6 +278,46 @@ test("row-group column names count as material", () => {
   assert.ok(r.clean, unsupportedClaims(r).join("; "));
 });
 
+test("a bare number is not grounded by an unrelated occurrence elsewhere in the passage", async () => {
+  // The measured failure (user, 2026-08-19, screenshot): "trazodone starts
+  // working within 30 to 60 minutes" checked "30" and "60" as grounded
+  // because a passage's WHOLE bag of numbers happened to contain those
+  // digit strings — bare occurrence counting over strings, with no sense
+  // of what the number actually meant. "You can tell a word by the company
+  // it keeps": a number is grounded by a passage SENTENCE that carries it
+  // together with its own descriptive words, not by the digit string
+  // appearing anywhere in the document.
+  const { checkGrounding, corroborateAtoms } = await import("./grounding.js");
+  const real = [
+    {
+      ref: "dog.txt#0-80",
+      text: "Trazodone usually starts working within 30 to 60 minutes of being given to a dog.",
+    },
+  ];
+  const grounded = checkGrounding("Trazodone typically starts working within 30 to 60 minutes.", real);
+  assert.ok(grounded.clean, JSON.stringify(grounded.findings));
+  const { atoms } = corroborateAtoms("Trazodone typically starts working within 30 to 60 minutes.", real);
+  assert.ok(atoms.filter((a) => a.kind === "number").every((a) => a.refs.length === 1));
+
+  // Same two digit strings, present in the SAME document but never in the
+  // same breath as the claim's own words — real bytes, wrong context.
+  const decoy = [
+    {
+      ref: "dog.txt#0-140",
+      text:
+        "Vaccination records show 30 dogs were treated at the shelter last spring. " +
+        "The clinic reopens in 60 days for renovations.",
+    },
+  ];
+  const misgrounded = checkGrounding("Trazodone typically starts working within 30 to 60 minutes.", decoy);
+  assert.equal(misgrounded.clean, false, "bare digit-string presence elsewhere must not ground the claim");
+  const said = unsupportedClaims(misgrounded).join(" | ");
+  assert.match(said, /30/);
+  assert.match(said, /60/);
+  const { atoms: decoyAtoms } = corroborateAtoms("Trazodone typically starts working within 30 to 60 minutes.", decoy);
+  assert.ok(decoyAtoms.filter((a) => a.kind === "number").every((a) => a.refs.length === 0));
+});
+
 test("an address is not a claim about quantities", () => {
   // Live bug: the byte offsets in `kess.txt#80-174` were read as figures and
   // flagged as unsupported — the check accusing the answer of inventing the

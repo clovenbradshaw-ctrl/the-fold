@@ -1398,3 +1398,281 @@ when discourse names the exact right topic). 626 of 628 repo tests pass;
 the two failures (`arithmetic.test.mjs`, `measure.test.mjs`) are
 pre-existing and unrelated — a missing `mathjs` dependency and a stale
 `eoreader6` path respectively, neither file touched by this policy.
+
+**Amended 2026-08-19 — the join is earned, never assumed (stable
+sub-assemblies, user direction: "change the way the prompting happens to be
+stable sub assemblies, we are not following our own best practices").** The
+original P23 folded the discourse line into the preflight search, the
+retrieval question, and the grounding question UNCONDITIONALLY on a flat
+turn. That fixed the topic-less follow-up and broke every self-contained
+question asked after a topic change — measured live, three ways in one
+short conversation: "research Robert Macnamera" asked right after a
+greeting searched the web on the stale line's own words ("Greeting
+exchange"), fetched a greeting-etiquette page, retrieval preferred it
+(the misspelled name matched nothing; the stale words matched everything),
+and the shipped answer described greetings with a fabricated "[4]";
+"what is my name?" then searched and answered from a stranger's faculty
+page; and proof-seeking inherited the same soup ("4 Conversation Macnamera
+research Greeting exchange greeting Robert" as a literal search). The
+user's null stood: a regular model with the full context would have
+performed better than the apparatus. Four mechanical fixes, one principle —
+each prompt is assembled from typed sub-assemblies (the question, the
+conversation, the material), and no assembly's words enter another's
+derived query unless the join is EARNED: (1) `runPart` retrieves on the
+part's own words FIRST; only when that returns zero passages does a flat
+part widen with the discourse line, and the widening lands on the research
+progress event (`widened`), never folded silently. (2) The grounding
+question joins the discourse only where the task's own words demonstrably
+failed to anchor — retrieval widened, or no passages exist at all (the
+original P23 case, preserved by construction). (3) `preflightQuery` takes
+task and discourse as separate arguments (the call site no longer
+pre-mixes them) and joins only when the task points back anaphorically —
+the engine's own ANAPHORIC_PRONOUNS, injected, the widget.js pattern —
+or carries no content words at all. (4) The flat material path now sends
+the REAL role-structured chat history between the system prompt and the
+part prompt — it used to drop the conversation entirely the moment
+passages existed, which is exactly when it fired. Also closed in the same
+pass, found by the same live conversation: `EXECUTE_SYSTEM_PROMPT` and all
+three correction prompts still ordered "cite the address in square
+brackets exactly as it appears" after the 2026-08-18 change removed every
+address from the model's view — an instruction referencing a thing the
+pipeline mechanically removed is a fabrication order, and "[4]" /
+"[Faculty & Research]" were the model obeying it the only way it could.
+The citation clauses are deleted; cite.js's mechanical attachment was
+already the only real citation channel. Enforced: `holon.test.mjs` (a flat
+question whose own words retrieve material never inherits the stale
+topic's passages; the flat material call carries verbatim history; the
+"prove it" pair and the decomposed-part wall all still pass unchanged) and
+`proof.test.mjs` (`preflightQuery`'s earned join, both directions, with
+the real engine closed class). The dangling-address half of the residue
+was closed in the same pass, forced by the reader hitting it live
+("unclear if these are fake citations" — a preflight chip re-opened to
+"the address outlived it," making a real mechanical citation
+indistinguishable from a fabricated one): every preflight page now also
+lands in `state.citedMaterial` (name → text, conversation-lifetime, never
+an attachment — no pill, and `liveChunks` never reads it), the reopen
+dialog falls back to it with the archived state named on the address line,
+and the Explore door is withheld for archived material rather than offered
+dead. Disclosed residue remaining, named not fixed: web corroboration
+still counts name-STRING matches across pages — three different Robert
+McNamaras read as three agreeing perspectives — which is the referent-model
+gap, not a counting bug.
+
+## P24 — A finding is only novel if it differs from what the answerer was already given, never just from the material
+
+Measured 2026-08-19, in a standalone dual-model experiment
+(`experiments/system1-cpu-system2-gpu.mjs`) that reuses the real
+`checkGrounding`/`corroborateAtoms` (grounding.js), not a copy of them: a
+model given the ON RECORD block for a trazodone question — whose own Turn 4
+`open` line read "not addressed by VCA Hospitals, AKC, or VetMedGuide" —
+answered "...VCA Hospitals, AKC, and VetMedGuide do not cover this." All
+three names failed the material check (the passages hold the sources'
+quoted CONTENT, never their names as prose) and were flagged
+`unsupported_claim`. But the model invented nothing — it read the phrase
+back from three lines above in its own prompt. This is the SAME class of
+gap P23's own residue already named ("web corroboration still counts
+name-STRING matches... which is the referent-model gap, not a counting
+bug") and CLAUDE.md's referent-model discipline already states in the
+abstract ("a name is a reference to a REFERENT, not a byte sequence"), now
+measured on a second axis: a check that only asks "is this atom in the
+MATERIAL" cannot tell a model repeating its own prompt back from a model
+inventing something, because both produce the identical observable
+(absent from `passages`).
+
+**The missing distinction is Bateson's: information is a difference that
+makes a difference.** An atom identical to something already present in
+what the answerer was GIVEN — its own system message, not just
+`state.sources` — carries zero bits relative to that answerer:
+`P(x | you were just told x) = 1`, so its surprisal is `-log2(1) = 0`. This
+is not a new idea in this project — `emergence/surprise.js` already keeps
+novelty (Shannon surprisal) and Bayesian surprise apart for exactly this
+reason — it was simply never wired into the grounding ladder's own
+unsupported-claim check, which has one index (the material) where it needs
+two: material, and given-context.
+
+**The fix, prototyped in the experiment script, NOT YET carried into
+app.js/provenance.js (disclosed scope, see below):** every
+`checkGrounding` finding is re-tested against a second union index built
+from the answerer's own system-message content
+(`buildUnionIndex`/`tokenSupported`, both already exported by grounding.js
+— reused, not duplicated). A finding whose tokens are ALL present in that
+second index is `echoed` — reported, kept on the record, but never counted
+toward "claiming things nothing given backs," because it is not a claim
+about the world, it is the answerer quoting its own briefing. A finding
+still absent from BOTH indexes is `novel` — the only kind that should ever
+move a hypergraph edge (hypergraph.js), a live_priors entry, or a human's
+attention. **Enforced** (in the experiment only —
+`system1-cpu-system2-gpu.test`'s self-test, no separate file yet): the
+exact live case above is pinned as a regression (`echoReport` in
+`selfTest()`), plus a genuine-fabrication case with an empty given-context
+(nothing to echo from, so it correctly counts as novel).
+
+**Why this is an efficiency law, not only a correctness one (user
+direction, 2026-08-19): "an expert is not someone with a larger context
+window, it's someone with better ability to query the hypergraph of
+battle-tested experience."** P2's founding argument is that a modest model
+with bounded context can carry a turn *if* what it is handed is well
+addressed — the fold instead of a bigger window. Echo/novel classification
+is the other half of that argument: once a fact is on record, re-deriving
+or re-checking it every time it is repeated is wasted compute spent
+reducing zero uncertainty. A system that can tell "this was already
+settled" from "this is new" spends its (expensive) checking, proof-seeking,
+and prior-updating budget only on the genuine deltas — the same discipline
+P23's preflight-before-draft already applies to fetching (ask before
+spending, not after), aimed here at checking instead. An instrument that
+cannot tell echo from novelty either re-checks everything (slow) or
+under-checks everything (unsafe); one that can, gets faster AND more
+accurate from the same fix, not one at the cost of the other.
+
+**Disclosed scope boundary, not fixed here.** `app.js`'s tally line and
+`provenance.js`'s `classifySentences` are extremely likely to carry this
+exact gap live — both call `checkGrounding` against material-only passages
+without a given-context second index — but this was measured in the
+standalone experiment, not by driving the production chat page, and
+`app.js`/`provenance.js`/`holon.js` belong to the fold-architecture
+session's ownership (this file's own multi-session rule, Explore section
+above). Named as an open, high-confidence follow-up for that session,
+not attempted here.
+
+**Live attempt, 2026-08-19, result disclosed rather than left implied.**
+The trazodone question was driven live against the real chat page
+(gemma2:2b, then qwen2.5:14b-instruct-q4_K_M, four real turns, checking +
+web on) specifically trying to force this exact shape — a turn naming a
+source it had itself already named earlier. It did not reproduce on
+demand: two turns answered clean with zero claims (heavily hedged), one
+turn's single claim was genuinely material-supported, and one turn named
+"The Merck Veterinary Manual" — a real proof-seeking search fired on it
+(confirmed in the Log tab), which is `checkGrounding` working CORRECTLY
+(that name is a genuine, novel, unsupported claim, present in neither the
+material nor anything given — an honest catch, not this bug). So: the
+mechanism this policy describes is real and demonstrated (prototyped,
+self-tested, with the exact live case pinned as a regression), but a live
+production reproduction was attempted and did not land in this session —
+neither "proven live" nor "shown absent" should be read into that; the
+underlying risk is unchanged because the same `checkGrounding` call
+without a given-context index is still what production runs.
+
+## P25 — A number is grounded by the company it keeps, not by its digits appearing somewhere in the document
+
+Measured live 2026-08-19 (user, driving the instrument directly): a
+grounding badge read "30" ✓ 5/6 for the sentence "trazodone typically
+starts working within 30 to 60 minutes" — verified only because the digit
+string "30" appeared somewhere in an offered passage's flattened bag of
+words and numbers (`grounding.js`'s `buildUnionIndex`/`tokenSupported`,
+also read by `corroborateAtoms`'s per-atom badges and `checkGrounding`'s
+unsupported-claim findings). A passage that mentions "30" in an entirely
+different sense — thirty dogs, a 30-day return window, page 30 — would
+have counted identically. This is occurrence-counting over raw strings,
+the exact failure [[referent-model-not-pointers]] already named for
+`widget.js::scoutSpan` (byte-span selection by bare token frequency,
+2026-08-17), now found in a second organ. The user's diagnosis, verbatim
+in spirit: grounding must read the material's own contextual, hypergraphical
+meaning — "you can tell a word by the company it keeps" (Firth).
+
+**Why this is scoped to NUMBERS, not names too — ruled out by a live test,
+not assumed.** A first version drew a number's "company" from its
+immediate neighbour words; widened, it was tried on NAME atoms as well and
+refuted immediately by this file's own suite: `grounding.test.mjs`'s "an
+invented figure, agency and year are each caught" wraps a REAL name in a
+FABRICATED predicate — "The Kessington Report gave a figure of 21
+percent" — and the source states neither "gave" nor "figure" anywhere
+near "Kessington Report" (it was "commissioned," never "gave a figure"),
+so requiring the real name's company to overlap the fabrication's own
+words made the real name fail too. Names keep their existing checks
+untouched: `PROPER_RE`'s run-of-capitals already gives a multi-word name
+phrase specificity a bare digit string has none of, and `checkGrounding`'s
+`resolveName` rescue (P11, referent identity) already protects a
+name's sub-forms. A single, ambiguous, referent-less token is where this
+instrument had no defense, so that is exactly what got one.
+
+**What shipped.** `buildLocalIndex` (grounding.js) explodes a passage into
+its own sentences — the SAME `splitSentences` this file already applies to
+the answer, now applied symmetrically to the material, because a fold that
+folds only one side of a comparison is a fold that will eventually be
+wrong about the other. `numberCompany` takes a number atom's own answer
+sentence, minus every atom's tokens in it (a sibling figure or name is a
+separate, independently-checked claim, never context that should gate this
+one — the Kessington case again, at number scale this time: company is an
+OR-match, so it can only make matching MORE permissive, and letting a
+fabricated sibling's own words stand as "context" would launder it).
+`numberSupporters` requires SOME single passage to have a SENTENCE — not
+the whole document — carrying both the number and at least one company
+word; with no company available (a bare number surrounded by nothing but
+stopwords and siblings) it falls back to the old whole-passage containment
+rather than manufacture a new false refusal. Wired into both
+`corroborateAtoms` (the badges) and `checkGrounding` (the findings/tally),
+which share the identical check so the two can never disagree about one
+atom — `corroborateAtoms`'s own doc comment already promised this
+equivalence ("an atom with empty refs here is the same fact as a finding
+there"); this fix had to preserve it, not just add a check beside it.
+
+**A narrower design was tried and refuted before this one, kept here so it
+is not retried.** "Company = the number's single nearest content word each
+side" passed the Kessington-style adversarial case (trivially — it doesn't
+touch names) but FAILED a real one for numbers themselves:
+`grounding.test.mjs`'s "row-group column names count as material" answers
+"The case_number column lists 24-0011 for Gary IN PD" against a terse CSV
+row — the words immediately beside "24" are the model's own narrative
+gloss ("column", "lists"), absent from the terse row itself, while the
+genuinely matching word ("case_number", from the header) sits three words
+back. Whole-sentence company (minus siblings) fixed this without
+reopening the Kessington case, because company is OR-matched and a
+genuinely unrelated passage sentence essentially never shares real
+vocabulary with a claim about something else (verified directly: an
+adversarial passage about "30 dogs" and a "clinic" reopening "in 60 days"
+shares zero words with "trazodone... 30 to 60 minutes" and is correctly
+refused — the new regression, below).
+
+**Disclosed residue, and the real next step, not attempted here.** Company
+is bounded by the structural unit "sentence" — a real code boundary, not a
+tuned token count, but still a HAND-CHOSEN unit rather than a measured
+one, the same class of debt P4 already names for `ROWS_PER_CHUNK` and
+`NULL_SAMPLES`. The user's own sharper statement of the fix this wants
+to become (2026-08-19, verbatim in spirit): a word's universe in the
+hypergraph is bounded by how many hops out you can go before you reach a
+distinction without a difference — before widening the neighbourhood stops
+moving the answer beyond what reseeding noise would move it anyway; "the
+noise can't beat the NUL." That is `nul/index.js`'s `pattern()` by name
+(`before`/`after` grounds, `moved`/`opened`, "a difference that makes a
+difference," Bateson) applied to a question that module has never been
+asked: not a numeric series, but a RANKED, hop-expanding candidate set
+(nearest word, next word, ..., whole sentence, adjacent sentence) with a
+STOPPING RULE earned the same way `pattern`'s reseed ceiling was — a null
+built by drawing candidate "company" from material the claim was never
+about (the same construction `cite.js::bestRival` already uses: drawn by
+retrieval, the hardest available comparison, never a random stride), so
+the hop expansion halts at the largest radius that still beats what an
+unrelated draw of the same size would produce by chance, not at a radius
+someone picked. This was named, sketched to this level of specificity, and
+NOT built here: `nul`'s own apparatus (`ground`/`difference`/`pattern`) is
+built for numeric series (burstiness, windowMean, permutation entropy) and
+reusing it for a discrete hop-expansion stopping rule needs its own
+design and its own measurement against real material before it earns a
+name in this file — exactly the standard P4 and this file's "never tune a
+parameter by checking what it does to a golden's own score" sibling rule
+(eoreader6.1/CLAUDE.md) hold every other number in this instrument to.
+Shipping a claimed null test that was not actually validated would be
+worse than the honest, disclosed, sentence-scoped heuristic landed today —
+"a heuristic tweak quietly standing in as if it were the real fix" is
+exactly what [[referent-model-not-pointers]] warns against.
+
+**Files.** `grounding.js` (`buildLocalIndex`, `numberCompany`,
+`numberSupporters`, wired into `corroborateAtoms` and `checkGrounding`;
+`hasWord`/`hasNumber`/`wordSet`/`numberSet`/`buildUnionIndex`/
+`tokenSupported` untouched — `proof.js`/`primary.js`/`priors.js` read
+those directly for a coarser, legitimately different question, whole-
+document relevance, not this-claim's-context).
+
+**Enforced.** `grounding.test.mjs`, new case "a bare number is not
+grounded by an unrelated occurrence elsewhere in the passage" — the
+trazodone sentence checked clean and single-sourced against its real
+source, and checked NOT clean (both digits flagged, zero refs) against a
+document containing the same two digit strings in unrelated sentences.
+Every pre-existing case in the file still passes, including the two this
+fix had to specifically satisfy (Kessington's real name inside a
+fabricated predicate; the CSV row's column-name company three words back).
+20/20 in this file; 749/752 repo-wide, the same three pre-existing,
+unrelated failures P23 and P24 already carry forward
+(`arithmetic.test.mjs`, `measure.test.mjs`, and now also one
+`holon.test.mjs` echo-narration case — none touch `grounding.js`, checked
+directly by stashing this change and re-running those three files alone).

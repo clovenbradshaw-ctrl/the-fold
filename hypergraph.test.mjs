@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 
 import { makeRelationReader, relationFindings, relationsClean, MIN_SURFACES_PER_VERB } from "./hypergraph.js";
 import { corroborateAtoms } from "./grounding.js";
+import { readFileSync } from "node:fs";
 
 const organs = async () => {
   const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
@@ -89,6 +90,25 @@ const POOL = [
   ...PASSAGES,
   ...FILLER.split(". ").map((s, i) => ({ ref: `filler.txt#${i * 100}-${i * 100 + 99}`, text: s + "." })),
 ];
+
+// createLemmatizer/morphologyIndex, only for the tests that specifically
+// exercise the lemma-widening amendment (2026-08-19) — every other test
+// omits both, exercising the backward-compatible exact-match default.
+const morphologyOrgans = async () => {
+  const { createLemmatizer } = await import("../eoreader6.1/packages/engine/perceiver/text/morphology.js");
+  const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
+  return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms };
+};
+
+// A material stating one irregular verb form, nothing else interesting —
+// small on purpose, since these tests are only about verb-form matching.
+const IRREGULAR_PASSAGES = [
+  {
+    ref: "y.txt#0-200",
+    text: "Pierre Bezukhov underwent a remarkable transformation that winter. Pierre Bezukhov traveled to Vienna in spring.",
+  },
+];
+const IRREGULAR_POOL = [...IRREGULAR_PASSAGES, ...POOL.filter((p) => p.ref.startsWith("filler.txt"))];
 
 test("a stated edge is bound, with its addresses and its corroboration counted across sources", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
@@ -319,4 +339,26 @@ test("the declared number is the declaration, not a tuned knob", () => {
   // silently — changing this constant is a policy change, and lands with
   // its justification or not at all.
   assert.equal(MIN_SURFACES_PER_VERB, 1);
+});
+
+test("lemma widening: a claim phrased in a different tense than the material still binds, when createLemmatizer is provided", async () => {
+  const reader = makeRelationReader(await morphologyOrgans())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const report = reader.read("Pierre Bezukhov undergoes a remarkable transformation.");
+  const bound = report.claims.find((c) => c.verb === "undergoes" && c.verdict === "bound");
+  assert.ok(bound, `"undergoes" must bind to the material's own "underwent" via the received lemma table: ${JSON.stringify(report.claims)}`);
+  assert.ok(bound.refs.includes("y.txt#0-200"));
+});
+
+test("lemma widening is opt-in and backward compatible: omitted, the same claim is unheard, exactly as before this amendment", async () => {
+  const reader = makeRelationReader(await organs())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const report = reader.read("Pierre Bezukhov undergoes a remarkable transformation.");
+  const claim = report.claims.find((c) => c.verb === "undergoes");
+  assert.equal(claim?.verdict, "unheard", "without the lemma organ, a tense-shifted verb the material never uses verbatim must stay unheard, never bound");
+});
+
+test("lemma widening never lets an UNRELATED verb bind — it is not a general fuzzy match", async () => {
+  const reader = makeRelationReader(await morphologyOrgans())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const report = reader.read("Pierre Bezukhov married Helene.");
+  const claim = report.claims.find((c) => c.verb === "married");
+  assert.equal(claim?.verdict, "unheard", "married shares no lemma with underwent/traveled — it must stay outside the material's vocabulary, not get swept in");
 });

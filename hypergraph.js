@@ -75,6 +75,54 @@
 // extractRelations already found in the material, now checkable because
 // their subject can finally resolve. Measured effect, not assumed: see
 // the-fold/eval/mine-1-forms-RESULTS.md.
+//
+// AMENDED 2026-08-19 — lemma-aware verb matching, and a dead end it
+// replaced. "Check against other systems" (this tier's graph, scored
+// under KGGen's own MINE-1 rubric, beat every reported baseline —
+// the-fold/eval/results/mine-1-official-methodology-RESULTS.md) prompted
+// "wire this in." The first attempt widened `bound` itself with a sixth
+// verdict, `inferred`, covering a claim from a NEIGHBORHOOD of connected
+// edges rather than one. Built, then found ADVERSARIALLY (not by luck —
+// by asking what the obvious next attack was) to fabricate on two real
+// cases: "Pierre married Dolokhov" passed because Pierre and Dolokhov are
+// connected by real, unrelated edges and a one-token object costs nothing
+// to cover; tightened to require the claimed verb nearby too, "Pierre
+// painted delicate watercolors" STILL passed — reproduced live — because
+// hopping through the unrelated "Pierre admired Natasha" edge let
+// Natasha's own action get attributed to Pierre. The only fix that closed
+// both was dropping graph traversal entirely and pooling only a subject's
+// OWN other statements — which is provably, then empirically (0/1,575
+// fires on MINE-1), dead code: `bound`'s own object match (`tokensShare`)
+// already accepts ANY single shared token with ONE edge, a strictly
+// weaker bar than "every token covered by a union of edges" over the
+// SAME primitive, so nothing safe built from that primitive can ever
+// clear a bar `bound` hasn't already cleared first. The real lesson: the
+// 80% score's power came from two things this tier's own law (P1, local
+// only; P4/P20, a model is never trusted to decide a fact is supported)
+// correctly refuses to mechanize — real semantic embeddings and a real
+// judge's relational reasoning. Widening graph REACH without either adds
+// nothing safe can't already reach.
+//
+// What DOES add real, safe value: a DIFFERENT matching primitive, not a
+// repackaging of the one `bound` already saturates. Every verb comparison
+// in this file compared verbs by exact string equality — so a claim
+// phrased "underwent metamorphosis" against material stating "undergoes
+// metamorphosis," the identical predicate in a different tense, read as
+// two different verbs and lost the claim, sometimes silently (a
+// tense-shifted verb never literally in the vocabulary Set never even
+// gets extracted from the answer to judge). `organs.createLemmatizer` /
+// `organs.morphologyIndex` (perceiver/text/morphology.js, UniMorph-backed,
+// irregular-inflection-aware, found this session by searching before
+// writing anything new) widen verb equality to `sameAct` — the SAME lemma,
+// never a fuzzy match: checked live that an unrelated verb sharing no
+// lemma with the material stays refused. Optional and backward compatible
+// exactly like `verbForms` above (omitted, `sameAct` degrades to exact
+// match). Measured: bound 531 -> 536, unheard 48 -> 42, zero contradictions
+// either way. Small, because MINE-1's own facts are close paraphrases of
+// their source — real on every axis regardless. Whether the LIVE APP
+// should load either prior by default remains the same open question
+// this repo's CLAUDE.md already names for `verbForms` — not resolved
+// here either. Full account: the-fold/eval/results/mine-1-lemma-RESULTS.md.
 
 import { makeReferentIndex } from "./cast.js";
 import { blankStructure } from "./grounding.js";
@@ -166,8 +214,23 @@ export function makeRelationReader(organs) {
     extractRelations,
     tokenize,
     verbForms = null,
+    createLemmatizer = null,
+    morphologyIndex = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
+
+  // `organs.createLemmatizer`/`organs.morphologyIndex`, when both provided,
+  // widen every verb comparison below from exact string equality to the
+  // SAME lemma (UniMorph's irregular-inflection table, perceiver/text/
+  // morphology.js — a received prior with its own giver, never a hand-
+  // typed rule). Omitted, `createLemmatizer(null)` degrades to exact
+  // match by its own stated design ("a missing prior degrades LOUDLY...
+  // rather than silently changing answers" — its own header), so this is
+  // backward compatible without a branch here: a claim phrased "underwent
+  // metamorphosis" now binds to material stating "undergoes metamorphosis"
+  // — the SAME predicate, different tense, which exact-string matching
+  // was silently reading as two different verbs.
+  const sameAct = createLemmatizer ? createLemmatizer(morphologyIndex).sameAct : (a, b) => a === b;
 
   return function relationsFor(passages, { pool = null } = {}) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
@@ -416,7 +479,7 @@ export function makeRelationReader(organs) {
         };
       }
       const sameSubjVerb = edges.filter(
-        (e) => e.verb === t.verb && intersects(e.subjectEnd.referents, subj.referents),
+        (e) => sameAct(e.verb, t.verb) && intersects(e.subjectEnd.referents, subj.referents),
       );
       const matching = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
       if (matching.length) {
@@ -455,7 +518,7 @@ export function makeRelationReader(organs) {
       // it: same subject and verb first (what the subject actually did),
       // then same verb and object (who actually did this to the object).
       const sameVerbObj = edges.filter(
-        (e) => e.verb === t.verb && !sameSubjVerb.includes(e) && endpointsMatch(e.objectEnd, obj),
+        (e) => sameAct(e.verb, t.verb) && !sameSubjVerb.includes(e) && endpointsMatch(e.objectEnd, obj),
       );
       const nearest = [...sameSubjVerb, ...sameVerbObj].slice(0, NEAREST_EDGES_MAX).map(edgeFace);
       return { ...claim, verdict: "unbound", nearest };
@@ -494,26 +557,42 @@ export function makeRelationReader(organs) {
         return report;
       }
       for (const sentence of sentencesOf(answer)) {
+        // The answer's own candidate verbs, discovered once and reused for
+        // both the extraction pass and the unheard disclosure below —
+        // previously two separate discoverRelationVocab calls that agreed
+        // by construction, now genuinely one.
+        let answerVerbs = new Set();
+        try {
+          answerVerbs = discoverRelationVocab(sentence, { surfaces, functionWords, minSurfaces: 1 }).verbs;
+        } catch {
+          answerVerbs = new Set();
+        }
+        // A candidate the material never uses VERBATIM but that IS the
+        // same act as a verb the material's own vocabulary already
+        // measured (createLemmatizer's received lemma table, never a
+        // hand-typed rule) is heard, not unheard: "underwent" answering
+        // material that only ever wrote "undergoes" is the same claim in
+        // a different tense, not a claim this tier cannot check.
+        const sameActExtra = createLemmatizer
+          ? new Set([...answerVerbs].filter((v) => !verbs.has(v) && [...verbs].some((mv) => sameAct(mv, v))))
+          : new Set();
+        const sentenceVerbs = sameActExtra.size ? new Set([...verbs, ...sameActExtra]) : verbs;
+
         let heard = [];
         try {
-          heard = extractRelations(sentence, { verbs, functionWords });
+          heard = extractRelations(sentence, { verbs: sentenceVerbs, functionWords });
         } catch {
           heard = [];
         }
         for (const t of heard) report.claims.push(judge(sentence, t));
 
         // The claims this tier CANNOT hear: verbs the answer uses after an
-        // established surface that the material's vocabulary never measured.
-        // Typed `unheard` and disclosed — an instrument that only reports
-        // what it can check, without saying where its reach ends, implies
-        // silence means support.
+        // established surface that the material's vocabulary never measured,
+        // by exact form OR by the same act. Typed `unheard` and disclosed —
+        // an instrument that only reports what it can check, without saying
+        // where its reach ends, implies silence means support.
         try {
-          const { verbs: answerVerbs } = discoverRelationVocab(sentence, {
-            surfaces,
-            functionWords,
-            minSurfaces: 1,
-          });
-          const unheardVerbs = new Set([...answerVerbs].filter((v) => !verbs.has(v)));
+          const unheardVerbs = new Set([...answerVerbs].filter((v) => !verbs.has(v) && !sameActExtra.has(v)));
           if (unheardVerbs.size) {
             for (const t of extractRelations(sentence, { verbs: unheardVerbs, functionWords })) {
               const subj = endpoint(t.subject, true);

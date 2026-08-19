@@ -58,9 +58,23 @@ import {
   editorFocus,
   editorOnChange,
   editorRunShortcut,
+  colorizeCode,
 } from "./editor.js";
 
 import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } from "./tables.js";
+
+// Arithmetic is computed, never generated — L5 at its smallest scale
+// (measured live: qwen2.5:14b answered "17 times 24" as 372, not 408, and
+// nothing caught it because nothing checked it). checkArithmetic takes the
+// engine injected (the cast.js pattern) so this module stays pure; the page
+// hands it window.math, the vendored mathjs UMD bundle (index.html — must
+// load before monaco's loader.js, see that file's comment).
+import { checkArithmetic } from "./arithmetic.js";
+
+// KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
+// computed expression as typeset math — mathjs's own toTex(), not a second,
+// hand-typed notion of how the expression looks.
+import katex from "/node_modules/katex/dist/katex.mjs";
 
 import { checkGrounding, unsupportedClaims } from "./grounding.js";
 
@@ -97,7 +111,9 @@ import {
   ledgerChunks,
   makeReflexMeter,
   normalizeSelfLevel,
+  recallTable,
   recordAct,
+  resolveOrdinalRecall,
   selfOverview,
   selfRefContext,
 } from "./reflex.js";
@@ -157,6 +173,7 @@ import {
 import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
+import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 
 // The engine's surprise ladder — the measured answer to "what is most
@@ -367,6 +384,18 @@ const state = {
   turnFolds: [],
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
+  /**
+   * name → full text, for TURN-SCOPED material the instrument cited and then
+   * unloaded (preflight-fetched pages). Never an attachment: no pill, and
+   * retrieval never reads it (liveChunks walks state.chunks alone). It
+   * exists because an address the instrument SHIPPED must stay readable —
+   * a reader who clicks a preflight citation's chip and gets "the address
+   * outlived it" is looking at a real mechanical citation that has become
+   * indistinguishable from a fabricated one, which defeats the whole
+   * visible-effort posture the chips exist for. Same lifetime as sources
+   * (this conversation, in memory).
+   */
+  citedMaterial: {},
   /**
    * name → the source's papers, for sources that arrived as priors: the
    * publisher's own frontmatter ({line, fields, path}), read mechanically by
@@ -1160,6 +1189,53 @@ async function mechanicalTurn(question, kind) {
 }
 
 /**
+ * "What was the third thing you told me?" — an ordinal pointed at
+ * `state.turnFolds`, the app's own unbounded, one-line-per-turn archive
+ * (reflex.js's own header explains why that array and not fold.js's
+ * bounded `summary.folds`: this app already folds every turn to a "Q: …
+ * A: …" recap and never trims that specific array, unlike the summary's
+ * own bounded window). Same shape as `mechanicalTurn` — a computed answer,
+ * no model call — kept as its own function rather than folded into
+ * `mechanicalTurn`/`buildTable` because a pinpoint ordinal ask can fail in
+ * a way a table listing cannot ("there is no 5th turn yet"), and that gap
+ * needs to say WHICH turn and HOW MANY exist, not the same static string
+ * every other empty table falls back to (`NOTHING[kind]`).
+ */
+async function recallTurn(question) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const built = recallTable(state.turnFolds, question);
+  const verdict = resolveOrdinalRecall(state.turnFolds, question);
+  const answer = built ? toMarkdown(built.table) : verdict.detail;
+  body.textContent = "";
+  if (built) body.append(publishBuild(built.table, built.caption, question));
+  else {
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = answer;
+    body.append(p);
+  }
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: answer },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", { what: "recall", ...(built ? { n: verdict.n, of: verdict.of } : { gap: verdict.gap }) });
+  observeExchange(turn, question, built ? built.caption : answer);
+  const fold = mechanicalFoldLine(question, built ? built.caption : answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
  * A chart of a loaded source is drawn, never generated — tables.js's rule
  * one rung up. The rows are bytes the app can already address, so a model
  * asked to produce this chart could only retype figures (measured live:
@@ -1207,6 +1283,74 @@ async function chartTurn(question) {
   $("send").disabled = false;
   $("input").focus();
   drainQueue();
+}
+
+/**
+ * Arithmetic is computed, never generated — L5 at its smallest scale.
+ * Measured live in this repo: asked "What's 17 times 24?", qwen2.5:14b
+ * answered 372; the product is 408, and nothing caught it because nothing
+ * checked it. `checkArithmetic` (arithmetic.js) already decided this claims
+ * the turn — it normalizes English operator words to symbols and only
+ * claims a question that reduces to a PURE numeric expression with zero
+ * free symbols, so a real question never reaches here. The model is never
+ * sent the question at all: window.math (mathjs, vendored per P1, loaded
+ * in index.html) already did the work, and `found.tex` — that SAME
+ * engine's own LaTeX rendering of the expression — is typeset with KaTeX
+ * (also vendored) rather than shown as a bare expression string. The plain
+ * `answer` string carried into history/fold/record stays untyped text
+ * regardless — what the model would read back on a later turn is never
+ * markup, only KaTeX's on-screen presentation of it is.
+ */
+async function arithmeticTurn(question, found) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  // A typed gap (P4) when the engine did not load, never a silent fall
+  // through to the model — a wrong mechanical answer is worse than none,
+  // and a model-guessed one is exactly the failure this door exists to stop.
+  const answer = found.gap
+    ? `${found.expression} — ${found.gap}`
+    : `${found.expression} = ${found.display} — computed, not generated`;
+  body.textContent = "";
+  if (!found.gap && found.tex) {
+    const wrap = document.createElement("div");
+    wrap.className = "arithmetic-result";
+    try {
+      wrap.innerHTML = katex.renderToString(found.tex, { displayMode: true, throwOnError: false });
+    } catch {
+      wrap.textContent = `${found.expression} = ${found.display}`;
+    }
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = "computed, not generated";
+    body.append(wrap, note);
+  } else {
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = answer;
+    body.append(p);
+  }
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: answer },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "arithmetic",
+    expression: found.expression,
+    ...(found.gap ? { gap: found.gap } : { value: found.value }),
+  });
+  observeExchange(turn, question, answer);
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
 }
 
 function drainQueue() {
@@ -1345,6 +1489,15 @@ async function send(question) {
     if (drawn.seg || drawn.source !== undefined) return chartTurn(question);
   }
 
+  // Arithmetic: computed, never generated (L5's smallest scale). Checked
+  // alongside the other mechanical detectors above — a pure numeric
+  // expression needs no material and no model — and before the reflex/
+  // widget doors below. checkArithmetic itself refuses to claim anything
+  // with a free symbol left after normalizing, so a real question about
+  // the world (or the material) always falls through untouched.
+  const arithmetic = checkArithmetic(question, { math: window.math });
+  if (arithmetic) return arithmeticTurn(question, arithmetic);
+
   // Self questions asked in words ("what surprised you most", "how do you
   // think"). Checked AFTER detectTable so a question the app can answer
   // about its material state keeps winning, and gated on the second-person
@@ -1352,6 +1505,7 @@ async function send(question) {
   // always win — is never hijacked into introspection.
   const reflex = detectReflex(question);
   if (reflex === "reflect") return reflectTurn(question, question);
+  if (reflex === "recall") return recallTurn(question);
   if (reflex) return mechanicalTurn(question, reflex);
 
   // A complaint at something already built ("I don't like the colors",
@@ -2532,7 +2686,14 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     if (shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
       setPhase("checking for material");
       show("nothing attached — checking the web before answering…");
-      const preflight = await gatherPreflightMaterial(`${task} ${discourseLine}`);
+      // Two assemblies handed over separately, never pre-mixed: the query
+      // builder joins them only when the task's own words cannot anchor a
+      // search (anaphoric or content-empty — proof.js::preflightQuery).
+      // Each step rides the turn ticker (user direction 2026-08-19): a
+      // search plus up to three page fetches is seconds of real waiting,
+      // and a reader watching "checking for material · 9s" with no motion
+      // reads it as hung, not working.
+      const preflight = await gatherPreflightMaterial(task, discourseLine, (step) => setPhase(step));
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -2877,16 +3038,24 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       body.append(d);
       continue;
     }
-    const chip = routeAndPublish(seg, routingTask, instruction, landedThisTurn);
+    const { chip, entry } = routeAndPublish(seg, routingTask, instruction, landedThisTurn);
     body.append(chip);
     // The chip is the conversation handle; the widget itself also appears
     // inline — no click required, for every non-prose segment (code and
-    // table alike). Renderable artifacts (html, svg) get a sandboxed,
-    // scripted frame; every other language falls through to artifactNode's
-    // plain-text branch, so code reads as code in the transcript itself.
-    // This is the segment's OWN code, so a revision's preview is the
-    // revision's, not stale bytes left over from the build's first version.
-    body.append(artifactNode(seg, undefined, seg.code, { scripts: RENDERABLE.has(seg.lang) }));
+    // table alike). Renderable artifacts (html, svg) get a sandboxed frame;
+    // every other language falls through to artifactNode's plain-text
+    // branch, so code reads as code in the transcript itself. This is the
+    // segment's OWN code, so a revision's preview is the revision's, not
+    // stale bytes left over from the build's first version.
+    //
+    // scripts reflects the SAME consent buildFold's lastRun already gates
+    // in the Folds panel (`shown.lastRun` there) — a just-landed html/svg
+    // segment has not been run yet, so it renders inert here exactly as it
+    // does there, and entry (when real) wires this artifact's own ▶ run so
+    // that consent can be earned right in the chat feed, never assumed
+    // just because the segment is visible (this file's own standing rule).
+    const live = entry ? buildFold(entry, null) : null;
+    body.append(artifactNode(seg, undefined, seg.code, { scripts: !!live?.lastRun, entry }));
   }
 
   // Fold membership decides the register (user direction, 2026-08-17: "just
@@ -3292,10 +3461,18 @@ function autoRunSummary(outcome) {
  * this turn (measured live: gemma2:2b answering one request with five html
  * fences) versions the one just landed. Only a turn whose words introduce
  * something new — or that names nothing existing at all — opens a build.
+ *
+ * Returns `{chip, entry}` — the conversation handle and the build the
+ * landing produced, so the chat message's own artifact (renderAnswer) can
+ * wire a run control to the SAME entry the Folds panel's own ▶ run acts
+ * on, rather than a second notion of "which build is this." `entry` is
+ * null when nothing landed (a refused witness): there is nothing to run
+ * that the refusal chip does not already name as declined.
  */
 function routeAndPublish(seg, task, instruction, landedThisTurn) {
   if (seg.type !== "code" && seg.type !== "table") {
-    return publishBuild(seg, undefined, instruction);
+    const chip = publishBuild(seg, undefined, instruction);
+    return { chip, entry: state.builds[state.builds.length - 1] };
   }
   const known = state.builds.map((b) => ({ n: b.n, ...kindOf(b), text: buildWords(b) }));
   const route = widgetRouter.routeSegment(seg, task ?? "", known, { landedThisTurn });
@@ -3304,7 +3481,7 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
     const chip = publishBuild(seg, undefined, instruction);
     const made = state.builds[state.builds.length - 1];
     landedThisTurn.push({ n: made.n, type: seg.type, lang: seg.lang });
-    return chip;
+    return { chip, entry: made };
   }
 
   const entry = state.builds.find((b) => b.n === route.n);
@@ -3348,7 +3525,11 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
       renderBuilds(entry.n);
       document.getElementById(`build-${entry.n}`)?.scrollIntoView({ block: "start" });
     };
-    return chip;
+    // No entry: the refused candidate never landed, so there is nothing this
+    // turn's own artifact could run that the chip does not already say is
+    // refused — a run button here would offer to execute code the log
+    // itself just declined to keep.
+    return { chip, entry: null };
   }
 
   entry.log =
@@ -3376,7 +3557,7 @@ function routeAndPublish(seg, task, instruction, landedThisTurn) {
   persistBuilds();
   renderBuilds(entry.n);
   landedThisTurn.push({ n: entry.n, type: seg.type, lang: landed.lang });
-  return buildChip(entry, buildFold(entry, null)?.caption ?? defaultCaption(landed));
+  return { chip: buildChip(entry, buildFold(entry, null)?.caption ?? defaultCaption(landed)), entry };
 }
 
 /** A build's kind, for the router's same-kind matching — the projected
@@ -4218,15 +4399,20 @@ async function checkLinkCitation(url) {
  * wants this specific page as a standing attachment still opens it from
  * web history, same as any other saved page.
  *
- * Disclosed residue: a citation the model attributes to one of these
- * passages resolves to a `web:<host>-<n>` source name that is not in
- * state.sources, so "open in Explore" on that chip fails — caught (app.js's
- * own openInExplore().catch already handles it), not a crash, but not a
- * working link either. Wiring these into the same reopen path attachments
- * use is unscoped work for this pass, named rather than silently left.
+ * The read-back residue is CLOSED: every page chunked here also lands in
+ * state.citedMaterial, so a citation into it re-opens for the life of the
+ * conversation instead of reading "the address outlived it" for material
+ * that is, in fact, real and was actually read. What remains withheld,
+ * typed rather than broken: "open in Explore" on such a chip, since the
+ * page was never deposited as a library source — reopen() hides that
+ * door for archived material instead of offering a dead one.
  */
-async function gatherPreflightMaterial(anchor) {
-  const query = preflightQuery(anchor);
+async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
+  // The anaphor door is the engine's own received closed class (Amendment
+  // IV register), injected here the same way widget.js takes it — never a
+  // hand-typed intent list.
+  const query = preflightQuery(task, discourse, { anaphors: enginePriors.ANAPHORIC_PRONOUNS });
+  onStep?.(`searching: “${query}”`);
   if (!query) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "nothing in the question to search on" } };
   let search;
   try {
@@ -4245,6 +4431,7 @@ async function gatherPreflightMaterial(anchor) {
   const pages = [];
   for (const [i, r] of picks.entries()) {
     try {
+      onStep?.(`reading ${hostOf(r.url)} (${i + 1} of ${picks.length})`);
       const f = await webApi("/api/web/fetch", { url: r.url });
       if (f.gap || !f.entry?.textPath) continue;
       const url = f.entry.finalUrl ?? r.url;
@@ -4260,7 +4447,12 @@ async function gatherPreflightMaterial(anchor) {
       // Indexed, not just host-named: two picks from the same host (two
       // Wikipedia articles, say) must not chunk under one source name and
       // silently merge their addresses.
-      chunks.push(...chunkSource(`web:${hostOf(url)}-${i}`, text, { identity: identifyMaterial(url, text) }));
+      const sourceName = `web:${hostOf(url)}-${i}`;
+      chunks.push(...chunkSource(sourceName, text, { identity: identifyMaterial(url, text) }));
+      // Kept for audit, not for retrieval: any address cited into this page
+      // must re-open for the life of the conversation, or a real mechanical
+      // citation reads exactly like a fabricated one the moment the turn ends.
+      state.citedMaterial[sourceName] = text;
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
     } catch {
       // One page failing to fetch is not the search failing — the other
@@ -4378,6 +4570,64 @@ async function seekProof(target, faces = null, onStep = null) {
 }
 
 /**
+ * The witness crossing (testimony.js owns the discipline; this owns the two
+ * model calls): a reader over ONE fetched page's bytes, the page drawn from
+ * the walk seekProof just did — first stating page, else first read page
+ * whose text this turn already holds. No new egress: the witness reads
+ * bytes a recorded fetch already landed, so it runs under the same standing
+ * consent as the walk that fetched them (state.webProof gates the caller).
+ * Two short constrained calls per claim — the real read and the
+ * sibling-swapped arm — on the resident model; the arm is what makes the
+ * testimony evidence rather than vibes (a verdict that survives swapping
+ * the subject for the page's own sibling referent is about the vocabulary,
+ * not the claim, and is refused as insensitive).
+ */
+async function witnessProof(target, out, faces, onStep = null) {
+  try {
+    const read = [...(out.stating ?? []), ...(out.read ?? [])];
+    const page = read.find((p) => faces?.get(p.url)?.text);
+    if (!page) return null;
+    const face = faces.get(page.url);
+    const sentence = target.sentence ?? target.text;
+    const slice = witnessSlice(target, face.text);
+    if (!slice) return { refused: "no-anchor", host: page.host, url: page.url };
+    onStep?.(`a reader over ${page.host}…`);
+    const ask = async (s) =>
+      readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200 }));
+    const real = await ask(sentence);
+    // The swap is half the measurement, not an optional calibration: a
+    // contradiction is only ever DERIVED from the page affirming the
+    // sibling in the claim's own slot (foldTestimony), so it runs whenever
+    // the first read landed and the page offers a sibling at all.
+    const swap = real ? siblingSwap(sentence, slice) : null;
+    if (swap) onStep?.(`arming the reader: ${swap.from} ⇄ ${swap.to}…`);
+    const arm = swap ? await ask(swap.swapped) : null;
+    const t = foldTestimony({
+      real,
+      arm,
+      armed: Boolean(swap),
+      host: page.host,
+      url: page.url,
+      slice,
+      claim: sentence,
+      swapped: swap?.swapped ?? "",
+    });
+    logAct("witnessed", {
+      claim: sentence,
+      host: page.host,
+      verdict: t.verdict ?? null,
+      refused: t.refused ?? null,
+      armed: t.armed ?? false,
+    });
+    return t;
+  } catch (e) {
+    // A witness that could not be reached is a typed gap on the audit,
+    // never a silent absence and never a failed chip.
+    return { refused: "unreachable", detail: e.message };
+  }
+}
+
+/**
  * One fact-check chip: a quiet claim-sized summary that carries its whole
  * audit behind a click (user direction 2026-08-17: chips, not a wall — the
  * check's evidence is the page's own snipped sentence, auditable). The chip
@@ -4416,6 +4666,17 @@ function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = n
     const out = await seekProof(target, faces, (step) => {
       live.textContent = step;
     });
+    // The semantic witness (testimony.js, P26): a reader over the best
+    // fetched page's own bytes, asked one question — states, contradicts,
+    // or neither. Runs AFTER the byte walk (its pages are what the witness
+    // reads) and BEFORE the render, so the audit ships composed. Measured
+    // need (2026-08-19): "The New York Yankees won the 1960 World Series"
+    // — false — drew ✓ 3/3 from string containment, because the loser's
+    // name saturates every page about the series; a reader over the same
+    // bytes answers "contradicts — the Pirates won" in one short call.
+    const testimony = await witnessProof(target, out, faces, (step) => {
+      live.textContent = step;
+    });
     renderProofResult(slot, out);
     status.textContent =
       out.verdict === "web-corroborated"
@@ -4424,10 +4685,37 @@ function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = n
           ? `∅ 0/${out.consulted}`
           : "·";
     chip.classList.add(out.verdict);
+    if (testimony?.verdict) {
+      // Testimony outranks co-occurrence in what the chip SAYS, because a
+      // reader binds subject to predicate and a counter cannot: a witnessed
+      // contradiction re-labels a ✓ count that was testifying about
+      // vocabulary. The counts stay visible in the audit — composition,
+      // never erasure.
+      const tLine = document.createElement("em");
+      tLine.className = "fold-note";
+      tLine.textContent =
+        testimony.verdict === "contradicts"
+          ? `⇄ a reader over ${testimony.host} says otherwise — “${testimony.because}”${testimony.armed ? "" : " · unarmed: no sibling to swap"}`
+          : `a reader over ${testimony.host} confirms it — “${testimony.because}”${testimony.armed ? "" : " · unarmed: no sibling to swap"}`;
+      slot.prepend(tLine);
+      if (testimony.verdict === "contradicts") {
+        status.textContent = `⇄ ${out.stating?.length ?? 0}/${out.consulted}`;
+        chip.classList.add("witness-contradicted");
+      }
+    } else if (testimony?.refused && testimony.refused !== "no-testimony") {
+      // A refusal is a result (P4): the audit says a reader was asked and
+      // why its answer earned nothing — insensitive to the swap, pointing
+      // at words the page never wrote, or unreadable.
+      const rLine = document.createElement("em");
+      rLine.className = "proof-query";
+      rLine.textContent = `a reader over ${testimony.host ?? "the page"} was asked; testimony refused: ${testimony.refused}`;
+      slot.append(rLine);
+    }
     // The ledger is the one record; the chip's tooltip and the detail's
     // first line are projections of it — every tier's verdict composed.
     if (ledger) {
       ledger.note(target, "web", out);
+      if (testimony) ledger.note(target, "witness", testimony);
       const line = composedSentence(ledger.state(key));
       if (line) {
         chip.title = line;
@@ -4815,7 +5103,21 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
   // crossings, and a turn must not fan out a burst of them. A build turn
   // spends none: corroborating "Event Listeners" against the web is a
   // crossing in service of nothing — the artifact's ground is its run.
-  if (autorun.length && !buildTurn) (async () => { for (const run of autorun) await run(); })();
+  // Narrated globally while it runs (user direction 2026-08-19: "if it's
+  // going to take a while, have it show that it's processing") — the answer
+  // is already on screen by now and the turn's own ticker is gone, so the
+  // chips filling in were the only sign anything was still happening, and
+  // up to PROOF_TARGETS_PER_TURN sequential fetches is the turn's longest
+  // quiet stretch. The status line is work-in-flight semantics (it never
+  // auto-clears), so it holds until the walk ends and then hands back.
+  if (autorun.length && !buildTurn)
+    (async () => {
+      for (const [i, run] of autorun.entries()) {
+        $("status").textContent = `checking claims online · ${i + 1}/${autorun.length}`;
+        await run();
+      }
+      $("status").textContent = `ready · ${state.model}`;
+    })();
 }
 
 /**
@@ -4824,15 +5126,37 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
  * and a table the model happened to write arrive here in the same shape, and
  * there is no reason for them to look different.
  */
-function artifactNode(seg, caption, code, { scripts = false } = {}) {
+/**
+ * A code <pre>, syntax-highlighted in place by monaco's own tokenizer
+ * (editor.js's colorizeCode — the SAME highlighting the build editor
+ * already uses, never a second library) once it resolves. Plain text is
+ * the honest floor shown immediately: colorizing is async and this
+ * function is not, and a repo opened off the disk or mid-boot still gets
+ * readable, correctly-escaped code rather than nothing. One call site for
+ * "what a code block looks like," so the two artifactNode branches below
+ * never drift into two different renderings of the same thing.
+ */
+function codeBlock(text, lang) {
+  const pre = document.createElement("pre");
+  pre.className = "code-highlight";
+  pre.textContent = text;
+  colorizeCode(text, lang).then((html) => {
+    if (html) pre.innerHTML = html;
+  });
+  return pre;
+}
+
+function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}) {
   const art = document.createElement("figure");
   art.className = "artifact";
   const cap = document.createElement("figcaption");
-  cap.textContent =
+  const capLabel = document.createElement("span");
+  capLabel.textContent =
     caption ??
     (seg.type === "table"
       ? `table · ${seg.rows.length} row${seg.rows.length === 1 ? "" : "s"}`
       : seg.lang || "code");
+  cap.append(capLabel);
   art.append(cap);
 
   if (seg.type === "table") {
@@ -4866,17 +5190,41 @@ function artifactNode(seg, caption, code, { scripts = false } = {}) {
       frame.title = "Rendered without scripts — press run to let this page execute";
     frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code });
     frame.loading = "lazy";
+    // The chat feed's own door onto the SAME consent the Folds panel's ▶
+    // run earns — runBuild, unchanged, so there is no second execution
+    // path for the identical question "has this been run." entry is only
+    // ever passed from the chat-rendering call site (renderAnswer); the
+    // Folds panel builds this button itself, right next to its own copy of
+    // this artifact, so this never doubles up there.
+    if (entry) {
+      const run = document.createElement("button");
+      run.type = "button";
+      run.className = "build-run";
+      run.textContent = scripts ? "✓ ran" : "▶ run";
+      run.disabled = !!entry.running;
+      run.onclick = async () => {
+        run.disabled = true;
+        run.textContent = "running…";
+        await runBuild(entry);
+        const ranScripts = !!buildFold(entry, null)?.lastRun;
+        frame.sandbox = ranScripts ? "allow-scripts" : "";
+        frame.title = ranScripts ? "" : "Rendered without scripts — press run to let this page execute";
+        // sandbox alone does not retroactively apply to already-loaded
+        // content — the frame has to reload for the new flags to take
+        // effect, so the exact same document is handed to it again.
+        frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code });
+        run.textContent = ranScripts ? "✓ ran" : "▶ run";
+        run.disabled = false;
+      };
+      cap.append(run);
+    }
     art.append(frame);
     const src = document.createElement("details");
     src.innerHTML = "<summary>source</summary>";
-    const pre = document.createElement("pre");
-    pre.textContent = code ?? seg.code;
-    src.append(pre);
+    src.append(codeBlock(code ?? seg.code, seg.lang));
     art.append(src);
   } else {
-    const pre = document.createElement("pre");
-    pre.textContent = code ?? seg.code;
-    art.append(pre);
+    art.append(codeBlock(code ?? seg.code, seg.lang));
   }
   return art;
 }
@@ -5123,9 +5471,18 @@ function reopen(ref) {
   // A self ref re-opens from the ledger, rebuilt from the entries alone —
   // the same act of reading bytes back, on the other plane. Explore has no
   // deposit for it: the ledger is this conversation's, not a file's.
-  const ctx = isSelfRef(ref)
-    ? selfRefContext(state.reflexLog, ref)
-    : refContext(state.sources, ref);
+  // Turn-scoped material the instrument cited (preflight pages) re-opens
+  // from the citation archive when it is no longer loaded as a source —
+  // the bytes the citation was actually judged on, kept exactly so this
+  // dialog never has to say "outlived" about an address the instrument
+  // itself shipped.
+  const fromSources = isSelfRef(ref) ? null : refContext(state.sources, ref);
+  const archived = !isSelfRef(ref) && !fromSources ? refContext(state.citedMaterial, ref) : null;
+  const ctx = isSelfRef(ref) ? selfRefContext(state.reflexLog, ref) : (fromSources ?? archived);
+  if (archived) {
+    $("reopen-address").textContent +=
+      " — turn-scoped page kept for audit; cited this conversation, never attached";
+  }
   if (!ctx) {
     pre.textContent = isSelfRef(ref)
       ? "That address does not resolve on this conversation's ledger."
@@ -5157,7 +5514,10 @@ function reopen(ref) {
   }
 
   const explore = $("reopen-explore");
-  explore.hidden = isSelfRef(ref);
+  // Archived turn-scoped material has no Explore deposit — the button would
+  // be a dead door, so it is withheld, a typed absence rather than a caught
+  // failure.
+  explore.hidden = isSelfRef(ref) || !!archived;
   explore.onclick = () =>
     openInExplore(state.sources, ref).catch((err) => {
       $("status").textContent = `explore: ${err.message || err}`;

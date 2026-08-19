@@ -22,6 +22,10 @@ import {
   shouldPreflight,
 } from "./proof.js";
 import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
+// The real engine closed class, not a stub — the same received register
+// widget.js already injects (Amendment IV: a closed class lives in the
+// engine's prior register, never as a private list in this repo).
+import { ANAPHORIC_PRONOUNS } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({
@@ -168,19 +172,39 @@ test("shouldPreflight fires only on the exact structural conjunction: flat, noth
   assert.equal(shouldPreflight({}), false, "every toggle defaults to off/absent — the gate defaults closed, never open");
 });
 
-test("preflightQuery anchors on the turn's own words plus the fold's discourse line, never on drafted text", () => {
-  // The exact second-turn shape of the measured bug: "prove it" alone carries
-  // no content words, so without the discourse anchor there is nothing to
-  // search on at all.
-  const bare = preflightQuery("prove it", "");
+test("preflightQuery anchors on the turn's own words; the discourse joins only when those words point back or run empty", () => {
+  // The exact second-turn shape of the measured bug: "prove it" points back
+  // anaphorically ("it"), so the discourse anchor is what still names the
+  // topic. The anaphor door is the engine's own received closed class,
+  // injected — the widget.js pattern, never a hand-typed intent list.
+  const bare = preflightQuery("prove it", "", { anaphors: ANAPHORIC_PRONOUNS });
   assert.equal(bare, "prove");
-  const anchored = preflightQuery("prove it", "NYC weather right now · asked and answered · NYC");
+  const anchored = preflightQuery("prove it", "NYC weather right now · asked and answered · NYC", {
+    anaphors: ANAPHORIC_PRONOUNS,
+  });
   assert.ok(/weather/i.test(anchored) && /nyc/i.test(anchored), anchored);
+  // The opposite, newly-measured case (2026-08-19): a self-contained
+  // question asked after another topic must NOT inherit the stale topic's
+  // vocabulary — "research Robert Macnamera" after a greeting searched on
+  // "Greeting exchange"'s own words and fetched a greeting-etiquette page.
+  const selfContained = preflightQuery(
+    "research Robert Macnamera",
+    "Greeting exchange · Conversation starts with a simple greeting. · user, AI",
+    { anaphors: ANAPHORIC_PRONOUNS },
+  );
+  assert.ok(/macnamera/i.test(selfContained), selfContained);
+  assert.ok(!/greeting/i.test(selfContained), `stale discourse leaked into the anchor: ${selfContained}`);
+  // A task with no content words at all still gets the discourse anchor.
+  const empty = preflightQuery("so?", "NYC weather right now · asked and answered · NYC", {
+    anaphors: ANAPHORIC_PRONOUNS,
+  });
+  assert.ok(/weather/i.test(empty), empty);
   // The turn's own words survive the cap ahead of the discourse line's —
   // built first, so a long combined anchor keeps what the reader just typed.
   const long = preflightQuery(
-    "what is the current population of Springfield Illinois exactly today",
+    "what is the current population of that place Springfield Illinois exactly today",
     "an entirely unrelated prior topic about lighthouses and shipping lanes and maritime law",
+    { anaphors: ANAPHORIC_PRONOUNS },
   );
   assert.ok(/springfield/i.test(long), long);
   assert.ok(long.split(/\s+/).length <= PREFLIGHT_QUERY_MAX_TERMS);

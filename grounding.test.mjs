@@ -119,6 +119,20 @@ test("a list item's bold label is a heading, not a claim — the walk-through ca
   );
 });
 
+test("a bare markup tag is structure, not a claim, even without a fence — the SVG case", async () => {
+  const { checkGrounding, blankStructure } = await import("./grounding.js");
+  const passages = [{ ref: "n.txt#0-45", text: "The committee met on the quay and adjourned." }];
+  // Measured live (2026-08-19): asked for SVG, a small model answered with
+  // bare markup — no fence, so the fenced-code-block rule never fired — and
+  // the apparatus flagged its own attribute values (100, 50, 40) as
+  // unsupported figures: the artifact grounding itself in its own content.
+  const answer = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" stroke="red" stroke-width="2" fill="red" /></svg>';
+  assert.equal(blankStructure(answer).length, answer.length);
+  const report = checkGrounding(answer, passages, {});
+  const flagged = report.findings.map((f) => f.text);
+  assert.ok(!flagged.some((t) => ["100", "50", "40", "2"].includes(t)), `attribute value flagged: ${flagged}`);
+});
+
 test("a lone capitalized word opening a sentence is position, not namehood", async () => {
   const { checkGrounding } = await import("./grounding.js");
   const passages = [{ ref: "n.txt#0-40", text: "The column marched east before dawn broke." }];

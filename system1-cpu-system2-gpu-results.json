@@ -1,0 +1,201 @@
+{
+  "args": {
+    "topic": "trazodone",
+    "cpuModel": "gemma2:2b",
+    "gpuModel": "qwen2.5:14b-instruct-q4_K_M",
+    "ollama": "http://localhost:11434",
+    "cpuCtx": 8192,
+    "gpuCtx": 4096,
+    "probe": null,
+    "out": "system1-cpu-system2-gpu-results.json",
+    "selfTest": false
+  },
+  "topic": "trazodone",
+  "sources": [
+    {
+      "id": "web:vcahospitals.com/know-your-pet/trazodone",
+      "text": "Trazodone is used to treat behavioral disorders, especially anxiety- or phobia-related in dogs, including separation anxiety, noise phobia such as fireworks or thunderstorms, veterinary visits, hospitalization, and travel. Several medications should be used with caution when given with trazodone, including SSRIs, MAO inhibitors, and CNS depressants. Trazodone should not be used in pets who are using MAO inhibitors or have angle-closure glaucoma."
+    },
+    {
+      "id": "web:vetmedguide.com/blog/trazodone-for-dogs",
+      "text": "Signs of serotonin syndrome in dogs include vomiting, diarrhea, seizures, elevated body temperature, increased skin sensitivity, depression, dilated pupils, vocalization, blindness, excessive drooling, difficulty breathing, incoordination, disorientation, and in severe cases coma or death. Signs typically develop within 1 to 12 hours of dosing."
+    }
+  ],
+  "probe": "Can you give a dog trazodone after getting vaccines?",
+  "cpu": {
+    "text": "No source checked says anything about combining trazodone with a same-day vaccine. \n",
+    "promptTokens": 233,
+    "outTokens": 20,
+    "promptNs": 384018000,
+    "outNs": 3135783000,
+    "wallMs": 6058,
+    "placement": {
+      "status": "cpu",
+      "fraction": 0,
+      "size": 2558210866,
+      "size_vram": 0
+    }
+  },
+  "gpu": {
+    "text": "The information available does not specifically address the timing of giving trazodone in relation to when a dog receives vaccines. The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. For specific advice regarding trazodone and its use post-vaccination, it would be best to consult a veterinarian.",
+    "promptTokens": 365,
+    "outTokens": 75,
+    "promptNs": 5154232000,
+    "outNs": 36541204000,
+    "wallMs": 42327,
+    "placement": {
+      "status": "gpu",
+      "fraction": 1,
+      "size": 9459613039,
+      "size_vram": 9459613039
+    }
+  },
+  "cpuChecks": {
+    "examined": true,
+    "clean": true,
+    "sentences": 1,
+    "atomsChecked": 0,
+    "standingOnMaterial": 0,
+    "claimingNothingBacks": 0,
+    "findings": [],
+    "echoed": [],
+    "supportedAtoms": []
+  },
+  "gpuChecks": {
+    "examined": true,
+    "clean": false,
+    "sentences": 3,
+    "atomsChecked": 3,
+    "standingOnMaterial": 0,
+    "claimingNothingBacks": 0,
+    "findings": [],
+    "echoed": [
+      {
+        "text": "VCA Hospitals",
+        "kind": "name",
+        "sentence": "The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. Can you give a dog trazodone after getting vaccines?",
+        "echoed": true
+      },
+      {
+        "text": "AKC",
+        "kind": "name",
+        "sentence": "The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. Can you give a dog trazodone after getting vaccines?",
+        "echoed": true
+      },
+      {
+        "text": "VetMedGuide",
+        "kind": "name",
+        "sentence": "The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. Can you give a dog trazodone after getting vaccines?",
+        "echoed": true
+      }
+    ],
+    "supportedAtoms": []
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "probe:cpu-system1",
+      "description": "cpu-system1 (cpu, gemma2:2b) answered the probe (84 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "probe:cpu-system1",
+      "result": {
+        "model": "gemma2:2b",
+        "place": "cpu",
+        "question": "Can you give a dog trazodone after getting vaccines?",
+        "wallMs": 6058,
+        "promptTokens": 233,
+        "outTokens": 20,
+        "placement": {
+          "status": "cpu",
+          "fraction": 0,
+          "size": 2558210866,
+          "size_vram": 0
+        },
+        "checks": {
+          "examined": true,
+          "clean": true,
+          "sentences": 1,
+          "atomsChecked": 0,
+          "standingOnMaterial": 0,
+          "claimingNothingBacks": 0,
+          "findings": [],
+          "echoed": [],
+          "supportedAtoms": []
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "probe:gpu-system2",
+      "description": "gpu-system2 (gpu, qwen2.5:14b-instruct-q4_K_M) answered the probe (354 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "probe:gpu-system2",
+      "result": {
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "place": "gpu",
+        "question": "Can you give a dog trazodone after getting vaccines?",
+        "wallMs": 42327,
+        "promptTokens": 365,
+        "outTokens": 75,
+        "placement": {
+          "status": "gpu",
+          "fraction": 1,
+          "size": 9459613039,
+          "size_vram": 9459613039
+        },
+        "checks": {
+          "examined": true,
+          "clean": false,
+          "sentences": 3,
+          "atomsChecked": 3,
+          "standingOnMaterial": 0,
+          "claimingNothingBacks": 0,
+          "findings": [],
+          "echoed": [
+            {
+              "text": "VCA Hospitals",
+              "kind": "name",
+              "sentence": "The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. Can you give a dog trazodone after getting vaccines?",
+              "echoed": true
+            },
+            {
+              "text": "AKC",
+              "kind": "name",
+              "sentence": "The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. Can you give a dog trazodone after getting vaccines?",
+              "echoed": true
+            },
+            {
+              "text": "VetMedGuide",
+              "kind": "name",
+              "sentence": "The sources checked (VCA Hospitals, AKC, and VetMedGuide) do not provide guidance on this particular aspect. Can you give a dog trazodone after getting vaccines?",
+              "echoed": true
+            }
+          ],
+          "supportedAtoms": []
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

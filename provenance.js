@@ -146,10 +146,19 @@ export function stripScaffoldNarration(text) {
  * — BAIL: a sentence that cannot be located in the raw text cuts nothing;
  *   shipping the whole draft is always safer than mangling it.
  */
-const NARRATION_SUBJECT = "(?:the|this|that|your)\\s+(?:passage|prompt|question|material|text|excerpt|conversation|dialogue|discussion|user|file|document|notes?|input)";
+// The subject noun may sit a few modifiers away from its determiner —
+// measured 2026-08-19 ("who won the 1960 world series?", gemma2:2b): "The
+// 1960 World Series question, «…», is directly related to baseball
+// playoffs" — three modifier words between "The" and "question" defeated
+// the adjacent-noun pattern and the narration shipped as the whole answer.
+// Disclosed residue of the widening: a content subject wearing one of
+// these nouns behind modifiers ("The locked user waits…") is now inside
+// the pattern's reach — the verb list stays the narrow guard.
+const NARRATION_SUBJECT =
+  "(?:the|this|that|your)\\s+(?:[\\p{L}\\p{N}'’-]+\\s+){0,4}?(?:passage|prompt|question|material|text|excerpt|conversation|dialogue|discussion|user|file|document|notes?|input)";
 const DEFLATE_RE = new RegExp(
   `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:indicates|demonstrates|shows|states|suggests|confirms|reveals|says|notes|mentions|highlights|implies)\\s+that\\s+`,
-  "i",
+  "iu", // u: NARRATION_SUBJECT's modifier gap uses \p{L} — without the flag the class silently matches literal braces
 );
 const CUT_RES = [
   new RegExp(
@@ -159,8 +168,18 @@ const CUT_RES = [
     // "The user is looking for the weather in New York." across three
     // consecutive turns — the same register this list already names, two
     // verb lemmas it had not yet seen.
-    `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:asks?|asked|aims?|wants?|wanted|focuse[sd]|transitions?|discusse[sd]|begins?|starts?|revolves|details?|describe[sd]|provides?|provided|is\\s+about|is\\s+asking|seeks?|waits?|waiting|looks?|looking)\\b`,
-    "i",
+    // relate[sd]? measured live 2026-08-19 (the same turn as the modifier
+    // gap above): "The 1960 World Series question … is directly related to
+    // baseball playoffs" — the register's shape exactly, one verb lemma it
+    // had not yet seen. Extended together with holon.js's
+    // DIALOGUE_NARRATION_RE, per the standing rule: the two lists name the
+    // same measured register and must not drift apart.
+    // The optional comma-PAIR group is the measured appositive ("…question,
+    // «the quoted question itself», is directly related…") — explicitly
+    // delimited, so the clause-boundary discipline of the narrow verb gap
+    // is kept rather than widened.
+    `^\\s*${NARRATION_SUBJECT}(?:\\s*,[^,\\n]*,)?\\s+(?:\\w+\\s+){0,2}?(?:asks?|asked|aims?|wants?|wanted|focuse[sd]|transitions?|discusse[sd]|begins?|starts?|revolves|details?|describe[sd]|provides?|provided|is\\s+about|is\\s+asking|seeks?|waits?|waiting|looks?|looking|relate[sd]?|relates|relating)\\b`,
+    "iu", // u: NARRATION_SUBJECT's modifier gap uses \p{L}
   ),
   /^\s*it\s+(?:then\s+)?(?:asks?|aims?|transitions?|shifts?|moves|focuse[sd]|discusse[sd]|goes\s+on)\b/i,
   /conversation\s+so\s+far(?:,)?\s+in\s+one\s+line/i,
@@ -191,6 +210,12 @@ export function stripNarrationSentences(text, { discourse = "", hasMaterial = fa
   const fences = codeFenceSpans(raw);
   const foldedDiscourse = discourse ? String(discourse).toLowerCase().replace(/\s+/g, " ") : "";
   const removed = [];
+  // Fenced code is structure, never narration (the same exemption holon.js's
+  // isFraming carries): no sentence overlapping a fence is ever cut, and no
+  // whitespace inside one is ever reflowed (codeFenceSpans above — two
+  // sessions converged on this fix the same day, 2026-08-19: the tail
+  // normalization collapsed a Python block's indentation; a checking layer
+  // may only SUBTRACT the narration it names, never degrade the base).
   let out = "";
   let cursor = 0;
   for (const sentence of splitSentences(raw)) {

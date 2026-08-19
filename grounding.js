@@ -24,6 +24,7 @@
 // Pure: no DOM, no IO, no model.
 
 import { foldDiacritics } from "./source.js";
+import { ATTRS } from "./web.js";
 
 export const CLAIM_STOPWORDS = new Set([
   "the",
@@ -540,15 +541,22 @@ const MAX_FINDINGS = 40;
 /** An address as source.js writes it — bytes, not a claim about quantities. */
 const ADDRESS = /\[?[^\s\]]+#\d+-\d+\]?/g;
 
+/** An HTML/XML/SVG tag, opening or closing, attributes and all — reusing
+ * web.js's own ATTRS fragment (the same "walk quoted values" rule that
+ * exists because an attribute value can legally contain ">") rather than a
+ * second, narrower tag regex invented here. */
+const TAG = new RegExp(`<\\/?[a-zA-Z][a-zA-Z0-9:-]*${ATTRS}\\/?>`, "g");
+
 /**
  * The answer with its structure blanked, length preserved: headings,
- * line-initial bold labels, bracketed addresses, and fenced code blocks are
- * the model's own scaffolding, not claims (the measured cases live in
- * checkGrounding's comment below). Exported because every organ that reads
- * CLAIMS out of an answer must skip the same furniture — the relation tier
- * (hypergraph.js) shares this, or a Title-Case heading would read as a
- * subject and a byte address as a figure. Length-preserving so every offset
- * an extractor reports lands in the original answer's own coordinate space.
+ * line-initial bold labels, bracketed addresses, fenced code blocks, and
+ * markup tags are the model's own scaffolding, not claims (the measured
+ * cases live in checkGrounding's comment below). Exported because every
+ * organ that reads CLAIMS out of an answer must skip the same furniture —
+ * the relation tier (hypergraph.js) shares this, or a Title-Case heading
+ * would read as a subject and a byte address as a figure. Length-preserving
+ * so every offset an extractor reports lands in the original answer's own
+ * coordinate space.
  *
  * A fenced code block is a program, not an assertion about the world:
  * measured live (2026-08-17), a widget's own `<!DOCTYPE html>` and
@@ -556,11 +564,22 @@ const ADDRESS = /\[?[^\s\]]+#\d+-\d+\]?/g;
  * tier for "corroboration" — DOCTYPE is not a fact anyone could state or
  * contradict. Blanked whole, fence lines included, so the language tag on
  * the opening fence cannot itself read as a claim either.
+ *
+ * A markup tag OUTSIDE a fence is the same category, not a smaller one:
+ * measured live (2026-08-19), a small model asked for SVG answered with bare
+ * `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" .../></svg>` —
+ * no fence, so the fenced-block rule above never fired — and the apparatus
+ * read "100", "50", "40" as unsupported figures: the artifact grounding
+ * itself in its own attribute values, the exact failure the fenced case
+ * was fixed for, wearing the one disguise that rule didn't cover. TAG blanks
+ * every tag whether or not the model remembered to fence it, so compliance
+ * with "wrap code in a fence" is never load-bearing for this rule to hold.
  */
 export function blankStructure(answer) {
   const blank = (m) => " ".repeat(m.length);
   return String(answer)
     .replace(/^[ \t]*```[^\n]*\n[\s\S]*?^[ \t]*```[ \t]*$/gm, blank)
+    .replace(TAG, blank)
     .replace(/^[ \t]*#{1,6}[^\n]*$/gm, blank)
     .replace(/^[ \t]*\*\*[^\n*]+\*\*[ \t]*:?[ \t]*$/gm, blank)
     // A line-initial bold phrase with a colon is a heading even when prose

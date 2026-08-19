@@ -205,6 +205,83 @@ test("corroborateAtoms counts support per passage and per distinct source", asyn
   assert.equal(corroborateAtoms(answer, []).examined, false);
 });
 
+// ── slot competition (P27's named follow-up, added 2026-08-19) ─────────────
+// The Yankees/Pirates shape, structurally: a byte check passes every word,
+// and the plain subject+verb match above finds nothing (the claimed subject
+// never did this verb at all) — but the material binds this EXACT verb and
+// object to someone else, and only to someone else, which is stronger
+// evidence than an ordinary nearest-edge neighbour.
+
+test("a slot the material fills with exactly one other subject is named, not just flagged unbound", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  // Dolokhov never married anyone in this material; Pierre Bezukhov married
+  // Helene, twice, consistently. The claim's own subject+verb match is
+  // empty (Dolokhov+married binds nothing), so this reaches the unbound
+  // branch — and the verb+object slot (married, Helene) is bound to exactly
+  // one other subject across both mentions.
+  const report = reader.read("Dolokhov married Helene.");
+  const claim = report.claims.find((c) => c.verb === "married" && /Dolokhov/i.test(c.subject));
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "unbound");
+  assert.ok(claim.competing, "the single consistent filler must be surfaced");
+  assert.match(claim.competing.subject, /Pierre Bezukhov/i);
+  assert.equal(claim.competing.verb, "married");
+  assert.ok(claim.competing.refs.includes("wp.txt#0-400"));
+  assert.ok(claim.competing.refs.includes("wp.txt#400-800"));
+  // Two passages, one source: the same independence discipline `bound`
+  // corroboration already carries.
+  assert.equal(claim.competing.corroboration.passages, 2);
+  assert.equal(claim.competing.corroboration.sources, 1);
+  // The competing edge leads `nearest` — every existing UI reader
+  // (app.js's badge and grounding panel both read nearest[0]/nearest)
+  // inherits the stronger evidence with no further change.
+  assert.equal(claim.nearest[0].subject, claim.competing.subject);
+  // And the record's phrasing names the actual filler, not just an absence.
+  const lines = relationFindings(report);
+  assert.ok(
+    lines.some((l) => /fills this differently/.test(l) && /Pierre Bezukhov/.test(l) && /married/.test(l)),
+    JSON.stringify(lines),
+  );
+  assert.equal(relationsClean(report), false);
+});
+
+test("a slot the material fills with two DIFFERENT subjects stays plain unbound — competing is never guessed", async () => {
+  // A verb+object pair bound to two distinct real subjects across the
+  // material: the mechanism must not pick one arbitrarily and must not
+  // infer "exclusive winner" from what "acquired" merely SOUNDS like.
+  const RIVAL_PASSAGES = [
+    {
+      ref: "acq.txt#0-200",
+      text:
+        "Kessington Group acquired Bramwell Textiles in the spring, the filing showed. " +
+        "Kessington Group later restructured its own board after the acquisition. " +
+        "Vantage Mills sold linens across three counties that same spring, the ledger noted.",
+    },
+    {
+      ref: "acq.txt#200-400",
+      text:
+        "Harrow Partners acquired Bramwell Textiles again that autumn, after the first deal collapsed. " +
+        "Harrow Partners kept the Bramwell Textiles name for another year. " +
+        "Vantage Mills kept its own ledgers separate from the acquisition entirely, the notes said.",
+    },
+  ];
+  const RIVAL_POOL = [
+    ...RIVAL_PASSAGES,
+    ...FILLER.split(". ").map((s, i) => ({ ref: `filler2.txt#${i * 100}-${i * 100 + 99}`, text: s + "." })),
+  ];
+  const reader = makeRelationReader(await organs())(RIVAL_PASSAGES, { pool: RIVAL_POOL });
+  const report = reader.read("Vantage Mills acquired Bramwell Textiles.");
+  const claim = report.claims.find((c) => c.verb === "acquired" && /Vantage Mills/i.test(c.subject));
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "unbound");
+  assert.equal(claim.competing, undefined, "two different real fillers must never collapse into one guess");
+  // The record still says what it can — never says this — without the
+  // stronger, unearned "it says X instead" phrasing.
+  const lines = relationFindings(report);
+  assert.ok(lines.some((l) => /never says/.test(l) && /acquired/.test(l)));
+  assert.ok(!lines.some((l) => /fills this differently/.test(l)));
+});
+
 test("the declared number is the declaration, not a tuned knob", () => {
   // Pinned so a future "walk it and see what scores best" cannot happen
   // silently — changing this constant is a policy change, and lands with

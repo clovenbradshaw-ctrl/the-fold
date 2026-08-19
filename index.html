@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>The Fold</title>
+    <!-- KaTeX, vendored (P1: no CDN) — renders arithmetic.js's computed
+         answers as typeset math instead of a plain expression string.
+         Fonts referenced by url() in this stylesheet resolve relative to
+         this same node_modules path, so nothing here reaches off-host. -->
+    <link rel="stylesheet" href="/node_modules/katex/dist/katex.min.css" />
     <script>
       // Pre-paint: stamp the stored theme choice on <html> before the first
       // frame, so a chosen theme never flashes the other one. "system" stores
@@ -828,6 +833,20 @@
       }
       #term-kill { flex: none; }
 
+      /* arithmetic.js's computed answer, typeset by KaTeX rather than shown
+         as a bare expression string — same box weight as .artifact so a
+         computed answer reads as one family with tables/charts. */
+      .msg .body .arithmetic-result {
+        margin: 0 0 6px;
+        padding: 14px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        overflow-x: auto;
+      }
+      .msg .body .arithmetic-result .katex-display { margin: 0; }
+      .msg .body .note { margin: 0 0 10px; }
+
       /* Artifacts: the answer rendered as the format it turned out to be. */
       .msg .body .prose { margin: 0 0 10px; white-space: pre-wrap; }
       .msg .body .prose:last-child { margin-bottom: 0; }
@@ -849,6 +868,10 @@
         background: var(--panel);
       }
       .artifact figcaption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
         font-size: 10.5px;
         text-transform: uppercase;
         letter-spacing: 0.07em;
@@ -856,6 +879,14 @@
         padding: 6px 12px;
         border-bottom: 1px solid var(--line);
         background: var(--accent-soft);
+      }
+      /* The run control rides the caption's own row — text-transform/
+         letter-spacing are figcaption's for its label, not for a button
+         that needs to read "▶ run", not "▶ RUN". */
+      .artifact figcaption .build-run {
+        text-transform: none;
+        letter-spacing: normal;
+        flex: none;
       }
       .artifact pre {
         margin: 0;
@@ -865,6 +896,12 @@
         font-size: 12.5px;
         line-height: 1.5;
       }
+      /* monaco's colorize() tokens are calibrated against its vs-dark theme
+         (editor.js sets that theme the moment monaco boots) — a dark
+         background here is what makes those token colours legible, the
+         same posture the build editor itself already takes regardless of
+         the page's own light/dark toggle. */
+      .artifact pre.code-highlight { background: #1e1e1e; color: #d4d4d4; }
       .artifact iframe {
         display: block;
         width: 100%;
@@ -1919,6 +1956,14 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <div id="fold-view-body"></div>
     </dialog>
 
+    <!-- mathjs, vendored (P1: no CDN), for arithmetic.js's checkArithmetic —
+         L5 at its smallest scale, computed rather than left to the model.
+         MUST load before monaco's loader.js: monaco defines a global
+         define() with .amd set, and mathjs's UMD wrapper loaded after that
+         takes the AMD branch and registers as a module instead of falling
+         through to window.math. Order is the fix; there is no config flag
+         for it (see CLAUDE.md's "load-bearing gotcha"). -->
+    <script src="/node_modules/mathjs/lib/browser/math.js"></script>
     <script src="/node_modules/monaco-editor/min/vs/loader.js"></script>
     <script type="module" src="./app.js"></script>
       <script type="module" src="log-pane.js"></script>

@@ -39,6 +39,18 @@
 //                  does bind (same subject and verb, or same verb and
 //                  object) so the reader sees what the text says instead —
 //                  the affordance that turns a flag into an explanation.
+//                  Sometimes carries `competing` too (added 2026-08-19,
+//                  P27's named follow-up): when the material binds this
+//                  EXACT verb+object to one and only one OTHER subject —
+//                  "the Pirates won the 1960 World Series" against a claim
+//                  the Yankees did — that is stronger evidence than an
+//                  ordinary neighbour, gated on the object resolving to a
+//                  referent and on every edge sharing the slot pointing to
+//                  the SAME subject (a slot the material shows filled by
+//                  two+ different subjects proves nothing and stays plain
+//                  unbound). This is the mechanical half of what testimony.js's
+//                  witness tier covers semantically for everything a
+//                  subject-swap cannot reach structurally — see P27.
 //   beyond-reach — an endpoint does not resolve to any referent this
 //                  material establishes (a pronoun subject, an abstract
 //                  object). This tier cannot read the claim, and says so —
@@ -54,7 +66,7 @@
 // relative path). The organs are used, never copied.
 
 import { makeReferentIndex } from "./cast.js";
-import { blankStructure } from "./grounding.js";
+import { blankStructure, numberSet } from "./grounding.js";
 import { commonTerms, CORPUS_MINIMUM } from "./cite.js";
 
 // ── declared numbers, each with its justification ───────────────────────────
@@ -319,8 +331,60 @@ export function makeRelationReader(organs) {
       const sameVerbObj = edges.filter(
         (e) => e.verb === t.verb && !sameSubjVerb.includes(e) && endpointsMatch(e.objectEnd, obj),
       );
-      const nearest = [...sameSubjVerb, ...sameVerbObj].slice(0, NEAREST_EDGES_MAX).map(edgeFace);
-      return { ...claim, verdict: "unbound", nearest };
+
+      // Slot competition (P27's named follow-up, added 2026-08-19): the
+      // material may bind this EXACT verb+object to a DIFFERENT subject —
+      // "the Pirates won the 1960 World Series" against a claim of "the
+      // Yankees won the 1960 World Series". A byte check cannot see this
+      // (every word is in the material); the subject+verb match above
+      // cannot either (the subjects differ, so no edge is found there).
+      // Gated, never assumed: the object must resolve to a REFERENT this
+      // material itself established (a shared token alone — "the museum"
+      // in "visited the museum" — proves nothing about exclusivity), and
+      // EVERY edge sharing this verb+object must point to the SAME other
+      // subject — the material's own evidence that the slot has one
+      // filler, not a verb's meaning guessed at. A slot the material shows
+      // filled by two or more DIFFERENT subjects (co-champions, shared
+      // authorship) stays silently unbound; competing is only ever
+      // computed FROM edges, never from what a verb like "won" implies.
+      let competing = null;
+      if (obj.referents.size && sameVerbObj.length) {
+        // A referent alone is not enough when a NUMBER rides the object —
+        // measured live 2026-08-19: "the World Series" as a recurring
+        // surface resolved one referent across an article's every mention
+        // of it regardless of year, so a claim about the 1960 series
+        // competed against a bound "…won the World Series in 1971" edge —
+        // sourced, but answering a different question. The same P26
+        // discipline ("a number is grounded by the company it keeps") gates
+        // here: when BOTH the claim's object and a candidate edge's object
+        // carry a number, they must share one, or the candidate is not
+        // eligible to compete for this slot at all.
+        const claimNums = numberSet(t.object);
+        const numbersAgree = (e) => {
+          const edgeNums = numberSet(e.object);
+          if (!claimNums.size || !edgeNums.size) return true; // nothing to disagree about
+          for (const n of claimNums) if (edgeNums.has(n)) return true;
+          return false;
+        };
+        const eligible = sameVerbObj.filter(numbersAgree);
+        if (eligible.length) {
+          const oneSubject = eligible[0].subjectEnd.referents;
+          const oneFiller = eligible.every((e) => intersects(e.subjectEnd.referents, oneSubject));
+          if (oneFiller) {
+            const refs = [...new Set(eligible.flatMap((e) => e.refs))];
+            competing = { ...edgeFace(eligible[0]), refs, corroboration: corroboration(refs) };
+          }
+        }
+      }
+      // The competing edge, when found, leads `nearest` — it is strictly
+      // better evidence than an ordinary same-subject or same-object
+      // neighbour, and every caller that reads `nearest[0]` (the badge,
+      // the grounding panel) inherits the upgrade with no further change.
+      const rest = [...sameSubjVerb, ...sameVerbObj]
+        .map(edgeFace)
+        .filter((e) => !competing || e.subject !== competing.subject || e.object !== competing.object);
+      const nearest = (competing ? [competing, ...rest] : rest).slice(0, NEAREST_EDGES_MAX);
+      return { ...claim, verdict: "unbound", nearest, ...(competing ? { competing } : {}) };
     }
 
     function edgeFace(e) {
@@ -428,11 +492,18 @@ export function relationFindings(report, { verdicts = ["contradicted", "unbound"
     if (c.verdict === "contradicted" && want.has("contradicted")) {
       lines.push(`the material says otherwise: ${edge} [${(c.refs ?? []).join("; ")}]`);
     } else if (c.verdict === "unbound" && want.has("unbound")) {
-      const near = c.nearest?.[0];
-      lines.push(
-        `the material never says: ${edge}` +
-          (near ? ` (closest it does say: ${near.subject} —${near.verb}→ ${near.object})` : ""),
-      );
+      if (c.competing) {
+        lines.push(
+          `the material fills this differently: ${edge} — it says ` +
+            `${c.competing.subject} —${c.competing.verb}→ ${c.competing.object} [${c.competing.refs.join("; ")}]`,
+        );
+      } else {
+        const near = c.nearest?.[0];
+        lines.push(
+          `the material never says: ${edge}` +
+            (near ? ` (closest it does say: ${near.subject} —${near.verb}→ ${near.object})` : ""),
+        );
+      }
     }
   }
   return lines;

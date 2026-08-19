@@ -178,3 +178,25 @@ test("stripNarrationSentences never touches a fenced code block, even when a cut
   assert.equal(removed.length, 1);
   assert.ok(text.includes("```python\ndef fib(n):\n    a = [0, 1]\n    for i in range(2, n):\n        a.append(a[i-1] + a[i-2])\n    return a\n```"));
 });
+
+test("the modifier-gap narration with an appositive quote is cut; a content subject behind modifiers survives", () => {
+  // Measured live 2026-08-19 ("who won the 1960 world series?", gemma2:2b):
+  // the whole shipped answer was one narration sentence whose subject noun
+  // sat three modifiers from its determiner, with the quoted question as an
+  // appositive between subject and verb — outside both the adjacent-noun
+  // subject pattern and the narrow verb gap. Extended together with
+  // holon.js's DIALOGUE_NARRATION_RE (one register, two files).
+  const specimen =
+    'The 1960 World Series question, "who won the 1960 World Series?", is directly related to baseball playoffs, specifically the 1960 World Series. The Pirates took the title in seven games.';
+  const { text, removed } = stripNarrationSentences(specimen, { hasMaterial: true });
+  assert.equal(removed.length, 1);
+  assert.ok(/is directly related/.test(removed[0]));
+  assert.equal(text, "The Pirates took the title in seven games.");
+  // The widening's guard, pinned from the other direction: a real content
+  // subject that happens to wear a register noun behind modifiers ships.
+  const guard = stripNarrationSentences(
+    "The user account is locked after three failed attempts, and the reset procedure requires an administrator token.",
+    { hasMaterial: true },
+  );
+  assert.equal(guard.removed.length, 0);
+});

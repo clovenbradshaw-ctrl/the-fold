@@ -2388,3 +2388,41 @@ question). Enforced by `grounding.test.mjs`'s new trazodone/decoy case;
 20/20 in that file; 759/760 repo-wide after reconciling with concurrent
 upstream work (full numbers, and how they were confirmed unrelated, in
 POLICIES.md P26).
+
+## The witness tier (added 2026-08-19) — what was decided, so it is not re-derived
+
+P27 in POLICIES.md is the law; this is the map. The user's ask, verbatim:
+"wire in the witness tier, but also, tell me what the mechanical fact
+checking would need from the hypergraph first" — born from the measured
+Yankees specimen (a false claim the relation tier could only call unbound
+while the web tier corroborated it ✓ 3/3 by string co-occurrence).
+
+**The one design fact to keep:** the witness model is only ever the mouth.
+It answers "does the passage say this sentence is true?" — yes/no, with
+the passage's own deciding words — TWICE: the claim, then its
+sibling-swapped twin (the sibling drawn from the page's own names as the
+competing filler of the claim's slot, chosen by slot-word co-occurrence,
+sentence-boundary-spanning "names" excluded). The verdict is DERIVED
+mechanically from the pair in `testimony.js::foldTestimony`; the model is
+never asked to classify. Measured reason: three-way classification drew
+the right `because` under the wrong label from gemma2:2b — the small
+model can read, not label. The decider shown to the reader is source
+bytes (verbatim pointer → located sentence → word-contained pointer →
+refuse), quotes.js's own posture.
+
+**Wiring.** `app.js::witnessProof` runs inside the proof chip's walk after
+seekProof — no new egress, same standing consent; testimony re-labels the
+chip (⇄) and joins `claims.js::composedSentence` as the witness aspect;
+refusals are typed into the audit; the reflex ledger gains `witnessed`
+through its designed unknown-act fallback. The narration registers in
+provenance.js and holon.js were extended the same day with the measured
+modifier-gap + appositive + relate-lemma shape ("The 1960 World Series
+question, «…», is directly related to…") — one register, two files,
+extended together.
+
+**The hypergraph's own missing piece, named as a decision:** slot
+competition (same verb+object-referent, different subject-referent;
+definite-unique objects only, exclusivity measured from the material's own
+universe under a redealt null; shared referent fold both sides; polarity
+and temporal adjuncts in the slot key). Unbuilt — the witness covers the
+semantic remainder; P27 records the boundary.

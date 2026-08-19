@@ -118,26 +118,40 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
 }
 
 /**
- * The search anchor for a preflight: the turn's own words plus the fold's
- * one-line discourse (topic · flow · entities) — the same conversational
- * anchor `runPart`'s `groundingQuestion` now carries, for the identical
- * reason (a topic-less follow-up like "prove it" names nothing on its own,
- * and the discourse line is what still does). Unlike `proofQuery`, there is
- * no claim yet to quote verbatim — this is a topic search, not a claim
- * search, so every word is ordinary query material and the term cap is
- * wider (PREFLIGHT_QUERY_MAX_TERMS, not PROOF_QUERY_MAX_TERMS): the turn's
- * own words come first, so they survive the cap before the discourse line's
- * do if the combined anchor runs long.
+ * The search anchor for a preflight. The task's own words and the fold's
+ * one-line discourse (topic · flow · entities) are two DIFFERENT assemblies,
+ * and this used to union them unconditionally — so a self-contained question
+ * asked right after another topic searched the web on both topics at once
+ * (measured live 2026-08-19: "research Robert Macnamera" after a greeting
+ * searched on "Greeting exchange"'s words too, fetched a greeting-etiquette
+ * page, and retrieval then preferred it over the on-topic pages). The
+ * discourse anchor exists for the topic-less follow-up ("prove it") whose
+ * own words name nothing — so the join is now earned, never assumed: the
+ * discourse's words enter only when the task points back anaphorically (a
+ * received closed class, the engine's ANAPHORIC_PRONOUNS — injected, the
+ * widget.js pattern, never a hand-typed intent list) or carries no content
+ * words at all. Task words still come first, so they survive the cap before
+ * the discourse line's do if the joined anchor runs long.
  */
-export function preflightQuery(task, discourse = "") {
-  const words = [
+export function preflightQuery(task, discourse = "", { anaphors = null } = {}) {
+  const content = (s) => [
     ...new Set(
-      `${task ?? ""} ${discourse ?? ""}`
+      String(s ?? "")
         .split(/[^\p{L}\p{N}'’]+/u)
         .map((w) => w.replace(/['’]s$/, ""))
         .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase())),
     ),
   ];
+  const taskWords = content(task);
+  const tokens = String(task ?? "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}'’]+/u)
+    .filter(Boolean);
+  const pointsBack = !!anaphors && tokens.some((t) => anaphors.has(t));
+  const words =
+    pointsBack || !taskWords.length
+      ? [...new Set([...taskWords, ...content(discourse)])]
+      : taskWords;
   return words.slice(0, PREFLIGHT_QUERY_MAX_TERMS).join(" ").trim();
 }
 

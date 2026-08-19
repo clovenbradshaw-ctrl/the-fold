@@ -1,0 +1,3481 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "narrowTemp": 0.2,
+    "wideTemp": 1.2,
+    "wideN": 16,
+    "draws": 2000,
+    "seed": 1337,
+    "timeoutMs": 200,
+    "ollama": "http://localhost:11434",
+    "out": "wide-vs-narrow-results.json",
+    "selfTest": false
+  },
+  "perTask": [
+    {
+      "id": "sum-digits",
+      "narrow": {
+        "success": true
+      },
+      "wide": {
+        "attempted": 16,
+        "passing": 15,
+        "success": true
+      }
+    },
+    {
+      "id": "is-palindrome",
+      "narrow": {
+        "success": true
+      },
+      "wide": {
+        "attempted": 16,
+        "passing": 15,
+        "success": true
+      }
+    },
+    {
+      "id": "flatten-one",
+      "narrow": {
+        "success": true
+      },
+      "wide": {
+        "attempted": 16,
+        "passing": 10,
+        "success": true
+      }
+    },
+    {
+      "id": "count-vowels",
+      "narrow": {
+        "success": true
+      },
+      "wide": {
+        "attempted": 16,
+        "passing": 14,
+        "success": true
+      }
+    },
+    {
+      "id": "median",
+      "narrow": {
+        "success": true
+      },
+      "wide": {
+        "attempted": 16,
+        "passing": 13,
+        "success": true
+      }
+    },
+    {
+      "id": "fizzbuzz",
+      "narrow": {
+        "success": true
+      },
+      "wide": {
+        "attempted": 16,
+        "passing": 13,
+        "success": true
+      }
+    }
+  ],
+  "outcomes": [
+    {
+      "arm": "narrow",
+      "success": 1
+    },
+    {
+      "arm": "wide",
+      "success": 1
+    },
+    {
+      "arm": "narrow",
+      "success": 1
+    },
+    {
+      "arm": "wide",
+      "success": 1
+    },
+    {
+      "arm": "narrow",
+      "success": 1
+    },
+    {
+      "arm": "wide",
+      "success": 1
+    },
+    {
+      "arm": "narrow",
+      "success": 1
+    },
+    {
+      "arm": "wide",
+      "success": 1
+    },
+    {
+      "arm": "narrow",
+      "success": 1
+    },
+    {
+      "arm": "wide",
+      "success": 1
+    },
+    {
+      "arm": "narrow",
+      "success": 1
+    },
+    {
+      "arm": "wide",
+      "success": 1
+    }
+  ],
+  "test": {
+    "kind": "trial",
+    "statistic": "groupMeanGap (candidate, not yet in nul/index.js)",
+    "perturbation": "labelShuffle (candidate, not yet in nul/index.js)",
+    "direction": "above",
+    "n": 12,
+    "nWide": 6,
+    "nNarrow": 6,
+    "observed": 0,
+    "rank": 1,
+    "censoredAtFloor": false,
+    "draws": 2000,
+    "seed": 1337
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:narrow:000",
+      "description": "narrow sample 0 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:narrow:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:000",
+      "description": "wide sample 0 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:001",
+      "description": "wide sample 1 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:001",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:002",
+      "description": "wide sample 2 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:002",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:003",
+      "description": "wide sample 3 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 8,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:003",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 9,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:004",
+      "description": "wide sample 4 for sum-digits (127 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 10,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:004",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 11,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:005",
+      "description": "wide sample 5 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 12,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:005",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 13,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:006",
+      "description": "wide sample 6 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 14,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:006",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 15,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:007",
+      "description": "wide sample 7 for sum-digits (107 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 16,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:007",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 17,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:008",
+      "description": "wide sample 8 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 18,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:008",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 19,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:009",
+      "description": "wide sample 9 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 20,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:009",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 21,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:010",
+      "description": "wide sample 10 for sum-digits (111 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 22,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:010",
+      "result": {
+        "witness": {
+          "ok": false,
+          "lang": "js",
+          "findings": [
+            {
+              "kind": "script-syntax",
+              "detail": "Invalid or unexpected token"
+            }
+          ]
+        },
+        "functional": null,
+        "passed": false
+      },
+      "seq": 23,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:011",
+      "description": "wide sample 11 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 24,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:011",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 25,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:012",
+      "description": "wide sample 12 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 26,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:012",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 27,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:013",
+      "description": "wide sample 13 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 28,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:013",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 29,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:014",
+      "description": "wide sample 14 for sum-digits (107 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 30,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:014",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 31,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "sum-digits:wide:015",
+      "description": "wide sample 15 for sum-digits (124 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 32,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "sum-digits:wide:015",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 33,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:narrow:000",
+      "description": "narrow sample 0 for is-palindrome (147 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 34,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:narrow:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 35,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:000",
+      "description": "wide sample 0 for is-palindrome (170 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 36,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 37,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:001",
+      "description": "wide sample 1 for is-palindrome (114 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 38,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:001",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 39,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:002",
+      "description": "wide sample 2 for is-palindrome (198 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 40,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:002",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 41,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:003",
+      "description": "wide sample 3 for is-palindrome (76 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 42,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:003",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 43,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:004",
+      "description": "wide sample 4 for is-palindrome (74 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 44,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:004",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 45,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:005",
+      "description": "wide sample 5 for is-palindrome (169 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 46,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:005",
+      "result": {
+        "witness": {
+          "ok": false,
+          "lang": "js",
+          "findings": [
+            {
+              "kind": "script-syntax",
+              "detail": "Unexpected identifier 'isPalindrome'"
+            }
+          ]
+        },
+        "functional": null,
+        "passed": false
+      },
+      "seq": 47,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:006",
+      "description": "wide sample 6 for is-palindrome (306 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 48,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:006",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 49,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:007",
+      "description": "wide sample 7 for is-palindrome (151 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 50,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:007",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 51,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:008",
+      "description": "wide sample 8 for is-palindrome (128 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 52,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:008",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 53,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:009",
+      "description": "wide sample 9 for is-palindrome (195 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 54,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:009",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 55,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:010",
+      "description": "wide sample 10 for is-palindrome (76 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 56,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:010",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 57,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:011",
+      "description": "wide sample 11 for is-palindrome (105 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 58,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:011",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 59,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:012",
+      "description": "wide sample 12 for is-palindrome (200 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 60,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:012",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 61,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:013",
+      "description": "wide sample 13 for is-palindrome (76 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 62,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:013",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 63,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:014",
+      "description": "wide sample 14 for is-palindrome (169 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 64,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:014",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 65,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "is-palindrome:wide:015",
+      "description": "wide sample 15 for is-palindrome (435 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 66,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "is-palindrome:wide:015",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 67,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:narrow:000",
+      "description": "narrow sample 0 for flatten-one (206 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 68,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:narrow:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 69,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:000",
+      "description": "wide sample 0 for flatten-one (51 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 70,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 71,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:001",
+      "description": "wide sample 1 for flatten-one (238 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 72,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:001",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 73,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:002",
+      "description": "wide sample 2 for flatten-one (226 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 74,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:002",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 75,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:003",
+      "description": "wide sample 3 for flatten-one (57 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 76,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:003",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 77,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:004",
+      "description": "wide sample 4 for flatten-one (120 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 78,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:004",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "throw",
+              "case": 0,
+              "detail": "el.reduce is not a function"
+            },
+            {
+              "kind": "mismatch",
+              "case": 1,
+              "args": [
+                [
+                  [
+                    1,
+                    2
+                  ],
+                  [
+                    3,
+                    4
+                  ]
+                ]
+              ],
+              "expected": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "got": "24"
+            },
+            {
+              "kind": "throw",
+              "case": 3,
+              "detail": "el.reduce is not a function"
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 79,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:005",
+      "description": "wide sample 5 for flatten-one (298 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 80,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:005",
+      "result": {
+        "witness": {
+          "ok": false,
+          "lang": "js",
+          "findings": [
+            {
+              "kind": "script-syntax",
+              "detail": "Unexpected identifier 'flattenOne'"
+            }
+          ]
+        },
+        "functional": null,
+        "passed": false
+      },
+      "seq": 81,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:006",
+      "description": "wide sample 6 for flatten-one (220 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 82,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:006",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "throw",
+              "case": 0,
+              "detail": "Cannot read properties of undefined (reading 'push')"
+            },
+            {
+              "kind": "throw",
+              "case": 1,
+              "detail": "Cannot read properties of undefined (reading 'push')"
+            },
+            {
+              "kind": "throw",
+              "case": 3,
+              "detail": "Cannot read properties of undefined (reading 'push')"
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 83,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:007",
+      "description": "wide sample 7 for flatten-one (193 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 84,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:007",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 85,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:008",
+      "description": "wide sample 8 for flatten-one (203 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 86,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:008",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 87,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:009",
+      "description": "wide sample 9 for flatten-one (268 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 88,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:009",
+      "result": {
+        "witness": {
+          "ok": false,
+          "lang": "js",
+          "findings": [
+            {
+              "kind": "script-syntax",
+              "detail": "Unexpected identifier 'flattenOne'"
+            }
+          ]
+        },
+        "functional": null,
+        "passed": false
+      },
+      "seq": 89,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:010",
+      "description": "wide sample 10 for flatten-one (212 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 90,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:010",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 91,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:011",
+      "description": "wide sample 11 for flatten-one (109 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 92,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:011",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "throw",
+              "case": 0,
+              "detail": "arr.reduce is not a function"
+            },
+            {
+              "kind": "throw",
+              "case": 1,
+              "detail": "arr.reduce is not a function"
+            },
+            {
+              "kind": "throw",
+              "case": 3,
+              "detail": "arr.reduce is not a function"
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 93,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:012",
+      "description": "wide sample 12 for flatten-one (221 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 94,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:012",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 95,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:013",
+      "description": "wide sample 13 for flatten-one (196 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 96,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:013",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 97,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:014",
+      "description": "wide sample 14 for flatten-one (148 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 98,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:014",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "load-error",
+              "detail": "flattenOne is not defined"
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 99,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "flatten-one:wide:015",
+      "description": "wide sample 15 for flatten-one (330 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 100,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "flatten-one:wide:015",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 101,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:narrow:000",
+      "description": "narrow sample 0 for count-vowels (200 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 102,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:narrow:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 103,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:000",
+      "description": "wide sample 0 for count-vowels (200 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 104,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 105,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:001",
+      "description": "wide sample 1 for count-vowels (207 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 106,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:001",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 107,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:002",
+      "description": "wide sample 2 for count-vowels (236 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 108,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:002",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 109,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:003",
+      "description": "wide sample 3 for count-vowels (209 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 110,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:003",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 111,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:004",
+      "description": "wide sample 4 for count-vowels (200 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 112,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:004",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 113,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:005",
+      "description": "wide sample 5 for count-vowels (248 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 114,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:005",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 115,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:006",
+      "description": "wide sample 6 for count-vowels (321 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 116,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:006",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 117,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:007",
+      "description": "wide sample 7 for count-vowels (63 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 118,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:007",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "throw",
+              "case": 0,
+              "detail": "Cannot read properties of null (reading 'length')"
+            },
+            {
+              "kind": "throw",
+              "case": 1,
+              "detail": "Cannot read properties of null (reading 'length')"
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 119,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:008",
+      "description": "wide sample 8 for count-vowels (198 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 120,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:008",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 121,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:009",
+      "description": "wide sample 9 for count-vowels (369 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 122,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:009",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 123,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:010",
+      "description": "wide sample 10 for count-vowels (175 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 124,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:010",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 125,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:011",
+      "description": "wide sample 11 for count-vowels (236 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 126,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:011",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "mismatch",
+              "case": 4,
+              "args": [
+                "AEIOUaeiou"
+              ],
+              "expected": 10,
+              "got": 5
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 127,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:012",
+      "description": "wide sample 12 for count-vowels (201 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 128,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:012",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 129,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:013",
+      "description": "wide sample 13 for count-vowels (236 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 130,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:013",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 131,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:014",
+      "description": "wide sample 14 for count-vowels (283 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 132,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:014",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 133,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "count-vowels:wide:015",
+      "description": "wide sample 15 for count-vowels (233 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 134,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "count-vowels:wide:015",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 135,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:narrow:000",
+      "description": "narrow sample 0 for median (216 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 136,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:narrow:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 137,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:000",
+      "description": "wide sample 0 for median (313 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 138,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 139,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:001",
+      "description": "wide sample 1 for median (238 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 140,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:001",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 141,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:002",
+      "description": "wide sample 2 for median (217 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 142,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:002",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 143,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:003",
+      "description": "wide sample 3 for median (428 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 144,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:003",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 145,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:004",
+      "description": "wide sample 4 for median (216 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 146,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:004",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 147,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:005",
+      "description": "wide sample 5 for median (261 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 148,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:005",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 149,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:006",
+      "description": "wide sample 6 for median (282 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 150,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:006",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 151,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:007",
+      "description": "wide sample 7 for median (204 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 152,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:007",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 153,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:008",
+      "description": "wide sample 8 for median (217 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 154,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:008",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 155,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:009",
+      "description": "wide sample 9 for median (383 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 156,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:009",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "mismatch",
+              "case": 0,
+              "args": [
+                [
+                  1
+                ]
+              ],
+              "expected": 1
+            },
+            {
+              "kind": "mismatch",
+              "case": 2,
+              "args": [
+                [
+                  3,
+                  1,
+                  2
+                ]
+              ],
+              "expected": 2
+            },
+            {
+              "kind": "mismatch",
+              "case": 4,
+              "args": [
+                [
+                  7,
+                  7,
+                  7
+                ]
+              ],
+              "expected": 7
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 157,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:010",
+      "description": "wide sample 10 for median (379 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 158,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:010",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 159,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:011",
+      "description": "wide sample 11 for median (247 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 160,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:011",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "mismatch",
+              "case": 0,
+              "args": [
+                [
+                  1
+                ]
+              ],
+              "expected": 1
+            },
+            {
+              "kind": "mismatch",
+              "case": 2,
+              "args": [
+                [
+                  3,
+                  1,
+                  2
+                ]
+              ],
+              "expected": 2
+            },
+            {
+              "kind": "mismatch",
+              "case": 4,
+              "args": [
+                [
+                  7,
+                  7,
+                  7
+                ]
+              ],
+              "expected": 7
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 161,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:012",
+      "description": "wide sample 12 for median (210 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 162,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:012",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 163,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:013",
+      "description": "wide sample 13 for median (110 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 164,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:013",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "load-error",
+              "detail": "Cannot access 'median' before initialization"
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 165,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:014",
+      "description": "wide sample 14 for median (269 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 166,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:014",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 167,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "median:wide:015",
+      "description": "wide sample 15 for median (263 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 168,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "median:wide:015",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 169,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:narrow:000",
+      "description": "narrow sample 0 for fizzbuzz (337 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 170,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:narrow:000",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 171,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:000",
+      "description": "wide sample 0 for fizzbuzz (422 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 172,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:000",
+      "result": {
+        "witness": {
+          "ok": false,
+          "lang": "js",
+          "findings": [
+            {
+              "kind": "script-syntax",
+              "detail": "Unexpected identifier 'fizzbuzzRange'"
+            }
+          ]
+        },
+        "functional": null,
+        "passed": false
+      },
+      "seq": 173,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:001",
+      "description": "wide sample 1 for fizzbuzz (340 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 174,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:001",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 175,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:002",
+      "description": "wide sample 2 for fizzbuzz (346 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 176,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:002",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 177,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:003",
+      "description": "wide sample 3 for fizzbuzz (399 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 178,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:003",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 179,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:004",
+      "description": "wide sample 4 for fizzbuzz (340 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 180,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:004",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 181,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:005",
+      "description": "wide sample 5 for fizzbuzz (391 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 182,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:005",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 183,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:006",
+      "description": "wide sample 6 for fizzbuzz (396 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 184,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:006",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 185,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:007",
+      "description": "wide sample 7 for fizzbuzz (323 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 186,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:007",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 187,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:008",
+      "description": "wide sample 8 for fizzbuzz (340 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 188,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:008",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 189,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:009",
+      "description": "wide sample 9 for fizzbuzz (411 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 190,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:009",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 191,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:010",
+      "description": "wide sample 10 for fizzbuzz (405 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 192,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:010",
+      "result": {
+        "witness": {
+          "ok": false,
+          "lang": "js",
+          "findings": [
+            {
+              "kind": "script-syntax",
+              "detail": "Invalid or unexpected token"
+            }
+          ]
+        },
+        "functional": null,
+        "passed": false
+      },
+      "seq": 193,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:011",
+      "description": "wide sample 11 for fizzbuzz (329 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 194,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:011",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": false,
+          "findings": [
+            {
+              "kind": "mismatch",
+              "case": 0,
+              "args": [
+                1
+              ],
+              "expected": [
+                "1"
+              ],
+              "got": [
+                1
+              ]
+            },
+            {
+              "kind": "mismatch",
+              "case": 1,
+              "args": [
+                3
+              ],
+              "expected": [
+                "1",
+                "2",
+                "Fizz"
+              ],
+              "got": [
+                1,
+                2,
+                "Fizz"
+              ]
+            },
+            {
+              "kind": "mismatch",
+              "case": 2,
+              "args": [
+                5
+              ],
+              "expected": [
+                "1",
+                "2",
+                "Fizz",
+                "4",
+                "Buzz"
+              ],
+              "got": [
+                1,
+                2,
+                "Fizz",
+                4,
+                "Buzz"
+              ]
+            },
+            {
+              "kind": "mismatch",
+              "case": 3,
+              "args": [
+                15
+              ],
+              "expected": [
+                "1",
+                "2",
+                "Fizz",
+                "4",
+                "Buzz",
+                "Fizz",
+                "7",
+                "8",
+                "Fizz",
+                "Buzz",
+                "11",
+                "Fizz",
+                "13",
+                "14",
+                "FizzBuzz"
+              ],
+              "got": [
+                1,
+                2,
+                "Fizz",
+                4,
+                "Buzz",
+                "Fizz",
+                7,
+                8,
+                "Fizz",
+                "Buzz",
+                11,
+                "Fizz",
+                13,
+                14,
+                "FizzBuzz"
+              ]
+            }
+          ]
+        },
+        "passed": false
+      },
+      "seq": 195,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:012",
+      "description": "wide sample 12 for fizzbuzz (342 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 196,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:012",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 197,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:013",
+      "description": "wide sample 13 for fizzbuzz (416 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 198,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:013",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 199,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:014",
+      "description": "wide sample 14 for fizzbuzz (367 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 200,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:014",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 201,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "fizzbuzz:wide:015",
+      "description": "wide sample 15 for fizzbuzz (372 bytes)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 202,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "fizzbuzz:wide:015",
+      "result": {
+        "witness": {
+          "ok": true,
+          "lang": "js",
+          "findings": []
+        },
+        "functional": {
+          "ok": true,
+          "findings": []
+        },
+        "passed": true
+      },
+      "seq": 203,
+      "depends_on": [],
+      "evidence": []
+    }
+  ],
+  "checkCubeProgressionFlags": []
+}

@@ -1924,3 +1924,93 @@ alone); 759/760 after merging that work in, the upstream commits having
 fixed `arithmetic.test.mjs` along the way — the one remaining failure
 (`measure.test.mjs`, a stale `../eoreader6/` path predating the
 `eoreader6.1` rename) touches neither `grounding.js` nor this policy.
+
+## P27 — The witness tier: the verdict is derived from a pair of binary reads, never asked as a label
+
+**The rule.** When a claim's web walk has fetched pages, a semantic witness
+— the resident small model — may testify about ONE page's bytes, under
+three mechanical walls: (1) it is only ever asked the binary question
+"does the passage say this sentence is true?", twice — once for the claim
+and once for its sibling-swapped twin, the sibling drawn from the page's
+own names as the competing filler of the claim's own slot — and the
+verdict is DERIVED from the pair (claim-no + sibling-yes → contradicts;
+claim-yes + sibling-no → states; both-yes → refused insensitive; both-no →
+no testimony), never asked as a classification; (2) the decider shown to
+the reader is the source's own sentence — the witness's pointer when it is
+verbatim in the bytes, else a located source sentence, else a
+word-contained pointer, else the testimony is refused as uncontained; (3)
+every refusal is typed (unreadable / insensitive / uncontained /
+no-testimony / no-anchor / unreachable) and lands in the audit, and a
+witnessed contradiction re-labels the chip (⇄) while the counts stay
+visible — composition, never erasure.
+
+**Why.** Measured live 2026-08-19 ("who won the 1960 world series?",
+gemma2:2b): the model answered "The New York Yankees won the 1960 World
+Series" — false — and the ladder split along its levels. The relation tier
+said only "the material never binds this edge": its contradiction test
+matches subject+verb, and "the Pirates won X" vs "the Yankees won X"
+differs in subject, so no edge matched — that "won the 1960 World Series"
+seats exactly ONE subject is world knowledge no mechanical extractor has.
+The web tier CORROBORATED the false claim ✓ 3/3: the loser's name
+saturates every page about the series, and a count that reads ✓ for
+"Yankees won" and "Pirates won" alike is a distinction without a
+difference wearing a checkmark. A reader over the same bytes settles it in
+two short calls. The binary protocol is itself a measurement: the
+three-way form ("states / contradicts / neither") drew from gemma2:2b a
+`because` that stated the contradiction perfectly under a verdict label of
+"neither" — the reading was right, the classification was beyond it, so
+classification was taken away from the model entirely (the model is just
+the mouth). The sibling arm doubles as the sensitivity null: a witness
+affirming both fillers of one slot testifies about vocabulary, not the
+claim, and is refused.
+
+**What mechanical fact-checking would need from the hypergraph instead —
+recorded so the boundary is a decision, not an accident.** Slot
+competition: a verdict for "the material fills this slot OTHERWISE" —
+matching on verb+object-referent with a DIFFERENT subject-referent (the
+mirror of its current subject+verb match), gated on the object being a
+definite unique referent (the received determiner register, never a
+hand-list of exclusive verbs), with exclusivity measured from the
+material's own universe (the slot observed with one filler, under a
+redealt null, refused as underpowered on tiny materials), both sides of
+every comparison through the one shared referent fold, and polarity plus
+temporal adjuncts carried in the slot key. That is real, unbuilt work; the
+witness tier covers the semantic remainder that no amount of it reaches.
+
+**Files.** `testimony.js` (pure: WITNESS_SCHEMA, buildWitnessMessages,
+readTestimony, witnessSlice, siblingSwap, locateDecider, becauseVerbatim/
+becauseContained, foldTestimony) + `testimony.test.mjs` (7 conformance
+tests, scripted witnesses — the walls, not the reading);
+`eval/witness-live.mjs` (the specimen against a REAL model);
+`app.js::witnessProof` (the two constrained calls, `format` = the schema,
+run inside the proof chip's walk after seekProof, no new egress — the
+witness reads bytes a recorded fetch already landed, so it runs under the
+same standing web consent); `claims.js::composedSentence` (the witness
+aspect, phrased beside the web counts). The reflex ledger gains a
+`witnessed` act through its own designed unknown-act fallback — reflex.js
+unedited.
+
+**Evidence.** Offline: 7/7 conformance tests; full repo 767 passing (one
+pre-existing failure, `measure.test.mjs`'s stale `eoreader6` path).
+Live (`eval/witness-live.mjs`, gemma2:2b, three iterations recorded in the
+session): the three-way form → right `because`, wrong label (led to the
+binary redesign); the first binary run → correct pair (claim-no,
+arm-yes) but the sibling picker chose a name spanning a sentence boundary
+("National League. The Pittsburgh Pirates") and the pointer wall refused
+the garbled arm — the discipline held while the swap was wrong (fixed:
+candidates carrying a sentence break are excluded, and the sibling is
+chosen by slot-word co-occurrence, longest only as tiebreak); the final
+run → verdict "contradicts", armed, decider = the page's own decisive
+sentence verbatim ("The Pittsburgh Pirates defeated the New York Yankees
+in seven games to win the 1960 World Series.").
+
+**Disclosed limits.** One page per claim (the first stating-or-read page
+whose text the turn holds), two short calls — the budget is the walk's
+own PROOF_TARGETS_PER_TURN, no new knob. Contradiction is only derivable
+when the page offers a sibling in the slot: a page that merely omits the
+claim (both-no) is silence, which the ∅ count already says; a
+contradiction carried by negation alone ("X never happened") has no
+sibling to affirm and is not reached — that is the hypergraph's
+slot-competition work above, not a witness gap to paper over. The witness
+reads the page the byte walk chose, so a walk that fetched only
+irrelevant pages gives the witness nothing to read (no-anchor, typed).

@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   CHAT_SYSTEM_PROMPT,
   EXECUTE_SYSTEM_PROMPT,
+  FLAT_EXECUTE_SYSTEM_PROMPT,
   MAX_CORRECTIONS,
   PLAN_ENTRY_KINDS,
   PLAN_SYSTEM_PROMPT,
@@ -44,6 +45,15 @@ const chunks = chunkSource("notes.txt", CORPUS);
  */
 function offeredRefs(userContent, pool = chunks) {
   return pool.filter((c) => userContent.includes(c.text)).map((c) => c.ref);
+}
+
+/** Everything a call actually carries, joined — the honest way for a fake
+ * model to read its prompt now that the flat material path puts the
+ * source block in the SYSTEM message and the person's words in the final
+ * user turn (2026-08-19, stable sub-assemblies): a real model sees all of
+ * its messages, so the fake one reads all of them too. */
+function promptOf(messages) {
+  return messages.map((m) => m.content).join("\n\n");
 }
 
 /**
@@ -409,7 +419,7 @@ test("production retries a strayed part that matched nothing, as a supersede", a
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT)
       return JSON.stringify([{ label: "orbital telemetry", description: "Calibrate the orbital telemetry envelope." }]);
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return refs.length
       ? `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}]`
       : "There is nothing here about that.";
@@ -452,7 +462,7 @@ test("flat mode: a one-part thought that spends no plan call", async () => {
     // The whole point: planning was decided mechanically, so asking the
     // model to plan would be a spent call deciding what was already decided.
     assert.notEqual(messages[0].content, PLAN_SYSTEM_PROMPT, "flat mode must not spend a plan call");
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return refs.length
       ? `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}]`
       : "Nothing matched.";
@@ -471,11 +481,17 @@ test("flat mode: a one-part thought that spends no plan call", async () => {
   assert.ok(result.refs.length >= 1);
 });
 
-test("the discourse slice reaches the part prompt, and only as one line", async () => {
+test("the discourse slice reaches a flat part with no history, and only as one line", async () => {
+  // The flat material call is object-level now (2026-08-19): duty and
+  // material in the system prompt, the person's words as the final user
+  // turn. With no verbatim history to send, the one-line discourse rides
+  // the system prompt — the fallback context, never a directive wrapper.
   let sawDiscourse = false;
+  let taskVerbatim = false;
   const call = async (messages) => {
-    if (messages[1]?.content.includes("The conversation so far, in one line: ports · the figure")) sawDiscourse = true;
-    const refs = offeredRefs(messages[1].content);
+    if (messages[0]?.content.includes("The conversation so far: ports · the figure")) sawDiscourse = true;
+    if (messages[messages.length - 1]?.content === "and the spring quarter?") taskVerbatim = true;
+    const refs = offeredRefs(promptOf(messages));
     return refs.length ? `The figure was 12%. [${refs[0]}]` : "Nothing.";
   };
   await runHolonicTask({
@@ -485,7 +501,8 @@ test("the discourse slice reaches the part prompt, and only as one line", async 
     planMode: "flat",
     discourse: "ports · the figure under revision · Kessington",
   });
-  assert.ok(sawDiscourse);
+  assert.ok(sawDiscourse, "the discourse line rides the system prompt when no history exists");
+  assert.ok(taskVerbatim, "the person's message arrives as itself, never inside a directive");
 });
 
 // ── the conversation's own anchor, extended to a topic-less flat follow-up ──
@@ -505,7 +522,7 @@ const weatherChunks = chunkSource(
 
 test("a flat, topic-less follow-up retrieves on the fold's discourse, not just its own empty words", async () => {
   const call = async (messages) => {
-    const refs = offeredRefs(messages[1].content, weatherChunks);
+    const refs = offeredRefs(promptOf(messages), weatherChunks);
     return refs.length
       ? `Confirmed: the National Weather Service forecast lists 68 degrees for New York City. [${refs[0]}]`
       : "I don't have enough information to confirm that.";
@@ -522,17 +539,93 @@ test("a flat, topic-less follow-up retrieves on the fold's discourse, not just i
 
 test("without the discourse anchor, the same topic-less follow-up retrieves nothing — the fix is the anchor, not luck", async () => {
   const call = async (messages) => {
-    const refs = offeredRefs(messages[1].content, weatherChunks);
+    const refs = offeredRefs(promptOf(messages), weatherChunks);
     return refs.length ? `Confirmed. [${refs[0]}]` : "I don't have enough information.";
   };
   const result = await runHolonicTask({ task: "prove it", chunks: weatherChunks, call, planMode: "flat" });
   assert.equal(result.refs.length, 0, "no discourse, no anchor — retrieval correctly finds nothing in 'prove it' alone");
 });
 
+// ── stable sub-assemblies (2026-08-19): the join is earned, never assumed ──
+// Measured live: "research Robert Macnamera" asked right after a greeting
+// retrieved greeting-etiquette passages, because the stale discourse line
+// was concatenated into the retrieval query on spec and its words out-voted
+// a misspelled name matching nothing. The part's own words retrieve FIRST;
+// the discourse widens only on measured emptiness.
+
+test("a flat question whose own words retrieve material never inherits the stale topic's passages", async () => {
+  // A corpus holding both the on-topic passage and a stale-topic decoy that
+  // the old concatenation would have pulled in via the discourse words.
+  const mixed = chunkSource(
+    "mixed.txt",
+    [
+      "The Kessington report put the harbor figure at 12% for the spring quarter.",
+      "A proper greeting, involving a brief exchange like saying hello, is necessary for extended conversation with the user.",
+    ].join("\n\n"),
+  );
+  let offered = null;
+  const call = async (messages) => {
+    offered = offeredRefs(promptOf(messages), mixed);
+    return offered.length ? "The harbor figure was 12% for the spring quarter." : "Nothing.";
+  };
+  await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks: mixed,
+    call,
+    planMode: "flat",
+    // The stale line — its words match the decoy passage, not the question.
+    discourse: "Greeting exchange · conversation starts with a simple greeting · user, AI",
+  });
+  assert.ok(offered.some((r) => r.startsWith("mixed")), "the question's own words must still retrieve");
+  const texts = mixed.filter((c) => offered.includes(c.ref)).map((c) => c.text);
+  assert.ok(
+    texts.every((t) => !/greeting/i.test(t)),
+    `the stale topic's passage rode the discourse line into retrieval: ${texts.join(" | ")}`,
+  );
+});
+
+test("the material path sends the real conversation on a flat turn — role-structured history, not only the one-line fold", async () => {
+  // Measured live 2026-08-19: "what is my name?" ran the material path,
+  // which dropped history the moment passages existed — the model then
+  // summarized an irrelevant fetched page instead of seeing the
+  // conversation it was asked about. A regular model with the full context
+  // answers honestly; the instrument may not do worse than that null.
+  let sawHistory = false;
+  const history = [
+    { role: "user", content: "hey" },
+    { role: "assistant", content: "hello — what shall we look at?" },
+  ];
+  const call = async (messages) => {
+    const roles = messages.map((m) => m.role);
+    if (
+      messages[0].content.startsWith(FLAT_EXECUTE_SYSTEM_PROMPT) &&
+      messages[0].content.includes("MATERIAL") &&
+      roles.join(",") === "system,user,assistant,user" &&
+      messages[1].content === "hey" &&
+      messages[messages.length - 1].content === "what was the harbor figure?"
+    )
+      sawHistory = true;
+    const refs = offeredRefs(promptOf(messages));
+    return refs.length ? "The figure was 12% for the spring quarter." : "Nothing.";
+  };
+  await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+    chatHistory: history,
+    discourse: "ports · the figure under revision · Kessington",
+  });
+  assert.ok(
+    sawHistory,
+    "the flat material call: duty+material in system, verbatim history as messages, the person's words as the final user turn",
+  );
+});
+
 test("a decomposed part stays narrowly scoped even when discourse is set — the flat-only fold-in does not leak into planned parts", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content, weatherChunks);
+    const refs = offeredRefs(promptOf(messages), weatherChunks);
     return refs.length ? `Confirmed. [${refs[0]}]` : "I don't have enough information.";
   };
   const result = await runHolonicTask({
@@ -596,7 +689,7 @@ test("an echo answer establishes nothing: typed open, no refs granted", async ()
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
     // The model restates the question — with the offered ref attached, which
     // is exactly how a live echo slipped through as "grounded".
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return `What was the harbor figure for the spring quarter? [${refs[0] ?? "x#0-1"}]`;
   };
   const result = await runHolonicTask({
@@ -720,7 +813,7 @@ test("a prompt that matched no material gets one plain-chat reply, not a diagnos
 test("a draft that opens by restating the prompt ships without its framing", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return `The question is about the harbor figure. The Kessington report puts the harbor figure at 12% for the spring quarter. [${refs[0] ?? "x#0-1"}]`;
   };
   const result = await runHolonicTask({
@@ -836,7 +929,7 @@ test("an original short answer holding two verbatim lines is NOT a reproduction"
     "The audit is finished. The berths reopened in May. What the ledger will not tell you is why the committee let the silting number stand for so long, and nothing in these pages connects the closure of the berths to that decision.";
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content, LEDGER);
+    const refs = offeredRefs(promptOf(messages), LEDGER);
     return `${answer} [${refs[0] ?? "ledger.txt#0-1"}]`;
   };
   const result = await runHolonicTask({
@@ -857,7 +950,7 @@ test("a plan that fails to parse is itself a typed gap", async () => {
   const call = async (messages) =>
     messages[0].content === PLAN_SYSTEM_PROMPT
       ? "no json for you"
-      : `The report puts the harbor figure at 12%. [${offeredRefs(messages[1].content)[0] ?? "x#0-1"}]`;
+      : `The report puts the harbor figure at 12%. [${offeredRefs(promptOf(messages))[0] ?? "x#0-1"}]`;
   const result = await runHolonicTask({ task: "the harbor figure", chunks, call });
   assert.equal(result.plan.degraded, true);
   assert.ok(result.open.some((o) => o.includes("plan did not parse")));
@@ -883,7 +976,7 @@ test("an echo that resolves the question's own deixis is still an echo: typed op
   let drafts = 0;
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content, borodinoChunks);
+    const refs = offeredRefs(promptOf(messages), borodinoChunks);
     // First draft: the declarative echo. Correction: the ?-terminated echo.
     // Both are the live shapes, byte for byte in structure.
     drafts++;
@@ -903,7 +996,7 @@ test("an echo that resolves the question's own deixis is still an echo: typed op
 test("a real answer carrying a wh-relative clause is NOT framing and keeps its warrant", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content, borodinoChunks);
+    const refs = offeredRefs(promptOf(messages), borodinoChunks);
     return `Napoleon, who led the French, entered Moscow a week later. [${refs[0] ?? "x#0-1"}]`;
   };
   const result = await runHolonicTask({ task: "who led the French at this battle?", chunks: borodinoChunks, call, planMode: "flat" });
@@ -916,7 +1009,7 @@ test("a real answer carrying a wh-relative clause is NOT framing and keeps its w
 test("checkLink off (the default): a cited URL ships untouched — nothing was fetched to accuse it", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}] See https://fake.example/report for the filing.`;
   };
   const result = await runHolonicTask({ task: "State the harbor figure the Kessington report gives.", chunks, call, planMode: "flat" });
@@ -929,7 +1022,7 @@ test("checkLink on: a URL that does not resolve is mechanically removed from the
   const seen = [];
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}] See https://fake.example/report for the filing.`;
   };
   const checkLink = async (url) => {
@@ -961,7 +1054,7 @@ test("checkLink on: a URL that resolves ships exactly as written, no marker, not
   let calls = 0;
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content);
+    const refs = offeredRefs(promptOf(messages));
     return `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}] See https://real.example/report for the filing.`;
   };
   const checkLink = async (url) => {
@@ -989,7 +1082,7 @@ test("checkLink on: a URL the loaded material itself already contains is never f
   );
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    const refs = offeredRefs(messages[1].content, withUrlChunks);
+    const refs = offeredRefs(promptOf(messages), withUrlChunks);
     return `The report puts the harbor figure at 12% for the spring quarter, mirrored at https://real.example/mirror. [${refs[0]}]`;
   };
   const checkLink = async () => {

@@ -244,7 +244,26 @@ export function makeRelationReader(organs) {
     };
 
     // ── the material's edges, each with every address that states it ─────
+    // Existing edges are bucketed by an EXACT, cheap key (verb + polarity —
+    // never a guessed match, so no edge can hide from its own bucket) so the
+    // fuzzy endpointsMatch scan below only ever runs over edges that already
+    // share a verb, not the whole graph. Same organ emergence/graph.js
+    // already earned for full-document scale (`edgeKey`, a Map-keyed belief
+    // graph) — that module expects pre-resolved referent ids as its identity
+    // and this tier's identity is fuzzier (referent-or-token, via
+    // endpointsMatch), so its exact key is reused for the bucket a verb's
+    // edges live in, and the fuzzy match still decides membership WITHIN
+    // that bucket. Found by running: a linear `.find()` over the full edge
+    // list, per triple, is O(triples x edges) — quadratic — and was never
+    // exercised past a turn's handful of retrieved passages before a
+    // full-novel eval (eval/crosslingual-eval.mjs) ran it over 11,132
+    // passages and did not finish in ten minutes. Bucketing changes nothing
+    // about WHICH edges merge — endpointsMatch's own verdict is unchanged,
+    // pinned by the existing hypergraph.test.mjs corroboration cases — only
+    // how many candidates are checked to find out.
     const edges = [];
+    const bucketOf = (verb, polarity) => `${verb}|${polarity}`;
+    const buckets = new Map();
     for (const p of list) {
       let triples = [];
       try {
@@ -255,12 +274,11 @@ export function makeRelationReader(organs) {
       for (const t of triples) {
         const subjectEnd = endpoint(t.subject);
         const objectEnd = endpoint(t.object);
-        const existing = edges.find(
-          (e) =>
-            e.verb === t.verb &&
-            e.polarity === t.polarity &&
-            endpointsMatch(e.subjectEnd, subjectEnd) &&
-            endpointsMatch(e.objectEnd, objectEnd),
+        const bucketKey = bucketOf(t.verb, t.polarity);
+        let bucket = buckets.get(bucketKey);
+        if (!bucket) buckets.set(bucketKey, (bucket = []));
+        const existing = bucket.find(
+          (e) => endpointsMatch(e.subjectEnd, subjectEnd) && endpointsMatch(e.objectEnd, objectEnd),
         );
         if (existing) {
           if (!existing.refs.includes(p.ref)) existing.refs.push(p.ref);
@@ -270,7 +288,7 @@ export function makeRelationReader(organs) {
           // is the extractor's, disclosed here rather than papered over.)
           existing.statements += 1;
         } else {
-          edges.push({
+          const fresh = {
             subject: t.subject,
             verb: t.verb,
             object: t.object,
@@ -279,7 +297,9 @@ export function makeRelationReader(organs) {
             objectEnd,
             refs: [p.ref].filter(Boolean),
             statements: 1,
-          });
+          };
+          edges.push(fresh);
+          bucket.push(fresh);
         }
       }
     }

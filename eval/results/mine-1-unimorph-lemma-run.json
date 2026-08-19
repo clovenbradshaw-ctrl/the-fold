@@ -3,11 +3,11 @@
   "essays": 105,
   "facts": 1575,
   "no_vocabulary_essays": 0,
-  "bound": 536,
+  "bound": 557,
   "contradicted": 0,
-  "unbound": 544,
-  "beyond-reach": 264,
-  "unheard": 42,
+  "unbound": 549,
+  "beyond-reach": 236,
+  "unheard": 44,
   "no_claims_extracted": 189
  },
  "examined": 1386,
@@ -46,10 +46,10 @@
    "edges": 27,
    "verdicts": {
     "unheard": 1,
-    "beyond-reach": 3,
+    "beyond-reach": 2,
     "bound": 3,
     "no_claims_extracted": 5,
-    "unbound": 3
+    "unbound": 4
    }
   },
   {
@@ -71,7 +71,7 @@
    "topic": "The Evolution of Video Games",
    "facts": 15,
    "vocabularyVerbs": 30,
-   "edges": 44,
+   "edges": 42,
    "verdicts": {
     "unbound": 9,
     "no_claims_extracted": 2,
@@ -102,8 +102,7 @@
    "verdicts": {
     "no_claims_extracted": 3,
     "unbound": 10,
-    "bound": 1,
-    "beyond-reach": 1
+    "bound": 2
    }
   },
   {
@@ -113,10 +112,10 @@
    "vocabularyVerbs": 40,
    "edges": 40,
    "verdicts": {
-    "beyond-reach": 3,
+    "beyond-reach": 2,
     "bound": 5,
     "unbound": 5,
-    "unheard": 2
+    "unheard": 3
    }
   },
   {
@@ -136,7 +135,7 @@
    "topic": "The Mystery of Black Holes",
    "facts": 15,
    "vocabularyVerbs": 43,
-   "edges": 44,
+   "edges": 43,
    "verdicts": {
     "bound": 6,
     "unbound": 5,
@@ -150,8 +149,8 @@
    "vocabularyVerbs": 39,
    "edges": 41,
    "verdicts": {
-    "bound": 3,
-    "unbound": 10,
+    "bound": 4,
+    "unbound": 9,
     "beyond-reach": 1,
     "no_claims_extracted": 1
    }
@@ -176,9 +175,8 @@
    "edges": 38,
    "verdicts": {
     "unbound": 3,
-    "bound": 9,
-    "no_claims_extracted": 2,
-    "beyond-reach": 1
+    "bound": 10,
+    "no_claims_extracted": 2
    }
   },
   {
@@ -188,9 +186,9 @@
    "vocabularyVerbs": 31,
    "edges": 30,
    "verdicts": {
-    "beyond-reach": 4,
+    "beyond-reach": 3,
     "unbound": 5,
-    "bound": 2,
+    "bound": 3,
     "no_claims_extracted": 4
    }
   },
@@ -199,7 +197,7 @@
    "topic": "Ancient Egyptian Burial Practices",
    "facts": 15,
    "vocabularyVerbs": 37,
-   "edges": 27,
+   "edges": 26,
    "verdicts": {
     "bound": 6,
     "unbound": 7,
@@ -215,8 +213,8 @@
    "edges": 43,
    "verdicts": {
     "no_claims_extracted": 3,
-    "bound": 4,
-    "unbound": 8
+    "bound": 7,
+    "unbound": 5
    }
   },
   {
@@ -227,9 +225,9 @@
    "edges": 43,
    "verdicts": {
     "no_claims_extracted": 3,
-    "unbound": 10,
+    "unbound": 9,
     "beyond-reach": 1,
-    "bound": 1
+    "bound": 2
    }
   },
   {
@@ -250,7 +248,7 @@
    "topic": "The History of Board Games",
    "facts": 15,
    "vocabularyVerbs": 35,
-   "edges": 42,
+   "edges": 41,
    "verdicts": {
     "unbound": 5,
     "bound": 7,
@@ -279,9 +277,9 @@
    "vocabularyVerbs": 40,
    "edges": 46,
    "verdicts": {
-    "unbound": 4,
+    "unbound": 5,
     "bound": 9,
-    "beyond-reach": 2
+    "beyond-reach": 1
    }
   },
   {
@@ -292,8 +290,8 @@
    "edges": 34,
    "verdicts": {
     "bound": 3,
-    "beyond-reach": 6,
-    "unbound": 3,
+    "beyond-reach": 5,
+    "unbound": 4,
     "no_claims_extracted": 3
    }
   },
@@ -306,8 +304,8 @@
    "verdicts": {
     "beyond-reach": 2,
     "no_claims_extracted": 2,
-    "bound": 7,
-    "unbound": 4
+    "bound": 8,
+    "unbound": 3
    }
   },
   {
@@ -318,9 +316,9 @@
    "edges": 34,
    "verdicts": {
     "no_claims_extracted": 5,
-    "unbound": 7,
+    "unbound": 8,
     "unheard": 1,
-    "beyond-reach": 2
+    "beyond-reach": 1
    }
   },
   {
@@ -352,7 +350,7 @@
    "topic": "Famous Hoaxes in History",
    "facts": 15,
    "vocabularyVerbs": 42,
-   "edges": 38,
+   "edges": 39,
    "verdicts": {
     "bound": 9,
     "beyond-reach": 2,
@@ -367,9 +365,9 @@
    "vocabularyVerbs": 40,
    "edges": 34,
    "verdicts": {
-    "unbound": 5,
+    "bound": 8,
     "unheard": 2,
-    "bound": 7,
+    "unbound": 4,
     "beyond-reach": 1
    }
   },
@@ -378,7 +376,7 @@
    "topic": "The Discovery of Penicillin",
    "facts": 15,
    "vocabularyVerbs": 38,
-   "edges": 29,
+   "edges": 30,
    "verdicts": {
     "unbound": 8,
     "bound": 5,
@@ -404,10 +402,10 @@
    "topic": "A Brief History of Time Zones",
    "facts": 15,
    "vocabularyVerbs": 37,
-   "edges": 41,
+   "edges": 40,
    "verdicts": {
-    "unbound": 7,
-    "bound": 5,
+    "unbound": 8,
+    "bound": 4,
     "beyond-reach": 2,
     "unheard": 1
    }
@@ -443,12 +441,12 @@
    "topic": "The Development of Writing Systems",
    "facts": 15,
    "vocabularyVerbs": 42,
-   "edges": 45,
+   "edges": 44,
    "verdicts": {
     "beyond-reach": 3,
     "bound": 7,
-    "unheard": 1,
-    "unbound": 3,
+    "unheard": 2,
+    "unbound": 2,
     "no_claims_extracted": 1
    }
   },
@@ -473,9 +471,9 @@
    "edges": 37,
    "verdicts": {
     "no_claims_extracted": 4,
-    "unbound": 5,
+    "unbound": 6,
     "bound": 3,
-    "beyond-reach": 3
+    "beyond-reach": 2
    }
   },
   {
@@ -483,7 +481,7 @@
    "topic": "The Cultural Significance of Tattoos",
    "facts": 15,
    "vocabularyVerbs": 35,
-   "edges": 39,
+   "edges": 40,
    "verdicts": {
     "unbound": 9,
     "bound": 4,
@@ -507,7 +505,7 @@
    "topic": "The History of Pirates",
    "facts": 15,
    "vocabularyVerbs": 47,
-   "edges": 45,
+   "edges": 44,
    "verdicts": {
     "unbound": 4,
     "beyond-reach": 2,
@@ -561,11 +559,11 @@
    "topic": "Famous Conspiracy Theories",
    "facts": 15,
    "vocabularyVerbs": 46,
-   "edges": 47,
+   "edges": 46,
    "verdicts": {
     "no_claims_extracted": 1,
-    "bound": 6,
-    "unbound": 5,
+    "bound": 7,
+    "unbound": 4,
     "beyond-reach": 3
    }
   },
@@ -577,9 +575,9 @@
    "edges": 36,
    "verdicts": {
     "no_claims_extracted": 3,
+    "bound": 6,
     "unbound": 4,
-    "bound": 5,
-    "beyond-reach": 3
+    "beyond-reach": 2
    }
   },
   {
@@ -599,7 +597,7 @@
    "topic": "The Significance of the Rosetta Stone",
    "facts": 15,
    "vocabularyVerbs": 45,
-   "edges": 26,
+   "edges": 25,
    "verdicts": {
     "bound": 8,
     "unbound": 2,
@@ -653,8 +651,8 @@
    "edges": 44,
    "verdicts": {
     "no_claims_extracted": 4,
-    "bound": 6,
-    "unbound": 5
+    "bound": 7,
+    "unbound": 4
    }
   },
   {
@@ -677,8 +675,8 @@
    "edges": 42,
    "verdicts": {
     "bound": 3,
-    "unbound": 6,
-    "beyond-reach": 5,
+    "unbound": 7,
+    "beyond-reach": 4,
     "no_claims_extracted": 1
    }
   },
@@ -690,8 +688,8 @@
    "edges": 32,
    "verdicts": {
     "no_claims_extracted": 2,
-    "bound": 4,
-    "beyond-reach": 3,
+    "bound": 5,
+    "beyond-reach": 2,
     "unbound": 6
    }
   },
@@ -713,10 +711,10 @@
    "topic": "The History of the Olympic Games",
    "facts": 15,
    "vocabularyVerbs": 35,
-   "edges": 34,
+   "edges": 30,
    "verdicts": {
-    "bound": 10,
-    "unbound": 5
+    "bound": 13,
+    "unbound": 2
    }
   },
   {
@@ -751,10 +749,10 @@
    "vocabularyVerbs": 40,
    "edges": 47,
    "verdicts": {
-    "bound": 7,
+    "bound": 9,
     "unbound": 4,
-    "beyond-reach": 3,
-    "no_claims_extracted": 1
+    "no_claims_extracted": 1,
+    "beyond-reach": 1
    }
   },
   {
@@ -764,8 +762,8 @@
    "vocabularyVerbs": 44,
    "edges": 51,
    "verdicts": {
-    "unbound": 4,
-    "bound": 7,
+    "unbound": 5,
+    "bound": 6,
     "beyond-reach": 3,
     "no_claims_extracted": 1
    }
@@ -775,7 +773,7 @@
    "topic": "The Art of Film Editing",
    "facts": 15,
    "vocabularyVerbs": 36,
-   "edges": 41,
+   "edges": 40,
    "verdicts": {
     "bound": 7,
     "no_claims_extracted": 1,
@@ -803,9 +801,9 @@
    "vocabularyVerbs": 40,
    "edges": 36,
    "verdicts": {
-    "bound": 6,
-    "unbound": 6,
-    "beyond-reach": 3
+    "bound": 5,
+    "unbound": 8,
+    "beyond-reach": 2
    }
   },
   {
@@ -813,7 +811,7 @@
    "topic": "The History of Famous Inventions",
    "facts": 15,
    "vocabularyVerbs": 43,
-   "edges": 38,
+   "edges": 37,
    "verdicts": {
     "bound": 11,
     "unbound": 4
@@ -852,9 +850,9 @@
    "edges": 33,
    "verdicts": {
     "no_claims_extracted": 2,
-    "unbound": 7,
-    "beyond-reach": 3,
-    "bound": 3
+    "unbound": 6,
+    "bound": 5,
+    "beyond-reach": 2
    }
   },
   {
@@ -862,7 +860,7 @@
    "topic": "The Origins of Famous Fairytales",
    "facts": 15,
    "vocabularyVerbs": 47,
-   "edges": 44,
+   "edges": 42,
    "verdicts": {
     "no_claims_extracted": 3,
     "unbound": 3,
@@ -877,8 +875,8 @@
    "vocabularyVerbs": 29,
    "edges": 31,
    "verdicts": {
-    "unbound": 5,
-    "bound": 7,
+    "unbound": 6,
+    "bound": 6,
     "beyond-reach": 3
    }
   },
@@ -916,10 +914,10 @@
    "vocabularyVerbs": 33,
    "edges": 40,
    "verdicts": {
-    "bound": 7,
+    "unbound": 3,
     "beyond-reach": 4,
     "no_claims_extracted": 2,
-    "unbound": 2
+    "bound": 6
    }
   },
   {
@@ -930,9 +928,8 @@
    "edges": 42,
    "verdicts": {
     "no_claims_extracted": 2,
-    "bound": 7,
-    "unbound": 5,
-    "beyond-reach": 1
+    "bound": 8,
+    "unbound": 5
    }
   },
   {
@@ -942,10 +939,11 @@
    "vocabularyVerbs": 29,
    "edges": 28,
    "verdicts": {
-    "unbound": 10,
+    "unbound": 9,
     "beyond-reach": 1,
     "no_claims_extracted": 2,
-    "unheard": 2
+    "unheard": 2,
+    "bound": 1
    }
   },
   {
@@ -953,11 +951,11 @@
    "topic": "Why People Collect Things",
    "facts": 15,
    "vocabularyVerbs": 40,
-   "edges": 45,
+   "edges": 44,
    "verdicts": {
-    "unbound": 3,
-    "bound": 7,
-    "beyond-reach": 5
+    "beyond-reach": 6,
+    "unbound": 2,
+    "bound": 7
    }
   },
   {
@@ -991,7 +989,7 @@
    "topic": "Famous Artists and Their Masterpieces",
    "facts": 15,
    "vocabularyVerbs": 43,
-   "edges": 46,
+   "edges": 44,
    "verdicts": {
     "unbound": 9,
     "bound": 3,
@@ -1031,9 +1029,9 @@
    "edges": 40,
    "verdicts": {
     "no_claims_extracted": 1,
-    "bound": 8,
-    "beyond-reach": 3,
-    "unbound": 3
+    "bound": 9,
+    "unbound": 3,
+    "beyond-reach": 2
    }
   },
   {
@@ -1043,9 +1041,9 @@
    "vocabularyVerbs": 31,
    "edges": 33,
    "verdicts": {
-    "unbound": 7,
+    "unbound": 9,
     "bound": 5,
-    "beyond-reach": 3
+    "beyond-reach": 1
    }
   },
   {
@@ -1057,8 +1055,8 @@
    "verdicts": {
     "unbound": 3,
     "no_claims_extracted": 1,
-    "bound": 5,
-    "beyond-reach": 6
+    "bound": 6,
+    "beyond-reach": 5
    }
   },
   {
@@ -1092,7 +1090,7 @@
    "topic": "The History of Human Space Travel",
    "facts": 15,
    "vocabularyVerbs": 30,
-   "edges": 36,
+   "edges": 35,
    "verdicts": {
     "beyond-reach": 2,
     "bound": 5,
@@ -1105,7 +1103,7 @@
    "topic": "The Impact of Artificial Intelligence on Employment",
    "facts": 15,
    "vocabularyVerbs": 43,
-   "edges": 47,
+   "edges": 46,
    "verdicts": {
     "unheard": 1,
     "beyond-reach": 2,
@@ -1143,11 +1141,11 @@
    "topic": "The Evolution of Political Systems",
    "facts": 15,
    "vocabularyVerbs": 33,
-   "edges": 33,
+   "edges": 31,
    "verdicts": {
     "bound": 5,
-    "beyond-reach": 5,
-    "unbound": 4,
+    "beyond-reach": 4,
+    "unbound": 5,
     "no_claims_extracted": 1
    }
   },
@@ -1156,10 +1154,10 @@
    "topic": "The Science Behind Memory Formation",
    "facts": 15,
    "vocabularyVerbs": 37,
-   "edges": 37,
+   "edges": 36,
    "verdicts": {
-    "beyond-reach": 3,
-    "unbound": 5,
+    "beyond-reach": 2,
+    "unbound": 6,
     "no_claims_extracted": 4,
     "bound": 3
    }
@@ -1172,9 +1170,8 @@
    "edges": 30,
    "verdicts": {
     "bound": 5,
-    "unbound": 8,
-    "no_claims_extracted": 1,
-    "beyond-reach": 1
+    "unbound": 9,
+    "no_claims_extracted": 1
    }
   },
   {
@@ -1182,7 +1179,7 @@
    "topic": "The Development of Renewable Energy Sources",
    "facts": 15,
    "vocabularyVerbs": 55,
-   "edges": 65,
+   "edges": 64,
    "verdicts": {
     "bound": 7,
     "unbound": 3,
@@ -1199,8 +1196,8 @@
    "verdicts": {
     "no_claims_extracted": 1,
     "unbound": 5,
-    "beyond-reach": 2,
-    "bound": 7
+    "bound": 8,
+    "beyond-reach": 1
    }
   },
   {
@@ -1208,7 +1205,7 @@
    "topic": "The Science of Happiness",
    "facts": 15,
    "vocabularyVerbs": 38,
-   "edges": 36,
+   "edges": 35,
    "verdicts": {
     "no_claims_extracted": 5,
     "bound": 3,
@@ -1246,7 +1243,7 @@
    "topic": "The Rise of Esports and Competitive Gaming",
    "facts": 15,
    "vocabularyVerbs": 31,
-   "edges": 30,
+   "edges": 29,
    "verdicts": {
     "no_claims_extracted": 1,
     "unbound": 7,
@@ -1262,9 +1259,9 @@
    "vocabularyVerbs": 35,
    "edges": 35,
    "verdicts": {
-    "unbound": 7,
+    "unbound": 8,
     "no_claims_extracted": 1,
-    "beyond-reach": 6,
+    "beyond-reach": 5,
     "bound": 1
    }
   },
@@ -1286,11 +1283,11 @@
    "topic": "The History of Military Technology",
    "facts": 15,
    "vocabularyVerbs": 32,
-   "edges": 37,
+   "edges": 36,
    "verdicts": {
-    "unbound": 4,
+    "unbound": 5,
     "bound": 5,
-    "beyond-reach": 4,
+    "beyond-reach": 3,
     "no_claims_extracted": 2
    }
   },
@@ -1314,10 +1311,10 @@
    "vocabularyVerbs": 27,
    "edges": 34,
    "verdicts": {
-    "beyond-reach": 7,
+    "unbound": 5,
     "no_claims_extracted": 3,
-    "bound": 1,
-    "unbound": 4
+    "beyond-reach": 6,
+    "bound": 1
    }
   },
   {
@@ -1327,10 +1324,10 @@
    "vocabularyVerbs": 33,
    "edges": 36,
    "verdicts": {
-    "beyond-reach": 3,
+    "unbound": 6,
     "bound": 5,
     "no_claims_extracted": 2,
-    "unbound": 5
+    "beyond-reach": 2
    }
   },
   {

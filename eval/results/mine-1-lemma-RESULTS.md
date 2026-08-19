@@ -76,6 +76,69 @@ match. Pinned as three regression tests in `hypergraph.test.mjs`: the
 positive tense-mismatch case, the backward-compatible omitted case, and
 the unrelated-verb refusal.
 
+## Amended same night — objects, Ancient Greek, and a bigger combined win
+
+Two more things happened in direct succession, both worth recording here
+rather than in a separate file since they complete the same amendment.
+
+**"Do you think we need stemming or referents?"** — argued that entities
+should resolve to referents, never stems, and verbs should resolve to
+canonical identity (`sameAct`) rather than surface shape. **"Try it"** —
+tested extending referent/form identity to OBJECTS too (`endpoint()`'s
+`useForms` was subject-only, by explicit prior design, with a disclosed
+regression risk never actually reproduced). Reproducing it live confirmed
+the risk was real: "Pierre Bezukhov underwent transformations that
+winter" read `unbound` against material stating "underwent a remarkable
+transformation," because singular and plural each independently became
+DISTINCT exact-token form ids once objects got forms, and `endpointsMatch`
+took the stricter exact-referent branch instead of the old stem fallback.
+The fix reuses the SAME `sameAct` organ this file's own verb amendment
+already proved safe: `formIdOf` groups a token with every OTHER recurring
+form that is the same act as it (not a new mechanism — the identical
+lemma table, applied to nouns instead of verbs), and object identity is
+now enabled ONLY when `createLemmatizer` is provided
+(`Boolean(createLemmatizer)`, never unconditionally) — so without a
+lemmatizer, behavior is untouched, and the original regression cannot
+recur because the unsafe unconditional path no longer exists.
+
+**"It needs to work for Ancient Greek, or we have high-level priors
+steering for different grammars."** Checked, not assumed: `morphology.js`
+already quarantines its DATA properly (`loadMorphology` requires a prior
+to declare `language` and `giver`), but its regular-inflection RULE
+(`stemsOf`, hardcoded ASCII English suffix-stripping) ran unconditionally
+on every lookup regardless of what the loaded table itself declared — a
+hypothetical Ancient Greek prior would still get silent English
+suffix-guesses folded into its lemma sets underneath it. Fixed at the
+source: `createLemmatizer` now takes `language`, and the rule only fires
+when it is `"eng"` (default, matching every existing caller and this
+module's own pinned tests — a hypothetical non-English prior must opt out
+explicitly, since defaulting the other way would have silently broken
+the existing suite). `organs.morphologyLanguage` threads the loaded
+prior's own declared language through hypergraph.js automatically — the
+natural path (`loadMorphology(path).language`), never a second value a
+caller has to remember. Pinned end to end in both repos: `morphology.
+test.js` (a synthetic non-English table, proving its own irregular pairs
+still resolve while the English rule is refused) and `hypergraph.test.mjs`
+(the identical assertion through the real reader, not just the unit).
+
+## The combined, final numbers
+
+| | UniMorph alone | + verb lemma matching | + object forms + language threading |
+|---|---:|---:|---:|
+| headline (bound/all) | 33.7% | 34.0% | **35.4%** |
+| headline (bound/examined) | 38.3% | 38.7% | **40.2%** |
+| bound | 531 | 536 | **557** |
+| unheard | 48 | 42 | **44** |
+| beyond-reach | 267 | 264 | **236** |
+| contradicted | 0 | 0 | **0** |
+
+A real, larger combined gain (+26 bound facts over UniMorph alone) —
+`beyond-reach` dropping most (267→236) makes sense: an object recurring
+in only its plural form, or a subject/object pair split across singular
+and plural mentions, now resolves as the SAME identity instead of two
+unrelated ones. Every number moved in the right direction, at zero
+contradictions across all three configurations.
+
 ## What tonight settles, and what it doesn't
 
 **Settles:** a real, safe, measured improvement exists and ships as an

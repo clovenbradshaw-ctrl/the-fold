@@ -122,7 +122,31 @@
 // their source — real on every axis regardless. Whether the LIVE APP
 // should load either prior by default remains the same open question
 // this repo's CLAUDE.md already names for `verbForms` — not resolved
-// here either. Full account: the-fold/eval/results/mine-1-lemma-RESULTS.md.
+// here either.
+//
+// AMENDED SAME NIGHT — objects, and the language this whole mechanism was
+// quarantined to. "Try it" (extending referent/form identity to OBJECTS,
+// not just subjects — `useForms` had stayed subject-only by explicit
+// prior design, with a disclosed but never-reproduced regression risk)
+// reproduced the risk for real: "underwent transformations" read unbound
+// against material stating "underwent a remarkable transformation,"
+// because singular and plural independently became DISTINCT exact-token
+// form ids. `formIdOf` fixes it by reusing the SAME `sameAct` organ —
+// grouping a token with every other recurring form that is the same act
+// as it, nouns exactly like verbs — and object identity is enabled ONLY
+// when `createLemmatizer` is provided (`Boolean(createLemmatizer)` at
+// both object call sites, never unconditionally), so the original
+// regression cannot recur: without a lemmatizer, nothing changed. Then,
+// asked directly whether any of this generalizes past English ("it needs
+// to work for Ancient Greek, or we have high-level priors steering for
+// different grammars"): checked, not assumed, and morphology.js's own
+// regular-suffix RULE (unlike its properly-quarantined DATA layer) ran
+// unconditionally regardless of what a loaded prior declared — fixed
+// there (its own 2026-08-19 amendment), with `organs.morphologyLanguage`
+// threading a prior's own declared language through automatically.
+// Combined, measured, all at zero contradictions: bound 531 -> 557,
+// beyond-reach 267 -> 236, headline 33.7% -> 35.4%. Full account:
+// the-fold/eval/results/mine-1-lemma-RESULTS.md.
 
 import { makeReferentIndex } from "./cast.js";
 import { blankStructure } from "./grounding.js";
@@ -216,6 +240,7 @@ export function makeRelationReader(organs) {
     verbForms = null,
     createLemmatizer = null,
     morphologyIndex = null,
+    morphologyLanguage = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -230,7 +255,20 @@ export function makeRelationReader(organs) {
   // metamorphosis" now binds to material stating "undergoes metamorphosis"
   // — the SAME predicate, different tense, which exact-string matching
   // was silently reading as two different verbs.
-  const sameAct = createLemmatizer ? createLemmatizer(morphologyIndex).sameAct : (a, b) => a === b;
+  //
+  // `organs.morphologyLanguage` threads the loaded prior's OWN declared
+  // language straight through to `createLemmatizer`'s own gate on its
+  // English-only suffix rule (morphology.js's 2026-08-19 amendment) — the
+  // natural path is `loadMorphology(path).language`, never a second value
+  // a caller has to remember separately. This is the whole reason this
+  // organ can be handed a French, Ancient Greek, or any other declared
+  // prior without hypergraph.js itself needing to know or care: nothing
+  // English-specific lives in THIS file — the one hardcoded English rule
+  // lives entirely in morphology.js, gated on the SAME declaration its own
+  // provenance already requires, and this file is just the pass-through.
+  const sameAct = createLemmatizer
+    ? createLemmatizer(morphologyIndex, { language: morphologyLanguage }).sameAct
+    : (a, b) => a === b;
 
   return function relationsFor(passages, { pool = null } = {}) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
@@ -352,16 +390,42 @@ export function makeRelationReader(organs) {
       referentsBySurface.get(e.surface).add(e.referent_id);
     }
 
-    // `useForms` is true ONLY for a SUBJECT endpoint (every call site below
-    // says so at the call). Confined there on purpose: the beyond-reach gate
-    // this fix targets is the subject-only check in judge()/the unheard
-    // pass, and the object side already has a working, tested fallback
-    // (tokensShare, stem-tolerant) for "no referent" that this change must
-    // not perturb — merging forms into an OBJECT's referents would make
-    // endpointsMatch take the stricter exact-id `intersects` branch instead
-    // of that fallback for cases that used to match on a stem alone (e.g.
-    // "married"/"marriage"), a real regression caught by hand while testing
-    // this fix, not assumed safe.
+    // `useForms` was true ONLY for a SUBJECT endpoint, and stayed that way
+    // until this amendment, for a real, once-reproduced reason: the object
+    // side's working, tested fallback (tokensShare, stem-tolerant) used to
+    // be the ONLY thing catching a morphological variant ("transformation"
+    // vs "transformations"), and giving each variant its OWN exact-token
+    // form id made endpointsMatch take the stricter exact-id `intersects`
+    // branch instead — reproduced live, 2026-08-19: "Pierre underwent
+    // transformations" read UNBOUND against material stating only
+    // "underwent a remarkable transformation," because both singular and
+    // plural independently cleared FORM_MIN_ARRIVALS as DIFFERENT recurring
+    // tokens. The fix is not "never extend identity to objects" — it is
+    // "form identity was keyed by exact string, and exact string was never
+    // the right granularity for identity any more than it was for verbs"
+    // (this file's own `sameAct` amendment, same day, same organ, same
+    // lesson: prefer canonical identity over surface shape wherever a real
+    // equivalence resource exists). `formIdOf` groups a token with every
+    // OTHER recurring form that is the SAME ACT as it (reusing `sameAct`
+    // exactly as built for verbs — nothing verb-specific about it), and a
+    // deterministic sort of the equivalence class, never a "canonical
+    // lemma" claim, supplies the id. Gated on `createLemmatizer`: omitted,
+    // `formIdOf` degrades to exact-token lookup, byte-identical to before
+    // this amendment — which is also why OBJECT identity stays disabled
+    // by default (`useForms` at the object call sites is `Boolean(createLemmatizer)`,
+    // never unconditionally true): without a lemmatizer, extending forms to
+    // objects would reintroduce the exact regression this paragraph
+    // describes, so it doesn't happen without one.
+    function formIdOf(t) {
+      if (!createLemmatizer) return forms.has(t) ? t : null;
+      let best = null;
+      for (const w of forms) {
+        if (w !== t && !sameAct(w, t)) continue;
+        if (best === null || w < best) best = w;
+      }
+      return best;
+    }
+
     function endpoint(str, useForms = false) {
       const referents = new Set(index.resolve(str));
       const folded = diaNorm(String(str ?? ""));
@@ -386,7 +450,7 @@ export function makeRelationReader(organs) {
       // referent, and its own ids never merge with a real referent's id
       // space (the `form:` prefix, checked against P11 nowhere colliding
       // with cast.js's own referent_id shape).
-      if (useForms) for (const t of tokens) if (forms.has(t)) referents.add(`form:${t}`);
+      if (useForms) for (const t of tokens) { const id = formIdOf(t); if (id) referents.add(`form:${id}`); }
       const formOnly = !named && referents.size > 0;
       return { text: String(str ?? ""), referents, tokens, formOnly };
     }
@@ -423,7 +487,7 @@ export function makeRelationReader(organs) {
       }
       for (const t of triples) {
         const subjectEnd = endpoint(t.subject, true);
-        const objectEnd = endpoint(t.object);
+        const objectEnd = endpoint(t.object, Boolean(createLemmatizer));
         const existing = edges.find(
           (e) =>
             e.verb === t.verb &&
@@ -462,7 +526,7 @@ export function makeRelationReader(organs) {
         polarity: t.polarity,
       };
       const subj = endpoint(t.subject, true);
-      const obj = endpoint(t.object);
+      const obj = endpoint(t.object, Boolean(createLemmatizer));
       // Disclosed on EVERY claim, whatever the verdict — a bound claim
       // resting on a recurring-form subject ("Butterflies") is real, but
       // it is not the same strength of fact as one resting on a named

@@ -97,7 +97,7 @@ const POOL = [
 const morphologyOrgans = async () => {
   const { createLemmatizer } = await import("../eoreader6.1/packages/engine/perceiver/text/morphology.js");
   const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
-  return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms };
+  return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms, morphologyLanguage: prior.language };
 };
 
 // A material stating one irregular verb form, nothing else interesting —
@@ -361,4 +361,28 @@ test("lemma widening never lets an UNRELATED verb bind — it is not a general f
   const report = reader.read("Pierre Bezukhov married Helene.");
   const claim = report.claims.find((c) => c.verb === "married");
   assert.equal(claim?.verdict, "unheard", "married shares no lemma with underwent/traveled — it must stay outside the material's vocabulary, not get swept in");
+});
+
+test("a declared NON-English morphologyLanguage disables the English suffix rule end to end, not only inside morphology.js's own unit tests", async () => {
+  // "traveled"/"travels" are REGULAR English inflection (the "-ed"/"-s"
+  // rule, not the irregular table this fixture's own morphologyIndex
+  // carries) — so they only bind under morphologyLanguage: "eng" (or
+  // omitted). Declared as anything else, hypergraph.js's own sameAct must
+  // refuse them exactly as it would with no lemmatizer at all.
+  const base = await morphologyOrgans();
+  const withEnglish = makeRelationReader(base)(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const englishReport = withEnglish.read("Pierre Bezukhov travels to Vienna in spring.");
+  assert.equal(
+    englishReport.claims.find((c) => c.verb === "travels")?.verdict,
+    "bound",
+    "regular English inflection must still bind when morphologyLanguage is omitted (defaults to eng)",
+  );
+
+  const withOther = makeRelationReader({ ...base, morphologyLanguage: "grc" })(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const otherReport = withOther.read("Pierre Bezukhov travels to Vienna in spring.");
+  assert.equal(
+    otherReport.claims.find((c) => c.verb === "travels")?.verdict,
+    "unheard",
+    "the English-only suffix rule must not fire once a non-English language is declared, even though the SAME morphologyIndex is still loaded",
+  );
 });

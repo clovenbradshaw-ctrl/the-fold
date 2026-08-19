@@ -43,6 +43,7 @@ async function organs() {
     verbForms: new Set(verbFormsList),
     createLemmatizer,
     morphologyIndex: morphologyPrior.forms,
+    morphologyLanguage: morphologyPrior.language,
   };
 }
 

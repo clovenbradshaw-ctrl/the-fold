@@ -2909,3 +2909,40 @@ work — one essay's retrieval collapsed to the same generic edges for
 every fact, a genuine low-edge-diversity problem unrelated to the metric
 question. Full write-up, honest limits, and reproduction path:
 `eval/results/mine-1-official-methodology-RESULTS.md`.
+
+**"Wire this in to be how we work" — a dead end, found adversarially, and
+the real fix behind it.** The obvious move, widen `bound` itself with a
+sixth verdict (`inferred`) covering a claim from a graph NEIGHBORHOOD
+instead of one edge, was built and then broken on purpose before it was
+trusted: "Pierre married Dolokhov" (the tier's own flagship fabrication
+case) passed at first, because Pierre and Dolokhov are genuinely connected
+by unrelated real edges and a one-token object costs nothing to cover.
+Tightened, it STILL passed a worse case, reproduced live: "Pierre painted
+delicate watercolors" fired when the material said Natasha painted them —
+hopping through an unrelated "Pierre admired Natasha" edge let her own
+action get attributed to him. The only safe fix (no graph hop at all,
+pool only a subject's own statements) turned out to be provably dead
+code: `bound`'s own single-edge match already accepts any one shared
+token, a strictly weaker bar than anything safe built from the same
+primitive could add. Reverted in full. The honest lesson: the 80% score's
+power came from two things this tier correctly refuses to mechanize live
+(real embeddings, a real judge's relational reasoning) — widening REACH
+without either adds nothing safe can't already reach.
+
+**What did add real, safe value: a different primitive, not a
+repackaging.** Every verb comparison in `hypergraph.js` used exact string
+equality, so "underwent metamorphosis" against material stating
+"undergoes metamorphosis" — the same predicate, different tense — lost
+the claim, sometimes silently (never even extracted). `organs.
+createLemmatizer`/`organs.morphologyIndex` (`perceiver/text/
+morphology.js`, UniMorph-backed, irregular-inflection-aware, found by
+searching before writing anything) widen verb equality to `sameAct` —
+checked live that an unrelated verb sharing no lemma stays refused, so
+this is narrow lemma equivalence, never a general fuzzy match. Optional
+and backward compatible exactly like `verbForms`. Measured: bound
+531 → 536, unheard 48 → 42, zero contradictions either way — small
+because MINE-1's own facts are close paraphrases already, real on every
+axis regardless. Whether the live app should load either prior by
+default remains the same open question already named for `verbForms`,
+not resolved here either. Full account: `eval/results/
+mine-1-lemma-RESULTS.md`.

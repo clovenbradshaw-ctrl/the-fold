@@ -2767,3 +2767,39 @@ unimorph-eng-verb-forms.json` + `eval/results/mine-1-unimorph-RESULTS.md`
 Full repo suite: 702 tests / 697 passing / 5 failing — the same 5
 pre-existing environment failures this worktree already carries, zero
 regressions.
+
+**Immediate follow-up, same day: "what about both?" — tried, and it loses.**
+The disclosed boundary-quality cost above prompted the obvious next
+question — combine the received prior with the material's own local
+distributional evidence, rather than choosing one or the other. Tried as
+`eval/mine-1-unimorph-disambiguated.mjs`: UniMorph tags 25,031 English
+words as BOTH noun and verb (`eval/fixtures/unimorph-eng-ambiguous-nv.json`);
+for an ambiguous word, ask the essay's own local counts whether it is
+usually preceded by a determiner (noun-leaning) or not (verb-leaning) —
+`priors.js`'s received `DEFINITE_DETERMINERS`/`INDEFINITE_DETERMINERS`
+again, one vote per essay, no new engine change (`hypergraph.js` itself is
+untouched — a smarter `verbForms` Set is still just a Set the caller
+builds).
+
+**It does not help.** Headline-on-examined ticks up marginally (38.3% →
+39.8%) but headline-on-all-facts drops (33.7% → 30.7%): `no_claims_extracted`
+nearly doubles (189 → 362) and absolute `bound` facts fall (531 → 483) —
+the vote is not surgically separating good triples from bad ones, it is
+refusing a large share of ambiguous words outright, and recall drops
+almost twice as fast as precision improves. Worse, it introduces the
+session's first two `contradicted` verdicts, both traced by hand to the
+SAME root cause: the local vote has no way to distinguish real noun-verb
+conversion ("feed"/"play"/"serve") from UniMorph simply also tagging a
+closed-class function word with a rare archaic verb sense ("but", "more") —
+admitting "but" as a verb broke a "not only X but also Y" correlative
+construction on opposite sides of the negation scope; admitting "more" as
+a verb broke a comparative spanning a clause boundary the extractor
+doesn't model. Both are real, disclosed gaps in the underlying clause
+extractor becoming newly reachable, not semantic disagreements between two
+claims. Verdict: UniMorph alone (unfiltered) remains the strongest result
+of the three — a cheap local heuristic is the wrong tool for this
+ambiguity class, because it conflates two different problems (real
+conversion vs. UniMorph's own overly broad function-word tagging) that
+need different fixes. Not ruled out: a real POS tagger, or a narrower
+ambiguity list built to exclude function-word verb senses before the vote
+runs. Full write-up: `eval/results/mine-1-unimorph-disambiguated-RESULTS.md`.

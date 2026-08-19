@@ -1259,7 +1259,11 @@ export async function runPart({
     ...openQuestions(question, passages, check.refs),
     ...(text ? [] : [`part produced no text: ${part.label}`]),
   ];
-  onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open });
+  // `check.relations` was already computed above (the material's own edges,
+  // read against this part's answer) but never left this function — the
+  // caller had no way to narrate it live. Passed through verbatim, never
+  // re-summarized here: summarizing is a rendering decision, not a check.
+  onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
   return {
     part,

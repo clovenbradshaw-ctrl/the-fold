@@ -56,6 +56,7 @@
 import { makeReferentIndex } from "./cast.js";
 import { blankStructure } from "./grounding.js";
 import { commonTerms, CORPUS_MINIMUM } from "./cite.js";
+import { orderArm, standingOf } from "./asserted.js";
 
 // ── declared numbers, each with its justification ───────────────────────────
 //
@@ -97,6 +98,22 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * relation organs). `relationsFor(passages, { pool })` — the pool is the
  * live corpus the closed-class measure runs over; omitted, the passages
  * stand in and the measure usually refuses itself (CORPUS_MINIMUM).
+ *
+ * Every edge additionally carries `assertion` — the extractor's own claim
+ * about the material treated as a reader's hypothesis with disclosed
+ * support (asserted.js): `standing` (`corroborated` at >= 2 independent
+ * statements, `single-witness` below — the structural floor, givers named
+ * there), `statements` (how many extracted occurrences folded into this
+ * edge), and `verbSupport` (how many DISTINCT surfaces this verb followed
+ * in the material's own vocabulary measure — a verb admitted on the
+ * strength of one surface is itself a single-witness assertion). The
+ * word-salad arm rides only behind `relationsFor(passages, { assert:
+ * { draws, seed } })` — draws declared, never defaulted; the arm reports
+ * counts (`orderArm: { draws, fired, seed }`), never a verdict, because no
+ * cut has been earned (asserted.js's header carries the reasoning). None
+ * of this convicts: relationFindings and relationsClean are unchanged, so
+ * an edge's weak standing reaches the reader as disclosure, not as a mark
+ * against the answer.
  */
 export function makeRelationReader(organs) {
   const {
@@ -108,7 +125,7 @@ export function makeRelationReader(organs) {
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
-  return function relationsFor(passages, { pool = null } = {}) {
+  return function relationsFor(passages, { pool = null, assert = null } = {}) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
     const emptyReport = (examined) => ({
       examined,
@@ -156,9 +173,16 @@ export function makeRelationReader(organs) {
     // vocabulary discovery and endpoint resolution see the same cast.
     const surfaces = [...new Set(index.events.map((e) => e.surface))];
     let verbs = new Set();
+    // How many DISTINCT surfaces each admitted verb followed — the
+    // vocabulary measure's own candidates list, kept rather than dropped,
+    // so an edge can disclose that its verb entered the vocabulary on the
+    // strength of one surface (itself a single-witness assertion).
+    const verbSurfaces = new Map();
     if (surfaces.length) {
       try {
-        verbs = discoverRelationVocab(text, { surfaces, functionWords, minSurfaces: MIN_SURFACES_PER_VERB }).verbs;
+        const measured = discoverRelationVocab(text, { surfaces, functionWords, minSurfaces: MIN_SURFACES_PER_VERB });
+        verbs = measured.verbs;
+        for (const c of measured.candidates ?? []) verbSurfaces.set(c.verb, c.surfaces);
       } catch {
         verbs = new Set();
       }
@@ -240,6 +264,11 @@ export function makeRelationReader(organs) {
         );
         if (existing) {
           if (!existing.refs.includes(p.ref)) existing.refs.push(p.ref);
+          // Statement grain, not passage grain: a restatement inside one
+          // passage is a second witness too. (Exact repeats within one
+          // passage dedupe inside extractRelations itself — that residue
+          // is the extractor's, disclosed here rather than papered over.)
+          existing.statements += 1;
         } else {
           edges.push({
             subject: t.subject,
@@ -249,8 +278,56 @@ export function makeRelationReader(organs) {
             subjectEnd,
             objectEnd,
             refs: [p.ref].filter(Boolean),
+            statements: 1,
           });
         }
+      }
+    }
+
+    // ── the assertion tier: the extractor's own claim, support disclosed ─
+    // Standing and statement count are always on (they cost a lookup); the
+    // word-salad arm runs only when the caller declares its resolution.
+    for (const e of edges) {
+      e.assertion = {
+        standing: standingOf(e.statements),
+        statements: e.statements,
+        verbSupport: verbSurfaces.get(e.verb) ?? 0,
+      };
+    }
+    if (assert && edges.length) {
+      // The arm re-hears the SAME material with each sentence's words
+      // shuffled, through the SAME vocabulary-bound extraction — never a
+      // re-measured vocabulary, never a second extractor. Matching a
+      // shuffled-copy triple to an edge uses the same endpointsMatch the
+      // edges themselves were folded with (one implementation of "the same
+      // edge"), on shape only — polarity under shuffle is noise by
+      // construction (the negation window is an order fact).
+      const arm = orderArm({
+        passages: list,
+        splitSentences,
+        extract: (t) => extractRelations(t, { verbs, functionWords }),
+        draws: assert.draws,
+        seed: assert.seed ?? 0,
+      });
+      const endpoints = new Map(); // per sample triple, computed once
+      const endFor = (str) => {
+        if (!endpoints.has(str)) endpoints.set(str, endpoint(str));
+        return endpoints.get(str);
+      };
+      for (const e of edges) {
+        let fired = 0;
+        for (const sample of arm.samples) {
+          if (
+            sample.some(
+              (t) =>
+                t.verb === e.verb &&
+                endpointsMatch(endFor(t.subject), e.subjectEnd) &&
+                endpointsMatch(endFor(t.object), e.objectEnd),
+            )
+          )
+            fired++;
+        }
+        e.assertion.orderArm = { draws: arm.draws, fired, seed: arm.seed };
       }
     }
 
@@ -324,7 +401,17 @@ export function makeRelationReader(organs) {
     }
 
     function edgeFace(e) {
-      return { subject: e.subject, verb: e.verb, object: e.object, polarity: e.polarity, refs: e.refs };
+      return {
+        subject: e.subject,
+        verb: e.verb,
+        object: e.object,
+        polarity: e.polarity,
+        refs: e.refs,
+        // The disclosure travels with the edge, so a claim's `bound` /
+        // `nearest` lists carry it for free — a conviction resting on a
+        // single-witness edge says so wherever that edge is shown.
+        ...(e.assertion ? { assertion: e.assertion } : {}),
+      };
     }
 
     const sentencesOf = (answer) => {

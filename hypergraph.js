@@ -99,6 +99,16 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * live corpus the closed-class measure runs over; omitted, the passages
  * stand in and the measure usually refuses itself (CORPUS_MINIMUM).
  *
+ * `relationsFor(passages, { negationWords })` threads straight through to
+ * discoverRelationVocab/extractRelations's own injected-prior seam
+ * (relations.js, following bin/priors/lang/en.json's pattern in
+ * eoreader6.1). Omitted, the engine's own English NEGATION_WORDS applies,
+ * unchanged from before this option existed. Supplying a Set (e.g.
+ * bin/priors/lang/eu.json's `negation` array for Basque) reads the
+ * material's negation with that language's own vendored closed class
+ * instead — never a second, hardcoded English list standing in for
+ * material this tier was never measured against.
+ *
  * Every edge additionally carries `assertion` — the extractor's own claim
  * about the material treated as a reader's hypothesis with disclosed
  * support (asserted.js): `standing` (`corroborated` at >= 2 independent
@@ -125,7 +135,7 @@ export function makeRelationReader(organs) {
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
-  return function relationsFor(passages, { pool = null, assert = null } = {}) {
+  return function relationsFor(passages, { pool = null, assert = null, negationWords = undefined } = {}) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
     const emptyReport = (examined) => ({
       examined,
@@ -180,7 +190,7 @@ export function makeRelationReader(organs) {
     const verbSurfaces = new Map();
     if (surfaces.length) {
       try {
-        const measured = discoverRelationVocab(text, { surfaces, functionWords, minSurfaces: MIN_SURFACES_PER_VERB });
+        const measured = discoverRelationVocab(text, { surfaces, functionWords, minSurfaces: MIN_SURFACES_PER_VERB, negationWords });
         verbs = measured.verbs;
         for (const c of measured.candidates ?? []) verbSurfaces.set(c.verb, c.surfaces);
       } catch {
@@ -267,7 +277,7 @@ export function makeRelationReader(organs) {
     for (const p of list) {
       let triples = [];
       try {
-        triples = verbs.size ? extractRelations(p.text, { verbs, functionWords }) : [];
+        triples = verbs.size ? extractRelations(p.text, { verbs, functionWords, negationWords }) : [];
       } catch {
         triples = [];
       }
@@ -325,7 +335,7 @@ export function makeRelationReader(organs) {
       const arm = orderArm({
         passages: list,
         splitSentences,
-        extract: (t) => extractRelations(t, { verbs, functionWords }),
+        extract: (t) => extractRelations(t, { verbs, functionWords, negationWords }),
         draws: assert.draws,
         seed: assert.seed ?? 0,
       });

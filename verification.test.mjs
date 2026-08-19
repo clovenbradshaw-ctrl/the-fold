@@ -178,7 +178,7 @@ test("no material at all composes as Existence/Void gapping and Structure/Field 
   assert.equal(byTerrain.Field.verdict, "gap");
 });
 
-test("P27's slot-competition finding composes as Structure/Network failing, disclosed as covering one case", () => {
+test("P32's slot-competition finding composes as Structure/Network failing, disclosed as covering one case", () => {
   const hgReport = { examined: true, vocabulary: { verbs: 2 } };
   const hgClaim = {
     verdict: "unbound",

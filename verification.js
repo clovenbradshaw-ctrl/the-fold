@@ -65,7 +65,7 @@
 //               wired to a claim check. Would ask: does the referent
 //               belong to a category this material recognizes at all.
 //   Network   — this session's own hypergraph.js slot-competition work
-//               (P27's `competing` field) covers exactly ONE case of this
+//               (P32's `competing` field) covers exactly ONE case of this
 //               cell (same verb+object, different subject) — not the
 //               general question of whether a claimed edge fits the wider
 //               network's own structure. Surfaced when `competing` is
@@ -109,8 +109,8 @@ const GIVERS = Object.freeze({
   Entity: "cast.js referent index, via hypergraph.js's endpoint resolution",
   Kind: null,
   Field: "hypergraph.js (report.vocabulary)",
-  Link: "hypergraph.js (relation extraction + endpoint matching, P27's Belnap 'both' via hgClaim.contested)",
-  Network: "hypergraph.js P27 (slot competition — one measured case)",
+  Link: "hypergraph.js (relation extraction + endpoint matching, P32's Belnap 'both' via hgClaim.contested)",
+  Network: "hypergraph.js P32 (slot competition — one measured case)",
   Atmosphere: null,
   Lens: "testimony.js (the witness tier)",
   Paradigm: null,

@@ -187,12 +187,18 @@ import { createTierStack, foldThrough } from "/engine/emergence/tiers.js";
 // injects it (cast.js pattern) so the mapping stays pure and node-testable.
 import * as engineTaskLog from "/engine/holon/task-log.js";
 import { makeBuildLog } from "./build-log.js";
+// The database fold (P25): store.js's event-sourced row store, the SAME
+// engine task-log injected the SAME way buildLog is above — a database
+// fold's log is not a second kind of log, it is this module's kind, used
+// for a different domain (rows, not code revisions).
+import { makeStore } from "./store.js";
 // The engine's operator algebra, same injection pattern, for grid.js (the
 // terminal language, P22) — the nine operators and terrain grid it reuses
 // rather than re-derives.
 import * as engineOperators from "/engine/operators.js";
 
 const buildLog = makeBuildLog(engineTaskLog);
+const store = makeStore(engineTaskLog);
 const grid = makeGrid({ operators: engineOperators, taskLog: engineTaskLog });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
 
@@ -1082,7 +1088,17 @@ async function runTurn(runCmd, typed) {
   body.textContent = "";
 
   const ok = outcome.code === 0 && !outcome.timedOut;
-  const note = formatRunOutcome(outcome);
+  // The database fold (P25): the SAME landing the terminal's own sql
+  // runtime uses, applied to whatever runSandboxed diffed off this /run.
+  // A run in js/python (dbOps always []) costs nothing extra here.
+  const landed = applyStoreOps(outcome.dbOps);
+  let note = formatRunOutcome(outcome);
+  if (landed.applied) {
+    note += `\n\ndatabase fold ${landed.n}: ${landed.applied} row-level change${landed.applied === 1 ? "" : "s"} recorded.`;
+  }
+  if (landed.failed.length) {
+    note += `\n\n${landed.failed.length} row-level change${landed.failed.length === 1 ? "" : "s"} could NOT be recorded to the database fold (the live sql session already applied ${landed.failed.length === 1 ? "it" : "them"} — only the log's own account of it is incomplete): ${landed.failed[0].reason}`;
+  }
   mirrorTermRecord("term-run", { runtime, code: code.slice(0, 2000), ok, timedOut: outcome.timedOut, durationMs: outcome.durationMs, via: "chat" });
   logAct(ok ? "recorded" : "errored", { where: "run", runtime, timedOut: outcome.timedOut });
 
@@ -1848,6 +1864,15 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
       ? `this conversation holds fold${state.builds.length === 1 ? "" : "s"} ${state.builds.map((b) => b.n).join(", ")}`
       : "this conversation holds no folds yet";
     return usageTurn(typed, `fold ${n} does not exist — ${have}.`);
+  }
+  // A database fold (P25) is not text revision's to touch — its log is
+  // populated by real SQL execution (the terminal, or /run sql), never by
+  // a model rewriting a fence. This door's whole machinery below (scoutSpan,
+  // the patch ladder, buildFold) assumes entry.log, which a database fold
+  // does not carry (it carries entry.storeLog instead) — refused here,
+  // named, rather than left to throw further down.
+  if (entry.kind === "database") {
+    return usageTurn(typed, `fold ${n} is a database fold — it is populated by SQL execution (the terminal's sql runtime, or chat's \`/run sql\` door), not by \`/fold\`'s text revision. Its current projection is in the Folds panel.`);
   }
 
   addMessage("user", typed);
@@ -2959,6 +2984,22 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
               (info.unsupported.length ? `, ${info.unsupported.length} unsupported` : "") +
               (info.open.length ? `, ${info.open.length} open` : ""),
           );
+          // The material's own edges, read against this part's answer — a
+          // real per-part tally, not a fabricated live per-edge stream: the
+          // relation tier reads in one batch (hypergraph.js's `read()`), so
+          // this is exactly as fine-grained as the check actually is, no
+          // finer. Silent when relations are off (info.relations is null,
+          // checking mode not asking for the tier at all) or when the
+          // material was too small to measure a vocabulary from — both
+          // typed facts, not "zero relations found."
+          if (info.relations?.examined && !info.relations.vocabulary?.gap) {
+            const tally = {};
+            for (const c of info.relations.claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
+            const bits = Object.entries(tally).map(([v, n]) => `${n} ${v}`);
+            if (bits.length) show(`${part.label}: relations — ${bits.join(", ")}`);
+          } else if (info.relations?.vocabulary?.gap) {
+            show(`${part.label}: relations — ${info.relations.vocabulary.gap}`);
+          }
           logAct("checked", {
             part: part.label,
             refs: info.refs.length,
@@ -3837,8 +3878,15 @@ function defaultCaption(seg) {
 const RUNNERS = new Set(["python", "javascript", "js", "node", "shell", "bash"]);
 
 /** The projected build: the fold over the entry's log, at the reader's
- * cursor by default, at the live head with `at = null`. */
-const buildFold = (entry, at = entry.cursor) => buildLog.foldBuild(entry.log, at ?? Infinity);
+ * cursor by default, at the live head with `at = null`. A database fold
+ * (P25) carries no `entry.log` at all (its log is `entry.storeLog`, a
+ * store.js log, folded by `databaseProjection` below, never by
+ * build-log.js's foldBuild) — `null` here, not a throw, is what makes
+ * every OTHER reader of `buildFold` (kindOf, buildWords, buildChip's own
+ * autoRunAndDisclose) already safe on a database entry without each of
+ * them needing its own guard: a null fold reads as "nothing to show",
+ * which is exactly true from build-log.js's point of view. */
+const buildFold = (entry, at = entry.cursor) => (entry.kind === "database" ? null : buildLog.foldBuild(entry.log, at ?? Infinity));
 const buildCode = (entry) => buildFold(entry, null)?.code;
 const buildRunnable = (entry) => {
   const seg = buildFold(entry, null)?.seg;
@@ -3848,6 +3896,120 @@ const buildRunnable = (entry) => {
 /** The run's declared caps — serve.mjs's own numbers, named here so the
  * result entry states what bounds it ran under. */
 const RUN_PARAMS = (lang) => ({ lang, timeoutMs: 10_000, maxOutput: 64 * 1024 });
+
+// ── the database fold (P25) ──────────────────────────────────────────────
+//
+// Wiring store.js's event-sourced row store into the terminal's REAL sql
+// runtime (term-sql-worker.js) and chat's `/run sql` door, so a database
+// populated either way is stored AS A FOLD: it appears in this panel,
+// persists the same way code/table/html builds already do, and can be
+// reopened later. The load-bearing invariant, the user's own words,
+// verbatim, and already honored in store.js's own header: "the reality of
+// the database should be the EOT event stream, the current state always
+// projected." What is persisted is store.js's own task-log — a plain,
+// JSON-serializable tree of entries — never a `db.export()` blob; what is
+// DISPLAYED is `store.foldStore(entry.storeLog)`, recomputed fresh on every
+// render call, never cached. This is Choreo's own "snapshot ingest
+// generates operations" pattern one register over (store-sql.js's own
+// header says so at the point the diffing actually happens); this section
+// is only the landing: one shared fold, one place ops become log entries.
+//
+// SCOPE, decided and stated rather than silently assumed: this pass keeps
+// exactly ONE database fold app-wide (the same "belongs to the instrument,
+// not one conversation" reasoning `state.gridLog`/`state.builds` already
+// state elsewhere) — the first row-level mutation from EITHER door lazily
+// creates it, and every later mutation from either door lands on the same
+// log. A "new database" affordance (multiple simultaneous database folds)
+// is real, named future work, not attempted here — nothing in the task
+// that motivated this pass asked for more than one.
+//
+// It is deliberately its own TOP-LEVEL `state.builds` entry kind
+// (`entry.kind === "database"`) rather than routed through build-log.js's
+// PROPOSE/SUPERSEDE-per-edit versioning chain: that model fits a code
+// revision (one version at a time, edited by a person or a model), not a
+// stream of many small granular row operations. What IS reused from
+// build-log.js: nothing directly — a database fold's "version" display is
+// simply `entry.storeLog.entries.length` ("N operations recorded"), read
+// straight off the log the same way build-log.js's own `timeline` reads a
+// code build's addenda count. What is reused from the REST of the Folds
+// panel machinery: `state.builds` itself (one array, one numbering scheme,
+// one persistence key), `renderBuilds`/`foldRow`'s search-and-sort
+// pipeline (folds-pane.js never learns a database fold's shape — it only
+// ever sees the same `{n, caption, lang, type, address, code, addenda}` row
+// every other kind already produces), and `artifactNode`'s table renderer
+// (factored into `tableWrap` below so there is exactly one table-drawing
+// implementation, not two).
+
+/** The one app-wide database fold, or null if no mutation has landed yet.
+ * Lazily created — a `sql` session that only ever SELECTs never gets one. */
+function findDatabaseFold() {
+  return state.builds.find((b) => b.kind === "database") ?? null;
+}
+
+function createDatabaseFold() {
+  const entry = {
+    n: state.builds.length + 1,
+    turn: state.summary.turnCount + 1,
+    kind: "database",
+    storeLog: store.createStoreLog(),
+    // Unused by a database fold (no cursor scrubbing, no editor draft — the
+    // Folds panel always shows the live projection), kept present so any
+    // code that destructures `{n, turn, cursor, draft}` off `state.builds`
+    // wholesale (persistBuilds' own map, github-pane.js's read-through)
+    // sees the same shape it already expects rather than a hole.
+    cursor: null,
+    draft: null,
+  };
+  state.builds.push(entry);
+  return entry;
+}
+
+/**
+ * Land a batch of store-sql.js-derived ops onto the (lazily created)
+ * database fold, persist, and re-render — the ONE place either sql runtime
+ * (the interactive terminal, via `bridge.applyStoreOps`; chat's `/run sql`
+ * door, via `runTurn`) turns a diffed batch into real store.js calls. A
+ * single failing op (most likely: a column name colliding with store.js's
+ * own reserved fields — `table`/`row`/`because`/`id`, or task-log's own
+ * reserved entry keys like `operator`/`grain` — a real landmine for
+ * ordinary SQL, where a column literally named "id" is common) is caught
+ * and reported rather than left to crash the whole batch or the caller
+ * that invoked it: whatever ops applied before the failure stay applied
+ * (the live sql session's own db already has the full change regardless —
+ * the store log's job is to describe it, and a partial description is more
+ * honest than none), and the failure is returned so the caller can print
+ * it plainly.
+ */
+function applyStoreOps(ops) {
+  if (!ops?.length) return { applied: 0, failed: [] };
+  const entry = findDatabaseFold() ?? createDatabaseFold();
+  const failed = [];
+  let applied = 0;
+  for (const op of ops) {
+    try {
+      if (op.type === "insert") {
+        entry.storeLog = store.insertRow(entry.storeLog, { table: op.table, rowId: op.rowId, columns: op.columns });
+      } else if (op.type === "update") {
+        entry.storeLog = store.updateRow(entry.storeLog, { table: op.table, rowId: op.rowId, columns: op.columns });
+      } else if (op.type === "delete") {
+        entry.storeLog = store.deleteRow(entry.storeLog, { table: op.table, rowId: op.rowId });
+      } else {
+        continue;
+      }
+      applied++;
+    } catch (e) {
+      failed.push({ op, reason: e.message });
+    }
+  }
+  persistBuilds();
+  renderBuilds(entry.n);
+  return { applied, failed, n: entry.n };
+}
+
+/** The current projection, fresh — never cached, never read from a stored
+ * blob. Called at render time only (foldRow, buildCard's database branch),
+ * exactly the discipline store.js's own header requires of every caller. */
+const databaseProjection = (entry) => store.foldStore(entry.storeLog);
 
 /**
  * Mirror every entry appended since `fromLen` to the durable record
@@ -3959,8 +4121,33 @@ let foldsView = "cards";
 let foldsOpen = null;
 
 /** One fold, summarized off its own log for the search and the orderings —
- * derived at render time, never stored. */
+ * derived at render time, never stored. A database fold produces the
+ * IDENTICAL row shape folds-pane.js's filterFolds/sortFolds already read
+ * (that module never learns a database fold exists) — `code` is left ""
+ * (there is no single "code" for a fold whose whole point is many rows;
+ * a reader searching finds it by caption/table name instead), `addenda` is
+ * the store log's own entries.length ("N operations recorded" — the
+ * display P25 calls for, read straight off the log), and `version` is left
+ * undefined on purpose, guarded where it is printed (renderBuilds' list
+ * face, below) rather than faked as a number that means nothing here. */
 function foldRow(entry) {
+  if (entry.kind === "database") {
+    const projection = databaseProjection(entry);
+    const tables = Object.keys(projection);
+    const rows = tables.reduce((n, t) => n + projection[t].rows.length, 0);
+    return {
+      entry,
+      n: entry.n,
+      caption: `database · ${tables.length} table${tables.length === 1 ? "" : "s"} · ${rows} live row${rows === 1 ? "" : "s"}`,
+      lang: "sql",
+      type: "database",
+      address: "",
+      code: tables.join(" "), // searchable by table name, not by rows
+      addenda: entry.storeLog.entries.length,
+      version: undefined,
+      lastRun: null,
+    };
+  }
   const live = buildFold(entry, null);
   if (!live) return null;
   const file = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
@@ -4019,9 +4206,14 @@ function renderBuilds(highlight) {
       cap.textContent = r.caption;
       const meta = document.createElement("span");
       meta.className = `meta${r.lastRun && r.lastRun.ok === false ? " bad" : ""}`;
+      // A database fold has no single "version" (P25) — its own count IS
+      // the addenda count, so the two would otherwise say the same number
+      // twice under two different words.
       meta.textContent =
-        `v${r.version} · ${r.lang || r.type} · ${r.addenda} addend${r.addenda === 1 ? "um" : "a"}` +
-        (r.lastRun ? (r.lastRun.ok === false ? " · run failed" : " · ran") : "");
+        r.type === "database"
+          ? `${r.addenda} operation${r.addenda === 1 ? "" : "s"} recorded`
+          : `v${r.version} · ${r.lang || r.type} · ${r.addenda} addend${r.addenda === 1 ? "um" : "a"}` +
+            (r.lastRun ? (r.lastRun.ok === false ? " · run failed" : " · ran") : "");
       row.append(addr, cap, meta);
       row.onclick = () => {
         foldsOpen = foldsOpen === r.n ? null : r.n;
@@ -4039,9 +4231,50 @@ function renderBuilds(highlight) {
   }
 }
 
+/**
+ * A database fold's card (P25) — deliberately NOT buildCard: no cursor
+ * scrubber (a database fold has no versioned "as of" cursor to scrub — the
+ * store log's own entries ARE its history, always shown at the live head),
+ * no edit/run/restore/download controls (none of build-log.js's machinery
+ * applies to a store.js log), and no `entry.log` reads anywhere (a database
+ * fold does not carry one). What it DOES share with buildCard: the same
+ * address line shape, and — via `artifactNode`'s own "database" branch,
+ * below — the exact `tableWrap` table renderer every other fold's table
+ * segment already uses. This is the one user-facing proof of the core
+ * invariant: a reader can see "N operations recorded, currently M live
+ * rows" rather than an opaque blob.
+ */
+function databaseFoldCard(entry, highlight) {
+  const projection = databaseProjection(entry);
+  const opCount = entry.storeLog.entries.length;
+  const wrap = document.createElement("div");
+  wrap.id = `build-${entry.n}`;
+  wrap.className = `build-entry${entry.n === highlight ? " current" : ""}`;
+  const addrLine = document.createElement("p");
+  addrLine.className = "build-addr";
+  const addrB = document.createElement("b");
+  addrB.textContent = `fold ${entry.n}`;
+  addrLine.append(addrB);
+  wrap.append(addrLine);
+  const from = document.createElement("p");
+  from.className = "build-from";
+  from.textContent = `turn ${entry.turn} · database fold`;
+  wrap.append(from);
+  wrap.append(
+    artifactNode(
+      { type: "database", tables: projection, opCount },
+      `database · ${opCount} operation${opCount === 1 ? "" : "s"} recorded`,
+      null,
+      {},
+    ),
+  );
+  return wrap;
+}
+
 /** One fold's full card: address, controls, cursor, and the artifact — every
  * line of it a fold of the entry's log at the reader's cursor. */
 function buildCard(entry, highlight) {
+  if (entry.kind === "database") return databaseFoldCard(entry, highlight);
   // Everything drawn below is a FOLD of the entry's log — at the reader's
   // cursor. The live head is the default; a scrubbed cursor shows the
   // build as it stood at that point, downloadable there.
@@ -4421,6 +4654,16 @@ initTerminal({
   setGridLog: (log) => {
     state.gridLog = log;
   },
+  // The database fold (P25): term.js diffs a mutating sql statement's real
+  // effect (store-sql.js, over term-sql-worker.js's before/after
+  // snapshots) into typed ops and hands them here — the ONE place they
+  // become real store.js calls, exactly the same function chat's own
+  // `/run sql` door calls (runTurn, below) after a throwaway `runSandboxed`
+  // resolves. Composed at the terminal or via chat, a mutation lands on
+  // the identical fold, the same "one shared log, two doors" shape
+  // gridLog/setGridLog just above already established for the terminal
+  // language.
+  applyStoreOps,
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────
@@ -4440,7 +4683,14 @@ function persistBuilds() {
   // fire through build-log.js's own doors (each is pinned conformant), so
   // a flag here means a foreign writer or a corrupted store.
   for (const b of state.builds) {
-    const flags = buildLog.conform(b.log);
+    // A database fold's log is store.js's own (the SAME engine task-log
+    // structure, a different domain) — checked directly against the
+    // engine's referee rather than through buildLog.conform, which expects
+    // build-log.js's own PROPOSE/SUPERSEDE vocabulary on `b.log`, a field a
+    // database fold does not carry.
+    const flags = b.kind === "database"
+      ? (engineTaskLog.checkCubeProgression?.(b.storeLog) ?? [])
+      : buildLog.conform(b.log);
     if (flags.length) {
       console.error(`fold ${b.n}: production order violated`, flags);
       logAct("errored", { where: "cube-conformance", fold: b.n, flags: flags.map((f) => `${f.kind}${f.from ? ` ${f.from}→${f.to}` : ""}`) });
@@ -4448,12 +4698,11 @@ function persistBuilds() {
   }
   try {
     const conv = state.convos[state.active];
-    const data = state.builds.map(({ n, turn, log, draft }) => ({
-      n,
-      turn,
-      entries: log.entries,
-      draft: draft ?? null,
-    }));
+    const data = state.builds.map((b) =>
+      b.kind === "database"
+        ? { n: b.n, turn: b.turn, kind: "database", entries: b.storeLog.entries }
+        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null },
+    );
     localStorage.setItem(BUILDS_KEY, JSON.stringify({ id: conv?.id, builds: data }));
   } catch (e) {
     // Not worth a crash, but never silent either: from here on a reload
@@ -4470,6 +4719,20 @@ function restoreBuilds() {
     if (!Array.isArray(builds)) return;
     for (const b of builds) {
       try {
+        if (b.kind === "database") {
+          // THE PROOF OF THE INVARIANT, at the one moment it actually
+          // matters: what was saved is `entries` (an ordinary JSON array of
+          // task-log entries), and what is rebuilt here is a live log
+          // replayed through the engine's own `append` — never a stored
+          // sql.js export read back in. A row that violates the
+          // vocabulary throws and this ONE fold is skipped, the rest of
+          // state.builds still loads (the same per-build isolation the
+          // legacy-migration branch below already holds).
+          let storeLog = engineTaskLog.createTaskLog();
+          for (const e of b.entries ?? []) storeLog = engineTaskLog.append(storeLog, e);
+          state.builds.push({ n: b.n, turn: b.turn ?? 0, kind: "database", storeLog, cursor: null, draft: null });
+          continue;
+        }
         // Pre-log builds ({seg, code, lastRun} — the mutable shape this
         // replaced) migrate to the honest floor: what was known becomes
         // entries; history that was never kept is not invented.
@@ -4604,8 +4867,12 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
   // IV register), injected here the same way widget.js takes it — never a
   // hand-typed intent list.
   const query = preflightQuery(task, discourse, { anaphors: enginePriors.ANAPHORIC_PRONOUNS });
-  onStep?.(`searching: “${query}”`);
   if (!query) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "nothing in the question to search on" } };
+  // Mirrors seekProof's own onStep shape (proof-seeking's per-claim "prove
+  // it" walk, further down this file) — same pattern, applied to the search
+  // that runs BEFORE a draft exists instead of after one is flagged. A
+  // caller that passes nothing gets exactly the old, silent behavior.
+  onStep?.(`searching the web: “${query}”`);
   let search;
   try {
     search = await webApi("/api/web/search", { query });
@@ -4619,13 +4886,17 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
   if (search.gap) return { chunks: [], pages: [], gap: search.gap };
   const picks = (search.results ?? []).slice(0, PREFLIGHT_PAGES_CONSULTED);
   if (!picks.length) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } };
+  onStep?.(`${picks.length} result(s) for “${query}” — reading ${picks.map((r) => hostOf(r.url)).join(", ")}`);
   const chunks = [];
   const pages = [];
   for (const [i, r] of picks.entries()) {
     try {
       onStep?.(`reading ${hostOf(r.url)} (${i + 1} of ${picks.length})`);
       const f = await webApi("/api/web/fetch", { url: r.url });
-      if (f.gap || !f.entry?.textPath) continue;
+      if (f.gap || !f.entry?.textPath) {
+        onStep?.(`${hostOf(r.url)}: ${f.gap?.detail ?? "no readable text"}`);
+        continue;
+      }
       const url = f.entry.finalUrl ?? r.url;
       let faceRes;
       try {
@@ -4646,9 +4917,11 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
-    } catch {
+      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+    } catch (e) {
       // One page failing to fetch is not the search failing — the other
       // picks still get their chance, the same posture seekProof takes.
+      onStep?.(`${hostOf(r.url)}: could not read — ${e.message}`);
       continue;
     }
   }
@@ -4866,7 +5139,7 @@ function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = n
     const out = await seekProof(target, faces, (step) => {
       live.textContent = step;
     });
-    // The semantic witness (testimony.js, P26): a reader over the best
+    // The semantic witness (testimony.js, P32): a reader over the best
     // fetched page's own bytes, asked one question — states, contradicts,
     // or neither. Runs AFTER the byte walk (its pages are what the witness
     // reads) and BEFORE the render, so the audit ships composed. Measured
@@ -5360,6 +5633,31 @@ function codeBlock(text, lang) {
   return pre;
 }
 
+/** One `<table>`, wrapped for horizontal scroll — factored out of
+ * artifactNode's own `seg.type === "table"` branch so a database fold
+ * (P25), which may need to draw several tables in one card, reuses the
+ * EXACT SAME renderer rather than a second one built for it. `head` is an
+ * array of column labels, `rows` an array of arrays of already-stringified
+ * cells — the identical shape parseSegments' own table segments carry. */
+function tableWrap(head, rows) {
+  const table = document.createElement("table");
+  const thead = table.createTHead().insertRow();
+  for (const h of head) {
+    const th = document.createElement("th");
+    th.textContent = h;
+    thead.append(th);
+  }
+  const tbody = table.createTBody();
+  for (const row of rows) {
+    const tr = tbody.insertRow();
+    for (const cell of row) tr.insertCell().textContent = cell;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "table-wrap";
+  wrap.append(table);
+  return wrap;
+}
+
 function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}) {
   const art = document.createElement("figure");
   art.className = "artifact";
@@ -5369,27 +5667,44 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     caption ??
     (seg.type === "table"
       ? `table · ${seg.rows.length} row${seg.rows.length === 1 ? "" : "s"}`
-      : seg.lang || "code");
+      : seg.type === "database"
+        ? `database · ${seg.opCount} operation${seg.opCount === 1 ? "" : "s"} recorded`
+        : seg.lang || "code");
   cap.append(capLabel);
   art.append(cap);
 
   if (seg.type === "table") {
-    const table = document.createElement("table");
-    const thead = table.createTHead().insertRow();
-    for (const h of seg.head) {
-      const th = document.createElement("th");
-      th.textContent = h;
-      thead.append(th);
+    art.append(tableWrap(seg.head, seg.rows));
+  } else if (seg.type === "database") {
+    // The ONE user-facing proof of store.js's core invariant (P25): a
+    // reader can tell this is a live projection replayed from a log, not a
+    // saved snapshot. `seg.tables` is store.foldStore's own output,
+    // computed fresh by the caller (databaseFoldCard) on every render —
+    // never cached here or anywhere upstream of it.
+    const tableNames = Object.keys(seg.tables);
+    const liveRows = tableNames.reduce((n, t) => n + seg.tables[t].rows.length, 0);
+    const note = document.createElement("p");
+    note.className = "build-from";
+    note.textContent =
+      `${seg.opCount} operation${seg.opCount === 1 ? "" : "s"} recorded — currently ${liveRows} live row${liveRows === 1 ? "" : "s"}` +
+      ` across ${tableNames.length} table${tableNames.length === 1 ? "" : "s"} · this is a projection, replayed from the log fresh on every render, never a saved snapshot`;
+    art.append(note);
+    if (!tableNames.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "no live rows yet";
+      art.append(empty);
     }
-    const tbody = table.createTBody();
-    for (const row of seg.rows) {
-      const tr = tbody.insertRow();
-      for (const cell of row) tr.insertCell().textContent = cell;
+    for (const t of tableNames) {
+      const { columns, rows } = seg.tables[t];
+      const label = document.createElement("p");
+      label.className = "build-from";
+      label.textContent = `${t} · ${rows.length} row${rows.length === 1 ? "" : "s"}`;
+      art.append(label);
+      const head = ["id", ...columns];
+      const displayRows = rows.map((r) => head.map((c) => (r[c] === undefined || r[c] === null ? "" : String(r[c]))));
+      art.append(tableWrap(head, displayRows));
     }
-    const wrap = document.createElement("div");
-    wrap.className = "table-wrap";
-    wrap.append(table);
-    art.append(wrap);
   } else if (RENDERABLE.has(seg.lang)) {
     const frame = document.createElement("iframe");
     // Scripts are CONSENT, and consent is a log entry: a build's frame gains

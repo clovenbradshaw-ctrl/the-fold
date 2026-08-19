@@ -160,7 +160,7 @@ export function composedSentence(state) {
     // distinction foldProof draws; reproduced here 2026-08-17 when a
     // zero-result search composed as "not reached").
     parts.push(w.gap?.detail ? `web: ${w.gap.detail}` : "the web was not reached");
-  // The semantic witness (testimony.js, P27) is deliberately NOT composed
+  // The semantic witness (testimony.js, P32) is deliberately NOT composed
   // here. It carries a QUOTE (the passage's own deciding sentence), which
   // this function's terse one-clause-per-tier style has no room for — its
   // own dedicated note (app.js's chip `run()`, prepended beside this one)

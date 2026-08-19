@@ -229,6 +229,55 @@ test("preflightQuery anchors on the turn's own words; the discourse joins when t
   assert.equal(preflightQuery("", ""), "");
 });
 
+test("preflightQuery earns the discourse join instead of always taking it — the trazodone/Lincoln incident, independently measured and merged in", () => {
+  // The exact live bug (2026-08-19): turn 1 was about trazodone; turn 2 asked
+  // a complete, self-sufficient question with nothing anaphoric in it. An
+  // unconditional-join version would build a query where every discourse
+  // word survives PREFLIGHT_QUERY_MAX_TERMS right alongside the real
+  // question (12 total, none trimmed), the search would return a
+  // trazodone/vaccine FAQ page, and the model would answer the wrong
+  // question from real but entirely wrong material.
+  const trazodoneDiscourse =
+    "trazodone for dogs: uses, interactions, serotonin syndrome, and vaccine timing (unanswered) · moved from serotonin syndrome timing to whether any source addresses trazodone right after a vaccine — none do · trazodone, serotonin syndrome";
+  const polluted = preflightQuery("who was Abraham Lincoln's vice president?", trazodoneDiscourse, { anaphors: ANAPHORIC_PRONOUNS });
+  assert.ok(/lincoln/i.test(polluted) && /president/i.test(polluted), polluted);
+  assert.ok(!/trazodone/i.test(polluted) && !/vaccine/i.test(polluted) && !/serotonin/i.test(polluted),
+    `a self-sufficient question must not carry an unrelated prior topic's words into the search: got "${polluted}"`);
+
+  // Omitted anaphors: unlike a design that gates the WHOLE earned-join
+  // behavior on the caller opting in, PREFLIGHT_FEW_WORDS applies
+  // unconditionally — "who was Abraham Lincoln's vice president?" carries
+  // 4 content words regardless of whether an anaphor set was ever passed,
+  // so it never joins either way. Stronger than reproducing an old bug on
+  // omission: there is no bug left to reproduce.
+  const stillClean = preflightQuery("who was Abraham Lincoln's vice president?", trazodoneDiscourse);
+  assert.ok(!/trazodone/i.test(stillClean), "the few-words gate does not depend on anaphors being supplied");
+
+  // An anaphoric task ("prove IT") still earns the join — this is the SAME
+  // case the existing test above already covers without the pronoun set;
+  // repeated here to pin that passing a real pronoun set doesn't regress it.
+  const anaphoric = preflightQuery("prove it", "NYC weather right now · asked and answered · NYC", { anaphors: ANAPHORIC_PRONOUNS });
+  assert.ok(/weather/i.test(anaphoric) && /nyc/i.test(anaphoric), anaphoric);
+
+  // A task with no content words at all (every token is a stopword or too
+  // short) still earns the join even with no anaphoric pronoun present —
+  // the second, independent condition.
+  const contentless = preflightQuery("and so", "NYC weather right now · asked and answered · NYC", { anaphors: ANAPHORIC_PRONOUNS });
+  assert.ok(/weather/i.test(contentless), contentless);
+
+  // A self-sufficient task with an unrelated discourse line, using the
+  // engine's real pronoun set: still excludes the unrelated topic entirely
+  // (stronger than the old cap-priority test above, which only guaranteed
+  // the task's OWN words survived — not that pollution was absent).
+  const clean = preflightQuery(
+    "what is the current population of Springfield Illinois exactly today",
+    "an entirely unrelated prior topic about lighthouses and shipping lanes and maritime law",
+    { anaphors: ANAPHORIC_PRONOUNS },
+  );
+  assert.ok(/springfield/i.test(clean));
+  assert.ok(!/lighthouse/i.test(clean) && !/maritime/i.test(clean), clean);
+});
+
 // ── the question travels with the finding, so a topic-less follow-up can
 // still be searched for the real thing, not for the model's own words ─────
 // Same measured case, read from the other end: even once material exists,

@@ -12,13 +12,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { ROSTER, REFUSED, SEVERED, continues, isControl, csvTable, formatCells, autoRunnable, parseRunCommand } from "./term.js";
+import { ROSTER, REFUSED, SEVERED, continues, isControl, csvTable, formatCells, autoRunnable, parseRunCommand, rubyBlockDepth, rBracketDepth } from "./term.js";
 import { SEVERED as JS_SEVERED } from "./term-js-worker.mjs";
 import { SEVERED as PY_SEVERED, mountName } from "./term-py-worker.mjs";
+import { SEVERED as RUBY_SEVERED, mountName as rubyMountName } from "./term-ruby-worker.mjs";
+import { SEVERED as PHP_SEVERED, mountName as phpMountName } from "./term-php-worker.mjs";
+import { SEVERED as R_SEVERED, mountName as rMountName } from "./term-r-worker.mjs";
 
 const here = (f) => new URL(`./${f}`, import.meta.url);
 const src = (f) => readFileSync(here(f), "utf8");
-const TERM_FILES = ["term.js", "term-js-worker.mjs", "term-py-worker.mjs", "term-sql-worker.js"];
+const TERM_FILES = ["term.js", "term-js-worker.mjs", "term-py-worker.mjs", "term-sql-worker.js", "term-ruby-worker.mjs", "term-php-worker.mjs", "term-r-worker.mjs"];
 
 test("P18: the PTY path is gone — no exec route on the server, no helper on disk", () => {
   const serve = src("serve.mjs");
@@ -41,14 +44,30 @@ test("II.13: no host but localhost anywhere the terminal's files reach", () => {
   }
 });
 
-test("the severed list is one list, held in three workers, and each severs", () => {
+test("the severed list is one list, held in six workers, and each severs", () => {
   assert.deepEqual(JS_SEVERED, SEVERED, "the js worker's list drifted");
   assert.deepEqual(PY_SEVERED, SEVERED, "the python worker's list drifted");
+  assert.deepEqual(RUBY_SEVERED, SEVERED, "the ruby worker's list drifted");
+  assert.deepEqual(PHP_SEVERED, SEVERED, "the php worker's list drifted");
+  // r severs the SAME canonical list, in ITS OWN scope — disclosed in its
+  // own header as real but narrower than the other five, since webR's
+  // nested engine worker is not this file's to sever. The list agreement
+  // still matters: it is what this repo's own controller-side containment
+  // actually promises, stated as exactly that, not silently skipped.
+  assert.deepEqual(R_SEVERED, SEVERED, "the r worker's list drifted");
   const sqlSrc = src("term-sql-worker.js");
   for (const name of SEVERED) assert.ok(sqlSrc.includes(`"${name}"`), `the sql worker's list lost ${name}`);
   for (const file of TERM_FILES.slice(1)) assert.ok(src(file).includes("defineProperty"), `${file} no longer severs`);
   for (const name of ["fetch", "XMLHttpRequest", "WebSocket", "importScripts"]) {
     assert.ok(SEVERED.includes(name), `the canonical list lost ${name}`);
+  }
+});
+
+test("a mounted source name cannot carry a path — ruby, php, and r agree with python's mountName", () => {
+  for (const fn of [rubyMountName, phpMountName, rMountName]) {
+    assert.equal(fn("a/b.txt"), mountName("a/b.txt"));
+    assert.equal(fn("..\\up"), mountName("..\\up"));
+    assert.equal(fn(""), "_");
   }
 });
 
@@ -70,7 +89,34 @@ test("the continuation grammar: sql waits for a semicolon, except dot-commands a
 test("the continuation grammar: a trailing backslash continues anywhere; js otherwise runs the line", () => {
   assert.equal(continues("js", "2+2", ""), false);
   assert.equal(continues("js", "const a = [1,", ""), false);
-  for (const r of ["fold", "js", "python", "sql"]) assert.equal(continues(r, "long \\", ""), true, r);
+  for (const r of ["fold", "js", "python", "sql", "ruby", "r", "php"]) assert.equal(continues(r, "long \\", ""), true, r);
+});
+
+test("the continuation grammar: ruby buffers on def/class/module/case/begin/for/if/unless/while/until and a trailing do, until end closes every level", () => {
+  assert.equal(continues("ruby", "def greet(name)", ""), true);
+  assert.equal(continues("ruby", "  puts name", "def greet(name)"), true, "still inside the def");
+  assert.equal(continues("ruby", "end", "def greet(name)\n  puts name"), false, "end closes the one open level");
+  assert.equal(continues("ruby", "[1,2].each do |x|", ""), true, "a trailing `do |x|` opens a block");
+  assert.equal(continues("ruby", "x = 1", ""), false, "an ordinary line never buffers");
+  assert.equal(continues("ruby", 'puts "hi" if x', ""), false, "the statement-modifier form never opens — if is not first on the line");
+  assert.equal(continues("ruby", "if x", "def f"), true, "a nested opener inside an already-open def keeps buffering past the first end");
+  assert.equal(continues("ruby", "end", "def f\n  if x"), true, "one end only closes one of two open levels");
+});
+
+test("the continuation grammar: r buffers on unbalanced ( { [ , never counting a bracket inside a string or a # comment", () => {
+  assert.equal(continues("r", "f <- function(x) {", ""), true);
+  assert.equal(continues("r", "  x + 1", "f <- function(x) {"), true);
+  assert.equal(continues("r", "}", "f <- function(x) {\n  x + 1"), false, "the closing brace balances it");
+  assert.equal(continues("r", "1 + 1", ""), false, "balanced code never buffers");
+  assert.equal(continues("r", 'x <- "("', ""), false, "a bracket inside a string is not a real opener");
+  assert.equal(continues("r", "y <- 1 # (", ""), false, "a bracket inside a # comment is not a real opener");
+});
+
+test("rubyBlockDepth and rBracketDepth are exported pure functions, not only reachable through continues()", () => {
+  assert.equal(rubyBlockDepth("def f\nend"), 0);
+  assert.equal(rubyBlockDepth("class C\n  def m\n"), 2, "two openers, no closer yet");
+  assert.equal(rBracketDepth("(a, [b, {c: 1"), 3);
+  assert.equal(rBracketDepth("f(1, 2)"), 0);
 });
 
 test("the control-word rule: exit/clear/mount never join a statement buffer", () => {
@@ -167,7 +213,15 @@ test("autoRunnable now accepts sql, alongside python and js/javascript", () => {
   assert.equal(autoRunnable("SQL"), true, "case-insensitive, like the other runtimes");
   assert.equal(autoRunnable("python"), true);
   assert.equal(autoRunnable("javascript"), true);
-  assert.equal(autoRunnable("ruby"), false, "not every runtime is sandboxed — only what AUTO_RUN_LANGS names");
+  assert.equal(autoRunnable("perl"), false, "not every runtime is sandboxed — only what AUTO_RUN_LANGS names");
+});
+
+test("autoRunnable accepts ruby and php (fully severed, no nested worker) but refuses r (the disclosed nested-worker sandbox gap)", () => {
+  assert.equal(autoRunnable("ruby"), true);
+  assert.equal(autoRunnable("RUBY"), true, "case-insensitive, like the other runtimes");
+  assert.equal(autoRunnable("php"), true);
+  assert.equal(autoRunnable("r"), false, "r's own nested worker is not this repo's to sever — terminal-only by design, never auto-run");
+  assert.equal(autoRunnable("R"), false);
 });
 
 test("parseRunCommand: a whole /run <runtime>\\n<code> parses to {runtime, code}", () => {
@@ -186,11 +240,19 @@ test("parseRunCommand: missing code (no second line, or a blank one) falls throu
 });
 
 test("parseRunCommand: an unrunnable runtime is a typed refusal, never null and never a silent run", () => {
-  const r = parseRunCommand("/run ruby\nputs 1");
+  const r = parseRunCommand("/run lua\nprint(1)");
   assert.equal(r.refused.type, "unsupported_runtime");
-  assert.match(r.refused.detail, /ruby/);
+  assert.match(r.refused.detail, /lua/);
   const foldAttempt = parseRunCommand("/run fold\nsources");
   assert.equal(foldAttempt.refused.type, "unsupported_runtime", "fold is a terminal runtime, not sandboxed code — /run does not reach it either");
+});
+
+test("parseRunCommand: ruby and php run from chat now; r is refused by name, not by shape — its nested-worker gap keeps it terminal-only", () => {
+  assert.deepEqual(parseRunCommand("/run ruby\nputs 1"), { runtime: "ruby", code: "puts 1" });
+  assert.deepEqual(parseRunCommand("/run php\necho 1;"), { runtime: "php", code: "echo 1;" });
+  const refused = parseRunCommand("/run r\n1 + 1");
+  assert.equal(refused.refused.type, "unsupported_runtime");
+  assert.match(refused.refused.detail, /"r"/);
 });
 
 test("parseRunCommand: text with no /run prefix at all is null — the door falls through, never refuses", () => {

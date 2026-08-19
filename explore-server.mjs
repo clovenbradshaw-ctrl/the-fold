@@ -83,6 +83,21 @@ import { skillDigest } from "./skills.js";
 // dependency-closure walk over pyodide's own lock file; the route below
 // owns only the crossing (the CDN fetch, the sha256 verify, the disk write)
 import { wheelClosure } from "./wheels.js";
+// the model-proxy organ's wire-shape half (P25, amending P1: the fold
+// servable AS a model, not only a client OF one) — this file owns the two
+// crossings (Ollama's real /api/tags, and the turn itself via
+// proxy-runner.mjs's runProxyTurn), proxy-api.js owns only the shapes
+import {
+  parseProxyRequest,
+  prefixModel,
+  toOpenAIModelList,
+  reprefixOllamaTags,
+  openAIResponse,
+  openAIStreamLines,
+  ollamaChatResponse,
+  ollamaChatStreamLines,
+} from "./proxy-api.js";
+import { OLLAMA as PROXY_OLLAMA_URL, offeredOllamaModels, runProxyTurn } from "./proxy-runner.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
@@ -858,7 +873,10 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname;
 
-  if (p.startsWith("/api/")) {
+  // /v1/* joins /api/* here: it's the OpenAI-compatible half of the model
+  // proxy, and an OpenAI-compatible client's own preflight/CORS behavior
+  // must see the same treatment the rest of this server's JSON API gets.
+  if (p.startsWith("/api/") || p.startsWith("/v1/")) {
     const cors = corsHeaders(req);
     for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
     if (req.method === "OPTIONS") {
@@ -2018,6 +2036,84 @@ const server = http.createServer(async (req, res) => {
       const { event, ...fields } = body;
       record(event, fields);
       return send(res, 200, { ok: true });
+    }
+
+    // ---- the model proxy (P25 amends P1): the fold servable AS a model —
+    // an OpenAI-compatible client (OpenCode's custom-provider config, the
+    // Ollama desktop app's "add provider") or an Ollama-native one points
+    // here instead of straight at Ollama, and every answer has gone
+    // through holon.js's real grounded pipeline (plan gate, retrieval,
+    // quote/relation tiers, bounded correction), not a raw passthrough.
+    // Loopback-bound like the rest of this server (server.listen below) —
+    // this widens what a LOCAL tool may treat as a model, never who may
+    // reach this machine. Listed models are real Ollama models, reprefixed
+    // `fold:<name>` (proxy-api.js's MODEL_PREFIX) — never a bare name,
+    // so a request naming plain "gemma2:2b" refuses rather than silently
+    // answering as if the pipeline had run.
+    if (req.method === "GET" && (p === "/v1/models" || p === "/api/tags")) {
+      let real;
+      try {
+        real = await offeredOllamaModels();
+      } catch (err) {
+        return send(res, 502, { error: `ollama unreachable at ${PROXY_OLLAMA_URL}: ${err.message}` });
+      }
+      const names = (real.models ?? []).map((m) => m.name ?? m.model).filter(Boolean);
+      return send(res, 200, p === "/v1/models" ? toOpenAIModelList(names) : reprefixOllamaTags(real));
+    }
+
+    if (req.method === "POST" && (p === "/v1/chat/completions" || p === "/api/chat")) {
+      const body = await readJsonBody(req);
+      const parsed = parseProxyRequest(body);
+      if (parsed.error) return send(res, 400, { error: parsed.error });
+      const { model, task, chatHistory, discourse, droppedRoles, stream, grounded } = parsed;
+      const openai = p === "/v1/chat/completions";
+      const id = `foldchat-${crypto.randomBytes(8).toString("hex")}`;
+      const createdAt = new Date().toISOString();
+      const created = Math.floor(Date.now() / 1000);
+      record("proxy-chat-requested", { via: openai ? "openai" : "ollama", model, stream, grounded, droppedRoles });
+      let turn;
+      try {
+        turn = await runProxyTurn({ model, task, chatHistory, discourse, grounded });
+      } catch (err) {
+        record("proxy-chat-failed", { via: openai ? "openai" : "ollama", model, error: err.message });
+        return send(res, 502, { error: `the fold's turn failed: ${err.message}` });
+      }
+      const fold = {
+        refs: turn.refs,
+        unsupported: turn.unsupported,
+        unbacked: turn.unbacked,
+        open: turn.open,
+        channels: turn.channels,
+        planMode: turn.planMode,
+        parts: turn.parts,
+      };
+      record("proxy-chat", {
+        via: openai ? "openai" : "ollama",
+        model,
+        stream,
+        grounded,
+        planMode: turn.planMode,
+        refs: turn.refs.length,
+        unsupported: turn.unsupported.length,
+        promptTokens: turn.usage.promptTokens,
+        completionTokens: turn.usage.completionTokens,
+      });
+      const wireModel = prefixModel(model);
+      if (stream) {
+        const lines = openai
+          ? openAIStreamLines({ id, model: wireModel, text: turn.text, created, fold })
+          : ollamaChatStreamLines({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold });
+        res.writeHead(200, { "content-type": openai ? "text/event-stream" : "application/x-ndjson", "cache-control": "no-store" });
+        for (const line of lines) res.write(line);
+        return res.end();
+      }
+      return send(
+        res,
+        200,
+        openai
+          ? openAIResponse({ id, model: wireModel, text: turn.text, created, usage: turn.usage, fold })
+          : ollamaChatResponse({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold }),
+      );
     }
 
     // ---- the record's tail, for the UI affordance; the full file is in the tree.

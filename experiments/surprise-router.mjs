@@ -34,7 +34,7 @@
 // MEANINGFUL SURPRISE, operationalized: an atom (name or number,
 // checkGrounding's own unit) that is BOTH grounded (corroborateAtoms says
 // a real passage states it) AND novel (absent from what THIS routine's
-// prompt actually handed the model — the same second index P24 built into
+// prompt actually handed the model — the same second index P30 built into
 // system1-cpu-system2-gpu.mjs's groundingReport, reused verbatim here, not
 // re-derived). An atom that is grounded but ECHOED (present in the given
 // context) is real but carries zero bits relative to the receiver

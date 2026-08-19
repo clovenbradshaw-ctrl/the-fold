@@ -1244,9 +1244,9 @@ export async function runPart({
   // taxonomy carried `fillers` on the claim the whole time, and nothing
   // downstream ever asked. `isIncomplete` is that ask: a BOUND claim
   // (never unbound — a wrong answer is a different, already-handled
-  // problem, P28's own unbacked/unsupported split) with more than one real
+  // problem, P33's own unbacked/unsupported split) with more than one real
   // filler means the question's own singular phrasing outran what the
-  // material actually has, the exact Strawson/Russell uniqueness gap P28's
+  // material actually has, the exact Strawson/Russell uniqueness gap P33's
   // own header names. Scoped to `check.relations`, computed at verdictOf's
   // call sites (both already hold a fresh `check`).
   // A single claim carrying `fillers.length > 1` is not by itself proof of
@@ -1547,7 +1547,11 @@ export async function runPart({
     ...openQuestions(question, passages, check.refs),
     ...(text ? [] : [`part produced no text: ${part.label}`]),
   ];
-  onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open });
+  // `check.relations` was already computed above (the material's own edges,
+  // read against this part's answer) but never left this function — the
+  // caller had no way to narrate it live. Passed through verbatim, never
+  // re-summarized here: summarizing is a rendering decision, not a check.
+  onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
   return {
     part,

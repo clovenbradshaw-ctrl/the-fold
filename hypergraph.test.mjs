@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 
 import { makeRelationReader, relationFindings, relationsClean, MIN_SURFACES_PER_VERB, queryEdges, queryFillers } from "./hypergraph.js";
 import { corroborateAtoms } from "./grounding.js";
+import { readFileSync } from "node:fs";
 
 const organs = async () => {
   const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
@@ -90,9 +91,9 @@ const POOL = [
   ...FILLER.split(". ").map((s, i) => ({ ref: `filler.txt#${i * 100}-${i * 100 + 99}`, text: s + "." })),
 ];
 
-// ── cardinality: the mirror of P27's slot competition (added 2026-08-19,
+// ── cardinality: the mirror of P32's slot competition (added 2026-08-19,
 // user direction after a live conversation) ─────────────────────────────
-// P27 counts distinct SUBJECTS filling one verb+object slot; this counts
+// P32 counts distinct SUBJECTS filling one verb+object slot; this counts
 // distinct OBJECTS one subject+verb binds — the Russellian uniqueness
 // clause: "the F is G" presupposes not just that an F exists (Strawson's
 // clause, the presupposition-failure gate already covers) but that there
@@ -310,6 +311,25 @@ test("queryReferents: the reader's own referent-aware query agrees with judge()'
   assert.deepEqual(nobody, []);
 });
 
+// createLemmatizer/morphologyIndex, only for the tests that specifically
+// exercise the lemma-widening amendment (2026-08-19) — every other test
+// omits both, exercising the backward-compatible exact-match default.
+const morphologyOrgans = async () => {
+  const { createLemmatizer } = await import("../eoreader6.1/packages/engine/perceiver/text/morphology.js");
+  const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
+  return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms, morphologyLanguage: prior.language };
+};
+
+// A material stating one irregular verb form, nothing else interesting —
+// small on purpose, since these tests are only about verb-form matching.
+const IRREGULAR_PASSAGES = [
+  {
+    ref: "y.txt#0-200",
+    text: "Pierre Bezukhov underwent a remarkable transformation that winter. Pierre Bezukhov traveled to Vienna in spring.",
+  },
+];
+const IRREGULAR_POOL = [...IRREGULAR_PASSAGES, ...POOL.filter((p) => p.ref.startsWith("filler.txt"))];
+
 test("a stated edge is bound, with its addresses and its corroboration counted across sources", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
   assert.equal(reader.examined, true);
@@ -385,6 +405,115 @@ test("a verb the material never measures is unheard — the reach ends visibly",
   assert.equal(relationFindings(report).length, 0);
 });
 
+// A concept-scale material: one named surface ("Darwin") to seed the cast
+// ladder and the relation vocabulary, plus a recurring PLAIN-NOUN subject
+// ("Butterflies") that cast.js never names — the exact starvation
+// host/terrains.js's own recurring-form binding was built to answer,
+// applied here to the relation tier's referent gate instead of the graph.
+// "Butterflies" recurs across two sentences (FORM_MIN_ARRIVALS); "Moths"
+// appears exactly once, on purpose, so the floor's own refusal is pinned
+// too, not just its admission.
+const FORM_PASSAGES = [
+  {
+    ref: "insects.txt#0-200",
+    text:
+      "Naturalists have long studied insects in the field. " +
+      "Charles Darwin himself observed specimens for many years, and Darwin wrote about their metamorphosis in his notebooks.",
+  },
+  {
+    ref: "insects.txt#200-400",
+    text:
+      "Butterflies wrote nothing themselves, but their metamorphosis is well documented. " +
+      "Butterflies wrote across the historical record only through patterns naturalists observed. " +
+      "Moths crossed the meadow once at dusk.",
+  },
+];
+
+test("a recurring plain-noun subject resolves as a FORM — the concept-document starvation host/terrains.js already named", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Butterflies wrote across the historical record.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Butterflies");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "bound");
+  assert.equal(claim.formBased, true, "a subject with no cast referent must disclose it rested on a form");
+  assert.ok(claim.refs.includes("insects.txt#200-400"));
+});
+
+test("a form is never mistaken for a name — a claim resting on a real referent is never marked formBased", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Darwin wrote about their metamorphosis.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Darwin");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "bound");
+  assert.equal(claim.formBased, false, "Darwin resolves through the real referent index, not a form");
+});
+
+test("a subject that recurs only once is still beyond reach — FORM_MIN_ARRIVALS is a floor, not a courtesy", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Moths wrote about the meadow.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Moths");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "beyond-reach");
+  assert.equal(relationFindings(report).length, 0, "a limit of the instrument is never a finding against the answer");
+});
+
+test("a form-resolved subject with no matching edge is unbound, not silently beyond-reach", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const report = reader.read("Butterflies wrote about a treaty.");
+  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Butterflies");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "unbound");
+  assert.equal(claim.formBased, true);
+  assert.ok(claim.nearest.length > 0, "the nearest-edge disclosure fires here exactly as it does for a named subject");
+});
+
+test("verbForms (a received lexicon) widens vocabulary on material with NO named surface at all", async () => {
+  // No proper noun anywhere in this material — discoverRelationVocab's own
+  // surface-anchoring has nothing to anchor on, so without a received
+  // lexicon this essay-shaped material measures zero verbs, exactly like
+  // the nameless-material case below. A recurring word ("undergo", 2
+  // sentence arrivals — FORM_MIN_ARRIVALS) that a lexicon marks as a known
+  // verb form should be admitted anyway, entirely bypassing surface
+  // anchoring — this is the MINE-1 fix (eval/results/
+  // mine-1-unimorph-RESULTS.md): a received prior, not a second anchoring
+  // attempt (both anchor-widening attempts were tried and rejected first).
+  const passages = [
+    {
+      ref: "x.txt#0-100",
+      text:
+        "Butterflies undergo metamorphosis in spring gardens. " +
+        "Butterflies undergo metamorphosis every single year without fail.",
+    },
+  ];
+  const base = await organs();
+  const noLexicon = makeRelationReader(base)(passages);
+  assert.equal(noLexicon.vocabulary.verbs, 0, "no capitalized surface anywhere — nothing to anchor discovery on");
+
+  const withLexicon = makeRelationReader({ ...base, verbForms: new Set(["undergo", "undergoes"]) })(passages);
+  assert.equal(withLexicon.vocabulary.verbs, 1);
+  const report = withLexicon.read("Butterflies undergo metamorphosis.");
+  const claim = report.claims.find((c) => c.verb === "undergo");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "bound");
+  assert.equal(claim.subject, "Butterflies");
+});
+
+test("verbForms never admits a hapax — the same recurrence floor identity resolution already earned", async () => {
+  // "vanish" appears exactly once — no signal that it is doing real verb
+  // work in THIS material, even though the lexicon says it CAN be a verb.
+  const passages = [{ ref: "x.txt#0-60", text: "Fireflies glow at dusk. The light will vanish by morning." }];
+  const base = await organs();
+  const withLexicon = makeRelationReader({ ...base, verbForms: new Set(["vanish"]) })(passages);
+  assert.equal(withLexicon.vocabulary.verbs, 0, "a one-off lexicon match must not enter the vocabulary");
+});
+
+test("verbForms is fully backward compatible — omitted, behavior is untouched", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const report = reader.read("Pierre Bezukhov married Helene.");
+  const bound = report.claims.find((c) => c.verb === "married" && c.verdict === "bound");
+  assert.ok(bound, "the existing flagship bound case must be unaffected by verbForms' existence");
+});
+
 test("no material means not examined; nameless material means a typed vocabulary gap", async () => {
   const make = makeRelationReader(await organs());
   const empty = make([]);
@@ -425,7 +554,7 @@ test("corroborateAtoms counts support per passage and per distinct source", asyn
   assert.equal(corroborateAtoms(answer, []).examined, false);
 });
 
-// ── slot competition (P27's named follow-up, added 2026-08-19) ─────────────
+// ── slot competition (P32's named follow-up, added 2026-08-19) ─────────────
 // The Yankees/Pirates shape, structurally: a byte check passes every word,
 // and the plain subject+verb match above finds nothing (the claimed subject
 // never did this verb at all) — but the material binds this EXACT verb and
@@ -531,9 +660,101 @@ test("a competing filler must agree with the claim's own number when both carry 
   assert.doesNotMatch(claim.competing.object, /1971/, "the 1971 edge must never be chosen for a 1960 claim");
 });
 
+test("every edge carries its own assertion: statements counted, standing typed, verb support disclosed", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const married = reader.edges.find((e) => e.verb === "married");
+  assert.ok(married, JSON.stringify(reader.edges, null, 2));
+  // Stated in both wp passages — two independent statements fold in.
+  assert.ok(married.assertion, "an edge without its assertion is a silently-kept edge");
+  assert.ok(married.assertion.statements >= 2, JSON.stringify(married.assertion));
+  assert.equal(married.assertion.standing, "corroborated");
+  // "married" followed "Pierre Bezukhov" — the vocabulary measure's own
+  // distinct-surface count rides along, never re-derived.
+  assert.ok(married.assertion.verbSupport >= 1);
+
+  const trusted = reader.edges.find((e) => e.verb === "trusted");
+  assert.ok(trusted);
+  assert.equal(trusted.assertion.statements, 1);
+  assert.equal(trusted.assertion.standing, "single-witness");
+
+  // The disclosure never convicts: a single-witness edge stays off the
+  // record's unsupported list exactly as before.
+  const report = reader.read("Pierre Bezukhov trusted Dolokhov.");
+  const bound = report.claims.find((c) => c.verb === "trusted");
+  assert.equal(bound.verdict, "bound");
+  assert.equal(relationFindings(report).length, 0);
+});
+
+test("the word-salad arm runs only when declared, reports counts, and replays under its seed", async () => {
+  const make = makeRelationReader(await organs());
+  const plain = make(PASSAGES, { pool: POOL });
+  for (const e of plain.edges)
+    assert.equal(e.assertion.orderArm, undefined, "no declaration, no arm — never a defaulted resolution");
+
+  const armed = make(PASSAGES, { pool: POOL, assert: { draws: 12, seed: 0 } });
+  for (const e of armed.edges) {
+    assert.ok(e.assertion.orderArm, JSON.stringify(e));
+    assert.equal(e.assertion.orderArm.draws, 12);
+    assert.ok(e.assertion.orderArm.fired >= 0 && e.assertion.orderArm.fired <= 12);
+    assert.equal(e.assertion.orderArm.seed, 0);
+  }
+  const again = make(PASSAGES, { pool: POOL, assert: { draws: 12, seed: 0 } });
+  assert.deepEqual(
+    armed.edges.map((e) => [e.subject, e.verb, e.object, e.assertion.orderArm.fired]),
+    again.edges.map((e) => [e.subject, e.verb, e.object, e.assertion.orderArm.fired]),
+    "same declaration, same counts — the arm is testimony only if it replays",
+  );
+});
+
 test("the declared number is the declaration, not a tuned knob", () => {
   // Pinned so a future "walk it and see what scores best" cannot happen
   // silently — changing this constant is a policy change, and lands with
   // its justification or not at all.
   assert.equal(MIN_SURFACES_PER_VERB, 1);
+});
+
+test("lemma widening: a claim phrased in a different tense than the material still binds, when createLemmatizer is provided", async () => {
+  const reader = makeRelationReader(await morphologyOrgans())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const report = reader.read("Pierre Bezukhov undergoes a remarkable transformation.");
+  const bound = report.claims.find((c) => c.verb === "undergoes" && c.verdict === "bound");
+  assert.ok(bound, `"undergoes" must bind to the material's own "underwent" via the received lemma table: ${JSON.stringify(report.claims)}`);
+  assert.ok(bound.refs.includes("y.txt#0-200"));
+});
+
+test("lemma widening is opt-in and backward compatible: omitted, the same claim is unheard, exactly as before this amendment", async () => {
+  const reader = makeRelationReader(await organs())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const report = reader.read("Pierre Bezukhov undergoes a remarkable transformation.");
+  const claim = report.claims.find((c) => c.verb === "undergoes");
+  assert.equal(claim?.verdict, "unheard", "without the lemma organ, a tense-shifted verb the material never uses verbatim must stay unheard, never bound");
+});
+
+test("lemma widening never lets an UNRELATED verb bind — it is not a general fuzzy match", async () => {
+  const reader = makeRelationReader(await morphologyOrgans())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const report = reader.read("Pierre Bezukhov married Helene.");
+  const claim = report.claims.find((c) => c.verb === "married");
+  assert.equal(claim?.verdict, "unheard", "married shares no lemma with underwent/traveled — it must stay outside the material's vocabulary, not get swept in");
+});
+
+test("a declared NON-English morphologyLanguage disables the English suffix rule end to end, not only inside morphology.js's own unit tests", async () => {
+  // "traveled"/"travels" are REGULAR English inflection (the "-ed"/"-s"
+  // rule, not the irregular table this fixture's own morphologyIndex
+  // carries) — so they only bind under morphologyLanguage: "eng" (or
+  // omitted). Declared as anything else, hypergraph.js's own sameAct must
+  // refuse them exactly as it would with no lemmatizer at all.
+  const base = await morphologyOrgans();
+  const withEnglish = makeRelationReader(base)(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const englishReport = withEnglish.read("Pierre Bezukhov travels to Vienna in spring.");
+  assert.equal(
+    englishReport.claims.find((c) => c.verb === "travels")?.verdict,
+    "bound",
+    "regular English inflection must still bind when morphologyLanguage is omitted (defaults to eng)",
+  );
+
+  const withOther = makeRelationReader({ ...base, morphologyLanguage: "grc" })(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
+  const otherReport = withOther.read("Pierre Bezukhov travels to Vienna in spring.");
+  assert.equal(
+    otherReport.claims.find((c) => c.verb === "travels")?.verdict,
+    "unheard",
+    "the English-only suffix rule must not fire once a non-English language is declared, even though the SAME morphologyIndex is still loaded",
+  );
 });

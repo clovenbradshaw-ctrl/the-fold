@@ -124,15 +124,19 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
  * asked right after another topic searched the web on both topics at once
  * (measured live 2026-08-19: "research Robert Macnamera" after a greeting
  * searched on "Greeting exchange"'s words too, fetched a greeting-etiquette
- * page, and retrieval then preferred it over the on-topic pages). The
- * discourse anchor exists for the topic-less follow-up ("prove it") whose
- * own words name nothing — so the join is now earned, never assumed: the
- * discourse's words enter only when the task points back anaphorically (a
- * received closed class, the engine's ANAPHORIC_PRONOUNS — injected, the
- * widget.js pattern, never a hand-typed intent list) or carries FEW content
- * words (PREFLIGHT_FEW_WORDS or fewer). Task words still come first, so
- * they survive the cap before the discourse line's do if the joined anchor
- * runs long.
+ * page, and retrieval then preferred it over the on-topic pages; separately
+ * measured the same day, a real conversation whose first turn was about
+ * trazodone landed "who was Abraham Lincoln's vice president?" polluted
+ * with trazodone/serotonin/vaccine, and the search returned a trazodone FAQ
+ * page for a wholly unrelated question — a retrieval failure wearing
+ * grounded citations, not a hallucination). The discourse anchor exists for
+ * the topic-less follow-up ("prove it") whose own words name nothing — so
+ * the join is now earned, never assumed: the discourse's words enter only
+ * when the task points back anaphorically (a received closed class, the
+ * engine's ANAPHORIC_PRONOUNS — injected, the widget.js pattern, never a
+ * hand-typed intent list) or carries FEW content words (PREFLIGHT_FEW_WORDS
+ * or fewer). Task words still come first, so they survive the cap before
+ * the discourse line's do if the joined anchor runs long.
  *
  * Widened from "zero content words" 2026-08-19 (user direction: "our
  * gating is too strict, it needs to be more associative, people need to be
@@ -148,7 +152,11 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
  * own comment above already states the asymmetry ("a false positive costs
  * one wasted search... a false negative reproduces the bug this exists to
  * close") — joining more readily is the side that comment already argued
- * for, not a new tradeoff invented here.
+ * for, not a new tradeoff invented here. The SAME threshold also closes the
+ * trazodone/Lincoln incident above without a second mechanism: "who was
+ * Abraham Lincoln's vice president?" carries four real content words —
+ * Abraham, Lincoln, vice, president — well past PREFLIGHT_FEW_WORDS, so it
+ * never joins regardless of what preceded it in the conversation.
  */
 export const PREFLIGHT_FEW_WORDS = 2; // a task at or below this many content words is treated as under-specified, same as zero
 

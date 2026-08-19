@@ -343,6 +343,74 @@ what, `constitution.test.mjs` is the assay that walks it, and the unwired
 articles (III.1 anchor, III.4 opposite, III.5 prediction) are listed there as
 unwired — VI.3 — rather than implied as compliant.
 
+## The model proxy (added 2026-08-18) — what was decided, so it is not re-derived
+
+P27 in POLICIES.md is the law; this is the map. The ask, from the user
+directly: the fold should show up as a usable model in the Ollama desktop
+app or in OpenCode — a proxy onto the fold, in addition to the browser.
+
+**The reframe.** Both named clients add a custom model provider by base
+URL and speak an OpenAI-compatible `POST /v1/chat/completions` +
+`GET /v1/models` (OpenCode's provider config, and the Ollama app's own
+"add provider"); the Ollama app can additionally be pointed at something
+that speaks Ollama's own native `/api/chat` + `/api/tags`. So "make the
+fold a model" reduces to standing up both wire shapes on the already-
+loopback-bound `explore-server.mjs` and, behind them, running the SAME
+turn app.js's `holonicTurn` runs — `holon.js`'s real `runHolonicTask`, not
+a lighter reimplementation — headlessly.
+
+**Every servable model id is `fold:<real ollama model>`, never bare.**
+Decided first, because it is what makes the rest safe: a request naming
+plain `gemma2:2b` is asking Ollama, not the fold, and is refused rather
+than quietly answered as if the grounded pipeline had run. `GET /v1/models`
+/ `GET /api/tags` list Ollama's real pulled models, reprefixed — never a
+second, hand-maintained list that could name something Ollama does not
+actually have.
+
+**Full pipeline by default.** Chosen over a passthrough-with-an-opt-in-flag
+specifically because most callers of an OpenAI-shaped endpoint will never
+discover the flag — a quiet default of "raw Ollama, checked if you ask"
+would in practice ship exactly the confusion the `fold:` prefix exists to
+prevent. `fold_grounded: false` is the one disclosed opt-out, and it only
+turns off the relation tier (the ladder's most expensive part), never the
+rest of the pipeline.
+
+**Files.** `proxy-api.js` (new, pure — no fetch, no engine import: the
+`fold:` prefix wall, both wire protocols' identical `{model, messages,
+stream}` parse into one turn shape, both response/stream formatters) +
+`proxy-api.test.mjs` (20 cases, offline). `proxy-runner.mjs` (new — the
+one place the engine organs and the Ollama network call live: the SAME
+`makeCastResolver`/`makeRelationReader` bundle app.js builds at
+app.js:208-259, and a `call()` shaped exactly like `eval/dialogue.mjs`'s
+own). `explore-server.mjs` gained four routes (`GET /v1/models`,
+`POST /v1/chat/completions`, `GET /api/tags`, `POST /api/chat`) and its
+CORS/OPTIONS gate widened from `/api/` alone to `/api/` or `/v1/`.
+
+**Disclosed scope, named rather than silently absent.** No material/
+attachments this pass (`chunks: []` — an OpenAI-shaped request has no
+composer); no link tier (`checkLink: null` — P20's web egress keeps its
+own consent posture, not silently granted to a proxied call); no
+persistent session (each turn folds fresh off the request's own resent
+history, since the wire protocols already carry it that way — no running
+summary, no warrant record; that state lives in the browser, not here);
+streaming is single-shot (the whole checked answer as one chunk, then
+stop/done) rather than token-level, because token streaming would mean
+showing a draft before the correction loop and the quote/relation tiers
+have run against it — the one thing this instrument's grounding apparatus
+exists not to do; one model per turn, no fast/deep routing-ladder
+substitution, because an API caller naming a model on every request has
+already made the routing decision app.js's picker makes once per session.
+
+**Loopback only, unchanged.** The routes live on `explore-server.mjs`
+(bound to `127.0.0.1` alone), never `serve.mjs` (which binds every
+interface) — this widens what a LOCAL tool may address as a model, never
+who may reach this machine. Nothing here touches what the browser page
+itself may fetch; P1's host ban is untouched.
+
+**Evidence.** Full detail and the live-driven transcript (a scripted
+stand-in Ollama — this pass's own sandbox had no real Ollama install to
+test against, disclosed as exactly that) are in POLICIES.md P27.
+
 ## Local only
 
 There is no hosted-model path. The Anthropic SDK, provider select, key input,
@@ -2257,10 +2325,971 @@ after: the same 4 pre-existing failures the baseline names (`measure.test.mjs`,
 three `webllm-rung.test.mjs` model-file cases) plus the one disclosed
 worktree-nesting artifact above, itself confirmed unaffected by this
 change (identical failure, identical file, both before and after).
+
+## The database fold (added 2026-08-18) — what was decided, so it is not re-derived
+
+P25 in POLICIES.md is the law; this is the map. `store.js`/`store.test.mjs`
+(a prior pass, already tested — read in full, not redesigned) hold the load-
+bearing invariant, the user's own words, verbatim: **"the reality of the
+database should be the EOT event stream, the current state always
+projected."** This pass is the wiring that makes that true of a database a
+person actually populates, at the terminal's real `sql` runtime or through
+chat's `/run sql` door, rather than only in store.js's own tests: a mutation
+lands on a fold, the fold appears in the Folds panel, persists the same way
+a code/table/html build already does, and reopens after a reload — rebuilt
+by REPLAYING the log, never by reading back a saved database export. The
+Choreo lineage store.js's own header already claims (github.com/
+clovenbradshaw-ctrl/Choreo — "the log is truth, projection is convenience")
+is this pass's lineage too, one register over: **"snapshot ingest generates
+operations"** — diff raw state, emit granular typed ops — read directly off
+sql.js's own before/after row snapshots rather than off a hand-rolled SQL
+parser, since sql.js exposes no AST to search for one.
+
+**Files.** `store-sql.js` (new, pure: `looksMutating`/`detectTables` — cheap
+text regexes, never a parser, and a caller's cue to fall back when they find
+nothing; `snapshotFromExec`/`diffSnapshots`/`deriveStoreOps` — the diff
+itself, over sql.js's own real `{columns, values}` result shape;
+`sanitizeTableName`/`opsFromCsvTable` — the `.load` path, disclosed as a
+deliberate mirror of term-sql-worker.js's own `tableName()`, the same
+posture store.js's own header already takes for materializeSql mirroring
+that worker's CREATE TABLE shape) + `store-sql.test.mjs` (14 conformance
+tests against the REAL sql.js package — every "before"/"after" pair is a
+genuine `db.exec("SELECT rowid, * FROM t")` result, not a hand-typed
+fixture). `term-sql-worker.js` grew `listTables`/`snapshotNames` and one
+new `exec` protocol field (`snapshotTables`) — the worker stays a dumb
+executor: it is TOLD which tables to snapshot (or told to use its own
+catalog) and hands the raw before/after row-sets back UNEXAMINED; all the
+diffing intelligence lives in store-sql.js, a plain ES module the caller
+(term.js, main thread) already imports normally — the worker never imports
+store.js or store-sql.js, and never decides what a change means. `term.js`
+grew the module-level `sqlSnapshotFields` (shared by BOTH the interactive
+terminal's `exec()` and the standalone `runSandboxed()`, one implementation
+rather than two that could drift — this repo's own postmortems have already
+caught that exact drift twice under P22/P24), `applyDbOps` (the terminal's
+own closure, prints "database fold: N row-level change(s) recorded" where
+it happens), and `runSandboxed`'s resolved object grew a `dbOps` field so
+`/run sql` can apply the identical landing after a throwaway worker settles.
+`app.js` grew the database-fold section (`findDatabaseFold`/
+`createDatabaseFold`/`applyStoreOps`/`databaseProjection`), a `buildFold`
+guard (`entry.kind === "database"` → `null`, which is what makes every OTHER
+reader of a build — `kindOf`, `buildWords`, `buildChip`'s auto-run — already
+safe on a database entry without each needing its own guard), an early
+refusal in `foldTurn` (`/fold <n>` is text revision; a database fold is not
+text revision's to touch), `persistBuilds`/`restoreBuilds` branches, a
+`databaseFoldCard` (deliberately NOT `buildCard` — no cursor scrubber, no
+edit/run/restore controls, none of build-log.js's machinery applies), and
+`artifactNode`'s new `"database"` branch (drawing through a newly factored
+`tableWrap` helper — the SAME table renderer `seg.type === "table"` already
+used, not a second one built for this).
+
+**The operator-typing decision, stated because it costs something.** A
+diffed row change is landed as `store.insertRow`/`updateRow`/`deleteRow`
+exactly as store.js's own header already types them (INS · Figure ·
+produced for a birth; SUPERSEDE · SYN · Figure · produced, changed columns
+only, for a revision; RETRACT · NUL for a retraction) — nothing new is
+typed here, because the typing question was already answered by the module
+this pass builds on. What THIS pass decided: a mutating statement is
+detected by a bare keyword regex (`INSERT`/`UPDATE`/`DELETE`/`REPLACE`),
+never a parser — sql.js exposes no AST, and this repo's own house rule
+("search for the organ before you hand-roll one") pointed at diffing
+sql.js's own real execution rather than attempting one. Table names are
+detected the same cheap way, with an EXPLICIT, disclosed fallback (an empty
+detection list tells the worker "snapshot your own full catalog") rather
+than a guess dressed as certainty. `.load` needs no diffing at all — every
+row of a fresh CSV load is a birth by construction, so it calls `insertRow`
+directly off the already-parsed `{columns, rows}` term.js already holds,
+never round-tripping through the worker to ask what changed.
+
+**Scope, decided and stated rather than silently assumed — one fold,
+app-wide, not per-conversation or per-session.** The first row-level
+mutation from EITHER door (the terminal, or chat's `/run sql`) lazily
+creates the ONE database fold this pass keeps; every later mutation from
+either door lands on the same log — the identical "belongs to the
+instrument, not one conversation" reasoning `state.gridLog`/`state.builds`
+already state elsewhere in this repo. A "new database" affordance (several
+simultaneous database folds) is real, named future work, not attempted:
+nothing that motivated this pass asked for more than one.
+
+**Deliberately NOT routed through build-log.js.** A database fold is its
+OWN top-level `state.builds` entry kind (`entry.kind === "database"`,
+carrying `storeLog` where a code/table/html build carries `log`) rather than
+a fifth thread on build-log.js's PROPOSE/SUPERSEDE-per-edit versioning
+chain — that model fits a code revision (one person or model editing one
+version at a time), not a stream of many small granular row operations; a
+database fold's "version" display is simply `entry.storeLog.entries.length`
+("N operations recorded"), read straight off the log the same way
+build-log.js's own `timeline` reads a code build's addenda count. What IS
+reused, named plainly so nothing here reads as a silent half-integration:
+`state.builds` itself (one array, one numbering scheme, one persistence
+key, `n` allocated the identical `state.builds.length + 1` way every other
+kind already is); `renderBuilds`/`foldRow`'s search-and-sort pipeline
+(folds-pane.js never learns a database fold's shape — it only ever sees the
+same `{n, caption, lang, type, address, code, addenda}` row every other kind
+already produces); `artifactNode`'s table renderer, factored into
+`tableWrap` so there is exactly one table-drawing implementation. What is
+NOT reused: build-log.js's PROPOSE/SUPERSEDE/RESULT vocabulary, its cursor
+scrubbing (a database fold has no versioned "as of" position to scrub — the
+store log's own entries ARE its history, always shown at the live head),
+its editor, its run/restore/download controls.
+
+**Disclosed limitations, found while building, not glossed over.** (1) A
+SQL column literally named `id`, `table`, `row`, `because`, `operator`,
+`grain`, or any of task-log's other reserved entry keys — `id` especially,
+extremely common in ordinary schemas — collides with store.js's OWN
+disclosed collision guard and throws at `insertRow`/`updateRow`. This is
+store.js's own documented deviation, not something this pass invented, and
+this pass does not work around it (renaming or escaping a column would
+silently disagree with what the operator actually typed): `applyStoreOps`
+catches the failure per-op, keeps whatever succeeded before it, and reports
+what could not be recorded, plainly, rather than crashing the batch or
+silently dropping the row. (2) Re-entering the interactive `sql` runtime
+after `exit` boots a genuinely FRESH, empty in-memory sqlite database — the
+STORE LOG remembers every row forever, but the live session does not
+remember SCHEMA, so a bare `INSERT` without a matching `CREATE TABLE` in
+the new session fails exactly as it would against any fresh sqlite
+connection. A second-order consequence, disclosed rather than silently
+risked: sqlite's own `rowid` counter also resets to 1 in that fresh
+session, so a NEW row inserted into a same-named table in a later session
+can collide with an EARLIER session's already-recorded rowId for that
+table if the two are never reconciled — not attempted here. (3) "Reopening"
+a database fold means the Folds panel shows its live projection
+(`store.foldStore`, fresh on every render) — it does NOT mean a freshly
+booted `sql` runtime is pre-loaded with the fold's prior rows so a person
+can keep querying it live; that would need `materializeSql` (or the
+equivalent CREATE-TABLE-plus-INSERT priming) run INSIDE the classic sql
+worker, which this pass did not build. (4) `.load`, run a second time
+against the same source name, is not diffed against its own prior load —
+every row lands as a birth again; a shrink (fewer rows the second time)
+leaves the earlier rows' fold entries live and stale. None of these are
+silent: each is stated here, and (1) additionally surfaces to the operator
+at the moment it happens.
+
+**Evidence, driven live end to end through a real browser against `node
+serve.mjs`, not only in test files.** Typed at the terminal:
+`CREATE TABLE t (name TEXT, age INTEGER); INSERT INTO t VALUES ('Alice',
+30); INSERT INTO t VALUES ('Bob', 25);` landed `database fold: 2 row-level
+changes recorded (2 insert, 0 update, 0 delete)`; the Folds panel showed
+`DATABASE · 2 OPERATIONS RECORDED` with a rendered `t` table of exactly
+those two rows. `UPDATE t SET age = 31 WHERE name = 'Alice';` landed
+`(0 insert, 1 update, 0 delete)` — the op count rose by exactly one, Alice
+read 31, Bob's row was untouched (not resent). `DELETE FROM t WHERE name =
+'Bob';` removed Bob from the live view, op count at 4. **Reloading the
+page** — the actual test that matters — showed the identical fold, `4
+OPERATIONS RECORDED`, Alice still at 31; a console inspection of
+`localStorage["fold-builds"]` both immediately before and immediately after
+the reload showed the persisted object's only keys are `["entries", "kind",
+"n", "turn"]` — `entries` an ordinary JSON array of task-log entries
+(`kind: "propose"/"propose"/"supersede"/"retract"`, the first one literally
+`{kind:"propose", operator:"INS", task_id:"t:1", table:"t", row:"1",
+name:"Alice", age:30, ...}`) — never a `db.export()` byte array, never
+anything resembling a serialized sql.js database. A real CSV
+(`city,riders\nNashville,1200\nMemphis,900\nKnoxville,450`) pasted as an
+attachment, then `.load pasted.txt` at the terminal, printed `database
+fold: 3 row-level changes recorded (3 insert, 0 update, 0 delete)` and the
+panel grew a second table (`PASTED · 3 ROWS`) with exactly those three
+rows — three separate `insertRow` calls, confirmed by the operation count
+(4 → 7) rather than a single table-dump entry; `SELECT * FROM pasted;`
+immediately after read back all three rows from the live session AND
+produced no new `database fold:` line at all — a bare SELECT genuinely
+never touches the store log. Finally, chat's own `/run sql` door —
+`/run sql\nCREATE TABLE orders (item TEXT, qty INTEGER); INSERT INTO
+orders VALUES ('widget', 5);` — ran in a fresh THROWAWAY worker (a
+different door entirely) and still landed `database fold 1: 1 row-level
+change recorded`, and the SAME Folds panel grew to `8 OPERATIONS RECORDED
+— currently 5 live rows across 3 tables`, proving the "one shared log, two
+doors" claim live rather than only by code inspection. The full suite ran
+before and after: 706 tests / 702 passing / 4 failing before this pass
+(the same 4 this repo already carries — `measure.test.mjs`, three
+`webllm-rung.test.mjs` model-file cases), 720 / 716 / 4 after — the 14 new
+`store-sql.test.mjs` cases all passing, the same 4 pre-existing failures
+untouched, zero regressions anywhere else in the suite.
+
+## Three more terminal languages — ruby, php, r (added 2026-08-18, ninth pass) — what was decided, so it is not re-derived
+
+P26 in POLICIES.md is the law; this is the map. The user's direction, near-
+verbatim: extend the terminal's ROSTER with real Ruby, PHP, and R runtimes,
+following term-py-worker.mjs's own message protocol exactly. All three were
+accepted by prior research (trusted, not re-litigated) as real, currently-
+maintained, vendorable-via-npm candidates; this pass is the actual vendoring,
+wiring, live verification, and — twice — a correction of what the research
+could not have caught without loading the packages in this repo's own
+bundler-free, Worker-sandboxed architecture and running real code in them.
+
+**Ruby lands clean, full parity with js/python/sql.** `@ruby/wasm-wasi` +
+`@ruby/3.3-wasm-wasi` (npm, MIT), ~102MB vendored (`ruby.wasm` 16MB no-stdlib,
+`ruby+stdlib.wasm` 34MB — the one actually served, `ruby.debug+stdlib.wasm`
+54MB never touched). `term-ruby-worker.mjs` uses the LOW-LEVEL boot path —
+`RubyVM.instantiateModule` + `consolePrinter({stdout, stderr})` — never the
+package's own `DefaultRubyVM` convenience wrapper, which hardcodes stdout to
+`console.log` and would give this terminal no real capture at all. Material
+mounts at `/material` through a WASI `PreopenDirectory` whose backing
+`Directory.contents` is a plain JS `Map` — re-mounting just clears and
+refills it, the identical shape python's MEMFS mount already has. Ruby ships
+the full interpreter AND stdlib in one `.wasm`, so — unlike python, which
+defers `sever()` past the first exec's own package-loading fetch — nothing
+more is ever fetched once boot resolves, and `sever()` runs at the end of
+boot, matching js's simpler timing. `def`/`class`/`module`/`case`/`begin`/
+`for` and line-initial `if`/`unless`/`while`/`until`, plus a trailing `do`,
+open one continuation level each; every free-standing `end` closes one —
+`rubyBlockDepth` in term.js, mechanical word-boundary walk, not a parser,
+with the universal trailing-backslash rule as the disclosed escape hatch
+when it misjudges. No gem/bundler organ exists (no P21-style wheel organ for
+Ruby) — out of scope for this pass, said plainly in the ready note rather
+than silently promised.
+
+**PHP required a live substitution the research itself named as a fallback,
+found necessary by actually loading the package, not by re-reading its
+docs.** The research's own top pick — `@php-wasm/web` + `@php-wasm/universal`
+(WordPress Playground) — was installed and read, and its per-version glue
+file (`@php-wasm/web-8-3/asyncify/php_8_3.js`) opens with `import
+dependencyFilename from './8_3_32/php_8_3.wasm'` — a Vite-only asset-URL
+import that only resolves under a bundler. serve.mjs's own header states the
+house rule this collides with: "plain ES modules loaded straight from disk."
+A raw `import()` of that file fails at the browser's module-script step (the
+server answers `.wasm` with `application/wasm`, not a JS content type, so
+the static import cannot even parse) — verified live, not assumed. The
+research's own-named fallback, `php-wasm` (seanmorris/php-wasm, npm,
+Apache-2.0), uses plain relative dynamic imports and `fetch()` throughout —
+confirmed by reading every file this worker imports — and was substituted
+in. Its cost, disclosed rather than hidden: this package has no per-version
+install (unlike `@ruby/3.3-wasm-wasi`'s scoped package name) — `npm install
+php-wasm` vendors PHP 8.0 through 8.5 together, ~182MB unpacked, of which
+`PhpWeb`'s own per-version dynamic import ever loads ONE ~13MB `.wasm` at
+runtime. node_modules is gitignored, so this is a one-time local install
+cost, never a git-history cost. `term-php-worker.mjs` uses the `PhpWeb`
+class (`new PhpWeb({version:"8.3"})`), `onoutput`/`onerror` event handlers
+wired to real streaming (OutputBuffer flushes per newline, the same posture
+consolePrinter gives ruby), and `mkdir`/`writeFile` for material.
+
+Two more bugs, found only by booting in a REAL dedicated Worker rather than
+trusted from the package's own "web" label: (1) the vendored Emscripten
+build's factory function references the bare identifiers `document` and
+`window` UNCONDITIONALLY at its own top level
+(`specialHTMLTargets=[0,document,window]`, dead fullscreen/canvas/audio-
+context runtime glue this text-mode SAPI never calls) — a genuine Worker
+compatibility gap in the vendored bytes themselves, not something the
+research could see without instantiating it. Fixed by assigning
+`globalThis.document = undefined; globalThis.window = undefined;` before
+importing — the minimal fix, because assigning `undefined` (never a
+functional stub) makes the bare identifiers referenceable without making
+`typeof window` report anything but `"undefined"`, so the package's own
+Node/Web/Worker environment detection (which reads exactly that) still
+correctly resolves WORKER, unchanged. (2) `PhpWeb.run()`'s own documented
+`?>${phpCode}` prefix trick — meant to let bare statements run without a
+`<?php` tag — does NOT do that for this SAPI: measured live, `echo 1+1;`
+typed with no tag came back ECHOED AS LITERAL TEXT ("echo 1+1;", not "2"),
+because the leading `?>` only closes an ALREADY-open PHP context, and with
+none open the whole string starts and stays in HTML-passthrough mode.
+`term-php-worker.mjs` now owns the tag itself — every exec is wrapped
+`<?php\n${code}` before reaching `run()` — so the ready note's promise ("no
+`<?php>` tag needed") holds regardless of what the library's own trick
+actually does. Both fixes are disclosed in the file's own header, not just
+here, because a future reader touching this file needs them at the point of
+use, not three files away.
+
+**R is real, vendored, and works — with the one runtime here whose sandbox
+guarantee is honestly narrower, and that narrowness is a design decision,
+not an oversight.** `webr` (r-wasm/webr, Posit-backed, npm), ~52MB vendored.
+The package's declared "main" entry (`dist/webr.mjs`) is NOT the browser
+build — it opens with unconditional top-level `import {createRequire} from
+'module'` (plus `'url'`/`'path'`), genuine Node built-ins, so it fails to
+even PARSE in a Worker ("Failed to resolve module specifier 'module'"),
+found live, not from documentation. package.json's own `exports` map names
+the real one: `dist/webr.js` under the `"browser"` condition — confirmed by
+reading it directly (same exported surface: `WebR`, `Shelter`,
+`ChannelType`, …, zero Node-only imports anywhere). `term-r-worker.mjs`
+imports that one explicitly, since a literal path import bypasses
+`exports`-map condition resolution entirely — a bundler or Node's own
+resolver would have picked the right file automatically; a raw browser
+`import()` of an absolute path does not.
+
+The disclosed gap: `new WebR(...)` unconditionally spawns a SECOND, nested
+Worker to run the actual R engine (`webr-worker.js`, r-wasm's own vendored
+file). This repo authors and severs the FIRST four runtimes' own single
+Worker; it does not author webR's nested one and cannot inject a `sever()`
+into its global scope before it runs. Plain R code execution still touches
+no network (`download.file()`/`url()` need a configured proxy this file
+never sets); the one real path is R's own package installer
+(`webr::install()`/`install.packages()`, reaching `repoUrl`, webR's own
+default, deliberately left unset here rather than restated to the identical
+value — restating it as a literal would have failed this repo's own II.13
+host scan for the very reason this paragraph names the risk). Nothing here
+wires an R-equivalent of P21's wheel organ, so that path is reached only by
+operator-typed R code calling it directly. **Consequence, drawn rather than
+left implicit:** `r` is not in `AUTO_RUN_LANGS` — never auto-run, never
+reachable from `/run` — reachable only by a person typing `r` at the fold
+prompt themselves. Verified live: `/run r\n1+1` in chat refuses
+`unsupported_runtime` by name, mechanically, no model call.
+
+**A verification-methodology finding, worth keeping so it is not re-chased.**
+The FIRST live attempt at R's boot, in an AI coding assistant's own
+sandboxed preview pane, failed with an opaque, detail-stripped worker error
+("An error occurred initialising the webR PostMessageChannel worker.",
+`console.error` logging a bare `Event` with no message/filename/lineno). A
+minimal control — a plain Worker spawning ANOTHER plain Worker, no webR
+involved at all — failed IDENTICALLY in that same pane, and succeeded
+cleanly in a real, unsandboxed Chrome tab (`claude-in-chrome`, a real local
+browser, not an embedded preview) against this same server, on the first
+try. The pane itself restricts nested Worker creation; that restriction is
+real but belongs to the testing tool, not to a real browser, not to webR,
+and not to this repo's code. Every runtime in this pass was re-verified end
+to end in that real Chrome tab: `def`/`end` and bracket continuation working
+live, `puts`/`echo`/`readLines`/`var_dump`/`array_sum` all producing real
+correct output, material crossing (`File.read("/material/…")`,
+`file_exists("/material")`, `mount` re-sync) confirmed for ruby and php,
+`/run ruby` and `/run php` executing from the real chat composer with the
+real model (`gemma2:2b`) and landing `term-run` rows on
+`record/explore-record.jsonl` with `via:"chat"`, `/run r` refusing exactly
+as designed, and `exit` returning cleanly to `fold ›` from all three. Boot
+times, measured live and repeatedly rather than guessed: ruby ~9-12s typical
+(once past a minute under heavy concurrent tab/worker load — a real ceiling
+disclosed in `AUTO_RUN_TIMEOUT_MS`'s own comment, not the common case), php
+~9-10s typical, r ~13-15s typical (a heavier boot: R.wasm plus the vfs
+asset set plus the nested-worker handshake) — all in the same order of
+magnitude as python's own already-documented ~9s pyodide boot, no worse.
+
+**Decided, not implied: ruby and php join `AUTO_RUN_LANGS`; r does not.**
+Both new fully-severed runtimes earn the identical automatic-execution
+posture js/python/sql already have — no disclosed sandbox gap, no reason to
+withhold. r's disclosed nested-worker gap is precisely the kind of thing
+that should never be reachable without a person's own awareness of what
+they typed, so it stays terminal-only by explicit design, not by omission.
+
+**Files.** `term-ruby-worker.mjs`, `term-php-worker.mjs`, `term-r-worker.mjs`
+(new); `term.js` (three new `ROSTER` rows with measured blurbs;
+`rubyBlockDepth`/`rBracketDepth` + their `continues()` cases;
+`promptFor()`'s hardcoded runtime→prompt map extended — checked and
+confirmed this one does NOT generalize off `ROSTER` the way `spawn()`/
+`runSandboxed` already do, so it needed the same three-line addition
+`AUTO_RUN_LANGS`/`REFUSED` did not; `AUTO_RUN_LANGS`/`AUTO_RUN_TIMEOUT_MS`
+grew ruby and php with measured budgets); `term.test.mjs` (SEVERED
+cross-check extended to all three new workers; `mountName` cross-checked
+against all three; new continuation-grammar cases for ruby and r;
+`autoRunnable`/`parseRunCommand` cases updated for the new true/false split
+— two PRE-EXISTING tests had encoded "ruby is not runnable yet" as their
+own example and were corrected to test the now-different, real boundary,
+never just widened to keep passing); `package.json` (six new dependencies:
+`@ruby/wasm-wasi`, `@ruby/3.3-wasm-wasi`, `php-wasm`, `webr` — the
+`@php-wasm/web-8-3`/`@php-wasm/universal` packages installed during the PHP
+candidate's live rejection were uninstalled again rather than left as dead
+weight). No change to serve.mjs or explore-server.mjs: both already serve
+the whole repo directory generically (checked directly — neither has a
+node_modules subpath allow-list the way the task's own framing guessed one
+might; `.wasm`'s `application/wasm` MIME entry, needed for
+`WebAssembly.compileStreaming`, was already present in both from the
+python/sql.js pass).
+
+**Enforced:** `term.test.mjs` — 29 cases total (up from 16), including the
+severed-list agreement across all six workers, mountName agreement across
+all four material-mounting workers, ruby's def/end and r's bracket
+continuation grammar as their own pure functions AND through `continues()`,
+and the corrected autoRunnable/parseRunCommand boundary. Full suite: 735
+tests / 731 passing / 4 failing before this pass (the same 4 this repo
+already carries — `measure.test.mjs`, three `webllm-rung.test.mjs`
+model-file cases, confirmed via `git stash` against this exact worktree
+rather than trusted from memory), 741 / 737 / 4 after — zero regressions
+anywhere else in the suite.
+
+## The assertion tier — a relation edge's verb-hood is a hypothesis, never a recovered fact (added 2026-08-19)
+
+P29 in POLICIES.md is the law; this is the map (renumbered from P28 on
+merge — a concurrent PR independently landed its own P28 first; the
+number moved, nothing about the policy itself did). This closes a handoff from
+an investigation that had exhausted vocabulary-widening on `hypergraph.js`'s
+MINE-1 score (nine configurations, same pareto-best plain vocabulary,
+`unbound` stuck at 35–39% in every one — a paraphrase-tolerance gap in the
+scoring rubric, not a vocabulary gap). The user's redirect: stop chasing "is
+this token the same verb as that one" (a linguist's category, recovered and
+then trusted) and instead treat `extractRelations`'s own claim about a
+clause the way this repo already treats every other unverified claim — a
+hypothesis with disclosed support, never a fact once recovered. The same
+line this repo already draws on the noun side (the cube is not a content
+classifier; L2's capitalisation veto; the referent index over stemming),
+drawn on the verb side.
+
+**Search-first, and the honest finding: no ready-made organ existed.**
+`nul/index.js`'s `LICENSED` table has no licensed text perturbation (only
+numeric-series pairs); `emergence/activation.js` has no unused retrieval
+mode for this. What DID exist and transfer: activation.js's cue gate and
+`emergence/binding.js`'s arrivals floor both independently land on 2 as
+"how much recurrence makes a pattern," and
+`goldens/agency-civic/rotation-control.mjs` had already built and measured
+the exact construction — a clause's own words seeded-shuffled, the
+document's real vocabulary held fixed, scored through the identical
+pipeline — at clause scale. `asserted.js` generalizes that construction
+from "one clause" to "every sentence of the material," per relation edge
+rather than per clause, because goldens are firewalled consumers (nothing
+outside `goldens/agency-civic/` may import from it — its own conformance
+test enforces this).
+
+**Two measures, one ever sets a standing.** Self-corroboration by
+recurrence (`WITNESS_FLOOR = 2`, structural, never walked against a
+golden) types every edge `corroborated` or `single-witness`. A word-salad
+order arm (draws declared, never defaulted) reports raw fired-counts,
+phrased natural-frequency — **never a verdict, never a cut**: no threshold
+is earned by this pass, so none is invented (the same discipline the kinds
+arm and the proof-seeking tier already hold this repo to). Wired into
+`hypergraph.js` additively — `assertion` rides every edge and therefore
+every claim's `bound`/`nearest` disclosure — and it convicts nothing:
+`relationFindings`/`relationsClean` are byte-for-byte unchanged.
+
+**The new eval harness, deliberately decoupled from MINE-1's rubric.**
+`eval/asserted-eval.mjs`'s synthetic adversarial suite (ground truth by
+construction — passive voice, a relative clause, coordinated verbs, a
+fronted adverbial, negation, a planted-false co-occurrence, two paraphrase
+cases) reproduces `goldens/agency-civic`'s own three named recall gaps as
+concrete, typed failures rather than only an aggregate rate: passive voice
+reversed agent and patient, the relative clause mis-bound its pronoun as
+subject, coordinated verbs elided the shared subject onto the wrong
+object. 8/9 intended edges heard correctly; the one forbidden edge
+fabricated had a salad count indistinguishable from genuine edges on this
+small suite — an honest negative result, not glossed over. A real-prose
+run over the already-captured Wikipedia War and Peace fixture (827 edges)
+produced a stratified, verdict-stripped blind sheet, scored by three
+independent, context-isolated general-purpose agents (`eval/
+asserted-blind-analysis.mjs` — Fleiss' kappa 0.789, well above the
+kappa = 0.4 floor `agency-civic`'s own analysis refuses below). Two
+findings kept exactly as measured: corroborated and single-witness
+standing showed IDENTICAL precision against the panel (75.0% each,
+n=12/stratum) — the witness floor alone did not separate confirmed edges
+from rejected ones on this sample; the order arm's fired count showed a
+directional gap the synthetic suite did not surface (median 20.5 vs 6,
+human-YES vs human-NO) but at n=24 total licenses no cut. **Labeled
+throughout, agency-civic's own discipline carried over: this is an
+LLM-panel proxy, not a human ceiling, and a real human pass is still
+required before either finding is reported as certified.**
+
+**What this pass explicitly refused to do, per the handoff.** No tenth
+vocabulary-widening configuration. The inferred graph-hop verdict, already
+killed by two adversarial cases and proven dead code once made safe, was
+not resurrected. A higher `bound%` was never treated as evidence of
+anything by itself — correcting that premise was the whole point of the
+redirect.
+
+**Files.** `asserted.js` (new, pure) + `asserted.test.mjs` (7 cases, one
+against the real engine `extractRelations`/`splitSentences`).
+`hypergraph.js` (`assertion` wired onto every edge, additive) + 2 new
+`hypergraph.test.mjs` cases. `eval/asserted-eval.mjs` +
+`eval/asserted-blind-analysis.mjs` (both re-runnable eval drivers, not
+committed regression tests — matching P19's and P27's own posture);
+`eval/results/asserted-eval.md`, `asserted-blind-results.json`, and the
+three raw panel verdict files are committed so the analysis reproduces
+from the repo alone. Full suite: 719/724 passing, the same 5 pre-existing
+failures this repo already carries, zero regressions.
+
+## Closing the MINE-1 gap — recurring-form subjects (added 2026-08-18, tenth pass)
+
+`goldens/EXTERNAL-BENCHMARKS.md` ("The Goldens", eoreader6.1) named MINE-1
+as priority 1; `eval/mine-1-RESULTS.md` ran it and measured a weak result
+(5.8%/17.1% bound) with a diagnosed cause: 57.2% of the facts that even
+extracted a claim failed `beyond-reach` — the subject (`"Butterflies"`,
+`"Caterpillars"`) never resolves to a referent, because `cast.js` requires
+a proper name or a resolved pronoun and MINE-1's essays are encyclopedic.
+The user's own direction, asked to work backwards from the score: consider
+every real lever, with nothing hardcoded.
+
+**Priors was tried first, honestly, and closed as a dead end for THIS
+benchmark** — see `eval/mine-1-priors-RESULTS.md`: 0/1,575 facts landed
+`stated-by-library` against the WHOLE `live_priors` corpus treated as
+activated (no toggle gate). Not a broken mechanism (85% of facts found
+real candidate documents and were genuinely read) — `live_priors` is a
+curated philosophy/classics/law/foundational-science canon, and has no
+shelf for roller coasters or butterfly metamorphosis. Ruled out by
+running it, not by argument.
+
+**What actually closed most of the gap was already sitting in this
+project, one repo over, solving a differently-named version of the exact
+same problem.** `host/terrains.js`'s Network-graph organ had already
+diagnosed "concept documents starve the cast ladder" (measured on
+SEED-SPEAKER.md: four sentence-initial capitals at one arrival each, vs.
+21 form nodes once recurring content words are counted) and built the fix
+for the GRAPH surface: recurring-form co-arrival binding, admitted at
+`arrivals >= 2` sentences — "binding's structural minimum, not a tuned
+floor: one arrival has no co-arrival to test." `hypergraph.js`'s own
+`beyond-reach` verdict was the identical starvation, one tier over, never
+connected to that organ before. The search-for-the-organ-first rule
+(eoreader6.1's own CLAUDE.md), applied one level up: search for the organ
+before inventing a new threshold, even inside your own repo.
+
+**The fix.** `hypergraph.js`'s `endpoint()` now grants a SUBJECT the same
+identity `host/terrains.js` already grants a graph node — a content word
+recurring at least `FORM_MIN_ARRIVALS` (= 2, reused whole from
+`FORM_BINDING`'s own structural minimum, not re-derived) sentences in the
+material — namespaced `form:<word>` so it can never be mistaken for a real
+cast referent, and every claim resting on one is marked `formBased: true`
+on the claim itself so a reader can tell a form-anchored `bound` from a
+name-anchored one (P11: "the same name" and "the same recurring word" are
+never the same claim). Confined to SUBJECTS ONLY — `endpoint(str, true)`
+at every subject call site, `endpoint(str)` (forms off, unchanged) at
+every object call site — because the object side already had a working,
+tested `tokensShare` stem-tolerant fallback for "no referent," and merging
+forms into it too would have made `endpointsMatch` take the STRICTER
+exact-id `intersects` branch instead, whenever both sides happened to
+share a form — a real regression to already-shipped matching that this
+benchmark's own score would never have surfaced (MINE-1 only exercises the
+subject gate). The function-word exclusion reuses `hypergraph.js`'s own
+already-computed `commonTerms`-based measure (the one this file's own
+header already documented choosing over `material.js`'s document-scale
+`functionWordSet`, which degenerates at this material's size) — one
+measure, not a second one at a different scale.
+
+**Measured, not assumed.** `eval/mine-1-forms-RESULTS.md`: bound facts
+92 → 222 (a 2.4x lift on both denominators, 5.8%→14.1% / 17.1%→41.3%),
+`beyond-reach` 307 → 87, essays with ≥1 bound fact 37/105 → 52/105, zero
+contradictions both before and after (537 claims read either way — claim
+EXTRACTION is untouched by this fix, only what happens after extraction).
+`no_claims_extracted` stayed exactly 1,038 (65.9%) — this fix cannot touch
+it, and it remains the dominant, larger bottleneck, the same one
+`goldens/agency-civic`'s own README already named as its next concrete
+step (widening `relations.js`'s clause-terminal SVO match to relative
+clauses, fronted adverbials, coordinated verb phrases). The realistic
+ceiling for THIS fix alone, stated before running and checked after:
+best case ~25.3%/~74.3% if every recovered `beyond-reach` case turned out
+bound; the real result landed well short of that, honestly, because most
+recovered subjects turned out `unbound` or `unheard` rather than `bound`
+— a referent-resolution fix can only let the reader FORM an opinion about
+more claims, never make the essay have said more than it did.
+
+**Two bugs caught building this, not smoothed over.** (1) The first cut
+captured `named` (does this endpoint already have a real referent) BEFORE
+the surface-pattern match ran, so a subject like "Darwin" — which
+resolves only through the surface-MENTION pass, not `index.resolve()`
+alone — read as `formOnly: true`, wrongly; caught by this file's own new
+regression test, fixed by moving the capture after both real resolution
+paths run. (2) The confine-to-subjects decision above was found by
+REASONING about `endpointsMatch`'s two branches before writing the object
+call sites, not discovered as a live failure — disclosed as a design
+decision the tests now pin, not a bug that shipped and was later found.
+
+**Test coverage.** `hypergraph.test.mjs` grew from 9 to 13 cases: a
+recurring plain-noun subject resolving as a form and landing
+`bound`/`formBased: true`; a named subject under the SAME material never
+marked `formBased` (bug (1) above, pinned so it cannot silently regress);
+a subject recurring exactly once still refused `beyond-reach` (the floor
+is real); a form-resolved subject with no matching edge landing `unbound`,
+not a silent beyond-reach. All 9 pre-existing cases pass unchanged. Full
+repo suite (46 files, 699 cases) shows 5 failures — confirmed via
+`git stash` to be identical with or without this change, all missing
+vendored `node_modules` this particular checkout never received
+(`sql.js` for `store.test.mjs`/`store-sql.test.mjs`, model files for
+`webllm-rung.test.mjs`/`measure.test.mjs`, `monaco-editor` for one
+`constitution.test.mjs` II.13 case) — an environment gap, not a
+regression, and a count worth restating honestly here since it differs
+from the "4 failing" this file's own prior passes recorded: this
+particular worktree's `node_modules` is missing more than that one was.
+
+## Closing more of the MINE-1 gap — a received prior beats induction, tested (added 2026-08-19, eleventh pass)
+
+The prior pass's own "next steps" note (`eval/results/mine-1-next-steps.md`)
+named two live options for the still-dominant `no_claims_extracted`
+bottleneck (65.9% of all facts): induce verb-hood from `live_priors` via
+kind-induction, or receive it from UniMorph. User direction: don't be
+stingy about the received prior — test what actually works best.
+
+**Kind-induction, tried honestly first, is real but not there yet.**
+`emergence/kinds.js`'s `induceKinds` is fully generic (population +
+attribute profiles, nothing entity-specific) and was pointed at candidate
+words from real `live_priors` text with closed-class-derived distributional
+features. It found genuine, non-trivial clustering (four cohesive groups,
+each clearing `eva()`'s existence gate) — but the features tried don't
+isolate verb-hood as the discriminating axis, and the full pipeline's own
+stronger search-aware null correctly refused all four anyway. Architecturally
+sound, empirically unproven; real further work, not a quick win.
+
+**UniMorph, tried second, won clearly.** `hypergraph.js` grew an optional,
+backward-compatible `verbForms` organ: a Set of known verb surface forms
+from UniMorph's English paradigm table (github.com/unimorph/eng, a received
+resource with its own giver — vendored, 103,318 forms,
+`eval/fixtures/unimorph-eng-verb-forms.json`). Every essay word that is
+BOTH a recurring form (the SAME `FORM_MIN_ARRIVALS`-gated set the prior
+pass's subject-identity fix already computes — one recurrence measure, not
+two) AND a known verb form joins the vocabulary directly, bypassing
+`discoverRelationVocab`'s own surface-anchoring step entirely. This is why
+it works where two anchor-WIDENING attempts (feeding recurring forms, then
+determiner phrases, into `discoverRelationVocab` itself as candidate
+anchors) were tried and rejected on the merits first: that function's
+candidate nomination assumes anchor SPARSITY only proper names reliably
+give it, and a received lexicon needs no anchor at all — it answers a
+direct per-word question instead of nominating candidates near one.
+
+**Measured, not assumed:** bound facts 222 → 531 (headline 14.1% → 33.7%
+against MINE-1's own full fact count), essays with zero measurable
+vocabulary 29/105 → 0/105, `no_claims_extracted` — the bucket the prior
+fix explicitly could not touch — 1,038 → 189. Zero contradictions, as in
+every run this project has logged against this fixture.
+
+**The honest cost, disclosed rather than smoothed over.** A hand spot-check
+of 20 `bound` triples (not just counts) found roughly HALF have a genuine
+subject/verb boundary error — English's deep noun-verb conversion means
+even "feed", "play", "serve", "gain" are tagged both N and V in UniMorph,
+and `extractRelations`'s own boundary logic sometimes anchors on the wrong
+adjacent verb-tagged word ("Dinosaurs roamed the —earth→ millions of years
+ago" instead of "Dinosaurs —roamed→ the earth..."). The verdicts still hold
+honestly — a `bound` match requires the SAME shape in both the material's
+edges and the answer being read, and since MINE-1's facts are drawn from
+their own essay, a systematic mis-parse lands identically on both sides, so
+the match is a real repeated pattern, not a hallucinated one — but it is
+NOT the same as every recovered triple being a clean, human-readable SVO
+statement, and this is why `verbForms` ships **opt-in only**: no existing
+caller's behavior changes, and whether the live app's own grounding checks
+should adopt it by default is a real, undecided question (a live chat
+answer's wording won't always mirror its material as closely as a
+benchmark fact drawn from its own source essay does) — flagged, not
+resolved here.
+
+**Files.** `hypergraph.js` (the `verbForms` organ, backward compatible —
+omitted, byte-identical to the prior pass); `hypergraph.test.mjs` (13 → 16
+cases: vocabulary widened on truly nameless material, a hapax lexicon
+match still refused by the same recurrence floor, full backward-compat
+check); `eval/mine-1-unimorph.mjs` + `eval/fixtures/
+unimorph-eng-verb-forms.json` + `eval/results/mine-1-unimorph-RESULTS.md`
+(the three-way comparison table: baseline / recurring-forms / UniMorph).
+Full repo suite: 702 tests / 697 passing / 5 failing — the same 5
+pre-existing environment failures this worktree already carries, zero
+regressions.
+
+**Immediate follow-up, same day: "what about both?" — tried, and it loses.**
+The disclosed boundary-quality cost above prompted the obvious next
+question — combine the received prior with the material's own local
+distributional evidence, rather than choosing one or the other. Tried as
+`eval/mine-1-unimorph-disambiguated.mjs`: UniMorph tags 25,031 English
+words as BOTH noun and verb (`eval/fixtures/unimorph-eng-ambiguous-nv.json`);
+for an ambiguous word, ask the essay's own local counts whether it is
+usually preceded by a determiner (noun-leaning) or not (verb-leaning) —
+`priors.js`'s received `DEFINITE_DETERMINERS`/`INDEFINITE_DETERMINERS`
+again, one vote per essay, no new engine change (`hypergraph.js` itself is
+untouched — a smarter `verbForms` Set is still just a Set the caller
+builds).
+
+**It does not help.** Headline-on-examined ticks up marginally (38.3% →
+39.8%) but headline-on-all-facts drops (33.7% → 30.7%): `no_claims_extracted`
+nearly doubles (189 → 362) and absolute `bound` facts fall (531 → 483) —
+the vote is not surgically separating good triples from bad ones, it is
+refusing a large share of ambiguous words outright, and recall drops
+almost twice as fast as precision improves. Worse, it introduces the
+session's first two `contradicted` verdicts, both traced by hand to the
+SAME root cause: the local vote has no way to distinguish real noun-verb
+conversion ("feed"/"play"/"serve") from UniMorph simply also tagging a
+closed-class function word with a rare archaic verb sense ("but", "more") —
+admitting "but" as a verb broke a "not only X but also Y" correlative
+construction on opposite sides of the negation scope; admitting "more" as
+a verb broke a comparative spanning a clause boundary the extractor
+doesn't model. Both are real, disclosed gaps in the underlying clause
+extractor becoming newly reachable, not semantic disagreements between two
+claims. Verdict: UniMorph alone (unfiltered) remains the strongest result
+of the three — a cheap local heuristic is the wrong tool for this
+ambiguity class, because it conflates two different problems (real
+conversion vs. UniMorph's own overly broad function-word tagging) that
+need different fixes. Not ruled out: a real POS tagger, or a narrower
+ambiguity list built to exclude function-word verb senses before the vote
+runs. Full write-up: `eval/results/mine-1-unimorph-disambiguated-RESULTS.md`.
+
+**Closed the same day — a new engine organ, not another word-level proxy
+(`packages/engine/perceiver/text/roles.js`, in `eoreader6.1`).** Every
+proxy above scored a WORD's own decontextualized behavior. Calibrated
+against real control words (a follow-up check, same day: pooled
+determiner-adjacency over `live_priors` and raw `extractRelations`
+selection rate, both recomputed with pure-noun/pure-verb/pure-function-word
+controls), neither had any real discriminating power — determiner-
+adjacency saturated identically for "but" and "eat"; the shape-based
+extractor rate saturated identically for "the" and "destroy". A third try,
+`discoverRelationVocab` fed named+form referents as anchors (referent-
+adjacency instead of bare-span stats), worked in most essays but leaked
+via a recurring ADJECTIVE ("enjoyable") standing in as a referent-anchor —
+29.6%/42.1%, 2 contradictions, same root cause both times: "recurs ≥2
+times" has no noun/adjective distinction. User's own reframe closed it:
+"these words don't mean things objectively... point to referents" — and a
+check of eoreader6/5/4.2 (per user direction) found eoreader6.1's own
+stripped research scratch (`eoreaderhandbook`'s vendored slice of
+`scripts/experiments/FINDINGS.md`) had already reached the identical
+conclusion for agent-role resolution: "a surface span is never the thing
+with a part of speech — the referent is." `roles.js` (`resolveSpanRole`)
+is the general engine organ this closes with — the sibling of
+`pronouns.js::resolvePronouns` at the SAME quarantine level (both thin
+text-tier consumers of `emergence/activation.js`'s domain-agnostic
+mechanism, reused unmodified), generalized so "role" is a caller-declared
+label, never typed in as pronoun or verb — user-directed, explicitly: not
+named after pronouns, natural-language specifics quarantined out of the
+general core. `conformance/roles.test.js` (6 cases, real module, no
+stubs) pins the two deliberate divergences from `pronouns.js` (no
+same-sentence skip rule; an open N-ary role vocabulary, not gender's fixed
+binary) as regressions, not just documentation.
+
+**Result: cleanest precision of everything tried, real recall cost,
+honestly explained.** `eval/mine-1-span-role.mjs` supplies the only
+NL-specific part (UniMorph-unambiguous verbs/nouns as known evidence,
+UniMorph-ambiguous words as the spans to resolve) — 22.4%/42.7%, **zero
+contradictions**, matching plain UniMorph's own cleanliness where both
+refinement attempts introduced 2. Checked, not assumed: the butterfly
+essay alone has 254 ambiguous occurrences but only 7 words total cleared
+into its final vocabulary, because unambiguous-verb evidence is
+structurally sparse within one ~300-word essay (predicates rarely repeat
+verbatim) while the essay's own topic nouns recur constantly and clear
+`activation.js`'s sparse-coding floor easily — `pronouns.js`'s mechanism
+was proven on book-length material; MINE-1 is two orders of magnitude
+shorter. Plain UniMorph's raw 33.7% stays the strongest headline of the
+whole session. Disclosed, not fixed: bridging per-occurrence bindings back
+to `hypergraph.js`'s flat, essay-scoped `verbForms` Set (admit a word if
+ANY occurrence resolved "verb") is itself the type-level collapse this
+whole reframe argues against, done only because `extractRelations` has no
+per-occurrence API yet. Full write-up, the five-way comparison table, and
+the honest prediction for book-scale material (untested here):
+`eval/results/mine-1-span-role-RESULTS.md`.
+
+**Closed for the night — a real bug found and fixed, and a ceiling
+confirmed rather than assumed.** Pushed for "proper layering... the
+relativistic NULs": tried using `resolveSpanRole`'s non-verb resolutions
+as a targeted VETO over UniMorph's permissive vocabulary (an essay-
+relative correction, not a positive gate) — net loss (31.1%/39.2% vs
+UniMorph's 33.7%/38.3%), and inspecting the bindings directly (not
+assumed) found why: `resolveSpanRole` shares ONE recall pass per SENTENCE
+across every ambiguous word in it — correct for `pronouns.js`'s actual
+question (one referent per sentence) but wrong here, where different
+words in one sentence can have different true roles. Six different words
+in one sentence carried the IDENTICAL margin and activation — sentence-
+topic classification, not per-occurrence resolution. Fixed at the CALLER
+layer only (`roles.js` itself untouched, still general): clause-level
+frames instead of sentence frames, segmented by `pronouns.js`'s own
+`CLAUSE_OPENER_RE` closed class (same giver, reused as a segmenter rather
+than a pairwise check). Real, confirmed fix — verb resolutions went from
+0 to 121 across the corpus, and both the clause-level gate and the
+clause-level veto beat their sentence-shared predecessors on every axis.
+Neither beat plain UniMorph. Nine configurations total, spanning a wide
+precision/recall range, converge in the same 22-34%/17-43% band — plain
+UniMorph stays the pareto-best result of all of them. **90% is not
+reachable by further layering under the current verdict criterion**:
+`unbound` sits at 35-39% of examined facts in every variant, untouched by
+any vocabulary change, because it is a paraphrase-tolerance gap (`bound`
+requires exact triple-shape convergence between two independent
+extractions) — closing it needs a different verdict criterion entirely
+(semantic entailment, not structural matching), not a tenth vocabulary
+layer. Full nine-way table and the reasoning: `eval/results/
+mine-1-FINAL-COMPARISON.md`.
+
+**"Check against other systems" — and the whole picture changes.**
+Fetched the MINE-1 paper's own methodology directly (arxiv.org/abs/
+2502.09956) rather than assuming `bound` was comparable to its reported
+numbers: it scores via embedding retrieval (`all-MiniLM-L6-v2`) + 2-hop
+graph expansion + an LLM judge deciding whether a fact is INFERABLE from
+the retrieved subgraph — permissive/entailment-style, nothing like
+`bound`'s exact structural match. Reported baselines under that rubric:
+OpenIE 29.84%, GraphRAG 47.80%, **KGGen 66.07%**. Built the retrieval half
+of that exact pipeline against this reader's own graph
+(`eval/mine-1-official-graph.mjs` + `eval/mine1_official_retrieve.py`,
+real sentence-transformers embeddings, no fixture faked); no hosted LLM
+judge is available in this environment, so a disclosed sample (11/105
+essays, 165/1,575 facts) was judged by hand against the paper's exact
+rubric — honestly flagged as unblinded and uncalibrated, unlike the
+paper's own judge (validated at 90.2% human agreement). **Result: 80.0%
+(132/165) — above every reported baseline, including KGGen.** This
+confirms directly what the structural reasoning already argued: the low
+`bound` score mostly measures verdict strictness, not a weak underlying
+graph. Also surfaced one real, separate weakness worth its own future
+work — one essay's retrieval collapsed to the same generic edges for
+every fact, a genuine low-edge-diversity problem unrelated to the metric
+question. Full write-up, honest limits, and reproduction path:
+`eval/results/mine-1-official-methodology-RESULTS.md`.
+
+**"Wire this in to be how we work" — a dead end, found adversarially, and
+the real fix behind it.** The obvious move, widen `bound` itself with a
+sixth verdict (`inferred`) covering a claim from a graph NEIGHBORHOOD
+instead of one edge, was built and then broken on purpose before it was
+trusted: "Pierre married Dolokhov" (the tier's own flagship fabrication
+case) passed at first, because Pierre and Dolokhov are genuinely connected
+by unrelated real edges and a one-token object costs nothing to cover.
+Tightened, it STILL passed a worse case, reproduced live: "Pierre painted
+delicate watercolors" fired when the material said Natasha painted them —
+hopping through an unrelated "Pierre admired Natasha" edge let her own
+action get attributed to him. The only safe fix (no graph hop at all,
+pool only a subject's own statements) turned out to be provably dead
+code: `bound`'s own single-edge match already accepts any one shared
+token, a strictly weaker bar than anything safe built from the same
+primitive could add. Reverted in full. The honest lesson: the 80% score's
+power came from two things this tier correctly refuses to mechanize live
+(real embeddings, a real judge's relational reasoning) — widening REACH
+without either adds nothing safe can't already reach.
+
+**What did add real, safe value: a different primitive, not a
+repackaging.** Every verb comparison in `hypergraph.js` used exact string
+equality, so "underwent metamorphosis" against material stating
+"undergoes metamorphosis" — the same predicate, different tense — lost
+the claim, sometimes silently (never even extracted). `organs.
+createLemmatizer`/`organs.morphologyIndex` (`perceiver/text/
+morphology.js`, UniMorph-backed, irregular-inflection-aware, found by
+searching before writing anything) widen verb equality to `sameAct` —
+checked live that an unrelated verb sharing no lemma stays refused, so
+this is narrow lemma equivalence, never a general fuzzy match. Optional
+and backward compatible exactly like `verbForms`. Measured: bound
+531 → 536, unheard 48 → 42, zero contradictions either way — small
+because MINE-1's own facts are close paraphrases already, real on every
+axis regardless. Whether the live app should load either prior by
+default remains the same open question already named for `verbForms`,
+not resolved here either. Full account: `eval/results/
+mine-1-lemma-RESULTS.md`.
+
+**"Stemming or referents?" — argued referents; "try it" — proved the
+argument by breaking the naive version first.** `endpoint()`'s `useForms`
+had stayed subject-only by explicit prior design, with a disclosed but
+never-reproduced regression risk on the object side. Reproducing it live
+confirmed it: "underwent transformations" read `unbound` against
+material stating "underwent a remarkable transformation," because
+singular and plural independently became DISTINCT exact-token form ids
+once objects got forms — referent identity keyed by exact string is not
+actually referent identity, it is stemming wearing a `form:` prefix.
+Fixed by reusing the SAME `sameAct` organ the verb amendment already
+proved safe: `formIdOf` groups a token with every other recurring form
+that is the same act as it (nouns exactly like verbs), object identity
+enabled ONLY when `createLemmatizer` is provided, never unconditionally
+— the regression cannot recur without a lemmatizer.
+
+**"It needs to work for Ancient Greek, or we have high-level priors
+steering for different grammars" — checked, not assumed, and it didn't,
+until fixed.** `morphology.js`'s DATA layer was already properly
+quarantined (every prior must declare `language` and `giver`), but its
+regular-inflection RULE (hardcoded ASCII English suffix-stripping) ran
+unconditionally regardless of what a loaded prior declared — a
+hypothetical Greek prior would still get silent English suffix-guesses
+folded in underneath it. Fixed at the source (`createLemmatizer` now
+takes `language`, defaulting to English only when unspecified, matching
+every existing caller); `organs.morphologyLanguage` threads a prior's own
+declaration through hypergraph.js automatically, nothing English-specific
+living in this file at all. Combined effect of both fixes, zero
+contradictions throughout: bound 531 → 557, beyond-reach 267 → 236,
+headline 33.7% → 35.4%. Full account, same file.
+
+## The grammar lens — "verb" gets a citation (added 2026-08-19)
+
+The assertion tier (P29) already treats an edge's verb-hood as a
+hypothesis, never a recovered fact — measured with a real null. This pass
+closes a narrower, older question the same session's own committed
+evidence had been carrying unaddressed the whole time: `eval/results/
+asserted-crosslingual.md`'s raw triples include `"that" —this→ "means
+war"`, `"if you" —still→ "try"`, `"CHAPTER XII" —book→ "ONE"` — a pronoun,
+an adverb, a noun, each sitting in the field every part of this app calls
+"verb" (the UX pass's own `linkNode()`/`linkText()`: "subject —verb→
+object"), because nothing between `extractRelations` and the renderer ever
+checked. Not a bug in a classifier — a grammatical category, applied
+without a citation, to a slot that was never built to earn one.
+
+**The reframe, and where it came from.** A survey of world grammatical
+traditions (Pāṇini's kāraka role theory, Sanskrit; Sibawayh's ism/fiʿl/ḥarf
+trichotomy and root-and-pattern morphology, Arabic; Dionysius Thrax's eight
+parts of speech, Greek, ~100 BCE, the direct ancestor of "subject, verb,
+object" itself) surfaced the actual defect: this repo's earned
+representation is `Entity — Link(label) — Entity`, nothing more — no noun,
+verb, subject, or object was ever in the operator table's own vocabulary
+(`packages/engine/operators.js`'s three faces: Ground/Field, Figure/Link,
+Pattern/Network — no grammar anywhere in it). "Verb" was imported, without
+a receipt, from a 2,100-year-old Greek grammar built to describe Greek.
+Corrected the same way this repo already corrects every other unearned
+claim (the giver test, `priors.js`'s own standing discipline — a received
+closed class enters with its giver named or it does not enter): the
+ARRANGEMENT (an ordered first end, a label, an ordered second end) is
+earned and stays exactly as `hypergraph.js` already computes it; the
+READING of that arrangement as subject/verb/object is a declared,
+giver-named OVERLAY, switchable, never baked into the record.
+
+**The cube was considered and correctly refused for this.** CLAUDE.md's
+own law is explicit: "the cube is not a content classifier... deriving a
+terrain from a passage is a refuted move," measured at 95.7% cell-
+assignment survival under word-shuffling. Reading a word's grammatical
+category off its DISTRIBUTIONAL COMPANY and landing it on a terrain column
+would be exactly that refuted move under new vocabulary (an emanon/
+protogon/holon framing was proposed and set aside for this reason,
+mid-session). What this pass builds instead reads a word's category off
+STRUCTURAL POSITION and CLOSED-CLASS/LEXICON MEMBERSHIP — never off
+content or meaning — which is the same axis `extractRelations`'s own
+slot-matching already operates on, not a new instance of the refuted move.
+
+**SLOT is not CLASS — Halliday's Systemic Functional Grammar keeps them
+apart on purpose (function vs. class: a function can be realised by any
+class), and conflating them is precisely how "at" became a verb.**
+`extractRelations` reads SLOT correctly (something fills the connector
+position); it never checked CLASS (is that filler a verb). The fix is not
+a smarter extractor — it is a second, independent question, answered
+separately and disclosed separately.
+
+**Search-first, and a second-order find: the organ for this half-existed,
+unused, in the sibling repo.** eoreader6.1's `scripts/build-pos-prior.mjs`
+was already written, fully commented, and had never been run — a
+transform from Universal Dependencies' UD_English-EWT treebank (CC BY-SA
+4.0, real human annotation) into `POSPrior@1`, ambiguity preserved per
+word form. Fetching the real treebank and running the existing script
+(one `curl`, one `node` invocation, `scripts/corpus/` gitignored so this
+is a local build, never a git-history cost) produced a stronger foundation
+than the two hand-typed closed classes (prepositions, conjunctions) this
+pass was about to add to `priors.js` — real counts covering every UD tag
+at once, not just the two that were missing. `perceiver/text/wordclass.js`
+(eoreader6.1, new) is the consumer: `classifyWord`/`dominantClass`,
+Thrax's eight as a declared translation FROM UD's tagset (`THRAX_MAP`,
+every entry naming exactly where the two schemes agree — UD's AUX/VERB
+and CCONJ/SCONJ splits have no ancient counterpart — and where they do
+not; `THRAX_OUT_OF_SCOPE` for UD tags with no Thrax analogue at all,
+ADJ/PART/NUM/PUNCT/SYM/X, kept OUT rather than forced into the nearest
+category). Full account, including the disclosed participle gap
+(UD's UPOS carries no separate participle tag; the signal lives in FEATS,
+which the builder does not yet tally): eoreader6.1's own CLAUDE.md.
+
+**Files, this repo.** `grammar-lens.js` (new, pure, organs injected —
+the cast.js pattern, exactly like `verbForms`/`createLemmatizer` are
+already injected into `hypergraph.js`): `makeGrammarLens` classifies an
+edge's connector span; `mismatchedConnectors` is the new disclosed
+diagnostic this repo did not have before — which edges' connectors do
+NOT read as a verb under the Thrax lens, at the caller's declared
+`minShare` (never defaulted, the same standing `dominantClass`'s own
+floor and `resolveSpanRole`'s `minActivation`/`minMargin` already hold).
+`grammar-lens.test.mjs` (5 cases): the crosslingual eval's own three
+disclosed junk triples, copied verbatim, all correctly caught; a genuine
+verb edge never flagged; an honest disclosed cost (`"married"`: VERB 4 vs
+ADJ 3 in the real treebank — settles at an ordinary majority, correctly
+refuses to settle at a strict 0.9 floor, a real trade named rather than
+hidden); an out-of-vocabulary word landing a disclosed gap, never a
+guess and never counted as a mismatch; and one end-to-end case running
+the REAL extraction pipeline (`makeRelationReader`, real material) into
+the REAL lens, not a hand-built edge.
+
+**Deliberately additive — nothing renamed, nothing revoked.** `edge.verb`/
+`edge.subject`/`edge.object` are untouched; `relationFindings`/
+`relationsClean`/the assertion tier's own fields are byte-identical.
+`grammar-lens.js` reads an edge hypergraph.js already produced and returns
+a SEPARATE classification alongside it — the same posture `verbForms`/
+`assertion` already established for additive organs in this file. A full
+rename of the internal `verb` field to a neutral `label`, with the
+Sibawayh/Thrax reading wired as the app's default rendering overlay, is
+real, scoped, unattempted future work: it touches ~120 call sites across
+this repo (measured, `grep -c '\.verb\b'`) and the render layer's own
+`linkNode()`/`linkText()`, and needs the same kind of explicit scope
+confirmation this repo already asks for before any cross-cutting rename —
+not attempted without it.
+
+**Named, not built, this pass: the kāraka/PP-role tier.** Pāṇini's
+semantic roles beyond the two the triple already gives for free (kartā =
+first span, karma = second span, no new code) — karaṇa/instrument,
+sampradāna/recipient, apādāna/source, adhikaraṇa/locus — all read off a
+governing preposition on an attached phrase `extractRelations` does not
+currently capture at all (it matches subject-verb-object only, no
+adjunct PPs). A preposition closed class is no longer the blocker (UD's
+ADP tag closes it, see above); the PP-attachment reader itself is
+unbuilt. A second, looser correspondence (which preposition signals which
+kāraka role) would need its own giver, disclosed as an approximate
+English-specific mapping — English prepositions do not line up 1:1 with
+Sanskrit vibhakti case endings.
+
+**Evidence.** `node --test wordclass.test.mjs` (eoreader6.1): 10/10.
+Full eoreader6.1 conformance suite: 1,103 tests / 1,100 passing / 0
+failing / 3 skipped (up from 1,093/1,090/0/3 before this pass — the 10
+new cases, zero regressions). `node --test grammar-lens.test.mjs` (this
+repo): 5/5, including the real-pipeline case. Full suite, confirmed via
+`git stash` against this exact worktree: 744/739/5 before this pass's two
+new files, 749/744/5 after — the same 5 pre-existing environment
+failures this repo already carries (`measure.test.mjs`,
+`webllm-rung.test.mjs`, `store.test.mjs`/`store-sql.test.mjs` missing
+vendored `sql.js`, `constitution.test.mjs`'s one II.13 case missing
+vendored `monaco-editor`), zero regressions anywhere else in the suite.
 ## Echo vs novel (added 2026-08-19) — what was decided, so it is not re-derived
 
-POLICIES.md P24 is the law; this is the pointer, kept short on purpose —
-read P24 for the full measured case and its evidence.
+POLICIES.md P30 is the law; this is the pointer, kept short on purpose —
+read P30 for the full measured case and its evidence.
 
 **The one-line version.** `checkGrounding` failing an atom against the
 MATERIAL only answers "is this in the passages." It does not answer "did
@@ -2280,7 +3309,7 @@ is the referent-model gap, not a counting bug" — P23's own residue,
 [[referent-model-not-pointers]]): a string test cannot tell "the same
 referent, said twice" from "a referent invented once," on either axis —
 across sources (the P23 residue) or across what-was-given-vs-what-was-said
-(P24, here).
+(P30, here).
 
 **Not yet in production.** The fix — a second union index built from the
 answerer's own given context, `buildUnionIndex`/`tokenSupported` reused
@@ -2295,7 +3324,7 @@ high-confidence open follow-up for that session, not touched here.
 **Why it is an efficiency law too, not only a correctness one** (user
 direction: "an expert is not someone with a larger context window, it's
 someone with better ability to query the hypergraph of battle-tested
-experience") — full argument in P24: a fact already on record costs
+experience") — full argument in P30: a fact already on record costs
 nothing to repeat: re-checking or re-fetching it every time is compute
 spent reducing zero uncertainty, and the budget that frees up is exactly
 what should go toward the genuine deltas — the same "ask before spending"
@@ -2303,7 +3332,7 @@ shape P23's preflight already uses for fetching, aimed here at checking.
 
 ## Number grounding: company, not bare occurrence (added 2026-08-19) — what was decided, so it is not re-derived
 
-P26 in POLICIES.md is the law; this is the map. Found live by the user
+P31 in POLICIES.md is the law; this is the map. Found live by the user
 driving the instrument: a grounding badge verified "30" in "trazodone...
 30 to 60 minutes" because the digit string appeared SOMEWHERE in an
 offered passage's flattened bag of words and numbers
@@ -2387,11 +3416,11 @@ shipped today.
 question). Enforced by `grounding.test.mjs`'s new trazodone/decoy case;
 20/20 in that file; 759/760 repo-wide after reconciling with concurrent
 upstream work (full numbers, and how they were confirmed unrelated, in
-POLICIES.md P26).
+POLICIES.md P31).
 
 ## The witness tier (added 2026-08-19) — what was decided, so it is not re-derived
 
-P27 in POLICIES.md is the law; this is the map. The user's ask, verbatim:
+P32 in POLICIES.md is the law; this is the map. The user's ask, verbatim:
 "wire in the witness tier, but also, tell me what the mechanical fact
 checking would need from the hypergraph first" — born from the measured
 Yankees specimen (a false claim the relation tier could only call unbound
@@ -2425,7 +3454,7 @@ competition (same verb+object-referent, different subject-referent;
 definite-unique objects only, exclusivity measured from the material's own
 universe under a redealt null; shared referent fold both sides; polarity
 and temporal adjuncts in the slot key). Unbuilt — the witness covers the
-semantic remainder; P27 records the boundary.
+semantic remainder; P32 records the boundary.
 
 **Amended 2026-08-19 (same day) — measured against 25 real facts: three
 bugs fixed, recall 2/25 → 5/25, zero wrong corrections throughout.** User
@@ -2447,7 +3476,7 @@ measured runs by construction — a bad candidate produces a refusal, never
 a lie. Dominant remaining gap, disclosed not chased: `witnessSlice`'s
 anchor scoring has no prose-vs-table signal, so a flattened polling table
 can out-anchor real prose naming the answer — named as the next step in
-the eval's own header. Full amendment in POLICIES.md P27.
+the eval's own header. Full amendment in POLICIES.md P32.
 
 **Same-day companion — the void, acknowledged.** Second direction, same
 session: "if the surf did not turn something up, the model should be fed
@@ -2460,11 +3489,11 @@ information the model receives, never a behavioral instruction stacked on
 top (the same posture an independent parallel session's
 `experiments/facts-before-draft.mjs` converged on the same day, from
 tracing an echo bug to its input rather than patching the output). Full
-amendment in POLICIES.md P27.
+amendment in POLICIES.md P32.
 
 ## The verification taxonomy (added 2026-08-19) — what was decided, so it is not re-derived
 
-P28 in POLICIES.md is the law; this is the map. User direction, verbatim,
+P33 in POLICIES.md is the law; this is the map. User direction, verbatim,
 after a session of finding individual verification bugs one measured
 incident at a time: "it needs to decompose any given fact into tasks to
 verify, which is why we need a taxonomically complete list of things a
@@ -2485,7 +3514,7 @@ the JNJ incident (P23) in the other direction. Verdicts are five-valued
 (`both`) landing exactly where hypergraph.js's own `contested` field
 already lived, unused until this pass.
 
-**Five cells real, four disclosed absent** — see P28 for the exact map.
+**Five cells real, four disclosed absent** — see P33 for the exact map.
 Every cell declares its own giver and dependency (truth-maintenance:
 beliefs carry their justifications) and carries a caller-supplied
 `cursor`, never a computed timestamp. Wired live into the existing

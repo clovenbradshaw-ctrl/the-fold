@@ -325,14 +325,102 @@ function isParseableJson(s) {
   }
 }
 
-export function chunkSource(name, text, { boundaries, identity } = {}) {
+export function chunkSource(name, text, { boundaries, identity, atmosphere } = {}) {
   if (looksDelimited(name, text)) return chunkRows(name, text, identity);
   // The addresses stay true to the file as it sits on disk: the container is
   // skipped, not renumbered.
   const { text: body, offset } = stripContainer(text);
   if (boundaries?.length) return chunkByBoundaries(name, text, boundaries, offset, identity);
+  // `atmosphere` is an injected organ bundle (the cast.js pattern — this
+  // module stays pure, so the caller hands in the engine functions rather
+  // than this file importing packages/engine directly). When absent — every
+  // existing caller, unchanged — the blank-line split below runs exactly as
+  // it always has. When present, atmosphereBoundaries decides which of the
+  // blank-line breaks are REAL regime shifts (signal) versus ordinary
+  // typographic noise, and only those become chunk boundaries. See
+  // atmosphereBoundaries's own header for why blank lines are still the
+  // CANDIDATE set, not replaced.
+  if (atmosphere) {
+    const discovered = atmosphereBoundaries(name, body, offset, atmosphere);
+    if (discovered?.length) return chunkByBoundaries(name, text, discovered, offset, identity);
+    // A typed gap (not enough material to license the test, or the organs
+    // themselves declined) falls through to the same default below — never
+    // a silent empty result where a caller expected chunks.
+  }
   if (offset) return chunkProse(name, body, offset, identity);
   return chunkProse(name, text, 0, identity);
+}
+
+/**
+ * Which blank-line breaks are a real regime shift, and which are noise —
+ * decided by the SAME statistical test packages/host/terrains.js already
+ * uses to find topic/scene boundaries across a document's chunks
+ * (loops/atmosphere.js::readAtmosphere, built on nul/index.js's licensed
+ * ground/difference/isGap apparatus: a boundary is only real when the
+ * accumulated ground actually FAILS a declared, null-corrected test, never
+ * a structural rule dressed as a finding). "Born rule" in that module's own
+ * header names precisely what's borrowed from the physics (the collapse-as-
+ * measurement structure) and what isn't (no |amplitude|^2 weighting
+ * anywhere) — the same honest borrowing applies here, one register down:
+ * chunkSource's own blank-line split, which used to BE the final chunk
+ * boundary, becomes only the CANDIDATE set a licensed test then filters.
+ *
+ * Blank lines stay the candidate set rather than something finer (sentences,
+ * fixed-width windows) because they are cheap, already computed by
+ * chunkProse, and every real boundary this module could ever place has to
+ * fall ON one anyway (chunkByBoundaries only ever cuts a passage at a blank
+ * line or a supplied boundary — never mid-paragraph). Testing candidates
+ * that could never become a boundary regardless of the test's answer would
+ * cost real computation for no possible finding.
+ *
+ * `organs` is `{ causalSurprisalSeries, readAtmosphere, regime }` — the
+ * first two imported straight from packages/engine (material.js,
+ * loops/atmosphere.js), `regime` the declared `{ window, draws, tolerance,
+ * hop }` a caller must supply explicitly (never defaulted here — the same
+ * "declared, never a default" discipline atmosphere.js's own header
+ * enforces for these exact four numbers). Reuse packages/host/terrains.js's
+ * own ATMOSPHERE_REGIME ({ window: 5, draws: 256, tolerance: 3, hop: 5 })
+ * rather than re-deriving a second set of numbers for the identical
+ * question at a different call site.
+ *
+ * Returns `null` — a typed "declined", not an empty array standing in for
+ * one — when there isn't enough candidate material to license the test at
+ * all (readAtmosphere's own MIN_GROUND floor, calibrated at 10x window in
+ * atmosphere.js, needs roughly that many paragraphs before it can report
+ * anything) or when the organs themselves report a gap for any other
+ * reason. The caller (chunkSource) falls back to the ordinary blank-line
+ * split in that case — a short paste or a small attachment cannot support
+ * a statistical test of its own paragraph breaks, and pretending otherwise
+ * would be the exact "manufactured precision" this codebase refuses
+ * everywhere else.
+ */
+export function atmosphereBoundaries(name, body, offset, organs) {
+  const { causalSurprisalSeries, readAtmosphere, regime } = organs ?? {};
+  if (typeof causalSurprisalSeries !== "function" || typeof readAtmosphere !== "function" || !regime) return null;
+  const candidates = chunkProse(name, body, offset, null);
+  if (candidates.length < 2) return null;
+  const series = causalSurprisalSeries(candidates.map((c) => [...c.terms]));
+  const result = readAtmosphere({ material: series, ...regime });
+  if (!result || result.gap || !result.regions?.length) return null;
+  // readAtmosphere does not return a typed gap when the WHOLE material is
+  // too short to ever build a ground at all — it returns one region
+  // spanning everything with apertureOpen/apertureClose/opened all null
+  // (found live: 8 short candidate paragraphs, window=5, MIN_GROUND=50 —
+  // the read loop never executes even once, yet a "successful" one-region
+  // result comes back that would silently MERGE all 8 into a single chunk,
+  // a real boundary decision this call never actually licensed). A region
+  // only reflects a judged ground when its own apertureOpen is non-null;
+  // if NONE of the regions ever got one, nothing was tested anywhere in
+  // this material and the honest answer is decline, not "merge it all."
+  if (!result.regions.some((r) => r.apertureOpen != null)) return null;
+  return result.regions
+    .map((r) => {
+      const first = candidates[r.start];
+      const last = candidates[Math.min(r.end, candidates.length) - 1];
+      if (!first || !last) return null;
+      return { start: first.start, end: last.end, label: null };
+    })
+    .filter(Boolean);
 }
 
 /**

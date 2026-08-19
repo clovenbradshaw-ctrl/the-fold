@@ -613,6 +613,7 @@ test("the material path sends the real conversation on a flat turn — role-stru
     { role: "user", content: "hey" },
     { role: "assistant", content: "hello — what shall we look at?" },
   ];
+  let sawDiscourse = false;
   const call = async (messages) => {
     const roles = messages.map((m) => m.role);
     if (
@@ -623,6 +624,13 @@ test("the material path sends the real conversation on a flat turn — role-stru
       messages[messages.length - 1].content === "what was the harbor figure?"
     )
       sawHistory = true;
+    // Measured live 2026-08-19 ("system 2 keeps drifting off the
+    // discourse"): the discourse line used to be dropped from the system
+    // prompt the moment chatHistory existed — exactly backwards, since it
+    // carries S1's own distilled topic/flow/entities, not a redundant copy
+    // of the raw turns, and matters most when aperture.js's regime has
+    // narrowed chatHistory down to almost nothing.
+    if (messages[0].content.includes("ports · the figure under revision · Kessington")) sawDiscourse = true;
     const refs = offeredRefs(promptOf(messages));
     return refs.length ? "The figure was 12% for the spring quarter." : "Nothing.";
   };
@@ -638,6 +646,7 @@ test("the material path sends the real conversation on a flat turn — role-stru
     sawHistory,
     "the flat material call: duty+material in system, verbatim history as messages, the person's words as the final user turn",
   );
+  assert.ok(sawDiscourse, "the discourse line rides alongside chatHistory, never dropped just because history exists");
 });
 
 test("a decomposed part stays narrowly scoped even when discourse is set — the flat-only fold-in does not leak into planned parts", async () => {
@@ -866,6 +875,28 @@ test("searchedVoid also reaches a flat chat turn that carries verbatim history",
     searchedVoid: SEARCHED_VOID_PREFIX,
   });
   assert.ok(sawVoid, "the void must reach the history-carrying branch too, not just the no-history one");
+});
+
+test("the discourse line reaches a materialless flat chat turn that carries verbatim history too", async () => {
+  // Same bug, same fix, the other executeMessages branch: a chat turn with
+  // no material still used to drop the one-line discourse fold the moment
+  // chatHistory existed — the exact branch a startle-narrowed conversation
+  // (aperture.js's presentWindow, down to as little as one exchange) falls
+  // into most often, which is precisely when the distilled anchor matters.
+  let sawDiscourse = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes("harbor traffic · the spring revision")) sawDiscourse = true;
+    return "Still the spring figure, yes.";
+  };
+  await runHolonicTask({
+    task: "and the other one?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    chatHistory: [{ role: "user", content: "what's the figure?" }, { role: "assistant", content: "12%." }],
+    discourse: "harbor traffic · the spring revision",
+  });
+  assert.ok(sawDiscourse, "discourse must reach the history-carrying materialless branch too, not just the no-history one");
 });
 
 test("without searchedVoid, an ordinary materialless chat turn is untouched — no phantom acknowledgement", async () => {

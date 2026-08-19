@@ -3525,3 +3525,52 @@ turn (`who won the 1960 world series?`) composing correctly end to end.
 object Link/Network do — the witness tier reads checkable atoms, hypergraph
 reads SVO triples, two different extractions on two different schedules.
 Unifying them is named, real, unattempted next work.
+
+## The two-pass answer: S1 fast, S2 checked (added 2026-08-19) — what was decided, so it is not re-derived
+
+P34 in POLICIES.md is the law; this is the map. User direction, verbatim:
+"one is just the raw transcript that gets summarized for size and responds
+fast, the next is the system 2 response, which also has access to the fast
+response" — then, correcting the first cut, "let's use the same model for
+each, what's different is behind the scenes, the surf and fold and stuff."
+
+**The shape.** `twoPassTurn` (app.js) renders S1 immediately — one plain
+`complete()` call, `S1_SYSTEM_PROMPT`, no retrieval, no checking — then
+gates: `extractCheckableAtoms` (grounding.js, mechanical, zero extra model
+calls) decides whether S1's own draft contains anything worth running the
+full pipeline against. A gated-in turn runs `holonicTurn` exactly as any
+other turn does — the SAME existing holon.js pipeline, not a lighter
+reimplementation — with `priorPass: s1Text` so S2 can confirm, extend, or
+correct S1 rather than starting cold (`priorPassFor`, holon.js). Both
+passes run on the SAME model (`state.model`, read once) — not S1 on the
+fastest routing rung and S2 on the picker's choice, which was the first
+cut and was corrected specifically so this experience isolates ONE
+variable (does the apparatus earn its cost) from a confound (a bigger
+model would also help, with or without any of it).
+
+**Amended same day — the discourse line was being dropped exactly when it
+mattered most.** Measured live: "system 2 keeps drifting off the
+discourse." `holon.js`'s `executeMessages` assembly carried a bug in two of
+its four branches (flat+material, flat+materialless-with-history): the
+one-line discourse fold (`chatContext` — S1's own distilled topic/flow/
+entities, computed once in app.js as `discourseLine`) was included ONLY
+when `chatHistory` was empty (`chatHistory.length ? "" : chatContext`) —
+backwards, because the two carry different information (raw turns vs. a
+distilled synthesis) and are not substitutes for each other. The failure
+mode this produces is worst exactly when `aperture.js`'s regime has
+narrowed `chatHistory` down toward its floor (as little as the two messages
+of one exchange, under startle — CLAUDE.md's own "System 1's own ground,
+measured" section, above) — the discourse line was the only thing that
+could have kept the wider conversation in view at that moment, and it was
+the thing being thrown away. Fixed by folding `chatContext` into the
+system message unconditionally in both branches, never gated on
+`chatHistory.length`. Pinned as a regression in `holon.test.mjs` (two
+cases: the material branch and the materialless branch, each asserting the
+discourse text survives a call that also carries verbatim history).
+`presentWindow` itself (aperture.js) was left untouched — it is a measured,
+tested design (a declared floor, linear interpolation, tied to the belief
+prior's own decay rate), not the defect; the defect was a second assembly
+being silently discarded next to it, not the window's own narrowing.
+
+**Full suite: 964/964 passing after the fix** (963 before — the two new
+cases plus the pre-existing count).

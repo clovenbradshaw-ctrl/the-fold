@@ -1141,8 +1141,17 @@ export async function runPart({
   // When verbatim history is available (chatHistory), send it as message
   // pairs so the model can see the actual back-and-forth. The threshold
   // is the window itself — RECENCY_WINDOW messages is always small enough
-  // to send raw. Without history, fall back to the one-line discourse
-  // slice.
+  // to send raw. The one-line discourse slice is NOT a fallback for when
+  // chatHistory is absent — it is a different assembly (S1's own distilled
+  // topic/flow/entities, never re-derivable from raw turns by a small model
+  // for free) and rides ALONGSIDE chatHistory always, not only in its
+  // absence. Measured live (2026-08-19, "system 2 keeps drifting off the
+  // discourse"): the prior code dropped this line the moment chatHistory
+  // existed (`chatHistory.length ? "" : chatContext`), which is exactly
+  // backwards at the moment it matters most — aperture.js's own regime can
+  // narrow chatHistory to as little as the two messages of one exchange
+  // under startle, and that is precisely when the wider conversation's only
+  // surviving anchor is this line, not the (now-truncated) raw turns.
   const chatContext = discourse ? `\n\nThe conversation so far: ${discourse}` : "";
   // The conversation is its own assembly, and the flat material path gets it
   // REAL — the same role-structured history the chat path already sends —
@@ -1169,9 +1178,7 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content:
-              [FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") +
-              (chatHistory.length ? "" : chatContext),
+            content: [FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") + chatContext,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -1182,7 +1189,7 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
+          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]

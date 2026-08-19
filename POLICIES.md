@@ -2935,3 +2935,108 @@ sub-panel).
 **Enforced.** 848/848 repeated full-suite passes across the pass (only
 growing, never regressing, since verification.js duplicates no existing
 organ's computation).
+
+## P34 — The two-pass answer: S1 fast, S2 checked, and the discourse line rides with history, never instead of it
+
+**S1/S2, decided (2026-08-19).** A turn can render a fast, unchecked
+answer immediately (S1: no retrieval, no verification, `S1_SYSTEM_PROMPT`
+alone) and, only when `extractCheckableAtoms` finds something in it worth
+checking, run the full existing grounding pipeline as S2 — same model as
+S1 (a deliberate correction from an initial cut that used the routing
+ladder's fastest rung for S1 and the picker's model for S2; the point of
+the experience is isolating whether the checking apparatus itself earns
+its cost, not confounding that with a model-size difference) — handed
+S1's own words (`priorPassFor`) as information to confirm, extend, or
+correct, never as an instruction about which of those to do.
+
+**The bug, measured live: "system 2 keeps drifting off the discourse."**
+`holon.js`'s `executeMessages` assembly builds one of four message shapes
+depending on (material present?, flat turn?). Two of the four
+(flat+material, flat+materialless-with-history) computed a one-line
+discourse fold (`chatContext` — the fold's own distilled topic/flow/
+entities, `discourseLine` in app.js) and then discarded it whenever
+verbatim `chatHistory` was also being sent: `(chatHistory.length ? "" :
+chatContext)`. This reads as a reasonable de-duplication at a glance —
+raw history looks like it should make a summary of that history
+redundant — but the two are not the same information: `chatHistory` is
+recent TURNS, `chatContext` is a SYNTHESIS (topic, flow, named entities)
+that a small model does not reliably re-derive from raw turns for free,
+especially under the "bare minimum context, snip as needed" design this
+policy's own turn-construction already aims for elsewhere.
+
+**Why this failure mode is worst exactly when it matters most.**
+`aperture.js`'s regime (POLICIES.md's own "System 1's own ground, measured"
+entry) can narrow `chatHistory` down to its structural floor — the two
+messages of one exchange — under a startled turn. At that exact moment,
+the raw-history slice is at its thinnest and the discourse line is the
+ONLY remaining anchor to the wider conversation; the prior code discarded
+precisely that anchor precisely when the raw slice could least stand in
+for it. Not a defect in `presentWindow`'s own narrowing (a measured, tested
+design — a declared floor, linear interpolation, the same decay rate
+belief itself uses) — the defect was a second, complementary assembly
+being thrown away beside it.
+
+**The fix.** `chatContext` now folds into the system message
+unconditionally in both affected branches, never gated on
+`chatHistory.length`. Two regressions pinned in `holon.test.mjs`: the flat
+material branch and the flat materialless-with-history branch each now
+assert the discourse text survives a call that also carries verbatim
+history — mirroring the existing `searchedVoid`-reaches-the-
+history-branch pattern already pinned for the same reason (a fact fed
+forward must reach every branch it applies to, not just the one branch
+that happened to be tested first).
+
+**Enforced.** 964/964 tests passing after the fix (963 before — two new
+cases, one folded into an existing test, one standalone, plus the
+pre-existing count).
+
+## P35 — A chorus of nine is a label, not nine agent calls
+
+**The question, from the user, connecting two existing mechanisms:**
+whether System 2's checking should be "a chorus of 9" — CHORUS-LOG.md's
+own multi-persona review practice, retargeted from code diffs onto
+answers. Checked directly rather than assumed: `verification.js` (P33)
+already decomposes every claim across the identical nine-cell grid
+(`operators.js::TERRAIN_BY_DOMAIN`) the chorus proposal cites, with five
+cells real (Void, Entity, Field, Link, Lens — the last via testimony.js's
+witness tier) and four disclosed absent, using no extra model calls: it
+composes results `hypergraph.js`/`testimony.js` already computed. It
+already carries the Lincoln's-VP presupposition fix a chorus-style
+Void/NUL amendment would ask for (`hgClaim.fillers.length > 1` — "the
+space this claim names is not fully bounded").
+
+**What CHORUS-LOG.md's chorus actually is, checked rather than assumed:**
+a code-review practice — 9–11 named personas run as real Workflow agents,
+reviewing a DIFF against POLICIES.md/CONSTITUTION.md citations. It has
+never checked a model's answer against material; retargeting it literally
+(nine real agent calls per claim, per turn) would be a real cost
+regression, directly against this repo's own efficiency argument (P30,
+echo/novel: do not re-spend compute on what a mechanical check already
+settles).
+
+**What shipped: labels, not agents.** `verification.js`'s
+`VERIFICATION_GRID` now carries a `persona` field per cell, drawn from
+CHORUS-LOG.md's own confirmed roster (Diaconis/Void, Holmes/Entity,
+Frankfurt/Kind, Dijkstra/Field, Ostrom/Link, Alexander/Network, Feynman/
+Lens, Pearl/Paradigm) — a name, costing nothing at runtime, giving a
+reader "who is checking this" continuity with the existing review
+practice without multiplying S2's cost. Atmosphere/REC has no confirmed
+entry in CHORUS-LOG.md (checked directly, zero hits); Simon is carried as
+a disclosed SUGGESTION only, matching the cell's own disclosed-absent
+status — never presented as a confirmed reuse the way the other eight are.
+
+**The three open questions the original proposal posed, answered on the
+strength of what's actually in CHORUS-LOG.md rather than deferred
+further:** Link is already Ostrom/CON in the confirmed roster — no real
+overlap with Dijkstra, who owns Field/SEG; the one historical case where a
+Dijkstra review also touched Link content was informal, not a standing
+ownership claim. Ship-gate: disclosed-not-blocked, matching how
+`verification.js` already treats `both` (Belnap's fourth value) and
+`contradicted` as SURFACED states rather than hard blocks — consistent
+with this repo's standing practice (CHORUS-LOG.md itself treats "noted,
+not fixed" as a legitimate outcome, not a failure).
+
+**Not built, not claimed built:** the actual nine-cell content is
+unchanged by this pass — no new organ, no new verdict, only the persona
+label. Kind, Network (general case), Atmosphere, and Paradigm remain
+disclosed absent exactly as P33 already states.

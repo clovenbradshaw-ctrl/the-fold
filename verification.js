@@ -116,6 +116,31 @@ const GIVERS = Object.freeze({
   Paradigm: null,
 });
 
+// A label, not a mechanism: CHORUS-LOG.md's own persona↔cell roster
+// (Diaconis/NUL, Holmes/SIG, Frankfurt/INS, Dijkstra/SEG, Ostrom/CON,
+// Alexander/SYN, Feynman/DEF, Pearl/EVA — each confirmed against real
+// logged reviews), carried onto this grid so a reader sees "who is
+// checking this" the same way a code-review chorus entry already does.
+// Deliberately NOT nine agent calls: this file stays a pure composer of
+// already-computed verdicts (header, above), and running each cell as a
+// real reviewing agent would multiply S2's cost per claim for no measured
+// gain — the same efficiency argument P30 (echo/novel) already makes
+// against re-spending compute on what a mechanical check already settles.
+// Atmosphere/REC has no confirmed entry in CHORUS-LOG.md (checked
+// directly, zero hits) — Simon is carried here as a disclosed SUGGESTION,
+// not a confirmed reuse, matching how the cell itself is disclosed absent.
+const PERSONAS = Object.freeze({
+  Void: "Diaconis",
+  Entity: "Holmes",
+  Kind: "Frankfurt",
+  Field: "Dijkstra",
+  Link: "Ostrom",
+  Network: "Alexander",
+  Atmosphere: "Simon (suggested, not confirmed in CHORUS-LOG.md)",
+  Lens: "Feynman",
+  Paradigm: "Pearl",
+});
+
 // What each cell's own computation actually reads — declared once here so
 // the presupposition gate (below) and the record's own dependency field
 // cannot drift apart from each other.
@@ -143,7 +168,7 @@ export const VERIFICATION_GRID = Object.freeze(
     { domain: "Interpretation", grain: "Ground", terrain: "Atmosphere" },
     { domain: "Interpretation", grain: "Figure", terrain: "Lens" },
     { domain: "Interpretation", grain: "Pattern", terrain: "Paradigm" },
-  ].map((c) => Object.freeze({ ...c, giver: GIVERS[c.terrain], dependsOn: DEPENDS_ON[c.terrain] })),
+  ].map((c) => Object.freeze({ ...c, giver: GIVERS[c.terrain], dependsOn: DEPENDS_ON[c.terrain], persona: PERSONAS[c.terrain] })),
 );
 
 const cell = (terrain, verdict, extra = {}) => ({

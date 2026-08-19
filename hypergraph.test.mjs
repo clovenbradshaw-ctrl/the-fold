@@ -334,6 +334,52 @@ test("corroborateAtoms counts support per passage and per distinct source", asyn
   assert.equal(corroborateAtoms(answer, []).examined, false);
 });
 
+test("every edge carries its own assertion: statements counted, standing typed, verb support disclosed", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const married = reader.edges.find((e) => e.verb === "married");
+  assert.ok(married, JSON.stringify(reader.edges, null, 2));
+  // Stated in both wp passages — two independent statements fold in.
+  assert.ok(married.assertion, "an edge without its assertion is a silently-kept edge");
+  assert.ok(married.assertion.statements >= 2, JSON.stringify(married.assertion));
+  assert.equal(married.assertion.standing, "corroborated");
+  // "married" followed "Pierre Bezukhov" — the vocabulary measure's own
+  // distinct-surface count rides along, never re-derived.
+  assert.ok(married.assertion.verbSupport >= 1);
+
+  const trusted = reader.edges.find((e) => e.verb === "trusted");
+  assert.ok(trusted);
+  assert.equal(trusted.assertion.statements, 1);
+  assert.equal(trusted.assertion.standing, "single-witness");
+
+  // The disclosure never convicts: a single-witness edge stays off the
+  // record's unsupported list exactly as before.
+  const report = reader.read("Pierre Bezukhov trusted Dolokhov.");
+  const bound = report.claims.find((c) => c.verb === "trusted");
+  assert.equal(bound.verdict, "bound");
+  assert.equal(relationFindings(report).length, 0);
+});
+
+test("the word-salad arm runs only when declared, reports counts, and replays under its seed", async () => {
+  const make = makeRelationReader(await organs());
+  const plain = make(PASSAGES, { pool: POOL });
+  for (const e of plain.edges)
+    assert.equal(e.assertion.orderArm, undefined, "no declaration, no arm — never a defaulted resolution");
+
+  const armed = make(PASSAGES, { pool: POOL, assert: { draws: 12, seed: 0 } });
+  for (const e of armed.edges) {
+    assert.ok(e.assertion.orderArm, JSON.stringify(e));
+    assert.equal(e.assertion.orderArm.draws, 12);
+    assert.ok(e.assertion.orderArm.fired >= 0 && e.assertion.orderArm.fired <= 12);
+    assert.equal(e.assertion.orderArm.seed, 0);
+  }
+  const again = make(PASSAGES, { pool: POOL, assert: { draws: 12, seed: 0 } });
+  assert.deepEqual(
+    armed.edges.map((e) => [e.subject, e.verb, e.object, e.assertion.orderArm.fired]),
+    again.edges.map((e) => [e.subject, e.verb, e.object, e.assertion.orderArm.fired]),
+    "same declaration, same counts — the arm is testimony only if it replays",
+  );
+});
+
 test("the declared number is the declaration, not a tuned knob", () => {
   // Pinned so a future "walk it and see what scores best" cannot happen
   // silently — changing this constant is a policy change, and lands with

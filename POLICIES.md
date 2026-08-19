@@ -2118,6 +2118,191 @@ that wants this enforced rather than merely demonstrated should add a
 already does for `runPart`/`runHolonicTask` directly — not attempted here,
 named rather than implied as covered.
 
+## P29 — A relation edge's verb-hood is a hypothesis, disclosed and counted, never a recovered fact
+
+The user's redirect, near-verbatim, closing out the prior investigation
+into `hypergraph.js`'s MINE-1 score: "we don't need to rediscover grammar
+as linguists think of it, we need to discover real structure and MEANING,
+which must always be asserted by a reader (even a mechanical one)." Nine
+vocabulary-widening configurations (UniMorph, lemma matching, span-role
+resolution, clause framing, adjacency voting) had all chased the same
+question — "is this token the same verb as that one?" — the pareto-best of
+the nine was plain unfiltered vocabulary, and `unbound` sat at 35–39% of
+examined facts in every variant regardless: a paraphrase-tolerance gap in
+the bound/unbound rubric itself, not a vocabulary gap `extractRelations`
+could close. Scored under an entailment-style rubric the same graph landed
+at 80%, above every published baseline — the exact-structural-match verdict
+was measuring its own strictness more than the graph's quality.
+
+**The actual defect, once named.** Every one of those nine configurations
+trusted `extractRelations`'s own claim — "this word is the verb of this
+clause" — as ground truth once recovered. A part of speech is not a fact a
+word carries; it is a linguist's after-the-fact description. This repo
+already refuses that exact move on the noun side: the cube is not a
+content classifier (95.7% cell-assignment survival under word-shuffling);
+L2 uses capitalisation as a veto, never a positive signal; the referent
+index resolves identity over stemming. Nothing yet treated the verb side
+the same way — the grounding ladder checks whether the MODEL's claims are
+supported, but never asked whether the EXTRACTOR's own claim about a
+clause was.
+
+**What was searched for, and the honest finding: no ready-made organ.**
+`nul/index.js`'s `LICENSED` table covers (statistic, perturbation) pairs
+over NUMERIC SERIES only — text has no licensed perturbation there, and
+admitting one is the engine's call, not this repo's. `emergence/
+activation.js` has no unused retrieval mode for this either. What
+transfers is the DISCIPLINE two established constructions already earned:
+activation.js's cue gate (`df >= 2` to fire — "a form that has come round
+again has proven it can bridge," the third occurrence is the first that
+can recall) and `emergence/binding.js`'s arrivals-≥2 floor ("binding's
+structural minimum") both land independently on 2 as the meaning of
+recurrence; and `goldens/agency-civic/rotation-control.mjs` already built
+and measured the exact construction this needed — a clause's own words
+seeded-shuffled, the document's real surfaces/vocabulary held fixed,
+scored through the identical pipeline — reporting real corpus admission at
+10.6% against a 3.4% word-salad floor on 208 civic clauses. That golden's
+own verdict (Link yield as an agentlessness meter is NOT supported on that
+run, dominated by 87% recall loss) is a separate, standing finding and is
+untouched here; what carries over is the CONSTRUCTION, reproduced per-edge
+rather than per-clause because goldens are firewalled consumers (nothing
+outside a golden's own directory may import from it).
+
+**`asserted.js` (new, pure).** Two measures, and only one ever sets a
+standing:
+
+- **witnesses** — self-corroboration by recurrence. `standingOf(n)` types
+  an edge `corroborated` at `WITNESS_FLOOR = 2` independent statements,
+  `single-witness` below. Structural, never walked against a golden — the
+  same 2 the two engine organs above earned independently.
+- **orderArm** — the per-edge word-salad floor. Each PASSAGE's sentences
+  are shuffled in place (vocabulary, referent identity, and sentence
+  boundaries held fixed — the rotation-control isolation, generalized from
+  "one clause" to "every sentence of the material"), re-run through the
+  SAME vocabulary-bound extraction closure the caller supplies, `draws`
+  times (declared, never defaulted — the arm's resolution is 1/draws).
+  Reported as raw counts (`{ draws, fired, seed }`), phrased
+  natural-frequency by `assertionPhrase` — **never collapsed into a
+  verdict.** No cut is drawn anywhere in this pass: earning one needs more
+  material than a synthetic suite and one real-prose sample, and tuning a
+  threshold against either would be exactly the "calibrating on the answer
+  key" mistake eoreader6.1's CLAUDE.md names twice over. Polarity is
+  ignored when matching a shuffled-copy triple to an edge — under shuffle
+  it is noise by construction, the negation window being an order fact
+  the shuffle just destroyed.
+
+**`hypergraph.js` wiring is strictly additive.** Every edge (and therefore
+every claim's `bound`/`nearest` disclosure, which already projects through
+`edgeFace`) carries `assertion: { standing, statements, verbSupport,
+orderArm? }`. `verbSupport` is the vocabulary measure's own distinct-
+surface count for that verb, kept rather than dropped — a verb admitted on
+one surface is itself a single-witness assertion, one level up from the
+edge. Nothing here convicts: `relationFindings`/`relationsClean` are
+byte-for-byte unchanged, so a single-witness edge reaches the reader as
+disclosure, never as a mark against the answer. The order arm runs only
+when the caller passes `{ assert: { draws, seed } }` — omitted, it is
+absent, never defaulted to zero and never silently run at a cost the
+caller didn't ask to pay (armed, 200 draws over 827 real edges took 108s).
+
+**`eval/asserted-eval.mjs` + `eval/asserted-blind-analysis.mjs` — the new
+harness, decoupled from MINE-1's rubric by design.** Three parts, run and
+recorded (`eval/results/asserted-eval.md`, `asserted-blind-results.json`):
+
+1. **Synthetic adversarial suite**, ground truth by construction (no
+   annotator needed — the author of a planted sentence knows what it
+   states): control SVO, passive voice, a relative clause, coordinated
+   verbs, a fronted adverbial, negation, a planted-false co-occurrence
+   (every token present, the text never binds it — MINE-1's own flagship
+   case, replayed here as a construction rather than a score), and two
+   paraphrase cases (same verb restated; a different verb for the same
+   fact, measuring rather than assuming the reader has no synonymy organ).
+   Result: **8/9 intended edges heard correctly, 3 mis-heard** — passive
+   voice reversed agent and patient exactly as the hazard predicts
+   (`"Helene was" —married→ "by Pierre Bezukhov"`), the relative clause
+   mis-bound its relative pronoun as subject (`"who" —married→ "Helene"`),
+   coordinated verbs elided the shared subject onto the wrong noun phrase
+   (`"and" —trusted→ "Dolokhov completely"`) — all three the exact gaps
+   `goldens/agency-civic`'s README already named as `extractRelations`'s
+   own recall failure on civic prose, now reproduced and typed on
+   invented material instead of only reported as an aggregate rate. **1
+   forbidden edge fabricated** (the passive-voice reversal, which is also
+   counted as mis-heard): its own salad count (21/200) sat inside the
+   range of genuinely correct edges, so the order arm did NOT distinguish
+   it on this small suite — stated as a negative result, not glossed over.
+2. **Order-arm separation**, reported as two raw distributions with a
+   disclosed confound (a more-corroborated edge's words appear in more
+   sentences, so more shuffles can luck into its shape — fired count is
+   not comparable across edges with different witness counts without
+   conditioning on that, which this pass does not attempt) — no cut drawn.
+3. **Real prose**: the reader run over the already-captured Wikipedia War
+   and Peace fixture (`web.js`'s own `extractReadable`, the same face a
+   saved page gets), gated to paragraphs the engine's own `splitSentences`
+   finds >= 2 sentences in (structural — a passage that cannot hold two
+   statements cannot corroborate one). 827 edges (20 corroborated / 807
+   single-witness) over 231 measured verbs. A stratified, deterministic,
+   verdict-stripped blind sheet (24 items, 12 per stratum) was emitted for
+   a hand-precision pass.
+
+**The blind pass — LLM-panel proxy, agency-civic's own label carried
+over, not a human ceiling.** Three independent, context-isolated
+general-purpose agents scored the sheet from the passage alone, no access
+to each other or to the engine's own verdicts. Fleiss' kappa across the
+three raters, 24 items x 3 categories: **kappa = 0.789** (91.7% mean
+pairwise agreement), above the kappa = 0.4 "moderate" floor
+agency-civic's own analysis refuses below. Two findings, kept as measured
+rather than reconciled toward each other: **(a)** corroborated and
+single-witness standing showed IDENTICAL precision against the panel's
+majority verdict — 75.0% each, n=12 per stratum — the witness-count floor
+alone did not separate human-confirmed edges from human-rejected ones on
+this sample, an honest negative result about the tier's own headline
+distinction, not hidden because it complicates the story. **(b)** the
+order arm's fired count showed a directional gap the synthetic suite's
+4-vs-8 sample did not surface (median 20.5 vs 6, mean 25.7 vs 8.5,
+human-YES vs human-NO edges) — at n=24 total and only 6 in the NO bucket
+this is disclosed as a suggestive distribution, not a validated signal,
+and licenses no cut. **A real human-annotated pass, replacing the
+LLM-panel proxy, is still required before either finding is reported as
+certified** — precisely the status agency-civic's own README holds itself
+to, carried over rather than relaxed because this is a smaller pass.
+
+**What was explicitly refused, per the handoff's own instruction.** No
+tenth vocabulary-widening configuration. The inferred graph-hop verdict
+stays dead (killed by two adversarial cases in the prior investigation,
+proven dead code once made safe — not resurrected here). A higher
+`bound%` is never treated as evidence of anything on its own — correcting
+that premise is this policy's whole point.
+
+**Files.** `asserted.js` (new, pure — `seededShuffle`/`seedFrom`, the
+deterministic-LCG discipline reproduced from
+`goldens/agency-civic/rotation-control.mjs` rather than imported, since
+goldens are firewalled consumers; `shuffleSentenceWords`; `WITNESS_FLOOR`;
+`standingOf`; `orderArm`; `assertionPhrase`) + `asserted.test.mjs` (7
+cases: shuffle determinism and non-mutation, seed separation, the pinned
+witness floor, `orderArm`'s declared-argument refusals, determinism under
+seed against the REAL engine `extractRelations`/`splitSentences`, and the
+phrase's own natural-frequency discipline). `hypergraph.js` (`assertion`
+wired onto every edge; `relationFindings`/`relationsClean` untouched) +
+2 new cases in `hypergraph.test.mjs` (per-edge disclosure; the arm
+declared-only-when-requested and replaying identically under its seed).
+`eval/asserted-eval.mjs` (the synthetic suite + real-prose run + blind
+sheet emission) and `eval/asserted-blind-analysis.mjs` (Fleiss' kappa,
+gated first; the cross-tab; the fired-count distributions; appends to
+`eval/results/asserted-eval.md`) — both new, both re-runnable.
+`eval/results/asserted-blind-panel-{a,b,c}.json` (the three raw panel
+verdict files, committed so the analysis is reproducible from the repo
+alone, not from a session's own scratch directory).
+
+**Enforced:** `asserted.test.mjs` (7 cases) + `hypergraph.test.mjs`'s 2
+new cases, both against the real engine organs. `eval/asserted-eval.mjs`
+and `eval/asserted-blind-analysis.mjs` are live-driven eval scripts, not
+committed regression tests (matching P19's and P27's own posture for
+their eval drivers) — their output is the record in `eval/results/`, not
+a pinned assertion, because the numbers are findings to be read, not
+invariants to hold constant. Full suite: 719/724 passing after this
+change, the same 5 pre-existing failures this repo already carries
+(`measure.test.mjs`, `store-sql.test.mjs`, `store.test.mjs`,
+`webllm-rung.test.mjs`, and the II.13 monaco-vendoring scan — none
+touched by this pass), zero regressions.
+
 ## P28 — A preflight search earns the discourse join; it does not always take it
 
 **Correction, stated plainly first:** P23's own amendment paragraph ("the

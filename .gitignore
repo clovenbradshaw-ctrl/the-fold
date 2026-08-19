@@ -4,6 +4,12 @@ pg2600.txt
 mnpd/
 node_modules/
 
+# eval/crosslingual-eval.mjs's own raw corpora — full-work translations
+# fetched for the cross-lingual limits-disclosure test, kept local like
+# pg2600.txt above (eoreader6.1's own CLAUDE.md convention: raw corpora are
+# gitignored, only the derived results are committed)
+eval/corpus/
+
 # runtime artifacts of the local instrument — the I.5 record and deposited
 # materials live with the machine that produced them, not with the code
 record/

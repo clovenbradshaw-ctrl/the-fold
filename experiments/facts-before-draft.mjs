@@ -53,6 +53,43 @@
 //     president") — the same question-anchoring discipline P4 already
 //     requires of retrieval, applied to triples instead of passages.
 //
+// MEASURED RESULT, FIRST PASS (2026-08-19, gemma2:2b N=6/arm, qwen2.5:14b
+// N=3/arm, 23-passage fixture, both saved in facts-before-draft-results*.json):
+//   gemma2:2b:  A 5/6, B 4/6 (two truncation-only non-answers), C 6/6.
+//   qwen2.5:14b: A 3/3, B 3/3, C 3/3 — no measurable difference.
+// Conclusion at the time: recommend C. WRONG, or at least confounded —
+// see the correction immediately below.
+//
+// CORRECTION, SAME SESSION, user-directed: "the talking model should only
+// be given enough content to say what would be a good answer, it
+// shouldn't be post processed or steered very heavily." Every arm's user
+// message opened with production's `Write this part: the question. <q>`
+// framing — correct for holon.js's real multi-part decomposition, pure
+// unearned ceremony for this flat single-question turn, and the leading
+// suspect for BOTH failure modes above (a model told "the part you are
+// given" then handed a label-shaped question restates the label, the way
+// "Question: ... Answer: ..." homework format does). Removed — the user
+// message now opens with the bare question, nothing else. Re-run,
+// gemma2:2b, N=6/arm, same fixture (facts-before-draft-results-leaninput.json):
+//   A: 6/6, B: 6/6, C: 6/6 — EVERY arm now correct, ZERO question-echoes
+//   anywhere (echoedQuestion measured false on all 18 trials). The
+//   ceremony was confounding the comparison, not FACTS-vs-material.
+//
+// With correctness tied, token cost (Ollama's own telemetry, not
+// estimated) is the honest remaining differentiator:
+//   A: ~1213 prompt tokens avg, ~5.5s wall   (full raw prose, no help)
+//   B: ~716 prompt tokens avg,  ~3.4s wall   (facts only — cheapest, fastest)
+//   C: ~1812 prompt tokens avg, ~3.6s wall   (both — priciest)
+// B wins on the user's own stated principle: give the model only what it
+// needs. Disclosed residue, not hidden: B's whole answer depends on
+// extraction actually capturing what the question needs — a nuance the
+// SVO extractor drops (real limits, this file's own header: no relative-
+// clause coreference, occasional truncated objects on "Mr. X"-style
+// abbreviations) has nothing to fall back on once raw MATERIAL is gone
+// entirely, unlike C. Recommended for THIS fixture, THIS scale, not
+// claimed to generalize to a harder one un-re-measured.
+export const RECOMMENDED_ARM = "B";
+
 // The material below is CONSTRUCTED from verified real facts (WebFetch,
 // en.wikipedia.org/wiki/Abraham_Lincoln, 2026-08-19: Hamlin 1861-1865,
 // Johnson Mar-Apr 1865; Breckinridge/Buchanan and the 1860 rivalry are
@@ -80,6 +117,11 @@ function parseArgs(argv) {
     trials: 4,
     question: "who was Abraham Lincoln's vice president?",
     out: "facts-before-draft-results.json",
+    // null runs the full A/B/C comparison (the default — this is a
+    // comparison harness first). --only=C runs just the recommended arm,
+    // for a caller who wants the validated design's output without paying
+    // for A and B every time.
+    only: null,
     selfTest: false,
   };
   for (const a of argv) {
@@ -225,17 +267,17 @@ const EXECUTE_SYSTEM_PROMPT =
 // citable as a MATERIAL passage — otherwise a model that has never seen
 // this block shape has no way to know its epistemic status.
 //
-// Second sentence added after the first live run (2026-08-19): the initial
-// wording said only "cite its address the same way," and gemma2:2b
-// sometimes read that as license to answer WITH JUST an address and
-// nothing else — e.g. "The question is, who was Abraham Lincoln's vice
-// president? \n\n[fixture:lincoln-notes#119-241]" and stopped, a failure
-// mode raw MATERIAL never produced. Not a fixture change (the fixture
-// wasn't touched to chase this) — a real prompt bug, fixed by saying
-// explicitly what the base prompt already implies for prose but a terse
-// FACTS block apparently doesn't reinforce on its own.
+// A second sentence patching a truncation failure ("just cite an address
+// and stop") was tried here and removed (2026-08-19, user direction: give
+// the model only what it needs, don't stack correctional instructions on
+// top of a confusing input instead of fixing the input). The `Write this
+// part:` ceremony removed from buildArm below is the leading suspect for
+// BOTH the echo problem and this one — a model told "the part you are
+// given" then handed a terse label-shaped FACTS list may read "cite the
+// address" as license to treat the address itself as the deliverable.
+// Testing the leaner input alone before reaching for a second patch.
 const FACTS_ADDENDUM =
-  " Some material below may appear as a FACTS block instead of prose passages: each line there is a fact extracted mechanically from the real material, not a summary or a guess, and is exactly as citable as an ordinary passage — cite its address the same way. A citation is never the whole answer: write the actual sentence stating what the facts establish, with its citation, not a bare address on its own.";
+  " Some material below may appear as a FACTS block instead of prose passages: each line there is a fact extracted mechanically from the real material, not a summary or a guess, and is exactly as citable as an ordinary passage — cite its address the same way.";
 
 // ── the extraction step: hypergraph's own function, run BEFORE the draft ─
 //
@@ -292,7 +334,7 @@ function materialBlockText(passages) {
 
 function buildArm(kind, passages, question) {
   const facts = kind === "B" || kind === "C" ? factsRelevantTo(extractFacts(passages), question) : [];
-  const parts = [`Write this part: the question. ${question}`];
+  const parts = [question];
   if (kind === "A") parts.push(materialBlockText(passages));
   if (kind === "B") parts.push(factsBlockText(facts) ?? "FACTS THE MATERIAL ESTABLISHES — none extracted.");
   if (kind === "C") {
@@ -308,6 +350,48 @@ function buildArm(kind, passages, question) {
     ],
     facts,
   };
+}
+
+// ── a real formatting defect, fixed on the INPUT side, not the output ─────
+//
+// Flagged live (2026-08-19, user reading the actual outputs): nearly every
+// trial opened by echoing the raw question back verbatim as its own line
+// — "Who was Abraham Lincoln's vice president?\n\nAccording to the
+// material, Hannibal Hamlin..." First instinct was a post-hoc strip
+// function; user correction, directly on point: "the talking model should
+// only be given enough content to say what would be a good answer, it
+// shouldn't be post processed or steered very heavily." Right call — a
+// strip function treats the symptom every single call, forever; the real
+// question is why the INPUT invited the echo in the first place.
+//
+// Found it: every arm's user message opened with `Write this part: the
+// question. ${question}` — copied verbatim from production, where it is
+// correct (holon.js decomposes a task into several labeled parts, and
+// "the question" is a real section label distinguishing this part from
+// others). For a flat, undecomposed turn like this one there is only ever
+// one part, so the label is pure ceremony — and ceremony that LOOKS like
+// "Section: <label>. <content>" is exactly the shape that invites a model
+// to restate the label before writing the section, the way a student
+// writes "Question 1: ... Answer: ...". Removed for this experiment: the
+// user message now opens with the bare question, nothing else added to
+// tell the model not to repeat it (EXECUTE_SYSTEM_PROMPT's existing "do
+// not just restate the prompt back" line is untouched and unreinforced —
+// this is a test of whether removing the confusing input makes the
+// existing instruction unnecessary to lean on harder, not a second
+// instruction stacked on top of it).
+//
+// `questionIsEchoed` below only MEASURES this now — it changes nothing.
+// checkAnswer/groundingRead still run on the model's raw, complete,
+// unmodified text; the echo rate is reported as its own real, disclosed
+// number per arm, not silently fixed out of what's shown.
+
+function questionIsEchoed(text, question) {
+  const raw = String(text ?? "");
+  const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  const qNorm = norm(question);
+  if (!qNorm) return false;
+  const firstLine = (raw.split("\n").find((l) => l.trim()) ?? "").trim();
+  return norm(firstLine).includes(qNorm) && firstLine.length < question.length + 40;
 }
 
 // ── pre-declared checks (never a threshold, never a style grade) ─────────
@@ -396,26 +480,30 @@ async function main() {
   for (const f of relevant) console.log(`  - ${f.subject} ${f.verb} ${f.object} [${f.ref}]`);
   console.log("");
 
+  const arms = args.only ? [String(args.only).toUpperCase()] : ["A", "B", "C"];
+  if (args.only) console.log(`--only=${arms[0]} — running the recommended arm alone (RECOMMENDED_ARM=${RECOMMENDED_ARM})\n`);
+
   let log = taskLog.createTaskLog();
   const results = { A: [], B: [], C: [] };
 
-  for (const arm of ["A", "B", "C"]) {
+  for (const arm of arms) {
     console.log(`── arm ${arm} ──`);
     const { messages } = buildArm(arm, PASSAGES, args.question);
     for (let trial = 0; trial < args.trials; trial++) {
       const r = await callOllama({ ollama: args.ollama, model: args.model, messages, seed: 1000 + trial });
+      const echoed = questionIsEchoed(r.text, args.question);
       const checks = checkAnswer(r.text);
       const grounding = groundingRead(r.text, args.question);
-      log = landTrial(log, { arm, trial, model: args.model, result: r, checks, grounding });
-      results[arm].push({ trial, text: r.text, checks, grounding, wallMs: r.wallMs });
-      console.log(`  trial ${trial}: correct=${checks.correct} wrongUnqualified=${checks.wrongUnqualified} — "${r.text.trim().slice(0, 100).replace(/\n/g, " ")}${r.text.length > 100 ? "…" : ""}"`);
+      log = landTrial(log, { arm, trial, model: args.model, result: r, checks, grounding, echoed });
+      results[arm].push({ trial, text: r.text, echoed, checks, grounding, wallMs: r.wallMs });
+      console.log(`  trial ${trial}: correct=${checks.correct} wrongUnqualified=${checks.wrongUnqualified} echoedQuestion=${echoed} — "${r.text.trim().slice(0, 100).replace(/\n/g, " ")}${r.text.length > 100 ? "…" : ""}"`);
     }
     const correctN = results[arm].filter((x) => x.checks.correct).length;
     console.log(`  arm ${arm}: ${correctN}/${args.trials} correct\n`);
   }
 
   console.log("── summary ──");
-  for (const arm of ["A", "B", "C"]) {
+  for (const arm of arms) {
     const correctN = results[arm].filter((x) => x.checks.correct).length;
     const wrongN = results[arm].filter((x) => x.checks.wrongUnqualified).length;
     console.log(`  ${arm}: ${correctN}/${args.trials} correct, ${wrongN}/${args.trials} wrong-unqualified-Breckinridge`);

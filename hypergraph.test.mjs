@@ -227,6 +227,53 @@ test("a form-resolved subject with no matching edge is unbound, not silently bey
   assert.ok(claim.nearest.length > 0, "the nearest-edge disclosure fires here exactly as it does for a named subject");
 });
 
+test("verbForms (a received lexicon) widens vocabulary on material with NO named surface at all", async () => {
+  // No proper noun anywhere in this material — discoverRelationVocab's own
+  // surface-anchoring has nothing to anchor on, so without a received
+  // lexicon this essay-shaped material measures zero verbs, exactly like
+  // the nameless-material case below. A recurring word ("undergo", 2
+  // sentence arrivals — FORM_MIN_ARRIVALS) that a lexicon marks as a known
+  // verb form should be admitted anyway, entirely bypassing surface
+  // anchoring — this is the MINE-1 fix (eval/results/
+  // mine-1-unimorph-RESULTS.md): a received prior, not a second anchoring
+  // attempt (both anchor-widening attempts were tried and rejected first).
+  const passages = [
+    {
+      ref: "x.txt#0-100",
+      text:
+        "Butterflies undergo metamorphosis in spring gardens. " +
+        "Butterflies undergo metamorphosis every single year without fail.",
+    },
+  ];
+  const base = await organs();
+  const noLexicon = makeRelationReader(base)(passages);
+  assert.equal(noLexicon.vocabulary.verbs, 0, "no capitalized surface anywhere — nothing to anchor discovery on");
+
+  const withLexicon = makeRelationReader({ ...base, verbForms: new Set(["undergo", "undergoes"]) })(passages);
+  assert.equal(withLexicon.vocabulary.verbs, 1);
+  const report = withLexicon.read("Butterflies undergo metamorphosis.");
+  const claim = report.claims.find((c) => c.verb === "undergo");
+  assert.ok(claim, JSON.stringify(report.claims, null, 2));
+  assert.equal(claim.verdict, "bound");
+  assert.equal(claim.subject, "Butterflies");
+});
+
+test("verbForms never admits a hapax — the same recurrence floor identity resolution already earned", async () => {
+  // "vanish" appears exactly once — no signal that it is doing real verb
+  // work in THIS material, even though the lexicon says it CAN be a verb.
+  const passages = [{ ref: "x.txt#0-60", text: "Fireflies glow at dusk. The light will vanish by morning." }];
+  const base = await organs();
+  const withLexicon = makeRelationReader({ ...base, verbForms: new Set(["vanish"]) })(passages);
+  assert.equal(withLexicon.vocabulary.verbs, 0, "a one-off lexicon match must not enter the vocabulary");
+});
+
+test("verbForms is fully backward compatible — omitted, behavior is untouched", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const report = reader.read("Pierre Bezukhov married Helene.");
+  const bound = report.claims.find((c) => c.verb === "married" && c.verdict === "bound");
+  assert.ok(bound, "the existing flagship bound case must be unaffected by verbForms' existence");
+});
+
 test("no material means not examined; nameless material means a typed vocabulary gap", async () => {
   const make = makeRelationReader(await organs());
   const empty = make([]);

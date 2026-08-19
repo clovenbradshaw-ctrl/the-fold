@@ -138,6 +138,26 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * live corpus the closed-class measure runs over; omitted, the passages
  * stand in and the measure usually refuses itself (CORPUS_MINIMUM).
  */
+// `organs.verbForms`, when provided, is a Set of known verb SURFACE FORMS
+// from a received morphological resource (e.g. UniMorph's English paradigm
+// table — every inflected form UniMorph tags V;..., a real linguistic
+// prior with its own giver, not a hand-typed heuristic). Optional and
+// backward-compatible exactly like `forms` above: omitted, vocabulary
+// discovery is unchanged. Provided, every essay word that is ALSO a
+// recurring form (the SAME FORM_MIN_ARRIVALS-gated set endpoint() already
+// computes — reused, not a second recurrence measure) and is a known verb
+// form joins the vocabulary directly, no surface-anchoring involved at
+// all. This exists because discoverRelationVocab's own anchoring — reused
+// for endpoint identity above with real success — does NOT transfer to
+// VOCABULARY DISCOVERY: tried twice (recurring forms, then determiner-
+// phrases, as candidate ANCHORS for discoverRelationVocab itself) and
+// rejected both times on the merits (garbage triples like `subject: "of
+// a", verb: "butterfly"`) because that function's candidate-nomination
+// step assumes anchor SPARSITY that only proper names reliably give it —
+// see eval/results/mine-1-next-steps.md. A received lexicon sidesteps the
+// anchoring step entirely: it does not nominate candidates near an
+// anchor, it answers a direct question ("is this word ever a verb")
+// about every word in the essay.
 export function makeRelationReader(organs) {
   const {
     splitSentences,
@@ -145,6 +165,7 @@ export function makeRelationReader(organs) {
     discoverRelationVocab,
     extractRelations,
     tokenize,
+    verbForms = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -230,6 +251,19 @@ export function makeRelationReader(organs) {
       forms = new Set([...arrivals.entries()].filter(([, n]) => n >= FORM_MIN_ARRIVALS).map(([w]) => w));
     } catch {
       forms = new Set();
+    }
+
+    // ── vocabulary widened by a received lexicon, gated on recurrence ────
+    // Every recurring form (the SAME set just computed — one recurrence
+    // measure, not two) that a received morphological resource marks as a
+    // known verb surface form joins the vocabulary directly. Gated on
+    // recurrence for the identical reason forms are gated for identity
+    // above: a word seen once carries no signal that IT, in THIS
+    // material, is acting as a verb rather than appearing in some other
+    // role — the lexicon says the word CAN be a verb, recurrence is this
+    // tier's own corroboration that it is doing real work here.
+    if (verbForms) {
+      for (const w of forms) if (verbForms.has(w)) verbs.add(w);
     }
 
     // ── endpoint resolution ──────────────────────────────────────────────

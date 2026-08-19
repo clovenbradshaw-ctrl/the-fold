@@ -414,8 +414,17 @@ export function buildPlanPrompt(task, maxParts = MAX_PARTS) {
 // because they are the two failures measured live: restating the prompt
 // back (echo), and transcribing the passage instead of answering from it
 // (reproduction) — a photocopy that grounds perfectly and answers nothing.
+// No citation instruction, deliberately (2026-08-19): buildSourceBlock
+// stopped showing the model any address on 2026-08-18 — zero exposure to
+// this instrument's own addressing scheme, addresses attached mechanically
+// by cite.js — but this prompt kept ordering "cite the address in square
+// brackets exactly as it appears" when nothing appears. Measured live: the
+// model obeyed the only way it could, by inventing "[4]" and
+// "[Faculty & Research]", which then shipped as text and were parsed as
+// claims. An instruction referencing a thing the pipeline mechanically
+// removed is not a harmless leftover; it is a fabrication order.
 export const EXECUTE_SYSTEM_PROMPT =
-  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the prompt — do not copy sentences from it, and do not just restate the prompt back. When material is supplied, write from it and cite the address in square brackets exactly as it appears. Where the material does not cover the part, say so plainly instead of filling the gap.";
+  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the prompt — do not copy sentences from it, and do not just restate the prompt back. Where the material does not cover the part, say so plainly instead of filling the gap.";
 
 // The no-material reply's other face. A prompt that matched no material is
 // not necessarily a research gap — a greeting, a question of taste, a joke —
@@ -424,6 +433,61 @@ export const EXECUTE_SYSTEM_PROMPT =
 // no material framing, no citation grammar, just a reply to a person.
 export const CHAT_SYSTEM_PROMPT =
   "A friendly conversation with no source material. The user's message matched no document to cite, so reply to it directly, briefly, and naturally, as a person would. Do not restate the message back; say something new in response.";
+
+// S1's own face (2026-08-19, user direction: "prompt the system... to say
+// if it warrants fact checking, 'my first reaction' or 'off the top of my
+// head'... don't give it a list of options, give it the minimal prompting
+// that would get it to frame things like that"). No canned phrases: a
+// closed menu of exact wording is the same mistake L5/FLAT_EXECUTE's own
+// history already names — a small model asked to pick from a list reads as
+// a form filled in, not a person talking. This is one added clause, and it
+// asks for a JUDGMENT ("is what I'm about to say worth checking"), not a
+// performance — the same first-person hedge honest speech already reaches
+// for on an off-the-cuff answer, in the model's own words rather than
+// ours. Plain conversation is explicitly exempted so "hi" stays "hi".
+export const S1_SYSTEM_PROMPT =
+  `${CHAT_SYSTEM_PROMPT} If what you're about to say is the kind of thing worth checking, let that show naturally in how you say it — plain conversation doesn't need that.`;
+
+// The void, acknowledged (2026-08-19, user direction: "if the surf did not
+// turn something up, the model should be fed the acknowledgement of this
+// void"). Before this, a preflight search that ran and found nothing looked
+// IDENTICAL to a turn where no search was ever attempted — the model had no
+// way to know the difference, so a materialless answer and a
+// searched-and-came-up-empty answer read the same way to it. This is
+// information, not an instruction (facts-before-draft.mjs's own finding,
+// same day: give the model only what it needs, don't stack behavioral
+// steering on top) — CHAT_SYSTEM_PROMPT's existing honesty framing already
+// covers what to DO with an empty search; this only supplies the FACT that
+// one happened.
+export const SEARCHED_VOID_PREFIX = "A web search ran for this and found nothing usable — the search came back empty, it was not skipped.";
+
+// The System 1 / System 2 pass (2026-08-19, user direction: "one is just
+// the raw transcript that gets summarized for size and responds fast, the
+// next is the system 2 response, which also has access to the fast
+// response"). Same posture as SEARCHED_VOID_PREFIX, same reasoning: this is
+// INFORMATION handed to the checked pass, never a behavioral instruction
+// stacked on top — S2 is free to confirm, extend, or contradict what S1
+// said; nothing here tells it which. `priorPassFor(text)` builds the fact
+// sentence from S1's own answer; a caller with no S1 pass (or one that was
+// gated off) simply never calls it, so every existing caller of runPart/
+// runHolonicTask is byte-identical to before this existed.
+export const priorPassFor = (text) =>
+  `A faster, unchecked first pass already answered this: "${String(text ?? "").trim()}" You may confirm it, extend it, or correct it — check it against what you find rather than assuming it is right.`;
+
+// The flat turn's material prompt speaks at the OBJECT level (2026-08-19,
+// user direction: "we're being fed the wrong level of response"). The old
+// shape wrapped the person's message inside a meta-directive — "Write this
+// part: the question. research Robert Macnamera" — and prompt format
+// matches output format: fed a description of the task, a small model
+// answers with a description of the task ("This prompt asks you to research
+// Robert McNamara…", measured live, shipped). So the flat call is shaped
+// like the conversation it is: duty and material in the system prompt, the
+// real history as messages, the person's message itself as the final user
+// turn — never a directive about it. Decomposed parts keep the directive
+// shape: there a part label genuinely exists and the meta level is the
+// true level.
+export const FLAT_EXECUTE_SYSTEM_PROMPT =
+  "You are answering the latest message in a conversation. Passages retrieved for this turn follow. Answer the message in your own words — do not describe the message or the passages, and do not restate the message back. Write from the passages when they cover the question; where they do not cover it, say so plainly instead of filling the gap.";
 
 export function buildExecutePrompt(part, sourceBlock, discourse = "") {
   const head = `Write this part: ${part.label}. ${part.description}`;
@@ -444,20 +508,37 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
     return (
       `Your draft for "${part.label}" copies the passage word for word. Copying is not answering. ` +
       `Answer the question in your own words — a short paragraph saying what the passage shows about it, ` +
-      `quoting at most one sentence, and cite the address in square brackets.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+      `quoting at most one sentence.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
   }
   if (mode === "echo") {
     return (
       `Your draft for "${part.label}" restates the prompt instead of answering it. ` +
-      `Answer it from the material in your own words, citing the address in square brackets; ` +
+      `Answer it from the material in your own words; ` +
       `if the material does not answer it, say so plainly.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+    );
+  }
+  if (mode === "narrated") {
+    return (
+      `Your draft for "${part.label}" describes the passage instead of answering the question — ` +
+      `sentences like "this passage details…" or "it highlights…" are about the material, not an ` +
+      `answer drawn from it. State the answer directly, in your own words, using what the passage says.\n\n` +
+      `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
+    );
+  }
+  if (mode === "incomplete") {
+    return (
+      `Your draft for "${part.label}" answers as if there is only one, but the material states more than one:\n` +
+      failures.map((f) => `- ${f}`).join("\n") +
+      `\n\nRewrite to name all of them, or say plainly that the material lists more than one. ` +
+      `Do not invent a reason to prefer one over the others unless the material itself gives one.\n\n` +
+      `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
   }
   return (
     `Your draft for the part "${part.label}" contains statements the supplied material does not support:\n` +
     failures.map((f) => `- ${f}`).join("\n") +
-    `\n\nRewrite the part using only what the passages state, citing addresses in square brackets. ` +
+    `\n\nRewrite the part using only what the passages state. ` +
     `Where the material is silent, say so instead.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
   );
 }
@@ -608,18 +689,63 @@ export async function runPart({
   // this turn just fetched to answer it. Default false so every existing
   // caller — every decomposed part — is byte-identical to before.
   flat = false,
+  // The fact that a preflight web search ran BEFORE this part and found
+  // nothing — a string naming what was searched, or null when no search
+  // happened at all (never attempted and attempted-and-empty must read as
+  // different facts to the model, not the same silence). Flat only, and
+  // only reaches the chat branch below (a part that HAS passages already
+  // knows the surf turned something up; this is specifically the void).
+  searchedVoid = null,
+  // S1's own answer text, or null when there was no fast pass (or the S2
+  // gate never fired). Flat only, reaching both the chat branches and the
+  // flat material branch (unlike searchedVoid, S1's answer stays relevant
+  // once material exists too — "here's what a fast pass said, check it
+  // against what you now have"). See priorPassFor, above.
+  priorPass = null,
   onProgress = null,
 }) {
-  // The conversation's own anchor (the same fix already applied to app.js's
-  // single-source corroboration door, moved one level earlier): folded into
-  // retrieval only for the flat part, so a decomposed part's deliberately
-  // narrow scoping is untouched.
-  const question =
-    flat && discourse ? `${part.label} ${part.description} ${discourse}` : `${part.label} ${part.description}`;
+  // Stable sub-assemblies (2026-08-19, user direction). The part's own words
+  // and the fold's discourse line are two DIFFERENT assemblies, and the old
+  // unconditional concatenation let one contaminate the other: measured
+  // live, "research Robert Macnamera" asked right after a greeting retrieved
+  // greeting-etiquette passages, because the stale topic's words ("Greeting
+  // exchange · …") rode into the query on spec and out-voted a misspelled
+  // name that matched nothing. The discourse anchor exists for the OPPOSITE
+  // case — a topic-less follow-up ("prove it") whose own words anchor
+  // nothing — so the join is now earned by measurement, never assumed:
+  // retrieve on the part's own words first; only when that comes back EMPTY
+  // does a flat part widen with the discourse line, and the widening is
+  // disclosed on the research progress event rather than folded in silently.
+  //
+  // The label joins the query only for a DECOMPOSED part, where it is a
+  // real, model-authored search phrase ("Nashville founding year"). A flat
+  // part's label is never that — `runHolonicTask` hardcodes it to the
+  // literal string "the question" (a narration constant: it is what turns
+  // the progress line into "the question: 3 passage(s) retrieved", nothing
+  // more), so joining it here folded the bare word "question" into every
+  // flat retrieval query regardless of what was actually asked. Measured
+  // live 2026-08-19: "who was abraham lincoln's vice president?" retrieved
+  // a passage about "the slavery question" at the 1860 Democratic National
+  // Convention over the material's own Hamlin/Johnson succession-box facts,
+  // on that one shared, meaningless word — the model then had a real answer
+  // sitting in the same material and a spurious one ranked ahead of it, and
+  // (being small) narrated the wrong one instead of answering. This is a
+  // sibling of the "Write this part: the question. …" bug the flat/decomposed
+  // prompt split above already fixed the SAME day for the model-facing
+  // text — the meta label leaked into content here too, just one layer
+  // over, in the query rather than the prompt.
+  const partWords = flat ? part.description : `${part.label} ${part.description}`;
   const live = chunks ?? [];
-  const passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
+  let question = partWords;
+  let passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
+  let widened = false;
+  if (!passages.length && flat && discourse && live.length) {
+    question = `${partWords} ${discourse}`;
+    passages = retrieve(live, question, passagesPerPart, foldedRefs);
+    widened = passages.length > 0;
+  }
   const sourceBlock = buildSourceBlock(passages);
-  onProgress?.("research", part, { passages: passages.map((p) => p.ref) });
+  onProgress?.("research", part, { passages: passages.map((p) => p.ref), widened });
 
   // The plan steers this part's retrieval — that is what a plan is for — but
   // steering is disclosed, never silent: a part whose words share nothing
@@ -649,8 +775,18 @@ export async function runPart({
     // failure as one invented in a sentence, and must land in the same list.
     const shipped = `${part.label}\n${text}`;
     const { used, unsupported } = checkCitations(shipped, passages);
+    // Symmetric with retrieval above: the discourse joins the grounding
+    // question only where the task's own words demonstrably failed to
+    // anchor — retrieval had to widen, or there are no passages at all (the
+    // P23 no-material case this anchor was built for, where the folded
+    // question is what keeps a topic-less follow-up's proof search on the
+    // real conversation). A part whose own words retrieved its material
+    // keeps its own words: the findings' sentences, and every proof query
+    // built from them, stop inheriting a stale topic's vocabulary.
     const groundingQuestion =
-      flat && discourse ? `${task} ${part.description} ${discourse}` : `${task} ${part.description}`;
+      flat && discourse && (widened || !passages.length)
+        ? `${task} ${part.description} ${discourse}`
+        : `${task} ${part.description}`;
     const checkedGrounding = checkGrounding(shipped, passages, {
       question: groundingQuestion,
       resolveName,
@@ -691,7 +827,27 @@ export async function runPart({
     // join the unsupported list and drive the same bounded correction;
     // beyond-reach and unheard stay disclosure-only (limits of the
     // instrument, not failures of the answer).
-    const relationReport = relations ? relations.read(shipped) : null;
+    //
+    // `text` alone, NOT `shipped` — unlike checkCitations/checkGrounding
+    // above (which legitimately want a figure invented IN the label
+    // caught too), relations.read() extracts SVO by a subject span that
+    // can run up to two tokens across whitespace, INCLUDING a newline.
+    // Measured live 2026-08-19 (the completeness-gate work): a flat
+    // turn's label is literally "the question" (the hardcoded flat-mode
+    // constant), so `shipped` reads "the question\nLincoln appointed
+    // Hamlin…" — and the subject span bridged the newline, extracting
+    // "question\nLincoln" as the claim's subject instead of "Lincoln".
+    // The verdict itself still resolved correctly (endpoint() also
+    // matches by surface substring, so "question\nLincoln" still found
+    // the Lincoln referent) — but two claims for the SAME real subject
+    // now carried two DIFFERENT subject strings, one polluted and one
+    // clean, so a caller grouping claims by subject+verb (the
+    // completeness gate, below) saw two distinct slots instead of one and
+    // wrongly convicted an answer that had, in fact, named every filler.
+    // A part's label is never itself a sentence worth relation-checking
+    // (flat mode's is a constant with no content at all; a decomposed
+    // part's is a short phrase), so nothing is lost dropping it here.
+    const relationReport = relations ? relations.read(text) : null;
     // Every quotation followed to the bytes (quotes.js): a fabricated
     // quotation joins the unsupported list — the strongest claim an answer
     // makes gets the same bounded correction as an invented figure. That
@@ -865,8 +1021,15 @@ export async function runPart({
   // pinned by a test; both are named here so a widened vocabulary or a
   // mid-draft cut are recognized as the next measured passes, not
   // rediscovered from scratch.
+  // Extended 2026-08-19 with the same measured shapes provenance.js's
+  // register gained the same day (the two lists name one register — extend
+  // both together, never one alone): subjects prompt|question with up to
+  // four modifier words between determiner and noun ("The 1960 World
+  // Series question … is directly related to baseball playoffs", shipped
+  // live as a whole answer), and the relate verb lemma from that same
+  // specimen.
   const DIALOGUE_NARRATION_RE =
-    /^[\s"'“”‘’(\[]*(?:the|this|that|your|our)\s+(?:user|users|conversation)\b[^.,;:—–!?]*?\b(?:ask|asks|asked|asking|start|starts|started|starting|wait|waits|waited|waiting|look|looks|looked|looking)\b/i;
+    /^[\s"'“”‘’(\[]*(?:the|this|that|your|our)\s+(?:[\p{L}\p{N}'’-]+\s+){0,4}?(?:user|users|conversation|prompt|question)\b(?:\s*,[^,\n]*,)?[^.,;:—–!?]*?\b(?:ask|asks|asked|asking|start|starts|started|starting|wait|waits|waited|waiting|look|looks|looked|looking|relate|relates|related|relating)\b/iu;
   const isFraming = (sentence) => {
     if (FENCE_LINE.test(sentence)) return false;
     // A sentence that ends by asking is asking, not answering — two of the
@@ -981,19 +1144,50 @@ export async function runPart({
   // to send raw. Without history, fall back to the one-line discourse
   // slice.
   const chatContext = discourse ? `\n\nThe conversation so far: ${discourse}` : "";
+  // The conversation is its own assembly, and the flat material path gets it
+  // REAL — the same role-structured history the chat path already sends —
+  // never only the one-line paraphrase. Measured live (2026-08-19): "what is
+  // my name?" ran the material path, which used to drop history entirely the
+  // moment passages existed, so the model dutifully summarized a
+  // preflight-fetched page about a stranger instead of seeing the
+  // conversation it was asked about. A regular model with the full context
+  // answers that honestly; this instrument may not do worse than the null
+  // it exists to beat. And the person's message arrives as ITSELF — the
+  // final user turn, verbatim — with duty and material in the system prompt
+  // (FLAT_EXECUTE_SYSTEM_PROMPT above says why: fed a directive about the
+  // task, a small model answers with a description of the task). Flat only:
+  // a decomposed part's small prompt is the point of running as parts at
+  // all, and its history stays out by design.
+  // S1's own answer, when there was one and the S2 gate let this part run
+  // (priorPassFor, above) — flat only, same reach as searchedVoid, folded
+  // in alongside it rather than replacing it: a turn can both have run a
+  // preflight search AND have a fast first pass to check.
+  const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
+  const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
   const executeMessages = passages.length
-    ? [
-        { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-        { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
-      ]
+    ? flat
+      ? [
+          {
+            role: "system",
+            content:
+              [FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") +
+              (chatHistory.length ? "" : chatContext),
+          },
+          ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
+          { role: "user", content: task || `${part.label}. ${part.description}` },
+        ]
+      : [
+          { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+          { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
+        ]
     : chatHistory.length
       ? [
-          { role: "system", content: CHAT_SYSTEM_PROMPT },
+          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: CHAT_SYSTEM_PROMPT },
+          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
           { role: "user", content: `${task}${chatContext}` },
         ];
   onProgress?.("execute", part, {
@@ -1010,65 +1204,138 @@ export async function runPart({
   // claim to verify. What was hidden is disclosed once, below — the fact
   // that it happened is on the record; its content is not.
   const scaffoldRemoved = [];
+  let lastCleanRemoved = 0;
+  // stripNarrationSentences (provenance.js) used to CUT its matches
+  // ("This passage details…", "It highlights…") straight out of the
+  // shipped draft — silent surgery on the model's own sentences, with no
+  // way for the model to have a say in it. User direction, 2026-08-19,
+  // reacting to exactly that live: "no post processing. the model says
+  // what it says. we can fact check or revise what it said later — not
+  // rewriting but changing its mind." It now runs in DETECT-ONLY mode:
+  // `lastNarrationCut`/`lastNarrationTotal` measure how much of the draft
+  // it would have removed, and verdictOf below turns that measurement into
+  // `narrated`, a verdict that joins echoed/reproduced in the SAME
+  // correction loop everything else already goes through — a real second
+  // call, told plainly what went wrong, so what ships is either the
+  // model's own revised words or (if it still fails) the same disclosed
+  // mechanical fallback echoed/reproduced already use. Never a quiet edit
+  // to sentences the model was never shown was made.
+  let lastNarrationCut = 0;
+  let lastNarrationTotal = 0;
   const clean = (raw) => {
-    const { text: t, removed } = stripScaffoldNarration(raw);
-    // The unbracketed register too — "This passage indicates that…" — with
-    // its word classes earned against live_priors' null (see provenance.js).
-    const second = stripNarrationSentences(t, { discourse, hasMaterial: passages.length > 0 });
-    scaffoldRemoved.push(...removed, ...second.removed);
-    return second.text;
+    const scaffold = stripScaffoldNarration(raw);
+    const narration = stripNarrationSentences(scaffold.text, {
+      discourse,
+      hasMaterial: passages.length > 0,
+    });
+    lastCleanRemoved = scaffold.removed.length;
+    scaffoldRemoved.push(...scaffold.removed);
+    lastNarrationCut = narration.removed.join(" ").length;
+    lastNarrationTotal = scaffold.text.length;
+    return scaffold.text;
   };
+  // Completeness (2026-08-19, user direction: "we STILL are not getting
+  // Johnson, it's not adversarially checking if there is more to the
+  // story" / "every question like that spin up a little def eva rec that
+  // has a completeness gate"). hypergraph.js's clusterFillers already
+  // computes exactly this — a bound claim whose subject+verb binds MORE
+  // than one distinct object (Lincoln —appointed→ {Hamlin, Johnson}) — and
+  // was sitting unread: the Lincoln/Hamlin/Johnson turn's own verification
+  // taxonomy carried `fillers` on the claim the whole time, and nothing
+  // downstream ever asked. `isIncomplete` is that ask: a BOUND claim
+  // (never unbound — a wrong answer is a different, already-handled
+  // problem, P33's own unbacked/unsupported split) with more than one real
+  // filler means the question's own singular phrasing outran what the
+  // material actually has, the exact Strawson/Russell uniqueness gap P33's
+  // own header names. Scoped to `check.relations`, computed at verdictOf's
+  // call sites (both already hold a fresh `check`).
+  // A single claim carrying `fillers.length > 1` is not by itself proof of
+  // an incomplete ANSWER — clusterFillers computes cardinality once per
+  // slot and every claim sharing that slot reports the identical list, so
+  // an answer that names every filler across SEVERAL sentences ("Lincoln
+  // appointed Hamlin. Lincoln also appointed Johnson.") would still have
+  // each individual claim carrying both names in `fillers`, and a naive
+  // per-claim check would wrongly convict a genuinely complete answer.
+  // What actually matters is COVERAGE: across every claim this answer
+  // makes for one slot (subject+verb), does the union of what it actually
+  // SAID cover every filler the material states? One entry per slot,
+  // never one per claim, so a slot is never reported twice.
+  const incompleteClaimsOf = (c) => {
+    const claims = c?.relations?.claims ?? [];
+    const seenSlots = new Set();
+    const result = [];
+    for (const claim of claims) {
+      if (claim.verdict !== "bound" || !(claim.fillers?.length > 1)) continue;
+      const slot = `${claim.subject}|${claim.verb}`;
+      if (seenSlots.has(slot)) continue;
+      const named = claims
+        .filter((c2) => c2.verdict === "bound" && `${c2.subject}|${c2.verb}` === slot)
+        .map((c2) => foldTypography(c2.object).toLowerCase());
+      const uncovered = claim.fillers.filter((f) => {
+        const ft = foldTypography(f.object).toLowerCase();
+        return !named.some((t) => t.includes(ft) || ft.includes(t));
+      });
+      if (uncovered.length) {
+        seenSlots.add(slot);
+        result.push({ ...claim, uncovered });
+      }
+    }
+    return result;
+  };
+  const isIncomplete = (c) => incompleteClaimsOf(c).length > 0;
+  // The concrete diagnosis buildCorrectionPrompt's "incomplete" mode needs:
+  // not "be more complete" (teaches nothing, judge()'s own stated reason
+  // every mode here names what actually went wrong) but the real fillers,
+  // by name, so the model is told exactly what the material states rather
+  // than asked to guess what "more" might mean. Named as `uncovered` —
+  // what the answer is STILL missing, not the full filler list including
+  // what it already got right.
+  const incompleteFindings = (c) =>
+    incompleteClaimsOf(c).map(
+      (claim) =>
+        `"${claim.subject} ${claim.verb} ${claim.object}" — the material also states: ${claim.uncovered.map((f) => f.object).join(", ")}`,
+    );
+  // The verdict, with the cut accounted for: judge() deliberately reads a
+  // genuinely empty reply as no-verdict ("produced no text" is its own typed
+  // open, not an echo) — but a draft stripScaffoldNarration EMPTIED is the
+  // dialogue-narration echo wearing its verdict, and hiding it must not also
+  // hide the failure from the correction ladder and the mechanical fallback
+  // that exist to answer past it. `narrated` is the mass-majority test
+  // reproducedFromContent already uses for copying, aimed at narration
+  // instead (P9: no hand-set threshold where a structural rule — "more of
+  // the draft is narration than not" — already exists). Material path only,
+  // like every other verdict.
+  const verdictOf = (t, c) =>
+    !passages.length
+      ? { echoed: false, reproduced: false, narrated: false, incomplete: false }
+      : !String(t ?? "").trim() && lastCleanRemoved > 0
+        ? { echoed: true, reproduced: false, narrated: false, incomplete: false }
+        : {
+            ...judge(t),
+            narrated: lastNarrationTotal > 0 && lastNarrationCut > lastNarrationTotal / 2,
+            incomplete: isIncomplete(c),
+          };
 
   const rawDraft = await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
   draft = clean(rawDraft);
   check = inspect(draft);
-  let verdict = judge(draft);
-  // clean() has no verdict vocabulary of its own — it only knows how to
-  // delete a matched sentence, never how to say why. A draft that was ALL
-  // narration cleans to nothing, and judge("")'s empty-input branch reads
-  // that as "no text produced," a materially weaker finding than "the
-  // model narrated instead of answering": it skips the correction retry
-  // and the mechanical fallback, so a wholly-narrated turn ships nothing
-  // at all rather than the material's own addressed sentences. Measured
-  // 2026-08-18 by this file's own regression the moment it met the
-  // now-landed clean()-level narration strip on main: the exact 3-turn
-  // NYC-weather transcript regressed from "echoed, mechanical fallback
-  // ships the real forecast" to silently empty. A draft that HAD real
-  // sentences before cleaning and has none after is exactly the case
-  // judge() cannot see from `draft` alone, so it is named here instead.
-  if (!draft.trim() && String(rawDraft ?? "").trim()) verdict = { echoed: true, reproduced: false };
-
-  // A prompt that matched no material and whose draft only restates it is
-  // plain chat, not a research gap: "hi" should be greeted, not diagnosed.
-  // The material correction loop below has nothing to correct against — no
-  // passages — and a material-framed rewrite of a greeting just echoes the
-  // greeting again, so it is skipped in favour of ONE neutral conversational
-  // call. Whatever a material-framed prompt cannot answer as a finding it
-  // may still answer as a person.
-  if (verdict.echoed && !passages.length) {
-    const chatMessages = chatHistory.length
-      ? [
-          { role: "system", content: CHAT_SYSTEM_PROMPT },
-          ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
-          { role: "user", content: task },
-        ]
-      : [
-          { role: "system", content: CHAT_SYSTEM_PROMPT },
-          { role: "user", content: task },
-        ];
-    const chat = clean(
-      await call(
-        chatMessages,
-        { effort: "low", maxTokens: EXECUTE_MAX_TOKENS },
-      ),
-    );
-    const chatVerdict = judge(chat);
-    if (!chatVerdict.echoed && !chatVerdict.reproduced) draft = chat;
-    else verdict = chatVerdict;
-  }
+  // Echo and reproduction are MATERIAL-level judgments — a draft measured
+  // against passages it should have answered from. A passage-less turn is
+  // plain chat (its first call already runs under CHAT_SYSTEM_PROMPT, with
+  // real history), and judging conversation by material rules is a category
+  // error at the wrong level — measured live 2026-08-19: "hey" answered
+  // "Hey there! 😄 What's going on?" was convicted as echo ("Hey there" is
+  // the greeting's own words; a question back ends in "?"), a second,
+  // near-identical chat call was spent re-rolling the same dice, and the
+  // ship-time framing cut then deleted everything but the emoji. On the
+  // chat path the verdict machinery stands down: no echo retry (the old
+  // retry re-sent the SAME messages the first call already ran), no
+  // correction loop (already passage-gated below), and no framing cut (also
+  // gated below). What the person gets is what the model said, as a person.
+  let verdict = verdictOf(draft, check);
 
   while (
-    (check.unsupported.length || verdict.echoed || verdict.reproduced) &&
+    (check.unsupported.length || verdict.echoed || verdict.reproduced || verdict.narrated || verdict.incomplete) &&
     // The correction prompt answers "from the material" — with no passages
     // it cannot, and a material-framed rewrite of a passage-less echo just
     // produces a diagnosis of the prompt. The chat path above is the whole
@@ -1077,24 +1344,29 @@ export async function runPart({
     corrections < maxCorrections
   ) {
     corrections++;
-    const mode = verdict.reproduced ? "reproduction" : verdict.echoed ? "echo" : "unsupported";
+    const mode = verdict.reproduced
+      ? "reproduction"
+      : verdict.echoed
+        ? "echo"
+        : verdict.narrated
+          ? "narrated"
+          : verdict.incomplete
+            ? "incomplete"
+            : "unsupported";
+    const correctionFailures = mode === "incomplete" ? incompleteFindings(check) : check.unsupported;
     const correctionMessages = [
       { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-      { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, check.unsupported, mode) },
+      { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, correctionFailures, mode) },
     ];
     onProgress?.("correct", part, {
-      failures: check.unsupported,
+      failures: correctionFailures,
       mode,
       promptChars: correctionMessages.reduce((n, m) => n + m.content.length, 0),
     });
     const rawCorrected = await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
     draft = clean(rawCorrected);
     check = inspect(draft);
-    verdict = judge(draft);
-    // Same empty-after-cleaning gap as the first draft, above — a
-    // correction that answers with more narration must not read as a
-    // quieter failure than the draft it was correcting.
-    if (!draft.trim() && String(rawCorrected ?? "").trim()) verdict = { echoed: true, reproduced: false };
+    verdict = verdictOf(draft, check);
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction
@@ -1108,7 +1380,7 @@ export async function runPart({
   // judge() is NOT re-run on it — quoting the material is this text's
   // declared method, not a failure of it.
   let mechanical = false;
-  if ((verdict.echoed || verdict.reproduced) && passages.length) {
+  if ((verdict.echoed || verdict.reproduced || verdict.narrated) && passages.length) {
     const assembled = mechanicalAnswer(question, passages);
     if (assembled) {
       draft = assembled;
@@ -1187,11 +1459,17 @@ export async function runPart({
   // The SAME sentences judge() already classified are the ones shipped, so
   // what was judged is what leaves. A draft that is nothing but framing
   // ships nothing — the typed gap below says why.
+  // MATERIAL PATH ONLY, both cuts (2026-08-19): framing is a material-level
+  // judgment, and running it on conversation deleted a real greeting down
+  // to its emoji (measured live — "Hey there! 😄 What's going on?" shipped
+  // as "😄": the opening made of the greeting's own words, the question
+  // back convicted by the question-mark rule). In plain chat what the
+  // person gets is what the model said.
   const raw = String(draft ?? "").trim();
   const sentences = splitSentences(raw.replace(ADDRESS_RE, " "))
     .map((s) => s.trim())
     .filter(Boolean);
-  const firstContent = sentences.findIndex((s) => !isFraming(s));
+  const firstContent = passages.length ? sentences.findIndex((s) => !isFraming(s)) : sentences.length ? 0 : -1;
   // Dropping the framing prefix is a CUT, never a rejoin. Rejoining trimmed
   // sentence pieces with spaces destroyed every newline and indent the
   // draft had — measured live on a fenced Python block, which arrived at
@@ -1238,7 +1516,7 @@ export async function runPart({
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.
-  if ((verdict.echoed || verdict.reproduced) && !mechanical) {
+  if ((verdict.echoed || verdict.reproduced || verdict.narrated) && !mechanical) {
     check = { ...check, refs: [], used: [], attributed: [], channels: [] };
   }
   const open = [
@@ -1247,6 +1525,16 @@ export async function runPart({
     ...(verdict.reproduced
       ? [`answer reproduces the material verbatim; it does not answer the prompt: ${part.label}`]
       : []),
+    ...(verdict.narrated
+      ? [`answer describes the material instead of answering from it: ${part.label}`]
+      : []),
+    // Unlike echoed/reproduced/narrated, an incomplete answer is not a
+    // failure — the correction loop got one real, honest shot at naming
+    // every filler; if it's STILL incomplete when the budget runs out, the
+    // (still true, still readable) answer ships as-is rather than being
+    // torn up by the mechanical fallback, and the gap stays disclosed here
+    // by name rather than silently dropped.
+    ...(verdict.incomplete ? incompleteFindings(check).map((f) => `answer names only one of several the material states: ${f}`) : []),
     ...(mechanical
       ? [`shipped text assembled mechanically from the material's own sentences, each with its address: ${part.label}`]
       : []),
@@ -1297,6 +1585,13 @@ export async function runHolonicTask({
   chatHistory = [],
   discourse = "",
   planMode = "model",
+  // Threaded straight to the flat part's chat branch (searchedVoid up top
+  // says why) — a task-wide fact, since a preflight search runs once,
+  // before the plan, never per-part.
+  searchedVoid = null,
+  // S1's own answer, task-wide for the identical reason searchedVoid is —
+  // one fast pass ran once, before the plan, never per-part.
+  priorPass = null,
   onProgress = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -1394,6 +1689,8 @@ export async function runHolonicTask({
       // no case where this callback runs for a part that isn't the flat one
       // when planMode is "flat".
       flat: planMode === "flat",
+      searchedVoid,
+      priorPass,
       onProgress,
     });
     seenRefs.push(...result.refs);

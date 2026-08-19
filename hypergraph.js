@@ -39,6 +39,18 @@
 //                  does bind (same subject and verb, or same verb and
 //                  object) so the reader sees what the text says instead —
 //                  the affordance that turns a flag into an explanation.
+//                  Sometimes carries `competing` too (added 2026-08-19,
+//                  P32's named follow-up): when the material binds this
+//                  EXACT verb+object to one and only one OTHER subject —
+//                  "the Pirates won the 1960 World Series" against a claim
+//                  the Yankees did — that is stronger evidence than an
+//                  ordinary neighbour, gated on the object resolving to a
+//                  referent and on every edge sharing the slot pointing to
+//                  the SAME subject (a slot the material shows filled by
+//                  two+ different subjects proves nothing and stays plain
+//                  unbound). This is the mechanical half of what testimony.js's
+//                  witness tier covers semantically for everything a
+//                  subject-swap cannot reach structurally — see P32.
 //   beyond-reach — an endpoint does not resolve to any referent this
 //                  material establishes (a pronoun subject, an abstract
 //                  object). This tier cannot read the claim, and says so —
@@ -149,8 +161,9 @@
 // the-fold/eval/results/mine-1-lemma-RESULTS.md.
 
 import { makeReferentIndex } from "./cast.js";
-import { blankStructure } from "./grounding.js";
+import { blankStructure, numberSet } from "./grounding.js";
 import { commonTerms, CORPUS_MINIMUM } from "./cite.js";
+import { foldDiacritics } from "./source.js";
 import { orderArm, standingOf } from "./asserted.js";
 
 // ── declared numbers, each with its justification ───────────────────────────
@@ -166,6 +179,16 @@ import { orderArm, standingOf } from "./asserted.js";
 // edge, only read more of the ones the text states. corpus.js makes the
 // same declaration at span scale (minSurfaces: 1) for the same reason.
 export const MIN_SURFACES_PER_VERB = 1;
+
+// GRAMMAR_MIN_SHARE = 0.5. dominantClass's own declared-never-defaulted
+// contract (perceiver/text/wordclass.js) requires a caller to say how
+// dominant a class must be to collapse; 0.5 is not tuned against any
+// reading here — it is the SAME number packages/host/hyperlexicon.js
+// already uses (WORDCLASS_MIN_SHARE) for the identical question, with the
+// identical justification carried over: a literal majority is the
+// smallest bar that means "more than everything else combined" rather
+// than a curve fit to any one word or golden.
+export const GRAMMAR_MIN_SHARE = 0.5;
 
 // Display bound on the nearest-edge disclosure, not on belief: every edge
 // stays in the report's own graph; only the per-claim nearest list is
@@ -211,6 +234,18 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * live corpus the closed-class measure runs over; omitted, the passages
  * stand in and the measure usually refuses itself (CORPUS_MINIMUM).
  *
+ * `organs.posPriorFor` — OPTIONAL, a zero-arg accessor (app.js's own lazy-
+ * accessor pattern, the same shape as its `relationsFor`/`skillLibrary`/
+ * `callModel` entries) returning a POSPrior@1 object or null. When it
+ * returns real data, every edge and every claim (`read()`'s output) also
+ * carries `grammar` — perceiver/text/wordclass.js's real, treebank-measured
+ * answer to "is this connector's FORM actually a verb", cross-validating
+ * discoverRelationVocab's own SLOT-only measurement without ever filtering
+ * it (2026-08-19: "we now have an infinitely richer hypergraph with parts
+ * of speech", user direction, after a live "party" false-verb specimen).
+ * Omitted, or not yet resolved: `grammar` is `null` everywhere, and
+ * everything else is byte-identical to before this existed.
+ *
  * `relationsFor(passages, { negationWords })` threads straight through to
  * discoverRelationVocab/extractRelations's own injected-prior seam
  * (relations.js, following bin/priors/lang/en.json's pattern in
@@ -235,7 +270,12 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * cut has been earned (asserted.js's header carries the reasoning). None
  * of this convicts: relationFindings and relationsClean are unchanged, so
  * an edge's weak standing reaches the reader as disclosure, not as a mark
- * against the answer.
+ * against the answer. `grammar` (treebank evidence) and `assertion`
+ * (structural corroboration/word-salad) are two INDEPENDENT measures of
+ * the same underlying concern — a connector's own FORM against real
+ * language evidence, versus how much the material's own recurrence and a
+ * shuffled-null back this specific edge — neither replaces the other, and
+ * both ride the same edge/claim disclosed side by side.
  */
 // `organs.verbForms`, when provided, is a Set of known verb SURFACE FORMS
 // from a received morphological resource (e.g. UniMorph's English paradigm
@@ -301,12 +341,12 @@ export function makeRelationReader(organs) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
     const emptyReport = (examined) => ({
       examined,
-      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB },
+      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false },
       edges: [],
       claims: [],
     });
     if (!list.length) {
-      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB }, edges: [], read: () => emptyReport(false) };
+      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false }, edges: [], read: () => emptyReport(false) };
     }
 
     const text = list.map((p) => p.text).join("\n\n");
@@ -344,6 +384,24 @@ export function makeRelationReader(organs) {
     // have said it. Surfaces are the index's own established surfaces, so
     // vocabulary discovery and endpoint resolution see the same cast.
     const surfaces = [...new Set(index.events.map((e) => e.surface))];
+    // SLOT is not CLASS (perceiver/text/wordclass.js's own header, and
+    // relations.js's own after this pass): discoverRelationVocab has only
+    // ever measured which token followed a surface, never whether that
+    // token's FORM is grammatically a verb — measured live 2026-08-19, a
+    // real turn's own extraction admitted "party" as a verb candidate
+    // ("the Democratic —party→ ultimately contributed…") on slot evidence
+    // alone; the real UD treebank says that form is 68.75% noun, 3% verb.
+    // `posPriorFor` (optional, a zero-arg accessor — the SAME lazy pattern
+    // app.js already uses for relationsFor/skillLibrary/callModel, because
+    // the prior is fetched once, non-blocking, and may not have resolved
+    // yet) returns a POSPrior@1 object or null; omitted or unresolved,
+    // `vocabGrammar` stays empty and every edge's `grammar` field is null —
+    // BYTE-IDENTICAL to before this existed. Never filters `verbs` — a
+    // wider vocabulary can only widen what extractRelations HEARS, and
+    // grammar disclosure must not narrow that; it only adds a caller-facing
+    // fact about what was heard.
+    const posPrior = organs.posPriorFor ? organs.posPriorFor() : null;
+    const vocabGrammar = new Map();
     let verbs = new Set();
     // How many DISTINCT surfaces each admitted verb followed — the
     // vocabulary measure's own candidates list, kept rather than dropped,
@@ -352,9 +410,18 @@ export function makeRelationReader(organs) {
     const verbSurfaces = new Map();
     if (surfaces.length) {
       try {
-        const measured = discoverRelationVocab(text, { surfaces, functionWords, minSurfaces: MIN_SURFACES_PER_VERB, negationWords });
-        verbs = measured.verbs;
-        for (const c of measured.candidates ?? []) verbSurfaces.set(c.verb, c.surfaces);
+        const discovered = discoverRelationVocab(text, {
+          surfaces,
+          functionWords,
+          minSurfaces: MIN_SURFACES_PER_VERB,
+          negationWords,
+          ...(posPrior ? { posPrior, grammarMinShare: GRAMMAR_MIN_SHARE } : {}),
+        });
+        verbs = discovered.verbs;
+        for (const c of discovered.candidates ?? []) {
+          verbSurfaces.set(c.verb, c.surfaces);
+          if (posPrior && c.grammar) vocabGrammar.set(c.verb, c.grammar);
+        }
       } catch {
         verbs = new Set();
       }
@@ -623,6 +690,33 @@ export function makeRelationReader(organs) {
       sources: [...new Set(refs.map(sourceOf).filter(Boolean))].length,
     });
 
+    // The mirror of P32's slot competition (added 2026-08-19, user
+    // direction after a live conversation asked "who was his vice
+    // president?" of a person with two: "he had 2 vice presidents,
+    // sometimes the question isn't formed very well"). P32 counts how many
+    // DISTINCT SUBJECTS fill one verb+object slot; this counts how many
+    // DISTINCT OBJECTS one subject+verb binds — the Russellian uniqueness
+    // clause a definite description presupposes ("the F is G" requires not
+    // just that an F exists, Strawson's clause the presupposition-failure
+    // gate already enforces, but that there is EXACTLY ONE F). A claim
+    // whose subject+verb binds only one object answers a well-posed
+    // question; one that binds several means the QUESTION under-specified
+    // which the material actually has more than one of — the answer is not
+    // wrong, the question's own presupposition was never checked.
+    function clusterFillers(sameSubjVerbEdges) {
+      const clusters = [];
+      for (const e of sameSubjVerbEdges) {
+        const found = clusters.find((c) => endpointsMatch(c.objectEnd, e.objectEnd));
+        if (found) {
+          found.refs.push(...e.refs);
+          if (!found.polarities.has(e.polarity)) found.polarities.add(e.polarity);
+        } else {
+          clusters.push({ object: e.object, objectEnd: e.objectEnd, refs: [...e.refs], polarities: new Set([e.polarity]) });
+        }
+      }
+      return clusters.map((c) => ({ object: c.object, refs: [...new Set(c.refs)], polarity: c.polarities.size > 1 ? "±" : [...c.polarities][0] }));
+    }
+
     // ── one claim, one typed verdict ─────────────────────────────────────
     function judge(sentence, t) {
       const claim = {
@@ -631,7 +725,35 @@ export function makeRelationReader(organs) {
         verb: t.verb,
         object: t.object,
         polarity: t.polarity,
+        // Same disclosure edgeFace carries, at claim scale: whether the
+        // connector position the answer used is grammatically plausible as
+        // a verb, per real treebank evidence — null when no posPrior ran.
+        grammar: vocabGrammar.get(t.verb) ?? null,
       };
+      // A claim built on a word that is not grammatically a verb is not a
+      // proposition to check at all — the SAME gate as an unresolved
+      // subject, one line down, and typed the same way. Measured live
+      // 2026-08-19: "Lincoln's vice president was Hannibal Hamlin" put
+      // "vice" in the verb slot (the token right after the possessive-
+      // marked surface "Lincoln's"), and the resulting claim — "vice
+      // president was Hannibal Hamlin" — correctly found no matching
+      // edge and shipped a confident-looking "∅ not in the material" badge
+      // on an answer that was, in fact, fully grounded. The claim was
+      // never real; only the badge was. Gated on `found` (never on a
+      // word the treebank has no opinion about) and reuses beyond-reach's
+      // own wording ("a limit of this check, not a mark against the
+      // answer") because that is exactly what this is — never rendered as
+      // a badge (app.js only badges contradicted/unbound). Checked BEFORE
+      // endpoint resolution: a claim built on a bogus verb gets no benefit
+      // from knowing whether its subject/object would otherwise resolve.
+      if (claim.grammar?.found && claim.grammar.plausibleAsVerb === false) {
+        const { dominant } = claim.grammar;
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `“${t.verb}” is not grammatically a verb here — real usage says ${dominant.thraxClass} (${Math.round(dominant.share * 100)}% of the time) — a limit of this extraction, not a mark against the answer`,
+        };
+      }
       const subj = endpoint(t.subject, true);
       const obj = endpoint(t.object, Boolean(createLemmatizer));
       // Disclosed on EVERY claim, whatever the verdict — a bound claim
@@ -652,6 +774,12 @@ export function makeRelationReader(organs) {
       const sameSubjVerb = edges.filter(
         (e) => sameAct(e.verb, t.verb) && intersects(e.subjectEnd.referents, subj.referents),
       );
+      // Computed once, attached to every verdict below that reaches this
+      // point — a reader needs cardinality regardless of whether THIS
+      // specific claim happened to bind. Singular (0 or 1 distinct
+      // fillers) is the ordinary, unremarked case and carries nothing extra.
+      const fillers = clusterFillers(sameSubjVerb);
+      const cardinality = fillers.length > 1 ? { fillers } : {};
       const matching = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
       if (matching.length) {
         const agree = matching.filter((e) => e.polarity === t.polarity);
@@ -667,6 +795,7 @@ export function makeRelationReader(organs) {
             // never averaged away: divergence between perspectives is a
             // signal, not noise to smooth.
             ...(oppose.length ? { contested: [...new Set(oppose.flatMap((e) => e.refs))] } : {}),
+            ...cardinality,
           };
         }
         const refs = [...new Set(oppose.flatMap((e) => e.refs))];
@@ -676,6 +805,7 @@ export function makeRelationReader(organs) {
           refs,
           corroboration: corroboration(refs),
           bound: oppose.slice(0, NEAREST_EDGES_MAX).map(edgeFace),
+          ...cardinality,
         };
       }
       if (!obj.referents.size && !obj.tokens.size) {
@@ -691,8 +821,60 @@ export function makeRelationReader(organs) {
       const sameVerbObj = edges.filter(
         (e) => sameAct(e.verb, t.verb) && !sameSubjVerb.includes(e) && endpointsMatch(e.objectEnd, obj),
       );
-      const nearest = [...sameSubjVerb, ...sameVerbObj].slice(0, NEAREST_EDGES_MAX).map(edgeFace);
-      return { ...claim, verdict: "unbound", nearest };
+
+      // Slot competition (P32's named follow-up, added 2026-08-19): the
+      // material may bind this EXACT verb+object to a DIFFERENT subject —
+      // "the Pirates won the 1960 World Series" against a claim of "the
+      // Yankees won the 1960 World Series". A byte check cannot see this
+      // (every word is in the material); the subject+verb match above
+      // cannot either (the subjects differ, so no edge is found there).
+      // Gated, never assumed: the object must resolve to a REFERENT this
+      // material itself established (a shared token alone — "the museum"
+      // in "visited the museum" — proves nothing about exclusivity), and
+      // EVERY edge sharing this verb+object must point to the SAME other
+      // subject — the material's own evidence that the slot has one
+      // filler, not a verb's meaning guessed at. A slot the material shows
+      // filled by two or more DIFFERENT subjects (co-champions, shared
+      // authorship) stays silently unbound; competing is only ever
+      // computed FROM edges, never from what a verb like "won" implies.
+      let competing = null;
+      if (obj.referents.size && sameVerbObj.length) {
+        // A referent alone is not enough when a NUMBER rides the object —
+        // measured live 2026-08-19: "the World Series" as a recurring
+        // surface resolved one referent across an article's every mention
+        // of it regardless of year, so a claim about the 1960 series
+        // competed against a bound "…won the World Series in 1971" edge —
+        // sourced, but answering a different question. The same P31
+        // discipline ("a number is grounded by the company it keeps") gates
+        // here: when BOTH the claim's object and a candidate edge's object
+        // carry a number, they must share one, or the candidate is not
+        // eligible to compete for this slot at all.
+        const claimNums = numberSet(t.object);
+        const numbersAgree = (e) => {
+          const edgeNums = numberSet(e.object);
+          if (!claimNums.size || !edgeNums.size) return true; // nothing to disagree about
+          for (const n of claimNums) if (edgeNums.has(n)) return true;
+          return false;
+        };
+        const eligible = sameVerbObj.filter(numbersAgree);
+        if (eligible.length) {
+          const oneSubject = eligible[0].subjectEnd.referents;
+          const oneFiller = eligible.every((e) => intersects(e.subjectEnd.referents, oneSubject));
+          if (oneFiller) {
+            const refs = [...new Set(eligible.flatMap((e) => e.refs))];
+            competing = { ...edgeFace(eligible[0]), refs, corroboration: corroboration(refs) };
+          }
+        }
+      }
+      // The competing edge, when found, leads `nearest` — it is strictly
+      // better evidence than an ordinary same-subject or same-object
+      // neighbour, and every caller that reads `nearest[0]` (the badge,
+      // the grounding panel) inherits the upgrade with no further change.
+      const rest = [...sameSubjVerb, ...sameVerbObj]
+        .map(edgeFace)
+        .filter((e) => !competing || e.subject !== competing.subject || e.object !== competing.object);
+      const nearest = (competing ? [competing, ...rest] : rest).slice(0, NEAREST_EDGES_MAX);
+      return { ...claim, verdict: "unbound", nearest, ...(competing ? { competing } : {}), ...cardinality };
     }
 
     function edgeFace(e) {
@@ -702,6 +884,10 @@ export function makeRelationReader(organs) {
         object: e.object,
         polarity: e.polarity,
         refs: e.refs,
+        // null when no posPrior was available — a disclosed absence of the
+        // check, never a false "plausible". Never used to drop or downrank
+        // an edge here; a caller (verification.js) reads it as it chooses.
+        grammar: vocabGrammar.get(e.verb) ?? null,
         // The disclosure travels with the edge, so a claim's `bound` /
         // `nearest` lists carry it for free — a conviction resting on a
         // single-witness edge says so wherever that edge is shown.
@@ -725,7 +911,7 @@ export function makeRelationReader(organs) {
     function read(answer) {
       const report = {
         examined: true,
-        vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB },
+        vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior) },
         edges: edges.map(edgeFace),
         claims: [],
       };
@@ -796,11 +982,47 @@ export function makeRelationReader(organs) {
       return report;
     }
 
+    // The referent-aware sibling of the standalone queryEdges/queryFillers
+    // below (added 2026-08-19, same pass: "remember to point towards
+    // referents not spans" — spans/offsets and surface strings point INTO
+    // a material; a referent model resolves WHICH THING they name, and
+    // this reader already built one, in `endpoint()`, to judge claims with.
+    // queryEdges/queryFillers operate on `report.edges` AFTER it has left
+    // this closure — plain strings, honestly disclosed as such, because
+    // they must run with no engine organs and no live material. This
+    // method runs INSIDE the closure, so "Lincoln" and "President Lincoln"
+    // match by the SAME referent identity judge() itself trusts, not by
+    // substring luck. Same open-field contract as queryFillers: exactly
+    // one of subject/object left null, refused (null) otherwise.
+    function queryReferents({ subject = null, verb = null, object = null } = {}) {
+      const openSubject = subject == null;
+      const openObject = object == null;
+      if (openSubject === openObject) return null;
+      const subjEnd = subject == null ? null : endpoint(subject);
+      const objEnd = object == null ? null : endpoint(object);
+      const matches = edges.filter(
+        (e) =>
+          (verb == null || e.verb === verb) &&
+          (subjEnd == null || endpointsMatch(e.subjectEnd, subjEnd)) &&
+          (objEnd == null || endpointsMatch(e.objectEnd, objEnd)),
+      );
+      const openField = openSubject ? "subjectEnd" : "objectEnd";
+      const faceField = openSubject ? "subject" : "object";
+      const clusters = [];
+      for (const e of matches) {
+        const found = clusters.find((c) => endpointsMatch(c.end, e[openField]));
+        if (found) found.refs.push(...e.refs);
+        else clusters.push({ [faceField]: e[faceField], end: e[openField], refs: [...e.refs] });
+      }
+      return clusters.map(({ end, ...rest }) => ({ ...rest, refs: [...new Set(rest.refs)] }));
+    }
+
     return {
       examined: true,
-      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB },
+      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior) },
       edges: edges.map(edgeFace),
       read,
+      queryReferents,
     };
   };
 }
@@ -826,11 +1048,18 @@ export function relationFindings(report, { verdicts = ["contradicted", "unbound"
     if (c.verdict === "contradicted" && want.has("contradicted")) {
       lines.push(`the material says otherwise: ${edge} [${(c.refs ?? []).join("; ")}]`);
     } else if (c.verdict === "unbound" && want.has("unbound")) {
-      const near = c.nearest?.[0];
-      lines.push(
-        `the material never says: ${edge}` +
-          (near ? ` (closest it does say: ${near.subject} —${near.verb}→ ${near.object})` : ""),
-      );
+      if (c.competing) {
+        lines.push(
+          `the material fills this differently: ${edge} — it says ` +
+            `${c.competing.subject} —${c.competing.verb}→ ${c.competing.object} [${c.competing.refs.join("; ")}]`,
+        );
+      } else {
+        const near = c.nearest?.[0];
+        lines.push(
+          `the material never says: ${edge}` +
+            (near ? ` (closest it does say: ${near.subject} —${near.verb}→ ${near.object})` : ""),
+        );
+      }
     }
   }
   return lines;
@@ -840,4 +1069,79 @@ export function relationFindings(report, { verdicts = ["contradicted", "unbound"
  * different facts here exactly as they are in checkGrounding. */
 export function relationsClean(report) {
   return !(report?.claims ?? []).some((c) => c.verdict === "contradicted" || c.verdict === "unbound");
+}
+
+// ── querying the whole graph directly (added 2026-08-19, user direction:
+// "can we now mechanically query the entire hypergraph") ───────────────
+//
+// Every other function in this file answers "does THIS claim hold" —
+// judge() runs once a sentence has already been extracted into a triple.
+// `fillers`/`competing` (this same pass) are that verdict's own byproduct,
+// reachable only by round-tripping a claim through read(). queryEdges is
+// the missing direct door: `report.edges` is already fully exposed (every
+// edge the material binds, addressed), so a caller who wants to ask the
+// graph a question — "who did Lincoln appoint," "what did anyone say
+// about Helene" — should not have to manufacture a sentence and run it
+// through extraction just to read data that is already sitting there.
+//
+// DISCLOSED LIMIT, same class as siblingSwap's (testimony.js): matching
+// here is on `report.edges`'s own exposed SURFACE STRINGS, not referent
+// IDs — the referent index that makes endpointsMatch's identity-aware
+// comparison possible is private to makeRelationReader's closure and does
+// not survive into the edgeFace shape. A query for "Lincoln" will not
+// itself resolve "President Lincoln" and "Lincoln" as the same referent
+// the way judge() does internally; it folds diacritics/case and matches
+// by containment, which is weaker but requires no engine organs and no
+// live material to run — pure data in, pure data out.
+
+const foldMatch = (edgeVal, query) => {
+  if (query == null) return true;
+  const a = foldDiacritics(String(edgeVal ?? "")).toLowerCase();
+  const b = foldDiacritics(String(query)).toLowerCase();
+  return a.includes(b) || b.includes(a);
+};
+
+/**
+ * Every edge in `edges` (a report's own `.edges`, or any array of
+ * edgeFace-shaped objects) matching the given filters. Any of
+ * subject/verb/object may be omitted (a wildcard) or given as a string
+ * (folded, substring-matched — see the disclosed limit above); `verb` is
+ * matched exactly (fold-cased) since the material's own measured
+ * vocabulary is already a closed, discovered set, not free text.
+ */
+export function queryEdges(edges, { subject = null, verb = null, object = null, polarity = null } = {}) {
+  return (edges ?? []).filter(
+    (e) =>
+      foldMatch(e.subject, subject) &&
+      (verb == null || foldDiacritics(String(e.verb ?? "")).toLowerCase() === foldDiacritics(String(verb)).toLowerCase()) &&
+      foldMatch(e.object, object) &&
+      (polarity == null || e.polarity === polarity),
+  );
+}
+
+/**
+ * The same cardinality question `fillers`/`competing` answer for one
+ * judged claim, asked directly of the whole graph for an ARBITRARY query:
+ * leave exactly one of subject/object open (a wildcard) and get back every
+ * DISTINCT value the material binds there, each with its own refs — "who
+ * did Lincoln appoint" (subject+verb given, object open) or "who appointed
+ * Hamlin" (object+verb given, subject open). Refuses (returns null, a
+ * typed absence rather than a guess) when the query leaves BOTH subject
+ * and object open — "distinct what, filling which slot" is not a
+ * well-formed question without at least one side pinned — or leaves
+ * NEITHER open, since a single fully-pinned query is queryEdges's own job.
+ */
+export function queryFillers(edges, { subject = null, verb = null, object = null } = {}) {
+  const openSubject = subject == null;
+  const openObject = object == null;
+  if (openSubject === openObject) return null; // both open, or neither — not this function's question
+  const matches = queryEdges(edges, { subject, verb, object });
+  const openField = openSubject ? "subject" : "object";
+  const clusters = new Map();
+  for (const e of matches) {
+    const key = foldDiacritics(String(e[openField] ?? "")).toLowerCase();
+    if (!clusters.has(key)) clusters.set(key, { value: e[openField], refs: [] });
+    clusters.get(key).refs.push(...e.refs);
+  }
+  return [...clusters.values()].map((c) => ({ [openField]: c.value, refs: [...new Set(c.refs)] }));
 }

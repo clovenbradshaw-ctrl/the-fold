@@ -743,6 +743,31 @@ word-list rewrite already stands on), and the disclosed residues (decomposed
 tasks out of scope; a preflight-sourced citation's "open in Explore" fails
 caught, not working) are in POLICIES.md P23.
 
+**Amended 2026-08-19 — stable sub-assemblies: the join is earned, never
+assumed (user direction).** P23's unconditional discourse fold-in fixed the
+topic-less follow-up and broke every self-contained question asked after a
+topic change — measured live: "research Robert Macnamera" after a greeting
+searched on the stale line's words, fetched a greeting-etiquette page, and
+answered about greetings with a fabricated "[4]"; "what is my name?"
+answered from a stranger's faculty page. The prompt's assemblies (the
+question, the conversation, the material) are now typed and joined only on
+measurement: `runPart` retrieves on the part's own words first and widens
+with discourse only on zero passages (disclosed as `widened` on the
+research event); the grounding question joins discourse only where
+retrieval widened or no passages exist; `preflightQuery(task, discourse,
+{anaphors})` joins only on an anaphoric task (engine's ANAPHORIC_PRONOUNS,
+injected) or one with no content words — the call site no longer pre-mixes;
+and the flat material path sends REAL role-structured history (it used to
+drop the conversation exactly when passages existed — the user's null,
+"a regular model with the full context would have performed better," stood
+against the apparatus). Same pass: the vestigial "cite the address in
+square brackets" clauses in EXECUTE_SYSTEM_PROMPT and the correction
+prompts were deleted — addresses left the model's view 2026-08-18, so the
+instruction was a fabrication order, and "[4]" was the model obeying it.
+Full amendment, evidence, and the two disclosed residues (dangling
+turn-scoped citation chips; name-string web corroboration across distinct
+referents) are in POLICIES.md P23's 2026-08-19 amendment.
+
 ## The UX pass (2026-08-17) — what was decided, so it is not re-derived
 
 A working pass over both pages, driven live. The decisions, not the diff:
@@ -3261,3 +3286,242 @@ failures this repo already carries (`measure.test.mjs`,
 `webllm-rung.test.mjs`, `store.test.mjs`/`store-sql.test.mjs` missing
 vendored `sql.js`, `constitution.test.mjs`'s one II.13 case missing
 vendored `monaco-editor`), zero regressions anywhere else in the suite.
+## Echo vs novel (added 2026-08-19) — what was decided, so it is not re-derived
+
+POLICIES.md P30 is the law; this is the pointer, kept short on purpose —
+read P30 for the full measured case and its evidence.
+
+**The one-line version.** `checkGrounding` failing an atom against the
+MATERIAL only answers "is this in the passages." It does not answer "did
+the model invent this" — a name absent from the passages but present in
+the answerer's OWN system message (its summary, its ON RECORD block) is
+the answerer reading its own briefing back, not a fabrication, and the two
+must never share one bucket. Caught live in
+`experiments/system1-cpu-system2-gpu.mjs` (a standalone CPU/System-1 vs
+GPU/System-2 dual-model harness, unrelated to production routing): the
+GPU arm named its own three checked sources ("VCA Hospitals, AKC,
+VetMedGuide") straight out of a record line it had just been handed, and
+the material-only check flagged all three as claims nothing given backs.
+
+**Second axis of the SAME gap this file's grounding-ladder section already
+disclosed** ("web corroboration still counts name-STRING matches... which
+is the referent-model gap, not a counting bug" — P23's own residue,
+[[referent-model-not-pointers]]): a string test cannot tell "the same
+referent, said twice" from "a referent invented once," on either axis —
+across sources (the P23 residue) or across what-was-given-vs-what-was-said
+(P30, here).
+
+**Not yet in production.** The fix — a second union index built from the
+answerer's own given context, `buildUnionIndex`/`tokenSupported` reused
+from grounding.js — is prototyped and self-tested ONLY in the standalone
+experiment script. `app.js`'s tally line and `provenance.js`'s
+`classifySentences` almost certainly carry the same gap (both check
+material-only) but this was never driven live against the production
+chat page, and those files are the fold-architecture session's own
+(this file's multi-session rule, Explore section above) — named as a
+high-confidence open follow-up for that session, not touched here.
+
+**Why it is an efficiency law too, not only a correctness one** (user
+direction: "an expert is not someone with a larger context window, it's
+someone with better ability to query the hypergraph of battle-tested
+experience") — full argument in P30: a fact already on record costs
+nothing to repeat: re-checking or re-fetching it every time is compute
+spent reducing zero uncertainty, and the budget that frees up is exactly
+what should go toward the genuine deltas — the same "ask before spending"
+shape P23's preflight already uses for fetching, aimed here at checking.
+
+## Number grounding: company, not bare occurrence (added 2026-08-19) — what was decided, so it is not re-derived
+
+P31 in POLICIES.md is the law; this is the map. Found live by the user
+driving the instrument: a grounding badge verified "30" in "trazodone...
+30 to 60 minutes" because the digit string appeared SOMEWHERE in an
+offered passage's flattened bag of words and numbers
+(`buildUnionIndex`/`tokenSupported`) — the same failure shape
+[[referent-model-not-pointers]] already named for `widget.js::scoutSpan`
+(byte selection by raw token frequency), now found in `grounding.js`'s
+atom checking. The user's diagnosis: grounding must read the material's
+own contextual, hypergraphical meaning, not raw counts — "you can tell a
+word by the company it keeps" (Firth).
+
+**Scoped to numbers, not names — refuted by this file's own tests when
+tried wider.** A bare digit string is the single-token, referent-less
+case this instrument had no defense for; a multi-word name already has
+`PROPER_RE`'s specificity and `checkGrounding`'s referent-resolution
+rescue (P11). Requiring a NAME's local company was tried and broken by
+`grounding.test.mjs`'s own "an invented figure, agency and year" case — a
+real name wrapped in a fabricated predicate shares no words with its true
+source context, so demanding overlap punished the real name for its
+fabricated neighbour. Company is scoped to numbers only.
+
+**What shipped.** `buildLocalIndex` explodes a passage into its own
+sentences (this file's existing `splitSentences`, now applied to material
+symmetrically with the answer). `numberCompany` is a number's own answer
+sentence, minus every atom's tokens in it (numbers and names alike — a
+sibling atom is a separate, independently-checked claim, never context).
+`numberSupporters` requires some single passage to have a SENTENCE — not
+its whole bag — carrying both the number and at least one company word;
+with no company available it falls back to the old whole-passage
+containment, never a new false refusal. One check, wired into both
+`corroborateAtoms` (the badges) and `checkGrounding` (the findings/tally),
+preserving the equivalence `corroborateAtoms`'s own header already
+promises between the two.
+
+**Two designs were tried and refuted before the one that shipped, kept
+here so they are not retried.** Whole-comma-joined-clause company broke
+on the exact same Kessington case (a comma-joined clause can bundle a real
+name with a fabricated number, and gating the name on the fabrication's
+words fails it too). Nearest-single-neighbour-word company passed
+Kessington but failed a real number: "The case_number column lists
+24-0011 for Gary IN PD" against a terse CSV row — the words immediately
+beside "24" are the model's own narrative gloss ("column", "lists"),
+absent from the row itself, while the real matching word ("case_number",
+from the header) sits three words back. Whole-sentence company (minus
+siblings) passed both, because company is OR-matched: widening it can
+only make matching MORE permissive, and an unrelated passage sentence
+essentially never shares real vocabulary with a claim about something
+else (verified: a decoy passage about "30 dogs" and a clinic "reopen[ing]
+in 60 days" shares nothing with "trazodone... 30 to 60 minutes" and is
+correctly refused).
+
+**Disclosed, not attempted here — the real next step.** "Sentence" is a
+structural boundary, not a tuned token count, but it is still a
+HAND-CHOSEN unit — the same class of debt P4 already names for
+`ROWS_PER_CHUNK`/`NULL_SAMPLES`. The user's own sharper statement of where
+this goes (2026-08-19): a word's universe in the hypergraph is bounded by
+how many hops out you can go before you hit a distinction without a
+difference — before widening the neighbourhood stops moving the answer
+beyond what reseeding noise would move it anyway; "the noise can't beat
+the NUL." That is `nul/index.js`'s `pattern()` (`before`/`after` grounds,
+`moved`/`opened`, Bateson's "a difference that makes a difference"),
+asked a question it has never been asked: not a numeric series, but a
+ranked, hop-expanding candidate set (nearest word → next word → ... →
+whole sentence → adjacent sentence) with a stopping rule earned the same
+way `pattern`'s reseed ceiling was earned — a null built by drawing
+candidate company from material the claim was never about (the same
+construction `cite.js::bestRival` already uses: drawn by retrieval, the
+hardest available comparison, never a random stride). Sketched to this
+level of specificity and NOT built: `nul`'s apparatus is built for numeric
+series and reusing it for a discrete hop-expansion stopping rule needs its
+own design and its own measurement before it earns a name here — the same
+standard this file's own "never tune a parameter by checking what it does
+to a golden's own score" sibling rule (eoreader6.1/CLAUDE.md) holds every
+other number to. A claimed null test that was not actually validated
+would be worse than the honest, disclosed, sentence-scoped heuristic
+shipped today.
+
+**Files.** `grounding.js` (`buildLocalIndex`, `numberCompany`,
+`numberSupporters`; `hasWord`/`hasNumber`/`wordSet`/`numberSet`/
+`buildUnionIndex`/`tokenSupported` untouched — `proof.js`/`primary.js`/
+`priors.js` read those directly for a coarser, legitimately different
+question). Enforced by `grounding.test.mjs`'s new trazodone/decoy case;
+20/20 in that file; 759/760 repo-wide after reconciling with concurrent
+upstream work (full numbers, and how they were confirmed unrelated, in
+POLICIES.md P31).
+
+## The witness tier (added 2026-08-19) — what was decided, so it is not re-derived
+
+P32 in POLICIES.md is the law; this is the map. The user's ask, verbatim:
+"wire in the witness tier, but also, tell me what the mechanical fact
+checking would need from the hypergraph first" — born from the measured
+Yankees specimen (a false claim the relation tier could only call unbound
+while the web tier corroborated it ✓ 3/3 by string co-occurrence).
+
+**The one design fact to keep:** the witness model is only ever the mouth.
+It answers "does the passage say this sentence is true?" — yes/no, with
+the passage's own deciding words — TWICE: the claim, then its
+sibling-swapped twin (the sibling drawn from the page's own names as the
+competing filler of the claim's slot, chosen by slot-word co-occurrence,
+sentence-boundary-spanning "names" excluded). The verdict is DERIVED
+mechanically from the pair in `testimony.js::foldTestimony`; the model is
+never asked to classify. Measured reason: three-way classification drew
+the right `because` under the wrong label from gemma2:2b — the small
+model can read, not label. The decider shown to the reader is source
+bytes (verbatim pointer → located sentence → word-contained pointer →
+refuse), quotes.js's own posture.
+
+**Wiring.** `app.js::witnessProof` runs inside the proof chip's walk after
+seekProof — no new egress, same standing consent; testimony re-labels the
+chip (⇄) and joins `claims.js::composedSentence` as the witness aspect;
+refusals are typed into the audit; the reflex ledger gains `witnessed`
+through its designed unknown-act fallback. The narration registers in
+provenance.js and holon.js were extended the same day with the measured
+modifier-gap + appositive + relate-lemma shape ("The 1960 World Series
+question, «…», is directly related to…") — one register, two files,
+extended together.
+
+**The hypergraph's own missing piece, named as a decision:** slot
+competition (same verb+object-referent, different subject-referent;
+definite-unique objects only, exclusivity measured from the material's own
+universe under a redealt null; shared referent fold both sides; polarity
+and temporal adjuncts in the slot key). Unbuilt — the witness covers the
+semantic remainder; P32 records the boundary.
+
+**Amended 2026-08-19 (same day) — measured against 25 real facts: three
+bugs fixed, recall 2/25 → 5/25, zero wrong corrections throughout.** User
+direction after the witness tier landed: "fix and chase to get better
+results," then validate with `eval/witness-batch-eval.mjs` (new — 25 real
+factoid claims against REAL fetched Wikipedia pages, never fixtures,
+query-building steering to Wikipedia first per direct instruction, an
+ordinary search only as fallback). Three bugs found from actual live
+reads: `siblingSwap`'s candidates admitted newline-glued infobox fragments
+and caption text that legitimately repeats the claim's topic words without
+asserting it (both now excluded, a zero-score tie now refuses rather than
+guessing); the witness's own `real.because` frequently already names the
+correct filler and is now tried FIRST as a walled hint before the
+independent slot-scoring heuristic; and no fixed temperature let the
+identical prompt flip its own answer between runs (`completeOnce`/
+`complete` gained an optional `temperature`, witness reads pass `0`). Every
+fix moved recall; precision (zero wrong corrections) held across all three
+measured runs by construction — a bad candidate produces a refusal, never
+a lie. Dominant remaining gap, disclosed not chased: `witnessSlice`'s
+anchor scoring has no prose-vs-table signal, so a flattened polling table
+can out-anchor real prose naming the answer — named as the next step in
+the eval's own header. Full amendment in POLICIES.md P32.
+
+**Same-day companion — the void, acknowledged.** Second direction, same
+session: "if the surf did not turn something up, the model should be fed
+the acknowledgement of this void." A preflight search (P23) that ran and
+found nothing used to look, to the model, identical to a turn where no
+search was ever attempted. `holon.js`'s `SEARCHED_VOID_PREFIX` +
+`searchedVoid` now threads through `runHolonicTask` → `runPart`, reaching
+only the flat chat branches as a fact appended to `CHAT_SYSTEM_PROMPT` —
+information the model receives, never a behavioral instruction stacked on
+top (the same posture an independent parallel session's
+`experiments/facts-before-draft.mjs` converged on the same day, from
+tracing an echo bug to its input rather than patching the output). Full
+amendment in POLICIES.md P32.
+
+## The verification taxonomy (added 2026-08-19) — what was decided, so it is not re-derived
+
+P33 in POLICIES.md is the law; this is the map. User direction, verbatim,
+after a session of finding individual verification bugs one measured
+incident at a time: "it needs to decompose any given fact into tasks to
+verify, which is why we need a taxonomically complete list of things a
+proposition needs to be verified by a witness."
+
+**The taxonomy is read off the engine's own grid, not invented.**
+`operators.js::TERRAIN_BY_DOMAIN` already names nine cells (Existence ×
+Structure × Interpretation, each × Ground/Figure/Pattern) as the complete
+space any act can occupy; checking a proposition is EVA, and EVA's own
+grain can be any of the three — with Existence and Structure gating
+whether Interpretation may even run. `verification.js::verificationTasksFor`
+walks all nine per claim. Domain order is Strawson/Russell presupposition
+logic, not tidying: a referent that fails to exist makes downstream cells
+typed GAPS, never falses — enforced as an explicit short-circuit that
+overrides even a supplied witness result, because trusting one would be
+the JNJ incident (P23) in the other direction. Verdicts are five-valued
+(`holds`/`fails`/`both`/`gap`/`not_yet_executable`), Belnap's fourth value
+(`both`) landing exactly where hypergraph.js's own `contested` field
+already lived, unused until this pass.
+
+**Five cells real, four disclosed absent** — see P33 for the exact map.
+Every cell declares its own giver and dependency (truth-maintenance:
+beliefs carry their justifications) and carries a caller-supplied
+`cursor`, never a computed timestamp. Wired live into the existing
+"thinking" disclosure, one JSON panel per turn, verified against a real
+turn (`who won the 1960 world series?`) composing correctly end to end.
+
+**Known residue:** Lens does not yet compose against the SAME claim
+object Link/Network do — the witness tier reads checkable atoms, hypergraph
+reads SVO triples, two different extractions on two different schedules.
+Unifying them is named, real, unattempted next work.

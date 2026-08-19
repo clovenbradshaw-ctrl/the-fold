@@ -13,6 +13,8 @@
     "@ruby/3.3-wasm-wasi": "^2.10.1",
     "@ruby/wasm-wasi": "^2.10.1",
     "@viselect/vanilla": "^3.9.0",
+    "katex": "^0.18.4",
+    "mathjs": "^15.2.0",
     "monaco-editor": "^0.56.0",
     "php-wasm": "^0.1.0",
     "pyodide": "^314.0.3",

@@ -1,0 +1,74 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "out": "experiments/research-gate-results-3.json",
+    "today": "2026-08-19",
+    "selfTest": false
+  },
+  "results": [
+    {
+      "id": "lincoln-johnson",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "I apologize for the error.  I am still under development and learning.  I am not able to provide real-time information, including details about current events or historical figures.  I am trained on a massive dataset of text and code, but that dataset has a cutoff point.  Therefore, I may not have the most up-to-date information on historical figures and events.",
+      "gateMs": 10311
+    },
+    {
+      "id": "capital-of-france-followup",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "I can answer this without needing to look something up. The population of Paris is approximately 2.1 million.",
+      "gateMs": 4090
+    },
+    {
+      "id": "arithmetic",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "12 times 11 is 132.",
+      "gateMs": 3254
+    },
+    {
+      "id": "author-followup",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "Jane Austen wrote several other novels, including: ",
+      "gateMs": 3282
+    },
+    {
+      "id": "current-weather",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I do not have access to real-time information, including weather data. To get the current weather in Chicago, I recommend checking a reliable weather website or app.",
+      "gateMs": 4771
+    },
+    {
+      "id": "current-stock-price",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I do not have access to real-time information, including live stock prices. ",
+      "gateMs": 3420
+    },
+    {
+      "id": "recent-election-result",
+      "expect": "no",
+      "got": "yes",
+      "correct": false,
+      "reason": "I can answer this question. The most recent mayoral election in Chicago was held in 2023. Brandon Johnson won the election.",
+      "gateMs": 4847
+    },
+    {
+      "id": "todays-date-dependent",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I need more information to answer that.  To give you a weather forecast, I need to know the location of your trip!",
+      "gateMs": 4618
+    }
+  ]
+}

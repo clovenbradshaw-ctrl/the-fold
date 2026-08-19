@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "trazodone",
+    "routine": "synthesis",
+    "out": "surprise-grid-trazodone-synthesis.json",
+    "selfTest": false
+  },
+  "results": {
+    "trazodone": {
+      "synthesis": [
+        {
+          "trial": 0,
+          "text": "The provided material states that trazodone should not be used in pets who are using MAO inhibitors or have angle-closure glaucoma.  \n\nThe material does not address whether it's safe to give trazodone after getting a vaccine. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 1,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 3451
+        },
+        {
+          "trial": 1,
+          "text": "The material states that trazodone should not be used in pets who are using MAO inhibitors or have angle-closure glaucoma. It also lists possible side effects of trazodone. \n\nIt does not address whether or not a dog can be given trazodone after getting vaccines. \n\n**[Unclear if there is a relationship between getting a dog vaccinated and the decision to give trazodone after vaccines]** \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 1,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 7851
+        },
+        {
+          "trial": 2,
+          "text": "The material states that trazodone should not be used in pets who are using MAO inhibitors or have angle-closure glaucoma.  \n \nThe material does not address whether a dog can take trazodone after getting a vaccine.  It states when trazodone should not be used.  \n \nThe material does not address this at all. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 1,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 14271
+        },
+        {
+          "trial": 3,
+          "text": "The provided text states that trazodone should not be used in pets who are using MAO inhibitors or have angle-closure glaucoma. \n\nThe material does not address whether or not it is safe to give trazodone to a dog after getting their vaccines. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 1,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 11595
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:synthesis:00",
+      "description": "trazodone/synthesis trial 0 (gemma2:2b) answered (227 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:synthesis:00",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 3451,
+        "promptTokens": 341,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 1,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:synthesis:01",
+      "description": "trazodone/synthesis trial 1 (gemma2:2b) answered (390 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:synthesis:01",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 7851,
+        "promptTokens": 341,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 1,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:synthesis:02",
+      "description": "trazodone/synthesis trial 2 (gemma2:2b) answered (309 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:synthesis:02",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 14271,
+        "promptTokens": 341,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 1,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:synthesis:03",
+      "description": "trazodone/synthesis trial 3 (gemma2:2b) answered (244 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:synthesis:03",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 11595,
+        "promptTokens": 341,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 1,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

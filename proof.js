@@ -118,59 +118,67 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
 }
 
 /**
- * The search anchor for a preflight: the turn's own words alone, UNLESS the
- * turn's own words cannot stand on their own — the fold's one-line
- * discourse (topic · flow · entities) joins only then. The same earned-join
- * discipline this file's own history already applies to `preflightQuery`'s
- * callers elsewhere (this repo's CLAUDE.md: "no assembly's words enter
- * another's derived query unless the join is EARNED") but did not, until
- * now, apply INSIDE this function itself.
+ * The search anchor for a preflight. The task's own words and the fold's
+ * one-line discourse (topic · flow · entities) are two DIFFERENT assemblies,
+ * and this used to union them unconditionally — so a self-contained question
+ * asked right after another topic searched the web on both topics at once
+ * (measured live 2026-08-19: "research Robert Macnamera" after a greeting
+ * searched on "Greeting exchange"'s words too, fetched a greeting-etiquette
+ * page, and retrieval then preferred it over the on-topic pages; separately
+ * measured the same day, a real conversation whose first turn was about
+ * trazodone landed "who was Abraham Lincoln's vice president?" polluted
+ * with trazodone/serotonin/vaccine, and the search returned a trazodone FAQ
+ * page for a wholly unrelated question — a retrieval failure wearing
+ * grounded citations, not a hallucination). The discourse anchor exists for
+ * the topic-less follow-up ("prove it") whose own words name nothing — so
+ * the join is now earned, never assumed: the discourse's words enter only
+ * when the task points back anaphorically (a received closed class, the
+ * engine's ANAPHORIC_PRONOUNS — injected, the widget.js pattern, never a
+ * hand-typed intent list) or carries FEW content words (PREFLIGHT_FEW_WORDS
+ * or fewer). Task words still come first, so they survive the cap before
+ * the discourse line's do if the joined anchor runs long.
  *
- * Measured live (2026-08-19): a real conversation whose first turn was
- * about trazodone landed a discourse line naming trazodone/serotonin/
- * vaccine; the second turn asked "who was Abraham Lincoln's vice
- * president?" — a complete, self-sufficient question with zero anaphoric
- * reference to anything earlier. The OLD unconditional-join version built
- * "Abraham Lincoln vice president trazodone dogs uses interactions
- * serotonin syndrome vaccine timing" (all 12 words survived
- * PREFLIGHT_QUERY_MAX_TERMS — the cap-priority safety net this function
- * relied on before does nothing when the combined anchor fits under the
- * cap), the search returned a trazodone/vaccine FAQ page, and the model
- * answered the wrong question from real but entirely wrong material — not
- * a hallucination, a retrieval failure wearing grounded citations.
- *
- * `anaphoricPronouns` is the engine's own closed class
- * (perceiver/text/priors.js::ANAPHORIC_PRONOUNS — "it", "this", "that",
- * "these", "those" and their contractions), injected exactly the way
- * widget.js already receives it, never a second hand-typed list. The join
- * fires on either of two structural conditions, never a semantic guess at
- * what the question is "about" (this file's own standing argument, two
- * paragraphs up, against exactly that move): the task points back
- * (contains an anaphoric pronoun — "prove IT", "what about THAT") or the
- * task carries no content words of its own at all ("prove it" is also
- * covered by the first branch, but an all-stopword task like "and?" would
- * need the second). `anaphoricPronouns` omitted degrades to the OLD
- * always-join behavior (backward compatible), never a hard crash on a
- * caller that hasn't been updated.
+ * Widened from "zero content words" 2026-08-19 (user direction: "our
+ * gating is too strict, it needs to be more associative, people need to be
+ * able to use poor grammar"). Measured live: "what about johnson?", asked
+ * mid-conversation about Lincoln's vice presidents, reduces to the single
+ * word "johnson" after stopwords — grammatically not an anaphor, but
+ * exactly as under-specified as "prove it" was. Searched alone it found
+ * Johnson & Johnson, the pharmaceutical company, not Andrew Johnson. Real
+ * conversational follow-ups are routinely this terse and elliptical ("and
+ * him?", "same for x") — treating only textbook anaphora as
+ * discourse-dependent excluded the whole ordinary shape of a follow-up
+ * question. The threshold leans associative on purpose: this function's
+ * own comment above already states the asymmetry ("a false positive costs
+ * one wasted search... a false negative reproduces the bug this exists to
+ * close") — joining more readily is the side that comment already argued
+ * for, not a new tradeoff invented here. The SAME threshold also closes the
+ * trazodone/Lincoln incident above without a second mechanism: "who was
+ * Abraham Lincoln's vice president?" carries four real content words —
+ * Abraham, Lincoln, vice, president — well past PREFLIGHT_FEW_WORDS, so it
+ * never joins regardless of what preceded it in the conversation.
  */
-export function preflightQuery(task, discourse = "", anaphoricPronouns = null) {
-  const wordsOf = (s) =>
-    String(s ?? "")
-      .split(/[^\p{L}\p{N}'’]+/u)
-      .map((w) => w.replace(/['’]s$/, ""))
-      .filter(Boolean);
-  const taskTokens = wordsOf(task);
-  const taskContentWords = taskTokens.filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
-  const pointsBack = anaphoricPronouns && taskTokens.some((w) => anaphoricPronouns.has(w.toLowerCase()));
-  const needsDiscourse = !anaphoricPronouns || pointsBack || taskContentWords.length === 0;
-  const words = [
+export const PREFLIGHT_FEW_WORDS = 2; // a task at or below this many content words is treated as under-specified, same as zero
+
+export function preflightQuery(task, discourse = "", { anaphors = null } = {}) {
+  const content = (s) => [
     ...new Set(
-      `${task ?? ""}${needsDiscourse ? ` ${discourse ?? ""}` : ""}`
+      String(s ?? "")
         .split(/[^\p{L}\p{N}'’]+/u)
         .map((w) => w.replace(/['’]s$/, ""))
         .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase())),
     ),
   ];
+  const taskWords = content(task);
+  const tokens = String(task ?? "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}'’]+/u)
+    .filter(Boolean);
+  const pointsBack = !!anaphors && tokens.some((t) => anaphors.has(t));
+  const words =
+    pointsBack || taskWords.length <= PREFLIGHT_FEW_WORDS
+      ? [...new Set([...taskWords, ...content(discourse)])]
+      : taskWords;
   return words.slice(0, PREFLIGHT_QUERY_MAX_TERMS).join(" ").trim();
 }
 

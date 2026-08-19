@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "lincoln",
+    "routine": "material",
+    "out": "surprise-grid-lincoln-material.json",
+    "selfTest": false
+  },
+  "results": {
+    "lincoln": {
+      "material": [
+        {
+          "trial": 0,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1153,
+          "wallMs": 9923
+        },
+        {
+          "trial": 1,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 2,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1153,
+          "wallMs": 26571
+        },
+        {
+          "trial": 2,
+          "text": "Hannibal Hamlin served as vice president under Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1153,
+          "wallMs": 21345
+        },
+        {
+          "trial": 3,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 2,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1153,
+          "wallMs": 11359
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:material:00",
+      "description": "lincoln/material trial 0 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:material:00",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 9923,
+        "promptTokens": 1153,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:material:01",
+      "description": "lincoln/material trial 1 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:material:01",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 26571,
+        "promptTokens": 1153,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 2,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:material:02",
+      "description": "lincoln/material trial 2 (gemma2:2b) answered (75 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:material:02",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 21345,
+        "promptTokens": 1153,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:material:03",
+      "description": "lincoln/material trial 3 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:material:03",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 11359,
+        "promptTokens": 1153,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 2,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

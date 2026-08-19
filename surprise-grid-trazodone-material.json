@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "trazodone",
+    "routine": "material",
+    "out": "surprise-grid-trazodone-material.json",
+    "selfTest": false
+  },
+  "results": {
+    "trazodone": {
+      "material": [
+        {
+          "trial": 0,
+          "text": "This information does not mention whether or not a dog can receive trazodone after getting vaccines.  \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 291,
+          "wallMs": 21716
+        },
+        {
+          "trial": 1,
+          "text": "The provided text does not say whether or not a dog can receive trazodone after getting vaccines. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 291,
+          "wallMs": 26954
+        },
+        {
+          "trial": 2,
+          "text": "This document doesn't say if a dog can take trazodone after getting vaccines. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 291,
+          "wallMs": 12313
+        },
+        {
+          "trial": 3,
+          "text": "This text does not say whether or not a dog can take trazodone after getting vaccines. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 291,
+          "wallMs": 12238
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:material:00",
+      "description": "trazodone/material trial 0 (gemma2:2b) answered (103 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:material:00",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 21716,
+        "promptTokens": 291,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:material:01",
+      "description": "trazodone/material trial 1 (gemma2:2b) answered (99 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:material:01",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 26954,
+        "promptTokens": 291,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:material:02",
+      "description": "trazodone/material trial 2 (gemma2:2b) answered (79 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:material:02",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 12313,
+        "promptTokens": 291,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:material:03",
+      "description": "trazodone/material trial 3 (gemma2:2b) answered (88 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:material:03",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 12238,
+        "promptTokens": 291,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

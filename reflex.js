@@ -414,6 +414,115 @@ export function normalizeSelfLevel(word) {
   return null;
 }
 
+// ── ordinal content recall ("what was the third thing you told me?") ───────
+//
+// The gap this closes: `detectReflex` already requires the second-person
+// tell, and until now that was paired with exactly four fixed sub-patterns
+// (surprise, acts/process, pace, how-do-you-X) — none of which an ordinal
+// recall question matches, so it fell through to an ordinary model turn,
+// which has no access to anything before fold.js's own bounded
+// RECENCY_WINDOW/RECORDS_IN_PROMPT. The data this needed already exists and
+// is already unbounded: `state.turnFolds` (app.js) pushes exactly one
+// `mechanicalFoldLine(question, answer)` string — "Q: … A: …", the SAME
+// hundred-character recap this app already shows everywhere else (the
+// folds table, the running summary) — once per completed turn, in every
+// turn-handling path, and is never trimmed (unlike `summary.folds`, which
+// the existing `folds` table builder's own comment already discloses is
+// bounded: "the first row is not always turn 1"). Turn N's recap is simply
+// `turnFolds[N-1]`; nothing new needs to be recorded to answer this.
+
+/** First..twentieth, the closed class this covers by an explicit table —
+ * realistic conversation lengths stay well inside it. Past twentieth, or
+ * for a compound word this table does not carry ("twenty-first"), a typed
+ * "twenty-first" is not covered — but a digit form ("21st") always is, via
+ * ORDINAL_SUFFIX below, which is the general, received English rule (11-13
+ * are always "th"; the trailing digit does not matter — a specific list is
+ * unnecessary, this is a MECHANICAL suffix rule, not a hand-picked one) and
+ * needs no ceiling at all. Disclosed gap, not silently unhandled: a spelled
+ * compound past twentieth ("thirty-second thing") is not parsed.
+ */
+export const ORDINAL_WORDS = Object.freeze({
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7,
+  eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13,
+  fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17,
+  eighteenth: 18, nineteenth: 19, twentieth: 20,
+});
+
+const ORDINAL_WORD_RE = new RegExp(`\\b(${Object.keys(ORDINAL_WORDS).join("|")})\\b`, "i");
+const ORDINAL_DIGIT_RE = /\b(\d+)(?:st|nd|rd|th)\b/i;
+const ORDINAL_LAST_RE = /\b(?:last|latest|most recent)\b/i;
+
+/** Any ordinal-shaped token in `text` — word, digit+suffix, or the
+ * deictic "last"/"latest"/"most recent" — as `{ n }` (1-based, counting
+ * from the conversation's own start) or `{ last: true }`. `null` when none
+ * is present. Whichever is found FIRST in the text wins; a well-formed
+ * recall question carries exactly one. */
+export function parseOrdinal(text) {
+  const q = String(text ?? "");
+  const last = q.match(ORDINAL_LAST_RE);
+  const word = q.match(ORDINAL_WORD_RE);
+  const digit = q.match(ORDINAL_DIGIT_RE);
+  const candidates = [
+    last && { at: last.index, value: { last: true } },
+    word && { at: word.index, value: { n: ORDINAL_WORDS[word[1].toLowerCase()] } },
+    digit && { at: digit.index, value: { n: Number(digit[1]) } },
+  ].filter(Boolean);
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.at - b.at);
+  return candidates[0].value;
+}
+
+/** The noun a recall question names ("thing", "time", "point"…) and the
+ * verb it names being told BY the instrument ("told", "said",
+ * "mentioned"…) — both closed classes, required alongside an ordinal token
+ * by `detectReflex` below so an ordinary material question that merely
+ * contains a number ("what's the third law of thermodynamics") never
+ * fires: it has no recall verb naming something the INSTRUMENT said. */
+const RECALL_NOUN_RE = /\b(thing|time|point|question|message|turn)s?\b/i;
+const RECALL_VERB_RE = /\b(tell|told|say|said|mention|mentioned|ask|asked|answer|answered)\b/i;
+
+/**
+ * Resolve an ordinal recall question against the conversation's own
+ * unbounded per-turn recap archive. Typed verdict, never a bare value:
+ * `{ ok: true, n, of, fold }` (fold is `turnFolds[n-1]`, the "Q: … A: …"
+ * recap of turn n) or `{ ok: false, gap, detail, ... }` — "unparseable"
+ * (the gate matched but no ordinal token itself is recoverable — defence
+ * in depth; `detectReflex`'s own gate already requires one) or
+ * "no_such_turn" (asked for a turn that has not happened, or the
+ * conversation is empty of any so far).
+ */
+export function resolveOrdinalRecall(turnFolds, question) {
+  const folds = turnFolds ?? [];
+  const parsed = parseOrdinal(question);
+  if (!parsed) return { ok: false, gap: "unparseable", detail: "no ordinal ('third', '3rd', 'last'…) found in the question" };
+  const of = folds.length;
+  const n = parsed.last ? of : parsed.n;
+  if (!of) return { ok: false, gap: "no_such_turn", n, of, detail: "nothing has been said yet this conversation" };
+  if (!Number.isInteger(n) || n < 1 || n > of) {
+    return { ok: false, gap: "no_such_turn", n, of, detail: `only ${of} turn${of === 1 ? "" : "s"} have happened so far — there is no turn ${n}` };
+  }
+  return { ok: true, n, of, fold: folds[n - 1] };
+}
+
+/** `resolveOrdinalRecall`, rendered the same "computed, not generated"
+ * table shape every other self-plane level already uses (`actsTable`,
+ * `paceTable`) — one row, since a pinpoint ordinal ask names exactly one
+ * turn, not a listing. `null` on a gap, matching the existing convention
+ * (`tables.js`'s `NOTHING` supplies the generic fallback string); the
+ * SPECIFIC reason (which turn, how many exist) lives in the verdict app.js
+ * reads directly for the prose it shows instead. */
+export function recallTable(turnFolds, question) {
+  const r = resolveOrdinalRecall(turnFolds, question);
+  if (!r.ok) return null;
+  return {
+    table: tableFrom([r], [
+      { label: "Turn", get: (x) => x.n },
+      { label: "What was said", get: (x) => x.fold },
+    ]),
+    caption: `turn ${r.n} of ${r.of} · computed, not generated`,
+  };
+}
+
 /**
  * The mechanical door for self questions asked in words. Deliberately
  * narrow: it requires the second-person tell — the question must be TO the
@@ -422,10 +531,27 @@ export function normalizeSelfLevel(word) {
  * material's, and material must always win (the same reason detectTable
  * demands the possessive). The explicit doors (/self, /reflect) are always
  * available for anything this refuses.
+ *
+ * "recall" (added): an ordinal content-recall phrasing — "the third
+ * thing", "the 2nd time", "the last thing" — paired with a recall verb
+ * ("you told/said/mentioned/asked/answered"). Checked before the other
+ * branches: "what was the third thing you told me" also contains no
+ * competing tell (no "surpris", no "your acts", no "how do you"), so order
+ * does not currently matter for any known phrasing, but recall is the most
+ * specific of the five (three required word classes, not one) and is
+ * placed first on the general principle that a more specific match should
+ * not be shadowed by a looser one if the word lists ever grow. Deliberately
+ * NOT attempted here: relative/anaphoric recall ("what did I ask before
+ * that", "the one before this") — resolving "that"/"this" needs knowing
+ * what they already point to, a different and harder mechanism than
+ * parsing a self-contained ordinal, and forcing it through this same gate
+ * would risk a wrong-turn answer stated as confidently as a right one.
+ * Left open, named rather than faked.
  */
 export function detectReflex(question) {
   const q = String(question ?? "");
   if (!/\b(you|your|yourself)\b/i.test(q)) return null;
+  if (parseOrdinal(q) && RECALL_NOUN_RE.test(q) && RECALL_VERB_RE.test(q)) return "recall";
   if (/\bsurpris/i.test(q)) return "surprise";
   if (/\byour (acts?|process|thinking|cognition|log|ledger)\b/i.test(q)) return "acts";
   if (/\byour (pace|speed|latency)\b/i.test(q) || /\bhow fast are you\b/i.test(q)) return "pace";

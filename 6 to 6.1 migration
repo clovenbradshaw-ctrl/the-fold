@@ -1,0 +1,134 @@
+# eoreader6 → eoreader6.1 Migration Status
+
+## What eoreader6.1 Is
+
+A published snapshot of eoreader6 (single commit `51cf2ae`), stripped of essays,
+research scratch, raw corpora, and adversarial scripts. The engine code under
+`packages/` and `nul/` is byte-for-byte identical to eoreader6 at the time of
+the snapshot.
+
+## The Current Split (Inconsistent)
+
+The-fold imports from **both** directories. Runtime is on eoreader6.1; three
+test files still point at eoreader6.
+
+### Already on eoreader6.1 (7 files)
+
+| File | Imports |
+|---|---|
+| `serve.mjs` (runtime) | `/engine` and `/nul` mounts |
+| `page-graph.mjs` (security audit) | scan paths |
+| `explore-worker.mjs` | `packages/host/index.js` |
+| `build-log.test.mjs` | `holon/task-log.js` |
+| `grounding.test.mjs` | `spans.js`, `surfaces.js` |
+| `bound.test.mjs` | `spans.js`, `surfaces.js` |
+| `hypergraph.test.mjs` | `spans.js`, `surfaces.js`, `relations.js`, `material.js` |
+| `relations-chain.test.mjs` | `spans.js`, `surfaces.js`, `relations.js`, `material.js`, `referents/index.js` |
+| `reflex.test.mjs` | `emergence/tiers.js` |
+| `eval/dialogue.mjs` | `segments.js`, `spans.js`, `surfaces.js` |
+
+### Still on eoreader6 (3 files — need migration)
+
+| File | Imports |
+|---|---|
+| `explore-server.mjs` | `/engine` and `/nul` mounts (runtime) |
+| `widget.test.mjs` | `task-log.js`, `priors.js` |
+| `measure.test.mjs` | `nul/index.js`, `binding.js`, `audio/material.js` |
+| `eval/measure-real-data.mjs` | `nul/index.js`, `binding.js` |
+
+**`explore-server.mjs` is the critical one** — it serves `/engine` and `/nul` to
+the Explore page at runtime, and it still mounts from eoreader6, not eoreader6.1.
+
+## The One Gap: priors.js
+
+eoreader6's `priors.js` gained 33 lines after the snapshot was taken:
+
+- `INDEFINITE_DETERMINERS` + `_META`
+- `DEFINITE_DETERMINERS` + `_META`
+- `ANAPHORIC_PRONOUNS` + `_META`
+
+These are the closed classes the widget router (`widget.js`) needs. eoreader6.1
+does not have them. Since `serve.mjs` serves priors.js from eoreader6.1, the
+browser page does **not** get these exports at runtime. The widget router
+composes them at runtime — this is a live gap if the router is exercised through
+the browser.
+
+`widget.test.mjs` avoids the gap by still importing from eoreader6 (which has
+the updated file), so tests pass despite the mismatch.
+
+## What Needs to Happen
+
+### 1. Copy updated priors.js into eoreader6.1
+
+The 33 lines (INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS, ANAPHORIC_PRONOUNS
+plus their _META objects) need to land in eoreader6.1's
+`packages/engine/perceiver/text/priors.js`. This closes the runtime gap.
+
+### 2. Update `explore-server.mjs`
+
+Change the two `resolve` lines from:
+```js
+const ENGINE = path.resolve(ROOT, "..", "eoreader6", "packages", "engine");
+const NUL = path.resolve(ROOT, "..", "eoreader6", "nul");
+```
+to:
+```js
+const ENGINE = path.resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
+const NUL = path.resolve(ROOT, "..", "eoreader6.1", "nul");
+```
+
+### 3. Update the three test files
+
+Change imports in `widget.test.mjs`, `measure.test.mjs`, and
+`eval/measure-real-data.mjs` from `../eoreader6/` to `../eoreader6.1/`.
+
+### 4. Update `page-graph.mjs` (if needed)
+
+`page-graph.mjs` already references eoreader6.1 — verify after the above
+changes that the scan list still resolves.
+
+### 5. Verify
+
+- Run the full test suite to confirm all imports resolve against eoreader6.1
+- Start both servers (serve.mjs and explore-server.mjs) and confirm the
+  browser page loads and the Explore page loads
+- Confirm the widget router works at runtime (if testable)
+
+## What Was Stripped from eoreader6.1 (Not Needed by the-fold)
+
+- Essays and handoff specs (14 top-level .md files)
+- `.claude/` directory
+- `scripts/adversarial/` (25 challenge scripts)
+- `scripts/corpus/`, `scripts/experiments/`
+- Various probe/experiment scripts
+- `goldens/agency-civic/data/` (19 experiment JSONs)
+- `goldens/cast/texts/`, `goldens/network/texts/`
+
+All stripped content is research/experiment infrastructure, not engine code.
+
+## What eoreader6 Has That eoreader6.1 Does Not (40+ commits)
+
+Key post-snapshot work in eoreader6 (not yet in .1):
+
+- `foldExtract` (coverage-based extraction)
+- `host/terrains` (nine-terrain grid, kindsNullArm)
+- `READING-POLICY P7`
+- Rename `warrant` → `ground` (#70)
+- Population reading lifted into host
+- `PocketManifest`
+- Citation debt closure in activation/tiers/reading-regime
+- Holonic ground-floor stability (MIN_GROUND unification)
+- Null-arm fixes (reversalNull, searchKeyCohesions, kinds NUL)
+
+If the-fold needs any of these, eoreader6.1 must be re-snapshotted or the
+specific changes cherry-picked in.
+
+## Summary
+
+The migration is **almost done** — 7 of 10 affected files already point at
+eoreader6.1. The remaining work is:
+
+1. One file copy (priors.js, 33 lines)
+2. One server file edit (explore-server.mjs, 2 lines)
+3. Three test file edits (3 import paths each)
+4. Verification

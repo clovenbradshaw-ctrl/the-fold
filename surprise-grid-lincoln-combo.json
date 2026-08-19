@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "lincoln",
+    "routine": "combo",
+    "out": "surprise-grid-lincoln-combo.json",
+    "selfTest": false
+  },
+  "results": {
+    "lincoln": {
+      "combo": [
+        {
+          "trial": 0,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1700,
+          "wallMs": 19450
+        },
+        {
+          "trial": 1,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1700,
+          "wallMs": 28404
+        },
+        {
+          "trial": 2,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1700,
+          "wallMs": 12598
+        },
+        {
+          "trial": 3,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 1700,
+          "wallMs": 12209
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:combo:00",
+      "description": "lincoln/combo trial 0 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:combo:00",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 19450,
+        "promptTokens": 1700,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:combo:01",
+      "description": "lincoln/combo trial 1 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:combo:01",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 28404,
+        "promptTokens": 1700,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:combo:02",
+      "description": "lincoln/combo trial 2 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:combo:02",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 12598,
+        "promptTokens": 1700,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:combo:03",
+      "description": "lincoln/combo trial 3 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:combo:03",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 12209,
+        "promptTokens": 1700,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

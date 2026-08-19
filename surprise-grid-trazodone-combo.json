@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "trazodone",
+    "routine": "combo",
+    "out": "surprise-grid-trazodone-combo.json",
+    "selfTest": false
+  },
+  "results": {
+    "trazodone": {
+      "combo": [
+        {
+          "trial": 0,
+          "text": "This information does not provide a definitive answer to whether a dog can receive trazodone after vaccines. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 11772
+        },
+        {
+          "trial": 1,
+          "text": "The provided text states that trazodone should not be used in pets who are using MAO inhibitors or have angle-closure glaucoma. It also suggests that trazodone may interact with other medications, such as SSRIs and CNS depressants. However, it does not provide information on whether or not a dog can take trazodone after getting vaccinated. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 3,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 11991
+        },
+        {
+          "trial": 2,
+          "text": "I cannot answer that question. It is unclear if trazodone can be given to a dog after vaccines, based on the provided material. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 2178
+        },
+        {
+          "trial": 3,
+          "text": "I cannot answer whether or not a dog can receive trazodone after getting vaccines.  The provided material does not have a direct answer to that question. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 341,
+          "wallMs": 2719
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:combo:00",
+      "description": "trazodone/combo trial 0 (gemma2:2b) answered (110 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:combo:00",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 11772,
+        "promptTokens": 341,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:combo:01",
+      "description": "trazodone/combo trial 1 (gemma2:2b) answered (343 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:combo:01",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 11991,
+        "promptTokens": 341,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 3,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:combo:02",
+      "description": "trazodone/combo trial 2 (gemma2:2b) answered (129 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:combo:02",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 2178,
+        "promptTokens": 341,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:trazodone:combo:03",
+      "description": "trazodone/combo trial 3 (gemma2:2b) answered (155 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:trazodone:combo:03",
+      "result": {
+        "typeName": "trazodone",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 2719,
+        "promptTokens": 341,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

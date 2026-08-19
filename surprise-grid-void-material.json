@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "void",
+    "routine": "material",
+    "out": "surprise-grid-void-material.json",
+    "selfTest": false
+  },
+  "results": {
+    "void": {
+      "material": [
+        {
+          "trial": 0,
+          "text": "There is no material to answer from. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 102,
+          "wallMs": 2890
+        },
+        {
+          "trial": 1,
+          "text": "There is no material to answer from. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 102,
+          "wallMs": 7818
+        },
+        {
+          "trial": 2,
+          "text": "There is no material to answer this question. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 102,
+          "wallMs": 14396
+        },
+        {
+          "trial": 3,
+          "text": "There is no material to answer from. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 102,
+          "wallMs": 11550
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:material:00",
+      "description": "void/material trial 0 (gemma2:2b) answered (38 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:material:00",
+      "result": {
+        "typeName": "void",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 2890,
+        "promptTokens": 102,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:material:01",
+      "description": "void/material trial 1 (gemma2:2b) answered (38 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:material:01",
+      "result": {
+        "typeName": "void",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 7818,
+        "promptTokens": 102,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:material:02",
+      "description": "void/material trial 2 (gemma2:2b) answered (47 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:material:02",
+      "result": {
+        "typeName": "void",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 14396,
+        "promptTokens": 102,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:material:03",
+      "description": "void/material trial 3 (gemma2:2b) answered (38 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:material:03",
+      "result": {
+        "typeName": "void",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 11550,
+        "promptTokens": 102,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

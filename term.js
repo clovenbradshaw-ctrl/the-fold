@@ -721,6 +721,7 @@ export function initTerminal(bridge) {
           "  act <line>           compose one act of the terminal language — verb at terrain from stance (P22)",
           "  grid [legend]        this session's landed acts and define/evaluate landings · the 9×9×9 reference table",
           "  capacities [id]      the small, disclosed capacity registry `synthesize` checks its parts against",
+          '  query <source> [subject:X] [verb:X] [object:X]   the material\'s own subject-verb-object graph, direct — leave one of subject/object open for its distinct fillers; leave all three off to dump every edge',
           "  runtimes             what can run here — and what is refused, with reasons",
           "  learn · learn stop   walk this terminal's own commands, one step at a time · leave the lesson early",
           "  clear · exit         wipe the screen · close the drawer",
@@ -994,6 +995,42 @@ export function initTerminal(bridge) {
         return line(`${hit.id} · ${hit.terrain} · ${hit.op}\n  ${hit.module}::${hit.fn}\n  ${hit.what}`, "term-mute");
       }
       for (const c of list) line(`  ${c.id.padEnd(12)} ${c.terrain.padEnd(10)} ${c.what}`, "term-mute");
+    },
+    // query — the `relations` capacity's own door, standing next to `act`
+    // rather than routed through its verb grammar: relations.js's CON
+    // ("bind") already means something different on the append-only log
+    // (relate TWO already-established referents into a claim), and this is
+    // the opposite direction — READING the material's own graph directly,
+    // never landing anything. Added 2026-08-19, user direction: "can we
+    // now mechanically query the entire hypergraph" / "make sure this work
+    // with the sandboxed terminal too." Same "ground names an
+    // already-loaded source" contract `act`'s distinguish→cast wiring
+    // uses (capacity-runner.js), same typed-gap discipline on refusal.
+    query(arg) {
+      if (!arg) return line('query <source> [subject:X] [verb:X] [object:X] — leave exactly one of subject/object open for its fillers ("who did Lincoln appoint"); leave all three off to dump every edge the source binds', "term-mute");
+      const fieldRe = /(subject|verb|object):("([^"]*)"|(\S+))/g;
+      const fields = {};
+      let m;
+      while ((m = fieldRe.exec(arg))) fields[m[1]] = m[3] ?? m[4];
+      const source = arg.replace(fieldRe, "").trim().split(/\s+/)[0];
+      if (!source) return line("name a loaded source first — `query <source> ...`", "term-exit bad");
+      const sources = bridge.sources?.() ?? {};
+      if (!Object.hasOwn(sources, source)) return line(`no source named "${source}" is loaded — the attachment pill names must match exactly`, "term-exit bad");
+      if (!bridge.runCapacity) return line("capacities live behind `bridge.runCapacity` — this page has not wired it in yet", "term-exit bad");
+      const hasQuery = "subject" in fields || "verb" in fields || "object" in fields;
+      const result = bridge.runCapacity("relations", { text: sources[source], name: source, ...(hasQuery ? { query: fields } : {}) });
+      if (result.gap) return line(`${result.gap}: ${result.detail}`, "term-exit bad");
+      mirrorTerm("term-capacity-run", { id: "relations", source, query: hasQuery ? fields : null, count: result.count });
+      if (!hasQuery) {
+        if (!result.count) return line(`relations · 0 edges bound in "${source}"`, "term-mute");
+        for (const e of result.edges) line(`  ${e.subject} —${e.verb}${e.polarity === "-" ? " (negated)" : ""}→ ${e.object}  [${e.refs.join("; ")}]`, "term-mute");
+        return;
+      }
+      const openField = fields.subject == null ? "subject" : "object";
+      const pinned = openField === "subject" ? `verb:${fields.verb ?? "?"} object:${fields.object}` : `subject:${fields.subject} verb:${fields.verb ?? "?"}`;
+      if (!result.count) return line(`relations · nothing bound for ${pinned} in "${source}"`, "term-mute");
+      line(`relations · ${result.count} distinct ${openField}${result.count === 1 ? "" : "s"} for ${pinned}:`, "term-mute");
+      for (const f of result.fillers) line(`  ${f[openField]}  [${f.refs.join("; ")}]`, "term-mute");
     },
     clear() {
       out.textContent = "";

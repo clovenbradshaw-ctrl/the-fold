@@ -119,6 +119,20 @@ test("a list item's bold label is a heading, not a claim — the walk-through ca
   );
 });
 
+test("a bare markup tag is structure, not a claim, even without a fence — the SVG case", async () => {
+  const { checkGrounding, blankStructure } = await import("./grounding.js");
+  const passages = [{ ref: "n.txt#0-45", text: "The committee met on the quay and adjourned." }];
+  // Measured live (2026-08-19): asked for SVG, a small model answered with
+  // bare markup — no fence, so the fenced-code-block rule never fired — and
+  // the apparatus flagged its own attribute values (100, 50, 40) as
+  // unsupported figures: the artifact grounding itself in its own content.
+  const answer = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" stroke="red" stroke-width="2" fill="red" /></svg>';
+  assert.equal(blankStructure(answer).length, answer.length);
+  const report = checkGrounding(answer, passages, {});
+  const flagged = report.findings.map((f) => f.text);
+  assert.ok(!flagged.some((t) => ["100", "50", "40", "2"].includes(t)), `attribute value flagged: ${flagged}`);
+});
+
 test("a lone capitalized word opening a sentence is position, not namehood", async () => {
   const { checkGrounding } = await import("./grounding.js");
   const passages = [{ ref: "n.txt#0-40", text: "The column marched east before dawn broke." }];
@@ -276,6 +290,46 @@ test("row-group column names count as material", () => {
   const rows = chunkSource("a.csv", csv);
   const r = checkGrounding("The case_number column lists 24-0011 for Gary IN PD.", rows);
   assert.ok(r.clean, unsupportedClaims(r).join("; "));
+});
+
+test("a bare number is not grounded by an unrelated occurrence elsewhere in the passage", async () => {
+  // The measured failure (user, 2026-08-19, screenshot): "trazodone starts
+  // working within 30 to 60 minutes" checked "30" and "60" as grounded
+  // because a passage's WHOLE bag of numbers happened to contain those
+  // digit strings — bare occurrence counting over strings, with no sense
+  // of what the number actually meant. "You can tell a word by the company
+  // it keeps": a number is grounded by a passage SENTENCE that carries it
+  // together with its own descriptive words, not by the digit string
+  // appearing anywhere in the document.
+  const { checkGrounding, corroborateAtoms } = await import("./grounding.js");
+  const real = [
+    {
+      ref: "dog.txt#0-80",
+      text: "Trazodone usually starts working within 30 to 60 minutes of being given to a dog.",
+    },
+  ];
+  const grounded = checkGrounding("Trazodone typically starts working within 30 to 60 minutes.", real);
+  assert.ok(grounded.clean, JSON.stringify(grounded.findings));
+  const { atoms } = corroborateAtoms("Trazodone typically starts working within 30 to 60 minutes.", real);
+  assert.ok(atoms.filter((a) => a.kind === "number").every((a) => a.refs.length === 1));
+
+  // Same two digit strings, present in the SAME document but never in the
+  // same breath as the claim's own words — real bytes, wrong context.
+  const decoy = [
+    {
+      ref: "dog.txt#0-140",
+      text:
+        "Vaccination records show 30 dogs were treated at the shelter last spring. " +
+        "The clinic reopens in 60 days for renovations.",
+    },
+  ];
+  const misgrounded = checkGrounding("Trazodone typically starts working within 30 to 60 minutes.", decoy);
+  assert.equal(misgrounded.clean, false, "bare digit-string presence elsewhere must not ground the claim");
+  const said = unsupportedClaims(misgrounded).join(" | ");
+  assert.match(said, /30/);
+  assert.match(said, /60/);
+  const { atoms: decoyAtoms } = corroborateAtoms("Trazodone typically starts working within 30 to 60 minutes.", decoy);
+  assert.ok(decoyAtoms.filter((a) => a.kind === "number").every((a) => a.refs.length === 0));
 });
 
 test("an address is not a claim about quantities", () => {

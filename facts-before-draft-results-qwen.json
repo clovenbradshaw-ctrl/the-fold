@@ -1,0 +1,744 @@
+{
+  "args": {
+    "model": "qwen2.5:14b-instruct-q4_K_M",
+    "ollama": "http://localhost:11434",
+    "trials": 3,
+    "question": "who was Abraham Lincoln's vice president?",
+    "out": "facts-before-draft-results-qwen.json",
+    "selfTest": false
+  },
+  "extractedFacts": [
+    {
+      "subject": "Abraham Lincoln",
+      "verb": "served",
+      "object": "as the 16th president of the United States",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#0-118"
+    },
+    {
+      "subject": "Hannibal Hamlin",
+      "verb": "served",
+      "object": "as vice president under Lincoln from 1861 to 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#119-241"
+    },
+    {
+      "subject": "Andrew Johnson",
+      "verb": "served",
+      "object": "as vice president from March to April 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#242-372"
+    },
+    {
+      "subject": "Breckinridge",
+      "verb": "served",
+      "object": "as vice president under James Buchanan",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#487-625"
+    },
+    {
+      "subject": "Breckinridge later",
+      "verb": "served",
+      "object": "as a Confederate general and",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#761-889"
+    },
+    {
+      "subject": "Kamala Harris",
+      "verb": "served",
+      "object": "as vice president of the United States under Joe Biden from 2021 to 2025",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#890-1005"
+    },
+    {
+      "subject": "former senator",
+      "verb": "from",
+      "object": "Maine",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1141-1260"
+    },
+    {
+      "subject": "largely excluded",
+      "verb": "from",
+      "object": "Lincoln's inner circle during his term and did not seek renomination in 1864",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1141-1260"
+    },
+    {
+      "subject": "Mike Pence",
+      "verb": "served",
+      "object": "as vice president of the United States under Donald Trump from 2017 to 2021",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1261-1380"
+    },
+    {
+      "subject": "Al Gore",
+      "verb": "served",
+      "object": "as vice president of the United States under Bill Clinton from 1993 to 2001",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1381-1495"
+    },
+    {
+      "subject": "Dick Cheney",
+      "verb": "served",
+      "object": "as vice president of the United States under George W",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "Bush",
+      "verb": "from",
+      "object": "2001 to 2009",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "previously having",
+      "verb": "served",
+      "object": "as Secretary of Defense",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "Walter Mondale",
+      "verb": "served",
+      "object": "as vice president of the United States under Jimmy Carter from 1977 to 1981",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "later running",
+      "verb": "for",
+      "object": "president himself in 1984",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "Abraham Lincoln",
+      "verb": "for",
+      "object": "the Republicans",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "Breckinridge",
+      "verb": "for",
+      "object": "the Southern Democrats",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "Stephen Douglas",
+      "verb": "for",
+      "object": "the Northern Democrats",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "John Bell",
+      "verb": "for",
+      "object": "the Constitutional Union party",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "one term",
+      "verb": "from",
+      "object": "1857 to 1861 and was succeeded by Lincoln",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1861-1975"
+    },
+    {
+      "subject": "presidency poorly",
+      "verb": "for",
+      "object": "failing to prevent the Southern states' secession",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1861-1975"
+    },
+    {
+      "subject": "Seward",
+      "verb": "served",
+      "object": "as Lincoln's Secretary of State throughout his presidency",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1976-2090"
+    },
+    {
+      "subject": "rival candidate",
+      "verb": "for",
+      "object": "the 1860 Republican nomination",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1976-2090"
+    }
+  ],
+  "relevantFacts": [
+    {
+      "subject": "Abraham Lincoln",
+      "verb": "served",
+      "object": "as the 16th president of the United States",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#0-118"
+    },
+    {
+      "subject": "Hannibal Hamlin",
+      "verb": "served",
+      "object": "as vice president under Lincoln from 1861 to 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#119-241"
+    },
+    {
+      "subject": "Andrew Johnson",
+      "verb": "served",
+      "object": "as vice president from March to April 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#242-372"
+    },
+    {
+      "subject": "Breckinridge",
+      "verb": "served",
+      "object": "as vice president under James Buchanan",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#487-625"
+    },
+    {
+      "subject": "Kamala Harris",
+      "verb": "served",
+      "object": "as vice president of the United States under Joe Biden from 2021 to 2025",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#890-1005"
+    },
+    {
+      "subject": "largely excluded",
+      "verb": "from",
+      "object": "Lincoln's inner circle during his term and did not seek renomination in 1864",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1141-1260"
+    },
+    {
+      "subject": "Mike Pence",
+      "verb": "served",
+      "object": "as vice president of the United States under Donald Trump from 2017 to 2021",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1261-1380"
+    },
+    {
+      "subject": "Al Gore",
+      "verb": "served",
+      "object": "as vice president of the United States under Bill Clinton from 1993 to 2001",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1381-1495"
+    },
+    {
+      "subject": "Dick Cheney",
+      "verb": "served",
+      "object": "as vice president of the United States under George W",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "Walter Mondale",
+      "verb": "served",
+      "object": "as vice president of the United States under Jimmy Carter from 1977 to 1981",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "later running",
+      "verb": "for",
+      "object": "president himself in 1984",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "one term",
+      "verb": "from",
+      "object": "1857 to 1861 and was succeeded by Lincoln",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1861-1975"
+    },
+    {
+      "subject": "Seward",
+      "verb": "served",
+      "object": "as Lincoln's Secretary of State throughout his presidency",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1976-2090"
+    }
+  ],
+  "results": {
+    "A": [
+      {
+        "trial": 0,
+        "text": "Abraham Lincoln's vice president during his first term from 1861 to 1865 was Hannibal Hamlin. For his second term from 1865, Lincoln's vice president was Andrew Johnson. [fixture:lincoln-notes#119-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 7,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 101782
+      },
+      {
+        "trial": 1,
+        "text": "Abraham Lincoln's vice president during his first term from 1861 to 1865 was Hannibal Hamlin. For his second term, Lincoln replaced Hamlin with Andrew Johnson, who served from March to April 1865. [fixture:lincoln-notes#119-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 40160
+      },
+      {
+        "trial": 2,
+        "text": "Abraham Lincoln's vice president during his first term from 1861 to 1865 was Hannibal Hamlin. For his second term, Lincoln replaced Hamlin with Andrew Johnson, who served as vice president until Lincoln's assassination in April 1865. [fixture:lincoln-notes#119-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 35157
+      }
+    ],
+    "B": [
+      {
+        "trial": 0,
+        "text": "The material establishes that Abraham Lincoln's vice president from 1861 to 1865 was Hannibal Hamlin. [fixture:lincoln-notes#119-241] Although Andrew Johnson succeeded Hamlin as vice president from March to April 1865, Hamlin was Lincoln's vice president for the majority of Lincoln's presidency. [fixture:lincoln-notes#242-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 12,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 68712
+      },
+      {
+        "trial": 1,
+        "text": "The material establishes that Abraham Lincoln's vice president from 1861 to 1865 was Hannibal Hamlin. [fixture:lincoln-notes#119-241] Although Andrew Johnson also served as vice president from March to April 1865, this was after Lincoln's initial vice president, Hannibal Hamlin, had left office. [fixture:lincoln-notes#242-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 43972
+      },
+      {
+        "trial": 2,
+        "text": "The material establishes that Abraham Lincoln's vice president from 1861 to 1865 was Hannibal Hamlin. [fixture:lincoln-notes#119-241] Although Andrew Johnson served as vice president from March to April 1865, this was after Lincoln's initial vice president, Hannibal Hamlin, had left office. [fixture:lincoln-notes#242-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 45946
+      }
+    ],
+    "C": [
+      {
+        "trial": 0,
+        "text": "Abraham Lincoln's vice president for his first term from 1861 to 1865 was Hannibal Hamlin. [fixture:lincoln-notes#119-241] For his second term, Lincoln replaced Hamlin with Andrew Johnson, who served from March to April 1865. [fixture:lincoln-notes#242-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 103100
+      },
+      {
+        "trial": 1,
+        "text": "Abraham Lincoln's vice president for his first term from 1861 to 1865 was Hannibal Hamlin. For his second term, Lincoln replaced Hamlin with Andrew Johnson, who served as vice president from March to April 1865. [fixture:lincoln-notes#119-241, fixture:lincoln-notes#242-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 71386
+      },
+      {
+        "trial": 2,
+        "text": "Abraham Lincoln's vice president for his first term from 1861 to 1865 was Hannibal Hamlin. [fixture:lincoln-notes#119-241] For his second term, Lincoln replaced Hamlin with Andrew Johnson, who served as vice president from March to April 1865. [fixture:lincoln-notes#242-372]",
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 41074
+      }
+    ]
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:00",
+      "description": "arm A trial 0 (qwen2.5:14b-instruct-q4_K_M) answered (201 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:00",
+      "result": {
+        "arm": "A",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 101782,
+        "promptTokens": 1193,
+        "outTokens": 63,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 7,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:01",
+      "description": "arm A trial 1 (qwen2.5:14b-instruct-q4_K_M) answered (228 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:01",
+      "result": {
+        "arm": "A",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 40160,
+        "promptTokens": 1193,
+        "outTokens": 69,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:02",
+      "description": "arm A trial 2 (qwen2.5:14b-instruct-q4_K_M) answered (265 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:02",
+      "result": {
+        "arm": "A",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 35157,
+        "promptTokens": 1193,
+        "outTokens": 74,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:00",
+      "description": "arm B trial 0 (qwen2.5:14b-instruct-q4_K_M) answered (328 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:00",
+      "result": {
+        "arm": "B",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 68712,
+        "promptTokens": 729,
+        "outTokens": 92,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 12,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:01",
+      "description": "arm B trial 1 (qwen2.5:14b-instruct-q4_K_M) answered (328 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 8,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:01",
+      "result": {
+        "arm": "B",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 43972,
+        "promptTokens": 729,
+        "outTokens": 94,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 9,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:02",
+      "description": "arm B trial 2 (qwen2.5:14b-instruct-q4_K_M) answered (323 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 10,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:02",
+      "result": {
+        "arm": "B",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 45946,
+        "promptTokens": 729,
+        "outTokens": 93,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 11,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:00",
+      "description": "arm C trial 0 (qwen2.5:14b-instruct-q4_K_M) answered (257 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 12,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:00",
+      "result": {
+        "arm": "C",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 103100,
+        "promptTokens": 1800,
+        "outTokens": 84,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 13,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:01",
+      "description": "arm C trial 1 (qwen2.5:14b-instruct-q4_K_M) answered (274 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 14,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:01",
+      "result": {
+        "arm": "C",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 71386,
+        "promptTokens": 1800,
+        "outTokens": 86,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 15,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:02",
+      "description": "arm C trial 2 (qwen2.5:14b-instruct-q4_K_M) answered (275 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 16,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:02",
+      "result": {
+        "arm": "C",
+        "model": "qwen2.5:14b-instruct-q4_K_M",
+        "wallMs": 41074,
+        "promptTokens": 1800,
+        "outTokens": 87,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 10,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 17,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

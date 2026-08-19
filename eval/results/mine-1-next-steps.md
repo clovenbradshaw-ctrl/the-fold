@@ -97,6 +97,85 @@ rejected attempts. If it still lets through too much noise, that is a
 result worth reporting exactly as honestly as the two rejections above,
 not a reason to lower the bar until something passes.
 
+## Addendum 2026-08-19 — tried kind-induction over `live_priors` for real
+
+The question on the table: instead of a small hand-typed closed auxiliary/
+suffix list, could "is this a verb" be INDUCED — the same way this engine
+induces every other kind (`emergence/kinds.js`'s `induceKinds`, null-tested
+Born gates, never a typed taxonomy) — from the real text already sitting
+in `live_priors`, rather than received from an external table like
+UniMorph? Worth answering by running it, not by arguing either way.
+
+**`induceKinds` is fully generic — nothing about it is entity-specific.**
+Its `records` shape is `{id, attributes: [{field_id}, ...]}` — a plain
+population-with-attribute-profiles, exactly the shape a set of candidate
+WORDS with distributional features already has. Nothing stops pointing it
+at words instead of relation-terms or documents. Confirmed by actually
+doing it, not by reading the header.
+
+**What was run.** ~147KB of real `live_priors` text (`02-encyclopedic/
+wikipedia/{Cell_biology,Evolution,DNA}.txt` — already on disk, no fetch,
+no network). 184 candidate word-types (count ≥ 15 in this sample). Each
+word's attribute profile built ENTIRELY from closed classes already
+received into this engine (`priors.js`'s `DEFINITE_DETERMINERS`/
+`INDEFINITE_DETERMINERS`/`NEGATION_WORDS`/`FIRST_PERSON`/
+`INFLECTIONAL_SUFFIXES`) — adjacency to a determiner, a modal/auxiliary, a
+pronoun, a negation, plus the word's own suffix shape. `induceKinds(...,
+{minPrevalence: 0.03, minKindSize: 5, permutations: 30, quantile: 0.95,
+seed: 0, reseeds: 3})` — an engineering starting point on every number,
+disclosed as exactly that, not walked against this fixture's own MINE-1
+score (the eoreader6.1 house rule this session has followed all night).
+
+**Result: the mechanism is real and it DOES find structure — just not
+yet the structure asked for.** `con()`'s clustering step found four
+genuinely cohesive groups (not noise — each clears `eva()`'s single-subset
+existence gate on its own, `pValue: 0`, `passed: true` for all four). But
+reading their membership: cluster 1 is mostly plural nouns ("genetics",
+"acids", "sequences", "nucleotides"); cluster 3 mixes real verbs
+("produce", "change", "produced") with nouns ("proteins", "genes",
+"enzymes"); none of the four is a clean verb kind. The features chosen
+(determiner/modal adjacency) are shared across too many parts of speech to
+make VERB the discriminating axis — a modal or a determiner sits next to
+nouns and adjectives too, not only verbs.
+
+**The full `induceKinds` pipeline refused all four anyway (`kinds
+induced: 0`) — and that's the engine doing its job, not a failure to
+diagnose away.** `induceKinds` requires more than `eva()`'s single-subset
+null: a cluster was CHOSEN by best-first search, and the reseed-based
+search null (`reseeds: 3`) checks whether that same search finds
+comparably cohesive groups in reshuffled data too. None of these four
+survived that stronger check. This is the exact discipline this file's own
+header names ("a cluster was not drawn at random... `eva`'s single-random-
+subset null cannot see that selection effect") working as designed — it is
+refusing to certify structure that only looks real under the weaker test.
+
+**Honest verdict.** Kind-induction over `live_priors` is architecturally
+sound for this and was NOT ruled out — it just isn't a quick win. The
+distributional features tried are too coarse to isolate verb-hood; a real
+attempt would need better ones (does the word take a following noun
+phrase without a determiner between it and its object; does it appear
+after a bare "to"; weight suffix evidence more heavily; possibly seed the
+similarity search with the small closed modal/auxiliary set itself as an
+anchor rather than a feature). That is real, unproven, further work — not
+attempted tonight, named here so it is not re-derived from scratch.
+
+**Where this leaves the two paths, compared honestly:**
+- **UniMorph** — a RECEIVED resource (like `live_priors` itself: built by
+  linguists, citable, has a giver), immediately reliable for "is this
+  surface form a known inflected verb," but external (needs fetching and
+  vendoring, its own licence/trust question) and static — it answers, it
+  never discovers anything new about THIS corpus.
+- **Kind-induction over priors** — the more philosophically consistent
+  path for a project whose whole stance is discovery over lookup (L2:
+  capitalisation differentiates, never decides; nothing is a label
+  computed and trusted alone) — but, as measured tonight, not yet a
+  working answer. The closed-class list already proposed above
+  (`INFLECTIONAL_SUFFIXES` + a small closed auxiliary set) is itself
+  already of the SAME received-grammatical-class kind this codebase uses
+  everywhere (`NEGATION_WORDS`, the determiner sets) — not an invented
+  heuristic, and a legitimate, smaller, already-proven-pattern fix in its
+  own right, independent of whether kind-induction ever gets there.
+
 ## The honest ceiling, restated
 
 Even a working filter only recovers essays/facts where SOME form

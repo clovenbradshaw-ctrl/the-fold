@@ -2014,3 +2014,181 @@ sibling to affirm and is not reached — that is the hypergraph's
 slot-competition work above, not a witness gap to paper over. The witness
 reads the page the byte walk chose, so a walk that fetched only
 irrelevant pages gives the witness nothing to read (no-anchor, typed).
+
+**Amended 2026-08-19 (same day) — measured against 25 real facts, not
+assumed: three bugs found, recall moved 2/25 → 5/25, precision held at
+zero wrong corrections throughout.** The user's direction after the
+witness tier first landed: "fix and chase to get better results" against
+`eval/witness-batch-eval.mjs` (new — 25 real, well-known, single-answer
+factoid claims, each with a declared `correctPattern` fixed before any run,
+checked against REAL fetched Wikipedia pages via this instrument's own
+explore-server, never fixtures — the whole point, after the hypergraph's
+structural matcher was measured failing on real prose's variety of
+phrasing, is that real material is messier than a hand-built specimen and
+the witness tier has to survive that). Query building steers to Wikipedia
+FIRST, an ordinary search only as fallback (user direction: "have it
+always steer there and then go to primary sources" — the primary-source
+half stays named, unbuilt follow-on work, not attempted here).
+
+Three real, disclosed bugs, each found from an actual live read, fixed in
+`testimony.js`: (1) `siblingSwap`'s candidate pool admitted names spanning
+a raw newline (`"Other\nUndecided\nMargin"` — infobox cells glued by
+plain-text extraction) and names whose only qualifying sentence was a
+Wikipedia image caption legitimately repeating the claim's own topic words
+in its own title text (`"Jean Leon Gerome Ferris"`, a portrait's painter,
+for a "who wrote the Declaration" claim, because the portrait is titled
+*"Writing the Declaration of Independence, 1776"*) — both now excluded
+before scoring, and a zero-score tie now returns null instead of the
+longest surviving name; (2) the witness's own `real.because`, when it
+answers "no", frequently already NAMES the correct filler outright
+(measured: "the Pittsburgh Pirates were matched against the New York
+Yankees ... and the Pirates won" sat unused while the independent
+slot-scoring heuristic picked "Major League Baseball" instead) —
+`siblingSwap(sentence, slice, {hint})` now tries a name drawn from that
+hint FIRST, walled exactly like every other candidate (it must already be
+a real, filtered candidate in the same slice — a model's own possibly-
+hallucinated reasoning can never become an ungrounded swap on the hint's
+word alone); (3) no fixed temperature — the identical prompt against the
+identical page flipped its own yes/no answer between two successive runs,
+which is not tolerable in a fact-check. `completeOnce`/`complete` (app.js)
+gained an optional `temperature` passthrough (undefined leaves every
+ordinary generative call untouched; witness reads pass `0` — a
+classification task, not a creative one).
+
+**What did NOT move, and why that is the finding, not a shortfall.** Zero
+wrong corrections across all three measured runs — every fix improved
+RECALL (fewer honest refusals), none touched precision, because the
+mechanism's walls (pointer containment, the sibling-agreement gate) are
+independent of candidate quality by construction: a bad candidate produces
+a refusal, never a lie. The dominant remaining failure, disclosed rather
+than chased further this pass: `witnessSlice`'s anchor-sentence scoring has
+no signal for whether a "sentence" is real prose at all, so a flattened
+polling-table row that happens to repeat the claim's own words verbatim
+(`"Poll source Date(s) administered Ronald Reagan (R) Jimmy Carter (D)
+..."`) can out-anchor the page's actual prose naming the winner. That is a
+different, harder problem than sibling selection — a structural prose-
+vs-table signal belongs in the anchor scoring itself, not another
+candidate filter — named as the next concrete step in
+`eval/witness-batch-eval.mjs`'s own header, not attempted here.
+
+**Files.** `testimony.js` (`CAPTION_MARKERS`, the newline/zero-score walls
+in `siblingSwap`, the `hint` parameter); `testimony.test.mjs` (+4
+conformance tests, each pinning one measured live shape — newline-glued
+furniture, caption topic-restatement, hint-first with its own wall, the
+zero-score-tie refusal); `app.js` (`completeOnce`/`complete` gain
+`temperature`; `witnessProof` passes `hint: real.because` and
+`temperature: 0`); `eval/witness-batch-eval.mjs` (new — the 25-specimen
+harness itself, self-test mode, three runs' numbers recorded in its own
+header). 831→832 repeated full-suite passes across the pass (the file
+count moved only because tests were added, never because one broke).
+
+**The same-day companion fix — the void, acknowledged.** Same user
+session, a second direction: "if the surf did not turn something up, the
+model should be fed the acknowledgement of this void." Before this, a
+preflight search (P23) that ran and found nothing looked, to the model,
+identical to a turn where no search was ever attempted — the drafting
+model had no way to distinguish "I have no material because nobody
+looked" from "I have no material because I looked and there was none."
+`holon.js` gained `SEARCHED_VOID_PREFIX` and a `searchedVoid` parameter
+threaded through `runHolonicTask` → `runPart`, reaching ONLY the flat
+chat branches (both the with-history and without-history shapes) as a
+fact appended to `CHAT_SYSTEM_PROMPT` — information, not an instruction
+(the same posture `experiments/facts-before-draft.mjs`, an independent
+session's parallel work the same day, converged on from a different
+angle: "give the model only what it needs, don't stack behavioral
+steering on top"). `app.js`'s `holonicTurn` sets it from
+`gatherPreflightMaterial`'s own gap detail exactly when the preflight
+search ran and came back with zero chunks; a decomposed part's own
+narrower framing is untouched by design (`flat`-gated, matching every
+other flat-only fold-in this policy set already establishes). Pinned by
+4 new `holon.test.mjs` regressions: the fact reaches both flat chat
+shapes, never appears on an ordinary materialless turn where no search
+ran, and never leaks into a decomposed part.
+
+## P28 — Verification is EVA, decomposed across the engine's own nine-cell grid, never one ad hoc tier
+
+**The rule.** Whether a claim holds is not one check; it is up to nine,
+addressed by the engine's own domain×grain grid
+(`packages/engine/operators.js::TERRAIN_BY_DOMAIN` — three domains
+(Existence, Structure, Interpretation) × three grains (Ground, Figure,
+Pattern) = Void/Entity/Kind, Field/Link/Network, Atmosphere/Lens/Paradigm).
+`verification.js::verificationTasksFor` walks all nine for one hypergraph
+claim (+ an optional witness verdict) and returns nine typed cells, never
+a scalar. Domain order is load-bearing, not cosmetic: Existence gates
+Structure gates Interpretation, because a referent that fails to exist is
+a PRESUPPOSITION FAILURE (Strawson on Russell's "the present king of
+France is bald" — a type error, not a falsity), so a failed Entity cell
+forces every claim-scoped cell below it (Link, Network, Lens) to a typed
+`not_yet_executable` gap, REGARDLESS of what data the caller supplies for
+them — a witness result handed in for a claim whose referent never
+resolved is composed as absent, never reported. This is the JNJ incident
+(P23's amendment) inverted: that bug manufactured a false referent and
+then happily verified downstream; this rule is what stops the grid from
+repeating it the other direction.
+
+**Belnap's fourth value.** `holds` / `fails` / `both` / `gap` /
+`not_yet_executable` — five verdict tokens, not three. `both` is Belnap's
+told-true-and-told-false (*"How a computer should think,"* 1977): a bound
+edge whose material ALSO states the opposite polarity elsewhere
+(hypergraph.js's own `contested` field — "divergence between perspectives
+is a signal, not noise to smooth") composes as `both`, counted in its own
+bucket by `verificationSummary`, never averaged into `holds` or `fails` —
+the same no-undeclared-scalar-collapse discipline this policy set already
+holds elsewhere, read the same way at the verdict-vector level.
+
+**Five cells are real, surfaced not duplicated** (the standing rule,
+applied to this repo's own checking ladder): Void/Entity/Field/Link from
+hypergraph.js (already built, P27's Belnap-`both` wiring landed the same
+pass), Lens from testimony.js's witness tier. **Four are disclosed
+absent**, typed `not_yet_executable` with a stated reason, never silently
+skipped: Kind (`emergence/kinds.js` exists as a real engine organ, never
+wired to a claim check), Network beyond the one measured slot-competition
+case (P27's `competing` field covers same-verb+object/different-subject
+only — not general network-exclusivity), Atmosphere and Paradigm (no
+organ exists for either).
+
+**Every cell carries its giver and its dependency**, declared once
+(`GIVERS`, `DEPENDS_ON`) so the presupposition gate and the record's own
+audit trail cannot drift apart — the truth-maintenance move (Doyle's TMS
+/ de Kleer's ATMS): a belief carries its own justification, so a
+superseded premise's downstream verdicts are mechanically findable, not
+archaeological. A `cursor` (turn number, passed in — this module computes
+no timestamp, the standing seq-not-clock discipline) rides every cell: a
+verdict is a claim as of a tick, and bitemporal reasoning (Snodgrass —
+valid time vs. transaction time) says which tick matters.
+
+**Wired live**, one panel per turn in the existing "thinking" disclosure
+(`renderFold`'s `verification` block, styled exactly like "what was sent"
+— raw `JSON.stringify`, never a re-narrated summary): user direction,
+verbatim, "make sure all routing like this is stored in the json of the
+prompt and response available through the 'thinking' affordance." Verified
+live (2026-08-19): `who won the 1960 world series?` composed all nine
+cells correctly — Void/Entity/Field holding, Link failing (no edge for
+"Yankees —won→ 1960 World Series"), Kind/Network/Atmosphere/Paradigm typed
+absent, Lens typed absent with the honest reason "no witness ran for this
+claim."
+
+**Disclosed residue, not fixed here.** Lens is not yet wired to run
+against the SAME claim object Link/Network compose from — the witness
+tier (testimony.js) checks CHECKABLE ATOMS (extractCheckableAtoms's
+extraction), a different representation than hypergraph.js's SVO triples,
+extracted by a different organ on a different schedule (proof-chip
+click/autorun vs. turn-render time). Unifying claim identity across the
+two extraction mechanisms so a witness result composes into the SAME
+nine-cell record as its hypergraph sibling is real, named, unattempted
+work — not silently implied done because the Lens cell exists and is
+wired for the CASE where a caller supplies both.
+
+**Files.** `verification.js` (new, pure, no organ run, no network
+crossing — composes already-computed results); `verification.test.mjs`
+(16 conformance tests: the grid shape, presupposition short-circuiting
+every claim-scoped cell including Lens, the Belnap-both composition, the
+giver/dependsOn declarations, the cursor threading); `app.js`
+(`verification` computed per hypergraph claim inside the turn's own
+render path, one relation report per section — never cross-wired between
+sections — passed to `renderFold`, rendered as its own "thinking"
+sub-panel).
+
+**Enforced.** 848/848 repeated full-suite passes across the pass (only
+growing, never regressing, since verification.js duplicates no existing
+organ's computation).

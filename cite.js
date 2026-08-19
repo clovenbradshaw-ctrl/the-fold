@@ -35,16 +35,47 @@
 // Pure: no DOM, no IO, no model.
 
 import { foldDiacritics, retrieve, tokenize } from "./source.js";
+import { ABBREV } from "./grounding.js";
 
 /**
  * Sentence-ish. Splits on terminal punctuation and on newlines, because a
  * model writing a list puts one claim per line and never a full stop.
+ *
+ * The period-boundary half shares grounding.js's own `ABBREV` guard, not a
+ * second copy of it. Before this, "U.S." (or "Mr.", "Jan.", any single
+ * capital letter or the closed abbreviation list) split a sentence in two
+ * wherever it appeared. Measured live 2026-08-19: a model's narration
+ * sentence — "This passage details the political life of Hannibal Hamlin,
+ * focusing on his service in the U.S. Senate, his position as vice
+ * president..." — broke at "U.S.", and provenance.js's narration-stripper
+ * (which classifies and cuts whole SENTENCES from this splitter) correctly
+ * matched and removed the FRONT half ("This passage details...") as
+ * narration while the BACK half ("Senate, his position as vice president
+ * under President Lincoln...") shipped as an orphaned, ungrammatical
+ * fragment — the same sentence, torn in half by a splitter that did not
+ * know "U.S." was one word. grounding.js's splitSentences already carried
+ * this guard (built for its own atom/number-company checking); this is the
+ * same fix, reused rather than reinvented, kept behind cite.js's own
+ * newline-per-claim splitting and address-rejoining, both unchanged.
  */
 export function splitSentences(text) {
-  const pieces = String(text ?? "")
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const src = String(text ?? "");
+  const pieces = [];
+  let start = 0;
+  const re = /(?<=[.!?])\s+|\n+/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const piece = src.slice(start, m.index);
+    // A newline boundary is unconditional (list items, one claim per line);
+    // only a period/!/? boundary can be an abbreviation in disguise.
+    const boundaryIsSentencePunct = /[.!?]$/.test(src.slice(0, m.index));
+    if (boundaryIsSentencePunct && ABBREV.test(piece.trimEnd())) continue;
+    const trimmed = piece.trim();
+    if (trimmed) pieces.push(trimmed);
+    start = m.index + m[0].length;
+  }
+  const tail = src.slice(start).trim();
+  if (tail) pieces.push(tail);
   // An address written after the full stop still belongs to the sentence it
   // follows. Observed live: a model ended with "...per decade. [kess#80-174]",
   // the address split off as its own piece, the sentence before it looked

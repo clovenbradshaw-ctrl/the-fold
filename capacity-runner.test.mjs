@@ -9,7 +9,10 @@ import * as operators from "../eoreader6.1/packages/engine/operators.js";
 import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
 import { splitSentences } from "../eoreader6.1/packages/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader6.1/packages/engine/perceiver/text/surfaces.js";
+import { discoverRelationVocab, extractRelations } from "../eoreader6.1/packages/engine/perceiver/text/relations.js";
+import { tokenize } from "../eoreader6.1/packages/engine/perceiver/text/material.js";
 import { makeReferentIndex } from "./cast.js";
+import { makeRelationReader } from "./hypergraph.js";
 import { makeCapacityRunner, landAct } from "./capacity-runner.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "./capacities.js";
@@ -19,18 +22,90 @@ function freshRunner() {
   return makeCapacityRunner({ referentIndexFor });
 }
 
+// `relations`, the second capacity that executes (2026-08-19) — its own
+// runner with relationsFor REALLY injected, over the REAL engine organs,
+// the same pattern cast's own tests hold to. makeRelationReader reuses the
+// WHOLE organs object for its own internal makeReferentIndex call
+// (hypergraph.js's own doc comment says so), so this needs every organ
+// cast's bundle needs PLUS the relation-specific ones — a subset silently
+// zeroes the measured vocabulary rather than erroring, which is exactly
+// how the first cut of these tests got it wrong.
+function freshRelationsRunner() {
+  const referentIndexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+  const relationsFor = makeRelationReader({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm, discoverRelationVocab, extractRelations, tokenize });
+  return makeCapacityRunner({ referentIndexFor, relationsFor });
+}
+
+// "Lincoln" must appear OUTSIDE sentence-initial position at least once —
+// a lone capitalized word that ONLY ever opens a sentence reads as
+// position, not namehood (the engine's own L2 discipline), and never gets
+// admitted as an established referent; every triple with it as subject
+// then has nothing to resolve against and the vocabulary measure stays
+// empty. The trailing two sentences put it in object position, exactly
+// matching the working fixture in hypergraph.test.mjs.
+const LINCOLN_TEXT =
+  "Lincoln appointed Hamlin. Lincoln appointed Johnson. Lincoln nominated Seward. Hamlin visited Lincoln often. Johnson visited Lincoln rarely.";
+
 function freshGrid() {
   const grid = makeGrid({ operators, taskLog });
   grid.withCapacities({ findCapacity, unresolvedCapacity });
   return grid;
 }
 
-test("runCapacity: any id other than \"cast\" is a typed, disclosed gap — never a silent no-op", () => {
+test("runCapacity: an id neither \"cast\" nor \"relations\" is a typed, disclosed gap — never a silent no-op", () => {
   const runCapacity = freshRunner();
-  const out = runCapacity("relations", { text: "whatever" });
+  const out = runCapacity("graph", { text: "whatever" });
+  assert.equal(out.gap, "not_yet_executable");
+  assert.equal(out.id, "graph");
+  assert.match(out.detail, /not yet wired/);
+});
+
+test("runCapacity: \"relations\" IS one of the two that execute, but still a typed gap — never a fabricated result — when this page's own runner has no relationsFor injected", () => {
+  const runCapacity = freshRunner(); // freshRunner() deliberately omits relationsFor
+  const out = runCapacity("relations", { text: "Lincoln appointed Hamlin." });
   assert.equal(out.gap, "not_yet_executable");
   assert.equal(out.id, "relations");
-  assert.match(out.detail, /not yet wired/);
+  assert.match(out.detail, /relationsFor/);
+});
+
+test("runCapacity: \"relations\" with no query dumps the whole edge graph — real triples, not a fabricated list", () => {
+  const runCapacity = freshRelationsRunner();
+  const out = runCapacity("relations", { text: LINCOLN_TEXT, name: "lincoln.txt" });
+  assert.equal(out.gap, undefined, JSON.stringify(out));
+  assert.equal(out.id, "relations");
+  assert.ok(out.count >= 3, `expected at least 3 edges, got ${out.count}`);
+  assert.ok(out.edges.some((e) => e.subject === "Lincoln" && e.verb === "appointed" && e.object === "Hamlin"));
+  assert.ok(out.edges.some((e) => e.subject === "Lincoln" && e.verb === "appointed" && e.object === "Johnson"));
+});
+
+test("runCapacity: \"relations\" with subject+verb given answers the exact cardinality question — who did Lincoln appoint", () => {
+  const runCapacity = freshRelationsRunner();
+  const out = runCapacity("relations", { text: LINCOLN_TEXT, name: "lincoln.txt", query: { subject: "Lincoln", verb: "appointed" } });
+  assert.equal(out.gap, undefined, JSON.stringify(out));
+  assert.equal(out.count, 2);
+  assert.deepEqual(out.fillers.map((f) => f.object).sort(), ["Hamlin", "Johnson"]);
+  // A referent-aware query, not a surface-string guess: it ran the real
+  // engine's endpointsMatch, not a substring test on report.edges.
+  assert.ok(out.fillers.every((f) => Array.isArray(f.refs) && f.refs.length));
+});
+
+test("runCapacity: \"relations\" refuses a malformed query (both open, or both pinned) with a typed gap, never a guess", () => {
+  const runCapacity = freshRelationsRunner();
+  const bothOpen = runCapacity("relations", { text: LINCOLN_TEXT, name: "lincoln.txt", query: { verb: "appointed" } });
+  assert.equal(bothOpen.gap, "bad_query");
+  const bothPinned = runCapacity("relations", {
+    text: LINCOLN_TEXT,
+    name: "lincoln.txt",
+    query: { subject: "Lincoln", verb: "appointed", object: "Hamlin" },
+  });
+  assert.equal(bothPinned.gap, "bad_query");
+});
+
+test("runCapacity: \"relations\" with no text is a typed no_material gap, matching cast's own posture", () => {
+  const runCapacity = freshRelationsRunner();
+  const out = runCapacity("relations", { name: "empty.txt" });
+  assert.equal(out.gap, "no_material");
+  assert.match(out.detail, /empty\.txt/);
 });
 
 test("runCapacity: \"cast\" with no text is a typed no_material gap, not a crash or an empty success", () => {

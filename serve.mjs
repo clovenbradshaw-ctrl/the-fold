@@ -50,6 +50,18 @@ const ENGINE = resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
 // its own mount at the path that import lands on. Used, never copied, same as
 // the engine itself.
 const NUL = resolve(ROOT, "..", "eoreader6.1", "nul");
+// Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
+// output) — never a fact this repo derives or vendors a stale copy of.
+// scripts/corpus/ is eoreader6.1's OWN gitignored, locally-reproducible
+// build directory (its README says so directly: raw corpora are "stripped
+// out" of the published snapshot) — this mount, like /engine and /nul,
+// reads it live off that disk rather than copying the 376KB file into this
+// repo, so a rebuilt prior (e.g. eoreader6.1's own disclosed next step,
+// extending it with participle FEATS) is picked up with no second copy to
+// go stale. hypergraph.js's own posPriorFor() (app.js-injected) types the
+// absence honestly when the file has never been built locally, rather than
+// assuming every checkout has run the builder.
+const PRIORS_DATA = resolve(ROOT, "..", "eoreader6.1", "scripts", "corpus");
 const PORT = Number(process.argv[2] ?? 8811);
 
 // The one package environment. Both the build runner and the terminal get
@@ -350,9 +362,9 @@ createServer((req, res) => {
 
   let file = join(ROOT, rel === "/" ? "index.html" : rel);
 
-  // Never serve outside the directory (or the engine/nul mounts), whatever
-  // the path claims to be.
-  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(NUL)) {
+  // Never serve outside the directory (or the engine/nul/priors-data mounts),
+  // whatever the path claims to be.
+  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA)) {
     res.writeHead(403).end("no");
     return;
   }
@@ -370,6 +382,13 @@ createServer((req, res) => {
   if (rel.startsWith("/nul/")) {
     file = join(NUL, rel.slice("/nul/".length));
     if (!file.startsWith(NUL)) {
+      res.writeHead(403).end("no");
+      return;
+    }
+  }
+  if (rel.startsWith("/priors-data/")) {
+    file = join(PRIORS_DATA, rel.slice("/priors-data/".length));
+    if (!file.startsWith(PRIORS_DATA)) {
       res.writeHead(403).end("no");
       return;
     }

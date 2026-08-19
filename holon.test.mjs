@@ -14,6 +14,7 @@ import {
   MAX_CORRECTIONS,
   PLAN_ENTRY_KINDS,
   PLAN_SYSTEM_PROMPT,
+  SEARCHED_VOID_PREFIX,
   appendPlan,
   createPlanLog,
   extractArray,
@@ -24,6 +25,23 @@ import {
   runHolonicTask,
 } from "./holon.js";
 import { chunkSource } from "./source.js";
+import { makeRelationReader } from "./hypergraph.js";
+
+// Real engine organs for the relation tier (hypergraph.test.mjs's own
+// pattern) — the completeness gate is worth nothing tested against a
+// fixture that fakes what "bound" and "fillers" mean; it has to run the
+// real extraction the way a live turn actually does.
+const relationOrgans = async () => {
+  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
+    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+  );
+  const { discoverRelationVocab, extractRelations } = await import(
+    "../eoreader6.1/packages/engine/perceiver/text/relations.js"
+  );
+  const { tokenize } = await import("../eoreader6.1/packages/engine/perceiver/text/material.js");
+  return { splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm, discoverRelationVocab, extractRelations, tokenize };
+};
 
 const CORPUS = [
   "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.",
@@ -810,6 +828,138 @@ test("a prompt that matched no material gets one plain-chat reply, not a diagnos
   assert.ok(result.open.every((o) => !o.includes("restates")), "no typed echo on the record");
 });
 
+// ── the void, acknowledged (2026-08-19, user direction) ─────────────────
+// "if the surf did not turn something up, the model should be fed the
+// acknowledgement of this void" — a preflight search that ran and found
+// nothing must not look, to the model, identical to a turn where no search
+// was ever attempted.
+
+test("searchedVoid reaches a flat chat turn's system prompt as a fact, not an instruction", async () => {
+  let sawVoid = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(SEARCHED_VOID_PREFIX)) sawVoid = true;
+    return "I looked and couldn't find anything on that — sorry!";
+  };
+  const result = await runHolonicTask({
+    task: "what's the score of the Kessington charity match right now?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    searchedVoid: `${SEARCHED_VOID_PREFIX} (checked the web: the search ran but found no pages for these words.)`,
+  });
+  assert.ok(sawVoid, "the void must ride the system prompt, not be silently dropped");
+  assert.ok(result.output.length > 0);
+});
+
+test("searchedVoid also reaches a flat chat turn that carries verbatim history", async () => {
+  let sawVoid = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(SEARCHED_VOID_PREFIX)) sawVoid = true;
+    return "Still nothing on that one.";
+  };
+  await runHolonicTask({
+    task: "any update?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    chatHistory: [{ role: "user", content: "what's the score?" }, { role: "assistant", content: "let me check." }],
+    searchedVoid: SEARCHED_VOID_PREFIX,
+  });
+  assert.ok(sawVoid, "the void must reach the history-carrying branch too, not just the no-history one");
+});
+
+test("without searchedVoid, an ordinary materialless chat turn is untouched — no phantom acknowledgement", async () => {
+  let sawVoid = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(SEARCHED_VOID_PREFIX)) sawVoid = true;
+    return "Hey! What's up?";
+  };
+  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  assert.equal(sawVoid, false, "a turn where no search ran must never claim one did");
+});
+
+test("searchedVoid is flat-only — a decomposed part's chat branch stays untouched", async () => {
+  // A decomposed part matters only when discourse.js's own scoping says
+  // it should widen; a task-wide fact like a preflight search must not
+  // leak into a planned part's narrower framing.
+  let sawVoid = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    if (messages[0]?.content?.includes(SEARCHED_VOID_PREFIX)) sawVoid = true;
+    return "An answer.";
+  };
+  await runHolonicTask({
+    task: "hi there, two things: a) how are you b) what's new",
+    chunks: [],
+    call,
+    planMode: "model",
+    searchedVoid: SEARCHED_VOID_PREFIX,
+  });
+  assert.equal(sawVoid, false, "searchedVoid must not reach a decomposed part's own prompt");
+});
+
+test("priorPass reaches a flat chat turn's system prompt as S1's own words, checkable not assumed right", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    return "Confirmed — that's right.";
+  };
+  const result = await runHolonicTask({
+    task: "what's 2+2 in Roman numerals?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    priorPass: "IV",
+  });
+  assert.ok(seen.includes('"IV"'), `S1's own answer must ride the system prompt verbatim: ${seen}`);
+  assert.ok(!/\byou must\b/i.test(seen), "information, not an instruction stacked on top");
+  assert.ok(result.output.length > 0);
+});
+
+test("priorPass also reaches the flat MATERIAL branch — unlike searchedVoid, S1's answer stays relevant once material exists", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    const refs = offeredRefs(promptOf(messages));
+    return `The Kessington report puts the harbor figure at 12% for the spring quarter. [${refs[0] ?? "x#0-1"}]`;
+  };
+  await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+    priorPass: "It was around 12%, I think.",
+  });
+  assert.ok(seen.includes("It was around 12%"), `S1's answer must reach the material branch too: ${seen}`);
+});
+
+test("without priorPass, an ordinary turn is untouched — no phantom first pass", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    return "Hey! What's up?";
+  };
+  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  assert.ok(!seen.includes("faster, unchecked first pass"), "a turn with no S1 pass must never claim one existed");
+});
+
+test("priorPass is flat-only — a decomposed part's own prompt stays untouched", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    seen = messages[0]?.content;
+    return "An answer.";
+  };
+  await runHolonicTask({
+    task: "hi there, two things: a) how are you b) what's new",
+    chunks: [],
+    call,
+    planMode: "model",
+    priorPass: "Doing fine, nothing new.",
+  });
+  assert.ok(!seen.includes("faster, unchecked first pass"), "priorPass must not reach a decomposed part's own prompt");
+});
+
 test("a draft that opens by restating the prompt ships without its framing", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
@@ -824,6 +974,89 @@ test("a draft that opens by restating the prompt ships without its framing", asy
   });
   assert.ok(!result.output.includes("The question is about"), "the framing sentence was stripped");
   assert.ok(result.output.includes("Kessington report"), "the content survives");
+});
+
+// ── the completeness gate (2026-08-19, user direction: "we STILL are not
+// getting Johnson, it's not adversarially checking if there is more to the
+// story") — the live specimen this closes: "who was Lincoln's vice
+// president?" answered "Hannibal Hamlin" alone, bound and correct, while
+// the material also stated Andrew Johnson as a second, equally real VP.
+// hypergraph.js's own clusterFillers already computed this cardinality on
+// every such claim; nothing downstream ever asked. This is that ask,
+// against the REAL relation tier — not a fixture standing in for it.
+// Same fixture hypergraph.test.mjs's own LINCOLN_PASSAGES already proved
+// establishes Lincoln/Hamlin/Johnson/Seward as real referents (Lincoln
+// needed outside sentence-initial position too — see that file's own
+// fixture comment) — reused rather than re-derived.
+const LINCOLN_TEXT =
+  "Lincoln appointed Hamlin. Lincoln appointed Johnson. Lincoln nominated Seward. Hamlin visited Lincoln often. Johnson visited Lincoln rarely.";
+
+test("a bound-but-incomplete answer triggers the completeness gate, and naming the missing filler clears it", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material also states")) {
+      corrected = true;
+      assert.match(user, /Johnson/, "the correction prompt must name the real, missing filler — not just say 'be more complete'");
+      return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
+    }
+    // First draft: true, bound, and — the whole point — incomplete. Worded
+    // differently from the material's own sentence (not a verbatim copy of
+    // it) so this tests the completeness gate specifically, not reproduction.
+    return "Lincoln appointed Hamlin in 1861.";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln appoint?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.ok(corrected, "the incomplete verdict must trigger the tailored rewrite");
+  assert.match(result.output, /Johnson/, "the shipped answer must cover the filler the first draft missed");
+  assert.ok(
+    !result.open.some((o) => o.includes("names only one of several")),
+    "once both fillers are covered, the gap is no longer open",
+  );
+});
+
+test("an answer that already names every filler never trips the completeness gate", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrections = 0;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    corrections++;
+    return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln appoint?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.equal(corrections, 1, "a complete first draft earns no correction call at all");
+  assert.ok(!result.open.some((o) => o.includes("names only one of several")));
+});
+
+test("a single-filler slot never trips the completeness gate — singular is the ordinary, unremarked case", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrections = 0;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    corrections++;
+    return "Lincoln nominated Seward for the post.";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln nominate?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.equal(corrections, 1, "a single real filler is the unremarked case — no completeness call spent on it");
 });
 
 test("a fenced code answer survives byte-exact — fences are structure, never framing", async () => {
@@ -844,7 +1077,20 @@ test("a fenced code answer survives byte-exact — fences are structure, never f
     call: async () => `The question is about Fibonacci numbers. ${code}`,
     planMode: "flat",
   });
-  assert.equal(framed.output, code, "framing prefix is CUT from the raw text; the code after it is byte-exact");
+  // The framing prefix used to be CUT here (stripNarrationSentences, inside
+  // clean()) — silent surgery on the model's own words, on the chat/no-
+  // material path too, contradicting that path's own stated law two
+  // paragraphs up in holon.js ("What the person gets is what the model
+  // said, as a person"). User direction, 2026-08-19: no post-processing —
+  // the model's words ship as the model wrote them; a bad opener is a
+  // reason to ask it to reconsider, never a reason to edit it out from
+  // under it. So the prefix now survives. What this test actually
+  // guards — fence integrity — still must hold: the code block itself
+  // stays byte-exact, no dropped fence, no flattened newlines.
+  assert.ok(
+    framed.output.endsWith(code),
+    "the fenced code block survives byte-exact even when framing prose precedes it",
+  );
 });
 
 // ── the reproduction detector's fold, and its measure ───────────────────────

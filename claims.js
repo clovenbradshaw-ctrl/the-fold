@@ -160,20 +160,16 @@ export function composedSentence(state) {
     // distinction foldProof draws; reproduced here 2026-08-17 when a
     // zero-result search composed as "not reached").
     parts.push(w.gap?.detail ? `web: ${w.gap.detail}` : "the web was not reached");
-  // The semantic witness (testimony.js, P26): a reader over one fetched
-  // page's own bytes, its testimony disciplined mechanically (pointer
-  // containment + the sibling-swap arm) before it may land here. Placed
-  // right after the web counts because it re-reads the same pages the
-  // counter counted — measured 2026-08-19: a false claim drew "the web
-  // states it: 3 of 3" from co-occurrence while the page itself said the
-  // opposite; the composed line must carry both, the count and the reading.
-  const wit = state.witness;
-  if (wit?.verdict === "contradicts")
-    parts.push(`a reader over ${wit.host ?? "the page"} says otherwise${wit.armed ? "" : " (unarmed)"}`);
-  else if (wit?.verdict === "states")
-    parts.push(`a reader over ${wit.host ?? "the page"} confirms it${wit.armed ? "" : " (unarmed)"}`);
-  else if (wit?.refused === "insensitive")
-    parts.push("a reader's testimony was refused as insensitive to the claim");
+  // The semantic witness (testimony.js, P27) is deliberately NOT composed
+  // here. It carries a QUOTE (the passage's own deciding sentence), which
+  // this function's terse one-clause-per-tier style has no room for — its
+  // own dedicated note (app.js's chip `run()`, prepended beside this one)
+  // is where the quote lives. Composing a second, quote-less summary of the
+  // same finding here duplicated it: measured live 2026-08-19, "a reader
+  // over statmuse.com says otherwise" rendered twice, run together with no
+  // separator, once from here and once from the dedicated note. `ledger.note`
+  // still records the witness aspect for the record; this function just
+  // never speaks it.
   // Phrased from the counts, never the verdict token: rankPrimary ranks
   // EVERY class of citation (primary.test.mjs pins a tertiary essay site as
   // a real "other"-class candidate), so "stated-by-primary" is a container

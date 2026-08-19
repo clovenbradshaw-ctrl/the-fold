@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "void",
+    "routine": "synthesis",
+    "out": "surprise-grid-void-synthesis.json",
+    "selfTest": false
+  },
+  "results": {
+    "void": {
+      "synthesis": [
+        {
+          "trial": 0,
+          "text": "Nothing in the material addresses Mary Todd Lincoln's favorite color. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 152,
+          "wallMs": 7654
+        },
+        {
+          "trial": 1,
+          "text": "There is no material to answer from. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 152,
+          "wallMs": 12608
+        },
+        {
+          "trial": 2,
+          "text": "Material does not address this question, so there is no answer to be given. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 152,
+          "wallMs": 12253
+        },
+        {
+          "trial": 3,
+          "text": "Material does not address this question. \n",
+          "correct": false,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 152,
+          "wallMs": 4792
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:synthesis:00",
+      "description": "void/synthesis trial 0 (gemma2:2b) answered (71 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:synthesis:00",
+      "result": {
+        "typeName": "void",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 7654,
+        "promptTokens": 152,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:synthesis:01",
+      "description": "void/synthesis trial 1 (gemma2:2b) answered (38 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:synthesis:01",
+      "result": {
+        "typeName": "void",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 12608,
+        "promptTokens": 152,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:synthesis:02",
+      "description": "void/synthesis trial 2 (gemma2:2b) answered (77 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:synthesis:02",
+      "result": {
+        "typeName": "void",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 12253,
+        "promptTokens": 152,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:synthesis:03",
+      "description": "void/synthesis trial 3 (gemma2:2b) answered (42 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:synthesis:03",
+      "result": {
+        "typeName": "void",
+        "routine": "synthesis",
+        "model": "gemma2:2b",
+        "wallMs": 4792,
+        "promptTokens": 152,
+        "correct": false,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

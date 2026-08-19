@@ -1,7 +1,10 @@
-// capacity-runner.js — the one capacity actually executed from the
-// terminal this pass: `cast` (cast.js::makeReferentIndex, over the
-// engine's own perceiver organs). capacities.js's own header is explicit
-// that its registry is "A DATA TABLE, NOT A RUNTIME" — this is the
+// capacity-runner.js — TWO capacities actually execute from the terminal
+// as of 2026-08-19: `cast` (cast.js::makeReferentIndex) and `relations`
+// (hypergraph.js::makeRelationReader, capacities.js's own `terrain: "Link"`
+// entry, wired the same day the fillers/queryReferents work landed —
+// "can we now mechanically query the entire hypergraph" / "make sure this
+// work with the sandboxed terminal too"). capacities.js's own header is
+// explicit that its registry is "A DATA TABLE, NOT A RUNTIME" — this is the
 // runtime, kept in its own file so that boundary stays visible rather than
 // blurred into either the data table or the pure grid parser.
 //
@@ -51,18 +54,39 @@
 //    surviving SIG partner in the fold — the pair is not kept atomic
 //    under supersession. Not attempted here.
 
+import { chunkSource } from "./source.js";
+
 /**
- * `makeCapacityRunner({ referentIndexFor })` → `runCapacity(id, { text,
- * name })`. `referentIndexFor` is `cast.js::makeReferentIndex(organs)` —
- * a function from passages to `{ events, referents, resolve, represent }`.
+ * `makeCapacityRunner({ referentIndexFor, relationsFor })` →
+ * `runCapacity(id, { text, name, query })`. `referentIndexFor` is
+ * `cast.js::makeReferentIndex(organs)`; `relationsFor` is
+ * `hypergraph.js::makeRelationReader(organs)` — the SAME organ bundle
+ * app.js already builds for both (no new engine import).
+ *
+ * A SECOND capacity executes as of 2026-08-19 (user direction: "can we now
+ * mechanically query the entire hypergraph" / "make sure this work with
+ * the sandboxed terminal too") — `"relations"`, capacities.js's own
+ * `terrain: "Link"` entry, sitting unwired since the terminal language
+ * landed. `query` is optional: omitted, the capacity returns the whole
+ * edge graph the material binds (the same "dump everything found" default
+ * `cast` already has with no further refinement); given, it must leave
+ * EXACTLY ONE of subject/object open (`hypergraph.js::queryReferents`'s
+ * own contract — "who did Lincoln appoint" or "who appointed Hamlin,"
+ * never both pinned or both open) and returns the distinct referent-aware
+ * fillers for that slot, each with its own addresses. Referent-aware, not
+ * a surface-string match: this runs INSIDE the reader's own closure, so
+ * "Lincoln" and "President Lincoln" resolve by the same identity judge()
+ * itself trusts (the standalone hypergraph.js::queryEdges/queryFillers are
+ * the weaker, no-organs-needed siblings of this, disclosed as such in
+ * their own header).
  */
-export function makeCapacityRunner({ referentIndexFor }) {
-  return function runCapacity(id, { text, name } = {}) {
-    if (id !== "cast") {
+export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
+  return function runCapacity(id, { text, name, query } = {}) {
+    if (id !== "cast" && id !== "relations") {
       return {
         gap: "not_yet_executable",
         id,
-        detail: `"${id}" is in the capacity registry but not yet wired to run from the terminal — only "cast" executes this pass (capacities.js, CLAUDE.md: "the terminal language" section names the rest as open).`,
+        detail: `"${id}" is in the capacity registry but not yet wired to run from the terminal — only "cast" and "relations" execute this pass (capacities.js, CLAUDE.md: "the terminal language" section names the rest as open).`,
       };
     }
     if (!text || !text.trim()) {
@@ -73,11 +97,37 @@ export function makeCapacityRunner({ referentIndexFor }) {
       // so on their own side; the wording here stays true either way.
       return { gap: "no_material", id, detail: `no material to read for "${name ?? "?"}" — either nothing by that name is loaded, or what is loaded there is empty` };
     }
-    const index = referentIndexFor([{ text }]);
-    const referents = [...index.referents]
-      .map((rid) => ({ id: rid, surface: index.represent(rid) }))
-      .sort((a, b) => a.surface.localeCompare(b.surface));
-    return { id, name: name ?? null, count: referents.length, referents };
+    if (id === "cast") {
+      const index = referentIndexFor([{ text }]);
+      const referents = [...index.referents]
+        .map((rid) => ({ id: rid, surface: index.represent(rid) }))
+        .sort((a, b) => a.surface.localeCompare(b.surface));
+      return { id, name: name ?? null, count: referents.length, referents };
+    }
+    if (!relationsFor) {
+      return { gap: "not_yet_executable", id, detail: `"relations" is registered but this page has not wired relationsFor in yet` };
+    }
+    // Real addresses, not a bare unaddressed blob: `cast` doesn't need refs
+    // (it reports referent identities, not evidence), but a "relations"
+    // result IS evidence — an edge or a filler with no address is a claim
+    // with nothing a reader can verify it against. chunkSource is the
+    // SAME chunker every attachment/preflight/priors source in this app
+    // already goes through (source.js) — one addressing scheme, not a
+    // second one invented for the terminal.
+    const reader = relationsFor(chunkSource(name ?? "material", text));
+    if (!reader.examined) {
+      return { gap: "no_material", id, detail: `no relation vocabulary could be measured for "${name ?? "?"}"` };
+    }
+    if (!query) return { id, name: name ?? null, count: reader.edges.length, edges: reader.edges };
+    const fillers = reader.queryReferents(query);
+    if (fillers === null) {
+      return {
+        gap: "bad_query",
+        id,
+        detail: 'exactly one of subject/object must be left open — "who did X verb" or "who verb Y", never both pinned or both open',
+      };
+    }
+    return { id, name: name ?? null, query, count: fillers.length, fillers };
   };
 }
 

@@ -1,0 +1,105 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 2,
+    "type": "void",
+    "routine": "material",
+    "out": "surprise-router-void-smoketest.json",
+    "selfTest": false
+  },
+  "results": {
+    "void": {
+      "material": [
+        {
+          "trial": 0,
+          "text": "There is no material to answer from. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 102,
+          "wallMs": 1435
+        },
+        {
+          "trial": 1,
+          "text": "There is no material to answer from. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 102,
+          "wallMs": 772
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:material:00",
+      "description": "void/material trial 0 (gemma2:2b) answered (38 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:material:00",
+      "result": {
+        "typeName": "void",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 1435,
+        "promptTokens": 102,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:material:01",
+      "description": "void/material trial 1 (gemma2:2b) answered (38 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:material:01",
+      "result": {
+        "typeName": "void",
+        "routine": "material",
+        "model": "gemma2:2b",
+        "wallMs": 772,
+        "promptTokens": 102,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

@@ -803,11 +803,23 @@
         word-break: break-word;
         background: #0b0e14;
         color: #d8dee9;
+        /* The terminal's background never changes with the page's own
+           light/dark toggle (a terminal reads as a terminal either way) —
+           but .term-mute/.term-exit used var(--muted)/var(--warn), the
+           PAGE theme's tokens, which in light mode are colors calibrated
+           for a white background (#5f5f68, #b42318) and read as low
+           contrast against this always-dark one. User-flagged, 2026-08-19.
+           Fixed values here, matching what the dark theme's own tokens
+           already resolve to (correct for THIS background in either mode),
+           rather than a variable that drifts with a toggle this element
+           never follows. */
+        --term-muted: #9b9aa5;
+        --term-warn: #f0857a;
       }
-      #term-out .term-mute { color: var(--muted); }
+      #term-out .term-mute { color: var(--term-muted); }
       #term-out .term-cmd { color: #a7c7ff; }
-      #term-out .term-exit { color: var(--muted); }
-      #term-out .term-exit.bad { color: var(--warn); }
+      #term-out .term-exit { color: var(--term-muted); }
+      #term-out .term-exit.bad { color: var(--term-warn); }
       .term-row {
         display: flex;
         align-items: center;

@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "lincoln",
+    "routine": "facts",
+    "out": "surprise-grid-lincoln-facts.json",
+    "selfTest": false
+  },
+  "results": {
+    "lincoln": {
+      "facts": [
+        {
+          "trial": 0,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 2,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 604,
+          "wallMs": 4535
+        },
+        {
+          "trial": 1,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 604,
+          "wallMs": 3006
+        },
+        {
+          "trial": 2,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 2,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 604,
+          "wallMs": 13321
+        },
+        {
+          "trial": 3,
+          "text": "Hannibal Hamlin served as vice president under Abraham Lincoln from 1861 to 1865. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 4,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 604,
+          "wallMs": 28447
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:facts:00",
+      "description": "lincoln/facts trial 0 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:facts:00",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "facts",
+        "model": "gemma2:2b",
+        "wallMs": 4535,
+        "promptTokens": 604,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 2,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:facts:01",
+      "description": "lincoln/facts trial 1 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:facts:01",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "facts",
+        "model": "gemma2:2b",
+        "wallMs": 3006,
+        "promptTokens": 604,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:facts:02",
+      "description": "lincoln/facts trial 2 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:facts:02",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "facts",
+        "model": "gemma2:2b",
+        "wallMs": 13321,
+        "promptTokens": 604,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 2,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:lincoln:facts:03",
+      "description": "lincoln/facts trial 3 (gemma2:2b) answered (83 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:lincoln:facts:03",
+      "result": {
+        "typeName": "lincoln",
+        "routine": "facts",
+        "model": "gemma2:2b",
+        "wallMs": 28447,
+        "promptTokens": 604,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 4,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

@@ -42,9 +42,25 @@
 // crossing and injects the completed text back through readTestimony.
 
 import { foldDiacritics } from "./source.js";
-import { wordSet, hasWord, splitSentences } from "./grounding.js";
+import { wordSet, hasWord, splitSentences, CLAIM_STOPWORDS } from "./grounding.js";
 import { namesIn } from "./cite.js";
 import { snipClaim } from "./primary.js";
+
+// A small, disclosed furniture register for REAL FETCHED PAGES — the same
+// precedent grounding.js's own ABBREV_EXPANSIONS sets (a narrow, measured
+// list with its reason stated, never a general capability claim). Measured
+// live (2026-08-19, 25-specimen batch eval against real Wikipedia pages): a
+// sentence naming an image's own caption ("a 1900 portrait by Jean Leon
+// Gerome Ferris depicting Franklin, Adams, and Jefferson working on the
+// Declaration") legitimately repeats the claim's own topic words in the
+// caption's OWN TITLE TEXT ("Writing the Declaration of Independence,
+// 1776") — which out-scored the sentence actually crediting Jefferson,
+// because caption prose and reference prose read identically to word-
+// overlap scoring. This does not classify content — it excludes the one
+// Wikipedia furniture shape measured to cause it, the same way `blankStructure`
+// excludes markdown headings from model output. A sentence matching stays
+// OUT of candidate scoring entirely; it is never silently trusted either.
+const CAPTION_MARKERS = /\b(?:portrait by|photograph by|painting by|photo by|drawing by|illustration by|engraving by)\b/i;
 
 /** Ollama structured-outputs schema: a BINARY answer plus the decider in
  * the passage's own words — a shape by physics, not by asking nicely
@@ -194,22 +210,56 @@ const nameParts = (n) => String(n ?? "").split(/\s+/).filter((w) => /\p{L}|\p{N}
  * candidate carrying a sentence break is excluded, and length is only the
  * tiebreak.) Null when either side has no name to offer; the caller ships
  * testimony unarmed and says so. */
-export function siblingSwap(sentence, slice) {
+export function siblingSwap(sentence, slice, { hint = "" } = {}) {
   const sent = String(sentence ?? "");
   const claimNames = namesIn(sent);
   if (!claimNames.length) return null;
   const from = [...claimNames].sort((a, b) => b.length - a.length)[0];
   const foldedSent = foldDiacritics(sent).toLowerCase();
+  // A "name" spanning a raw newline is table/infobox cells glued together
+  // by plain-text extraction ("Other\nUndecided\nMargin", "Vice President
+  // John Adams\nPreceded") — never a real name; \s in NAME_RUN_RE matches
+  // newlines too, and a period already excludes the sentence-spanning case
+  // for the same reason. Measured live, same batch eval as CAPTION_MARKERS.
   const candidates = namesIn(String(slice ?? "")).filter(
-    (n) => !/[.!?]\s/.test(n) && !foldedSent.includes(foldDiacritics(n).toLowerCase()),
+    (n) => !/[.!?\n]\s?/.test(n) && !foldedSent.includes(foldDiacritics(n).toLowerCase()),
   );
   if (!candidates.length) return null;
-  // The claim's slot vocabulary: its words outside the swapped name.
+  // The witness's own stated reason, when offered, is tried FIRST — not
+  // trusted on its own word (the arm re-checks it exactly as it checks
+  // everything else), but a name the witness already noticed is worth
+  // trying before a name independently re-derived with no access to what
+  // it saw. Measured live 2026-08-19: asked about the 1960 World Series,
+  // `real.because` already read "the Pittsburgh Pirates were matched
+  // against the New York Yankees... and the Pirates won" — the correct
+  // answer, verbatim, sitting unused while the slot-scoring heuristic
+  // below picked "Major League Baseball" instead. Still walled: the hinted
+  // name must be a real, ALREADY-FILTERED candidate in this slice (never
+  // taken from the hint text directly), so a model's own hallucinated
+  // reasoning cannot become an ungrounded swap.
+  if (hint) {
+    const foldedCandidates = new Map(candidates.map((c) => [foldDiacritics(c).toLowerCase(), c]));
+    for (const hn of namesIn(String(hint)).sort((a, b) => b.length - a.length)) {
+      const key = foldDiacritics(hn).toLowerCase();
+      if (!foldedCandidates.has(key)) continue;
+      const to = foldedCandidates.get(key);
+      const at = sent.indexOf(from);
+      if (at < 0) return null;
+      return { swapped: sent.slice(0, at) + to + sent.slice(at + from.length), from, to, hinted: true };
+    }
+  }
+  // The claim's slot vocabulary: its words outside the swapped name, minus
+  // the closed stopword class (the same CLAIM_STOPWORDS proof.js/cite.js
+  // already use) — unfiltered, "the"/"of"/"a" matched almost every
+  // candidate's sentence equally, diluting the one signal that should
+  // actually separate a real answer from noise.
   const fromParts = new Set(nameParts(from).map((w) => w.toLowerCase()));
   const slotWords = sent
     .split(/\s+/)
-    .filter((w) => /\p{L}|\p{N}/u.test(w) && !fromParts.has(w.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, "")));
-  const sentences = splitSentences(String(slice ?? ""));
+    .filter((w) => /\p{L}|\p{N}/u.test(w))
+    .map((w) => w.replace(/[^\p{L}\p{N}'-]/gu, ""))
+    .filter((w) => w && !fromParts.has(w.toLowerCase()) && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+  const sentences = splitSentences(String(slice ?? "")).filter((s) => !CAPTION_MARKERS.test(s.text));
   const scoreOf = (name) => {
     const parts = nameParts(name);
     let best = 0;
@@ -220,9 +270,14 @@ export function siblingSwap(sentence, slice) {
     }
     return best;
   };
-  const to = candidates
-    .map((n) => ({ n, score: scoreOf(n) }))
-    .sort((a, b) => b.score - a.score || b.n.length - a.n.length)[0].n;
+  const scored = candidates.map((n) => ({ n, score: scoreOf(n) })).sort((a, b) => b.score - a.score || b.n.length - a.n.length);
+  // A candidate that scored 0 everywhere is not a competing filler — it is
+  // just some other name that happens to be on the page. Ties at 0 used to
+  // be broken by raw length, which handed the longest piece of furniture
+  // that survived filtering a win by default; zero evidence is zero
+  // evidence, not a fallback to guess from.
+  if (!scored[0].score) return null;
+  const to = scored[0].n;
   const at = sent.indexOf(from);
   if (at < 0) return null;
   return { swapped: sent.slice(0, at) + to + sent.slice(at + from.length), from, to };

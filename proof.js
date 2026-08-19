@@ -129,10 +129,29 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
  * own words name nothing — so the join is now earned, never assumed: the
  * discourse's words enter only when the task points back anaphorically (a
  * received closed class, the engine's ANAPHORIC_PRONOUNS — injected, the
- * widget.js pattern, never a hand-typed intent list) or carries no content
- * words at all. Task words still come first, so they survive the cap before
- * the discourse line's do if the joined anchor runs long.
+ * widget.js pattern, never a hand-typed intent list) or carries FEW content
+ * words (PREFLIGHT_FEW_WORDS or fewer). Task words still come first, so
+ * they survive the cap before the discourse line's do if the joined anchor
+ * runs long.
+ *
+ * Widened from "zero content words" 2026-08-19 (user direction: "our
+ * gating is too strict, it needs to be more associative, people need to be
+ * able to use poor grammar"). Measured live: "what about johnson?", asked
+ * mid-conversation about Lincoln's vice presidents, reduces to the single
+ * word "johnson" after stopwords — grammatically not an anaphor, but
+ * exactly as under-specified as "prove it" was. Searched alone it found
+ * Johnson & Johnson, the pharmaceutical company, not Andrew Johnson. Real
+ * conversational follow-ups are routinely this terse and elliptical ("and
+ * him?", "same for x") — treating only textbook anaphora as
+ * discourse-dependent excluded the whole ordinary shape of a follow-up
+ * question. The threshold leans associative on purpose: this function's
+ * own comment above already states the asymmetry ("a false positive costs
+ * one wasted search... a false negative reproduces the bug this exists to
+ * close") — joining more readily is the side that comment already argued
+ * for, not a new tradeoff invented here.
  */
+export const PREFLIGHT_FEW_WORDS = 2; // a task at or below this many content words is treated as under-specified, same as zero
+
 export function preflightQuery(task, discourse = "", { anaphors = null } = {}) {
   const content = (s) => [
     ...new Set(
@@ -149,7 +168,7 @@ export function preflightQuery(task, discourse = "", { anaphors = null } = {}) {
     .filter(Boolean);
   const pointsBack = !!anaphors && tokens.some((t) => anaphors.has(t));
   const words =
-    pointsBack || !taskWords.length
+    pointsBack || taskWords.length <= PREFLIGHT_FEW_WORDS
       ? [...new Set([...taskWords, ...content(discourse)])]
       : taskWords;
   return words.slice(0, PREFLIGHT_QUERY_MAX_TERMS).join(" ").trim();

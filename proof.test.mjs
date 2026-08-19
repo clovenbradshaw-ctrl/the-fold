@@ -172,7 +172,7 @@ test("shouldPreflight fires only on the exact structural conjunction: flat, noth
   assert.equal(shouldPreflight({}), false, "every toggle defaults to off/absent — the gate defaults closed, never open");
 });
 
-test("preflightQuery anchors on the turn's own words; the discourse joins only when those words point back or run empty", () => {
+test("preflightQuery anchors on the turn's own words; the discourse joins when those words point back or run few", () => {
   // The exact second-turn shape of the measured bug: "prove it" points back
   // anaphorically ("it"), so the discourse anchor is what still names the
   // topic. The anaphor door is the engine's own received closed class,
@@ -199,6 +199,23 @@ test("preflightQuery anchors on the turn's own words; the discourse joins only w
     anaphors: ANAPHORIC_PRONOUNS,
   });
   assert.ok(/weather/i.test(empty), empty);
+  // The widened case (2026-08-19, user direction: "our gating is too
+  // strict, it needs to be more associative, people need to be able to use
+  // poor grammar"): a task with FEW content words is exactly as
+  // under-specified as one with none, even with no anaphoric pronoun.
+  // Measured live: "what about johnson?" mid-conversation about Lincoln's
+  // vice presidents reduced to the single word "johnson" and searched the
+  // web straight into Johnson & Johnson, the company — not Andrew Johnson.
+  const fewWords = preflightQuery(
+    "what about johnson?",
+    "Lincoln presidency · discussing Lincoln's vice presidents · Abraham Lincoln, Hannibal Hamlin",
+    { anaphors: ANAPHORIC_PRONOUNS },
+  );
+  assert.match(fewWords, /johnson/i);
+  assert.match(fewWords, /lincoln/i);
+  // Still bounded: a self-contained question with MORE than a couple of
+  // content words keeps its own scope — the "research Robert Macnamera"
+  // wall above must survive the widened threshold too, not just the old one.
   // The turn's own words survive the cap ahead of the discourse line's —
   // built first, so a long combined anchor keeps what the reader just typed.
   const long = preflightQuery(

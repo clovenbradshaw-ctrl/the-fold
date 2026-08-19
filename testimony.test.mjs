@@ -91,6 +91,81 @@ test("siblingSwap draws the sibling from the page's own universe, never the worl
   assert.equal(siblingSwap("it rained on tuesday.", slice), null);
 });
 
+// ── real-world furniture, measured live (2026-08-19, 25-specimen batch
+// eval against real fetched Wikipedia pages) ────────────────────────────
+
+test("siblingSwap never draws a name spanning a raw newline — table/infobox cells glued by plain-text extraction", () => {
+  // The exact shape measured live: "Other\nUndecided\nMargin" (an election
+  // infobox row) and "Vice President John Adams\nPreceded" (a succession
+  // box) both won as the sibling before this wall existed, because
+  // NAME_RUN_RE's \s matches a newline exactly as it matches a space.
+  const slice =
+    "The New York Yankees played the Pittsburgh Pirates in the 1960 World Series.\n" +
+    "Other\nUndecided\nMargin\n10%\n5%\n2%";
+  const swap = siblingSwap("The New York Yankees won the 1960 World Series.", slice);
+  // "Pittsburgh Pirates" is the only clean, real candidate here; the
+  // newline-glued table fragment must never be chosen even though nothing
+  // else competes with it on raw length.
+  assert.ok(swap, JSON.stringify(swap));
+  assert.match(swap.to, /Pittsburgh Pirates/);
+  assert.doesNotMatch(swap.to, /\n/);
+});
+
+test("siblingSwap never lets an image caption's topic-word restatement outscore the sentence that actually states the fact", () => {
+  // The exact shape measured live: a portrait literally titled "Writing the
+  // Declaration of Independence, 1776" gave "Jean Leon Gerome Ferris" a
+  // higher slot-word score than the real answer's own sentence, because
+  // unfiltered stopwords ("the", "of") and the caption's bare repetition of
+  // "Declaration"/"Independence" beat a sentence phrased more indirectly
+  // ("charge Jefferson with writing the document's original draft").
+  const slice =
+    "Congress appointed the Committee of Five — John Adams, Benjamin Franklin, Thomas Jefferson, " +
+    "Robert R. Livingston, and Roger Sherman — to draft the Declaration. " +
+    "Adams persuaded the committee to charge Jefferson with writing the document's original draft. " +
+    "Writing the Declaration of Independence, 1776, a 1900 portrait by Jean Leon Gerome Ferris depicting Franklin, Adams, and Jefferson working on the Declaration.";
+  const swap = siblingSwap("Benjamin Franklin wrote the Declaration of Independence.", slice);
+  assert.ok(swap, JSON.stringify(swap));
+  assert.match(swap.to, /Jefferson/);
+  assert.doesNotMatch(swap.to, /Ferris/);
+});
+
+test("siblingSwap tries the witness's own stated reason FIRST, walled to real candidates in the same slice", () => {
+  // The exact shape measured live: real.because already named the correct
+  // filler ("the Pittsburgh Pirates were matched against the New York
+  // Yankees ... and the Pirates won") while the independent slot-scoring
+  // heuristic below picked "Major League Baseball" instead — a worse
+  // candidate that happened to co-occur with more of the claim's words.
+  const slice =
+    "The 1960 World Series was the championship of Major League Baseball's 1960 season. " +
+    "It matched the National League champion Pittsburgh Pirates against the American League champion New York Yankees.";
+  const hint = "The passage states the Pittsburgh Pirates were matched against the New York Yankees, and the Pirates won.";
+  const swap = siblingSwap("The New York Yankees won the 1960 World Series.", slice, { hint });
+  assert.ok(swap, JSON.stringify(swap));
+  assert.match(swap.to, /Pittsburgh Pirates/);
+  assert.equal(swap.hinted, true);
+
+  // The wall: a hinted name that is NOT actually a candidate in this slice
+  // (e.g. the model's own reasoning names something the page never
+  // establishes) must never be taken on the hint's word alone — falls
+  // through to the ordinary slot-scored candidates instead.
+  const wrongHint = "The passage says the Cincinnati Reds won it.";
+  const fallback = siblingSwap("The New York Yankees won the 1960 World Series.", slice, { hint: wrongHint });
+  assert.ok(fallback);
+  assert.doesNotMatch(fallback.to, /Reds/);
+  assert.notEqual(fallback.hinted, true);
+});
+
+test("siblingSwap returns null on an all-zero-score tie rather than handing back the longest surviving name as a guess", () => {
+  // No sentence here shares any of the claim's real content words with any
+  // candidate name — every candidate scores 0, and the old length-only
+  // tiebreak would have picked "International Business Machines" by sheer
+  // size. Zero evidence must stay zero evidence.
+  const slice =
+    "International Business Machines opened a new office in Austin. " +
+    "Marcus Aurelius Antoninus enjoyed a quiet afternoon reading in the garden.";
+  assert.equal(siblingSwap("Bill Gates founded Apple.", slice), null);
+});
+
 test("foldTestimony derives the verdict from the pair — never asked as a label; every refusal typed", () => {
   const slice = "The Pittsburgh Pirates defeated the New York Yankees to win the 1960 World Series.";
   const decider = "the Pittsburgh Pirates defeated the New York Yankees to win the 1960 World Series";

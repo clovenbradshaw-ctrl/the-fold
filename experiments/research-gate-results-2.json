@@ -1,0 +1,73 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "out": "experiments/research-gate-results-2.json",
+    "selfTest": false
+  },
+  "results": [
+    {
+      "id": "lincoln-johnson",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "I was previously given the correct answer for the vice president of the 16th president, and I am confident in my knowledge of the topic.",
+      "gateMs": 5658
+    },
+    {
+      "id": "capital-of-france-followup",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "I can provide the population of Paris.",
+      "gateMs": 3054
+    },
+    {
+      "id": "arithmetic",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "This is a simple multiplication problem, and the answer is 132.",
+      "gateMs": 3438
+    },
+    {
+      "id": "author-followup",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "Jane Austen wrote several other novels, including:",
+      "gateMs": 2977
+    },
+    {
+      "id": "current-weather",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I don't have access to real-time information, including weather data. To get the current weather in Chicago, I recommend checking a reliable weather website or app.",
+      "gateMs": 4974
+    },
+    {
+      "id": "current-stock-price",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I do not have access to real-time information, including live stock prices. ",
+      "gateMs": 3374
+    },
+    {
+      "id": "recent-election-result",
+      "expect": "no",
+      "got": "yes",
+      "correct": false,
+      "reason": "I can answer this question. The most recent mayoral election in Chicago was won by Brandon Johnson.",
+      "gateMs": 3566
+    },
+    {
+      "id": "todays-date-dependent",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I need more information to give you a weather forecast.  Please tell me where you're going!",
+      "gateMs": 4152
+    }
+  ]
+}

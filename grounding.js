@@ -457,7 +457,13 @@ function numberSupporters(token, company, entries) {
   );
 }
 
-const ABBREV =
+// Exported so cite.js's own splitSentences can share this exact guard
+// rather than carrying a second, independently-maintained copy that could
+// drift from this one (the diacritics-fold lesson, applied to abbreviation
+// detection instead of case-folding: CLAUDE.md, "every organ that compares
+// text to text must share retrieval's fold, or a found passage fails the
+// very check that should confirm it" — generalized here to splitting).
+export const ABBREV =
   /(?:\b(?:mr|mrs|ms|dr|st|prof|rev|hon|vol|no|pp?|ch|ed|fig|cf|vs|etc|al|inc|ltd|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)|\b[A-Z])\.$/i;
 
 /** Sentences with their offsets, not fooled by "Dr." or "Jan.". */

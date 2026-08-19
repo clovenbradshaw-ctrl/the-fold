@@ -93,6 +93,11 @@ const ENGINE = path.resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
 const NUL = path.resolve(ROOT, "..", "eoreader6.1", "nul");
+// serve.mjs's priors-data mount, carried here for the same reason as
+// /engine and /nul: real, giver-cited data (POSPrior@1) read live off
+// eoreader6.1's own gitignored, locally-reproducible build directory —
+// never a stale copy vendored into this repo.
+const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader6.1", "scripts", "corpus");
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -816,11 +821,14 @@ function serveStatic(req, res, pathname) {
     ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
     : rel.startsWith("/nul/") || rel.startsWith("nul/")
       ? path.join(NUL, rel.replace(/^\/?nul\//, ""))
-      : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+      : rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")
+        ? path.join(PRIORS_DATA, rel.replace(/^\/?priors-data\//, ""))
+        : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
   const withinRoot = file === ROOT || file.startsWith(ROOT + path.sep);
   const withinEngine = file === ENGINE || file.startsWith(ENGINE + path.sep);
   const withinNul = file === NUL || file.startsWith(NUL + path.sep);
-  if (!withinRoot && !withinEngine && !withinNul) {
+  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep);
+  if (!withinRoot && !withinEngine && !withinNul && !withinPriorsData) {
     res.writeHead(403);
     return res.end("forbidden");
   }

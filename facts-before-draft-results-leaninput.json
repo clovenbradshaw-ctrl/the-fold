@@ -1,0 +1,1231 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 6,
+    "question": "who was Abraham Lincoln's vice president?",
+    "out": "facts-before-draft-results-leaninput.json",
+    "only": null,
+    "selfTest": false
+  },
+  "extractedFacts": [
+    {
+      "subject": "Abraham Lincoln",
+      "verb": "served",
+      "object": "as the 16th president of the United States",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#0-118"
+    },
+    {
+      "subject": "Hannibal Hamlin",
+      "verb": "served",
+      "object": "as vice president under Lincoln from 1861 to 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#119-241"
+    },
+    {
+      "subject": "Andrew Johnson",
+      "verb": "served",
+      "object": "as vice president from March to April 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#242-372"
+    },
+    {
+      "subject": "Breckinridge",
+      "verb": "served",
+      "object": "as vice president under James Buchanan",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#487-625"
+    },
+    {
+      "subject": "Breckinridge later",
+      "verb": "served",
+      "object": "as a Confederate general and",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#761-889"
+    },
+    {
+      "subject": "Kamala Harris",
+      "verb": "served",
+      "object": "as vice president of the United States under Joe Biden from 2021 to 2025",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#890-1005"
+    },
+    {
+      "subject": "former senator",
+      "verb": "from",
+      "object": "Maine",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1141-1260"
+    },
+    {
+      "subject": "largely excluded",
+      "verb": "from",
+      "object": "Lincoln's inner circle during his term and did not seek renomination in 1864",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1141-1260"
+    },
+    {
+      "subject": "Mike Pence",
+      "verb": "served",
+      "object": "as vice president of the United States under Donald Trump from 2017 to 2021",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1261-1380"
+    },
+    {
+      "subject": "Al Gore",
+      "verb": "served",
+      "object": "as vice president of the United States under Bill Clinton from 1993 to 2001",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1381-1495"
+    },
+    {
+      "subject": "Dick Cheney",
+      "verb": "served",
+      "object": "as vice president of the United States under George W",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "Bush",
+      "verb": "from",
+      "object": "2001 to 2009",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "previously having",
+      "verb": "served",
+      "object": "as Secretary of Defense",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "Walter Mondale",
+      "verb": "served",
+      "object": "as vice president of the United States under Jimmy Carter from 1977 to 1981",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "later running",
+      "verb": "for",
+      "object": "president himself in 1984",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "Abraham Lincoln",
+      "verb": "for",
+      "object": "the Republicans",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "Breckinridge",
+      "verb": "for",
+      "object": "the Southern Democrats",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "Stephen Douglas",
+      "verb": "for",
+      "object": "the Northern Democrats",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "John Bell",
+      "verb": "for",
+      "object": "the Constitutional Union party",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1721-1860"
+    },
+    {
+      "subject": "one term",
+      "verb": "from",
+      "object": "1857 to 1861 and was succeeded by Lincoln",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1861-1975"
+    },
+    {
+      "subject": "presidency poorly",
+      "verb": "for",
+      "object": "failing to prevent the Southern states' secession",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1861-1975"
+    },
+    {
+      "subject": "Seward",
+      "verb": "served",
+      "object": "as Lincoln's Secretary of State throughout his presidency",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1976-2090"
+    },
+    {
+      "subject": "rival candidate",
+      "verb": "for",
+      "object": "the 1860 Republican nomination",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1976-2090"
+    }
+  ],
+  "relevantFacts": [
+    {
+      "subject": "Abraham Lincoln",
+      "verb": "served",
+      "object": "as the 16th president of the United States",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#0-118"
+    },
+    {
+      "subject": "Hannibal Hamlin",
+      "verb": "served",
+      "object": "as vice president under Lincoln from 1861 to 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#119-241"
+    },
+    {
+      "subject": "Andrew Johnson",
+      "verb": "served",
+      "object": "as vice president from March to April 1865",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#242-372"
+    },
+    {
+      "subject": "Breckinridge",
+      "verb": "served",
+      "object": "as vice president under James Buchanan",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#487-625"
+    },
+    {
+      "subject": "Kamala Harris",
+      "verb": "served",
+      "object": "as vice president of the United States under Joe Biden from 2021 to 2025",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#890-1005"
+    },
+    {
+      "subject": "largely excluded",
+      "verb": "from",
+      "object": "Lincoln's inner circle during his term and did not seek renomination in 1864",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1141-1260"
+    },
+    {
+      "subject": "Mike Pence",
+      "verb": "served",
+      "object": "as vice president of the United States under Donald Trump from 2017 to 2021",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1261-1380"
+    },
+    {
+      "subject": "Al Gore",
+      "verb": "served",
+      "object": "as vice president of the United States under Bill Clinton from 1993 to 2001",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1381-1495"
+    },
+    {
+      "subject": "Dick Cheney",
+      "verb": "served",
+      "object": "as vice president of the United States under George W",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1496-1610"
+    },
+    {
+      "subject": "Walter Mondale",
+      "verb": "served",
+      "object": "as vice president of the United States under Jimmy Carter from 1977 to 1981",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "later running",
+      "verb": "for",
+      "object": "president himself in 1984",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1611-1720"
+    },
+    {
+      "subject": "one term",
+      "verb": "from",
+      "object": "1857 to 1861 and was succeeded by Lincoln",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1861-1975"
+    },
+    {
+      "subject": "Seward",
+      "verb": "served",
+      "object": "as Lincoln's Secretary of State throughout his presidency",
+      "polarity": "+",
+      "ref": "fixture:lincoln-notes#1976-2090"
+    }
+  ],
+  "results": {
+    "A": [
+      {
+        "trial": 0,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. He served from 1861 to 1865.  [fixture:lincoln-notes#119-241]  \n \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 12486
+      },
+      {
+        "trial": 1,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. He served under Lincoln from 1861 to 1865. [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 5,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 4185
+      },
+      {
+        "trial": 2,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  He served from 1861 to 1865.  [3] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 1
+        },
+        "wallMs": 3117
+      },
+      {
+        "trial": 3,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. He served in this role from 1861 until 1865.  [fixture:lincoln-notes#119-241]  \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 4331
+      },
+      {
+        "trial": 4,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  He served in this role from 1861 to 1865.  [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 3957
+      },
+      {
+        "trial": 5,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [fixture:lincoln-notes#119-241] \nHe served as vice president from 1861 to 1865. [fixture:lincoln-notes#119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 4758
+      }
+    ],
+    "B": [
+      {
+        "trial": 0,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [2]  Hamlin served from 1861 to 1865. [1] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 6,
+          "claimingNothingBacks": 1
+        },
+        "wallMs": 6259
+      },
+      {
+        "trial": 1,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2352
+      },
+      {
+        "trial": 2,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2174
+      },
+      {
+        "trial": 3,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  He served from 1861 to 1865. [219-241]  \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2821
+      },
+      {
+        "trial": 4,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  [fixture:lincoln-notes#119-241]  \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 2848
+      },
+      {
+        "trial": 5,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. He served from 1861 to 1865. [2]  \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 1
+        },
+        "wallMs": 3797
+      }
+    ],
+    "C": [
+      {
+        "trial": 0,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [ [lincoln-notes#119-241]] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 0
+        },
+        "wallMs": 10153
+      },
+      {
+        "trial": 1,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2347
+      },
+      {
+        "trial": 2,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2620
+      },
+      {
+        "trial": 3,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [ [119-241]] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2135
+      },
+      {
+        "trial": 4,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin. [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 1863
+      },
+      {
+        "trial": 5,
+        "text": "Abraham Lincoln's vice president was Hannibal Hamlin.  [119-241] \n",
+        "echoed": false,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        },
+        "wallMs": 2639
+      }
+    ]
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:00",
+      "description": "arm A trial 0 (gemma2:2b) answered (120 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:00",
+      "result": {
+        "arm": "A",
+        "model": "gemma2:2b",
+        "wallMs": 12486,
+        "promptTokens": 1213,
+        "outTokens": 47,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:01",
+      "description": "arm A trial 1 (gemma2:2b) answered (108 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:01",
+      "result": {
+        "arm": "A",
+        "model": "gemma2:2b",
+        "wallMs": 4185,
+        "promptTokens": 1213,
+        "outTokens": 39,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 5,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:02",
+      "description": "arm A trial 2 (gemma2:2b) answered (90 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:02",
+      "result": {
+        "arm": "A",
+        "model": "gemma2:2b",
+        "wallMs": 3117,
+        "promptTokens": 1213,
+        "outTokens": 33,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 1
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:03",
+      "description": "arm A trial 3 (gemma2:2b) answered (134 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:03",
+      "result": {
+        "arm": "A",
+        "model": "gemma2:2b",
+        "wallMs": 4331,
+        "promptTokens": 1213,
+        "outTokens": 48,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:04",
+      "description": "arm A trial 4 (gemma2:2b) answered (109 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 8,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:04",
+      "result": {
+        "arm": "A",
+        "model": "gemma2:2b",
+        "wallMs": 3957,
+        "promptTokens": 1213,
+        "outTokens": 42,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 9,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:A:05",
+      "description": "arm A trial 5 (gemma2:2b) answered (167 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 10,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:A:05",
+      "result": {
+        "arm": "A",
+        "model": "gemma2:2b",
+        "wallMs": 4758,
+        "promptTokens": 1213,
+        "outTokens": 65,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 11,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:00",
+      "description": "arm B trial 0 (gemma2:2b) answered (97 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 12,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:00",
+      "result": {
+        "arm": "B",
+        "model": "gemma2:2b",
+        "wallMs": 6259,
+        "promptTokens": 716,
+        "outTokens": 36,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 6,
+          "claimingNothingBacks": 1
+        }
+      },
+      "seq": 13,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:01",
+      "description": "arm B trial 1 (gemma2:2b) answered (66 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 14,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:01",
+      "result": {
+        "arm": "B",
+        "model": "gemma2:2b",
+        "wallMs": 2352,
+        "promptTokens": 716,
+        "outTokens": 23,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 15,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:02",
+      "description": "arm B trial 2 (gemma2:2b) answered (66 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 16,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:02",
+      "result": {
+        "arm": "B",
+        "model": "gemma2:2b",
+        "wallMs": 2174,
+        "promptTokens": 716,
+        "outTokens": 23,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 17,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:03",
+      "description": "arm B trial 3 (gemma2:2b) answered (96 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 18,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:03",
+      "result": {
+        "arm": "B",
+        "model": "gemma2:2b",
+        "wallMs": 2821,
+        "promptTokens": 716,
+        "outTokens": 38,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 19,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:04",
+      "description": "arm B trial 4 (gemma2:2b) answered (89 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 20,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:04",
+      "result": {
+        "arm": "B",
+        "model": "gemma2:2b",
+        "wallMs": 2848,
+        "promptTokens": 716,
+        "outTokens": 30,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 21,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:B:05",
+      "description": "arm B trial 5 (gemma2:2b) answered (89 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 22,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:B:05",
+      "result": {
+        "arm": "B",
+        "model": "gemma2:2b",
+        "wallMs": 3797,
+        "promptTokens": 716,
+        "outTokens": 31,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 4,
+          "claimingNothingBacks": 1
+        }
+      },
+      "seq": 23,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:00",
+      "description": "arm C trial 0 (gemma2:2b) answered (82 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 24,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:00",
+      "result": {
+        "arm": "C",
+        "model": "gemma2:2b",
+        "wallMs": 10153,
+        "promptTokens": 1812,
+        "outTokens": 28,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 0
+        }
+      },
+      "seq": 25,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:01",
+      "description": "arm C trial 1 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 26,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:01",
+      "result": {
+        "arm": "C",
+        "model": "gemma2:2b",
+        "wallMs": 2347,
+        "promptTokens": 1812,
+        "outTokens": 22,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 27,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:02",
+      "description": "arm C trial 2 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 28,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:02",
+      "result": {
+        "arm": "C",
+        "model": "gemma2:2b",
+        "wallMs": 2620,
+        "promptTokens": 1812,
+        "outTokens": 22,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 29,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:03",
+      "description": "arm C trial 3 (gemma2:2b) answered (68 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 30,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:03",
+      "result": {
+        "arm": "C",
+        "model": "gemma2:2b",
+        "wallMs": 2135,
+        "promptTokens": 1812,
+        "outTokens": 23,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 31,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:04",
+      "description": "arm C trial 4 (gemma2:2b) answered (65 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 32,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:04",
+      "result": {
+        "arm": "C",
+        "model": "gemma2:2b",
+        "wallMs": 1863,
+        "promptTokens": 1812,
+        "outTokens": 22,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 33,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "facts-before-draft:C:05",
+      "description": "arm C trial 5 (gemma2:2b) answered (66 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 34,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "facts-before-draft:C:05",
+      "result": {
+        "arm": "C",
+        "model": "gemma2:2b",
+        "wallMs": 2639,
+        "promptTokens": 1812,
+        "outTokens": 23,
+        "checks": {
+          "namesRealVP": true,
+          "namesBreckinridge": false,
+          "disclaimsBreckinridge": false,
+          "correct": true,
+          "wrongUnqualified": false
+        },
+        "grounding": {
+          "standingOnMaterial": 2,
+          "claimingNothingBacks": 2
+        }
+      },
+      "seq": 35,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

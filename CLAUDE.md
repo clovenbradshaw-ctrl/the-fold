@@ -2426,3 +2426,73 @@ definite-unique objects only, exclusivity measured from the material's own
 universe under a redealt null; shared referent fold both sides; polarity
 and temporal adjuncts in the slot key). Unbuilt — the witness covers the
 semantic remainder; P27 records the boundary.
+
+**Amended 2026-08-19 (same day) — measured against 25 real facts: three
+bugs fixed, recall 2/25 → 5/25, zero wrong corrections throughout.** User
+direction after the witness tier landed: "fix and chase to get better
+results," then validate with `eval/witness-batch-eval.mjs` (new — 25 real
+factoid claims against REAL fetched Wikipedia pages, never fixtures,
+query-building steering to Wikipedia first per direct instruction, an
+ordinary search only as fallback). Three bugs found from actual live
+reads: `siblingSwap`'s candidates admitted newline-glued infobox fragments
+and caption text that legitimately repeats the claim's topic words without
+asserting it (both now excluded, a zero-score tie now refuses rather than
+guessing); the witness's own `real.because` frequently already names the
+correct filler and is now tried FIRST as a walled hint before the
+independent slot-scoring heuristic; and no fixed temperature let the
+identical prompt flip its own answer between runs (`completeOnce`/
+`complete` gained an optional `temperature`, witness reads pass `0`). Every
+fix moved recall; precision (zero wrong corrections) held across all three
+measured runs by construction — a bad candidate produces a refusal, never
+a lie. Dominant remaining gap, disclosed not chased: `witnessSlice`'s
+anchor scoring has no prose-vs-table signal, so a flattened polling table
+can out-anchor real prose naming the answer — named as the next step in
+the eval's own header. Full amendment in POLICIES.md P27.
+
+**Same-day companion — the void, acknowledged.** Second direction, same
+session: "if the surf did not turn something up, the model should be fed
+the acknowledgement of this void." A preflight search (P23) that ran and
+found nothing used to look, to the model, identical to a turn where no
+search was ever attempted. `holon.js`'s `SEARCHED_VOID_PREFIX` +
+`searchedVoid` now threads through `runHolonicTask` → `runPart`, reaching
+only the flat chat branches as a fact appended to `CHAT_SYSTEM_PROMPT` —
+information the model receives, never a behavioral instruction stacked on
+top (the same posture an independent parallel session's
+`experiments/facts-before-draft.mjs` converged on the same day, from
+tracing an echo bug to its input rather than patching the output). Full
+amendment in POLICIES.md P27.
+
+## The verification taxonomy (added 2026-08-19) — what was decided, so it is not re-derived
+
+P28 in POLICIES.md is the law; this is the map. User direction, verbatim,
+after a session of finding individual verification bugs one measured
+incident at a time: "it needs to decompose any given fact into tasks to
+verify, which is why we need a taxonomically complete list of things a
+proposition needs to be verified by a witness."
+
+**The taxonomy is read off the engine's own grid, not invented.**
+`operators.js::TERRAIN_BY_DOMAIN` already names nine cells (Existence ×
+Structure × Interpretation, each × Ground/Figure/Pattern) as the complete
+space any act can occupy; checking a proposition is EVA, and EVA's own
+grain can be any of the three — with Existence and Structure gating
+whether Interpretation may even run. `verification.js::verificationTasksFor`
+walks all nine per claim. Domain order is Strawson/Russell presupposition
+logic, not tidying: a referent that fails to exist makes downstream cells
+typed GAPS, never falses — enforced as an explicit short-circuit that
+overrides even a supplied witness result, because trusting one would be
+the JNJ incident (P23) in the other direction. Verdicts are five-valued
+(`holds`/`fails`/`both`/`gap`/`not_yet_executable`), Belnap's fourth value
+(`both`) landing exactly where hypergraph.js's own `contested` field
+already lived, unused until this pass.
+
+**Five cells real, four disclosed absent** — see P28 for the exact map.
+Every cell declares its own giver and dependency (truth-maintenance:
+beliefs carry their justifications) and carries a caller-supplied
+`cursor`, never a computed timestamp. Wired live into the existing
+"thinking" disclosure, one JSON panel per turn, verified against a real
+turn (`who won the 1960 world series?`) composing correctly end to end.
+
+**Known residue:** Lens does not yet compose against the SAME claim
+object Link/Network do — the witness tier reads checkable atoms, hypergraph
+reads SVO triples, two different extractions on two different schedules.
+Unifying them is named, real, unattempted next work.

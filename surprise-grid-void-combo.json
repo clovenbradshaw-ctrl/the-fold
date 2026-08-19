@@ -1,0 +1,191 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "ollama": "http://localhost:11434",
+    "trials": 4,
+    "type": "void",
+    "routine": "combo",
+    "out": "surprise-grid-void-combo.json",
+    "selfTest": false
+  },
+  "results": {
+    "void": {
+      "combo": [
+        {
+          "trial": 0,
+          "text": "There is no material available to answer this question. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 132,
+          "wallMs": 9627
+        },
+        {
+          "trial": 1,
+          "text": "I cannot answer that question. There is no material available to provide an answer. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 132,
+          "wallMs": 13393
+        },
+        {
+          "trial": 2,
+          "text": "There is no material to answer from, so I cannot answer that question. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 132,
+          "wallMs": 11726
+        },
+        {
+          "trial": 3,
+          "text": "There is no material to answer this question. \n",
+          "correct": true,
+          "surprise": {
+            "groundedAtoms": 0,
+            "meaningfulSurprise": 0,
+            "fabricated": 0
+          },
+          "promptTokens": 132,
+          "wallMs": 5628
+        }
+      ]
+    }
+  },
+  "ledgerEntries": [
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:combo:00",
+      "description": "void/combo trial 0 (gemma2:2b) answered (57 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 0,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:combo:00",
+      "result": {
+        "typeName": "void",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 9627,
+        "promptTokens": 132,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 1,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:combo:01",
+      "description": "void/combo trial 1 (gemma2:2b) answered (85 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 2,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:combo:01",
+      "result": {
+        "typeName": "void",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 13393,
+        "promptTokens": 132,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 3,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:combo:02",
+      "description": "void/combo trial 2 (gemma2:2b) answered (72 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 4,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:combo:02",
+      "result": {
+        "typeName": "void",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 11726,
+        "promptTokens": 132,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 5,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "propose",
+      "task_id": "surprise-router:void:combo:03",
+      "description": "void/combo trial 3 (gemma2:2b) answered (47 chars)",
+      "operator": "INS",
+      "operator_basis": "declared",
+      "grain": "Figure",
+      "seq": 6,
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "kind": "result",
+      "task_id": "surprise-router:void:combo:03",
+      "result": {
+        "typeName": "void",
+        "routine": "combo",
+        "model": "gemma2:2b",
+        "wallMs": 5628,
+        "promptTokens": 132,
+        "correct": true,
+        "surprise": {
+          "groundedAtoms": 0,
+          "meaningfulSurprise": 0,
+          "fabricated": 0
+        }
+      },
+      "seq": 7,
+      "depends_on": [],
+      "evidence": []
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "args": {
+    "model": "gemma2:2b",
+    "out": "experiments/research-gate-results.json",
+    "selfTest": false
+  },
+  "results": [
+    {
+      "id": "lincoln-johnson",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "I was previously given the correct answer for the 16th president, and the vice president for that term was Hannibal Hamlin.  I was also given the correct answer for the vice president for the second term, which was Andrew Johnson.",
+      "gateMs": 7474
+    },
+    {
+      "id": "capital-of-france-followup",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "I can provide the population of Paris.",
+      "gateMs": 2480
+    },
+    {
+      "id": "arithmetic",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "12 times 11 is 132.",
+      "gateMs": 2441
+    },
+    {
+      "id": "author-followup",
+      "expect": "yes",
+      "got": "yes",
+      "correct": true,
+      "reason": "Jane Austen wrote several other novels, including: ",
+      "gateMs": 2507
+    },
+    {
+      "id": "current-weather",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I don't have access to real-time information like weather conditions.",
+      "gateMs": 2737
+    },
+    {
+      "id": "current-stock-price",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I do not have access to real-time information, including live stock prices. To get the current stock price of Nvidia, you would need to consult a financial website or app.",
+      "gateMs": 5230
+    },
+    {
+      "id": "recent-election-result",
+      "expect": "no",
+      "got": "yes",
+      "correct": false,
+      "reason": "I have access to information about recent elections, including the Chicago mayoral election.",
+      "gateMs": 3869
+    },
+    {
+      "id": "todays-date-dependent",
+      "expect": "no",
+      "got": "no",
+      "correct": true,
+      "reason": "I need more information to give you a weather forecast.  Tell me where you're going!",
+      "gateMs": 3645
+    }
+  ]
+}

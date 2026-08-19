@@ -2664,3 +2664,383 @@ already carries — `measure.test.mjs`, three `webllm-rung.test.mjs`
 model-file cases, confirmed via `git stash` against this exact worktree
 rather than trusted from memory), 741 / 737 / 4 after — zero regressions
 anywhere else in the suite.
+
+## Closing the MINE-1 gap — recurring-form subjects (added 2026-08-18, tenth pass)
+
+`goldens/EXTERNAL-BENCHMARKS.md` ("The Goldens", eoreader6.1) named MINE-1
+as priority 1; `eval/mine-1-RESULTS.md` ran it and measured a weak result
+(5.8%/17.1% bound) with a diagnosed cause: 57.2% of the facts that even
+extracted a claim failed `beyond-reach` — the subject (`"Butterflies"`,
+`"Caterpillars"`) never resolves to a referent, because `cast.js` requires
+a proper name or a resolved pronoun and MINE-1's essays are encyclopedic.
+The user's own direction, asked to work backwards from the score: consider
+every real lever, with nothing hardcoded.
+
+**Priors was tried first, honestly, and closed as a dead end for THIS
+benchmark** — see `eval/mine-1-priors-RESULTS.md`: 0/1,575 facts landed
+`stated-by-library` against the WHOLE `live_priors` corpus treated as
+activated (no toggle gate). Not a broken mechanism (85% of facts found
+real candidate documents and were genuinely read) — `live_priors` is a
+curated philosophy/classics/law/foundational-science canon, and has no
+shelf for roller coasters or butterfly metamorphosis. Ruled out by
+running it, not by argument.
+
+**What actually closed most of the gap was already sitting in this
+project, one repo over, solving a differently-named version of the exact
+same problem.** `host/terrains.js`'s Network-graph organ had already
+diagnosed "concept documents starve the cast ladder" (measured on
+SEED-SPEAKER.md: four sentence-initial capitals at one arrival each, vs.
+21 form nodes once recurring content words are counted) and built the fix
+for the GRAPH surface: recurring-form co-arrival binding, admitted at
+`arrivals >= 2` sentences — "binding's structural minimum, not a tuned
+floor: one arrival has no co-arrival to test." `hypergraph.js`'s own
+`beyond-reach` verdict was the identical starvation, one tier over, never
+connected to that organ before. The search-for-the-organ-first rule
+(eoreader6.1's own CLAUDE.md), applied one level up: search for the organ
+before inventing a new threshold, even inside your own repo.
+
+**The fix.** `hypergraph.js`'s `endpoint()` now grants a SUBJECT the same
+identity `host/terrains.js` already grants a graph node — a content word
+recurring at least `FORM_MIN_ARRIVALS` (= 2, reused whole from
+`FORM_BINDING`'s own structural minimum, not re-derived) sentences in the
+material — namespaced `form:<word>` so it can never be mistaken for a real
+cast referent, and every claim resting on one is marked `formBased: true`
+on the claim itself so a reader can tell a form-anchored `bound` from a
+name-anchored one (P11: "the same name" and "the same recurring word" are
+never the same claim). Confined to SUBJECTS ONLY — `endpoint(str, true)`
+at every subject call site, `endpoint(str)` (forms off, unchanged) at
+every object call site — because the object side already had a working,
+tested `tokensShare` stem-tolerant fallback for "no referent," and merging
+forms into it too would have made `endpointsMatch` take the STRICTER
+exact-id `intersects` branch instead, whenever both sides happened to
+share a form — a real regression to already-shipped matching that this
+benchmark's own score would never have surfaced (MINE-1 only exercises the
+subject gate). The function-word exclusion reuses `hypergraph.js`'s own
+already-computed `commonTerms`-based measure (the one this file's own
+header already documented choosing over `material.js`'s document-scale
+`functionWordSet`, which degenerates at this material's size) — one
+measure, not a second one at a different scale.
+
+**Measured, not assumed.** `eval/mine-1-forms-RESULTS.md`: bound facts
+92 → 222 (a 2.4x lift on both denominators, 5.8%→14.1% / 17.1%→41.3%),
+`beyond-reach` 307 → 87, essays with ≥1 bound fact 37/105 → 52/105, zero
+contradictions both before and after (537 claims read either way — claim
+EXTRACTION is untouched by this fix, only what happens after extraction).
+`no_claims_extracted` stayed exactly 1,038 (65.9%) — this fix cannot touch
+it, and it remains the dominant, larger bottleneck, the same one
+`goldens/agency-civic`'s own README already named as its next concrete
+step (widening `relations.js`'s clause-terminal SVO match to relative
+clauses, fronted adverbials, coordinated verb phrases). The realistic
+ceiling for THIS fix alone, stated before running and checked after:
+best case ~25.3%/~74.3% if every recovered `beyond-reach` case turned out
+bound; the real result landed well short of that, honestly, because most
+recovered subjects turned out `unbound` or `unheard` rather than `bound`
+— a referent-resolution fix can only let the reader FORM an opinion about
+more claims, never make the essay have said more than it did.
+
+**Two bugs caught building this, not smoothed over.** (1) The first cut
+captured `named` (does this endpoint already have a real referent) BEFORE
+the surface-pattern match ran, so a subject like "Darwin" — which
+resolves only through the surface-MENTION pass, not `index.resolve()`
+alone — read as `formOnly: true`, wrongly; caught by this file's own new
+regression test, fixed by moving the capture after both real resolution
+paths run. (2) The confine-to-subjects decision above was found by
+REASONING about `endpointsMatch`'s two branches before writing the object
+call sites, not discovered as a live failure — disclosed as a design
+decision the tests now pin, not a bug that shipped and was later found.
+
+**Test coverage.** `hypergraph.test.mjs` grew from 9 to 13 cases: a
+recurring plain-noun subject resolving as a form and landing
+`bound`/`formBased: true`; a named subject under the SAME material never
+marked `formBased` (bug (1) above, pinned so it cannot silently regress);
+a subject recurring exactly once still refused `beyond-reach` (the floor
+is real); a form-resolved subject with no matching edge landing `unbound`,
+not a silent beyond-reach. All 9 pre-existing cases pass unchanged. Full
+repo suite (46 files, 699 cases) shows 5 failures — confirmed via
+`git stash` to be identical with or without this change, all missing
+vendored `node_modules` this particular checkout never received
+(`sql.js` for `store.test.mjs`/`store-sql.test.mjs`, model files for
+`webllm-rung.test.mjs`/`measure.test.mjs`, `monaco-editor` for one
+`constitution.test.mjs` II.13 case) — an environment gap, not a
+regression, and a count worth restating honestly here since it differs
+from the "4 failing" this file's own prior passes recorded: this
+particular worktree's `node_modules` is missing more than that one was.
+
+## Closing more of the MINE-1 gap — a received prior beats induction, tested (added 2026-08-19, eleventh pass)
+
+The prior pass's own "next steps" note (`eval/results/mine-1-next-steps.md`)
+named two live options for the still-dominant `no_claims_extracted`
+bottleneck (65.9% of all facts): induce verb-hood from `live_priors` via
+kind-induction, or receive it from UniMorph. User direction: don't be
+stingy about the received prior — test what actually works best.
+
+**Kind-induction, tried honestly first, is real but not there yet.**
+`emergence/kinds.js`'s `induceKinds` is fully generic (population +
+attribute profiles, nothing entity-specific) and was pointed at candidate
+words from real `live_priors` text with closed-class-derived distributional
+features. It found genuine, non-trivial clustering (four cohesive groups,
+each clearing `eva()`'s existence gate) — but the features tried don't
+isolate verb-hood as the discriminating axis, and the full pipeline's own
+stronger search-aware null correctly refused all four anyway. Architecturally
+sound, empirically unproven; real further work, not a quick win.
+
+**UniMorph, tried second, won clearly.** `hypergraph.js` grew an optional,
+backward-compatible `verbForms` organ: a Set of known verb surface forms
+from UniMorph's English paradigm table (github.com/unimorph/eng, a received
+resource with its own giver — vendored, 103,318 forms,
+`eval/fixtures/unimorph-eng-verb-forms.json`). Every essay word that is
+BOTH a recurring form (the SAME `FORM_MIN_ARRIVALS`-gated set the prior
+pass's subject-identity fix already computes — one recurrence measure, not
+two) AND a known verb form joins the vocabulary directly, bypassing
+`discoverRelationVocab`'s own surface-anchoring step entirely. This is why
+it works where two anchor-WIDENING attempts (feeding recurring forms, then
+determiner phrases, into `discoverRelationVocab` itself as candidate
+anchors) were tried and rejected on the merits first: that function's
+candidate nomination assumes anchor SPARSITY only proper names reliably
+give it, and a received lexicon needs no anchor at all — it answers a
+direct per-word question instead of nominating candidates near one.
+
+**Measured, not assumed:** bound facts 222 → 531 (headline 14.1% → 33.7%
+against MINE-1's own full fact count), essays with zero measurable
+vocabulary 29/105 → 0/105, `no_claims_extracted` — the bucket the prior
+fix explicitly could not touch — 1,038 → 189. Zero contradictions, as in
+every run this project has logged against this fixture.
+
+**The honest cost, disclosed rather than smoothed over.** A hand spot-check
+of 20 `bound` triples (not just counts) found roughly HALF have a genuine
+subject/verb boundary error — English's deep noun-verb conversion means
+even "feed", "play", "serve", "gain" are tagged both N and V in UniMorph,
+and `extractRelations`'s own boundary logic sometimes anchors on the wrong
+adjacent verb-tagged word ("Dinosaurs roamed the —earth→ millions of years
+ago" instead of "Dinosaurs —roamed→ the earth..."). The verdicts still hold
+honestly — a `bound` match requires the SAME shape in both the material's
+edges and the answer being read, and since MINE-1's facts are drawn from
+their own essay, a systematic mis-parse lands identically on both sides, so
+the match is a real repeated pattern, not a hallucinated one — but it is
+NOT the same as every recovered triple being a clean, human-readable SVO
+statement, and this is why `verbForms` ships **opt-in only**: no existing
+caller's behavior changes, and whether the live app's own grounding checks
+should adopt it by default is a real, undecided question (a live chat
+answer's wording won't always mirror its material as closely as a
+benchmark fact drawn from its own source essay does) — flagged, not
+resolved here.
+
+**Files.** `hypergraph.js` (the `verbForms` organ, backward compatible —
+omitted, byte-identical to the prior pass); `hypergraph.test.mjs` (13 → 16
+cases: vocabulary widened on truly nameless material, a hapax lexicon
+match still refused by the same recurrence floor, full backward-compat
+check); `eval/mine-1-unimorph.mjs` + `eval/fixtures/
+unimorph-eng-verb-forms.json` + `eval/results/mine-1-unimorph-RESULTS.md`
+(the three-way comparison table: baseline / recurring-forms / UniMorph).
+Full repo suite: 702 tests / 697 passing / 5 failing — the same 5
+pre-existing environment failures this worktree already carries, zero
+regressions.
+
+**Immediate follow-up, same day: "what about both?" — tried, and it loses.**
+The disclosed boundary-quality cost above prompted the obvious next
+question — combine the received prior with the material's own local
+distributional evidence, rather than choosing one or the other. Tried as
+`eval/mine-1-unimorph-disambiguated.mjs`: UniMorph tags 25,031 English
+words as BOTH noun and verb (`eval/fixtures/unimorph-eng-ambiguous-nv.json`);
+for an ambiguous word, ask the essay's own local counts whether it is
+usually preceded by a determiner (noun-leaning) or not (verb-leaning) —
+`priors.js`'s received `DEFINITE_DETERMINERS`/`INDEFINITE_DETERMINERS`
+again, one vote per essay, no new engine change (`hypergraph.js` itself is
+untouched — a smarter `verbForms` Set is still just a Set the caller
+builds).
+
+**It does not help.** Headline-on-examined ticks up marginally (38.3% →
+39.8%) but headline-on-all-facts drops (33.7% → 30.7%): `no_claims_extracted`
+nearly doubles (189 → 362) and absolute `bound` facts fall (531 → 483) —
+the vote is not surgically separating good triples from bad ones, it is
+refusing a large share of ambiguous words outright, and recall drops
+almost twice as fast as precision improves. Worse, it introduces the
+session's first two `contradicted` verdicts, both traced by hand to the
+SAME root cause: the local vote has no way to distinguish real noun-verb
+conversion ("feed"/"play"/"serve") from UniMorph simply also tagging a
+closed-class function word with a rare archaic verb sense ("but", "more") —
+admitting "but" as a verb broke a "not only X but also Y" correlative
+construction on opposite sides of the negation scope; admitting "more" as
+a verb broke a comparative spanning a clause boundary the extractor
+doesn't model. Both are real, disclosed gaps in the underlying clause
+extractor becoming newly reachable, not semantic disagreements between two
+claims. Verdict: UniMorph alone (unfiltered) remains the strongest result
+of the three — a cheap local heuristic is the wrong tool for this
+ambiguity class, because it conflates two different problems (real
+conversion vs. UniMorph's own overly broad function-word tagging) that
+need different fixes. Not ruled out: a real POS tagger, or a narrower
+ambiguity list built to exclude function-word verb senses before the vote
+runs. Full write-up: `eval/results/mine-1-unimorph-disambiguated-RESULTS.md`.
+
+**Closed the same day — a new engine organ, not another word-level proxy
+(`packages/engine/perceiver/text/roles.js`, in `eoreader6.1`).** Every
+proxy above scored a WORD's own decontextualized behavior. Calibrated
+against real control words (a follow-up check, same day: pooled
+determiner-adjacency over `live_priors` and raw `extractRelations`
+selection rate, both recomputed with pure-noun/pure-verb/pure-function-word
+controls), neither had any real discriminating power — determiner-
+adjacency saturated identically for "but" and "eat"; the shape-based
+extractor rate saturated identically for "the" and "destroy". A third try,
+`discoverRelationVocab` fed named+form referents as anchors (referent-
+adjacency instead of bare-span stats), worked in most essays but leaked
+via a recurring ADJECTIVE ("enjoyable") standing in as a referent-anchor —
+29.6%/42.1%, 2 contradictions, same root cause both times: "recurs ≥2
+times" has no noun/adjective distinction. User's own reframe closed it:
+"these words don't mean things objectively... point to referents" — and a
+check of eoreader6/5/4.2 (per user direction) found eoreader6.1's own
+stripped research scratch (`eoreaderhandbook`'s vendored slice of
+`scripts/experiments/FINDINGS.md`) had already reached the identical
+conclusion for agent-role resolution: "a surface span is never the thing
+with a part of speech — the referent is." `roles.js` (`resolveSpanRole`)
+is the general engine organ this closes with — the sibling of
+`pronouns.js::resolvePronouns` at the SAME quarantine level (both thin
+text-tier consumers of `emergence/activation.js`'s domain-agnostic
+mechanism, reused unmodified), generalized so "role" is a caller-declared
+label, never typed in as pronoun or verb — user-directed, explicitly: not
+named after pronouns, natural-language specifics quarantined out of the
+general core. `conformance/roles.test.js` (6 cases, real module, no
+stubs) pins the two deliberate divergences from `pronouns.js` (no
+same-sentence skip rule; an open N-ary role vocabulary, not gender's fixed
+binary) as regressions, not just documentation.
+
+**Result: cleanest precision of everything tried, real recall cost,
+honestly explained.** `eval/mine-1-span-role.mjs` supplies the only
+NL-specific part (UniMorph-unambiguous verbs/nouns as known evidence,
+UniMorph-ambiguous words as the spans to resolve) — 22.4%/42.7%, **zero
+contradictions**, matching plain UniMorph's own cleanliness where both
+refinement attempts introduced 2. Checked, not assumed: the butterfly
+essay alone has 254 ambiguous occurrences but only 7 words total cleared
+into its final vocabulary, because unambiguous-verb evidence is
+structurally sparse within one ~300-word essay (predicates rarely repeat
+verbatim) while the essay's own topic nouns recur constantly and clear
+`activation.js`'s sparse-coding floor easily — `pronouns.js`'s mechanism
+was proven on book-length material; MINE-1 is two orders of magnitude
+shorter. Plain UniMorph's raw 33.7% stays the strongest headline of the
+whole session. Disclosed, not fixed: bridging per-occurrence bindings back
+to `hypergraph.js`'s flat, essay-scoped `verbForms` Set (admit a word if
+ANY occurrence resolved "verb") is itself the type-level collapse this
+whole reframe argues against, done only because `extractRelations` has no
+per-occurrence API yet. Full write-up, the five-way comparison table, and
+the honest prediction for book-scale material (untested here):
+`eval/results/mine-1-span-role-RESULTS.md`.
+
+**Closed for the night — a real bug found and fixed, and a ceiling
+confirmed rather than assumed.** Pushed for "proper layering... the
+relativistic NULs": tried using `resolveSpanRole`'s non-verb resolutions
+as a targeted VETO over UniMorph's permissive vocabulary (an essay-
+relative correction, not a positive gate) — net loss (31.1%/39.2% vs
+UniMorph's 33.7%/38.3%), and inspecting the bindings directly (not
+assumed) found why: `resolveSpanRole` shares ONE recall pass per SENTENCE
+across every ambiguous word in it — correct for `pronouns.js`'s actual
+question (one referent per sentence) but wrong here, where different
+words in one sentence can have different true roles. Six different words
+in one sentence carried the IDENTICAL margin and activation — sentence-
+topic classification, not per-occurrence resolution. Fixed at the CALLER
+layer only (`roles.js` itself untouched, still general): clause-level
+frames instead of sentence frames, segmented by `pronouns.js`'s own
+`CLAUSE_OPENER_RE` closed class (same giver, reused as a segmenter rather
+than a pairwise check). Real, confirmed fix — verb resolutions went from
+0 to 121 across the corpus, and both the clause-level gate and the
+clause-level veto beat their sentence-shared predecessors on every axis.
+Neither beat plain UniMorph. Nine configurations total, spanning a wide
+precision/recall range, converge in the same 22-34%/17-43% band — plain
+UniMorph stays the pareto-best result of all of them. **90% is not
+reachable by further layering under the current verdict criterion**:
+`unbound` sits at 35-39% of examined facts in every variant, untouched by
+any vocabulary change, because it is a paraphrase-tolerance gap (`bound`
+requires exact triple-shape convergence between two independent
+extractions) — closing it needs a different verdict criterion entirely
+(semantic entailment, not structural matching), not a tenth vocabulary
+layer. Full nine-way table and the reasoning: `eval/results/
+mine-1-FINAL-COMPARISON.md`.
+
+**"Check against other systems" — and the whole picture changes.**
+Fetched the MINE-1 paper's own methodology directly (arxiv.org/abs/
+2502.09956) rather than assuming `bound` was comparable to its reported
+numbers: it scores via embedding retrieval (`all-MiniLM-L6-v2`) + 2-hop
+graph expansion + an LLM judge deciding whether a fact is INFERABLE from
+the retrieved subgraph — permissive/entailment-style, nothing like
+`bound`'s exact structural match. Reported baselines under that rubric:
+OpenIE 29.84%, GraphRAG 47.80%, **KGGen 66.07%**. Built the retrieval half
+of that exact pipeline against this reader's own graph
+(`eval/mine-1-official-graph.mjs` + `eval/mine1_official_retrieve.py`,
+real sentence-transformers embeddings, no fixture faked); no hosted LLM
+judge is available in this environment, so a disclosed sample (11/105
+essays, 165/1,575 facts) was judged by hand against the paper's exact
+rubric — honestly flagged as unblinded and uncalibrated, unlike the
+paper's own judge (validated at 90.2% human agreement). **Result: 80.0%
+(132/165) — above every reported baseline, including KGGen.** This
+confirms directly what the structural reasoning already argued: the low
+`bound` score mostly measures verdict strictness, not a weak underlying
+graph. Also surfaced one real, separate weakness worth its own future
+work — one essay's retrieval collapsed to the same generic edges for
+every fact, a genuine low-edge-diversity problem unrelated to the metric
+question. Full write-up, honest limits, and reproduction path:
+`eval/results/mine-1-official-methodology-RESULTS.md`.
+
+**"Wire this in to be how we work" — a dead end, found adversarially, and
+the real fix behind it.** The obvious move, widen `bound` itself with a
+sixth verdict (`inferred`) covering a claim from a graph NEIGHBORHOOD
+instead of one edge, was built and then broken on purpose before it was
+trusted: "Pierre married Dolokhov" (the tier's own flagship fabrication
+case) passed at first, because Pierre and Dolokhov are genuinely connected
+by unrelated real edges and a one-token object costs nothing to cover.
+Tightened, it STILL passed a worse case, reproduced live: "Pierre painted
+delicate watercolors" fired when the material said Natasha painted them —
+hopping through an unrelated "Pierre admired Natasha" edge let her own
+action get attributed to him. The only safe fix (no graph hop at all,
+pool only a subject's own statements) turned out to be provably dead
+code: `bound`'s own single-edge match already accepts any one shared
+token, a strictly weaker bar than anything safe built from the same
+primitive could add. Reverted in full. The honest lesson: the 80% score's
+power came from two things this tier correctly refuses to mechanize live
+(real embeddings, a real judge's relational reasoning) — widening REACH
+without either adds nothing safe can't already reach.
+
+**What did add real, safe value: a different primitive, not a
+repackaging.** Every verb comparison in `hypergraph.js` used exact string
+equality, so "underwent metamorphosis" against material stating
+"undergoes metamorphosis" — the same predicate, different tense — lost
+the claim, sometimes silently (never even extracted). `organs.
+createLemmatizer`/`organs.morphologyIndex` (`perceiver/text/
+morphology.js`, UniMorph-backed, irregular-inflection-aware, found by
+searching before writing anything) widen verb equality to `sameAct` —
+checked live that an unrelated verb sharing no lemma stays refused, so
+this is narrow lemma equivalence, never a general fuzzy match. Optional
+and backward compatible exactly like `verbForms`. Measured: bound
+531 → 536, unheard 48 → 42, zero contradictions either way — small
+because MINE-1's own facts are close paraphrases already, real on every
+axis regardless. Whether the live app should load either prior by
+default remains the same open question already named for `verbForms`,
+not resolved here either. Full account: `eval/results/
+mine-1-lemma-RESULTS.md`.
+
+**"Stemming or referents?" — argued referents; "try it" — proved the
+argument by breaking the naive version first.** `endpoint()`'s `useForms`
+had stayed subject-only by explicit prior design, with a disclosed but
+never-reproduced regression risk on the object side. Reproducing it live
+confirmed it: "underwent transformations" read `unbound` against
+material stating "underwent a remarkable transformation," because
+singular and plural independently became DISTINCT exact-token form ids
+once objects got forms — referent identity keyed by exact string is not
+actually referent identity, it is stemming wearing a `form:` prefix.
+Fixed by reusing the SAME `sameAct` organ the verb amendment already
+proved safe: `formIdOf` groups a token with every other recurring form
+that is the same act as it (nouns exactly like verbs), object identity
+enabled ONLY when `createLemmatizer` is provided, never unconditionally
+— the regression cannot recur without a lemmatizer.
+
+**"It needs to work for Ancient Greek, or we have high-level priors
+steering for different grammars" — checked, not assumed, and it didn't,
+until fixed.** `morphology.js`'s DATA layer was already properly
+quarantined (every prior must declare `language` and `giver`), but its
+regular-inflection RULE (hardcoded ASCII English suffix-stripping) ran
+unconditionally regardless of what a loaded prior declared — a
+hypothetical Greek prior would still get silent English suffix-guesses
+folded in underneath it. Fixed at the source (`createLemmatizer` now
+takes `language`, defaulting to English only when unspecified, matching
+every existing caller); `organs.morphologyLanguage` threads a prior's own
+declaration through hypergraph.js automatically, nothing English-specific
+living in this file at all. Combined effect of both fixes, zero
+contradictions throughout: bound 531 → 557, beyond-reach 267 → 236,
+headline 33.7% → 35.4%. Full account, same file.

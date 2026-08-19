@@ -2855,3 +2855,33 @@ whole reframe argues against, done only because `extractRelations` has no
 per-occurrence API yet. Full write-up, the five-way comparison table, and
 the honest prediction for book-scale material (untested here):
 `eval/results/mine-1-span-role-RESULTS.md`.
+
+**Closed for the night — a real bug found and fixed, and a ceiling
+confirmed rather than assumed.** Pushed for "proper layering... the
+relativistic NULs": tried using `resolveSpanRole`'s non-verb resolutions
+as a targeted VETO over UniMorph's permissive vocabulary (an essay-
+relative correction, not a positive gate) — net loss (31.1%/39.2% vs
+UniMorph's 33.7%/38.3%), and inspecting the bindings directly (not
+assumed) found why: `resolveSpanRole` shares ONE recall pass per SENTENCE
+across every ambiguous word in it — correct for `pronouns.js`'s actual
+question (one referent per sentence) but wrong here, where different
+words in one sentence can have different true roles. Six different words
+in one sentence carried the IDENTICAL margin and activation — sentence-
+topic classification, not per-occurrence resolution. Fixed at the CALLER
+layer only (`roles.js` itself untouched, still general): clause-level
+frames instead of sentence frames, segmented by `pronouns.js`'s own
+`CLAUSE_OPENER_RE` closed class (same giver, reused as a segmenter rather
+than a pairwise check). Real, confirmed fix — verb resolutions went from
+0 to 121 across the corpus, and both the clause-level gate and the
+clause-level veto beat their sentence-shared predecessors on every axis.
+Neither beat plain UniMorph. Nine configurations total, spanning a wide
+precision/recall range, converge in the same 22-34%/17-43% band — plain
+UniMorph stays the pareto-best result of all of them. **90% is not
+reachable by further layering under the current verdict criterion**:
+`unbound` sits at 35-39% of examined facts in every variant, untouched by
+any vocabulary change, because it is a paraphrase-tolerance gap (`bound`
+requires exact triple-shape convergence between two independent
+extractions) — closing it needs a different verdict criterion entirely
+(semantic entailment, not structural matching), not a tenth vocabulary
+layer. Full nine-way table and the reasoning: `eval/results/
+mine-1-FINAL-COMPARISON.md`.

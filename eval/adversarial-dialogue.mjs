@@ -51,7 +51,7 @@ import {
 import { buildSourceBlock, retrieve, tokenize as sourceTokenize } from "../source.js";
 import { makeRelationReader } from "../hypergraph.js";
 import { ROUTE_KINDS, routeModel } from "../model-routing.js";
-import { classifyCrossGraphEdges, activeWindow, makeReferentIndex } from "../dialogue-graph.js";
+import { classifyCrossGraphEdges, activeWindow, makeReferentIndex, edgesMatch } from "../dialogue-graph.js";
 
 // Same organs, same relative path, dialogue.mjs's own precedent (the
 // cast.js injection pattern: engine functions arrive as arguments so this
@@ -190,6 +190,48 @@ function exactReplyRepeat(newText, priorTexts) {
   return priorTexts.some((p) => normalizeForCompare(p) === n);
 }
 
+/**
+ * The deeper failure exact-repeat detection cannot see: measured live on
+ * BOTH topics (Napoleon's 1812 campaign, then independently the atomic-
+ * bombings debate), gemma2:2b drifted into sycophantic-opener + vague,
+ * referent-poor abstraction — "a pressure cooker," "a confluence of
+ * factors" — that starves hypergraph.js's own extractor down to zero
+ * measurable edges, turn after turn, with NOTHING literally repeated. A
+ * second NL-pattern detector (a "sycophantic opener" regex, a vagueness
+ * score) would be exactly the un-universal patch this instrument's own
+ * design already argues against — so this reuses the SAME structural
+ * instrument the whole harness already stands on, dialogue-graph.js's own
+ * edgesMatch, one step earlier in the pipeline than its usual post-hoc use.
+ *
+ * The gate: does the candidate reply's own OWN newly-extracted edges add
+ * anything the speaker's own immediately-prior turn did not already
+ * establish? Not "does this turn have few edges" — hypergraph.js's own
+ * stated philosophy is that low structure is a typed gap, not
+ * automatically a defect (a turn can legitimately have little new to
+ * say), and gating on an absolute floor would punish exactly the honest,
+ * modest turns that philosophy protects. Gating on "strictly no edge not
+ * already in the immediately-prior snapshot" targets only genuine
+ * standstill — the graph did not move at all — which a legitimately thin
+ * but NEW turn does not trigger (any single fresh, resolvable claim clears
+ * it), and an empty-of-content turn does (nothing to compare, nothing new
+ * to find).
+ */
+function noNewEdgesVsPrior(candidateText, priorEdges, priorTexts, transcriptSoFar) {
+  if (!priorEdges.length) return false; // nothing established yet to have failed to add to
+  const candidateReader = readerFor([{ ref: "candidate", text: candidateText }], {
+    pool: sentencePool(transcriptSoFar + "\n\n" + candidateText),
+  });
+  if (!candidateReader.edges.length) return true; // extraction found nothing at all — the instrument's own measure of standstill
+  const sharedIndex = referentIndexFor([{ text: [...priorTexts, candidateText].join("\n\n") }]);
+  return candidateReader.edges.every((ce) => priorEdges.some((pe) => edgesMatch(sharedIndex, diaNorm, ce, pe)));
+}
+
+function degeneracyReason(text, priorTexts, priorEdges, transcriptSoFar) {
+  if (exactReplyRepeat(text, priorTexts)) return "exact-repeat";
+  if (noNewEdgesVsPrior(text, priorEdges, priorTexts, transcriptSoFar)) return "no-new-edges";
+  return null;
+}
+
 const REPETITION_RETRIES = 2;
 // Retry temperature: high enough to escape a fixed point, still declared
 // and named rather than tuned against an outcome — the same posture
@@ -311,10 +353,14 @@ async function replyTurn(speaker, opponent, turn, transcriptSoFar) {
   // The texts a repeat would be copying FROM: the opponent's provocation
   // (cross-speaker copying, the turn-7 qwen2.5:14b case) and the speaker's
   // own last two utterances (same-speaker looping, the gemma2:2b case) —
-  // both failure shapes measured live, both checked.
+  // both failure shapes measured live, both checked. priorEdges is the
+  // speaker's own graph as it stood before this turn (its last timeline
+  // snapshot — the seed's, if this is the speaker's first reply) — the
+  // baseline noNewEdgesVsPrior asks whether this turn moved anything.
   const priorTexts = [question, ...activeWindow(speaker.utterances, GRAPH_WINDOW).map((u) => u.text)];
+  const priorEdges = speaker.timeline.length ? speaker.timeline[speaker.timeline.length - 1].edges : [];
   let text = await call(messages, { maxTokens: ANSWER_MAX_TOKENS, model: FAST });
-  let isRepeat = exactReplyRepeat(text, priorTexts);
+  let degenerate = degeneracyReason(text, priorTexts, priorEdges, transcriptSoFar);
   let repetitionRetries = 0;
   // The fix is deliberately NOT an English instruction telling the model
   // what it did wrong — that would hand a compliance-critical outcome
@@ -323,12 +369,12 @@ async function replyTurn(speaker, opponent, turn, transcriptSoFar) {
   // rather than argued with (links.js). SAME messages, SAME question — only
   // the decoding temperature changes, a property of generation, not of
   // what the model was told.
-  while (isRepeat && repetitionRetries < REPETITION_RETRIES) {
+  while (degenerate && repetitionRetries < REPETITION_RETRIES) {
     repetitionRetries++;
     text = await call(messages, { maxTokens: ANSWER_MAX_TOKENS, model: FAST, temperature: REPETITION_RETRY_TEMPERATURE });
-    isRepeat = exactReplyRepeat(text, priorTexts);
+    degenerate = degeneracyReason(text, priorTexts, priorEdges, transcriptSoFar);
   }
-  // Ships even if still repeating after the bound — a wrong mechanical
+  // Ships even if still degenerate after the bound — a wrong mechanical
   // answer isn't risked, but neither is an infinite retry loop; the
   // residue is TYPED and disclosed below, never silently hidden.
   speaker.fold.history.push({ role: "user", content: question }, { role: "assistant", content: text });
@@ -371,7 +417,7 @@ async function replyTurn(speaker, opponent, turn, transcriptSoFar) {
     historyMessages,
     historyChars,
     repetitionRetries,
-    repetitionUnresolved: isRepeat,
+    degeneracyUnresolved: degenerate,
   };
 }
 
@@ -428,13 +474,15 @@ for (let i = 0; i < TURNS; i++) {
       historyMessages: r.historyMessages,
       historyChars: r.historyChars,
       repetitionRetries: r.repetitionRetries,
-      repetitionUnresolved: r.repetitionUnresolved,
+      degeneracyUnresolved: r.degeneracyUnresolved,
     }) + "\n",
   );
   console.log(
     `turn ${turn}: ${speaker.name} · edges ${r.edgeCount} (vocab verbs ${r.vocabularyVerbs}) · passages ${r.passages.length}` +
       ` · sent ${r.sentMessages}msg/${r.sentChars}ch vs full history ${r.historyMessages}msg/${r.historyChars}ch` +
-      (r.repetitionRetries ? ` · REPEAT detected, ${r.repetitionRetries} retry(s)${r.repetitionUnresolved ? " (unresolved)" : " (resolved)"}` : ""),
+      (r.repetitionRetries
+        ? ` · DEGENERATE detected, ${r.repetitionRetries} retry(s)${r.degeneracyUnresolved ? ` (unresolved: ${r.degeneracyUnresolved})` : " (resolved)"}`
+        : ""),
   );
 }
 

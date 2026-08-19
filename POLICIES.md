@@ -2117,3 +2117,87 @@ that wants this enforced rather than merely demonstrated should add a
 `proxy-runner` test that injects a stub `call()` the way `holon.test.mjs`
 already does for `runPart`/`runHolonicTask` directly — not attempted here,
 named rather than implied as covered.
+
+## P28 — A preflight search earns the discourse join; it does not always take it
+
+**Correction, stated plainly first:** P23's own amendment paragraph ("the
+join is earned, never assumed") claimed `preflightQuery` already took task
+and discourse as separate arguments and joined only when earned. Checked
+against the actual function on this date: it did not. `preflightQuery`
+unconditionally concatenated `${task} ${discourse}` regardless of argument
+count, and its one call site (`gatherPreflightMaterial`) pre-joined them
+into a single string before that. No `ANAPHORIC_PRONOUNS` import existed
+anywhere in this file or `app.js`. The write-up described the right design;
+the code did not yet do it. Recorded here rather than quietly patched,
+because this repo's whole standing is that a claim of "fixed" is checked,
+not assumed — including this file's own prior claims about itself.
+
+**Measured live (2026-08-19), the actual failure the correction above
+predicts.** A conversation's first turn was about a dog's trazodone use;
+the fold's one-line discourse (topic/flow/entities) came to name trazodone,
+dogs, serotonin syndrome, vaccine timing. The second turn asked a complete,
+self-sufficient question with no anaphoric reference to anything earlier:
+"who was Abraham Lincoln's vice president?" The unconditional join built
+the search query `"Abraham Lincoln vice president trazodone dogs uses
+interactions serotonin syndrome vaccine timing"` — twelve words, all of
+them surviving `PREFLIGHT_QUERY_MAX_TERMS` because the combined anchor
+happened to fit under the cap, so the cap-priority safety net the original
+docstring described did nothing. The search returned a trazodone/vaccine
+FAQ page; the model answered from it, honestly citing it, entirely about
+the wrong subject. Confirmed directly: the actual sent prompt, pasted
+verbatim into chat, showed a full vaccine-interaction FAQ as the turn's
+only MATERIAL. Not a hallucination — a retrieval failure wearing grounded
+citations, materially worse than a hallucination because it looks checked.
+
+**The fix.** `preflightQuery(task, discourse, anaphoricPronouns)` now
+takes a third, optional argument: the engine's own closed class
+(`perceiver/text/priors.js::ANAPHORIC_PRONOUNS` — "it", "this", "that",
+"these", "those" and their contractions), injected exactly the way
+`widget.js`'s `makeWidgetRouter` already receives it — not a second,
+hand-typed pronoun list. The join fires on either of two STRUCTURAL
+conditions, never a semantic guess at what the new question is "about"
+(this file's own standing argument against exactly that move, restated in
+`proof.js`'s own header): the task contains an anaphoric pronoun ("prove
+IT", "what about THAT"), or the task carries no content words of its own
+at all. Omitting the third argument degrades to the old always-join
+behavior — no caller breaks silently, and the regression is reproduced
+byte-for-byte by the omission case in the new test, not just described.
+`gatherPreflightMaterial` and its one call site (`app.js`'s `holonicTurn`)
+now pass `task` and `discourseLine` as separate arguments instead of
+pre-joining them into one string — that pre-join was what defeated the
+gate even had it existed.
+
+**Evidence.** `proof.test.mjs` gains a new test pinning the exact
+regression: the polluted query with the pronoun set omitted (byte-for-byte
+the old bug), the clean query with it supplied (no trazodone/vaccine words
+anywhere in the output), the anaphoric case still joining, the
+no-content-words case still joining, and a second self-sufficient-task
+case (Springfield population vs. an unrelated lighthouse discourse)
+verified to now exclude the unrelated topic ENTIRELY — the pre-existing
+cap-priority test only ever verified the task's own words survived, never
+that pollution was absent. Verified live end to end on a fresh worktree
+server, real Ollama, the real conversation described above: the Lincoln
+follow-up's actual search became `"Abraham Lincoln vice president"`,
+retrieving Wikipedia and a Civil War encyclopedia, zero trazodone
+contamination. 72/73 repo tests pass across proof/holon/hypergraph; the one
+failure is the same pre-existing, unrelated `morphologyLanguage` test named
+in earlier passes, untouched by this change.
+
+**Disclosed, not this pass's problem:** the Lincoln answer that came back
+from the now-correctly-retrieved material still named the wrong person
+(Breckinridge, Buchanan's VP and Lincoln's 1860 opponent, not Hamlin or
+Johnson) — but `checkGrounding` correctly flagged it ("no material matches
+that sentence's words"), which is the grounding ladder doing exactly its
+job on a different axis (a name the retrieved material doesn't actually
+state, not a retrieval-topic failure). Two different failure classes;
+fixing one does not paper over the other, and this policy claims only the
+one it fixes.
+
+**Files.** `proof.js` (`preflightQuery`'s third argument);
+`proof.test.mjs` (`ANAPHORIC_PRONOUNS` imported from the real engine
+module, one new test with five assertions); `app.js`
+(`gatherPreflightMaterial`'s signature, its one call site).
+
+**Enforced:** `proof.test.mjs`, offline, pure, against the real engine's
+`ANAPHORIC_PRONOUNS` — not a local stand-in list that could silently drift
+from the one `widget.js` actually uses.

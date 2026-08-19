@@ -22,6 +22,7 @@ import {
   shouldPreflight,
 } from "./proof.js";
 import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
+import { ANAPHORIC_PRONOUNS } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({
@@ -186,6 +187,51 @@ test("preflightQuery anchors on the turn's own words plus the fold's discourse l
   assert.ok(long.split(/\s+/).length <= PREFLIGHT_QUERY_MAX_TERMS);
   // No question, no discourse, no query — never a bare empty-string search.
   assert.equal(preflightQuery("", ""), "");
+});
+
+test("preflightQuery earns the discourse join instead of always taking it, when given the engine's own ANAPHORIC_PRONOUNS", () => {
+  // The exact live bug (2026-08-19): turn 1 was about trazodone; turn 2 asked
+  // a complete, self-sufficient question with nothing anaphoric in it. The
+  // OLD unconditional join built a query where every discourse word survived
+  // PREFLIGHT_QUERY_MAX_TERMS right alongside the real question (12 total,
+  // none trimmed), the search returned a trazodone/vaccine FAQ page, and the
+  // model answered the wrong question from real but entirely wrong material.
+  const trazodoneDiscourse =
+    "trazodone for dogs: uses, interactions, serotonin syndrome, and vaccine timing (unanswered) · moved from serotonin syndrome timing to whether any source addresses trazodone right after a vaccine — none do · trazodone, serotonin syndrome";
+  const polluted = preflightQuery("who was Abraham Lincoln's vice president?", trazodoneDiscourse, ANAPHORIC_PRONOUNS);
+  assert.ok(/lincoln/i.test(polluted) && /president/i.test(polluted), polluted);
+  assert.ok(!/trazodone/i.test(polluted) && !/vaccine/i.test(polluted) && !/serotonin/i.test(polluted),
+    `a self-sufficient question must not carry an unrelated prior topic's words into the search: got "${polluted}"`);
+
+  // Omitted (the old call shape): degrades to the always-join behavior,
+  // backward compatible with every caller that has not been updated —
+  // this is the ACTUAL regression case, reproduced byte-for-byte.
+  const unfixed = preflightQuery("who was Abraham Lincoln's vice president?", trazodoneDiscourse);
+  assert.ok(/trazodone/i.test(unfixed), "omitting anaphoricPronouns must reproduce the old (buggy) behavior exactly, never a silent partial fix");
+
+  // An anaphoric task ("prove IT") still earns the join — this is the SAME
+  // case the existing test above already covers without the pronoun set;
+  // repeated here to pin that passing a real pronoun set doesn't regress it.
+  const anaphoric = preflightQuery("prove it", "NYC weather right now · asked and answered · NYC", ANAPHORIC_PRONOUNS);
+  assert.ok(/weather/i.test(anaphoric) && /nyc/i.test(anaphoric), anaphoric);
+
+  // A task with no content words at all (every token is a stopword or too
+  // short) still earns the join even with no anaphoric pronoun present —
+  // the second, independent condition.
+  const contentless = preflightQuery("and so", "NYC weather right now · asked and answered · NYC", ANAPHORIC_PRONOUNS);
+  assert.ok(/weather/i.test(contentless), contentless);
+
+  // A self-sufficient task with an unrelated discourse line, using the
+  // engine's real pronoun set: still excludes the unrelated topic entirely
+  // (stronger than the old cap-priority test above, which only guaranteed
+  // the task's OWN words survived — not that pollution was absent).
+  const clean = preflightQuery(
+    "what is the current population of Springfield Illinois exactly today",
+    "an entirely unrelated prior topic about lighthouses and shipping lanes and maritime law",
+    ANAPHORIC_PRONOUNS,
+  );
+  assert.ok(/springfield/i.test(clean));
+  assert.ok(!/lighthouse/i.test(clean) && !/maritime/i.test(clean), clean);
 });
 
 // ── the question travels with the finding, so a topic-less follow-up can

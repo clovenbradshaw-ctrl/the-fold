@@ -118,21 +118,54 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
 }
 
 /**
- * The search anchor for a preflight: the turn's own words plus the fold's
- * one-line discourse (topic · flow · entities) — the same conversational
- * anchor `runPart`'s `groundingQuestion` now carries, for the identical
- * reason (a topic-less follow-up like "prove it" names nothing on its own,
- * and the discourse line is what still does). Unlike `proofQuery`, there is
- * no claim yet to quote verbatim — this is a topic search, not a claim
- * search, so every word is ordinary query material and the term cap is
- * wider (PREFLIGHT_QUERY_MAX_TERMS, not PROOF_QUERY_MAX_TERMS): the turn's
- * own words come first, so they survive the cap before the discourse line's
- * do if the combined anchor runs long.
+ * The search anchor for a preflight: the turn's own words alone, UNLESS the
+ * turn's own words cannot stand on their own — the fold's one-line
+ * discourse (topic · flow · entities) joins only then. The same earned-join
+ * discipline this file's own history already applies to `preflightQuery`'s
+ * callers elsewhere (this repo's CLAUDE.md: "no assembly's words enter
+ * another's derived query unless the join is EARNED") but did not, until
+ * now, apply INSIDE this function itself.
+ *
+ * Measured live (2026-08-19): a real conversation whose first turn was
+ * about trazodone landed a discourse line naming trazodone/serotonin/
+ * vaccine; the second turn asked "who was Abraham Lincoln's vice
+ * president?" — a complete, self-sufficient question with zero anaphoric
+ * reference to anything earlier. The OLD unconditional-join version built
+ * "Abraham Lincoln vice president trazodone dogs uses interactions
+ * serotonin syndrome vaccine timing" (all 12 words survived
+ * PREFLIGHT_QUERY_MAX_TERMS — the cap-priority safety net this function
+ * relied on before does nothing when the combined anchor fits under the
+ * cap), the search returned a trazodone/vaccine FAQ page, and the model
+ * answered the wrong question from real but entirely wrong material — not
+ * a hallucination, a retrieval failure wearing grounded citations.
+ *
+ * `anaphoricPronouns` is the engine's own closed class
+ * (perceiver/text/priors.js::ANAPHORIC_PRONOUNS — "it", "this", "that",
+ * "these", "those" and their contractions), injected exactly the way
+ * widget.js already receives it, never a second hand-typed list. The join
+ * fires on either of two structural conditions, never a semantic guess at
+ * what the question is "about" (this file's own standing argument, two
+ * paragraphs up, against exactly that move): the task points back
+ * (contains an anaphoric pronoun — "prove IT", "what about THAT") or the
+ * task carries no content words of its own at all ("prove it" is also
+ * covered by the first branch, but an all-stopword task like "and?" would
+ * need the second). `anaphoricPronouns` omitted degrades to the OLD
+ * always-join behavior (backward compatible), never a hard crash on a
+ * caller that hasn't been updated.
  */
-export function preflightQuery(task, discourse = "") {
+export function preflightQuery(task, discourse = "", anaphoricPronouns = null) {
+  const wordsOf = (s) =>
+    String(s ?? "")
+      .split(/[^\p{L}\p{N}'’]+/u)
+      .map((w) => w.replace(/['’]s$/, ""))
+      .filter(Boolean);
+  const taskTokens = wordsOf(task);
+  const taskContentWords = taskTokens.filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+  const pointsBack = anaphoricPronouns && taskTokens.some((w) => anaphoricPronouns.has(w.toLowerCase()));
+  const needsDiscourse = !anaphoricPronouns || pointsBack || taskContentWords.length === 0;
   const words = [
     ...new Set(
-      `${task ?? ""} ${discourse ?? ""}`
+      `${task ?? ""}${needsDiscourse ? ` ${discourse ?? ""}` : ""}`
         .split(/[^\p{L}\p{N}'’]+/u)
         .map((w) => w.replace(/['’]s$/, ""))
         .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase())),

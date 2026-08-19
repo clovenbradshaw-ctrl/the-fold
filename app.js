@@ -2557,7 +2557,13 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     if (shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
       setPhase("checking for material");
       show("nothing attached — checking the web before answering…");
-      const preflight = await gatherPreflightMaterial(`${task} ${discourseLine}`);
+      // task and discourseLine passed SEPARATELY, never pre-joined into one
+      // string — that pre-join was the bug (proof.js::preflightQuery's own
+      // header has the measured case): a self-sufficient question after an
+      // unrelated prior topic had every discourse word survive the query
+      // cap right alongside its own, and the search went to the wrong
+      // material entirely. preflightQuery now earns the join itself.
+      const preflight = await gatherPreflightMaterial(task, discourseLine, show);
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -2653,6 +2659,22 @@ async function holonicTurn(task, typed = task, planMode = "model") {
               (info.unsupported.length ? `, ${info.unsupported.length} unsupported` : "") +
               (info.open.length ? `, ${info.open.length} open` : ""),
           );
+          // The material's own edges, read against this part's answer — a
+          // real per-part tally, not a fabricated live per-edge stream: the
+          // relation tier reads in one batch (hypergraph.js's `read()`), so
+          // this is exactly as fine-grained as the check actually is, no
+          // finer. Silent when relations are off (info.relations is null,
+          // checking mode not asking for the tier at all) or when the
+          // material was too small to measure a vocabulary from — both
+          // typed facts, not "zero relations found."
+          if (info.relations?.examined && !info.relations.vocabulary?.gap) {
+            const tally = {};
+            for (const c of info.relations.claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
+            const bits = Object.entries(tally).map(([v, n]) => `${n} ${v}`);
+            if (bits.length) show(`${part.label}: relations — ${bits.join(", ")}`);
+          } else if (info.relations?.vocabulary?.gap) {
+            show(`${part.label}: relations — ${info.relations.vocabulary.gap}`);
+          }
           logAct("checked", {
             part: part.label,
             refs: info.refs.length,
@@ -4472,9 +4494,19 @@ async function checkLinkCitation(url) {
  * working link either. Wiring these into the same reopen path attachments
  * use is unscoped work for this pass, named rather than silently left.
  */
-async function gatherPreflightMaterial(anchor) {
-  const query = preflightQuery(anchor);
+async function gatherPreflightMaterial(task, discourse, onStep = null) {
+  // ANAPHORIC_PRONOUNS: the engine's own closed class (already imported
+  // module-scope as enginePriors — makeWidgetRouter's own injection),
+  // never re-typed here. Passing it is what lets preflightQuery's earned
+  // join actually fire instead of silently degrading to the old
+  // always-join behavior (its own backward-compat default).
+  const query = preflightQuery(task, discourse, enginePriors.ANAPHORIC_PRONOUNS);
   if (!query) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "nothing in the question to search on" } };
+  // Mirrors seekProof's own onStep shape (proof-seeking's per-claim "prove
+  // it" walk, further down this file) — same pattern, applied to the search
+  // that runs BEFORE a draft exists instead of after one is flagged. A
+  // caller that passes nothing gets exactly the old, silent behavior.
+  onStep?.(`searching the web: “${query}”`);
   let search;
   try {
     search = await webApi("/api/web/search", { query });
@@ -4488,12 +4520,16 @@ async function gatherPreflightMaterial(anchor) {
   if (search.gap) return { chunks: [], pages: [], gap: search.gap };
   const picks = (search.results ?? []).slice(0, PREFLIGHT_PAGES_CONSULTED);
   if (!picks.length) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } };
+  onStep?.(`${picks.length} result(s) for “${query}” — reading ${picks.map((r) => hostOf(r.url)).join(", ")}`);
   const chunks = [];
   const pages = [];
   for (const [i, r] of picks.entries()) {
     try {
       const f = await webApi("/api/web/fetch", { url: r.url });
-      if (f.gap || !f.entry?.textPath) continue;
+      if (f.gap || !f.entry?.textPath) {
+        onStep?.(`${hostOf(r.url)}: ${f.gap?.detail ?? "no readable text"}`);
+        continue;
+      }
       const url = f.entry.finalUrl ?? r.url;
       let faceRes;
       try {
@@ -4509,9 +4545,11 @@ async function gatherPreflightMaterial(anchor) {
       // silently merge their addresses.
       chunks.push(...chunkSource(`web:${hostOf(url)}-${i}`, text, { identity: identifyMaterial(url, text) }));
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
-    } catch {
+      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+    } catch (e) {
       // One page failing to fetch is not the search failing — the other
       // picks still get their chance, the same posture seekProof takes.
+      onStep?.(`${hostOf(r.url)}: could not read — ${e.message}`);
       continue;
     }
   }

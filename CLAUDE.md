@@ -2667,7 +2667,9 @@ anywhere else in the suite.
 
 ## The assertion tier — a relation edge's verb-hood is a hypothesis, never a recovered fact (added 2026-08-19)
 
-P28 in POLICIES.md is the law; this is the map. This closes a handoff from
+P29 in POLICIES.md is the law; this is the map (renumbered from P28 on
+merge — a concurrent PR independently landed its own P28 first; the
+number moved, nothing about the policy itself did). This closes a handoff from
 an investigation that had exhausted vocabulary-widening on `hypergraph.js`'s
 MINE-1 score (nine configurations, same pareto-best plain vocabulary,
 `unbound` stuck at 35–39% in every one — a paraphrase-tolerance gap in the

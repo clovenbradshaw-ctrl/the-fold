@@ -2664,3 +2664,88 @@ already carries — `measure.test.mjs`, three `webllm-rung.test.mjs`
 model-file cases, confirmed via `git stash` against this exact worktree
 rather than trusted from memory), 741 / 737 / 4 after — zero regressions
 anywhere else in the suite.
+
+## The assertion tier — a relation edge's verb-hood is a hypothesis, never a recovered fact (added 2026-08-19)
+
+P28 in POLICIES.md is the law; this is the map. This closes a handoff from
+an investigation that had exhausted vocabulary-widening on `hypergraph.js`'s
+MINE-1 score (nine configurations, same pareto-best plain vocabulary,
+`unbound` stuck at 35–39% in every one — a paraphrase-tolerance gap in the
+scoring rubric, not a vocabulary gap). The user's redirect: stop chasing "is
+this token the same verb as that one" (a linguist's category, recovered and
+then trusted) and instead treat `extractRelations`'s own claim about a
+clause the way this repo already treats every other unverified claim — a
+hypothesis with disclosed support, never a fact once recovered. The same
+line this repo already draws on the noun side (the cube is not a content
+classifier; L2's capitalisation veto; the referent index over stemming),
+drawn on the verb side.
+
+**Search-first, and the honest finding: no ready-made organ existed.**
+`nul/index.js`'s `LICENSED` table has no licensed text perturbation (only
+numeric-series pairs); `emergence/activation.js` has no unused retrieval
+mode for this. What DID exist and transfer: activation.js's cue gate and
+`emergence/binding.js`'s arrivals floor both independently land on 2 as
+"how much recurrence makes a pattern," and
+`goldens/agency-civic/rotation-control.mjs` had already built and measured
+the exact construction — a clause's own words seeded-shuffled, the
+document's real vocabulary held fixed, scored through the identical
+pipeline — at clause scale. `asserted.js` generalizes that construction
+from "one clause" to "every sentence of the material," per relation edge
+rather than per clause, because goldens are firewalled consumers (nothing
+outside `goldens/agency-civic/` may import from it — its own conformance
+test enforces this).
+
+**Two measures, one ever sets a standing.** Self-corroboration by
+recurrence (`WITNESS_FLOOR = 2`, structural, never walked against a
+golden) types every edge `corroborated` or `single-witness`. A word-salad
+order arm (draws declared, never defaulted) reports raw fired-counts,
+phrased natural-frequency — **never a verdict, never a cut**: no threshold
+is earned by this pass, so none is invented (the same discipline the kinds
+arm and the proof-seeking tier already hold this repo to). Wired into
+`hypergraph.js` additively — `assertion` rides every edge and therefore
+every claim's `bound`/`nearest` disclosure — and it convicts nothing:
+`relationFindings`/`relationsClean` are byte-for-byte unchanged.
+
+**The new eval harness, deliberately decoupled from MINE-1's rubric.**
+`eval/asserted-eval.mjs`'s synthetic adversarial suite (ground truth by
+construction — passive voice, a relative clause, coordinated verbs, a
+fronted adverbial, negation, a planted-false co-occurrence, two paraphrase
+cases) reproduces `goldens/agency-civic`'s own three named recall gaps as
+concrete, typed failures rather than only an aggregate rate: passive voice
+reversed agent and patient, the relative clause mis-bound its pronoun as
+subject, coordinated verbs elided the shared subject onto the wrong
+object. 8/9 intended edges heard correctly; the one forbidden edge
+fabricated had a salad count indistinguishable from genuine edges on this
+small suite — an honest negative result, not glossed over. A real-prose
+run over the already-captured Wikipedia War and Peace fixture (827 edges)
+produced a stratified, verdict-stripped blind sheet, scored by three
+independent, context-isolated general-purpose agents (`eval/
+asserted-blind-analysis.mjs` — Fleiss' kappa 0.789, well above the
+kappa = 0.4 floor `agency-civic`'s own analysis refuses below). Two
+findings kept exactly as measured: corroborated and single-witness
+standing showed IDENTICAL precision against the panel (75.0% each,
+n=12/stratum) — the witness floor alone did not separate confirmed edges
+from rejected ones on this sample; the order arm's fired count showed a
+directional gap the synthetic suite did not surface (median 20.5 vs 6,
+human-YES vs human-NO) but at n=24 total licenses no cut. **Labeled
+throughout, agency-civic's own discipline carried over: this is an
+LLM-panel proxy, not a human ceiling, and a real human pass is still
+required before either finding is reported as certified.**
+
+**What this pass explicitly refused to do, per the handoff.** No tenth
+vocabulary-widening configuration. The inferred graph-hop verdict, already
+killed by two adversarial cases and proven dead code once made safe, was
+not resurrected. A higher `bound%` was never treated as evidence of
+anything by itself — correcting that premise was the whole point of the
+redirect.
+
+**Files.** `asserted.js` (new, pure) + `asserted.test.mjs` (7 cases, one
+against the real engine `extractRelations`/`splitSentences`).
+`hypergraph.js` (`assertion` wired onto every edge, additive) + 2 new
+`hypergraph.test.mjs` cases. `eval/asserted-eval.mjs` +
+`eval/asserted-blind-analysis.mjs` (both re-runnable eval drivers, not
+committed regression tests — matching P19's and P27's own posture);
+`eval/results/asserted-eval.md`, `asserted-blind-results.json`, and the
+three raw panel verdict files are committed so the analysis reproduces
+from the repo alone. Full suite: 719/724 passing, the same 5 pre-existing
+failures this repo already carries, zero regressions.

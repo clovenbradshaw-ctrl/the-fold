@@ -30,7 +30,10 @@ import {
   mostSurprising,
   normalizeSelfLevel,
   paceTable,
+  parseOrdinal,
+  recallTable,
   recordAct,
+  resolveOrdinalRecall,
   selfRefContext,
   surpriseTable,
 } from "./reflex.js";
@@ -297,6 +300,70 @@ test("detectReflex requires the second-person tell, so the material always wins"
   assert.equal(detectReflex("what is the most surprising figure in the report"), null);
   assert.equal(detectReflex("list the sources"), null);
   assert.equal(detectReflex("what do you think the report says"), null, "an opinion request is an ordinary turn, not introspection");
+});
+
+// ── ordinal content recall ──────────────────────────────────────────────
+
+test("parseOrdinal reads a word, a digit form, or the deictic last/latest — and nothing else", () => {
+  assert.deepEqual(parseOrdinal("what was the third thing you told me"), { n: 3 });
+  assert.deepEqual(parseOrdinal("what was the 3rd thing you told me"), { n: 3 });
+  assert.deepEqual(parseOrdinal("the 21st thing you said"), { n: 21 });
+  assert.deepEqual(parseOrdinal("what was the last thing you told me"), { last: true });
+  assert.deepEqual(parseOrdinal("what's the most recent thing you said"), { last: true });
+  assert.equal(parseOrdinal("what's the capital of France"), null);
+  assert.equal(parseOrdinal(""), null);
+});
+
+test("parseOrdinal takes whichever ordinal token appears first, when a question names more than one", () => {
+  assert.deepEqual(parseOrdinal("was the third thing you said before the fifth thing"), { n: 3 });
+});
+
+test("detectReflex recognizes ordinal recall only with all three tells present: an ordinal, a recall noun, and a told/said verb", () => {
+  assert.equal(detectReflex("what was the third thing you told me again?"), "recall");
+  assert.equal(detectReflex("what was the first time you mentioned that?"), "recall");
+  assert.equal(detectReflex("what's the second thing you said?"), "recall");
+  assert.equal(detectReflex("what was the last thing you told me?"), "recall");
+  assert.equal(detectReflex("remind me what the 4th thing you told me was"), "recall");
+  // An ordinary material question that happens to carry a number: no
+  // recall verb naming something the INSTRUMENT said, so it stays material.
+  assert.equal(detectReflex("what's the third law of thermodynamics"), null);
+  assert.equal(detectReflex("what was the first thing on the agenda"), null);
+  // Anaphoric/relative recall is a disclosed, different, harder problem —
+  // not attempted, and it must not silently misfire as an ordinal either.
+  assert.equal(detectReflex("what did I ask before that?"), null);
+});
+
+test("resolveOrdinalRecall reads turnFolds by position, 1-based, from the conversation's own start", () => {
+  const folds = ["Q: a A: 1", "Q: b A: 2", "Q: c A: 3"];
+  assert.deepEqual(resolveOrdinalRecall(folds, "what was the first thing you told me"), { ok: true, n: 1, of: 3, fold: "Q: a A: 1" });
+  assert.deepEqual(resolveOrdinalRecall(folds, "what was the third thing you told me"), { ok: true, n: 3, of: 3, fold: "Q: c A: 3" });
+  assert.deepEqual(resolveOrdinalRecall(folds, "what was the last thing you told me"), { ok: true, n: 3, of: 3, fold: "Q: c A: 3" });
+});
+
+test("resolveOrdinalRecall types the gap when the turn asked for hasn't happened, naming how many actually have", () => {
+  const folds = ["Q: a A: 1", "Q: b A: 2"];
+  const r = resolveOrdinalRecall(folds, "what was the fifth thing you told me");
+  assert.equal(r.ok, false);
+  assert.equal(r.gap, "no_such_turn");
+  assert.equal(r.n, 5);
+  assert.equal(r.of, 2);
+  assert.match(r.detail, /only 2 turns/);
+});
+
+test("resolveOrdinalRecall types the gap on an empty conversation rather than crashing on turnFolds[-1]", () => {
+  const r = resolveOrdinalRecall([], "what was the first thing you told me");
+  assert.equal(r.ok, false);
+  assert.equal(r.gap, "no_such_turn");
+  assert.equal(r.of, 0);
+});
+
+test("recallTable renders one row — the resolved turn, not a listing — and is null on a gap (tables.js's own NOTHING convention)", () => {
+  const folds = ["Q: a A: 1", "Q: b A: 2", "Q: c A: 3"];
+  const built = recallTable(folds, "what was the second thing you told me");
+  assert.equal(built.table.rows.length, 1);
+  assert.equal(built.table.rows[0][1], "Q: b A: 2");
+  assert.match(built.caption, /turn 2 of 3/);
+  assert.equal(recallTable(folds, "what was the ninth thing you told me"), null);
 });
 
 test("detectTable and detectReflex do not fight over a question", () => {

@@ -3131,3 +3131,133 @@ declaration through hypergraph.js automatically, nothing English-specific
 living in this file at all. Combined effect of both fixes, zero
 contradictions throughout: bound 531 → 557, beyond-reach 267 → 236,
 headline 33.7% → 35.4%. Full account, same file.
+
+## The grammar lens — "verb" gets a citation (added 2026-08-19)
+
+The assertion tier (P29) already treats an edge's verb-hood as a
+hypothesis, never a recovered fact — measured with a real null. This pass
+closes a narrower, older question the same session's own committed
+evidence had been carrying unaddressed the whole time: `eval/results/
+asserted-crosslingual.md`'s raw triples include `"that" —this→ "means
+war"`, `"if you" —still→ "try"`, `"CHAPTER XII" —book→ "ONE"` — a pronoun,
+an adverb, a noun, each sitting in the field every part of this app calls
+"verb" (the UX pass's own `linkNode()`/`linkText()`: "subject —verb→
+object"), because nothing between `extractRelations` and the renderer ever
+checked. Not a bug in a classifier — a grammatical category, applied
+without a citation, to a slot that was never built to earn one.
+
+**The reframe, and where it came from.** A survey of world grammatical
+traditions (Pāṇini's kāraka role theory, Sanskrit; Sibawayh's ism/fiʿl/ḥarf
+trichotomy and root-and-pattern morphology, Arabic; Dionysius Thrax's eight
+parts of speech, Greek, ~100 BCE, the direct ancestor of "subject, verb,
+object" itself) surfaced the actual defect: this repo's earned
+representation is `Entity — Link(label) — Entity`, nothing more — no noun,
+verb, subject, or object was ever in the operator table's own vocabulary
+(`packages/engine/operators.js`'s three faces: Ground/Field, Figure/Link,
+Pattern/Network — no grammar anywhere in it). "Verb" was imported, without
+a receipt, from a 2,100-year-old Greek grammar built to describe Greek.
+Corrected the same way this repo already corrects every other unearned
+claim (the giver test, `priors.js`'s own standing discipline — a received
+closed class enters with its giver named or it does not enter): the
+ARRANGEMENT (an ordered first end, a label, an ordered second end) is
+earned and stays exactly as `hypergraph.js` already computes it; the
+READING of that arrangement as subject/verb/object is a declared,
+giver-named OVERLAY, switchable, never baked into the record.
+
+**The cube was considered and correctly refused for this.** CLAUDE.md's
+own law is explicit: "the cube is not a content classifier... deriving a
+terrain from a passage is a refuted move," measured at 95.7% cell-
+assignment survival under word-shuffling. Reading a word's grammatical
+category off its DISTRIBUTIONAL COMPANY and landing it on a terrain column
+would be exactly that refuted move under new vocabulary (an emanon/
+protogon/holon framing was proposed and set aside for this reason,
+mid-session). What this pass builds instead reads a word's category off
+STRUCTURAL POSITION and CLOSED-CLASS/LEXICON MEMBERSHIP — never off
+content or meaning — which is the same axis `extractRelations`'s own
+slot-matching already operates on, not a new instance of the refuted move.
+
+**SLOT is not CLASS — Halliday's Systemic Functional Grammar keeps them
+apart on purpose (function vs. class: a function can be realised by any
+class), and conflating them is precisely how "at" became a verb.**
+`extractRelations` reads SLOT correctly (something fills the connector
+position); it never checked CLASS (is that filler a verb). The fix is not
+a smarter extractor — it is a second, independent question, answered
+separately and disclosed separately.
+
+**Search-first, and a second-order find: the organ for this half-existed,
+unused, in the sibling repo.** eoreader6.1's `scripts/build-pos-prior.mjs`
+was already written, fully commented, and had never been run — a
+transform from Universal Dependencies' UD_English-EWT treebank (CC BY-SA
+4.0, real human annotation) into `POSPrior@1`, ambiguity preserved per
+word form. Fetching the real treebank and running the existing script
+(one `curl`, one `node` invocation, `scripts/corpus/` gitignored so this
+is a local build, never a git-history cost) produced a stronger foundation
+than the two hand-typed closed classes (prepositions, conjunctions) this
+pass was about to add to `priors.js` — real counts covering every UD tag
+at once, not just the two that were missing. `perceiver/text/wordclass.js`
+(eoreader6.1, new) is the consumer: `classifyWord`/`dominantClass`,
+Thrax's eight as a declared translation FROM UD's tagset (`THRAX_MAP`,
+every entry naming exactly where the two schemes agree — UD's AUX/VERB
+and CCONJ/SCONJ splits have no ancient counterpart — and where they do
+not; `THRAX_OUT_OF_SCOPE` for UD tags with no Thrax analogue at all,
+ADJ/PART/NUM/PUNCT/SYM/X, kept OUT rather than forced into the nearest
+category). Full account, including the disclosed participle gap
+(UD's UPOS carries no separate participle tag; the signal lives in FEATS,
+which the builder does not yet tally): eoreader6.1's own CLAUDE.md.
+
+**Files, this repo.** `grammar-lens.js` (new, pure, organs injected —
+the cast.js pattern, exactly like `verbForms`/`createLemmatizer` are
+already injected into `hypergraph.js`): `makeGrammarLens` classifies an
+edge's connector span; `mismatchedConnectors` is the new disclosed
+diagnostic this repo did not have before — which edges' connectors do
+NOT read as a verb under the Thrax lens, at the caller's declared
+`minShare` (never defaulted, the same standing `dominantClass`'s own
+floor and `resolveSpanRole`'s `minActivation`/`minMargin` already hold).
+`grammar-lens.test.mjs` (5 cases): the crosslingual eval's own three
+disclosed junk triples, copied verbatim, all correctly caught; a genuine
+verb edge never flagged; an honest disclosed cost (`"married"`: VERB 4 vs
+ADJ 3 in the real treebank — settles at an ordinary majority, correctly
+refuses to settle at a strict 0.9 floor, a real trade named rather than
+hidden); an out-of-vocabulary word landing a disclosed gap, never a
+guess and never counted as a mismatch; and one end-to-end case running
+the REAL extraction pipeline (`makeRelationReader`, real material) into
+the REAL lens, not a hand-built edge.
+
+**Deliberately additive — nothing renamed, nothing revoked.** `edge.verb`/
+`edge.subject`/`edge.object` are untouched; `relationFindings`/
+`relationsClean`/the assertion tier's own fields are byte-identical.
+`grammar-lens.js` reads an edge hypergraph.js already produced and returns
+a SEPARATE classification alongside it — the same posture `verbForms`/
+`assertion` already established for additive organs in this file. A full
+rename of the internal `verb` field to a neutral `label`, with the
+Sibawayh/Thrax reading wired as the app's default rendering overlay, is
+real, scoped, unattempted future work: it touches ~120 call sites across
+this repo (measured, `grep -c '\.verb\b'`) and the render layer's own
+`linkNode()`/`linkText()`, and needs the same kind of explicit scope
+confirmation this repo already asks for before any cross-cutting rename —
+not attempted without it.
+
+**Named, not built, this pass: the kāraka/PP-role tier.** Pāṇini's
+semantic roles beyond the two the triple already gives for free (kartā =
+first span, karma = second span, no new code) — karaṇa/instrument,
+sampradāna/recipient, apādāna/source, adhikaraṇa/locus — all read off a
+governing preposition on an attached phrase `extractRelations` does not
+currently capture at all (it matches subject-verb-object only, no
+adjunct PPs). A preposition closed class is no longer the blocker (UD's
+ADP tag closes it, see above); the PP-attachment reader itself is
+unbuilt. A second, looser correspondence (which preposition signals which
+kāraka role) would need its own giver, disclosed as an approximate
+English-specific mapping — English prepositions do not line up 1:1 with
+Sanskrit vibhakti case endings.
+
+**Evidence.** `node --test wordclass.test.mjs` (eoreader6.1): 10/10.
+Full eoreader6.1 conformance suite: 1,103 tests / 1,100 passing / 0
+failing / 3 skipped (up from 1,093/1,090/0/3 before this pass — the 10
+new cases, zero regressions). `node --test grammar-lens.test.mjs` (this
+repo): 5/5, including the real-pipeline case. Full suite, confirmed via
+`git stash` against this exact worktree: 744/739/5 before this pass's two
+new files, 749/744/5 after — the same 5 pre-existing environment
+failures this repo already carries (`measure.test.mjs`,
+`webllm-rung.test.mjs`, `store.test.mjs`/`store-sql.test.mjs` missing
+vendored `sql.js`, `constitution.test.mjs`'s one II.13 case missing
+vendored `monaco-editor`), zero regressions anywhere else in the suite.

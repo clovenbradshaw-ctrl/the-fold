@@ -2697,3 +2697,73 @@ vendored `node_modules` this particular checkout never received
 regression, and a count worth restating honestly here since it differs
 from the "4 failing" this file's own prior passes recorded: this
 particular worktree's `node_modules` is missing more than that one was.
+
+## Closing more of the MINE-1 gap — a received prior beats induction, tested (added 2026-08-19, eleventh pass)
+
+The prior pass's own "next steps" note (`eval/results/mine-1-next-steps.md`)
+named two live options for the still-dominant `no_claims_extracted`
+bottleneck (65.9% of all facts): induce verb-hood from `live_priors` via
+kind-induction, or receive it from UniMorph. User direction: don't be
+stingy about the received prior — test what actually works best.
+
+**Kind-induction, tried honestly first, is real but not there yet.**
+`emergence/kinds.js`'s `induceKinds` is fully generic (population +
+attribute profiles, nothing entity-specific) and was pointed at candidate
+words from real `live_priors` text with closed-class-derived distributional
+features. It found genuine, non-trivial clustering (four cohesive groups,
+each clearing `eva()`'s existence gate) — but the features tried don't
+isolate verb-hood as the discriminating axis, and the full pipeline's own
+stronger search-aware null correctly refused all four anyway. Architecturally
+sound, empirically unproven; real further work, not a quick win.
+
+**UniMorph, tried second, won clearly.** `hypergraph.js` grew an optional,
+backward-compatible `verbForms` organ: a Set of known verb surface forms
+from UniMorph's English paradigm table (github.com/unimorph/eng, a received
+resource with its own giver — vendored, 103,318 forms,
+`eval/fixtures/unimorph-eng-verb-forms.json`). Every essay word that is
+BOTH a recurring form (the SAME `FORM_MIN_ARRIVALS`-gated set the prior
+pass's subject-identity fix already computes — one recurrence measure, not
+two) AND a known verb form joins the vocabulary directly, bypassing
+`discoverRelationVocab`'s own surface-anchoring step entirely. This is why
+it works where two anchor-WIDENING attempts (feeding recurring forms, then
+determiner phrases, into `discoverRelationVocab` itself as candidate
+anchors) were tried and rejected on the merits first: that function's
+candidate nomination assumes anchor SPARSITY only proper names reliably
+give it, and a received lexicon needs no anchor at all — it answers a
+direct per-word question instead of nominating candidates near one.
+
+**Measured, not assumed:** bound facts 222 → 531 (headline 14.1% → 33.7%
+against MINE-1's own full fact count), essays with zero measurable
+vocabulary 29/105 → 0/105, `no_claims_extracted` — the bucket the prior
+fix explicitly could not touch — 1,038 → 189. Zero contradictions, as in
+every run this project has logged against this fixture.
+
+**The honest cost, disclosed rather than smoothed over.** A hand spot-check
+of 20 `bound` triples (not just counts) found roughly HALF have a genuine
+subject/verb boundary error — English's deep noun-verb conversion means
+even "feed", "play", "serve", "gain" are tagged both N and V in UniMorph,
+and `extractRelations`'s own boundary logic sometimes anchors on the wrong
+adjacent verb-tagged word ("Dinosaurs roamed the —earth→ millions of years
+ago" instead of "Dinosaurs —roamed→ the earth..."). The verdicts still hold
+honestly — a `bound` match requires the SAME shape in both the material's
+edges and the answer being read, and since MINE-1's facts are drawn from
+their own essay, a systematic mis-parse lands identically on both sides, so
+the match is a real repeated pattern, not a hallucinated one — but it is
+NOT the same as every recovered triple being a clean, human-readable SVO
+statement, and this is why `verbForms` ships **opt-in only**: no existing
+caller's behavior changes, and whether the live app's own grounding checks
+should adopt it by default is a real, undecided question (a live chat
+answer's wording won't always mirror its material as closely as a
+benchmark fact drawn from its own source essay does) — flagged, not
+resolved here.
+
+**Files.** `hypergraph.js` (the `verbForms` organ, backward compatible —
+omitted, byte-identical to the prior pass); `hypergraph.test.mjs` (13 → 16
+cases: vocabulary widened on truly nameless material, a hapax lexicon
+match still refused by the same recurrence floor, full backward-compat
+check); `eval/mine-1-unimorph.mjs` + `eval/fixtures/
+unimorph-eng-verb-forms.json` + `eval/results/mine-1-unimorph-RESULTS.md`
+(the three-way comparison table: baseline / recurring-forms / UniMorph).
+Full repo suite: 702 tests / 697 passing / 5 failing — the same 5
+pre-existing environment failures this worktree already carries, zero
+regressions.

@@ -2946,3 +2946,33 @@ axis regardless. Whether the live app should load either prior by
 default remains the same open question already named for `verbForms`,
 not resolved here either. Full account: `eval/results/
 mine-1-lemma-RESULTS.md`.
+
+**"Stemming or referents?" — argued referents; "try it" — proved the
+argument by breaking the naive version first.** `endpoint()`'s `useForms`
+had stayed subject-only by explicit prior design, with a disclosed but
+never-reproduced regression risk on the object side. Reproducing it live
+confirmed it: "underwent transformations" read `unbound` against
+material stating "underwent a remarkable transformation," because
+singular and plural independently became DISTINCT exact-token form ids
+once objects got forms — referent identity keyed by exact string is not
+actually referent identity, it is stemming wearing a `form:` prefix.
+Fixed by reusing the SAME `sameAct` organ the verb amendment already
+proved safe: `formIdOf` groups a token with every other recurring form
+that is the same act as it (nouns exactly like verbs), object identity
+enabled ONLY when `createLemmatizer` is provided, never unconditionally
+— the regression cannot recur without a lemmatizer.
+
+**"It needs to work for Ancient Greek, or we have high-level priors
+steering for different grammars" — checked, not assumed, and it didn't,
+until fixed.** `morphology.js`'s DATA layer was already properly
+quarantined (every prior must declare `language` and `giver`), but its
+regular-inflection RULE (hardcoded ASCII English suffix-stripping) ran
+unconditionally regardless of what a loaded prior declared — a
+hypothetical Greek prior would still get silent English suffix-guesses
+folded in underneath it. Fixed at the source (`createLemmatizer` now
+takes `language`, defaulting to English only when unspecified, matching
+every existing caller); `organs.morphologyLanguage` threads a prior's own
+declaration through hypergraph.js automatically, nothing English-specific
+living in this file at all. Combined effect of both fixes, zero
+contradictions throughout: bound 531 → 557, beyond-reach 267 → 236,
+headline 33.7% → 35.4%. Full account, same file.

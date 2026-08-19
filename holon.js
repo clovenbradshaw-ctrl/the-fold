@@ -37,7 +37,7 @@
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
-import { stripScaffoldNarration } from "./provenance.js";
+import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
@@ -1012,13 +1012,31 @@ export async function runPart({
   const scaffoldRemoved = [];
   const clean = (raw) => {
     const { text: t, removed } = stripScaffoldNarration(raw);
-    scaffoldRemoved.push(...removed);
-    return t;
+    // The unbracketed register too — "This passage indicates that…" — with
+    // its word classes earned against live_priors' null (see provenance.js).
+    const second = stripNarrationSentences(t, { discourse, hasMaterial: passages.length > 0 });
+    scaffoldRemoved.push(...removed, ...second.removed);
+    return second.text;
   };
 
-  draft = clean(await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
+  const rawDraft = await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
+  draft = clean(rawDraft);
   check = inspect(draft);
   let verdict = judge(draft);
+  // clean() has no verdict vocabulary of its own — it only knows how to
+  // delete a matched sentence, never how to say why. A draft that was ALL
+  // narration cleans to nothing, and judge("")'s empty-input branch reads
+  // that as "no text produced," a materially weaker finding than "the
+  // model narrated instead of answering": it skips the correction retry
+  // and the mechanical fallback, so a wholly-narrated turn ships nothing
+  // at all rather than the material's own addressed sentences. Measured
+  // 2026-08-18 by this file's own regression the moment it met the
+  // now-landed clean()-level narration strip on main: the exact 3-turn
+  // NYC-weather transcript regressed from "echoed, mechanical fallback
+  // ships the real forecast" to silently empty. A draft that HAD real
+  // sentences before cleaning and has none after is exactly the case
+  // judge() cannot see from `draft` alone, so it is named here instead.
+  if (!draft.trim() && String(rawDraft ?? "").trim()) verdict = { echoed: true, reproduced: false };
 
   // A prompt that matched no material and whose draft only restates it is
   // plain chat, not a research gap: "hi" should be greeted, not diagnosed.
@@ -1069,9 +1087,14 @@ export async function runPart({
       mode,
       promptChars: correctionMessages.reduce((n, m) => n + m.content.length, 0),
     });
-    draft = clean(await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming }));
+    const rawCorrected = await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
+    draft = clean(rawCorrected);
     check = inspect(draft);
     verdict = judge(draft);
+    // Same empty-after-cleaning gap as the first draft, above — a
+    // correction that answers with more narration must not read as a
+    // quieter failure than the draft it was correcting.
+    if (!draft.trim() && String(rawCorrected ?? "").trim()) verdict = { echoed: true, reproduced: false };
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction

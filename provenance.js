@@ -104,8 +104,21 @@ export function stripScaffoldNarration(text) {
     last = span.end;
   }
   out += raw.slice(last);
-  // Collapse the gap the removal leaves rather than showing a blank stretch.
-  return { text: out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim(), removed };
+  // Collapse the gap the removal leaves rather than showing a blank stretch —
+  // but never across a fence: a blanket collapse once destroyed the
+  // indentation of a Python block elsewhere in the same draft that no
+  // bracket span ever touched (the identical mistake stripNarrationSentences
+  // makes below, fixed there the same way).
+  const fences = codeFenceSpans(out);
+  let cleaned = "";
+  let p = 0;
+  for (const f of fences) {
+    cleaned += cleanProse(out.slice(p, f.start));
+    cleaned += out.slice(f.start, f.end);
+    p = f.end;
+  }
+  cleaned += cleanProse(out.slice(p));
+  return { text: cleaned.trim(), removed };
 }
 
 /**
@@ -155,8 +168,27 @@ const CUT_RES = [
 const FALSE_REFUSAL_RE =
   /\b(?:as\s+an\s+ai\b|i'?m\s+(?:just\s+)?an?\s+(?:ai|language\s+model|model)\b|it'?s\s+a\s+model\b|i\s+(?:can'?t|cannot|don'?t\s+have)\s+(?:direct\s+)?access)\b/i;
 
+/**
+ * Fenced code spans (```…```), byte-exact including indentation — structure,
+ * never framing, the same invariant holon.js's own framing-cut already
+ * scars for ("measured live on a fenced Python block, which arrived at the
+ * page as one flat line"). Returns non-overlapping [start, end) ranges;
+ * an unterminated fence at end-of-text still counts, since a truncated
+ * generation is the case where preserving the fence matters most.
+ */
+function codeFenceSpans(text) {
+  const spans = [];
+  const re = /```[^\n]*\n[\s\S]*?(?:```|$)/g;
+  let m;
+  while ((m = re.exec(text))) spans.push({ start: m.index, end: m.index + m[0].length });
+  return spans;
+}
+
+const insideFence = (spans, at, end) => spans.some((f) => at < f.end && end > f.start);
+
 export function stripNarrationSentences(text, { discourse = "", hasMaterial = false } = {}) {
   const raw = String(text ?? "");
+  const fences = codeFenceSpans(raw);
   const foldedDiscourse = discourse ? String(discourse).toLowerCase().replace(/\s+/g, " ") : "";
   const removed = [];
   let out = "";
@@ -166,6 +198,9 @@ export function stripNarrationSentences(text, { discourse = "", hasMaterial = fa
     if (!s) continue;
     const at = raw.indexOf(s, cursor);
     if (at < 0) continue; // bail — this sentence stays wherever it is
+    // A sentence that falls inside a fence is code, not narration — indented
+    // Python split on newlines by splitSentences is not prose to classify.
+    if (insideFence(fences, at, at + s.length)) continue;
     const foldedS = s.toLowerCase().replace(/\s+/g, " ");
     const isEcho = foldedDiscourse.length >= 24 && foldedS.length >= 24 && foldedDiscourse.includes(foldedS.slice(0, 60));
     const isCut =
@@ -195,10 +230,28 @@ export function stripNarrationSentences(text, { discourse = "", hasMaterial = fa
   }
   out += raw.slice(cursor);
   if (!removed.length) return { text: raw, removed: [] };
-  return {
-    text: out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim(),
-    removed,
-  };
+  // The whitespace cleanup closes gaps a cut left behind — but a blanket
+  // regex over the WHOLE string is the same mistake in a new shape: it once
+  // collapsed indentation inside a fence that no cut ever touched, just
+  // because a cut happened somewhere else in the same draft. The fix is to
+  // never let the cleanup see fenced regions at all: recompute fences on
+  // `out` (untouched fences keep their byte offsets relative to each other
+  // even though the surrounding prose shrank) and clean only the prose
+  // segments between them, splicing the fences back in byte-exact.
+  const outFences = codeFenceSpans(out);
+  let cleaned = "";
+  let p = 0;
+  for (const f of outFences) {
+    cleaned += cleanProse(out.slice(p, f.start));
+    cleaned += out.slice(f.start, f.end);
+    p = f.end;
+  }
+  cleaned += cleanProse(out.slice(p));
+  return { text: cleaned.trim(), removed };
+}
+
+function cleanProse(s) {
+  return s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ");
 }
 
 export function classifySentences(answer, attributions = [], findings = [], relationClaims = []) {

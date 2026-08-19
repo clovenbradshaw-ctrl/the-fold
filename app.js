@@ -72,11 +72,11 @@ import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
-import { autoRunnable, initTerminal, KEEP_PER_EXEC, runSandboxed } from "./term.js";
+import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxed } from "./term.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
-import { makeCapacityRunner } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct } from "./capacity-runner.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
@@ -391,6 +391,19 @@ const state = {
   builds: [],
   lastMessages: [],
   lastMaterialChars: 0,
+
+  /**
+   * The terminal language's own append-only log (grid.js, P22). App-wide,
+   * NOT per conversation — the same reasoning `builds` above already
+   * states ("a build belongs to the instrument, not to one conversation"):
+   * an act composed from the chat's `/act` door or from the sandboxed
+   * terminal is one instrument's log either way, so it must read the same
+   * from both places and from any conversation. Never persisted (a fresh
+   * page load is a fresh log — acts still mirror onto the durable record
+   * one-way, via actTurn/term.js's mirrorTerm, but the log itself is not
+   * restored from it).
+   */
+  gridLog: grid.createLog(),
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -854,6 +867,181 @@ function usageTurn(question, usage) {
 }
 
 /**
+ * Fire-and-forget mirror onto the SAME durable record every terminal-typed
+ * act already lands on (explore-server.mjs's `POST /api/term-record` →
+ * its one `record(event, fields)` function, `record/explore-record.jsonl`)
+ * — reused rather than a second file or a second reader, the same
+ * discipline `mirrorBuild` above already holds for build records. `via:
+ * "chat"` is the one thing this door adds to the event shape term.js's own
+ * `mirrorTerm` already writes, so the record can tell which door an act
+ * came through without a second event vocabulary. A miss (no explore
+ * server reachable at EXPLORE_BASE) is silent — the terminal's own
+ * long-standing default, not a mid-turn error over a best-effort crossing.
+ */
+function mirrorTermRecord(event, fields) {
+  fetch(`${EXPLORE_BASE}/api/term-record`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ event, ...fields }),
+  }).catch(() => {});
+}
+
+/**
+ * /act — the terminal language's chat door (P22's grid.js, opened to chat).
+ * EXPLICIT-TRIGGER ONLY: the model never decides to compose an act, and
+ * never sees this door at all — only a person typing `/act …` reaches it,
+ * the same posture every other slash door in this dispatcher already has.
+ * Mechanical end to end, no model call: `landAct` (capacity-runner.js) is
+ * the SAME parse→land→maybe-execute orchestration the terminal's own `act`
+ * fold command calls, so a line means the same thing composed from either
+ * surface. Acts land on `state.gridLog` — app-wide, not per conversation,
+ * shared with the terminal via the `gridLog`/`setGridLog` bridge accessors
+ * `initTerminal` receives below — so an act composed here shows up in the
+ * terminal's `grid`/`capacities`, and vice versa. Refusals stay refusals:
+ * grid.js's own grammar is what gates a malformed or unwarranted act, not
+ * anything added here.
+ */
+async function actTurn(argstr, typed) {
+  const actLine = argstr.trim();
+  if (!actLine) {
+    return usageTurn(
+      typed,
+      "/act <verb> [<object>] at <terrain> from <stance> [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<giver>] — the same composition law the terminal's `act` command reads (open the terminal and type `grid legend` for the verbs, terrains, and stances). Acts land on the SAME log the terminal's `grid`/`capacities` commands read — compose from either surface, see it from both.",
+    );
+  }
+  const landed = landAct(grid, state.gridLog, actLine, { sources: state.sources, runCapacity });
+  if (!landed.ok) {
+    mirrorTermRecord("term-act-refused", { line: actLine.slice(0, 2000), refusal: landed.refusal.type, detail: landed.refusal.detail, via: "chat" });
+    return usageTurn(typed, `refused (${landed.refusal.type}): ${landed.refusal.detail}`);
+  }
+  state.gridLog = landed.log;
+  mirrorTermRecord("term-act", {
+    verb: landed.event.verb,
+    ops: landed.event.ops,
+    object: landed.event.object,
+    terrain: landed.event.terrain,
+    stance: landed.event.stance.cell,
+    ids: landed.ids,
+    via: "chat",
+  });
+  const objectPart = landed.event.object ? `${landed.event.object} ` : "";
+  const lines = [`${landed.event.verb} ${objectPart}[${landed.event.ops.join("+")}] at ${landed.event.terrain} from ${landed.event.stance.cell} → ${landed.ids.join(", ")}`];
+  if (landed.capacity) {
+    const { result } = landed.capacity;
+    if (result.gap === "no_material") {
+      lines.push(result.detail);
+    } else {
+      mirrorTermRecord("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface), via: "chat" });
+      lines.push(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`);
+    }
+  }
+  return usageTurn(typed, lines.join("\n"));
+}
+
+/**
+ * The plain-language account of a sandboxed run — `/run`'s own version of
+ * autoRunAndDisclose's `autoRunSummary`, unabridged. That one truncates
+ * to fit inline in a build chip's own text; here the run's captured
+ * output IS the turn's answer, so the full stdout/stderr ships (already
+ * bounded by the sandbox worker's own output, exactly as any other
+ * terminal command's is). Plain text, not a markdown fence: `.body`/
+ * `.prose` both render `white-space: pre-wrap` (index.html), so a python
+ * body's own indentation and a sql table's column alignment already read
+ * correctly without one.
+ */
+function formatRunOutcome(outcome) {
+  const head = outcome.timedOut
+    ? `timed out after ${outcome.durationMs.toLocaleString()}ms — nothing more ran within this runtime's own budget`
+    : `finished in ${outcome.durationMs.toLocaleString()}ms`;
+  const out = (outcome.stdout ?? "").trim();
+  const err = (outcome.stderr ?? "").trim();
+  const parts = [head];
+  if (out) parts.push(out);
+  if (err) parts.push(outcome.code === 0 && !outcome.timedOut ? `stderr:\n${err}` : err);
+  if (!out && !err && !outcome.timedOut) parts.push("(no output)");
+  return parts.join("\n\n");
+}
+
+/**
+ * /run <runtime>\n<code> — the chat's own door onto the SAME sandboxed
+ * Workers the terminal's own runtimes and the model's own auto-run
+ * (autoRunAndDisclose, above) already execute inside: `runSandboxed`
+ * (term.js), the identical function, called the identical way. No new
+ * machine-execution path exists anywhere in this repo for this door to
+ * add — P18 stands exactly as written: nothing typed here reaches the
+ * machine, every run still terminates in the js/python/sql Workers with
+ * their egress severed at boot.
+ *
+ * What this door actually closes: auto-run only ever sees a code segment
+ * the MODEL just produced inside this turn's own fold, fire-and-forget,
+ * no click needed — it already covers "the model's own code runs
+ * safely." A person typing or pasting code straight into the composer had
+ * no door at all until this one; that is the gap `/run` fills, and it is
+ * deliberately a typed command rather than a ▶-style button drawn onto a
+ * rendered segment, which would sit on the identical segments auto-run
+ * already runs and add nothing.
+ *
+ * EXPLICIT-TRIGGER ONLY, matching /act/self/priors/learn — checked among
+ * the other typed doors in send(), before any automatic detector or the
+ * widget router gets a look at the question. `parseRunCommand` only
+ * claims a turn typed as `/run <runtime>\n<code>` this exact turn; the
+ * model never decides to run anything and never sees this door. There is
+ * no standing switch either: every `/run` is its own one-shot action,
+ * exactly like the Folds panel's own ▶ run — never a toggle that
+ * authorizes a future turn to run something on its own.
+ *
+ * `runSandboxed` is a real worker boot + exec (measured: pyodide alone is
+ * ~9s before a line of user code runs), so this follows `ingestTurn`'s
+ * async shape — addMessage first, fill in the result once the sandbox
+ * settles — rather than `actTurn`'s fully synchronous one (landAct never
+ * awaits anything).
+ *
+ * Material: `state.sources` UNFILTERED, matching `actTurn`/`landAct`'s own
+ * precedent above (the mute toggle silences retrieval, not what crosses
+ * into a sandbox — term.js's own `sourcesPayload()` mounts every loaded
+ * source, muted or not, for the identical reason). A `.load <source>`
+ * pre-step inside sql code (runSandboxed's own new handling) can only ever
+ * reach a name in this same unfiltered set.
+ */
+async function runTurn(runCmd, typed) {
+  if (runCmd.refused) {
+    mirrorTermRecord("term-run-refused", { line: typed.slice(0, 2000), refusal: runCmd.refused.type, detail: runCmd.refused.detail, via: "chat" });
+    return usageTurn(typed, `refused (${runCmd.refused.type}): ${runCmd.refused.detail}`);
+  }
+  const { runtime, code } = runCmd;
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = `running ${runtime} in the sandbox…`;
+  $("status").textContent = `running ${runtime}…`;
+  logAct("asked", { text: typed });
+
+  const outcome = await runSandboxed(runtime, code, { sources: state.sources });
+  body.textContent = "";
+
+  const ok = outcome.code === 0 && !outcome.timedOut;
+  const note = formatRunOutcome(outcome);
+  mirrorTermRecord("term-run", { runtime, code: code.slice(0, 2000), ok, timedOut: outcome.timedOut, durationMs: outcome.durationMs, via: "chat" });
+  logAct(ok ? "recorded" : "errored", { where: "run", runtime, timedOut: outcome.timedOut });
+
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = note;
+  body.append(p);
+
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: note });
+  const turn = state.summary.turnCount + 1;
+  observeExchange(turn, typed, note);
+  const fold = mechanicalFoldLine(typed, note);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
  * /priors — the toggle ledger's chat door. One ledger, three doors (the
  * Priors tab, the terminal's `priors` command, this one) all reading and
  * writing the same explore-server.mjs routes, so a flip made anywhere is
@@ -1104,6 +1292,35 @@ async function send(question) {
   // on disk, not a thing to phrase.
   const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
   if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
+
+  // The terminal language's chat door (P22's grid.js, opened to chat):
+  // compose one act of the nine-operator composition law directly from the
+  // composer, landing on the SAME log the sandboxed terminal's own `act`/
+  // `grid`/`capacities` commands read and write. Explicit-trigger only —
+  // checked here among the other typed doors, before any automatic
+  // detector or the widget router gets a look at the question, so nothing
+  // the model decides on its own can reach this grammar.
+  const actCmd = question.match(/^\/act\b\s*(.*)$/s);
+  if (actCmd) return actTurn(actCmd[1] ?? "", question);
+
+  // /run <runtime>\n<code> — code a PERSON just typed or pasted, run in
+  // the same sandboxed Workers the model's own auto-run already executes
+  // inside (term.js's runSandboxed — no new execution path). Checked right
+  // after /act, for the identical reason: an explicit typed door must
+  // never be hijacked by anything downstream of it, and the model must
+  // never be the one deciding whether this line runs. `parseRunCommand`
+  // returns null for anything that isn't the whole `/run <runtime>\n<code>`
+  // shape (parseFoldCommand/parseMeasure's own convention) — including a
+  // bare `/run` or a `/run <runtime>` with nothing after it — so the
+  // `/^\/run\b/` fallback below is what actually renders that usage line,
+  // the same two-step shape /fold and /ingest already use above.
+  const runCmd = parseRunCommand(question);
+  if (runCmd) return runTurn(runCmd, question);
+  if (/^\/run\b/.test(question))
+    return usageTurn(
+      question,
+      "/run <runtime>\\n<code> — runs code YOU typed or pasted, in the same sandboxed, network-severed Worker the model's own code already runs inside (python, js/javascript, or sql — put the runtime as the first line's second word, then the code starting on the next line). One-shot: each /run is its own action, never a standing switch. Code the MODEL writes in this turn's own fold already runs automatically — this door is for code you wrote yourself.",
+    );
 
   // /learn's door: the terminal's own `learn` walk is graded on real
   // keystrokes there, which chat cannot offer — so here it points to
@@ -2662,13 +2879,14 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
     }
     const chip = routeAndPublish(seg, routingTask, instruction, landedThisTurn);
     body.append(chip);
-    // The chip is the conversation handle; for renderable artifacts (html,
-    // svg), the widget itself also appears inline — no click required. This
-    // is the segment's OWN code, so a revision's preview is the revision's,
-    // not stale bytes left over from the build's first version.
-    if (RENDERABLE.has(seg.lang)) {
-      body.append(artifactNode(seg, undefined, seg.code, { scripts: true }));
-    }
+    // The chip is the conversation handle; the widget itself also appears
+    // inline — no click required, for every non-prose segment (code and
+    // table alike). Renderable artifacts (html, svg) get a sandboxed,
+    // scripted frame; every other language falls through to artifactNode's
+    // plain-text branch, so code reads as code in the transcript itself.
+    // This is the segment's OWN code, so a revision's preview is the
+    // revision's, not stale bytes left over from the build's first version.
+    body.append(artifactNode(seg, undefined, seg.code, { scripts: RENDERABLE.has(seg.lang) }));
   }
 
   // Fold membership decides the register (user direction, 2026-08-17: "just
@@ -3802,14 +4020,17 @@ initTerminal({
   muted: () => state.muted,
   folds: () => state.builds,
   tokenize,
-  // The terminal language (P22, grid.js): a single grid instance, one
-  // append-only log per terminal session (term.js's own state, never
-  // persisted — see its comment). `capacities` is the plain registry
-  // array so the `capacities` fold command needs no round trip through
-  // the grid instance for a simple listing. `runCapacity` is the one
-  // capacity actually wired to execute (`cast`, capacity-runner.js) —
-  // everything else in the registry stays reference-only, and asking to
-  // run one is a typed gap the runner itself returns, not a silent no-op.
+  // The terminal language (P22, grid.js): a single grid instance.
+  // `capacities` is the plain registry array so the `capacities` fold
+  // command needs no round trip through the grid instance for a simple
+  // listing. `runCapacity` is the one capacity actually wired to execute
+  // (`cast`, capacity-runner.js) — everything else in the registry stays
+  // reference-only, and asking to run one is a typed gap the runner itself
+  // returns, not a silent no-op. `gridLog`/`setGridLog` share the SAME
+  // log the chat's own `/act` door reads and writes (state.gridLog,
+  // app-wide) — the same accessor-pair shape as sources/chunks/muted/
+  // folds above, so an act composed in either place is visible from the
+  // other: type `/act …` in chat, then open the terminal and type `grid`.
   grid,
   capacities: listCapacities(),
   runCapacity,
@@ -3823,6 +4044,10 @@ initTerminal({
   // structured call in this file already reads its answer through.
   completeJSON: async (messages, schema) => extractObject(await complete(messages, { json: schema })),
   modelName: () => state.model,
+  gridLog: () => state.gridLog,
+  setGridLog: (log) => {
+    state.gridLog = log;
+  },
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────

@@ -53,6 +53,19 @@ test("composedSentence: absent tiers say nothing; a gap is not a zero", () => {
   assert.match(composedSentence(led.state("kutuzov")), /the web was not reached/);
 });
 
+test("composedSentence: the primary tier phrases counted sources, never the raw verdict word", () => {
+  const led = createClaimLedger();
+  const claim = { tokens: ["borodino"] };
+  // rankPrimary ranks every citation class, "other" included (a tertiary
+  // essay site is a real candidate per primary.test.mjs) — the projection
+  // must not read "a primary source states it" for a class that was never
+  // checked, only the counted form CLAUDE.md's grounding ladder names.
+  led.note(claim, "primary", { verdict: "stated-by-primary", read: 3, stating: 1 });
+  assert.equal(composedSentence(led.state("borodino")), "stated by 1 of 3 source(s) the article cites");
+  led.note(claim, "primary", { verdict: "unstated-by-consulted", read: 2, stating: 0 });
+  assert.equal(composedSentence(led.state("borodino")), "2 source(s) the article cites were read; none states it");
+});
+
 test("nature: a discourse claim is typed and its material verdict re-scoped in the projection", () => {
   assert.equal(claimNature({ text: "a matter of much debate" }), "about-the-discourse");
   assert.equal(claimNature({ text: "Napoleon led the French" }), "about-the-world");

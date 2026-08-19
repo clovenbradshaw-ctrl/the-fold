@@ -327,6 +327,12 @@ export function foldPrimary(claim, { citationsFound = 0, consulted = [] } = {}) 
     citationsFound,
     read: read.length,
     failed: failed.length,
+    // A bare count, alongside statingHosts — proof.js/priors.js's own
+    // `stating: stating.length` shape, so a caller phrasing "stated by N of
+    // M sources" never has to recompute it from statingHosts.length (a
+    // HOST count, not a source count — the two diverge whenever two stating
+    // sources share one host).
+    stating: stating.length,
     statingHosts: hosts,
     independence: {
       hosts: hosts.length,

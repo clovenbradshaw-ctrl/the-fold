@@ -230,6 +230,43 @@ test("foldPriors counts, types its verdicts, and never phrases stronger than the
   assert.equal(empty.verdict, "no-candidates");
   assert.equal(empty.consulted, 0);
   assert.match(empty.sentence, /a gap in the shelf, not a verdict/);
+  assert.match(empty.sentence, /no document's name or title shares the claim's words/);
 
   for (const f of [some, none, empty]) assert.ok(!/\btrue\b|confirm/i.test(f.sentence), f.sentence);
+});
+
+test("a gapped document is inherited, never derived through — it does not count as consulted", () => {
+  const doc = readPriorDocument(FIXTURE_PATH, FIXTURE);
+  const stating = checkPrior(STATED, doc);
+  const gapped = { path: "06-government-legal/world-legislation/xx/moved.md", category: "06-government-legal", title: null, stating: false, snipsFound: 0, snips: [], source: {}, gap: { silence: "not-present", detail: "ENOENT" } };
+
+  // every candidate attempted gapped: not-consulted, never "unstated"
+  const allGapped = foldPriors(STATED, { candidates: 3, documents: [gapped, gapped] });
+  assert.equal(allGapped.verdict, "not-consulted");
+  assert.equal(allGapped.consulted, 0);
+  assert.equal(allGapped.failed, 2);
+  assert.match(allGapped.sentence, /a gap, not a verdict/);
+  assert.doesNotMatch(allGapped.sentence, /0 of 2 document/);
+
+  // a gap beside a real read: the gap is counted separately, not folded into "consulted"
+  const mixed = foldPriors(STATED, { candidates: 2, documents: [stating, gapped] });
+  assert.equal(mixed.verdict, "stated-by-library");
+  assert.equal(mixed.consulted, 1);
+  assert.equal(mixed.failed, 1);
+  assert.match(mixed.sentence, /1 of 1 document\(s\) consulted state it/);
+  assert.match(mixed.sentence, /1 could not be read, counted separately/);
+});
+
+test("independence counts distinct WORKS, not documents — same-title copies count once", () => {
+  const doc = readPriorDocument(FIXTURE_PATH, FIXTURE);
+  const a = checkPrior(STATED, doc);
+  // a second "document" that states the claim under the SAME title — a
+  // stand-in for the corpus's own same-work flooding (516 UDHR translations,
+  // one title)
+  const b = { ...checkPrior(STATED, doc), path: "06-government-legal/world-legislation/xx/copy.md" };
+  const folded = foldPriors(STATED, { candidates: 2, documents: [a, b] });
+  assert.equal(folded.stating, 2);
+  assert.equal(folded.independence.works, 1);
+  assert.match(folded.sentence, /1 distinct work\(s\)/);
+  assert.match(folded.independence.basis, /not tested/);
 });

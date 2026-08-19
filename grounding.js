@@ -416,7 +416,7 @@ export function buildLocalIndex(passage) {
  * (P4's open debt, CLAUDE.md: ROWS_PER_CHUNK, NULL_SAMPLES and friends are
  * already named there as constants that should be derived, not tuned).
  *
- * Disclosed residue, and the real next step (POLICIES.md P25 has the full
+ * Disclosed residue, and the real next step (POLICIES.md P26 has the full
  * writeup): "sentence" is a structural boundary, not a tuned token count,
  * but it is still a HAND-CHOSEN unit — the same class of debt P4 already
  * names for ROWS_PER_CHUNK/NULL_SAMPLES. The sharper design, named but not

@@ -2,6 +2,21 @@
 
 A conversation whose context window does not grow, on a machine nothing leaves.
 
+## Quickstart
+
+```bash
+git clone https://github.com/clovenbradshaw-ctrl/the-fold.git
+cd the-fold
+./fold
+```
+
+One command, from nothing. `./fold` installs Node.js and Ollama if they're
+missing, clones the two sibling repos it needs (`eoreader6.1` for the
+reading engine, `live_priors` for the priors organ's corpus), installs this
+repo's own dependencies, pulls a starter model if none is pulled yet, and
+opens the browser once everything is up. What each step does, and how to run
+the pieces by hand, is in [Running it](#running-it) below.
+
 Open `index.html` over `serve.mjs`, pick an Ollama model, and talk. Every
 finished turn is folded to one line of about a hundred characters; a running
 summary tracks how the discourse evolved; and what gets sent on turn four
@@ -101,13 +116,30 @@ pins that at 400 turns.
 
 ## Running it
 
+See [Quickstart](#quickstart) above for the one-command path. In full,
+`./fold` installs Node.js if missing (Homebrew on macOS), clones
+`eoreader6.1` next to this repo if it isn't there (the engine both servers
+mount), clones `live_priors` next to this repo if it isn't there (the priors
+organ's corpus — soft dependency, explore-server.mjs shows a typed gap
+without it, so this is best-effort and never blocks the rest of the launch),
+installs `node_modules`, installs Ollama if missing and starts it if it
+isn't already listening on `:11434`, pulls `gemma2:2b` if nothing at all is
+pulled yet (so there's a model to talk to immediately), starts
+`explore-server.mjs` on `:8812` (the Explore pane and the priors organ both
+need it — reused if another the-fold session on this machine already has
+one running), then starts `serve.mjs` and opens the browser on it. Pass a
+port to run the chat server somewhere other than `:8811` (`./fold 8899`);
+`:8812` for Explore is fixed — the chat page's iframe is hardcoded to it.
+
+Equivalent by hand, in two terminals:
+
 ```bash
+node the-fold/explore-server.mjs 8812
 node the-fold/serve.mjs 8811
 ```
 
-Then open `http://localhost:8811`, pick an Ollama model, and connect. (The
-server must be `serve.mjs`, not a generic static server: it mounts eoreader6.1's
-engine at `/engine` and serves everything no-store.)
+(The chat server must be `serve.mjs`, not a generic static server: it mounts
+eoreader6.1's engine at `/engine` and serves everything no-store.)
 
 Two model calls per ordinary turn: the answer, and the summary refresh. The
 refresh runs constrained to JSON at a 300-token cap — it is bookkeeping over

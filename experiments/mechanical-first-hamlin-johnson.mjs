@@ -177,11 +177,34 @@ async function main() {
   console.log(JSON.stringify(anyLincolnEdge, null, 2));
   report.anyLincolnEdge = anyLincolnEdge;
 
+  // HONEST criterion, not a loose "any nonzero result" one: a mechanical
+  // success means some query cleanly names Hamlin or Johnson as the WHOLE
+  // filler (not a garbled multi-line fragment containing the name as a
+  // substring alongside unrelated infobox text), on an endpoint that
+  // itself resolved to Lincoln cleanly. Looking at the raw output above by
+  // hand: reader.edges shows every "Lincoln"-adjacent edge has a garbled
+  // subject like "Lincoln\nPreceded" (the sentence splitter did not break
+  // on the infobox's bare newlines, so "President Abraham Lincoln" glued
+  // straight onto the next line's "Preceded by ...") and objects like
+  // "Hannibal Hamlin\nSucceeded by Schuyler Colfax" — never a clean
+  // "Hannibal Hamlin" alone, and "Andrew Johnson" never links to Lincoln
+  // at all (it only appears glued to "Breckinridge", a positional accident
+  // of adjacent infobox rows, not a real assertion about Johnson and
+  // Lincoln). This is checked mechanically below, not eyeballed once and
+  // assumed to generalize.
+  const cleanName = (s) => /^\s*(Hannibal Hamlin|Andrew Johnson)\s*$/i.test(String(s ?? "").trim());
+  const cleanLincolnQueries = lincolnQueries.filter((q) =>
+    q.result.some((r) => cleanName(r.subject) || cleanName(r.object)),
+  );
   const mechanicalSucceeded =
-    lincolnQueries.length > 0 ||
+    cleanLincolnQueries.length > 0 ||
     claimResults.some((r) => r.claims.some((c) => c.verdict === "bound")) ||
     anyLincolnEdge.length > 0;
 
+  console.log(`\nHonest re-check: of ${lincolnQueries.length} nonzero Lincoln-linked query result(s), ` +
+    `${cleanLincolnQueries.length} contain a CLEAN (not glued-garbage) "Hannibal Hamlin" or "Andrew Johnson".`);
+  report.rawNonzeroLincolnQueries = lincolnQueries.length;
+  report.cleanLincolnQueries = cleanLincolnQueries.length;
   report.mechanicalSucceeded = mechanicalSucceeded;
 
   section(`STEP 5 — verdict: mechanical path ${mechanicalSucceeded ? "SUCCEEDED" : "FAILED"}`);

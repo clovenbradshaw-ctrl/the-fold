@@ -2803,3 +2803,55 @@ conversion vs. UniMorph's own overly broad function-word tagging) that
 need different fixes. Not ruled out: a real POS tagger, or a narrower
 ambiguity list built to exclude function-word verb senses before the vote
 runs. Full write-up: `eval/results/mine-1-unimorph-disambiguated-RESULTS.md`.
+
+**Closed the same day — a new engine organ, not another word-level proxy
+(`packages/engine/perceiver/text/roles.js`, in `eoreader6.1`).** Every
+proxy above scored a WORD's own decontextualized behavior. Calibrated
+against real control words (a follow-up check, same day: pooled
+determiner-adjacency over `live_priors` and raw `extractRelations`
+selection rate, both recomputed with pure-noun/pure-verb/pure-function-word
+controls), neither had any real discriminating power — determiner-
+adjacency saturated identically for "but" and "eat"; the shape-based
+extractor rate saturated identically for "the" and "destroy". A third try,
+`discoverRelationVocab` fed named+form referents as anchors (referent-
+adjacency instead of bare-span stats), worked in most essays but leaked
+via a recurring ADJECTIVE ("enjoyable") standing in as a referent-anchor —
+29.6%/42.1%, 2 contradictions, same root cause both times: "recurs ≥2
+times" has no noun/adjective distinction. User's own reframe closed it:
+"these words don't mean things objectively... point to referents" — and a
+check of eoreader6/5/4.2 (per user direction) found eoreader6.1's own
+stripped research scratch (`eoreaderhandbook`'s vendored slice of
+`scripts/experiments/FINDINGS.md`) had already reached the identical
+conclusion for agent-role resolution: "a surface span is never the thing
+with a part of speech — the referent is." `roles.js` (`resolveSpanRole`)
+is the general engine organ this closes with — the sibling of
+`pronouns.js::resolvePronouns` at the SAME quarantine level (both thin
+text-tier consumers of `emergence/activation.js`'s domain-agnostic
+mechanism, reused unmodified), generalized so "role" is a caller-declared
+label, never typed in as pronoun or verb — user-directed, explicitly: not
+named after pronouns, natural-language specifics quarantined out of the
+general core. `conformance/roles.test.js` (6 cases, real module, no
+stubs) pins the two deliberate divergences from `pronouns.js` (no
+same-sentence skip rule; an open N-ary role vocabulary, not gender's fixed
+binary) as regressions, not just documentation.
+
+**Result: cleanest precision of everything tried, real recall cost,
+honestly explained.** `eval/mine-1-span-role.mjs` supplies the only
+NL-specific part (UniMorph-unambiguous verbs/nouns as known evidence,
+UniMorph-ambiguous words as the spans to resolve) — 22.4%/42.7%, **zero
+contradictions**, matching plain UniMorph's own cleanliness where both
+refinement attempts introduced 2. Checked, not assumed: the butterfly
+essay alone has 254 ambiguous occurrences but only 7 words total cleared
+into its final vocabulary, because unambiguous-verb evidence is
+structurally sparse within one ~300-word essay (predicates rarely repeat
+verbatim) while the essay's own topic nouns recur constantly and clear
+`activation.js`'s sparse-coding floor easily — `pronouns.js`'s mechanism
+was proven on book-length material; MINE-1 is two orders of magnitude
+shorter. Plain UniMorph's raw 33.7% stays the strongest headline of the
+whole session. Disclosed, not fixed: bridging per-occurrence bindings back
+to `hypergraph.js`'s flat, essay-scoped `verbForms` Set (admit a word if
+ANY occurrence resolved "verb") is itself the type-level collapse this
+whole reframe argues against, done only because `extractRelations` has no
+per-occurrence API yet. Full write-up, the five-way comparison table, and
+the honest prediction for book-scale material (untested here):
+`eval/results/mine-1-span-role-RESULTS.md`.

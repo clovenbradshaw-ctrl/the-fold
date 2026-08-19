@@ -2557,7 +2557,13 @@ async function holonicTurn(task, typed = task, planMode = "model") {
     if (shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
       setPhase("checking for material");
       show("nothing attached — checking the web before answering…");
-      const preflight = await gatherPreflightMaterial(`${task} ${discourseLine}`, show);
+      // task and discourseLine passed SEPARATELY, never pre-joined into one
+      // string — that pre-join was the bug (proof.js::preflightQuery's own
+      // header has the measured case): a self-sufficient question after an
+      // unrelated prior topic had every discourse word survive the query
+      // cap right alongside its own, and the search went to the wrong
+      // material entirely. preflightQuery now earns the join itself.
+      const preflight = await gatherPreflightMaterial(task, discourseLine, show);
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -4488,8 +4494,13 @@ async function checkLinkCitation(url) {
  * working link either. Wiring these into the same reopen path attachments
  * use is unscoped work for this pass, named rather than silently left.
  */
-async function gatherPreflightMaterial(anchor, onStep = null) {
-  const query = preflightQuery(anchor);
+async function gatherPreflightMaterial(task, discourse, onStep = null) {
+  // ANAPHORIC_PRONOUNS: the engine's own closed class (already imported
+  // module-scope as enginePriors — makeWidgetRouter's own injection),
+  // never re-typed here. Passing it is what lets preflightQuery's earned
+  // join actually fire instead of silently degrading to the old
+  // always-join behavior (its own backward-compat default).
+  const query = preflightQuery(task, discourse, enginePriors.ANAPHORIC_PRONOUNS);
   if (!query) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "nothing in the question to search on" } };
   // Mirrors seekProof's own onStep shape (proof-seeking's per-claim "prove
   // it" walk, further down this file) — same pattern, applied to the search

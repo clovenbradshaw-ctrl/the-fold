@@ -215,13 +215,34 @@ function exactReplyRepeat(newText, priorTexts) {
  * but NEW turn does not trigger (any single fresh, resolvable claim clears
  * it), and an empty-of-content turn does (nothing to compare, nothing new
  * to find).
+ *
+ * Amended (measured live, this pass): the ORIGINAL order bailed out at the
+ * top the moment `priorEdges` was already empty — "nothing established yet
+ * to have failed to add to" — which reads as correct for the COMPARISON
+ * question but silently also skipped the STRUCTURAL-ZERO question one line
+ * below, the one question that needs no prior baseline at all. Replayed
+ * offline against this repo's own saved v3-edgegate transcript
+ * (eval/results/adversarial-dialogue-hiroshima-gemma2b-v3-edgegate.jsonl):
+ * both speakers hit zero edges by turn 8/9 and stayed at zero every single
+ * turn through the transcript's end (turn 18) — exactly the disclosed limit
+ * ("once a speaker's own prior turn already has ZERO edges, this check has
+ * nothing left to compare against and goes silent"), confirmed turn by
+ * turn, not just asserted. The candidate's own edge count is now computed
+ * FIRST and checked unconditionally — "this turn extracted nothing" is a
+ * structural zero/non-zero fact about the candidate ALONE, not a magnitude
+ * floor (hypergraph.js's own "low structure is a typed gap, not
+ * automatically a defect" is about a turn having FEW edges, never about a
+ * turn having verifiably NONE) — so it no longer goes blind exactly where
+ * the collapse this instrument exists to catch actually lives. The
+ * subset-of-prior comparison still only runs, and can only run, once there
+ * is a real prior baseline to compare against.
  */
 function noNewEdgesVsPrior(candidateText, priorEdges, priorTexts, transcriptSoFar) {
-  if (!priorEdges.length) return false; // nothing established yet to have failed to add to
   const candidateReader = readerFor([{ ref: "candidate", text: candidateText }], {
     pool: sentencePool(transcriptSoFar + "\n\n" + candidateText),
   });
-  if (!candidateReader.edges.length) return true; // extraction found nothing at all — the instrument's own measure of standstill
+  if (!candidateReader.edges.length) return true; // extraction found nothing at all — the instrument's own measure of standstill, checked regardless of what the prior turn had
+  if (!priorEdges.length) return false; // the candidate DID produce structure (checked above); nothing to compare its novelty against, so it cannot be "no new edges vs prior"
   const sharedIndex = referentIndexFor([{ text: [...priorTexts, candidateText].join("\n\n") }]);
   return candidateReader.edges.every((ce) => priorEdges.some((pe) => edgesMatch(sharedIndex, diaNorm, ce, pe)));
 }

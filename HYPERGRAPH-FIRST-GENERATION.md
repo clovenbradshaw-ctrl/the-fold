@@ -1,3 +1,29 @@
+**Update, live in the browser, after every fix landed today (stripFraming,
+crown.js's period tokenizer, the narration extension): the root cause is
+confirmed still open.** Same material, same question run earlier this
+document cites ("did Hannibal Hamlin serve as VP for Lincoln's whole
+presidency?"). S1's raw first take was correct: "Hannibal Hamlin was
+Lincoln's 1861 Vice President, but he only served the first term." S2
+shipped anyway: "Yes. Hannibal Hamlin served as vice president for all of
+President Abraham Lincoln's term." — flatly contradicting S1's own correct
+answer. TWO independent honest mechanisms caught it, in the disclosure,
+neither on the visible surface: the pre-existing grounding-ladder marked
+the sentence "∅ the material never says this... it says: of Maine —served→
+as vice president to President Abraham Lincoln in 1861-65"; `crownTestimony`
+(built earlier today) separately minted a claim, checked it against all
+three loaded sources, and correctly computed UNDETERMINED — no source
+explicitly holds OR refutes the exact wording, so it correctly declined to
+render a crown line at all rather than assert something the merge itself
+couldn't determine (`renderCrown`'s own design: only a DETERMINED verdict
+speaks). Both mechanisms are working exactly as built. Neither prevents
+the wrong sentence from shipping as the bolded, visible answer — that gap
+is Phase 2's, not Phase 3's: S2 had to correctly parse three raw prose
+passages under a corrected-first-take framing and get the date range
+right unaided. A structured fact ("Hamlin —served as VP for→ Lincoln's
+first term, 1861–1865 [address]"; "Johnson —served as VP for→ Lincoln's
+second term [address]") hand to S2 before it drafts is the actual fix this
+specimen argues for — not a third downstream check.
+
 **Update, later the same day: a real 52-turn stress run supplies the
 concrete evidence this plan argued from theory.** `eval/material-dialogue-
 stress.mjs` (new this session) ran gemma2:2b against real material for 52

@@ -195,8 +195,42 @@ partial help — not a claim the other 70% doesn't exist.
 
 ## Build plan, phased
 
-**Phase 1 — the router (highest confidence, smallest, reuses only what's
-proven).** A `detectSlotFillQuestion(question)` in the shape
+**Phase 1 — correction, found implementing, not just planning (2026-08-20
+later the same day).** The version above conflated two different
+mechanisms. P36's `evaluate` VERIFIES a fully-specified declarative claim
+("Lincoln appointed Hamlin" → holds/refused/undetermined) — it cannot
+ANSWER an open question ("who was Lincoln's VP") because nothing supplies
+the candidate object to test in the claim's empty slot. Filling that slot
+from a question's own words is exactly the "NL-question-to-structured-
+slot-query parser" `MECHANICAL-COVERAGE-INVESTIGATION.md`'s own "Question
+parsing" section already surveyed four organs for and found in none of
+them — and is the same gap that made `succession-answer.js` (which sidesteps
+the ambiguity by reading `succession.js`'s own already-typed fields
+instead) worth attempting at all. Reaching for open-question-answering here
+without that parser would either silently reproduce the declined sketch's
+own two independent failure modes or invent a narrower parser under time
+pressure with no measurement behind it — the same "an overstated general
+claim... is not [what the evidence supports]" warning this document's own
+closing section already gives, now nearly violated by this document itself.
+
+**Phase 1, honestly re-scoped: a claim-VERIFICATION router, not a
+question-ANSWERING one.** Buildable today with zero new parsing
+infrastructure: when a chat turn already supplies (or the model's own
+first pass already asserts) a fully-formed declarative claim — a yes/no
+question with the claim embedded ("did Lincoln appoint Hamlin as VP?"), or
+a drafted sentence asserting one — route THAT directly to `evaluate` +
+`crown.js`, skipping generation for that claim specifically. This is
+narrower than the original ambition and reuses `crownTestimony`'s own
+existing per-claim verification shape (built earlier this session,
+app.js:3817) rather than a new mechanism — the real remaining gap is
+running it earlier (gating a draft before it ships, not only after) and on
+directly-asked yes/no questions, not only on claims the model already
+volunteered. Open-question slot-filling stays exactly as unsolved as
+`MECHANICAL-COVERAGE-INVESTIGATION.md` already found it, named here again
+rather than quietly worked around.
+
+Original text, kept for the record rather than silently edited away: a
+`detectSlotFillQuestion(question)` in the shape
 `MECHANICAL-COVERAGE-INVESTIGATION.md`'s own declined sketch specified for
 `arithmetic.js`: typed, refusal-first, closed shapes only
 ("who/what was X's Y", not open synthesis). On a match, against

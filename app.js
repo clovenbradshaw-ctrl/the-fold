@@ -7142,7 +7142,22 @@ function renderSourceViewerMode(mode, info) {
   } else if (CODE_EXTS.has(ext)) {
     body.append(codeBlock(text, ext));
   } else {
-    body.append(codeBlock(text, "plaintext"));
+    renderPlainTextInto(body, text);
+  }
+}
+
+// A plain-text source (pasted notes, an unrecognized extension) reads as
+// prose, not as a horizontally-scrolling code dump: paragraphs wrap at the
+// pane's width and stay literal — unlike .md sources, nothing here is
+// interpreted as markdown syntax. "raw" mode keeps codeBlock's monospace,
+// unwrapped rendering on purpose, so the exact bytes stay inspectable.
+function renderPlainTextInto(container, text) {
+  for (const para of text.split(/\n{2,}/)) {
+    if (!para) continue;
+    const p = document.createElement("p");
+    p.className = "para";
+    p.textContent = para;
+    container.append(p);
   }
 }
 

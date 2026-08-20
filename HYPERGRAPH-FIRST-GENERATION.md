@@ -1,3 +1,30 @@
+**Update, later the same day: a real 52-turn stress run supplies the
+concrete evidence this plan argued from theory.** `eval/material-dialogue-
+stress.mjs` (new this session) ran gemma2:2b against real material for 52
+turns and found, verbatim: turn 31, asked "Is Saturn the largest planet in
+the Solar System?", drafted a CORRECT first take ("No, Jupiter is the
+largest planet... Saturn is the second-largest") — then the correction
+loop ran two more rounds and shipped an answer to the PREVIOUS turn's
+question instead, discarding the correct draft entirely. Turn 48 shipped
+`holon.js:540`'s own hardcoded correction-prompt sentence ("The record
+confirms exactly this, and nothing beyond it, even if other names or
+claims sit nearby in the material below") verbatim as if it were content —
+the model copied its instructions instead of following them, twice in a
+row (turns 47–48). Separately: `stripNarrationSentences` is confirmed
+running in detect-only mode (a 2026-08-19 direction, quoted in its own
+header) — narration this plan cites as a symptom is not silently fixed by
+today's correction loop at all, only counted, unless it crosses a 50%-of-
+draft threshold (0/52 turns did). And the reason crown/testimony landed
+UNDETERMINED on all 37 real firings in the run: `holon.js`'s relation-tier
+reads a draft BEFORE its own framing-stripper removes an echoed question,
+so a correction retry that opens by echoing the question contaminates
+`relationClaims` with garbage entries from the question text — a
+controlled diagnostic against the identical real material confirms the
+merge mechanism itself reaches AGREE/SINGLE correctly once given
+uncontaminated input. None of this is a hypothetical case for Phase 3's
+"measure before shrinking" — it is the measurement, arrived early. Full
+run: `eval/results/material-dialogue-stress-703.jsonl`.
+
 # Hypergraph-first generation: a plan, not yet built (2026-08-20)
 
 Direct user framing, verbatim, across one session: "we need the talking

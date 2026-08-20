@@ -27,14 +27,34 @@
 // everywhere else). Omitted — every pre-existing caller, term.js's `act`
 // command and app.js's `/act` door included — the check is skipped and
 // behavior is byte-identical to before this pass. Wiring it into those two
-// real call sites (which would mean loading a POSPrior@1 corpus into the
-// browser page for the first time — today it exists only at
-// `eoreader6.1/scripts/corpus/pos-prior-eng.json`, read by grammar-lens.test.mjs
-// alone, never fetched or served anywhere production code runs, plus
-// choosing a production `minShare` with its own declared justification)
-// is real, scoped, NOT attempted here — deciding how/whether to ship that
-// corpus to the page is a larger call than "one additional check" and
-// deserves its own pass, not a decision folded quietly into this one.
+// real call sites — choosing a production `minShare` with its own declared
+// justification, and deciding this check should actually convict a real
+// user-facing verdict — is real, scoped, NOT attempted here: a larger,
+// disclosed product call than "one additional check," not folded quietly
+// into this pass either.
+//
+// CORRECTED (Per-Source Testimony spec, BUILD-3) — the paragraph above
+// used to also cite "loading a POSPrior@1 corpus into the browser page for
+// the first time" as a reason this stayed unwired. Checked while building
+// BUILD-3, not assumed still true: app.js ALREADY fetches and serves this
+// exact corpus (`/priors-data/pos-prior-eng.json`, non-blocking, for
+// hypergraph.js's OWN sibling `grammar` field — see hypergraph.js's own
+// `classifyConnector`/`minShare` organ comment for how that field differs
+// from this one). That blocker is gone; the `minShare`-choice-and-product-
+// decision blocker above is the one still standing.
+//
+// AMENDED AGAIN (Per-Source Testimony spec, BUILD-3) — the check itself
+// moved from a post-hoc call inside `checkConnectorClass` to a tag
+// `hypergraph.js`'s `makeRelationReader` computes at EXTRACTION TIME
+// (`edge.connectorClass`, wired the identical way `edge.assertion` already
+// is). `checkConnectorClass` now reads that tag off the matched edge first
+// and only calls `classifyConnector` itself as a fallback for an untagged
+// edge — see that function's own header, further down this file, for the
+// full account. This file still imports no engine module and still has no
+// direct `import` of grammar-lens.js anywhere — `classifyConnector` has
+// always arrived here as an injected function, from whichever caller
+// constructs one (a test, or eventually a real `relationsFor`), never from
+// an import this file owns.
 //
 // PURE, ORGANS INJECTED (the cast.js pattern, one level up): the real
 // engine perceiver functions arrive as `referentIndexFor`, already bound
@@ -404,17 +424,46 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
 // `holds`/`refused` for edges whose own connector read as a preposition,
 // a conjunction, a pronoun, an adverb, or a bare noun — never a verb.
 //
-// `classifyConnector`/`minShare` are OPTIONAL, injected organs (the
-// cast.js pattern this whole file already uses for `referentIndexFor`/
-// `relationsFor`) — omitted, this function is never called (see the call
-// site below) and every existing caller (term.js's `act` command, app.js's
-// `/act` door, every test in this file predating this check) is
-// BYTE-IDENTICAL to before this check existed. `minShare` has no safe
-// default — grammar-lens.js's own header: a silently-defaulted 0.9 once
-// let two of its own real garbled connectors through unflagged — and MUST
-// be declared by whichever caller supplies `classifyConnector`, the exact
-// discipline `mismatchedConnectors` itself already demands of every other
-// caller.
+// `classifyConnector`/`minShare` are OPTIONAL (the cast.js pattern this
+// whole file already uses for `referentIndexFor`/`relationsFor`) — omitted
+// entirely, every existing caller (term.js's `act` command, app.js's `/act`
+// door, every test in this file predating this check) is BYTE-IDENTICAL to
+// before this check existed. `minShare` has no safe default — grammar-
+// lens.js's own header: a silently-defaulted 0.9 once let two of its own
+// real garbled connectors through unflagged — and MUST be declared by
+// whichever caller supplies `classifyConnector`, the exact discipline
+// `mismatchedConnectors` itself already demands of every other caller.
+//
+// AMENDED (Per-Source Testimony spec, BUILD-3) — this function now PREFERS
+// a tag `hypergraph.js`'s `makeRelationReader` already computed at
+// EXTRACTION TIME (`edge.connectorClass`, the new `classifyConnector`/
+// `minShare` organ pair, wired the identical way `edge.assertion` already
+// is) over calling `classifyConnector` itself here, post-hoc. When the
+// backing edge already carries the tag, this function calls
+// `classifyConnector` ZERO times — it only reads what `relationsFor`
+// already computed, the goal the spec itself names.
+//
+// The DIRECT-INJECTION call shape (`classifyConnector`/`minShare` passed
+// straight to `landAct`, below) is KEPT, not removed — a disclosed choice,
+// not an oversight. `capacity-runner.test.mjs`'s own pre-BUILD-3 tests
+// construct a lens and inject it directly into `landAct` without ever
+// routing it through `makeRelationReader` first (a real, valid, already-
+// committed and passing shape — grammar-lens.js's own corpus was never
+// wired into either real production `relationsFor` at the time those tests
+// were written), and breaking that call shape would break real, passing
+// tests for no gain: the two paths can never disagree, since both
+// ultimately call the exact same `classifyConnector(e, { minShare })` on
+// the exact same edge — this function just prefers the ALREADY-COMPUTED
+// answer over recomputing it, and falls back to computing it live only
+// when a backing edge was never tagged (relationsFor's own
+// `classifyConnector` organ omitted, as it still is for both real
+// production callers — see this file's own top-of-file AMENDED note).
+// Threading the injected organ through to `makeRelationReader` instead,
+// and dropping `landAct`'s own parameter entirely, was considered and
+// rejected: it would force every caller of `landAct` that wants this check
+// to also rebuild its OWN `relationsFor` with the lens wired in, a much
+// larger change to make for a check that already has a working, tested,
+// narrower call shape.
 //
 // Convicts a determined verdict of EITHER shape (`holds` OR `refused`),
 // unlike `checkObjectSpecificity`'s holds-only scope: a garbled connector
@@ -425,7 +474,6 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
 // skipping `refused`) is not a reason to trust what the disagreement was
 // ABOUT.
 function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, minShare) {
-  if (!classifyConnector) return { trusted: true, skipped: "no classifyConnector organ injected" };
   const refSet = new Set(judgedRefs ?? []);
   if (!refSet.size) return { trusted: true, inconclusive: "no address to check against" };
   // A ref names a PASSAGE, and one passage backs every edge extracted from
@@ -443,10 +491,28 @@ function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, m
     (e) => (e.refs ?? []).some((r) => refSet.has(r)) && (e.verb ?? "").toLowerCase() === (judgedVerb ?? "").toLowerCase(),
   );
   if (!backing.length) return { trusted: true, inconclusive: "no edge found at the claim's own bound address with a matching connector" };
+  // Checked here, not before `backing` is known — an edge tagged at
+  // extraction time (hypergraph.js's own new `classifyConnector`/
+  // `minShare` organ pair) means this function has real work to do even
+  // when landAct's OWN direct-injection parameter is omitted, so "was
+  // anything injected at all" can only be answered once both sources have
+  // had their say.
+  const tagged = backing.some((e) => e.connectorClass);
+  if (!classifyConnector && !tagged) return { trusted: true, skipped: "no classifyConnector organ injected" };
   for (const e of backing) {
-    const classification = classifyConnector(e, { minShare });
+    // The extraction-time tag wins when present — see this function's own
+    // header. Falls back to a live call only for an edge that was never
+    // tagged (relationsFor built without the organ), preserving the exact
+    // pre-BUILD-3 behavior for that case.
+    const classification = e.connectorClass ?? classifyConnector(e, { minShare });
     if (classification.settled && classification.thraxClass !== "verb") {
-      return { trusted: false, surface: e.verb, thraxClass: classification.thraxClass };
+      // `givers` rides here when the classification carries one (grammar-
+      // lens.js's own BUILD-3 giver-forwarding fix) — `undefined` when it
+      // doesn't (an untagged edge classified via the live fallback above,
+      // built from a lens with no posPriorMeta/thraxMeta injected), which
+      // JSON-drops cleanly rather than asserting a giver that was never
+      // named.
+      return { trusted: false, surface: e.verb, thraxClass: classification.thraxClass, givers: classification.givers };
     }
   }
   return { trusted: true };
@@ -720,19 +786,69 @@ export function perSourceReadings(grid, log, claimId) {
  * (split). Named here as a fifth case, `contradicted`, reusing the exact
  * word hypergraph.js's own per-edge vocabulary already has for this — not
  * a new term.
+ *
+ * AMENDED (BUILD-4, direct user instruction) — a self-witness never
+ * co-signs AGREE's corroboration alone. The reframe this responds to,
+ * verbatim: "The model CAN say things that are 'ungrounded,' but really
+ * it's just grounded in itself" — a model's bare, unprompted assertion
+ * (nothing attached, nothing fetched) is not a special "ungrounded"
+ * exception living outside this Testimony system; it is TESTIMONY FROM A
+ * WITNESS whose read is its own weights rather than a source's bytes, and
+ * belongs in `holds`/`refused` exactly like any other reading — never
+ * hidden, never a second bucket. `SELF_WITNESS` ("self:model") is that
+ * witness's declared name on the `who` field `perSourceReadings` already
+ * carries (spec-`who` = the SOURCE being read — see BUILD-1's own header —
+ * and for this witness the source being read is the model's own head).
+ * Reuses this app's existing `self:` namespace rather than inventing one
+ * (`reflex.js::SELF_SOURCE = "self:ledger"`, the self-plane's own
+ * precedent — P15).
+ *
+ * But a self-witness is not an INDEPENDENT read of anything, so letting it
+ * co-sign corroboration would silently manufacture standing that was never
+ * earned — the same failure shape P30 already names for a name echoed back
+ * from the system prompt, one degree further degenerate (a self-witness
+ * has even less independence than that: it isn't reading anything at all).
+ * `countableHolds` excludes self-witnesses from the AGREE threshold only;
+ * DISAGREE's own condition is untouched and reads the raw `holds`/`refused`
+ * arrays exactly as before — a self-witness's claim genuinely opposed by a
+ * real source's refusal (the Seward failure's own shape: the mouth asserts,
+ * the material disagrees) IS a real disagreement worth surfacing, and
+ * mechanically resolving it toward CONTRADICTED would smuggle in the exact
+ * source-trust judgment call this ladder exists to avoid making by hand
+ * (P2: the model is the mouth, protocols are physics). DISAGREE's crown
+ * render (crown.js) names every witness verbatim, self-witnesses included —
+ * a reader who sees "self:model says yes; wikipedia.txt says no" can tell
+ * which is which because the label itself says so, not because this
+ * function silently picked a winner.
+ *
+ * Backward compatible by construction: byte-identical output whenever no
+ * reading's `who` is `SELF_WITNESS` — `countableHolds` then always equals
+ * `holds`, and every existing case boundary is unchanged.
  */
+export const SELF_WITNESS = "self:model";
+export function isSelfWitness(reading) {
+  return reading?.who === SELF_WITNESS;
+}
+
 export function mergeTestimony(readings) {
   const holds = readings.filter((r) => r.verdict === "holds");
   const refused = readings.filter((r) => r.verdict === "refused");
   const undetermined = readings.filter((r) => r.verdict === "undetermined");
+  // Real corroboration only — see this function's own AMENDED note above.
+  const countableHolds = holds.filter((r) => !isSelfWitness(r));
 
   if (holds.length && refused.length) {
     return { case: "DISAGREE", verdict: "multiply-bound", standing: null, holds, refused, undetermined };
   }
-  if (holds.length >= 2) {
+  if (countableHolds.length >= 2) {
     return { case: "AGREE", verdict: "bound", standing: "corroborated", holds, refused, undetermined };
   }
-  if (holds.length === 1) {
+  if (holds.length) {
+    // Exactly one real hold, OR one-or-more self-witness holds with no
+    // real corroboration behind them either way — neither shape earns
+    // `corroborated` standing, so both land here, disclosed as-is (the
+    // full `holds` array, self-witnesses included) rather than as a
+    // manufactured AGREE.
     return { case: "SINGLE", verdict: "bound", standing: "single", holds, refused, undetermined };
   }
   if (refused.length) {
@@ -741,4 +857,88 @@ export function mergeTestimony(readings) {
     return { case: "CONTRADICTED", verdict: "contradicted", standing: refused.length >= 2 ? "corroborated" : "single", holds, refused, undetermined };
   }
   return { case: "UNDETERMINED", verdict: "unbound", standing: null, holds, refused, undetermined };
+}
+
+/**
+ * The Per-Source Testimony spec's own remaining named gap (CLAUDE.md's
+ * claim-id-spine section, closing paragraph, verbatim): "the model's own
+ * bare, unprompted assertion entering as its OWN witness (`who:
+ * self:model`) rather than an exceptional 'ungrounded' case exempted from
+ * the Testimony system entirely." `mergeTestimony`'s AMENDED doc comment
+ * above already treats a self:model reading as ordinary testimony data —
+ * this is the missing OTHER half: actually minting the claim_id and
+ * landing one, for a caller that has nothing else to check the assertion
+ * against.
+ *
+ * Deliberately NOT `landAct`'s `evaluate` branch. `evaluate`'s own grammar
+ * refuses at PARSE TIME without a named `ground … broken:<perturbation>`
+ * (grid.js: "`evaluate` checks a claim against a ground that must be
+ * constructed") — correctly, for a real check. A self-assertion has no
+ * ground BY DEFINITION (that absence is the whole reason it is a
+ * self-witness and not a material one), so it cannot honestly claim that
+ * verb. `define` is grid.js's own documented, deliberate exception — "no
+ * refusal fires at parse for a missing companion evaluate," because
+ * defining is the act of PUTTING FORWARD a claim, not checking one, which
+ * is the correct EO-typing for an assertion with nothing behind it but the
+ * asserter. This function lands a DEF act (through `grid.parseAct`/
+ * `grid.land`, unchanged — the same `at Field from generate` terrain and
+ * stance CLAUDE.md's own worked `define` example already uses, not a
+ * fresh convention invented here) and attaches a RESULT to it directly —
+ * never touching `evaluate`, `runCapacity`, or any material check.
+ *
+ * The attached RESULT is shaped to be indistinguishable, field for field,
+ * from what `perSourceReadings` already knows how to project — proven by
+ * this file's own test, which runs this function for real and compares
+ * its output against capacity-runner.test.mjs's pre-existing hand-built
+ * `selfModelReading()` fixture. `perSourceReadings` and `mergeTestimony`
+ * both needed ZERO further changes for this: the AMENDED doc comment above
+ * already treats `who === SELF_WITNESS` as ordinary data on an ordinary
+ * RESULT cell, not a case requiring its own lookup path.
+ *
+ * `claimId` is REQUIRED here (`landAct`'s is optional) — a self-assertion
+ * landed with no claim_id can never be found by `foldClaim`/
+ * `perSourceReadings` at all, so landing one without a claim_id would be a
+ * real act nothing downstream of this spine could ever see. Mint it first
+ * (`await grid.mintClaimId({subject, verb, object})`, the same triple,
+ * necessarily async — Web Crypto has no sync digest) and pass it in,
+ * exactly like `landAct`'s own caller-mints-first convention.
+ *
+ * NOT WIRED TO ANY REAL CALLER — see POLICIES.md P39's amendment for why
+ * (app.js/holon.js's own multi-session ownership boundary, already stated
+ * twice in CLAUDE.md's Explore section) and self-witness-integration-
+ * note.md, this file's own sibling to chip-coverage-note.md, for exactly
+ * what the owning session's call site needs to do.
+ */
+export function landSelfAssertion(grid, log, { subject, verb, object, verdict, claimId } = {}) {
+  if (!subject || !verb || !object) {
+    return { ok: false, refusal: { type: "no_claim", detail: "a self-assertion is a claim about something — subject, verb, and object are all required, the same triple mintClaimId keys on" } };
+  }
+  if (verdict !== "holds" && verdict !== "refused" && verdict !== "undetermined") {
+    return { ok: false, refusal: { type: "unknown_verdict", stated: verdict, detail: 'verdict must be "holds", "refused", or "undetermined" — the same three states perSourceReadings already recognizes' } };
+  }
+  if (!claimId) {
+    return { ok: false, refusal: { type: "no_claim_id", detail: "a self-assertion with no claim_id can never be found by foldClaim/perSourceReadings — mint one first (grid.mintClaimId) and pass it here" } };
+  }
+  const claimText = `${subject} ${verb} ${object}`;
+  const parsed = grid.parseAct(`define ${claimText} at Field from generate`, { log });
+  if (!parsed.ok) return { ok: false, refusal: parsed.refusal };
+  const event = { ...parsed.event, claim_id: claimId };
+  const { log: landedLog, ids } = grid.land(log, event);
+  const defId = ids[ids.length - 1];
+  // undetermined carries no edge at all — matching perSourceReadings' own
+  // read of a null `judged` (see its header: edges/polarity/corroboration
+  // all fall back to their disclosed-absent defaults together, never a
+  // partial object that would claim a polarity nobody computed).
+  const judged =
+    verdict === "undetermined"
+      ? null
+      : { subject, verb, object, refs: [], polarity: verdict === "holds" ? "+" : "-", corroboration: { passages: 0, sources: 0 } };
+  const attached = grid.attachResult(
+    landedLog,
+    defId,
+    withExperiencer({ judged }, { who: "the-fold:app.js:selfAssertion", read: SELF_WITNESS }),
+    { verdict, claim_id: claimId },
+  );
+  if (!attached.ok) return attached;
+  return { ok: true, log: attached.log, ids, event };
 }

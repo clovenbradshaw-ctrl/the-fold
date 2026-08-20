@@ -90,7 +90,8 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxe
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
-import { makeCapacityRunner, landAct } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "./capacity-runner.js";
+import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
 import { logTranscriptionLayer } from "./transcribe-log.js";
@@ -319,6 +320,24 @@ const relationsFor = makeRelationReader({
   // the full reasoning (READING-POLICY P7.2) and the corpus.js-sourced
   // operating point.
   resolvePronouns,
+  // NOT wired here, on purpose, disclosed rather than silently absent: the
+  // referent-bar mechanism (hypergraph.js's own "the referent bar" section
+  // — a sentence-initial-only name provisionally admitted, then CONFIRMED
+  // by a real pronoun binding) needs two more organs,
+  // `extractLeadingSurfaces` (surfaces.js) and `thirdPersonSingular`
+  // (priors.js's own THIRD_PERSON_SINGULAR) — both cheap, local, no
+  // corpus to ship. Proven correct on real specimens (hypergraph.test.mjs:
+  // a genuine confirmation, a control proving no false positive, the
+  // exact originally-reported specimen still honestly undetermined) and
+  // proven SAFE (the control case), but new enough — and its own disclosed
+  // cold-start limit real enough (activation.js's own IDF formula cannot
+  // yet recall a passage's own first several sentences, so the single most
+  // common shape of this problem, a name opening a passage's very first
+  // sentence, is not yet reached by it) — that turning it on for real user
+  // traffic is a separate, deliberate decision this pass does not make,
+  // mirroring the identical posture `classifyConnector`/`minShare`
+  // (grammar-lens.js, two organs up in this file's own history) already
+  // holds for the same reason.
 });
 
 // One meter per conversation, built on the engine's own tiers. reflex.js
@@ -1439,6 +1458,45 @@ function resolvePronounsWithPriors(text, priorsSurfaceMap) {
     body.textContent = `transcription failed: ${e.message}`;
   }
   $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
+ * Transcribe an audio Blob directly (for dropped files, no file picker).
+ * Runs the full 3-layer pipeline: raw whisper → priors-coref → self-coref.
+ */
+async function transcribeAudioBlob(blob, fileName) {
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.innerHTML = `<p class="prose">uploading ${fileName} for server-side transcription…</p>`;
+  try {
+    console.log("[transcribe] uploading", fileName, "size:", blob.size);
+    body.querySelector(".prose").textContent = "transcribing on server…";
+    const resp = await fetch("/api/transcribe-upload", {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream", "x-file-name": fileName, "x-file-mime": blob.type || "audio/mpeg" },
+      body: blob,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      throw new Error(err.error || "transcription failed");
+    }
+    const { text, duration } = await resp.json();
+    console.log("[transcribe] done, length:", text.length, "duration:", duration);
+    if (!text) { body.querySelector(".prose").textContent = "(no speech detected)"; return; }
+    body.querySelector(".prose").textContent = text;
+    const priors = await priorsCoref(text);
+    const resolved = resolvePronounsWithPriors(text, priors.surfaceMap);
+    logTranscriptionLayer("raw", { text, duration });
+    logTranscriptionLayer("priors-coref", { text, ...priors });
+    logTranscriptionLayer("self-coref", { text: resolved });
+    const name = fileName.replace(/\.[^.]+$/, "") + ".txt";
+    addSource(name, resolved);
+    $("status").textContent = `transcribed ${fileName} → attached as "${name}"`;
+  } catch (e) {
+    console.error("[transcribe] error:", e);
+    body.querySelector(".prose").textContent = `transcription failed: ${e.message}`;
+  }
   releaseBusy();
 }
 
@@ -3533,6 +3591,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     quoteCorrections: result.sections.flatMap((s) => s.quoteCorrections ?? []),
     question: task,
   });
+  // The testimony spine, after the pooled render — deliberately not awaited:
+  // the answer is already on screen and the composer must not be held
+  // hostage to a per-source walk over large material. Its own status
+  // narration replaces the ticker while it runs (the same posture the
+  // proof-seeking walk above already holds).
+  crownTestimony(node, relationClaims).catch((e) => {
+    $("status").textContent = `testimony pass failed: ${e?.message ?? e}`;
+  });
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
 }
@@ -3708,8 +3774,119 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       (claims ? ` · claiming things nothing given backs: ${claims}` : "") +
       (bound ? ` · statements the material also makes: ${bound}` : "") +
       (broken ? ` · statements it never makes: ${broken}` : "");
-    body.append(tally);
+    // Into the fold, not the surface (user direction, 2026-08-20: "THIS
+    // SHOULD FEEL LIKE CHATTING WITH CLAUDE") — the tally is a reading of
+    // the checks, and the reading's place is the disclosure. The visible
+    // grounding on the answer is now the crown line (crownTestimony), which
+    // says the same news as prose with its source named, not as a meter.
+    const tallyBox = body.closest(".msg")?.querySelector(".turn-meta > .fold p");
+    (tallyBox ?? body).append(tally);
   }
+}
+
+/**
+ * The Per-Source Testimony spine, live (POLICIES P39; BUILD-0..4 of the
+ * spec): every claim this turn asserted that the pooled check left
+ * unresolved is taken back to EACH loaded source separately — one minted
+ * claim_id (grid.mintClaimId), one `evaluate` act landed per source through
+ * the SAME squared-and-checked path capacity-runner's own tests pin — then
+ * the per-source readings merge (mergeTestimony) and the crown renders the
+ * merged verdict as a plain sentence (renderCrown: template-only, no model
+ * call, every token traced to a claim field, a witness name, or one
+ * declared connective).
+ *
+ * Only a DETERMINED verdict speaks on the chat surface — the reader asked a
+ * question, and a determined crown IS the grounded answer to it, in prose,
+ * its source named by the sentence itself ("According to pasted.txt, …").
+ * An UNDETERMINED merge stays off the surface: the sentence's own unbacked
+ * mark and the fold already carry that news, and a second inline line would
+ * be apparatus, not answer (user direction, 2026-08-20: "THIS SHOULD FEEL
+ * LIKE CHATTING WITH CLAUDE"). Every crown — spoken or not — lands in the
+ * turn's fold with its case, standing, and witness list, self:model
+ * included verbatim (a self-assertion landed by holon's own path shares the
+ * claim_id when it shares the triple, so it merges here with no extra
+ * wiring).
+ *
+ * Cost, disclosed rather than capped: each act is a full-source hypergraph
+ * read (plus squaring's negation read), synchronous by construction. The
+ * yield between sources is what keeps the page breathing — the same reason
+ * the ingestion path admits chapters progressively. Nothing is dropped
+ * silently; a source name the act grammar cannot carry verbatim is skipped
+ * WITH a fold line saying so.
+ */
+async function crownTestimony(node, relationClaims) {
+  if (!state.grounded || !Array.isArray(relationClaims) || !relationClaims.length) return;
+  const names = Object.keys(state.sources);
+  if (!names.length) return;
+  const body = node.querySelector(".body");
+  const foldBox = node.querySelector(".turn-meta > .fold p");
+  const disclose = (text) => {
+    if (!foldBox) return;
+    const line = document.createElement("div");
+    line.className = "fold-note";
+    line.textContent = text;
+    foldBox.append(line);
+  };
+  // Unresolved claims are the news: a bound claim already stands on the
+  // pooled material, and re-litigating it per source would spend full-source
+  // reads confirming what the marks already show. Deduped on the exact
+  // triple — the same identity mintClaimId hashes — so a claim asserted
+  // twice in one turn never crowns twice.
+  const seen = new Set();
+  const candidates = relationClaims.filter((c) => {
+    if (!c?.subject || !c?.verb || !c?.object) return false;
+    if (c.verdict === "bound") return false;
+    const key = `${c.subject} ${c.verb} ${c.object}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (!candidates.length) return;
+  const total = candidates.length * names.length;
+  let step = 0;
+  for (const claim of candidates) {
+    const claimId = await grid.mintClaimId({ subject: claim.subject, verb: claim.verb, object: claim.object });
+    // One quoted token: grid's tokenizer keeps a quoted object whole, so a
+    // claim containing a bare clause keyword ("from", "ground") cannot
+    // shred the act line. An interior double quote would end the token
+    // early — swapped for an apostrophe before the line is built, and the
+    // round-trip check below compares against the swapped text.
+    const claimText = `${claim.subject} ${claim.verb} ${claim.object}`.replace(/"/g, "'");
+    for (const name of names) {
+      step += 1;
+      $("status").textContent = `checking against each source · ${step}/${total}`;
+      const line = `evaluate "${claimText}" at Link from differentiate ground "${String(name).replace(/"/g, "'")}" broken:rotation`;
+      const landed = landAct(grid, state.gridLog, line, { sources: state.sources, runCapacity, claimId });
+      // Round-trip, not trust: a name or claim the act grammar mangled
+      // would land an evaluate against nothing. Landed junk is worse than
+      // a skipped source, so the log keeps this landing only when the
+      // parsed event names exactly what was meant.
+      if (landed.ok && landed.event.ground === name && landed.event.object === claimText) {
+        state.gridLog = landed.log;
+      } else {
+        disclose(`testimony: ${name} skipped — the act grammar could not carry this claim/source pair verbatim`);
+      }
+      await new Promise((r) => setTimeout(r));
+    }
+    const readings = perSourceReadings(grid, state.gridLog, claimId);
+    const merged = mergeTestimony(readings);
+    const crown = renderCrown(merged);
+    disclose(
+      `testimony · ${merged.case}${merged.standing ? ` (${merged.standing})` : ""} · ${claimId.slice(0, 11)} · ` +
+        `witnesses: ${crown.apparatus.sources.length ? crown.apparatus.sources.join(", ") : "none"} · “${crown.text}”` +
+        (crown.verified ? "" : " · render withheld: trace-coverage violation"),
+    );
+    // Only through the verified render — an unverifiable crown already
+    // substituted its own withholding sentence, which is exactly what
+    // should be shown in that case.
+    if (merged.case !== "UNDETERMINED" && body) {
+      const p = document.createElement("p");
+      p.className = `crown-line${merged.case === "DISAGREE" || merged.case === "CONTRADICTED" ? " bad" : ""}`;
+      p.textContent = crown.text;
+      body.append(p);
+    }
+  }
+  $("status").textContent = `ready · ${state.model}`;
 }
 
 /** An address, exactly as source.js writes and checkCitations reads it. */
@@ -6041,17 +6218,16 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     }
   }
   box.append(...parts);
-  // Mount the chips on the turn itself, above the fold — quiet until they
-  // have counts, the audit one click away. Never on a build turn: the
-  // chips would be web-check doors on the model's own section labels.
-  if (strip.childElementCount && !buildTurn) {
-    const meta = node.querySelector(".turn-meta");
-    const foldEl = node.querySelector(".turn-meta > .fold");
-    if (meta && foldEl) {
-      meta.insertBefore(strip, foldEl);
-      meta.insertBefore(panel, foldEl);
-    } else box.append(strip, panel);
-  }
+  // The chips live in the fold now, not above it. The 2026-08-17 direction
+  // ("still not seeing it ground the statement") put verdicts on the
+  // surface because the checking was invisible; the 2026-08-20 direction
+  // ("THIS SHOULD FEEL LIKE CHATTING WITH CLAUDE") moves the METER back
+  // into the disclosure now that the crown line (crownTestimony) grounds
+  // the answer visibly in prose. Both directions hold: grounding stays on
+  // the answer — as a sentence — and the instrument panel is one click
+  // away. Never on a build turn: the chips would be web-check doors on the
+  // model's own section labels.
+  if (strip.childElementCount && !buildTurn) box.append(strip, panel);
   // Sequential, not parallel: the egress is one server doing recorded
   // crossings, and a turn must not fan out a burst of them. A build turn
   // spends none: corroborating "Event Listeners" against the web is a
@@ -7043,8 +7219,12 @@ async function addFiles(fileList) {
         const blob = file;
         const url = URL.createObjectURL(blob);
         state.media[file.name] = { blob, kind: mediaKindFor(ext), url };
-        $("status").textContent = `${file.name} · ${mediaKindFor(ext)} loaded`;
         renderSources();
+        if (mediaKindFor(ext) === "audio") {
+          await transcribeAudioBlob(blob, file.name);
+          continue;
+        }
+        $("status").textContent = `${file.name} · ${mediaKindFor(ext)} loaded`;
         continue;
       }
       const text = await file.text();

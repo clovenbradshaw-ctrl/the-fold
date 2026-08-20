@@ -14,7 +14,7 @@ import { tokenize } from "../eoreader6.1/packages/engine/perceiver/text/material
 import { classifyWord, dominantClass } from "../eoreader6.1/packages/engine/perceiver/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, landSelfAssertion } from "./capacity-runner.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "./capacities.js";
 import { makeGrammarLens } from "./grammar-lens.js";
@@ -712,6 +712,125 @@ test("landAct: a genuine verb connector clears the injected grammar lens and sti
   assert.equal(landed.result.connectorCheck.trusted, true);
 });
 
+// ── connectorClass at EXTRACTION TIME (Per-Source Testimony spec, BUILD-3)
+// — the same real "always" defect above, this time caught with NOTHING
+// passed to landAct directly: relationsFor's own new classifyConnector/
+// minShare organs tag the edge before landAct ever sees it, and
+// checkConnectorClass reads that tag instead of calling classifyConnector
+// itself. Reuses freshConnectorClassifier/CONNECTOR_MIN_SHARE/CONNECTOR_POS_PRIOR,
+// all declared above, unchanged — one lens, one declared floor, two call
+// shapes proven to agree.
+
+function freshRelationsRunnerWithGrammar(classifyConnector, minShare) {
+  const referentIndexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+  const relationsFor = makeRelationReader({
+    splitSentences,
+    extractSurfaces,
+    discoverReferents,
+    namesCorefer,
+    diaNorm,
+    discoverRelationVocab,
+    extractRelations,
+    tokenize,
+    classifyConnector,
+    minShare,
+  });
+  return makeCapacityRunner({ referentIndexFor, relationsFor });
+}
+
+test("landAct: relationsFor's own classifyConnector organ tags the edge at extraction time, and checkConnectorClass downgrades holds to undetermined from THAT tag alone — nothing passed to landAct directly", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunnerWithGrammar(freshConnectorClassifier(), CONNECTOR_MIN_SHARE);
+  const log = grid.createLog();
+  const text =
+    "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+    "Natasha noticed that Pierre Bezukhov always spoke softly.";
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Pierre Bezukhov always spoke softly to Natasha at Link from differentiate ground p.txt broken:rotation",
+    { sources: { "p.txt": text }, runCapacity }, // landAct itself gets no classifyConnector/minShare at all
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.result.judged.verdict, "bound", "the claim must genuinely bind for this to be a real regression, not an accident of some other gap");
+  assert.equal(landed.result.rawVerdict, "holds");
+  assert.equal(landed.result.connectorCheck.trusted, false);
+  assert.equal(landed.result.connectorCheck.thraxClass, "adverb");
+  assert.equal(landed.result.connectorCheck.surface, "always");
+  assert.notEqual(landed.verdict, "holds");
+  assert.notEqual(landed.verdict, "refused");
+});
+
+test("landAct: when the backing edge already carries a connectorClass tag, checkConnectorClass reads it and never calls classifyConnector again — proven with a poison-pill function as landAct's OWN direct parameter", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunnerWithGrammar(freshConnectorClassifier(), CONNECTOR_MIN_SHARE);
+  const log = grid.createLog();
+  const text =
+    "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+    "Natasha noticed that Pierre Bezukhov always spoke softly.";
+  const poison = () => {
+    throw new Error("classifyConnector must not be called directly once the backing edge already carries a connectorClass tag");
+  };
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Pierre Bezukhov always spoke softly to Natasha at Link from differentiate ground p.txt broken:rotation",
+    { sources: { "p.txt": text }, runCapacity, classifyConnector: poison, minShare: CONNECTOR_MIN_SHARE },
+  );
+  assert.equal(out.ok, true, "the poison pill must never fire — reaching here at all is the proof");
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.result.connectorCheck.trusted, false);
+  assert.equal(landed.result.connectorCheck.thraxClass, "adverb");
+});
+
+test("landAct: a genuine verb connector, tagged at extraction time, still ships holds — the extraction-time path convicts a real defect, not every edge", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunnerWithGrammar(freshConnectorClassifier(), CONNECTOR_MIN_SHARE);
+  const log = grid.createLog();
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Natasha noticed that Pierre Bezukhov always spoke softly at Link from differentiate ground p.txt broken:rotation",
+    {
+      sources: {
+        "p.txt":
+          "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+          "Natasha noticed that Pierre Bezukhov always spoke softly.",
+      },
+      runCapacity,
+    },
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.verdict, "holds", "\"noticed\" is a genuine verb — the extraction-time tag must not convict a clean edge");
+  assert.equal(landed.result.connectorCheck.trusted, true);
+});
+
+test("landAct: both classifyConnector organs omitted (relationsFor AND landAct) still ships holds — every pre-existing caller's behavior is unchanged", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner(); // no grammar organ anywhere
+  const log = grid.createLog();
+  const text =
+    "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+    "Natasha noticed that Pierre Bezukhov always spoke softly.";
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Pierre Bezukhov always spoke softly to Natasha at Link from differentiate ground p.txt broken:rotation",
+    { sources: { "p.txt": text }, runCapacity },
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.verdict, "holds", "byte-identical to before BUILD-3: no organ anywhere means no check anywhere");
+  assert.equal(landed.result.connectorCheck.trusted, true);
+  assert.equal(landed.result.connectorCheck.skipped, "no classifyConnector organ injected");
+});
+
 // ── landAct + the claim-id spine (Per-Source Testimony spec, BUILD-0) ───────
 // End to end against real material and the real hypergraph — proves the ONE
 // real caller wired this pass: a claimId minted the way a future
@@ -944,4 +1063,214 @@ test("mergeTestimony: UNDETERMINED — no source holds or refuses, escalation-wo
 
 test("mergeTestimony: an empty reading set (nothing checked yet) is UNDETERMINED, never a throw", () => {
   assert.equal(mergeTestimony([]).case, "UNDETERMINED");
+});
+
+// ── mergeTestimony: self-witness discipline (BUILD-4, direct user
+// instruction — see mergeTestimony's own AMENDED doc comment for the full
+// account) — a self-witness ("self:model", the model's own bare,
+// unwitnessed assertion) is TESTIMONY, not a special ungrounded exception,
+// and flows through this SAME function; it just never co-signs AGREE's
+// corroboration count alone. No real pipeline in this repo produces a
+// self:model reading today (perSourceReadings only ever projects a
+// judge()-computed RESULT cell, inherently material-grounded), so these
+// are hand-built, realistically-shaped reading objects — the identical
+// precedent this file's own "squarePolarity (via a mocked runCapacity)"
+// test above already sets for unit-testing a real, reachable branch the
+// live pipeline can't yet drive end to end.
+
+function selfModelReading({ verdict, subject = "Lincoln", verb = "appointed", object = "Hamlin" }) {
+  return {
+    claim_id: "@self-witness-fixture",
+    who: SELF_WITNESS,
+    read: [],
+    revision: null,
+    verdict,
+    polarity: verdict === "holds" ? "+" : verdict === "refused" ? "-" : null,
+    edges: verdict === "holds" || verdict === "refused" ? [{ subject, verb, object, refs: [] }] : [],
+    grammar: [],
+    corroboration: verdict === "undetermined" ? null : { passages: 0, sources: 0 },
+    emitted_by: "the-fold:app.js:selfAssertion",
+  };
+}
+
+function realHoldReading(who) {
+  return {
+    claim_id: "@self-witness-fixture",
+    who,
+    read: ["fake.txt#0-10"],
+    revision: null,
+    verdict: "holds",
+    polarity: "+",
+    edges: [{ subject: "Lincoln", verb: "appointed", object: "Hamlin", refs: ["fake.txt#0-10"] }],
+    grammar: [],
+    corroboration: { passages: 1, sources: 1 },
+    emitted_by: "the-fold:hypergraph.js:judge()",
+  };
+}
+
+test("isSelfWitness: true only for the declared self:model marker, never for a real source name", () => {
+  assert.equal(isSelfWitness({ who: SELF_WITNESS }), true);
+  assert.equal(isSelfWitness({ who: "lincoln.txt" }), false);
+  assert.equal(isSelfWitness({ who: "self:ledger" }), false, "the self-plane's OWN reserved name (reflex.js) is a different thing and must not match");
+  assert.equal(isSelfWitness({}), false);
+  assert.equal(isSelfWitness(null), false);
+});
+
+test("mergeTestimony: a self-witness never co-signs AGREE alone — one real hold + one self:model hold is SINGLE, both disclosed on the merge object", () => {
+  const merged = mergeTestimony([realHoldReading("lincoln.txt"), selfModelReading({ verdict: "holds" })]);
+  assert.equal(merged.case, "SINGLE", "not AGREE — a self-witness supplies no independent corroboration");
+  assert.equal(merged.standing, "single");
+  assert.equal(merged.holds.length, 2, "both readings stay on the merge object — disclosed, never dropped");
+  assert.ok(merged.holds.some((r) => r.who === SELF_WITNESS));
+  assert.ok(merged.holds.some((r) => r.who === "lincoln.txt"));
+});
+
+test("mergeTestimony: TWO self:model holds with ZERO real holds does not manufacture AGREE — copies of the same non-independent witness are not corroboration", () => {
+  const merged = mergeTestimony([selfModelReading({ verdict: "holds" }), selfModelReading({ verdict: "holds" })]);
+  assert.equal(merged.case, "SINGLE");
+  assert.equal(merged.standing, "single");
+  assert.equal(merged.holds.length, 2, "both still disclosed, not discarded");
+});
+
+test("mergeTestimony: TWO real holds plus a self:model hold still reaches AGREE — the self-witness rides along without blocking a genuine corroboration", () => {
+  const merged = mergeTestimony([realHoldReading("a.txt"), realHoldReading("b.txt"), selfModelReading({ verdict: "holds" })]);
+  assert.equal(merged.case, "AGREE");
+  assert.equal(merged.standing, "corroborated");
+  assert.equal(merged.holds.length, 3, "the self-witness is disclosed alongside the two real ones, not filtered out of the array");
+});
+
+test("mergeTestimony: DISAGREE's own condition is untouched by the self-witness amendment — a self:model hold genuinely opposed by a real refusal is still DISAGREE, never silently resolved toward CONTRADICTED", () => {
+  const merged = mergeTestimony([selfModelReading({ verdict: "holds" }), { ...realHoldReading("lincolnNeg.txt"), verdict: "refused", polarity: "-" }]);
+  assert.equal(merged.case, "DISAGREE", "mergeTestimony never adjudicates which witness to trust — that judgment call is exactly what this ladder exists to avoid making by hand");
+  assert.equal(merged.holds.length, 1);
+  assert.equal(merged.refused.length, 1);
+});
+
+test("mergeTestimony: with no self-witness present anywhere, every case boundary is byte-identical to before this amendment (real material, real pipeline)", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT, lincoln2: LINCOLN_TEXT_2 };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId }));
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln2 broken:rotation", { sources, runCapacity, claimId }));
+  const merged = mergeTestimony(perSourceReadings(grid, log, claimId));
+  assert.equal(merged.case, "AGREE");
+  assert.equal(merged.standing, "corroborated");
+  assert.equal(merged.holds.length, 2);
+});
+
+// ── landSelfAssertion: the real construction (BUILD-4's own named gap,
+// closed) — proves perSourceReadings/mergeTestimony are reachable for a
+// self:model reading with NO hand-built object anywhere in the chain.
+// `selfModelReading()`, above, stays as-is: these tests check the REAL
+// function's output AGAINST that fixture's own shape, field by field,
+// rather than replacing it — the fixture is still what crown.test.mjs's
+// own hand-built readings mirror, and this is the proof the two shapes
+// actually agree.
+
+function assertMatchesFixtureShape(real, fixture) {
+  assert.equal(real.who, fixture.who);
+  assert.deepEqual(real.read, fixture.read);
+  assert.equal(real.revision, fixture.revision);
+  assert.equal(real.verdict, fixture.verdict);
+  assert.equal(real.polarity, fixture.polarity);
+  assert.deepEqual(real.edges, fixture.edges);
+  assert.deepEqual(real.grammar, fixture.grammar);
+  assert.deepEqual(real.corroboration, fixture.corroboration);
+  assert.equal(real.emitted_by, fixture.emitted_by);
+}
+
+test("landSelfAssertion: a real \"holds\" landing projects through perSourceReadings into exactly this file's own selfModelReading() fixture shape, field for field", async () => {
+  const grid = freshGrid();
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const log = grid.createLog();
+  const landed = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "appointed", object: "Hamlin", verdict: "holds", claimId });
+  assert.equal(landed.ok, true);
+  const readings = perSourceReadings(grid, landed.log, claimId);
+  assert.equal(readings.length, 1, "one RESULT cell, one testimony — no extra or missing cells");
+  assert.equal(readings[0].claim_id, claimId, "the REAL minted id, not the fixture's hardcoded placeholder");
+  assertMatchesFixtureShape(readings[0], selfModelReading({ verdict: "holds" }));
+});
+
+test("landSelfAssertion: \"refused\" carries negative polarity and a refused edge through, same fixture agreement", async () => {
+  const grid = freshGrid();
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const log = grid.createLog();
+  const landed = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "appointed", object: "Hamlin", verdict: "refused", claimId });
+  assert.equal(landed.ok, true);
+  const readings = perSourceReadings(grid, landed.log, claimId);
+  assertMatchesFixtureShape(readings[0], selfModelReading({ verdict: "refused" }));
+});
+
+test("landSelfAssertion: \"undetermined\" carries no edge, no polarity, no corroboration — same fixture agreement", async () => {
+  const grid = freshGrid();
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const log = grid.createLog();
+  const landed = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "appointed", object: "Hamlin", verdict: "undetermined", claimId });
+  assert.equal(landed.ok, true);
+  const readings = perSourceReadings(grid, landed.log, claimId);
+  assertMatchesFixtureShape(readings[0], selfModelReading({ verdict: "undetermined" }));
+});
+
+test("landSelfAssertion: an incomplete claim (subject, verb, or object missing) is a typed no_claim refusal, never a silent no-op", async () => {
+  const grid = freshGrid();
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const log = grid.createLog();
+  const out = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "", object: "Hamlin", verdict: "holds", claimId });
+  assert.equal(out.ok, false);
+  assert.equal(out.refusal.type, "no_claim");
+});
+
+test("landSelfAssertion: an unrecognized verdict is a typed unknown_verdict refusal, naming what was stated", async () => {
+  const grid = freshGrid();
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const log = grid.createLog();
+  const out = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "appointed", object: "Hamlin", verdict: "maybe", claimId });
+  assert.equal(out.ok, false);
+  assert.equal(out.refusal.type, "unknown_verdict");
+  assert.equal(out.refusal.stated, "maybe");
+});
+
+test("landSelfAssertion: no claimId is a typed no_claim_id refusal — a self-assertion nothing downstream could ever find is refused, not landed silently", () => {
+  const grid = freshGrid();
+  const log = grid.createLog();
+  const out = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "appointed", object: "Hamlin", verdict: "holds" });
+  assert.equal(out.ok, false);
+  assert.equal(out.refusal.type, "no_claim_id");
+});
+
+test("landSelfAssertion + mergeTestimony, end to end on one real log: a real material hold plus a REAL landed self:model hold is SINGLE, not AGREE — reachable live, not only through the hand-built fixture", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId }));
+  const landed = landSelfAssertion(grid, log, { subject: "Lincoln", verb: "appointed", object: "Hamlin", verdict: "holds", claimId });
+  assert.equal(landed.ok, true);
+  const merged = mergeTestimony(perSourceReadings(grid, landed.log, claimId));
+  assert.equal(merged.case, "SINGLE", "not AGREE — a self-witness supplies no independent corroboration, exactly as mergeTestimony's own AMENDED doc comment says");
+  assert.equal(merged.standing, "single");
+  assert.equal(merged.holds.length, 2);
+  assert.ok(merged.holds.some((r) => r.who === SELF_WITNESS));
+  assert.ok(merged.holds.some((r) => r.who === "lincoln"));
+});
+
+test("landSelfAssertion: landing under one claim_id does not disturb a DIFFERENT claim_id already on the same shared log", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const realClaimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const selfClaimId = await grid.mintClaimId({ subject: "Seward", verb: "opposed", object: "emancipation" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId: realClaimId }));
+  const landed = landSelfAssertion(grid, log, { subject: "Seward", verb: "opposed", object: "emancipation", verdict: "holds", claimId: selfClaimId });
+  assert.equal(landed.ok, true);
+  const realReadings = perSourceReadings(grid, landed.log, realClaimId);
+  const selfReadings = perSourceReadings(grid, landed.log, selfClaimId);
+  assert.equal(realReadings.length, 1);
+  assert.equal(realReadings[0].who, "lincoln");
+  assert.equal(selfReadings.length, 1);
+  assert.equal(selfReadings[0].who, SELF_WITNESS);
 });

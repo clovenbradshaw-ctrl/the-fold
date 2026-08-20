@@ -3900,3 +3900,99 @@ from the Testimony system entirely: nothing a model says is truly
 ungrounded, it is grounded in itself, and a system that already tracks who
 backs a claim should name that witness honestly, including — especially —
 refusing to let it silently co-sign its own corroboration.
+
+## BUILD-4 landed, and the self-witness construction — real, tested, not wired (added 2026-08-20)
+
+POLICIES.md's amendment to P39 is the law; this is the map update. BUILD-4
+(`crown.js` — the render) landed as its own files, scoped exactly as named
+above. The same pass carried a direct, mid-task user instruction that
+resolved this section's own still-open question, verbatim: a model's bare,
+unwitnessed assertion "CAN say things that are 'ungrounded,' but really
+it's just grounded in itself" — not an exceptional case exempted from the
+Testimony system, TESTIMONY FROM A WITNESS whose read is its own weights.
+`SELF_WITNESS = "self:model"` / `isSelfWitness` landed in
+`capacity-runner.js`; `mergeTestimony` was amended so a self-witness never
+co-signs AGREE's corroboration count alone (DISAGREE's own condition
+untouched — a self-witness genuinely opposed by a real refusal is still a
+real disagreement, on the record, never silently resolved toward
+CONTRADICTED); `crown.js`'s render functions never special-case
+`SELF_WITNESS` at all — they print whatever `who` string a reading
+carries, verbatim, so a self-witness sitting next to a real source name in
+a DISAGREE render IS the disclosure. Both backward compatible by
+construction: byte-identical output whenever no reading's `who` is
+`SELF_WITNESS`.
+
+**The construction — minting and landing an actual self:model reading —
+is now also real and tested, and deliberately NOT wired to any real
+caller.** Every test exercising a self:model reading before this, in both
+`capacity-runner.test.mjs` and `crown.test.mjs`, hand-built one; the
+mechanism was provably reachable but nothing in this repo could produce
+one. `capacity-runner.js` gained `landSelfAssertion(grid, log, {subject,
+verb, object, verdict, claimId})` — deliberately NOT built on `landAct`'s
+`evaluate` branch, because `evaluate`'s own grammar refuses at PARSE TIME
+without a named `ground … broken:<perturbation>` (correctly, for a real
+check), and a self-assertion has no ground by definition. `define` is
+grid.js's own already-documented exception (no refusal fires at parse for
+a missing companion evaluate — defining is the act of putting a claim
+forward, not checking one), which is the correct EO-typing here.
+`landSelfAssertion` lands a DEF act through the unchanged
+`grid.parseAct`/`grid.land` (the same `at Field from generate`
+terrain+stance this file's own terminal-language section already uses for
+a worked `define` example — not a fresh convention) and attaches a RESULT
+directly, shaped — proven by test, field for field against this file's own
+pre-existing `selfModelReading()` fixture — to be exactly what
+`perSourceReadings` already knows how to project. `perSourceReadings` and
+`mergeTestimony` needed ZERO further changes: the earlier amendment's own
+`who === SELF_WITNESS` handling was already ordinary data-shaped, not a
+lookup path, and that design bet is what made this half addable without
+touching either function.
+
+**Deferred, on purpose, and disclosed rather than silently left open: no
+real call site exists yet.** This file's own Explore section already
+states, twice-over counting `experiencer.js`'s own header, that `app.js`
+and `holon.js` belong to the fold-architecture session's contract — and
+`app.js` was found, mid-pass, carrying live uncommitted work (an audio-
+transcription feature, landed minutes before this pass started) this
+pass's own edits would have sat beside with no coordination. The same
+posture P20's own residue and the HL section above both already hold for
+these exact two files. Rather than guess at a call site in a file this
+pass does not own, the tested primitive ships alone, with an integration
+note (`self-witness-integration-note.md`, this repo's own sibling to
+`chip-coverage-note.md`) naming exactly where the trigger already sits —
+`holon.js`'s `inspect()`, its no-material branch, `holon.js:994-1000` —
+and one real design nuance found by reading that code rather than guessed
+at: the (subject, verb, object) triple a caller should mint from is NOT
+`extractCheckableAtoms`'s atom-shaped findings (`holon.js:998` —
+proof-seeking candidates, not a triple shape) but `relations.read(text)`'s
+own real edges (`holon.js:1028`, hypergraph.js's SVO extraction run
+against the model's OWN drafted text), specifically the ones that come
+back `beyond-reach`/`unheard` for lack of any material to bind against —
+exactly "the model asserted real structure and nothing was there to check
+it against." Full detail, and the one question the note does NOT resolve
+(how to decide `holds` vs `refused` per edge, and whether every such edge
+should mint a claim or only some), is in that note.
+
+**Files.** `capacity-runner.js` gained one function
+(`landSelfAssertion`), no other production file touched.
+`capacity-runner.test.mjs` gained 8 cases (55 → 63): three real verdict
+landings each checked field-for-field against the pre-existing
+`selfModelReading()` fixture, three typed refusals (`no_claim`,
+`unknown_verdict`, `no_claim_id`), one true end-to-end case (a real
+material hold plus a real `landSelfAssertion` hold on one log correctly
+reaching `mergeTestimony`'s SINGLE, not AGREE, with no hand-built object
+anywhere in the chain), and one non-interference case across two
+claim_ids on a shared log. `crown.test.mjs`: 26/26 untouched — the whole
+point of BUILD-4's own `who`-is-just-a-string design is that this half
+needed no crown.js change at all. Full suite: 1086/1086 at this pass' own
+start, 1099/1099 after, disclosed honestly rather than claimed as a clean
++13 — a concurrent session modified `serve.mjs` and added new `eval/`
+files while this pass ran (caught live via `git status` between two full
+runs), so +8 of that delta is this pass' own and the rest is unrelated,
+unaudited, concurrent work. A `git stash` scoped to just this pass' two
+files was tried first to measure the delta precisely and abandoned mid-way
+when it proved the wrong tool: `capacity-runner.js` already carried
+BUILD-4's own uncommitted `SELF_WITNESS` amendment before this pass began,
+so stashing reverted to the last COMMIT rather than to "BUILD-4 before
+this pass" — which broke `crown.test.mjs`'s import for the few seconds
+between the stash and its immediate pop. Named here rather than smoothed
+over.

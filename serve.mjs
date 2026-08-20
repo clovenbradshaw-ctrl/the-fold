@@ -38,7 +38,7 @@
 
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
-import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -434,6 +434,78 @@ createServer((req, res) => {
         refuse(500, e.message);
       } finally {
         try { unlinkSync(tmpPath); } catch {}
+      }
+    })();
+    return;
+  }
+
+  // POST /api/transcribe-upload — transcribe an audio file server-side.
+  // Raw binary body (audio bytes). Headers: x-file-name, x-file-mime.
+  // The browser's in-browser Whisper may fail to load the model from CDN;
+  // server-side Whisper is reliable and already confirmed working.
+  if (req.method === "POST" && rel === "/api/transcribe-upload") {
+    const refuse = (status, reason) => json(res, status, { error: reason });
+    if (!isLoopback(req)) return refuse(403, "loopback only");
+    (async () => {
+      const fileName = String(req.headers["x-file-name"] ?? "audio.mp3");
+      const mime = String(req.headers["x-file-mime"] ?? "audio/mpeg");
+      // Collect raw binary body
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const audioBuf = Buffer.concat(chunks);
+      if (!audioBuf.length) return refuse(400, "empty audio");
+      const tmpPath = `/tmp/the-fold-upload-${randomUUID()}.dat`;
+      const wavPath = `/tmp/the-fold-upload-${randomUUID()}.wav`;
+      try {
+        writeFileSync(tmpPath, audioBuf);
+        // Convert to mono 16kHz WAV (Whisper's native format)
+        await new Promise((resolve, reject) => {
+          const proc = spawn("ffmpeg", [
+            "-y", "-i", tmpPath, "-ar", "16000", "-ac", "1", "-f", "wav", wavPath
+          ], { stdio: ["ignore", "ignore", "pipe"] });
+          let stderr = "";
+          proc.stderr.on("data", (b) => { stderr += b.toString(); });
+          proc.on("error", reject);
+          proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(0, 300)}`)));
+        });
+        // Get audio duration
+        let duration = 0;
+        try {
+          const probe = spawn("ffprobe", [
+            "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", wavPath
+          ], { stdio: ["ignore", "pipe", "ignore"] });
+          duration = await new Promise((resolve) => {
+            let out = "";
+            probe.stdout.on("data", (b) => { out += b.toString(); });
+            probe.on("close", () => resolve(parseFloat(out.trim()) || 0));
+            setTimeout(() => { probe.kill(); resolve(0); }, 3000);
+          });
+        } catch {}
+        // Transcribe with server-side Whisper
+        const { pipeline } = await import("@huggingface/transformers");
+        const asr = await pipeline("automatic-speech-recognition", "onnx-community/whisper-base", {
+          device: "cpu", dtype: "q8",
+        });
+        const wavBuf = readFileSync(wavPath);
+        // WAV header is 44 bytes; skip to raw PCM
+        const pcm = new Float32Array(wavBuf.buffer, wavBuf.byteOffset + 44, (wavBuf.byteLength - 44) / 2);
+        const t0 = Date.now();
+        const out = await asr(pcm, {
+          chunk_length_s: 30, stride_length_s: 5,
+          return_timestamps: false, language: "english",
+        });
+        const text = String((out && out.text) || "").trim();
+        const elapsed = Date.now() - t0;
+        console.log(`[transcribe-upload] ${fileName}: ${text.length} chars in ${elapsed}ms, ${(duration/60).toFixed(1)}min audio`);
+        recordBuild({ at: new Date().toISOString(), event: "transcribe-upload", fileName, chars: text.length, duration, elapsed });
+        json(res, 200, { text, duration, chars: text.length });
+      } catch (e) {
+        console.error("[transcribe-upload] error:", e.message);
+        refuse(500, e.message);
+      } finally {
+        try { unlinkSync(tmpPath); } catch {}
+        try { unlinkSync(wavPath); } catch {}
       }
     })();
     return;

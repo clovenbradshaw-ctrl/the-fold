@@ -435,19 +435,15 @@ export const EXECUTE_SYSTEM_PROMPT =
 export const CHAT_SYSTEM_PROMPT =
   "A friendly conversation with no source material. The user's message matched no document to cite, so reply to it directly, briefly, and naturally, as a person would. Do not restate the message back; say something new in response.";
 
-// S1's own face (2026-08-19, user direction: "prompt the system... to say
-// if it warrants fact checking, 'my first reaction' or 'off the top of my
-// head'... don't give it a list of options, give it the minimal prompting
-// that would get it to frame things like that"). No canned phrases: a
-// closed menu of exact wording is the same mistake L5/FLAT_EXECUTE's own
-// history already names — a small model asked to pick from a list reads as
-// a form filled in, not a person talking. This is one added clause, and it
-// asks for a JUDGMENT ("is what I'm about to say worth checking"), not a
-// performance — the same first-person hedge honest speech already reaches
-// for on an off-the-cuff answer, in the model's own words rather than
-// ours. Plain conversation is explicitly exempted so "hi" stays "hi".
+// S1's own face: think out loud, give a first take, not a finished answer.
+// The hedge IS the character — it makes S2's arrival feel natural ("I
+// checked myself") rather than mechanical ("a second agent verified").
+// Measured against gemma2:2b/qwen3:8b: third-person framing ("A first pass
+// answered") makes S2 narrate checking; first-person framing ("Your first
+// take was") makes S2 just answer. Plain conversation exempted so "hi"
+// stays "hi".
 export const S1_SYSTEM_PROMPT =
-  `${CHAT_SYSTEM_PROMPT} If what you're about to say is the kind of thing worth checking, let that show naturally in how you say it — plain conversation doesn't need that.`;
+  `${CHAT_SYSTEM_PROMPT} Think out loud — give your first take, the way you'd start to answer before stopping to check yourself. A hedge or a second thought is fine; a finished answer is too polished for a first pass. Plain conversation doesn't need any of that.`;
 
 // The void, acknowledged (2026-08-19, user direction: "if the surf did not
 // turn something up, the model should be fed the acknowledgement of this
@@ -462,18 +458,22 @@ export const S1_SYSTEM_PROMPT =
 // one happened.
 export const SEARCHED_VOID_PREFIX = "A web search ran for this and found nothing usable — the search came back empty, it was not skipped.";
 
-// The System 1 / System 2 pass (2026-08-19, user direction: "one is just
-// the raw transcript that gets summarized for size and responds fast, the
-// next is the system 2 response, which also has access to the fast
-// response"). Same posture as SEARCHED_VOID_PREFIX, same reasoning: this is
-// INFORMATION handed to the checked pass, never a behavioral instruction
-// stacked on top — S2 is free to confirm, extend, or contradict what S1
-// said; nothing here tells it which. `priorPassFor(text)` builds the fact
-// sentence from S1's own answer; a caller with no S1 pass (or one that was
-// gated off) simply never calls it, so every existing caller of runPart/
-// runHolonicTask is byte-identical to before this existed.
+// The System 1 / System 2 pass: first-person framing so S2 understands it's
+// following up on its OWN initial reaction, not investigating someone else's.
+// Measured against gemma2:2b: "A faster, unchecked first pass already answered
+// this" → S2 narrates ("Correct.", "The answer is"); "Your first take was" →
+// S2 just answers. The prompt tells S2 what to DO (confirm/extend/correct)
+// and what NOT to do (restate, make a ceremony of it), never HOW to phrase it.
+// A caller with no S1 pass simply never calls it, so every existing caller of
+// runPart/runHolonicTask is byte-identical to before this existed.
 export const priorPassFor = (text) =>
-  `A faster, unchecked first pass already answered this: "${String(text ?? "").trim()}" You may confirm it, extend it, or correct it — check it against what you find rather than assuming it is right.`;
+  `Your first take was: "${String(text ?? "").trim()}" — check it against what you find. Confirm, extend, or correct it. Don't restate what you said; answer the question from what the checking turns up. If your first take was right, you can say so briefly and move on — don't make a ceremony of it.`;
+
+// When priorPass exists (S2 following S1), frame the system prompt so the
+// model understands it's continuing its own thinking, not starting fresh.
+// Prepended before the base system prompt + priorPass suffix. Information,
+// not behavioral — the same posture priorPassFor already holds.
+const S2_FRAME_PREFIX = "";
 
 // The flat turn's material prompt speaks at the OBJECT level (2026-08-19,
 // user direction: "we're being fed the wrong level of response"). The old
@@ -500,6 +500,101 @@ export function buildExecutePrompt(part, sourceBlock, discourse = "") {
   return sourceBlock
     ? `${head}${context}\n\n${sourceBlock}`
     : `${head}${context}\n\nNo material matched this part. Say what the part would need and stop; do not invent content.`;
+}
+
+/**
+ * DEF → EVA → REC-guard → REDEFINE, for a claim EVA already found
+ * malformed by cardinality (clusterFillers/officeHolderGroups computed a
+ * closed, confirmed set of more than one filler for a slot the question's
+ * own singular phrasing presupposed unique — the Strawson/Russell gap
+ * P33's own header names). The redefinition is not a critique of the
+ * prior draft; it is a REWRITE OF THE TASK — the confirmed set folded in
+ * as a stated given — run through the ordinary, uncritical
+ * buildExecutePrompt rather than buildCorrectionPrompt.
+ *
+ * Measured live 2026-08-20, three rounds, same Lincoln/Hamlin/Johnson
+ * question, real fetched Wikipedia material, gemma2:2b — every one a
+ * buildCorrectionPrompt("incomplete") wording fix, and every one dodged a
+ * NEW way: round 1 echoed the correction's own escape phrase back as
+ * its opening sentence; round 2 (that phrase removed) described the
+ * QUESTION instead of the material ("The question mentions…"); round 3
+ * (forbidding that too) invented a real-but-unconfirmed third name off
+ * the raw succession-box text sitting right below the critique, then
+ * (once the finding was reworded as a closed set) still narrated with a
+ * verb ("concerns") the mechanical narration-stripper's own hand-typed
+ * list did not carry. Three different dodges from three different
+ * wording fixes is not a wording problem — every one of them was a
+ * response to being told "your prior draft was wrong, fix it," which
+ * is a directive ABOUT the task, and this file's own repeated lesson
+ * (2026-08-17 EXECUTE_SYSTEM_PROMPT history, 2026-08-19's escaped
+ * phrase, both above) is that a directive about the task produces a
+ * description of the task. There is no fix for that within the
+ * critique framing; the framing itself is the defect. Redefining the
+ * question and asking it fresh — no "your draft", nothing to react
+ * to — has nothing left to narrate about.
+ */
+export function buildRedefinedPart(part, findings) {
+  if (!findings?.length) return part;
+  return {
+    ...part,
+    description: `${part.description} The record confirms exactly this, and nothing beyond it, even if other names or claims sit nearby in the material below: ${findings.join("; ")}.`,
+  };
+}
+
+/**
+ * Land the completeness gate's finding as a REAL belief on the shared
+ * task-log, not just a fact this function's own local variables happen to
+ * hold for the length of one call — user direction (2026-08-20): "this
+ * requires having the hypergraph record beliefs, assertions, etc... it is
+ * believed BY AN EXPERIENCER, not just given by a source."
+ *
+ * Composed from organs this repo already owns, never a parallel mechanism:
+ * `grid.js`'s `evaluate` verb already computes a real verdict via
+ * `hypergraph.js::read()` and lands it as a task-log RESULT (P36, "EVA
+ * computes, REC concedes") — `landAct` (capacity-runner.js) is the ONE
+ * tested orchestration of parse → land → run → attach for it, proven live
+ * on exactly this pattern (`capacity-runner.test.mjs`'s own "a SECOND
+ * evaluate... lands a REC conceding the first"). This calls that same
+ * organ rather than hand-building a `grid.land()` event, for the identical
+ * reason `hl-acquire.js`'s own header gives for reusing the grammar lens
+ * instead of re-deriving grammar: the refusal rules (stance resolution,
+ * terrain lookup, the ground+broken requirement) already exist, tested,
+ * and reimplementing them here would be the second-mechanism drift this
+ * codebase's postmortems keep naming.
+ *
+ * `because <trigger>` names the EXPERIENCER — which reading, for which
+ * part, formed this belief — because a verdict with no one attached to it
+ * is exactly the "given by a source" framing the user's direction rejects;
+ * every belief on this log says who was reading when they came to hold it.
+ * SPACE-separated, like `ground`/`at`/`from` — NOT colon-suffixed like
+ * `broken:`/`warrant:` (grid.js's own composition-law comment: `[because
+ * <trigger>]`, a clause keyword, unlike the colon-suffixed fields that
+ * live INSIDE a clause). Kept to word characters and hyphens only (grid.js's own tokenizer reads
+ * `because` as free text up to the next clause keyword — "at"/"from"/
+ * "ground"/"supersedes" — so those five words are avoided here, not
+ * merely convenient ones).
+ *
+ * Failure is never fatal to the turn: a claim shaped in a way `evaluate`'s
+ * own grammar refuses (a subject/object containing a clause keyword, an
+ * empty claim) returns the log UNCHANGED — this is a durability layer on
+ * top of the completeness gate's own existing, unconditional signal, never
+ * a new requirement for it to fire.
+ */
+function landCompletenessBelief(grid, gridLog, runCapacity, landAct, { claim, sourceKey, sourceText, experiencer }) {
+  if (!grid || !gridLog || !runCapacity || !landAct) return gridLog;
+  const safe = (s) => String(s ?? "").replace(/[^\w\s-]/g, " ").replace(/\s+/g, " ").trim();
+  const subject = safe(claim.subject);
+  const verb = safe(claim.verb);
+  const object = safe(claim.object);
+  if (!subject || !verb || !object) return gridLog;
+  const line = `evaluate ${subject} ${verb} ${object} at Link from differentiate ground ${sourceKey} broken:rotation because ${safe(experiencer)}`;
+  let out;
+  try {
+    out = landAct(grid, gridLog, line, { sources: { [sourceKey]: sourceText }, runCapacity });
+  } catch {
+    return gridLog;
+  }
+  return out?.ok ? out.log : gridLog;
 }
 
 export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode = "unsupported") {
@@ -539,10 +634,43 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
     // about the task produces a description of the task). Reworded to name
     // what to DO (state every filler directly, plainly) without supplying
     // any sentence shaped to be echoed.
+    //
+    // Measured live again 2026-08-20 (the same Lincoln/Hamlin/Johnson
+    // question): with that fix in place, gemma2:2b still dodged — not by
+    // echoing the escape hatch, but by describing the QUESTION instead of
+    // the material ("The question mentions two vice presidents: Hannibal
+    // Hamlin and Andrew Johnson."), since the instruction only forbade
+    // describing "the material itself" and said nothing about the question.
+    // Every other mode above already forbids both in one breath (echo:
+    // "restates the prompt instead of answering it"; narrated: "describes
+    // the passage instead of answering the question"); this mode had
+    // dropped the question half when it was written. provenance.js's own
+    // narration stripper does not catch this sentence either and correctly
+    // so — "mentions" only cuts wholesale text with no complement worth
+    // keeping (details?/describe[sd]/etc.), and this sentence's complement
+    // IS the two names the completeness gate exists to preserve; stripping
+    // it would ship an empty or gutted answer, worse than the narration it
+    // removes. The fix belongs at the source, same as the 2026-08-19 one.
+    //
+    // A third, deeper thing measured in that same 2026-08-20 run, once the
+    // wording fixes above were both in place and re-tested: the model still
+    // named a THIRD person ("Schuyler Colfax") who is real text sitting in
+    // the material but was never confirmed for this slot. Replaying the
+    // exact retrieved passages through both completeness signals directly
+    // (bypassing the model) proved the finding itself was already correct
+    // — a Wikipedia succession box sits one office's record directly beside
+    // the NEXT office-holder's own record, so a small model shown the raw
+    // box text a second time, under pressure to "find more", keeps reading
+    // past the confirmed slot into the next one. `failures` above is now
+    // the FULL confirmed set for each slot, phrased as closed ("confirms
+    // exactly: X, Y (nothing else)") rather than a delta — this is the
+    // actual fix: give the model nothing left to hunt for, instead of
+    // asking it not to hunt.
     return (
-      `Your draft for "${part.label}" answers as if there is only one, but the material states more than one:\n` +
+      `Your draft for "${part.label}" answers as if there is only one, but the material states more than one. ` +
+      `Here is the material's own COMPLETE, CONFIRMED answer for each — nothing beyond this list is confirmed, even if other names appear nearby in the passages below:\n` +
       failures.map((f) => `- ${f}`).join("\n") +
-      `\n\nRewrite your answer to state every one of them directly, by name, the way you would if you had known all along — never describe the material itself. ` +
+      `\n\nRewrite your answer to name every one of them directly, by name, the way you would if you had known all along — never describe the material or the question itself, and never add a name that is not on the confirmed list above, even one you recognize or see mentioned nearby. ` +
       `If you genuinely cannot tell which the material means, name the ones you can and say which part is unclear. ` +
       `Do not invent a reason to prefer one over the others unless the material itself gives one.\n\n` +
       `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
@@ -569,6 +697,27 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
  * The closing line states a process fact that is true by construction —
  * never a judgement about what the material "doesn't say".
  */
+// Measured live 2026-08-20 ("who was Abraham Lincoln's vice president?"
+// against real fetched material): raw overlap-count alone let a bare
+// infobox row ("President Abraham Lincoln", 3 words, all 3 querytokens)
+// outrank a genuine, more informative sentence in the SAME passage whose
+// matching words were fewer relative to its length — the row is
+// splitSentences's own honest reading of a succession box's "In office /
+// President X / Preceded by Y / Succeeded by Z" lines, which have no
+// sentence-final punctuation because they were never sentences.
+// MECHANICAL-COVERAGE-INVESTIGATION.md already names this exact class
+// ("the sentence splitter never breaks on bare newlines... 'Preceded by
+// X' / 'Succeeded by Y' lines glue into garbage edges") for hypergraph.js's
+// relation extraction; this is the identical furniture leaking through one
+// layer over, into the fallback's own sentence choice. Terminal punctuation
+// is the same structural tell this repo uses elsewhere to separate real
+// prose from page furniture (blankStructure, stripContainer) — cheap,
+// never a guess at content, and it only ever REORDERS which true, verbatim
+// passage text gets quoted; it can't invent or drop material a passage
+// doesn't have. A passage whose only positive-overlap candidate is a bare
+// fragment still surfaces it — never nothing when something exists.
+const SENTENCE_END_RE = /[.!?]["'”’)]*$/;
+
 export function mechanicalAnswer(question, passages) {
   const qTokens = new Set(tokenize(String(question ?? "")));
   if (!qTokens.size) return "";
@@ -577,10 +726,10 @@ export function mechanicalAnswer(question, passages) {
     const best = splitSentences(String(p.text ?? ""))
       .map((s) => {
         const t = String(s).trim();
-        return { t, n: tokenize(t).filter((w) => qTokens.has(w)).length };
+        return { t, n: tokenize(t).filter((w) => qTokens.has(w)).length, sentence: SENTENCE_END_RE.test(t) };
       })
       .filter((x) => x.t && x.n > 0)
-      .sort((a, b) => b.n - a.n)[0];
+      .sort((a, b) => (b.sentence - a.sentence) || (b.n - a.n))[0];
     if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
   }
   if (!lines.length) return "";
@@ -716,6 +865,22 @@ export async function runPart({
   // against what you now have"). See priorPassFor, above.
   priorPass = null,
   onProgress = null,
+  // The shared, app-wide belief record (P38's own "the hypergraph records
+  // beliefs" direction) — the SAME log `/act`/the terminal already write
+  // to (CLAUDE.md, "the chat's own /act door": `state.gridLog`, one log,
+  // not per-conversation). All four null together (the default) is
+  // byte-identical to before this existed — landCompletenessBelief's own
+  // header states the same backward-compatibility discipline every other
+  // organ in this file already holds. `grid`/`runCapacity`/`landAct` are
+  // the organs (grid.js's makeGrid instance, capacity-runner.js's two
+  // exports); `gridLog` is the mutable state threaded in and the updated
+  // state threaded back out via this function's own return value, the
+  // same accumulation shape `foldedRefs`/`seenRefs` already use one level
+  // up in runHolonicTask.
+  grid = null,
+  gridLog = null,
+  runCapacity = null,
+  landAct = null,
 }) {
   // Stable sub-assemblies (2026-08-19, user direction). The part's own words
   // and the fold's discourse line are two DIFFERENT assemblies, and the old
@@ -1185,13 +1350,14 @@ export async function runPart({
   // in alongside it rather than replacing it: a turn can both have run a
   // preflight search AND have a fast first pass to check.
   const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
+  const s2Frame = priorPass ? S2_FRAME_PREFIX : "";
   const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") + chatContext,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") + chatContext,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -1202,12 +1368,12 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
           { role: "user", content: `${task}${chatContext}` },
         ];
   onProgress?.("execute", part, {
@@ -1283,7 +1449,16 @@ export async function runPart({
       if (!named.length) continue;
       const missing = g.holders.filter((h) => !named.includes(h));
       if (missing.length) {
-        findings.push(`${g.president}'s ${g.office} — the material also states: ${missing.join(", ")}`);
+        // The FULL confirmed set, not just the delta — "also states: Johnson"
+        // leaves the model to keep hunting the raw box text for a complete
+        // answer, and a small model reading a succession box's own chain
+        // structure (this office's box literally sits beside another box
+        // naming the NEXT office-holder after these two) will keep pulling in
+        // names the record never actually confirms for THIS office+president
+        // pairing. Stating the closed set — all of it, not the gap — turns
+        // "find more" into "copy this", which is a task a small model can
+        // actually do without inventing.
+        findings.push(`${g.president}'s ${g.office} — the material confirms exactly: ${g.holders.join(", ")} (nothing else)`);
       }
     }
     return findings;
@@ -1343,14 +1518,29 @@ export async function runPart({
   // not "be more complete" (teaches nothing, judge()'s own stated reason
   // every mode here names what actually went wrong) but the real fillers,
   // by name, so the model is told exactly what the material states rather
-  // than asked to guess what "more" might mean. Named as `uncovered` —
-  // what the answer is STILL missing, not the full filler list including
-  // what it already got right. The succession-box findings are already
-  // full sentences naming what is missing, appended rather than reshaped.
+  // than asked to guess what "more" might mean.
+  //
+  // Measured live 2026-08-20 (the same Lincoln/Hamlin/Johnson question,
+  // real fetched Wikipedia material, gemma2:2b): phrased as `uncovered` —
+  // the DELTA still missing, not the whole set — a corrected draft named
+  // Johnson (the one real gap) but ALSO invented "Schuyler Colfax" and even
+  // listed Lincoln himself as a "Vice President". Traced by replaying the
+  // exact retrieved passages through both completeness signals directly
+  // (bypassing the model entirely): officeHolderGroups and clusterFillers
+  // BOTH computed the correct, closed set — {Hamlin, Johnson}, nothing
+  // else — so this was never a bad finding, it was a small model re-mining
+  // the raw succession-box text it was shown a second time under pressure
+  // to "add more", and a Wikipedia succession box sits its Lincoln-VP
+  // record directly beside the NEXT office-holder's own record (Colfax
+  // succeeded Johnson as VP, under a different president) — real text, a
+  // real name, just not confirmed for THIS slot. A delta ("also states:
+  // Johnson") leaves the model free to keep hunting; the FULL confirmed
+  // set, stated as closed, gives it nothing left to invent — "copy this
+  // list, and no one else" is a task a small model can actually do.
   const incompleteFindings = (t, c) => [
     ...incompleteClaimsOf(c).map(
       (claim) =>
-        `"${claim.subject} ${claim.verb} ${claim.object}" — the material also states: ${claim.uncovered.map((f) => f.object).join(", ")}`,
+        `"${claim.subject} ${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.fillers.map((f) => f.object).join(", ")} (nothing else)`,
     ),
     ...successionIncompleteFindings(t),
   ];
@@ -1420,6 +1610,14 @@ export async function runPart({
   // loop at 5*maxCorrections iterations structurally — no new hand-picked
   // ceiling (P9: no number where a structural rule will do).
   const triedCounts = new Map();
+  // Threaded forward through this loop and out via the return value below
+  // — landCompletenessBelief's own header has the full reasoning. Landed
+  // ONCE per incomplete claim, at the moment the gate first sees it,
+  // before the redefine round spends its one shot: the belief this
+  // records is "as of THIS material, the question's presupposed-singular
+  // claim does not hold" — true regardless of how the redefine round's
+  // own draft turns out, so recording it does not wait on that outcome.
+  let beliefLog = gridLog;
 
   while (
     mode &&
@@ -1433,10 +1631,33 @@ export async function runPart({
     corrections++;
     triedCounts.set(mode, (triedCounts.get(mode) ?? 0) + 1);
     const correctionFailures = mode === "incomplete" ? incompleteFindings(draft, check) : check.unsupported;
-    const correctionMessages = [
-      { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-      { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, correctionFailures, mode) },
-    ];
+    if (mode === "incomplete" && (triedCounts.get(mode) ?? 0) === 1) {
+      for (const claim of incompleteClaimsOf(check)) {
+        beliefLog = landCompletenessBelief(grid, beliefLog, runCapacity, landAct, {
+          claim,
+          sourceKey: `${part.id ?? "part"}-material`,
+          sourceText: sourceBlock ?? "",
+          experiencer: `holon-relation-tier reading for part ${part.label ?? part.id ?? "unlabeled"} of task ${task}`,
+        });
+      }
+    }
+    // "incomplete" is the one mode that is not a mistake to fix — it is a
+    // malformed DEF (the question presupposed a unique answer the material
+    // does not have). buildRedefinedPart's own header has the measured
+    // reason this runs through buildExecutePrompt (a fresh, uncritical
+    // write-this-part task) rather than buildCorrectionPrompt (which frames
+    // every OTHER mode correctly, because those really are mistakes in a
+    // prior draft to point at and fix).
+    const correctionMessages =
+      mode === "incomplete"
+        ? [
+            { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+            { role: "user", content: buildExecutePrompt(buildRedefinedPart(part, correctionFailures), sourceBlock, discourse) },
+          ]
+        : [
+            { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+            { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, correctionFailures, mode) },
+          ];
     onProgress?.("correct", part, {
       failures: correctionFailures,
       mode,
@@ -1643,6 +1864,11 @@ export async function runPart({
     links: linkReport,
     linkCorrections,
     open,
+    // The updated shared log, threaded back to the caller — `gridLog`
+    // unchanged (byte-identical `===`) when no organ was injected or
+    // nothing was landed; a real, new log state when a belief was
+    // recorded. landCompletenessBelief's own header, and this parameter's.
+    gridLog: beliefLog,
   };
 }
 
@@ -1673,6 +1899,16 @@ export async function runHolonicTask({
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
   onProgress = null,
+  // The shared belief record — see runPart's own header for the full
+  // reasoning (P38, "the hypergraph records beliefs, held by an
+  // experiencer"). Threaded through every part's runPart call and
+  // accumulated across parts the SAME way `seenRefs` already accumulates
+  // refs below; the final state rides out on this function's own return
+  // value as `gridLog` for the caller (app.js) to persist.
+  grid = null,
+  gridLog = null,
+  runCapacity = null,
+  landAct = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
@@ -1739,6 +1975,11 @@ export async function runHolonicTask({
   // re-tells the run without re-doing it.
   const sectionsById = new Map();
   const seenRefs = [...foldedRefs];
+  // Accumulated across every part this task runs, same shape as `seenRefs`
+  // — a later part's belief-landing sees the log a prior part already
+  // updated, so two parts of one turn never race each other into two
+  // divergent forks of what should be one shared record.
+  let sharedGridLog = gridLog;
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -1772,8 +2013,13 @@ export async function runHolonicTask({
       searchedVoid,
       priorPass,
       onProgress,
+      grid,
+      gridLog: sharedGridLog,
+      runCapacity,
+      landAct,
     });
     seenRefs.push(...result.refs);
+    sharedGridLog = result.gridLog;
     sectionsById.set(t.part_id, result);
     return {
       refs: result.refs,
@@ -1820,5 +2066,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog };
 }

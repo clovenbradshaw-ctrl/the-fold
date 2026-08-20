@@ -92,6 +92,8 @@ import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
 import { makeCapacityRunner, landAct } from "./capacity-runner.js";
 
+import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
+
 import { openInExplore, refContext } from "./explore-bridge.js";
 
 import { classifySentences } from "./provenance.js";
@@ -137,8 +139,9 @@ import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
 // the cast the material itself establishes — a name is a reference to a
 // referent, not a byte sequence, and the engine owns what "the same name"
 // means. cast.js injects these so it stays pure and node-testable.
-import { splitSentences as engineSentences } from "/engine/perceiver/text/spans.js";
+import { splitSentences as engineSentences, blankLabelRows } from "/engine/perceiver/text/spans.js";
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
+import { resolvePronouns } from "/engine/perceiver/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 
 // The relation tier — the answer read against the edges the material itself
@@ -304,6 +307,15 @@ const relationsFor = makeRelationReader({
   extractRelations,
   tokenize,
   posPriorFor: () => posPriorCache,
+  // Scoped to the extractor alone (hypergraph.js's own header says exactly
+  // where) — succession.js's completeness gate, retrieval, and what the
+  // model is shown all still read the real bytes.
+  blankFurniture: blankLabelRows,
+  // A pronoun subject/object resolved to its referent, per passage, before
+  // extraction — resolvePronounSubjects's own header in hypergraph.js has
+  // the full reasoning (READING-POLICY P7.2) and the corpus.js-sourced
+  // operating point.
+  resolvePronouns,
 });
 
 // One meter per conversation, built on the engine's own tiers. reflex.js
@@ -677,6 +689,11 @@ async function fillModels() {
 async function connect() {
   state.model = $("model").value;
   state.ready = true;
+  // Pre-warm the Whisper model download in the background so by the time
+  // someone types /transcribe, the (large, one-time) download is already
+  // done or well underway. Never blocks boot — a failed pre-warm retries
+  // on the real call.
+  prewarmTranscription().catch(() => {});
   // The model's declared window, from the runtime's own mouth. The one
   // non-arbitrary meaning of "this prompt is too long" is this number.
   state.contextTokens = null;
@@ -998,12 +1015,45 @@ async function actTurn(argstr, typed) {
     const { result } = landed.capacity;
     if (result.gap === "no_material") {
       lines.push(result.detail);
-    } else {
+    } else if (landed.event.verb === "distinguish") {
       mirrorTermRecord("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface), via: "chat" });
       lines.push(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`);
+    } else if (landed.event.verb === "evaluate") {
+      lines.push(formatEvaluateOutcome(grid, landed));
     }
   }
   return usageTurn(typed, lines.join("\n"));
+}
+
+/**
+ * The plain-language account of a computed evaluate — "EVA the
+ * hypergraph, with provenance" rendered for a reader, not the raw RESULT
+ * payload. `grid.foldGrid` is re-read here rather than trusting a locally
+ * recomputed verdict, so this always shows exactly what the record itself
+ * will show on a later `grid`/`/self` read — one source of truth, not two
+ * that could drift. `computed, not generated`, tables.js's own house
+ * phrase, reused rather than invented for this door.
+ */
+function formatEvaluateOutcome(grid, landed) {
+  const evaId = landed.ids[landed.ids.length - 1];
+  const { acts } = grid.foldGrid(landed.log);
+  const act = acts.find((a) => a.task_id === evaId);
+  const claim = act?.result?.claim ?? landed.event.object;
+  if (act?.verdict === "holds" || act?.verdict === "refused") {
+    const squaring = act.result?.squaring;
+    const squaredNote = squaring?.trusted
+      ? `squared against its own negation — confirmed`
+      : `squared against its own negation — no confirmation`;
+    return `evaluate · "${claim}" ${act.verdict} against "${landed.event.ground}" (${squaredNote}) — computed, not generated`;
+  }
+  const raw = act?.result?.judged?.verdict ?? act?.result?.rawVerdict ?? "unbound";
+  const reason =
+    act?.result?.rawVerdict === "holds" && act?.result?.objectCheck?.trusted === false
+      ? `a real edge shares some of the claim's own words but not all of them (checked: ${act.result.objectCheck.claimTokens.join(", ")}) — the material does not state this specific claim, only something that resembles it`
+      : act?.result?.rawVerdict && act?.result?.squaring?.trusted === false
+        ? `the claim's own negation, checked the same way, could not be told apart from the claim itself — this sentence shape's own polarity reading cannot be trusted`
+        : `the material does not settle this (raw reading: ${raw})`;
+  return `evaluate · "${claim}" is undetermined against "${landed.event.ground}" (${reason})`;
 }
 
 /**
@@ -1117,6 +1167,133 @@ async function runTurn(runCmd, typed) {
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
+}
+
+/**
+ * /transcribe — Whisper-based transcription via in-browser ASR. Two paths:
+ *   /transcribe <youtube-url> — fetches audio server-side (yt-dlp), transcribes
+ *                                in-browser, result lands as addressable material.
+ *   /transcribe (bare)        — opens a file picker for a local audio file,
+ *                                transcribes in-browser, result lands as material.
+ * The Whisper model downloads once and caches in the browser. Nothing leaves the
+ * machine: the server only fetches the YouTube audio bytes (P13 web egress),
+ * and the transcription itself runs entirely in the browser sandbox.
+ */
+async function transcribeTurn(typed) {
+  const arg = typed.replace(/^\/transcribe\s*/, "").trim();
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  logAct("asked", { text: typed });
+
+  // No argument: open a file picker for local audio.
+  if (!arg) {
+    body.innerHTML = "";
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = "opening file picker for audio…";
+    body.append(p);
+    $("status").textContent = "waiting for audio file…";
+
+    try {
+      const blob = await pickAudioFile();
+      if (!blob) {
+        body.textContent = "no file selected.";
+        $("status").textContent = `ready · ${state.model}`;
+        releaseBusy();
+        return;
+      }
+      body.textContent = "transcribing with Whisper…";
+      $("status").textContent = "transcribing…";
+      const { text, duration } = await transcribeBlob(blob, {
+        onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
+      });
+      const name = `transcription-${Date.now()}.txt`;
+      addSource(name, text);
+      body.innerHTML = "";
+      const pp = document.createElement("p");
+      pp.className = "prose";
+      const mins = Math.floor(duration / 60);
+      const secs = Math.floor(duration % 60);
+      pp.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} of audio → attached as "${name}" (${text.length.toLocaleString()} chars)`;
+      body.append(pp);
+      mirrorTermRecord("transcribe", { source: "file", duration, chars: text.length, via: "chat" });
+      logAct("recorded", { where: "transcribe", source: "file" });
+      const historyNote = `transcribed audio file (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
+      state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
+      const turn = state.summary.turnCount + 1;
+      observeExchange(turn, typed, historyNote);
+      const fold = mechanicalFoldLine(typed, historyNote);
+      state.turnFolds.push(fold);
+      state.summary = advanceSummaryFold(state.summary, fold);
+      renderFold(node, { fold });
+      renderThreads();
+    } catch (e) {
+      body.textContent = `transcription failed: ${e.message}`;
+    }
+    $("status").textContent = `ready · ${state.model}`;
+    releaseBusy();
+    return;
+  }
+
+  // Argument provided: treat it as a URL to fetch and transcribe.
+  body.innerHTML = "";
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = `fetching audio from ${arg.slice(0, 80)}…`;
+  body.append(p);
+  $("status").textContent = "fetching audio…";
+
+  try {
+    const { blob, title } = await fetchAudioFromUrl(arg);
+    body.textContent = "transcribing with Whisper…";
+    $("status").textContent = "transcribing…";
+    const { text, duration } = await transcribeBlob(blob, {
+      onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
+    });
+    const name = `${title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60)}-transcript.txt`;
+    addSource(name, text);
+    body.innerHTML = "";
+    const pp = document.createElement("p");
+    pp.className = "prose";
+    const mins = Math.floor(duration / 60);
+    const secs = Math.floor(duration % 60);
+    pp.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars)`;
+    body.append(pp);
+    mirrorTermRecord("transcribe", { source: "youtube", url: arg, title, duration, chars: text.length, via: "chat" });
+    logAct("recorded", { where: "transcribe", source: "youtube" });
+    const historyNote = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
+    state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
+    const turn = state.summary.turnCount + 1;
+    observeExchange(turn, typed, historyNote);
+    const fold = mechanicalFoldLine(typed, historyNote);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { fold });
+    renderThreads();
+  } catch (e) {
+    body.textContent = `transcription failed: ${e.message}`;
+  }
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
+ * Open a file picker for audio files and return the selected Blob.
+ */
+function pickAudioFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "audio/*,.mp3,.wav,.ogg,.m4a,.webm,.flac,.aac";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      resolve(file);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
 }
 
 /**
@@ -1514,6 +1691,14 @@ async function send(question) {
       question,
       "/run <runtime>\\n<code> — runs code YOU typed or pasted, in the same sandboxed, network-severed Worker the model's own code already runs inside (python, js/javascript, or sql — put the runtime as the first line's second word, then the code starting on the next line). One-shot: each /run is its own action, never a standing switch. Code the MODEL writes in this turn's own fold already runs automatically — this door is for code you wrote yourself.",
     );
+
+  // /transcribe <url or nothing> — YouTube or audio file transcription via
+  // in-browser Whisper. A URL fetches audio server-side (yt-dlp) then
+  // transcribes in-browser; bare /transcribe with no URL opens a file picker
+  // for a local audio file. The result lands as addressable material.
+  if (/^\/transcribe\b/.test(question) || /^\/transcribe\s*$/.test(question)) {
+    return transcribeTurn(question);
+  }
 
   // /learn's door: the terminal's own `learn` walk is graded on real
   // keystrokes there, which chat cannot offer — so here it points to
@@ -2599,7 +2784,7 @@ function needsSystem2(question, s1Text) {
 // would also improve the answer on its own, with or without any of that).
 async function runFastPass(question, model) {
   const node = addMessage("assistant", "");
-  node.querySelector(".who").textContent = `model · fast (${model})`;
+  node.querySelector(".who").textContent = `model`;
   const body = node.querySelector(".body");
   body.textContent = "…";
   const present = presentWindow(state.regime, RECENCY_WINDOW);
@@ -2641,7 +2826,7 @@ async function twoPassTurn(question) {
       skipUserMessage: true,
       priorPass: s1Text,
       forceModel: model,
-      label: `model · checked (${model})`,
+      label: `model`,
     });
   }
   // Gate stayed off: S1 stands as the whole turn. holonicTurn's own
@@ -2928,6 +3113,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // made, so it lives behind the same switch. Off means every cited URL
       // ships `unexamined`, never silently treated as checked.
       checkLink: state.webProof ? checkLinkCitation : null,
+      // The completeness gate's own belief, landed on the SAME app-wide
+      // log `/act`/the terminal already write to (P38: "the hypergraph
+      // records beliefs... held BY AN EXPERIENCER, not just given by a
+      // source") — gated on `state.grounded` for the identical reason
+      // `makeRelationReader` two lines up already is: with checking off,
+      // `check.relations` is never computed, so `incompleteClaimsOf` has
+      // nothing to find and this would be dead weight to pass regardless.
+      grid: state.grounded ? grid : null,
+      gridLog: state.grounded ? state.gridLog : null,
+      runCapacity: state.grounded ? runCapacity : null,
+      landAct: state.grounded ? landAct : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -3012,6 +3208,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         }
       },
     });
+    // Persist whatever the completeness gate landed — `result.gridLog` is
+    // `null` when checking was off (nothing was passed in to land against)
+    // and otherwise the SAME log object handed in, updated or not; only
+    // overwrite when a real state came back, so a turn that landed nothing
+    // never clobbers what `/act`/the terminal already hold.
+    if (result.gridLog) state.gridLog = result.gridLog;
     clearInterval(ticker);
   } catch (err) {
     clearInterval(ticker);
@@ -4889,6 +5091,63 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
   onStep?.(`${picks.length} result(s) for “${query}” — reading ${picks.map((r) => hostOf(r.url)).join(", ")}`);
   const chunks = [];
   const pages = [];
+  // The search engine's own snippets are real, already-fetched material —
+  // no extra egress, computed the moment /api/web/search ran — and they
+  // were discarded here entirely: only `r.url` (to fetch the full page) and
+  // `r.title` (a fallback label) were ever read off a result. Measured live
+  // 2026-08-20 ("who was Abraham Lincoln's vice president?"): a full
+  // fetched Wikipedia page runs 50-160K characters and carries
+  // succession-box furniture that glued into garbage relations and
+  // confused a small model's reading even after that was fixed, while
+  // several of DuckDuckGo's own top snippets for this exact query state
+  // both vice presidents in one clean sentence — the kind of pre-snipped,
+  // high-relevance material this repo's own P4/P23 philosophy already asks
+  // for, sitting unused.
+  //
+  // Tried first, and measured to fail live: one chunk PER result. All nine
+  // real snippets for this query score identically on retrieve()'s raw
+  // keyword-overlap (every one repeats "abraham"/"lincoln"/"vice"/
+  // "president"), so which THREE of nine happened to fill the turn's
+  // retrieval slots was an accident of DuckDuckGo's own result order and
+  // retrieve()'s tie-break — one real draw won two Hamlin-only snippets and
+  // a Johnson-only one, none of which alone states both names, even though
+  // three of the nine DID (one flatly: "Learn about Hannibal Hamlin and
+  // Andrew Johnson, the two men who served as vice presidents..."). Nine
+  // near-identical-scoring candidates competing for three slots is a
+  // coin flip on which FACTS survive, not a relevance signal.
+  //
+  // Fixed by combining every result's title+snippet into ONE chunk instead
+  // of nine competing ones — the complete-picture snippet is no longer
+  // racing partial ones for a scarce slot; whatever any single result
+  // states, correct or not, arrives together, in one place, exactly the
+  // way a person skimming a results page reads all of them, not just
+  // whichever one a length-blind scorer happened to rank first. Still tiny
+  // (a page of snippets, not a page of prose) and still honestly addressed
+  // as search-result text, distinct from `web:<host>-i` full-page chunks —
+  // a citation into one is never confused for the other. If this single
+  // digest turns out wrong or too thin, the exact same grounding ladder
+  // every other passage answers to still catches it; this adds one cheap,
+  // clean, COMPLETE candidate, it does not remove the fuller pages.
+  // Snippets only — a search result's TITLE is metadata, not prose, and
+  // measured live 2026-08-20 folding it into the same text referent
+  // discovery reads was its own real bug, not a fixed cost: web titles use
+  // "Topic | Section | Site" and "Topic - Site" conventions that book prose
+  // (this organ's original proving ground) essentially never does, and each
+  // one glued adjacent names into a spurious combined surface
+  // (extractSurfaces's own run-breaking punctuation set, fixed for `|` at
+  // the source the same day — eoreader6.1's surfaces.js — but a title's OWN
+  // separator vocabulary is open-ended by web convention: chasing every
+  // site's own title-punctuation style one character at a time is the exact
+  // "cannot be formatted to specific sites" trap this repo already refused
+  // for succession-box parsing, now aimed at a different kind of furniture.
+  // Dropping titles from the joined MATERIAL sidesteps the whole open class
+  // at once rather than enumerating it — the snippets alone already carry
+  // the facts this digest exists for.
+  const digest = (search.results ?? [])
+    .map((r) => r?.snippet?.trim())
+    .filter(Boolean)
+    .join("\n");
+  if (digest) chunks.push(...chunkSource("web:search-results", digest));
   for (const [i, r] of picks.entries()) {
     try {
       onStep?.(`reading ${hostOf(r.url)} (${i + 1} of ${picks.length})`);

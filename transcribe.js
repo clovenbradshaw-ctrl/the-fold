@@ -86,20 +86,36 @@ export function autoDownload(onProgress) {
 /**
  * Transcribe an audio Blob (mp3, wav, webm, etc.) to text.
  * Returns { text, duration }.
+ *
+ * Derived from ab/vendor/voice.js: the entire decoded mono is passed to
+ * asr() in one call. Whisper's own chunk_length_s / stride_length_s
+ * parameters handle internal chunking — the caller must NOT manually
+ * slice the audio, as isolated slices lose inter-chunk context and
+ * produce hallucinated repetitive output.
+ *
+ * When `onChunk` is provided, the pipeline still runs as a single asr()
+ * call (for accuracy), but fires onChunk with intermediate status updates
+ * so the UI can show progress.
  */
-export async function transcribeBlob(blob, { onProgress, lang = "en" } = {}) {
+export async function transcribeBlob(blob, { onProgress, onChunk, lang = "en" } = {}) {
   const mono = await decodeMono(blob);
   if (!mono.length) return { text: "", duration: 0 };
 
   const asr = await loadASR(onProgress);
+  const duration = mono.length / SR;
+
+  if (onChunk) onChunk("transcribing…");
+
   const out = await asr(mono, {
     chunk_length_s: 30,
     stride_length_s: 5,
     return_timestamps: false,
     language: lang === "es" ? "spanish" : "english",
   });
-  const duration = mono.length / SR;
-  return { text: String((out && out.text) || "").trim(), duration };
+
+  const text = String((out && out.text) || "").trim();
+  if (onChunk) onChunk(text);
+  return { text, duration };
 }
 
 /**

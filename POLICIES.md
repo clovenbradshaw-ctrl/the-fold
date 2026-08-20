@@ -3603,4 +3603,237 @@ of writing it here is that it now names two concrete, reproduced
 the-fold incidents (not just eoreader6.1's) a future session can grep for
 before building the third one.
 
+## P39 — A claim's identity is threaded through existing fields, never a new mechanism built to carry it
+
+**The law.** When a system needs one stable identity to follow a claim
+across several independently-built stages — an act, its backing edges, a
+computed verdict, a later concession — the identity itself (a content
+address, minted once) is new, but CARRYING it never is. Before adding a
+field, a parameter, or a whole new function to thread an identity through,
+check what already threads through the same path: an operator/grain pair
+is already free from picking a verb and a terrain; an attribution field
+(who backs this) already exists if anything upstream already answers "who
+vouches for this claim"; a payload extension point already exists if
+anything upstream already merges extra fields onto a projected view. A
+new cross-cutting concern is a reason to widen an existing carrier, almost
+never a reason to build a second one beside it.
+
+**What this closes.** The Per-Source Testimony spec (one coherent voice on
+the surface, unique per-source testimony underneath, derived not stored)
+names BUILD-0 as its own foundation: mint a claim_id once, thread it
+through the act, its edges, a grammar tag, the per-source verdict, the
+merge, and any concession — intra-pass identity only, no semantic
+canonicalization, the same disclosed scope `induceEntityKind` already
+carries elsewhere in this project's own cross-pocket work.
+
+**The incident this law is named for, same day, same session.** The first
+cut built `landCell(log, {claimId, domain, grain, operator, witness,
+payload})` — a new function, landing a new EVIDENCE entry, with its own
+validation. It compiled, it tested green, and it was deleted within the
+hour, because every one of its six fields already existed somewhere else
+in this exact file: `operator`/`grain` are free from picking a verb and a
+terrain in an ORDINARY act (`land()`'s own header, reconciliation 2:
+"terrain is medium-blind, past the engine's own domain lock" — the
+identical move one field over); `witness` (who is testifying) was
+answering the exact question `warrant:<giver>` already answers for
+`relate`'s unestablished edges, and `land()` already threads
+`event.warrant` onto the log; `payload` was reinventing `attachResult`'s
+own `extra` parameter, whose doc comment already states it merges onto
+the projected task via `projectTasks`' documented rule. The fix that
+shipped needed exactly ONE new wire: `land()` gained `claim_id:
+event.claim_id` in its already-enumerated field list, the same list
+`warrant`/`because` already sit in — a caller mints the id and sets it on
+the event object before calling `land()`; nothing else changes.
+`attachResult(log, taskId, result, {claim_id})` already worked with zero
+further grid.js change, since `extra` was already general.
+
+**What actually landed, tested, real.** `grid.js` gained three
+functions: `mintClaimId({subject, verb, object})` (async, Web Crypto
+SHA-256, the identical digest approach `builds.js::buildHash` already
+uses — a claim_id and a build's own hash read the same way on the
+record); the one-line `land()` change above; and `foldClaim(log,
+claimId, {domain, grain, at})`, a plain filter over `log.entries` reading
+whatever fields those entries already carry — never a schema this
+function invents or requires, and cursor-scrubbable exactly like
+`foldBuild(log, atSeq)` already is for code. `capacity-runner.js`'s
+`landAct` gained one optional `claimId` parameter (omitted →
+byte-identical to every call before this pass) and two new pure
+functions built on top: `perSourceReadings(grid, log, claimId)` (BUILD-1
+— one record per source that checked a claim, `{claim_id, who, read,
+revision, verdict, polarity, edges, grammar, corroboration, emitted_by}`)
+and `mergeTestimony(readings)` (BUILD-2 — pure, no model, no
+log-landing, the four spec-named cases: `AGREE`, `SINGLE`, `DISAGREE`,
+`UNDETERMINED`).
+
+**Two disclosed deviations from the spec's own sketch, found by reading
+real code rather than assumed.** (1) The spec's §2 types `who` as the
+SOURCE and `read` as which passage; `withExperiencer`'s existing,
+already-shipped convention uses `who` for the MECHANISM that computed the
+belief and `read` for the source/ground text — genuinely different
+questions, not a naming accident to paper over. `experiencer.js` keeps
+its own meaning unchanged; `perSourceReadings` maps spec-`who` from
+`experiencer.read`, spec-`read` from `judged.refs` (finer-grained than
+the whole source), and the mechanism identity lands on `emitted_by`, the
+spec's own named slot for exactly this. (2) The spec types
+`corroboration` as a bare `int`; `hypergraph.js`'s `judge()` already
+computes the richer `{passages, sources}` — distinct sources counted
+apart from raw passage count, this repo's own standing P12/P29 rule ("two
+chunks of one file are one perspective"). Kept richer rather than
+collapsed to match the spec's own placeholder type; `null` (not a fake
+zero) when a claim never reaches corroboration at all.
+
+**A disclosed fifth case the spec's own four-case enumeration misses.**
+AGREE is written as "≥2 testimonies, all HOLDS" — literally, not "all
+agree." A claim every determining source REFUSES (unanimous
+contradiction, zero holds) is real, confident, and un-covered by any of
+the spec's own four names — not the same as UNDETERMINED (silence) or
+DISAGREE (a genuine split). Named `CONTRADICTED`, reusing the exact word
+`hypergraph.js`'s own per-edge vocabulary already has for this, rather
+than inventing a new term or silently filing it under UNDETERMINED and
+losing the fact that something real WAS determined, just negatively.
+
+**Measured, every case from a real testimony set through the real
+pipeline, not synthesized reading objects — including a real, reproduced
+extractor limit found building the DISAGREE fixture.** A first cut of
+the opposed-polarity fixture ("Lincoln never appointed Hamlin. Someone
+else got the job.") computed `undetermined`, not `refused` — not a
+negation-detection failure, but the SAME L2 rule this file's own P38
+entry already names, freshly reproduced: "Lincoln" appeared only
+sentence-initially in a 2-sentence text and never cleared the referent
+bar. Fixed the fixture (not the claim) by adding a third sentence putting
+"Lincoln" outside sentence-initial position, exactly matching this file's
+own already-proven `LINCOLN_TEXT` fixture shape — and confirmed the
+correction, not just retried a phrasing until something happened to
+pass. `grid.test.mjs`: 58/58. `capacity-runner.test.mjs`: 45/45,
+including one case per named outcome (AGREE, SINGLE, DISAGREE,
+CONTRADICTED, UNDETERMINED) plus an empty-set edge case. Full suite:
+1044/1044, zero regressions.
+
+**Named, not built this pass — real, scoped, disclosed next work.**
+BUILD-3 (grammar-lens tagged at hypergraph EXTRACTION time rather than
+`capacity-runner.js`'s current post-hoc `checkConnectorClass`, plus a
+named-giver declaration for the UD treebank `grammar-lens.js` already
+depends on but has never formally attributed) and BUILD-4 (the crown
+render — a template-only, model-free renderer over `mergeTestimony`'s
+own output, with a real, testable exactly-1 token-trace-coverage veto;
+inspired by, never ported from, a frozen eoreader5 legacy reference —
+Constitution I.2's re-earning discipline, not a copy) were both, as of
+this writing, in flight as separate, non-file-overlapping passes. BUILD-5
+(a `huntUndetermined` web result entering the SAME merge as one more
+witness, `who: web:<url>@<date>`) and the model's own bare, unprompted
+assertion entering as ITS OWN witness (`who: self:model` or similar,
+almost certainly barred from ever counting toward AGREE's corroboration —
+the sharper, generalized restatement of this file's own "Echo vs novel"
+entry: nothing a model says is truly ungrounded, it is grounded in
+itself, and that is a witness this system should name and weigh
+honestly rather than exempt into a separate bucket) are named, real, and
+not yet started.
+
 Full suite after both fixes: the-fold 1018/1018.
+
+**Amended 2026-08-20 — BUILD-4 landed (`crown.js`, the render — its own
+files, own doc comments) exactly as scoped above, plus a direct,
+mid-task user instruction that resolved the self:model question this
+policy had only named: not a special "ungrounded" exception, but
+TESTIMONY FROM A WITNESS whose read is its own weights — `SELF_WITNESS =
+"self:model"` and `isSelfWitness` landed in `capacity-runner.js`,
+`mergeTestimony` amended so a self-witness never co-signs AGREE's
+corroboration count alone (DISAGREE's own condition untouched — a
+self-witness genuinely opposed by a real refusal still disagrees, on
+the record, never silently resolved toward CONTRADICTED), and
+`crown.js`'s render functions never special-case it — they print
+whatever `who` string a reading carries, verbatim, so a self-witness
+sitting next to a real source name in a DISAGREE render is itself the
+disclosure. Both amendments are backward compatible by construction:
+byte-identical output whenever no reading's `who` is `SELF_WITNESS`.
+
+**The other half — the construction — is now also real and tested, not
+wired to any real caller.** Before this, EVERY test exercising a
+self:model reading (`capacity-runner.test.mjs`, `crown.test.mjs`)
+hand-built one — the mechanism was proven reachable in principle, never
+actually producible. `capacity-runner.js` gained `landSelfAssertion(grid,
+log, {subject, verb, object, verdict, claimId})`, the missing
+construction, deliberately NOT built on `landAct`'s `evaluate` branch:
+`evaluate`'s own grammar refuses at parse time without a named `ground …
+broken:<perturbation>` (correctly, for a real check), and a self-assertion
+has no ground by definition. `define` is grid.js's own already-documented
+exception (no refusal fires at parse for a missing companion evaluate,
+because defining is the act of putting a claim forward, not checking
+one) — the correct EO-typing for an assertion with nothing behind it but
+the asserter. `landSelfAssertion` lands a DEF act (through the unchanged
+`grid.parseAct`/`grid.land`, the same `at Field from generate`
+terrain+stance this file's own P22 entry already uses for a worked
+`define` example) and attaches a RESULT to it directly, shaped —
+proven by test — to be field-for-field indistinguishable from what
+`perSourceReadings` already knows how to project. **`perSourceReadings`
+and `mergeTestimony` needed ZERO further changes**: this pass's own
+earlier amendment already treated `who === SELF_WITNESS` as ordinary
+data on an ordinary RESULT cell, not a case requiring its own lookup
+path, and that bet paid off exactly as designed.
+
+**Deliberately deferred: no real call site.** `app.js` and `holon.js`
+are named, twice, in this file's own CLAUDE.md map (the Explore section's
+"Shared-file ownership (multi-session)" list, and independently in
+`experiencer.js`'s own header, written the same week) as belonging to
+the fold-architecture session's contract — and `app.js` was found,
+mid-task, carrying live, unrelated, uncommitted work (an audio-
+transcription feature, landed minutes before this pass began) that this
+pass's own edits would have sat beside with no coordination. This is the
+same posture P20's own residue already states for `provenance.js`
+("actively mid-edit by a concurrent session... folding it in here would
+have compounded that collision rather than avoided it") and the same one
+HL's own map entry states for the same two files ("the tree was mid-edit
+by a concurrent session across app.js/grid.js/term.js when this
+landed"). Rather than guess at a call site inside a file this pass does
+not own, the real, tested primitive ships alone, with an integration
+note — `self-witness-integration-note.md`, this repo's own sibling to
+`chip-coverage-note.md` — naming exactly where the trigger condition
+already sits (`holon.js`'s `inspect()`, its no-material branch,
+`holon.js:994-1000`) and the one real design nuance found while reading
+that code rather than guessed at: the (subject, verb, object) triple a
+caller should mint from is NOT `extractCheckableAtoms`'s atom-shaped
+findings (`holon.js:998`, candidates for proof-seeking, not a triple
+shape) — it is `relations.read(text)`'s own real edges
+(`holon.js:1028`, `hypergraph.js`'s SVO extraction run against the
+model's OWN drafted text), specifically the ones that come back
+`beyond-reach`/`unheard` for lack of any material to bind against, since
+those are exactly "the model asserted real structure and nothing was
+there to check it against." Full detail, including the disclosed open
+question the integration note does NOT resolve (how the owning session
+should decide `holds` vs `refused` per edge, and whether every such edge
+should mint a claim or only some), is in that note.
+
+**Measured, real, tested.** `capacity-runner.js` gained one function
+(`landSelfAssertion`, ~55 lines including its own doc comment) and no
+other file was touched. `capacity-runner.test.mjs` gained 8 cases: a
+real "holds"/"refused"/"undetermined" landing each proven, field for
+field, against this file's own pre-existing hand-built `selfModelReading()`
+fixture (the exact fixture every self-witness test in both
+`capacity-runner.test.mjs` and `crown.test.mjs` already relies on);
+three typed-refusal cases (`no_claim`, `unknown_verdict`, `no_claim_id`)
+— never a silent no-op; one true end-to-end case landing a real material
+hold AND a real `landSelfAssertion` hold on the SAME log and confirming
+`mergeTestimony` reaches SINGLE, not AGREE, exactly as the self-witness
+amendment above requires, with no hand-built object anywhere in the
+chain; and one non-interference case confirming a self-assertion landed
+under one claim_id does not disturb a different claim_id already on the
+same shared log. `capacity-runner.test.mjs`: 55/55 before this pass'
+own edit, 63/63 after — the +8 delta is exactly the 8 new cases, zero
+regressions. `crown.test.mjs`: 26/26 before and after, untouched, as
+expected (`crown.js` needed no change — the whole point of BUILD-4's own
+`who`-is-just-a-string design). Full suite: 1086/1086 at this pass' own
+start, 1099/1099 after — disclosed honestly rather than claimed as a
+clean +13: a concurrent session modified `serve.mjs` and added new
+`eval/` files WHILE this pass ran (confirmed live via `git status`
+between two full-suite runs), so only +8 of that delta is this pass'
+own; the remainder is unrelated, in-flight, concurrent work this pass
+did not audit and makes no claim about. `git stash` was tried first to
+isolate the count precisely and abandoned mid-attempt when it proved the
+wrong tool here — `capacity-runner.js` already carried BUILD-4's own
+uncommitted `SELF_WITNESS`/`mergeTestimony` amendment before this pass
+began, so stashing this pass' own edit reverted straight to the last
+COMMIT, not to "BUILD-4 before this pass" — which broke `crown.test.mjs`
+(it imports `SELF_WITNESS`, which the stashed-to state no longer
+exported) for the several seconds between the stash and its immediate
+pop. Named here rather than silently smoothed over, in the same spirit
+this file's own P5.5 already holds every other surprising result to.

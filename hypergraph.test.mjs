@@ -235,6 +235,231 @@ test("a claim read from an ANSWER whose connector is not grammatically a verb is
   assert.notEqual(visitedClaim.verdict, "beyond-reach");
 });
 
+// ── connectorClass — grammar-lens.js's own classification, at EXTRACTION
+// TIME (Per-Source Testimony spec, BUILD-3), the same posture `assertion`
+// and `grammar` (above) already hold. `classifyWord`/`dominantClass` are
+// the SAME organs grammar-lens.js's own tests inject; `always: {ADV: 102}`
+// is the SAME real UD_English-EWT count grammar-lens.test.mjs and
+// capacity-runner.test.mjs already use for this exact word — not a fresh
+// number, and this file's own established `visited: {VERB: 17}` (the
+// GRAMMAR_PRIOR fixture, just above) supplies the genuine-verb control.
+
+const CONNECTOR_POS_PRIOR = { schema: "POSPrior@1", forms: { always: { ADV: 102 }, visited: { VERB: 17 } } };
+// The same "ordinary majority, declared before any example is checked"
+// floor grammar-lens.test.mjs's own MIN_SHARE already uses.
+const CONNECTOR_MIN_SHARE = 0.5;
+const CONNECTOR_PASSAGES = [
+  {
+    ref: "connector.txt#0-200",
+    text: "Lincoln always favored union. Johnson always favored union. Hamlin visited Lincoln often. Johnson visited Lincoln rarely.",
+  },
+];
+const CONNECTOR_POOL = [
+  ...CONNECTOR_PASSAGES,
+  ...FILLER.split(". ").map((s, i) => ({ ref: `filler6.txt#${i * 100}-${i * 100 + 99}`, text: s + "." })),
+];
+
+test("classifyConnector/minShare omitted: no edge carries connectorClass at all — byte-identical to before this organ pair existed", async () => {
+  const reader = makeRelationReader(await organs())(CONNECTOR_PASSAGES, { pool: CONNECTOR_POOL });
+  const alwaysEdge = reader.edges.find((e) => e.verb === "always");
+  assert.ok(alwaysEdge, JSON.stringify(reader.edges, null, 2));
+  assert.equal("connectorClass" in alwaysEdge, false, "no key at all — not even null — the same posture assertion holds when its organ is omitted");
+});
+
+test("classifyConnector supplied without minShare throws — dominantClass's own never-defaulted contract, not a silent default here either", async () => {
+  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { classifyWord, dominantClass } = await import("../eoreader6.1/packages/engine/perceiver/text/wordclass.js");
+  const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
+  const builtOrgans = { ...(await organs()), classifyConnector };
+  assert.throws(() => makeRelationReader(builtOrgans), /minShare is declared alongside classifyConnector/);
+});
+
+test("an edge's connectorClass, tagged at extraction time, matches exactly what classifyConnector says directly — a real non-verb and a real verb, same reader", async () => {
+  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { classifyWord, dominantClass } = await import("../eoreader6.1/packages/engine/perceiver/text/wordclass.js");
+  const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
+  const reader = makeRelationReader({ ...(await organs()), classifyConnector, minShare: CONNECTOR_MIN_SHARE })(
+    CONNECTOR_PASSAGES,
+    { pool: CONNECTOR_POOL },
+  );
+
+  const alwaysEdge = reader.edges.find((e) => e.verb === "always");
+  assert.ok(alwaysEdge, JSON.stringify(reader.edges, null, 2));
+  assert.equal(alwaysEdge.connectorClass.thraxClass, "adverb");
+  assert.equal(alwaysEdge.connectorClass.settled, true);
+  // The extraction-time tag and a fresh direct call must never disagree —
+  // one classifier, one answer, read twice.
+  assert.deepEqual(alwaysEdge.connectorClass, classifyConnector(alwaysEdge, { minShare: CONNECTOR_MIN_SHARE }));
+
+  const visitedEdge = reader.edges.find((e) => e.verb === "visited");
+  assert.equal(visitedEdge.connectorClass.thraxClass, "verb");
+  assert.deepEqual(visitedEdge.connectorClass, classifyConnector(visitedEdge, { minShare: CONNECTOR_MIN_SHARE }));
+
+  // Never confused with the SIBLING `grammar` field (posPriorFor's own
+  // vocabulary-level check) — omitted here, so it stays null even while
+  // connectorClass is fully populated, proving the two fields are
+  // independently wired, not aliases of one another.
+  assert.equal(alwaysEdge.grammar, null);
+});
+
+test("connectorClass forwards the giver when injected, and stays null when it isn't — grammar-lens.js's own BUILD-3 fix, visible through hypergraph.js", async () => {
+  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } = await import(
+    "../eoreader6.1/packages/engine/perceiver/text/wordclass.js"
+  );
+
+  const withoutGivers = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
+  const readerWithout = makeRelationReader({ ...(await organs()), classifyConnector: withoutGivers, minShare: CONNECTOR_MIN_SHARE })(
+    CONNECTOR_PASSAGES,
+    { pool: CONNECTOR_POOL },
+  );
+  assert.equal(readerWithout.edges.find((e) => e.verb === "always").connectorClass.givers, null);
+
+  const withGivers = makeGrammarLens({
+    classifyWord,
+    dominantClass,
+    posPrior: CONNECTOR_POS_PRIOR,
+    posPriorMeta: POS_PRIOR_META,
+    thraxMeta: THRAX_META,
+  });
+  const readerWith = makeRelationReader({ ...(await organs()), classifyConnector: withGivers, minShare: CONNECTOR_MIN_SHARE })(
+    CONNECTOR_PASSAGES,
+    { pool: CONNECTOR_POOL },
+  );
+  const givers = readerWith.edges.find((e) => e.verb === "always").connectorClass.givers;
+  assert.match(givers.measured.giver, /Universal Dependencies/);
+  assert.match(givers.declared.giver, /Dionysius Thrax/);
+});
+
+// ── the referent bar: a sentence-initial-only name, confirmed by a real
+// pronoun binding (this file's own "the referent bar" section, above
+// makeRelationReader, has the full mechanism and the disclosed cold-start
+// limit). `thirdPersonSingular` is priors.js's own THIRD_PERSON_SINGULAR —
+// the SAME closed class resolvePronouns already trusts internally, not a
+// hand-typed list. Ten filler sentences precede the naming sentence in
+// every fixture below on purpose: this is not padding for its own sake,
+// it is the passage's own activation cold-start window (this section's
+// own header quantifies it) — a naming sentence AT frame 0 is proven,
+// separately, below, to still stay honestly undetermined.
+
+const REFERENT_BAR_FILLER = [
+  "The river moved slowly past the old mill.",
+  "Farmers gathered grain before the coming storm.",
+  "Merchants counted coins beneath the lantern light.",
+  "Travelers rested beside the dusty crossroads.",
+  "Children played games along the garden wall.",
+  "Bakers opened their shops before sunrise daily.",
+  "Soldiers marched quietly through the sleeping village.",
+  "Sailors mended nets along the rocky shoreline.",
+  "Weavers worked their looms beside the window.",
+  "Blacksmiths hammered iron beside the roaring forge.",
+].join(" ");
+
+async function referentBarOrgans() {
+  const base = await organs();
+  const { THIRD_PERSON_SINGULAR } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
+  const { extractLeadingSurfaces } = await import("../eoreader6.1/packages/engine/perceiver/text/surfaces.js");
+  const { resolvePronouns } = await import("../eoreader6.1/packages/engine/perceiver/text/pronouns.js");
+  return { ...base, thirdPersonSingular: THIRD_PERSON_SINGULAR, extractLeadingSurfaces, resolvePronouns };
+}
+
+test("the referent bar: extractLeadingSurfaces/resolvePronouns/thirdPersonSingular all omitted — no edge, no claim, no vocabulary change at all, byte-identical to before this mechanism existed", async () => {
+  const text =
+    REFERENT_BAR_FILLER +
+    " Lincoln once defended a client near the old courthouse steps. " +
+    "He studied law books late into evening hours. He traveled long distances between small towns. " +
+    "He visited the courthouse again on a rainy morning. He remembered the courthouse fondly for many years.";
+  const PASSAGES_RB = [{ ref: "wp.txt#0-900", text }];
+  const reader = makeRelationReader(await organs())(PASSAGES_RB, { pool: PASSAGES_RB });
+  assert.equal(reader.vocabulary.verbs, 0, "no organ injected — the pre-existing L2 gap stands exactly as it always did");
+  assert.deepEqual(reader.read("Lincoln once defended a client near the old courthouse steps.").claims, []);
+});
+
+test("the referent bar: a sentence-initial-only name IS confirmed once a real pronoun binding resolves to it, past the passage's own cold-start window — real edge, real bound claim", async () => {
+  const text =
+    REFERENT_BAR_FILLER +
+    " Lincoln once defended a client near the old courthouse steps. " +
+    "He studied law books late into evening hours. He traveled long distances between small towns. " +
+    "He wrote careful letters to distant colleagues. He listened patiently to troubled clients. " +
+    "He argued firmly before stern county judges. He walked slowly along the river path. " +
+    "He visited the courthouse again on a rainy morning. " +
+    "He remembered the courthouse fondly for many years.";
+  const PASSAGES_RB = [{ ref: "wp.txt#0-900", text }];
+  const organsRB = await referentBarOrgans();
+
+  // Confirm the defect is real BEFORE confirming the fix, the same
+  // discipline the connector-class tests above already hold to.
+  const without = makeRelationReader(await organs())(PASSAGES_RB, { pool: PASSAGES_RB });
+  assert.equal(without.vocabulary.verbs, 0, "the bar must genuinely block this claim for the fix to mean anything");
+  assert.deepEqual(without.read("Lincoln once defended a client near the old courthouse steps.").claims, []);
+
+  const withFix = makeRelationReader(organsRB)(PASSAGES_RB, { pool: PASSAGES_RB });
+  assert.ok(withFix.vocabulary.verbs > 0, JSON.stringify(withFix.vocabulary));
+  const lincolnEdge = withFix.edges.find((e) => e.subject === "Lincoln");
+  assert.ok(lincolnEdge, JSON.stringify(withFix.edges));
+  const claims = withFix.read("Lincoln once defended a client near the old courthouse steps.").claims;
+  const claim = claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, JSON.stringify(claims));
+  assert.equal(claim.verdict, "bound");
+  assert.ok(claim.refs.includes("wp.txt#0-900"));
+});
+
+test("the referent bar CONTROL: a genuinely coincidental sentence-initial capitalization is NEVER confirmed — even in a passage rich with real pronoun activity pointing at someone else", async () => {
+  // "Spring" opens a sentence, coincidentally capitalized (a season, not a
+  // person), never repeated. "Bennett" is a REAL established referent
+  // (named repeatedly, non-initially) the "He" sentences actually
+  // describe. If this mechanism is safe, "Spring" must never be confirmed,
+  // however many "He" sentences exist elsewhere in the same passage.
+  const text =
+    REFERENT_BAR_FILLER +
+    " Spring arrived early that particular year in the valley. " +
+    "Bennett studied law books late into evening hours near the courthouse. Bennett traveled long distances between small towns. " +
+    "He wrote careful letters to distant colleagues near the courthouse. He listened patiently to troubled clients. " +
+    "He argued firmly before stern county judges. He walked slowly along the river path near the courthouse. " +
+    "He visited the courthouse again on a rainy morning. " +
+    "He remembered the courthouse fondly for many years.";
+  const PASSAGES_RB = [{ ref: "wp.txt#0-900", text }];
+  const organsRB = await referentBarOrgans();
+  const reader = makeRelationReader(organsRB)(PASSAGES_RB, { pool: PASSAGES_RB });
+
+  // The real referent still binds normally — this mechanism adds a
+  // candidate, it never subtracts one.
+  const bennettClaim = reader.read("Bennett studied law books late into evening hours near the courthouse.").claims.find((c) => c.subject === "Bennett");
+  assert.ok(bennettClaim, "Bennett is a real, ordinarily-established referent and must still bind");
+  assert.equal(bennettClaim.verdict, "bound");
+
+  // The spurious claim — Bennett's own real actions, misattributed to
+  // "Spring" — must never bind. No edge, no bound/contradicted claim.
+  assert.equal(reader.edges.some((e) => e.subject === "Spring"), false, JSON.stringify(reader.edges.map((e) => e.subject)));
+  const spuriousReport = reader.read("Spring visited the courthouse again on a rainy morning.");
+  assert.deepEqual(spuriousReport.claims.filter((c) => c.verdict === "bound" || c.verdict === "contradicted"), []);
+});
+
+test("the referent bar: the EXACT originally-reported 2-sentence specimen (no pronoun anywhere) stays honestly undetermined — there is nothing to confirm, and this mechanism must not invent evidence", async () => {
+  const text = "Lincoln never appointed Hamlin. Someone else got the job.";
+  const PASSAGES_RB = [{ ref: "a.txt#0-60", text }];
+  const organsRB = await referentBarOrgans();
+  const reader = makeRelationReader(organsRB)(PASSAGES_RB, { pool: PASSAGES_RB });
+  assert.equal(reader.vocabulary.verbs, 0, "no pronoun anywhere in this specimen — nothing for the confirmation mechanism to find, exactly as before this pass");
+  assert.deepEqual(reader.read("Lincoln never appointed Hamlin.").claims, []);
+});
+
+test("the referent bar: DISCLOSED LIMIT, pinned — a classic single-paragraph lede (the name opens the passage's own FIRST sentence, frame 0) still stays undetermined; this mechanism does not yet reach the cold-start case, see this file's own header for the measured mechanism", async () => {
+  const text =
+    "Lincoln served as a lawyer before entering politics permanently. He argued cases before local judges. " +
+    "He built a strong reputation for careful work. He entered politics after years of practice. " +
+    "He was elected to represent his district. He served with distinction for several terms.";
+  const PASSAGES_RB = [{ ref: "b.txt#0-300", text }];
+  const organsRB = await referentBarOrgans();
+  const reader = makeRelationReader(organsRB)(PASSAGES_RB, { pool: PASSAGES_RB });
+  assert.equal(
+    reader.vocabulary.verbs,
+    0,
+    "if this ever starts passing, it means activation.js's own cold-start behavior changed — investigate, don't just update the assertion",
+  );
+  assert.deepEqual(reader.read("Lincoln served as a lawyer before entering politics permanently.").claims, []);
+});
+
 // ── querying the whole graph directly (added 2026-08-19, user direction:
 // "can we now mechanically query the entire hypergraph") — pure, offline,
 // no engine organs: report.edges is already plain data by the time it

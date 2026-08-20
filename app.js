@@ -90,15 +90,19 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxe
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
-import { makeCapacityRunner, landAct } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "./capacity-runner.js";
+import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
+import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
 import { classifySentences } from "./provenance.js";
 
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
+
+import { persistSource, unpersistSource, loadSources } from "./sources-store.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -316,6 +320,24 @@ const relationsFor = makeRelationReader({
   // the full reasoning (READING-POLICY P7.2) and the corpus.js-sourced
   // operating point.
   resolvePronouns,
+  // NOT wired here, on purpose, disclosed rather than silently absent: the
+  // referent-bar mechanism (hypergraph.js's own "the referent bar" section
+  // — a sentence-initial-only name provisionally admitted, then CONFIRMED
+  // by a real pronoun binding) needs two more organs,
+  // `extractLeadingSurfaces` (surfaces.js) and `thirdPersonSingular`
+  // (priors.js's own THIRD_PERSON_SINGULAR) — both cheap, local, no
+  // corpus to ship. Proven correct on real specimens (hypergraph.test.mjs:
+  // a genuine confirmation, a control proving no false positive, the
+  // exact originally-reported specimen still honestly undetermined) and
+  // proven SAFE (the control case), but new enough — and its own disclosed
+  // cold-start limit real enough (activation.js's own IDF formula cannot
+  // yet recall a passage's own first several sentences, so the single most
+  // common shape of this problem, a name opening a passage's very first
+  // sentence, is not yet reached by it) — that turning it on for real user
+  // traffic is a separate, deliberate decision this pass does not make,
+  // mirroring the identical posture `classifyConnector`/`minShare`
+  // (grammar-lens.js, two organs up in this file's own history) already
+  // holds for the same reason.
 });
 
 // One meter per conversation, built on the engine's own tiers. reflex.js
@@ -512,6 +534,13 @@ const state = {
    * admitSkill) is unbuilt — named future work, not implied here.
    */
   skillLog: createSkillLog(),
+  /**
+   * Binary material (audio, video, images, PDFs). Not chunked, not
+   * retrieved — the mute is a retrieval concept and bytes are never
+   * retrieved. The one consumer is /measure. Stored as {blob, kind, url}
+   * where url is a revoke-able Object URL.
+   */
+  media: {},
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -1184,15 +1213,139 @@ async function transcribeTurn(typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
+  const foldBox = node.querySelector(".turn-meta > .fold");
   logAct("asked", { text: typed });
 
-  // No argument: open a file picker for local audio.
+  // Build the streaming fold UI — three layers, each a collapsible section.
+  body.innerHTML = "";
+  const statusP = document.createElement("p");
+  statusP.className = "prose";
+  statusP.textContent = "initializing transcription…";
+  body.append(statusP);
+  const foldP = foldBox?.querySelector("p");
+  if (foldP) {
+    foldP.textContent = "";
+    const layerRaw = document.createElement("details");
+    layerRaw.className = "fold";
+    layerRaw.innerHTML = `<summary>layer 1 · raw whisper</summary><p class="t-layer-text"></p>`;
+    const layerPriors = document.createElement("details");
+    layerPriors.className = "fold";
+    layerPriors.innerHTML = `<summary>layer 2 · priors-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+    const layerSelf = document.createElement("details");
+    layerSelf.className = "fold";
+    layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+    foldP.append(layerRaw, layerPriors, layerSelf);
+  }
+  const rawText = foldP?.querySelector("details:nth-child(1) .t-layer-text");
+  const priorsText = foldP?.querySelector("details:nth-child(2) .t-layer-text");
+  const priorsStatus = foldP?.querySelector("details:nth-child(2) .t-layer-status");
+  const selfText = foldP?.querySelector("details:nth-child(3) .t-layer-text");
+  const selfStatus = foldP?.querySelector("details:nth-child(3) .t-layer-status");
+
+function setLayerText(el, text) { if (el) el.textContent = text; }
+function setLayerStatus(el, s) { if (el) el.textContent = s; }
+
+// Layer 2: priors-coref — extract surfaces from transcription, search enabled
+// priors docs for those surfaces, use namesCorefer to confirm identity, and
+// return an enriched surface→referent map Layer 3 can use for pronoun binding.
+async function priorsCoref(text) {
+  const surfaces = extractSurfaces(text);
+  const surfaceNames = surfaces.map((s) => s.surface).filter(Boolean);
+  if (!surfaceNames.length) return { text, surfaceMap: new Map(), note: "no surfaces extracted" };
+  let matches;
+  try {
+    const resp = await fetch("/api/priors/surfaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surfaces: surfaceNames }),
+    });
+    if (!resp.ok) return { text, surfaceMap: new Map(), note: `priors search failed ${resp.status}` };
+    ({ matches } = await resp.json());
+  } catch { return { text, surfaceMap: new Map(), note: "priors search failed (network)" }; }
+  if (!matches?.length) return { text, surfaceMap: new Map(), note: "no priors matches" };
+
+  // Build a referent index from priors passages and confirm identity with
+  // namesCorefer — the engine's own containment/surname matching.
+  const allPriorsSurfaces = [];
+  for (const m of matches) {
+    for (const p of m.passages) {
+      const ps = extractSurfaces(p.passage);
+      allPriorsSurfaces.push(...ps);
+    }
+  }
+  const priorsReferents = discoverReferents(allPriorsSurfaces);
+  const surfaceMap = new Map();
+  let confirmed = 0;
+  for (const m of matches) {
+    const transcriptionSurface = m.surface;
+    const matchingReferent = surfaces.find((s) => s.surface === transcriptionSurface);
+    if (!matchingReferent) continue;
+    for (const p of m.passages) {
+      const ps = extractSurfaces(p.passage);
+      for (const pp of ps) {
+        if (namesCorefer(matchingReferent, pp)) {
+          if (!surfaceMap.has(transcriptionSurface)) surfaceMap.set(transcriptionSurface, []);
+          surfaceMap.get(transcriptionSurface).push({ surface: pp.surface, passage: p.passage, path: p.path });
+          confirmed++;
+        }
+      }
+    }
+  }
+  return { text, surfaceMap, note: `${confirmed} priors corefs from ${matches.length} surface matches`, matches, confirmed };
+}
+
+// Layer 3: self-coref with priors enrichment. Mirrors resolvePronounSubjects
+// but merges priors-discovered surfaces into the referent map so pronouns
+// have more entities to bind against.
+function resolvePronounsWithPriors(text, priorsSurfaceMap) {
+  if (!text?.trim()) return text;
+  let sentences, discovery;
+  try {
+    sentences = splitSentences(text);
+    const surfaces = extractSurfaces(sentences, {});
+    discovery = discoverReferents(surfaces, {});
+  } catch { return text; }
+  if (!sentences.length || !discovery?.events?.length) return text;
+  const surfaceToReferent = new Map(discovery.events.map((e) => [e.surface, e.referent_id]));
+  // Merge priors surfaces: for each transcription surface that matched in
+  // priors, add the priors surface as an alias for the same referent.
+  if (priorsSurfaceMap?.size) {
+    for (const [txSurface, priorsEntries] of priorsSurfaceMap) {
+      const referentId = surfaceToReferent.get(txSurface);
+      if (!referentId) continue;
+      for (const entry of priorsEntries) {
+        if (!surfaceToReferent.has(entry.surface)) surfaceToReferent.set(entry.surface, referentId);
+      }
+    }
+  }
+  const bestSurface = new Map();
+  for (const [surface, referentId] of surfaceToReferent) {
+    const prev = bestSurface.get(referentId);
+    if (!prev || surface.length > prev.length) bestSurface.set(referentId, surface);
+  }
+  let resolved;
+  try {
+    resolved = resolvePronouns(sentences, surfaceToReferent, {
+      minActivation: 0.05,
+      minMargin: 0.2,
+    });
+  } catch { return text; }
+  if (!resolved?.bindings?.length) return text;
+  const ordered = [...resolved.bindings].sort((a, b) => b.offset - a.offset);
+  let out = text;
+  for (const b of ordered) {
+    const name = bestSurface.get(b.referentId);
+    if (!name) continue;
+    const end = b.offset + b.pronoun.length;
+    if (out.slice(b.offset, end).toLowerCase() !== b.pronoun.toLowerCase()) continue;
+    out = out.slice(0, b.offset) + name + out.slice(end);
+  }
+  return out;
+}
+
+  // ── file picker path ──────────────────────────────────────────────────
   if (!arg) {
-    body.innerHTML = "";
-    const p = document.createElement("p");
-    p.className = "prose";
-    p.textContent = "opening file picker for audio…";
-    body.append(p);
+    statusP.textContent = "opening file picker for audio…";
     $("status").textContent = "waiting for audio file…";
 
     try {
@@ -1203,22 +1356,39 @@ async function transcribeTurn(typed) {
         releaseBusy();
         return;
       }
-      body.textContent = "transcribing with Whisper…";
+      statusP.textContent = "transcribing with Whisper…";
       $("status").textContent = "transcribing…";
       const { text, duration } = await transcribeBlob(blob, {
         onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
+        onChunk: (partial) => { setLayerText(rawText, partial); },
       });
+
+      // Layer 1 done — log raw.
+      setLayerText(rawText, text);
+      await logTranscriptionLayer("raw", text, { source: "file", duration });
+
+      // Layer 2: priors-coref — connect entities to the priors corpus first.
+      setLayerStatus(priorsStatus, "resolving…");
+      const priorsResult = await priorsCoref(text);
+      setLayerText(priorsText, priorsResult.note);
+      setLayerStatus(priorsStatus, priorsResult.confirmed ? `confirmed ${priorsResult.confirmed}` : priorsResult.note);
+      await logTranscriptionLayer("priors", priorsResult.note, { source: "file", duration, matches: priorsResult.matches?.length ?? 0, confirmed: priorsResult.confirmed ?? 0 });
+
+      // Layer 3: self-coref — resolve pronouns against enriched entity set.
+      setLayerStatus(selfStatus, "resolving…");
+      const selfResolved = resolvePronounsWithPriors(priorsResult.text, priorsResult.surfaceMap);
+      setLayerText(selfText, selfResolved);
+      setLayerStatus(selfStatus, selfResolved !== priorsResult.text ? "resolved" : "no bindings");
+      await logTranscriptionLayer("self", selfResolved, { source: "file", duration, changed: selfResolved !== priorsResult.text });
+
+      // Attach as material and finish.
       const name = `transcription-${Date.now()}.txt`;
       addSource(name, text);
-      body.innerHTML = "";
-      const pp = document.createElement("p");
-      pp.className = "prose";
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
-      pp.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} of audio → attached as "${name}" (${text.length.toLocaleString()} chars)`;
-      body.append(pp);
+      statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
       mirrorTermRecord("transcribe", { source: "file", duration, chars: text.length, via: "chat" });
-      logAct("recorded", { where: "transcribe", source: "file" });
+      logAct("recorded", { where: "transcribe", source: "file", layers: 3 });
       const historyNote = `transcribed audio file (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
       state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
       const turn = state.summary.turnCount + 1;
@@ -1236,32 +1406,45 @@ async function transcribeTurn(typed) {
     return;
   }
 
-  // Argument provided: treat it as a URL to fetch and transcribe.
-  body.innerHTML = "";
-  const p = document.createElement("p");
-  p.className = "prose";
-  p.textContent = `fetching audio from ${arg.slice(0, 80)}…`;
-  body.append(p);
+  // ── URL path ──────────────────────────────────────────────────────────
+  statusP.textContent = `fetching audio from ${arg.slice(0, 80)}…`;
   $("status").textContent = "fetching audio…";
 
   try {
     const { blob, title } = await fetchAudioFromUrl(arg);
-    body.textContent = "transcribing with Whisper…";
+    statusP.textContent = "transcribing with Whisper…";
     $("status").textContent = "transcribing…";
     const { text, duration } = await transcribeBlob(blob, {
       onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
+      onChunk: (partial) => { setLayerText(rawText, partial); },
     });
+
+    // Layer 1 done — log raw.
+    setLayerText(rawText, text);
+    await logTranscriptionLayer("raw", text, { source: "youtube", url: arg, title, duration });
+
+    // Layer 2: priors-coref — connect entities to the priors corpus first.
+    setLayerStatus(priorsStatus, "resolving…");
+    const priorsResult = await priorsCoref(text);
+    setLayerText(priorsText, priorsResult.note);
+    setLayerStatus(priorsStatus, priorsResult.confirmed ? `confirmed ${priorsResult.confirmed}` : priorsResult.note);
+    await logTranscriptionLayer("priors", priorsResult.note, { source: "youtube", title, duration, matches: priorsResult.matches?.length ?? 0, confirmed: priorsResult.confirmed ?? 0 });
+
+    // Layer 3: self-coref — resolve pronouns against enriched entity set.
+    setLayerStatus(selfStatus, "resolving…");
+    const selfResolved = resolvePronounsWithPriors(priorsResult.text, priorsResult.surfaceMap);
+    setLayerText(selfText, selfResolved);
+    setLayerStatus(selfStatus, selfResolved !== priorsResult.text ? "resolved" : "no bindings");
+    await logTranscriptionLayer("self", selfResolved, { source: "youtube", title, duration, changed: selfResolved !== priorsResult.text });
+
+    // Attach as material and finish.
     const name = `${title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60)}-transcript.txt`;
     addSource(name, text);
-    body.innerHTML = "";
-    const pp = document.createElement("p");
-    pp.className = "prose";
     const mins = Math.floor(duration / 60);
     const secs = Math.floor(duration % 60);
-    pp.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars)`;
-    body.append(pp);
+    statusP.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
     mirrorTermRecord("transcribe", { source: "youtube", url: arg, title, duration, chars: text.length, via: "chat" });
-    logAct("recorded", { where: "transcribe", source: "youtube" });
+    logAct("recorded", { where: "transcribe", source: "youtube", layers: 3 });
     const historyNote = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
     state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
     const turn = state.summary.turnCount + 1;
@@ -1275,6 +1458,45 @@ async function transcribeTurn(typed) {
     body.textContent = `transcription failed: ${e.message}`;
   }
   $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
+/**
+ * Transcribe an audio Blob directly (for dropped files, no file picker).
+ * Runs the full 3-layer pipeline: raw whisper → priors-coref → self-coref.
+ */
+async function transcribeAudioBlob(blob, fileName) {
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.innerHTML = `<p class="prose">uploading ${fileName} for server-side transcription…</p>`;
+  try {
+    console.log("[transcribe] uploading", fileName, "size:", blob.size);
+    body.querySelector(".prose").textContent = "transcribing on server…";
+    const resp = await fetch("/api/transcribe-upload", {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream", "x-file-name": fileName, "x-file-mime": blob.type || "audio/mpeg" },
+      body: blob,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      throw new Error(err.error || "transcription failed");
+    }
+    const { text, duration } = await resp.json();
+    console.log("[transcribe] done, length:", text.length, "duration:", duration);
+    if (!text) { body.querySelector(".prose").textContent = "(no speech detected)"; return; }
+    body.querySelector(".prose").textContent = text;
+    const priors = await priorsCoref(text);
+    const resolved = resolvePronounsWithPriors(text, priors.surfaceMap);
+    logTranscriptionLayer("raw", { text, duration });
+    logTranscriptionLayer("priors-coref", { text, ...priors });
+    logTranscriptionLayer("self-coref", { text: resolved });
+    const name = fileName.replace(/\.[^.]+$/, "") + ".txt";
+    addSource(name, resolved);
+    $("status").textContent = `transcribed ${fileName} → attached as "${name}"`;
+  } catch (e) {
+    console.error("[transcribe] error:", e);
+    body.querySelector(".prose").textContent = `transcription failed: ${e.message}`;
+  }
   releaseBusy();
 }
 
@@ -3369,6 +3591,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     quoteCorrections: result.sections.flatMap((s) => s.quoteCorrections ?? []),
     question: task,
   });
+  // The testimony spine, after the pooled render — deliberately not awaited:
+  // the answer is already on screen and the composer must not be held
+  // hostage to a per-source walk over large material. Its own status
+  // narration replaces the ticker while it runs (the same posture the
+  // proof-seeking walk above already holds).
+  crownTestimony(node, relationClaims).catch((e) => {
+    $("status").textContent = `testimony pass failed: ${e?.message ?? e}`;
+  });
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
 }
@@ -3410,7 +3640,15 @@ function addMessage(role, text) {
         `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
-  el.querySelector(".body").textContent = text;
+  if (role === "user" && /^\//.test(text)) {
+    const body = el.querySelector(".body");
+    const span = document.createElement("span");
+    span.className = "command";
+    span.textContent = text;
+    body.append(span);
+  } else {
+    el.querySelector(".body").textContent = text;
+  }
   state.convos[state.active].el.append(el);
   el.scrollIntoView({ block: "end" });
   return el;
@@ -3536,8 +3774,119 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
       (claims ? ` · claiming things nothing given backs: ${claims}` : "") +
       (bound ? ` · statements the material also makes: ${bound}` : "") +
       (broken ? ` · statements it never makes: ${broken}` : "");
-    body.append(tally);
+    // Into the fold, not the surface (user direction, 2026-08-20: "THIS
+    // SHOULD FEEL LIKE CHATTING WITH CLAUDE") — the tally is a reading of
+    // the checks, and the reading's place is the disclosure. The visible
+    // grounding on the answer is now the crown line (crownTestimony), which
+    // says the same news as prose with its source named, not as a meter.
+    const tallyBox = body.closest(".msg")?.querySelector(".turn-meta > .fold p");
+    (tallyBox ?? body).append(tally);
   }
+}
+
+/**
+ * The Per-Source Testimony spine, live (POLICIES P39; BUILD-0..4 of the
+ * spec): every claim this turn asserted that the pooled check left
+ * unresolved is taken back to EACH loaded source separately — one minted
+ * claim_id (grid.mintClaimId), one `evaluate` act landed per source through
+ * the SAME squared-and-checked path capacity-runner's own tests pin — then
+ * the per-source readings merge (mergeTestimony) and the crown renders the
+ * merged verdict as a plain sentence (renderCrown: template-only, no model
+ * call, every token traced to a claim field, a witness name, or one
+ * declared connective).
+ *
+ * Only a DETERMINED verdict speaks on the chat surface — the reader asked a
+ * question, and a determined crown IS the grounded answer to it, in prose,
+ * its source named by the sentence itself ("According to pasted.txt, …").
+ * An UNDETERMINED merge stays off the surface: the sentence's own unbacked
+ * mark and the fold already carry that news, and a second inline line would
+ * be apparatus, not answer (user direction, 2026-08-20: "THIS SHOULD FEEL
+ * LIKE CHATTING WITH CLAUDE"). Every crown — spoken or not — lands in the
+ * turn's fold with its case, standing, and witness list, self:model
+ * included verbatim (a self-assertion landed by holon's own path shares the
+ * claim_id when it shares the triple, so it merges here with no extra
+ * wiring).
+ *
+ * Cost, disclosed rather than capped: each act is a full-source hypergraph
+ * read (plus squaring's negation read), synchronous by construction. The
+ * yield between sources is what keeps the page breathing — the same reason
+ * the ingestion path admits chapters progressively. Nothing is dropped
+ * silently; a source name the act grammar cannot carry verbatim is skipped
+ * WITH a fold line saying so.
+ */
+async function crownTestimony(node, relationClaims) {
+  if (!state.grounded || !Array.isArray(relationClaims) || !relationClaims.length) return;
+  const names = Object.keys(state.sources);
+  if (!names.length) return;
+  const body = node.querySelector(".body");
+  const foldBox = node.querySelector(".turn-meta > .fold p");
+  const disclose = (text) => {
+    if (!foldBox) return;
+    const line = document.createElement("div");
+    line.className = "fold-note";
+    line.textContent = text;
+    foldBox.append(line);
+  };
+  // Unresolved claims are the news: a bound claim already stands on the
+  // pooled material, and re-litigating it per source would spend full-source
+  // reads confirming what the marks already show. Deduped on the exact
+  // triple — the same identity mintClaimId hashes — so a claim asserted
+  // twice in one turn never crowns twice.
+  const seen = new Set();
+  const candidates = relationClaims.filter((c) => {
+    if (!c?.subject || !c?.verb || !c?.object) return false;
+    if (c.verdict === "bound") return false;
+    const key = `${c.subject} ${c.verb} ${c.object}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (!candidates.length) return;
+  const total = candidates.length * names.length;
+  let step = 0;
+  for (const claim of candidates) {
+    const claimId = await grid.mintClaimId({ subject: claim.subject, verb: claim.verb, object: claim.object });
+    // One quoted token: grid's tokenizer keeps a quoted object whole, so a
+    // claim containing a bare clause keyword ("from", "ground") cannot
+    // shred the act line. An interior double quote would end the token
+    // early — swapped for an apostrophe before the line is built, and the
+    // round-trip check below compares against the swapped text.
+    const claimText = `${claim.subject} ${claim.verb} ${claim.object}`.replace(/"/g, "'");
+    for (const name of names) {
+      step += 1;
+      $("status").textContent = `checking against each source · ${step}/${total}`;
+      const line = `evaluate "${claimText}" at Link from differentiate ground "${String(name).replace(/"/g, "'")}" broken:rotation`;
+      const landed = landAct(grid, state.gridLog, line, { sources: state.sources, runCapacity, claimId });
+      // Round-trip, not trust: a name or claim the act grammar mangled
+      // would land an evaluate against nothing. Landed junk is worse than
+      // a skipped source, so the log keeps this landing only when the
+      // parsed event names exactly what was meant.
+      if (landed.ok && landed.event.ground === name && landed.event.object === claimText) {
+        state.gridLog = landed.log;
+      } else {
+        disclose(`testimony: ${name} skipped — the act grammar could not carry this claim/source pair verbatim`);
+      }
+      await new Promise((r) => setTimeout(r));
+    }
+    const readings = perSourceReadings(grid, state.gridLog, claimId);
+    const merged = mergeTestimony(readings);
+    const crown = renderCrown(merged);
+    disclose(
+      `testimony · ${merged.case}${merged.standing ? ` (${merged.standing})` : ""} · ${claimId.slice(0, 11)} · ` +
+        `witnesses: ${crown.apparatus.sources.length ? crown.apparatus.sources.join(", ") : "none"} · “${crown.text}”` +
+        (crown.verified ? "" : " · render withheld: trace-coverage violation"),
+    );
+    // Only through the verified render — an unverifiable crown already
+    // substituted its own withholding sentence, which is exactly what
+    // should be shown in that case.
+    if (merged.case !== "UNDETERMINED" && body) {
+      const p = document.createElement("p");
+      p.className = `crown-line${merged.case === "DISAGREE" || merged.case === "CONTRADICTED" ? " bad" : ""}`;
+      p.textContent = crown.text;
+      body.append(p);
+    }
+  }
+  $("status").textContent = `ready · ${state.model}`;
 }
 
 /** An address, exactly as source.js writes and checkCitations reads it. */
@@ -5869,17 +6218,16 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     }
   }
   box.append(...parts);
-  // Mount the chips on the turn itself, above the fold — quiet until they
-  // have counts, the audit one click away. Never on a build turn: the
-  // chips would be web-check doors on the model's own section labels.
-  if (strip.childElementCount && !buildTurn) {
-    const meta = node.querySelector(".turn-meta");
-    const foldEl = node.querySelector(".turn-meta > .fold");
-    if (meta && foldEl) {
-      meta.insertBefore(strip, foldEl);
-      meta.insertBefore(panel, foldEl);
-    } else box.append(strip, panel);
-  }
+  // The chips live in the fold now, not above it. The 2026-08-17 direction
+  // ("still not seeing it ground the statement") put verdicts on the
+  // surface because the checking was invisible; the 2026-08-20 direction
+  // ("THIS SHOULD FEEL LIKE CHATTING WITH CLAUDE") moves the METER back
+  // into the disclosure now that the crown line (crownTestimony) grounds
+  // the answer visibly in prose. Both directions hold: grounding stays on
+  // the answer — as a sentence — and the instrument panel is one click
+  // away. Never on a build turn: the chips would be web-check doors on the
+  // model's own section labels.
+  if (strip.childElementCount && !buildTurn) box.append(strip, panel);
   // Sequential, not parallel: the egress is one server doing recorded
   // crossings, and a turn must not fan out a burst of them. A build turn
   // spends none: corroborating "Event Listeners" against the web is a
@@ -6425,6 +6773,8 @@ function addSource(name, text) {
     .filter((c) => c.source !== name)
     .concat(chunkSource(name, text, { boundaries: discoverBoundaries(text), identity }));
   renderSources();
+  // Persist to OPFS so the source survives a reload.
+  persistSource(name, text, { passages: countFor(name) });
 }
 
 /**
@@ -6454,6 +6804,8 @@ function removeSource(name) {
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
   renderSources();
+  // Remove from OPFS.
+  unpersistSource(name);
 }
 
 function countFor(name) {
@@ -6597,7 +6949,7 @@ function openAttachSheet(focus = null) {
     line.className = "att-line";
     const label = document.createElement("span");
     label.className = "name";
-    label.textContent = `${name} · ${fmtBytes(m.bytes.length)} ${m.kind === "wav" ? "audio" : "binary"} · /measure ${name}`;
+    label.textContent = `${name} · ${fmtBytes(m.blob.size)} ${m.kind} · /measure ${name}`;
     line.append(label);
     row.append(line);
     list.append(row);
@@ -6614,6 +6966,246 @@ function openAttachSheet(focus = null) {
  */
 function renderSources() {
   renderAttachStrip();
+  renderSourcesPanel();
+}
+
+function renderSourcesPanel() {
+  const list = $("sources-list");
+  if (!list) return;
+  const names = Object.keys(state.sources);
+  const mediaNames = Object.keys(state.media);
+  if (!names.length && !mediaNames.length) {
+    list.innerHTML = `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    return;
+  }
+  const search = $("sources-search")?.value?.toLowerCase() ?? "";
+  const sortKey = $("sources-sort")?.value ?? "newest";
+  const entries = names.map((name) => {
+    const text = state.sources[name] ?? "";
+    return { name, text, size: text.length, passages: countFor(name) };
+  });
+  const sortCmp = {
+    newest: (a, b) => (b.meta?.addedAt ?? 0) - (a.meta?.addedAt ?? 0),
+    oldest: (a, b) => (a.meta?.addedAt ?? 0) - (b.meta?.addedAt ?? 0),
+    name: (a, b) => a.name.localeCompare(b.name),
+    largest: (a, b) => b.size - a.size || a.name.localeCompare(b.name),
+    smallest: (a, b) => a.size - b.size || a.name.localeCompare(b.name),
+  }[sortKey] ?? ((a, b) => b.name.localeCompare(a.name));
+  const filtered = search ? entries.filter((e) => e.name.toLowerCase().includes(search)) : entries;
+  filtered.sort(sortCmp);
+  list.textContent = "";
+  for (const { name, text } of filtered) {
+    const on = !state.muted.has(name);
+    const prov = state.provenance[name];
+    const ext = name.split(".").pop().toLowerCase();
+    const icon = ({ md: "M", txt: "T", csv: ",", json: "{", html: "<", js: "JS", py: "PY", sql: "S", pdf: "PDF" })[ext]
+      ?? name.charAt(0).toUpperCase();
+    const row = document.createElement("div");
+    row.className = `sources-file${on ? "" : " sources-file-muted"}`;
+    row.innerHTML = `
+      <div class="sources-file-icon">${icon}</div>
+      <div class="sources-file-info">
+        <div class="sources-file-name">${esc(name)}</div>
+        <div class="sources-file-meta">${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}</div>
+        ${prov?.line ? `<div class="sources-file-prov">${esc(prov.line)}</div>` : ""}
+      </div>
+      <div class="sources-file-actions">
+        <button type="button" data-action="mute" title="${on ? "silence" : "unsilence"} this source">${on ? "mute" : "unmute"}</button>
+        <button type="button" data-action="remove" title="remove — its addresses stop resolving">✕</button>
+      </div>`;
+    row.querySelector('[data-action="mute"]').onclick = (e) => {
+      e.stopPropagation();
+      if (on) state.muted.add(name); else state.muted.delete(name);
+      renderSources();
+    };
+    row.querySelector('[data-action="remove"]').onclick = (e) => {
+      e.stopPropagation();
+      removeSource(name);
+    };
+    row.onclick = () => openSourceViewer(name);
+    list.append(row);
+  }
+  for (const name of mediaNames) {
+    const m = state.media[name];
+    const row = document.createElement("div");
+    row.className = "sources-file";
+    const icon = ({ video: "▶", audio: "♫", image: "🖼", pdf: "PDF" })[m.kind] ?? "📁";
+    row.innerHTML = `
+      <div class="sources-file-icon">${icon}</div>
+      <div class="sources-file-info">
+        <div class="sources-file-name">${esc(name)}</div>
+        <div class="sources-file-meta">${m.kind} · ${fmtBytes(m.blob.size)}</div>
+      </div>
+      <div class="sources-file-actions">
+        <button type="button" data-action="remove" title="remove">✕</button>
+      </div>`;
+    row.querySelector('[data-action="remove"]').onclick = (e) => {
+      e.stopPropagation();
+      URL.revokeObjectURL(m.url);
+      delete state.media[name];
+      renderSources();
+    };
+    row.onclick = () => openMediaViewer(name);
+    list.append(row);
+  }
+}
+
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function openMediaViewer(name) {
+  const m = state.media[name];
+  if (!m) return;
+  $("source-viewer-name").textContent = name;
+  $("source-viewer-meta").textContent = `${m.kind} · ${fmtBytes(m.blob.size)}`;
+  $("source-viewer-mode").style.display = "none";
+  const body = $("source-viewer-body");
+  body.textContent = "";
+  if (m.kind === "video") {
+    const v = document.createElement("video");
+    v.src = m.url;
+    v.controls = true;
+    v.preload = "metadata";
+    body.append(v);
+  } else if (m.kind === "audio") {
+    const a = document.createElement("audio");
+    a.src = m.url;
+    a.controls = true;
+    a.preload = "metadata";
+    body.append(a);
+  } else if (m.kind === "image") {
+    const img = document.createElement("img");
+    img.src = m.url;
+    body.append(img);
+  } else {
+    const p = document.createElement("p");
+    p.textContent = "PDF viewer not yet supported. Use /measure to analyze.";
+    p.style.color = "var(--muted)";
+    body.append(p);
+  }
+  $("source-viewer").showModal();
+}
+
+function openSourceViewer(name) {
+  const text = state.sources[name] ?? "";
+  const prov = state.provenance[name];
+  $("source-viewer-name").textContent = name;
+  $("source-viewer-meta").textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}${prov?.line ? ` · ${prov.line}` : ""}`;
+  $("source-viewer-mode").style.display = "";
+  const ext = name.split(".").pop().toLowerCase();
+  // Store current file info for toggle
+  const info = { name, text, ext };
+  renderSourceViewerMode("read", info);
+  // Wire mode toggle
+  const modeEl = $("source-viewer-mode");
+  modeEl.onclick = (e) => {
+    const btn = e.target.closest("[data-mode]");
+    if (!btn) return;
+    modeEl.querySelectorAll(".seg").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderSourceViewerMode(btn.dataset.mode, info);
+  };
+  $("source-viewer").showModal();
+}
+
+function renderSourceViewerMode(mode, info) {
+  const { name, text, ext } = info;
+  const body = $("source-viewer-body");
+  body.textContent = "";
+  if (mode === "raw") {
+    body.append(codeBlock(text, "plaintext"));
+    return;
+  }
+  // read mode — render the file as-is
+  if (ext === "md" || ext === "markdown") {
+    renderBlocksInto(body, text, (chunk) => [document.createTextNode(chunk)]);
+  } else if (ext === "html" || ext === "htm") {
+    const frame = document.createElement("iframe");
+    frame.sandbox = "";
+    frame.srcdoc = toDocument({ lang: "html", code: text });
+    frame.loading = "lazy";
+    body.append(frame);
+    const src = document.createElement("details");
+    src.innerHTML = "<summary>source</summary>";
+    src.append(codeBlock(text, "html"));
+    body.append(src);
+  } else if (ext === "csv" || ext === "tsv") {
+    renderCsvTable(body, text, ext === "tsv" ? "\t" : ",");
+  } else if (ext === "json") {
+    try {
+      const formatted = JSON.stringify(JSON.parse(text), null, 2);
+      body.append(codeBlock(formatted, "json"));
+    } catch {
+      body.append(codeBlock(text, "json"));
+    }
+  } else if (CODE_EXTS.has(ext)) {
+    body.append(codeBlock(text, ext));
+  } else {
+    body.append(codeBlock(text, "plaintext"));
+  }
+}
+
+const CODE_EXTS = new Set([
+  "js", "ts", "jsx", "tsx", "mjs", "cjs",
+  "py", "rb", "php", "r", "rs", "go", "java", "c", "cpp", "h", "hpp",
+  "sql", "sh", "bash", "zsh", "fish",
+  "css", "scss", "less",
+  "yaml", "yml", "toml", "ini", "cfg", "conf",
+  "xml", "svg",
+  "swift", "kt", "scala", "lua", "pl", "ex", "exs", "erl", "hs",
+  "vue", "svelte",
+]);
+
+function renderCsvTable(container, text, delimiter) {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length) { container.textContent = text; return; }
+  const parseRow = (line) => {
+    const cells = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+        else cur += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === delimiter) { cells.push(cur); cur = ""; }
+        else cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  };
+  const wrap = document.createElement("div");
+  wrap.className = "table-wrap";
+  const table = document.createElement("table");
+  const thead = table.createTHead().insertRow();
+  const headerCells = parseRow(lines[0]);
+  for (const h of headerCells) { const th = document.createElement("th"); th.textContent = h; thead.append(th); }
+  const tbody = table.createTBody();
+  for (let i = 1; i < lines.length; i++) {
+    const tr = tbody.insertRow();
+    for (const cell of parseRow(lines[i])) tr.insertCell().textContent = cell;
+  }
+  wrap.append(table);
+  container.append(wrap);
+}
+
+const MEDIA_EXTS = new Set([
+  "mp4", "webm", "ogv", "mov", "m4v",
+  "mp3", "wav", "ogg", "oga", "flac", "m4a",
+  "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico",
+  "pdf",
+]);
+
+function mediaKindFor(ext) {
+  if (["mp4","webm","ogv","mov","m4v"].has(ext)) return "video";
+  if (["mp3","wav","ogg","oga","flac","m4a"].has(ext)) return "audio";
+  if (["png","jpg","jpeg","gif","webp","svg","bmp","ico"].has(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  return "binary";
 }
 
 async function addFiles(fileList) {
@@ -6621,10 +7213,20 @@ async function addFiles(fileList) {
   for (const file of files) {
     try {
       $("status").textContent = `reading ${file.name} (${fmtBytes(file.size)})…`;
-      // Yield once before the read so the status actually paints; a multi-
-      // megabyte file otherwise goes from click to done with no sign anything
-      // happened.
       await new Promise((r) => setTimeout(r, 0));
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (MEDIA_EXTS.has(ext)) {
+        const blob = file;
+        const url = URL.createObjectURL(blob);
+        state.media[file.name] = { blob, kind: mediaKindFor(ext), url };
+        renderSources();
+        if (mediaKindFor(ext) === "audio") {
+          await transcribeAudioBlob(blob, file.name);
+          continue;
+        }
+        $("status").textContent = `${file.name} · ${mediaKindFor(ext)} loaded`;
+        continue;
+      }
       const text = await file.text();
       if (looksBinary(text)) {
         $("status").textContent = `${file.name} isn't text — skipped`;
@@ -6667,6 +7269,29 @@ function looksBinary(text) {
 // opposite of. Removing it here rather than on a timer means the notice is
 // governed by the one fact that matters: did this file run.
 $("not-served")?.remove();
+
+// Sources persist across sessions via OPFS. Load them before the first
+// render so the panel is populated immediately.
+(async () => {
+  try {
+    const saved = await loadSources();
+    for (const { name, text } of saved) {
+      if (!state.sources[name]) addSource(name, text);
+    }
+  } catch {}
+  renderSources();
+})();
+
+// Sources panel: search filters the list live.
+$("sources-search")?.addEventListener("input", () => renderSourcesPanel());
+
+// Sources panel: sort reorders the list.
+$("sources-sort")?.addEventListener("change", () => renderSourcesPanel());
+
+// Sources panel: ＋ Add opens the same attach picker the composer uses.
+$("sources-add")?.addEventListener("click", () => {
+  $("attach-menu")?.showModal();
+});
 
 renderSources();
 
@@ -7186,7 +7811,7 @@ function syncModelPick() {
 // backdrop (or press Escape, which <dialog> gives natively) and it goes. The
 // ✕ in each sheet's head is the third way, and the only one that is visible:
 // Escape is not discoverable and a backdrop click is a guess.
-for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet"]) {
+for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -7199,6 +7824,7 @@ for (const [btn, dlg] of [
   ["paste-x", "paste"],
   ["reopen-x", "reopen"],
   ["attach-sheet-x", "attach-sheet"],
+  ["source-viewer-x", "source-viewer"],
 ])
   $(btn).onclick = () => $(dlg).close();
 

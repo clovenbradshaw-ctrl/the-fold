@@ -433,7 +433,7 @@
         .tabs .chat-tab { display: block; }
         .tabs .long { display: none; }
         .tabs .short { display: inline; }
-        #pane-explore iframe { height: calc(100dvh - var(--header-h, 46px) - 42px); }
+        #pane-explore { height: 100%; margin: -16px -20px; }
         #col-panel { flex-direction: column; }
         #col-panel .scroll { order: 1; }
         .composer { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
@@ -459,6 +459,12 @@
         border-radius: 10px;
         padding: 8px 12px;
         display: inline-block;
+      }
+      .msg.user .body .command {
+        font-family: var(--mono);
+        font-size: 13.5px;
+        letter-spacing: 0.02em;
+        opacity: 0.85;
       }
       .msg.queued { opacity: 0.55; }
       .msg.queued .queue-tag {
@@ -1318,16 +1324,110 @@
         font-size: 13px;
       }
       .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-      /* The Explore pane is an app, not a document: it gets the panel's full
-         box, no reading padding, and the frame fills it. */
-      #pane-explore { height: 100%; margin: -16px -20px; }
-      #pane-explore iframe {
-        display: block;
-        width: 100%;
-        height: calc(100dvh - var(--header-h, 53px) - 37px);
-        border: none;
-        background: var(--bg);
+      /* The Sources pane: a file-manager view of imported documents. */
+      #pane-explore { display: none; height: 100%; flex-direction: column; gap: 0; overflow: hidden; }
+      #pane-explore.on { display: flex; }
+      .sources-toolbar { display: flex; gap: 8px; margin: 0 0 12px; align-items: center; flex-wrap: wrap; }
+      .sources-toolbar h2 { margin: 0; border: none; padding: 0; flex: none; }
+      .sources-actions { display: flex; gap: 8px; flex: 1; min-width: 0; justify-content: flex-end; align-items: center; }
+      .sources-actions input[type="search"] {
+        font-size: 13px; flex: 1; min-width: 0;
       }
+      .sources-actions select,
+      .sources-actions button { font-size: 12px; color: var(--muted); white-space: nowrap; }
+      .sources-list {
+        flex: 1; overflow-y: auto; padding: 14px 0 0; min-height: 0;
+      }
+      .sources-empty {
+        text-align: center; padding: 40px 20px; color: var(--muted);
+      }
+      .sources-empty p { margin: 0 0 6px; }
+      .sources-empty-sub { font-size: 13px; }
+      .sources-file {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px; border-radius: 8px; cursor: pointer;
+        transition: background 0.12s;
+      }
+      .sources-file:hover { background: var(--accent-soft); }
+      .sources-file-icon {
+        flex: none; width: 36px; height: 36px; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px; font-weight: 700; color: var(--bg);
+        background: var(--accent);
+      }
+      .sources-file-info { flex: 1; min-width: 0; }
+      .sources-file-name {
+        font-family: var(--mono); font-size: 13px; font-weight: 500;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .sources-file-meta {
+        font-family: var(--mono); font-size: 11px; color: var(--muted);
+        margin-top: 1px;
+      }
+      .sources-file-prov {
+        font-size: 11px; color: var(--muted); font-style: italic;
+        margin-top: 1px;
+      }
+      .sources-file-actions { flex: none; display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+      .sources-file:hover .sources-file-actions { opacity: 1; }
+      .sources-file-actions button {
+        font-size: 11.5px; padding: 3px 8px; background: transparent;
+        border: 1px solid var(--line); border-radius: 4px;
+        color: var(--muted); cursor: pointer;
+      }
+      .sources-file-actions button:hover { color: var(--warn); border-color: var(--warn); }
+      .sources-file-muted { opacity: 0.45; }
+      .sources-file-muted .sources-file-icon { background: var(--muted); }
+      .source-viewer-body {
+        font: 13px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word;
+        margin: 0; overflow: auto; max-height: 65vh;
+      }
+      .source-viewer-body .para { margin: 0 0 0.8em; }
+      .source-viewer-body h3 { font-size: 15px; margin: 1.2em 0 0.4em; }
+      .source-viewer-body h4 { font-size: 13.5px; margin: 1em 0 0.3em; }
+      .source-viewer-body ul, .source-viewer-body ol { margin: 0.4em 0 0.8em 1.5em; }
+      .source-viewer-body blockquote {
+        margin: 0.6em 0; padding: 0.4em 1em; border-left: 3px solid var(--line);
+        color: var(--muted); font-style: italic;
+      }
+      .source-viewer-body strong { font-weight: 700; }
+      .source-viewer-body em { font-style: italic; }
+      .source-viewer-body code {
+        font-family: var(--mono); font-size: 0.9em; background: var(--bg);
+        border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px;
+      }
+      .source-viewer-body .code-highlight {
+        margin: 0; padding: 12px; background: #1e1e1e; color: #d4d4d4;
+        border: 1px solid var(--line);
+        border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.5;
+        white-space: pre;
+      }
+      .source-viewer-body table {
+        border-collapse: collapse; width: 100%; margin: 0.5em 0; font-size: 12px;
+      }
+      .source-viewer-body th, .source-viewer-body td {
+        border: 1px solid var(--line); padding: 4px 8px; text-align: left;
+      }
+      .source-viewer-body th { background: var(--bg); font-weight: 600; }
+      .source-viewer-body .table-wrap { overflow-x: auto; margin: 0.5em 0; }
+      .source-viewer-body iframe {
+        width: 100%; min-height: 300px; border: 1px solid var(--line);
+        border-radius: 8px; background: var(--bg);
+      }
+      .source-viewer-body video, .source-viewer-body audio {
+        width: 100%; margin: 0.5em 0; border-radius: 8px;
+      }
+      .source-viewer-body img {
+        max-width: 100%; border-radius: 8px; margin: 0.5em 0;
+      }
+      .source-viewer-body .viewer-raw {
+        font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
+      }
+      #source-viewer { max-width: 780px; width: 92vw; }
+      .source-viewer-mode { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 2px; }
+      .seg { font: 12px/1 var(--sans); border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 10px; border-radius: 4px; transition: background 0.12s, color 0.12s; }
+      .seg:hover { background: var(--accent-soft); color: var(--accent); }
+      .seg.active { background: var(--accent); color: var(--panel); font-weight: 600; }
       .pane { display: none; }
       .pane.on { display: block; }
       h2 {
@@ -1715,7 +1815,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <!-- Material's tab is gone: Explore is the data explorer now.
                Dropping a file anywhere on the page still adds material —
                the pane below stays wired for that flow, just not fronted. -->
-          <button role="tab" data-pane="explore" aria-selected="false" title="What the instrument reads from — needs explore-server.mjs (node explore-server.mjs)">Sources</button>
+          <button role="tab" data-pane="explore" aria-selected="false" title="Sources — imported documents, persisted in the browser's file system">Sources</button>
           <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
           <button role="tab" data-pane="github" aria-selected="false" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
@@ -1822,11 +1922,27 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           </div>
 
           <div class="pane" id="pane-explore">
-            <!-- The whole Explore instrument, in-pane. Absolute localhost src
-                 so it works whichever static server rendered this page;
-                 loading=lazy so it costs nothing until the tab is opened.
-                 ?embed=1 tells the page to drop its own chrome. -->
-            <iframe id="explore-frame" src="http://localhost:8812/explore.html?embed=1" loading="lazy" title="Explore"></iframe>
+            <div class="sources-toolbar">
+              <h2>Sources</h2>
+              <div class="sources-actions">
+                <input id="sources-search" type="search" spellcheck="false" placeholder="search sources" aria-label="search sources" />
+                <select id="sources-sort" aria-label="sort sources">
+                  <option value="newest">newest first</option>
+                  <option value="oldest">oldest first</option>
+                  <option value="name">name A→Z</option>
+                  <option value="largest">largest</option>
+                  <option value="smallest">smallest</option>
+                </select>
+                <button type="button" id="sources-add" class="primary" title="add a source">＋ Add</button>
+              </div>
+            </div>
+            <div id="sources-list" class="sources-list">
+              <div class="sources-empty">
+                <p>No sources yet.</p>
+                <p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p>
+                <p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1896,6 +2012,29 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <button type="button" class="attach" id="attach-sheet-add">＋ Add more</button>
         <span class="spacer"></span>
         <button>Done</button>
+      </form>
+    </dialog>
+
+    <dialog id="source-viewer">
+      <div class="sheet-head">
+        <div>
+          <h3 id="source-viewer-name"></h3>
+          <p class="sub" id="source-viewer-meta"></p>
+        </div>
+        <div class="source-viewer-mode" id="source-viewer-mode">
+          <button type="button" class="seg active" data-mode="read">read</button>
+          <button type="button" class="seg" data-mode="raw">raw</button>
+        </div>
+        <button type="button" class="sheet-close" id="source-viewer-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <div id="source-viewer-body" class="source-viewer-body"></div>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <span class="spacer"></span>
+        <button>Close</button>
       </form>
     </dialog>
 
@@ -1983,6 +2122,14 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
          takes the AMD branch and registers as a module instead of falling
          through to window.math. Order is the fix; there is no config flag
          for it (see CLAUDE.md's "load-bearing gotcha"). -->
+    <script type="importmap">
+      {
+        "imports": {
+          "onnxruntime-web/webgpu": "/node_modules/onnxruntime-web/dist/ort.webgpu.bundle.min.mjs",
+          "onnxruntime-common": "/node_modules/onnxruntime-common/dist/esm/index.js"
+        }
+      }
+    </script>
     <script src="/node_modules/mathjs/lib/browser/math.js"></script>
     <script src="/node_modules/monaco-editor/min/vs/loader.js"></script>
     <script type="module" src="./app.js"></script>

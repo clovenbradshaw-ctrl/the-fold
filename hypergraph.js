@@ -276,6 +276,19 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * language evidence, versus how much the material's own recurrence and a
  * shuffled-null back this specific edge — neither replaces the other, and
  * both ride the same edge/claim disclosed side by side.
+ *
+ * `organs.classifyConnector`/`organs.minShare` — OPTIONAL, injected the
+ * cast.js way (Per-Source Testimony spec, BUILD-3): grammar-lens.js's own
+ * `makeGrammarLens` output, moved here from capacity-runner.js's post-hoc
+ * `checkConnectorClass` so an edge carries its own connector classification
+ * from the moment it is extracted, not just at check time. Every edge also
+ * carries `connectorClass` when both are supplied — see `classifyConnector`'s
+ * own destructuring comment, further down this function, for the full
+ * account of why this is a THIRD, separate field from `grammar` two
+ * paragraphs up rather than a rename of it. `minShare` has no safe default
+ * (grammar-lens.js's own header) and MUST be declared by whichever caller
+ * supplies `classifyConnector` — omitted, `connectorClass` is `undefined`
+ * on every edge, byte-identical to every caller before this pass existed.
  */
 // `organs.verbForms`, when provided, is a Set of known verb SURFACE FORMS
 // from a received morphological resource (e.g. UniMorph's English paradigm
@@ -409,11 +422,324 @@ function resolvePronounSubjects(text, resolvePronouns, { splitSentences, extract
   return out;
 }
 
+// ── the referent bar: a sentence-initial-only name, confirmed by a real
+// pronoun binding ────────────────────────────────────────────────────────
+//
+// Real, measured problem (the-fold, 2026-08-20): "Lincoln never appointed
+// Hamlin. Someone else got the job." — two sentences, "Lincoln" only ever
+// sentence-initial — computed undetermined, not because anything about the
+// claim itself was wrong, but because `extractSurfaces` never looks at
+// sentence-initial position for ANY surface (that function's own header:
+// "capitalised runs, skipping the sentence-initial token — it is
+// capitalised by position and carries no evidence of namehood on its
+// own"), so "Lincoln" never even becomes a CANDIDATE, let alone a referent
+// `endpoint()` below can resolve a subject against. This is L2's own rule
+// working exactly as designed (a lone capitalized word that ONLY ever
+// opens a sentence reads as position, not namehood) — but encyclopedia-
+// lede-style writing (a subject named once, then referred to only by
+// pronoun) can never clear this bar through recurrence alone, and that
+// exact shape is the traced root cause behind several earlier
+// `undetermined` results in this project's own history.
+//
+// User direction, verbatim, settling what would otherwise be an open
+// design choice among several candidates: "I fundamentally think our
+// concept of 'needs to appear more than once' is wrong — we need to count
+// it being pointed to via pronouns as well." Concretely: a resolved
+// pronoun binding contributes to the SAME `sentences` recurrence count
+// `discoverReferents`'s own derived floor already compares every OTHER
+// candidate against — never a second, separate corroboration signal
+// bolted on after a decision already made on name-text recurrence alone.
+//
+// THE CIRCULARITY, AND HOW IT IS BROKEN. `resolvePronouns` needs a
+// referent already admitted to serve as a binding target — but the whole
+// point here is admitting a referent ORDINARY admission never sees at
+// all. Broken in two passes: PASS 1 (`confirmLeadingReferents`)
+// provisionally adds every leading-only candidate (surfaces.js's own new
+// `extractLeadingSurfaces` — the mirror of `extractSurfaces`, exactly as
+// evidence-free about namehood as "a capitalized word opened this
+// sentence," see that function's own header) to a TEMPORARY, namespaced
+// (`provisional:<slug>`, never colliding with a real `ref:auto:*` id) copy
+// of this passage's own referent map, purely so `resolvePronouns` has
+// something to test a pronoun against — nothing is admitted into the REAL
+// index yet. PASS 2 runs `resolvePronouns` for real, at this file's own
+// already-declared, already-justified operating point
+// (`PRONOUN_MIN_ACTIVATION`/`PRONOUN_MIN_MARGIN` — the SAME numbers
+// `resolvePronounSubjects` above already trusts, never a fresh number
+// invented for this path), and ONLY a candidate a real binding actually
+// resolved to (clearing that SAME floor, no exception, no relaxed bar) is
+// CONFIRMED — carrying forward exactly the sentences its confirming
+// bindings occupy into the SAME `discoverReferents` call
+// (`minSentences: 0`, matching cast.js's own declared floor for this
+// question — "presence... a name mentioned once is present once") every
+// ordinarily-admitted referent already goes through. "Provisional" never
+// leaks past `confirmLeadingReferents` — the real index only ever sees a
+// candidate that already earned a real `sentences` count the derived
+// floor can fairly compare against everything else, the identical bar,
+// not a lowered one.
+//
+// SCOPED PER PASSAGE, for the SAME reason `resolvePronounSubjects` above
+// already is (P38, this file: "never carry a window across books,"
+// READING-POLICY P1): `list` may hold retrieved passages from unrelated
+// pages, and resolving a pronoun in one against a name that only happens
+// to occur in a DIFFERENT, unrelated one would be exactly the cross-
+// document contamination that rule exists to prevent.
+//
+// DISCLOSED, NOT SILENTLY NARROWER THAN IT SOUNDS — a real, measured limit
+// found WHILE building this, not assumed: this mechanism does NOT yet help
+// the single most canonical shape of the problem it was built for — a name
+// that opens the very FIRST sentence of a passage, referred to by pronoun
+// for the rest of it (the exact "Hannibal Hamlin (dates) was..." / "He
+// was..." Wikipedia-lede shape this section's own header names, and the
+// exact 2-sentence "Lincoln never appointed Hamlin. Someone else got the
+// job." specimen this whole investigation started from). Traced to the
+// ROOT MECHANISM, not just the symptom: `emergence/activation.js::codeOf`
+// scores a word's distinctiveness as `idfOf(w) = log(max(1,state.read) /
+// max(1,df.get(w)))` — at `state.read` small (the first several sentences
+// of ANY passage, before enough frames have been read for the ratio to
+// separate anything), `idfOf` rounds to ~0 for EVERY word, universally,
+// regardless of content, because nothing can look "rare" yet against an
+// almost-empty read count. `codeOf`'s own gate (`if (s < idfFloor)
+// continue`) then excludes EVERY word of that early frame from `trace`,
+// which means `encodeFrame` never enters it into `posting` at all — a
+// frame processed during this cold-start window is invisible to `recall`
+// FOREVER after, not just weakly recalled, no matter how many later
+// sentences echo its vocabulary. Measured directly, isolating the primitive
+// from this file's own composition (raw `codeOf`/`recall`/`encodeFrame`,
+// no pronoun machinery involved): a naming sentence at frame 0 stores an
+// EMPTY trace (`traceKeys: []`) when encoded, and a later probe's own
+// `recall()` never includes frame 0 in its activation map, however far
+// downstream or however strongly a shared phrase repeats — while the
+// IDENTICAL naming sentence, moved to frame 10 or frame 15 of the same
+// passage (ten-plus sentences of ordinary preceding material), stores a
+// full trace and IS correctly recalled later, proven end to end through
+// this exact mechanism (`hypergraph.test.mjs`'s own cases, below). This is
+// a property of `activation.js` itself — the same primitive `resolvePronouns`
+// already depends on for every OTHER purpose too, including
+// `resolvePronounSubjects` above — not a defect in this section's own
+// composition; it was simply never named before because nothing had asked
+// `activation.js` to recall a passage's own FIRST frame until this pass.
+//
+// WHY NOT WORKED AROUND HERE. Priming `state` with duplicate copies of the
+// real early sentences does not help — it was checked, not assumed: a
+// repeated word's df grows in exact lockstep with the priming reads, so
+// `idfOf` stays at `log(1)=0` regardless of how many copies are fed in
+// (IDF rewards RARITY relative to volume, and copying content raises both
+// numerator and denominator together). Priming with UNRELATED filler
+// sentences purely to advance `state.read` past the cold-start threshold
+// before the real material begins might work mechanically, but is a new,
+// unvalidated mechanism of its own (how much padding is enough is exactly
+// the kind of number this codebase's own standing rule says must be
+// measured against a null, never hand-picked) and was not attempted here —
+// this file's own established preference, seen repeatedly elsewhere in it,
+// is a disclosed real limit over a rushed fix under time pressure. The
+// real fix belongs one level down, in `activation.js` itself: a caller-
+// visible, DERIVED "minimum frames before recall is meaningful" signal
+// (mirroring `deriveMinSentences`'s own derivation elsewhere in this
+// codebase), so a caller can know, not guess, whether a cold-start frame's
+// absence from `trace` means "nothing here" or "not enough has been read
+// yet to tell." Real, scoped, unattempted future work, named here rather
+// than silently left looking like this file's own oversight.
+
+/**
+ * Every sentence-initial-only candidate a real pronoun binding confirms,
+ * across `list`'s own passages, scoped per passage — see this section's
+ * own header for the full account. Returns `extractSurfaces`'s own
+ * `{surface, mentions, sentences}` shape, ready to merge into the pooled
+ * surfaces list before the one real `discoverReferents` call that decides
+ * admission (`withConfirmedLeadingReferents`, below), so that call's own
+ * union-find clustering — never re-derived here — correctly folds a
+ * confirmed "Lincoln" into an already-admitted "Abraham Lincoln" when both
+ * are present, exactly as it would have if "Lincoln" had been an ordinary
+ * candidate from the start.
+ */
+function confirmLeadingReferents(
+  list,
+  pooledSurfaces,
+  { splitSentences, extractSurfaces, extractLeadingSurfaces, discoverReferents, resolvePronouns, diaNorm, functionWords, thirdPersonSingular },
+) {
+  // `functionWords` alone is not enough to keep a PRONOUN out of its own
+  // candidate pool — measured live, not assumed: the corpus-scale closed
+  // class this file's own `functionWords` derives (cite.js::commonTerms,
+  // gated on CORPUS_MINIMUM) can be genuinely EMPTY at turn/passage scale,
+  // exactly the scale this whole mechanism exists for, and "He"/"She"
+  // opening a sentence is then nominated as its own leading candidate.
+  // Once THAT is added to `surfaceToReferent` below, `resolvePronouns`'s
+  // own "no name in this sentence" gate sees a false name in EVERY
+  // sentence that pronoun opens, silently blocking every real binding
+  // this mechanism exists to find — reproduced live on a real Wikipedia-
+  // lede-shaped specimen: zero attempts, zero gaps, zero bindings, traced
+  // to exactly this. Fixed with the grammar layer, not a hand-typed list
+  // (this repo's own standing rule): `organs.thirdPersonSingular` —
+  // priors.js's own `THIRD_PERSON_SINGULAR`, the IDENTICAL closed class
+  // `resolvePronouns` itself already trusts internally to find a pronoun
+  // in the first place — union'd with the corpus-scale `functionWords`
+  // ONLY for this function's own two calls below, never touching the
+  // outer `functionWords` variable the rest of `relationsFor` uses for
+  // vocabulary discovery.
+  const excludeWords = thirdPersonSingular
+    ? new Set([...(functionWords ?? []), ...Object.keys(thirdPersonSingular).map((w) => diaNorm(w))])
+    : functionWords;
+
+  const pooledSet = new Set(pooledSurfaces.map((s) => s.surface));
+  const confirmedSentences = new Map(); // surface -> Set(sentenceOrder)
+  const leadingMentions = new Map(); // surface -> total leading-only mentions, for disclosure
+  const provisionalId = (surface) => `provisional:${diaNorm(surface).replace(/\s+/g, "_")}`;
+
+  for (const passage of list ?? []) {
+    if (!passage?.text?.trim()) continue;
+    let sentences, ordinary, leading;
+    try {
+      sentences = splitSentences(passage.text);
+      ordinary = extractSurfaces(sentences, { functionWords: excludeWords });
+      leading = extractLeadingSurfaces(sentences, { functionWords: excludeWords });
+    } catch {
+      continue;
+    }
+    // Already established (this passage, or elsewhere in the pool) —
+    // needs no help from this mechanism, and re-confirming it here would
+    // be redundant work, never wrong, but wasted.
+    const ordinarySet = new Set(ordinary.map((s) => s.surface));
+    const provisional = leading.filter((s) => !ordinarySet.has(s.surface) && !pooledSet.has(s.surface));
+    if (!provisional.length) continue;
+
+    let discovery;
+    try {
+      discovery = discoverReferents(ordinary, {});
+    } catch {
+      continue;
+    }
+    const surfaceToReferent = new Map(discovery.events.map((e) => [e.surface, e.referent_id]));
+    for (const p of provisional) {
+      leadingMentions.set(p.surface, (leadingMentions.get(p.surface) ?? 0) + p.mentions);
+      surfaceToReferent.set(p.surface, provisionalId(p.surface));
+    }
+
+    let resolved;
+    try {
+      resolved = resolvePronouns(sentences, surfaceToReferent, {
+        minActivation: PRONOUN_MIN_ACTIVATION,
+        minMargin: PRONOUN_MIN_MARGIN,
+      });
+    } catch {
+      continue;
+    }
+    for (const b of resolved?.bindings ?? []) {
+      if (!b.referentId.startsWith("provisional:")) continue;
+      const surface = provisional.find((p) => provisionalId(p.surface) === b.referentId)?.surface;
+      if (!surface) continue;
+      if (!confirmedSentences.has(surface)) confirmedSentences.set(surface, new Set());
+      confirmedSentences.get(surface).add(b.sentenceOrder);
+    }
+  }
+
+  return [...confirmedSentences.entries()].map(([surface, sentenceSet]) => ({
+    surface,
+    mentions: leadingMentions.get(surface) ?? sentenceSet.size,
+    sentences: sentenceSet.size,
+  }));
+}
+
+/**
+ * The tail half of `cast.js::makeReferentIndex`'s own construction
+ * (`resolve`/`represent`, built from a finished `events` list), duplicated
+ * here on purpose rather than refactored out of cast.js: this file needs
+ * to build an index from an events list IT derives itself (base surfaces
+ * plus confirmed leading referents, re-clustered together), and cast.js's
+ * own `indexFor` has no seam for handing it a pre-built list instead of
+ * computing its own from scratch. A small, disclosed duplication (~15
+ * lines of glue, not the actual matching logic, which stays exactly
+ * `namesCorefer`) rather than a cross-cutting refactor of cast.js's own
+ * signature — cast.js is used elsewhere (capacity-runner.js's own
+ * `distinguish`/"cast" capacity) and reshaping it to accommodate one
+ * caller here is a larger, more invasive move than this fix needs.
+ * Extracting a shared `buildIndexFromEvents` into cast.js itself, so both
+ * call sites use one implementation, is real, sensible, unattempted
+ * future work — named here rather than silently left looking like an
+ * oversight.
+ */
+function buildIndexFromEvents(events, { namesCorefer, diaNorm }) {
+  const empty = { events: [], referents: new Set(), resolve: () => new Set(), represent: () => null };
+  if (!events?.length) return empty;
+  const best = new Map();
+  for (const e of events) {
+    const prev = best.get(e.referent_id);
+    if (!prev || e.surface.length > prev.length) best.set(e.referent_id, e.surface);
+  }
+  const MIN_STEM = 4;
+  const covers = (s, p) => s === p || (Math.min(s.length, p.length) >= MIN_STEM && (s.startsWith(p) || p.startsWith(s)));
+  function resolve(name) {
+    const ids = new Set();
+    const parts = diaNorm(name).split(/\s+/).filter((t) => t.length > 2);
+    if (!parts.length) return ids;
+    for (const e of events) {
+      if (!namesCorefer(name, e.surface)) continue;
+      const surfaceTokens = diaNorm(e.surface).split(/\s+/);
+      if (parts.every((p) => surfaceTokens.some((s) => covers(s, p)))) ids.add(e.referent_id);
+    }
+    return ids;
+  }
+  return { events, referents: new Set(best.keys()), resolve, represent: (id) => best.get(id) ?? null };
+}
+
+/**
+ * Wraps `indexFor(list)`'s own real, unchanged base index with any
+ * sentence-initial-only referents `confirmLeadingReferents` could confirm
+ * via a real pronoun binding. Gated on BOTH new organs
+ * (`extractLeadingSurfaces` AND `resolvePronouns`) being present; either
+ * omitted, this returns `baseIndex` untouched, no extra computation
+ * attempted at all — byte-identical to before this mechanism existed.
+ * Also returns `baseIndex` untouched whenever nothing new was confirmed
+ * (the ordinary case for material with no such gap, and every error path)
+ * — the extra `extractSurfaces`/`discoverReferents` calls below cost real
+ * but small work only when there is real work to check, and NEVER risk
+ * downgrading or losing anything `indexFor` already established: every
+ * failure mode here degrades to the base index, never to less than it.
+ */
+function withConfirmedLeadingReferents(
+  list,
+  baseIndex,
+  { splitSentences, extractSurfaces, extractLeadingSurfaces, discoverReferents, resolvePronouns, namesCorefer, diaNorm, functionWords, thirdPersonSingular },
+) {
+  if (!extractLeadingSurfaces || !resolvePronouns) return baseIndex;
+  let pooledSurfaces;
+  try {
+    const text = (list ?? []).map((p) => p?.text ?? "").join("\n\n");
+    if (!text.trim()) return baseIndex;
+    pooledSurfaces = extractSurfaces(splitSentences(text), { functionWords });
+  } catch {
+    return baseIndex;
+  }
+  let confirmed;
+  try {
+    confirmed = confirmLeadingReferents(list, pooledSurfaces, {
+      splitSentences,
+      extractSurfaces,
+      extractLeadingSurfaces,
+      discoverReferents,
+      resolvePronouns,
+      diaNorm,
+      functionWords,
+      thirdPersonSingular,
+    });
+  } catch {
+    return baseIndex;
+  }
+  if (!confirmed.length) return baseIndex;
+  let events;
+  try {
+    events = discoverReferents([...pooledSurfaces, ...confirmed], { minSentences: 0 }).events;
+  } catch {
+    return baseIndex;
+  }
+  return buildIndexFromEvents(events, { namesCorefer, diaNorm });
+}
+
 export function makeRelationReader(organs) {
   const {
     splitSentences,
     extractSurfaces,
     discoverReferents,
+    namesCorefer,
     diaNorm,
     discoverRelationVocab,
     extractRelations,
@@ -424,8 +750,56 @@ export function makeRelationReader(organs) {
     morphologyLanguage = null,
     blankFurniture = null,
     resolvePronouns = null,
+    classifyConnector = null,
+    minShare = undefined,
+    extractLeadingSurfaces = null,
+    thirdPersonSingular = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
+
+  // `organs.classifyConnector`/`organs.minShare` — OPTIONAL, injected the
+  // cast.js way, exactly like `verbForms`/`createLemmatizer` above:
+  // grammar-lens.js's own `makeGrammarLens` output, moved here from
+  // capacity-runner.js's post-hoc `checkConnectorClass` (Per-Source
+  // Testimony spec, BUILD-3 — BUILD-0/1/2 are `landAct`'s claim_id spine,
+  // `perSourceReadings`, and `mergeTestimony`, all in capacity-runner.js).
+  // Tags each edge with its connector's Thrax classification AT EXTRACTION
+  // TIME, the same posture `assertion` already holds — see the tagging
+  // loop below, right where `assertion` is tagged.
+  //
+  // NOT THE SAME FIELD AS `grammar`, TWO PARAGRAPHS UP — a real, disclosed
+  // distinction, not an oversight: `grammar` is `discoverRelationVocab`'s
+  // own VOCABULARY-level check (`organs.posPriorFor` + this file's OWN
+  // declared `GRAMMAR_MIN_SHARE` = 0.5), computed ONCE per verb TYPE during
+  // vocabulary discovery and used to gate a CLAIM to `beyond-reach` BEFORE
+  // it can even bind (judge()'s own `claim.grammar?.plausibleAsVerb`
+  // check). `connectorClass` (the field this organ pair tags edges with,
+  // below) is grammar-lens.js's own EDGE-level classification — caller-
+  // declared `minShare`, never defaulted here — used AFTER a verdict
+  // already computed, to catch a garbled connector squaring and object-
+  // specificity both miss (capacity-runner.js's `checkConnectorClass`, now
+  // reading this tag instead of calling `classifyConnector` itself). Both
+  // ultimately read the SAME underlying wordclass.js primitives against the
+  // SAME POSPrior@1 evidence and can legitimately disagree at different
+  // `minShare` operating points — disclosed as two independent measures
+  // riding the same edge, the identical posture this file's header already
+  // states for `grammar` vs `assertion` ("two INDEPENDENT measures of the
+  // same underlying concern... neither replaces the other").
+  //
+  // `minShare` is REQUIRED whenever `classifyConnector` is supplied —
+  // dominantClass's own never-defaulted contract (grammar-lens.js's own
+  // header: a silently-defaulted 0.9 once let two of its own real garbled
+  // connectors through unflagged), the identical discipline this file's
+  // own call to `discoverRelationVocab` already enforces for
+  // `posPrior`/`grammarMinShare`, two lines below. Both organs omitted:
+  // byte-identical to every caller before this pass — no edge gets a
+  // `connectorClass` field at all, matching `assertion`'s own backward-
+  // compatible posture.
+  if (classifyConnector && !Number.isFinite(minShare)) {
+    throw new TypeError(
+      "makeRelationReader: minShare is declared alongside classifyConnector — how dominant a class must be to collapse is never a default (dominantClass's own contract, grammar-lens.js's own header)",
+    );
+  }
 
   // `organs.createLemmatizer`/`organs.morphologyIndex`, when both provided,
   // widen every verb comparison below from exact string equality to the
@@ -465,7 +839,61 @@ export function makeRelationReader(organs) {
       return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false }, edges: [], read: () => emptyReport(false) };
     }
 
-    const index = indexFor(list);
+    // The closed class is measured from the POOL (the whole live corpus,
+    // when the caller has one), never from the turn's few offered passages,
+    // and by DOCUMENT FREQUENCY, not token share: material.js's
+    // functionWordSet thresholds on a word's share of all tokens (~0.6%),
+    // which is the right measure at book scale and degenerates at turn
+    // scale — on a few-hundred-token pool every twice-occurring word
+    // crosses it, and this fixture's own "married" was classified as a
+    // function word while building. The organ for "what the corpus says
+    // everywhere" at THIS scale already exists and is already earned:
+    // cite.js::commonTerms — present in more than half the pool's chunks —
+    // with its own declared floor (CORPUS_MINIMUM: below it, a frequency
+    // is not a frequency and nothing counts as common; the filter simply
+    // does not run, the engine's optional-filter discipline, and the
+    // disclosed residue is auxiliary noise in the vocabulary — which can
+    // widen what the reader hears but never fabricate an edge, since
+    // extractRelations emits nothing without a literal match).
+    //
+    // MOVED earlier in this function (Per-Source Testimony's sibling
+    // referent-bar fix) — computed here now, before `index`, so
+    // `withConfirmedLeadingReferents` below can pass it through to
+    // `extractSurfaces`/`extractLeadingSurfaces` the identical way the
+    // vocabulary-discovery pass two screens down already does. A pure
+    // reordering of two independent computations — this pass never reads
+    // `index`/`extractionList`/`text`, so moving it earlier changes
+    // nothing about what it computes, only when.
+    let functionWords = null;
+    try {
+      const chunks = (pool?.length >= CORPUS_MINIMUM ? pool : list).map((p) => ({
+        terms: p?.terms instanceof Set ? p.terms : new Set(tokenize(p?.text ?? "")),
+      }));
+      const common = commonTerms(chunks);
+      functionWords = common.size ? common : null;
+    } catch {
+      functionWords = null;
+    }
+
+    // `organs.extractLeadingSurfaces`, when provided ALONGSIDE
+    // `organs.resolvePronouns`, augments the base index with any
+    // sentence-initial-only referent a real pronoun binding confirms — see
+    // this file's own "the referent bar" section, above `makeRelationReader`,
+    // for the full account. Either omitted (every caller before this pass,
+    // and every caller that never injects `extractLeadingSurfaces`),
+    // `withConfirmedLeadingReferents` returns `indexFor(list)` untouched on
+    // its very first line — byte-identical.
+    const index = withConfirmedLeadingReferents(list, indexFor(list), {
+      splitSentences,
+      extractSurfaces,
+      extractLeadingSurfaces,
+      discoverReferents,
+      resolvePronouns,
+      namesCorefer,
+      diaNorm,
+      functionWords,
+      thirdPersonSingular,
+    });
 
     // `organs.blankFurniture`, when provided, is a length-preserving blanker
     // (eoreader6.1's spans.js::blankLabelRows) run ONLY on the copy of the
@@ -495,33 +923,6 @@ export function makeRelationReader(organs) {
     const extractionList = blankFurniture || resolvePronouns ? list.map((p) => ({ ...p, text: forExtraction(p.text) })) : list;
 
     const text = extractionList.map((p) => p.text).join("\n\n");
-
-    // The closed class is measured from the POOL (the whole live corpus,
-    // when the caller has one), never from the turn's few offered passages,
-    // and by DOCUMENT FREQUENCY, not token share: material.js's
-    // functionWordSet thresholds on a word's share of all tokens (~0.6%),
-    // which is the right measure at book scale and degenerates at turn
-    // scale — on a few-hundred-token pool every twice-occurring word
-    // crosses it, and this fixture's own "married" was classified as a
-    // function word while building. The organ for "what the corpus says
-    // everywhere" at THIS scale already exists and is already earned:
-    // cite.js::commonTerms — present in more than half the pool's chunks —
-    // with its own declared floor (CORPUS_MINIMUM: below it, a frequency
-    // is not a frequency and nothing counts as common; the filter simply
-    // does not run, the engine's optional-filter discipline, and the
-    // disclosed residue is auxiliary noise in the vocabulary — which can
-    // widen what the reader hears but never fabricate an edge, since
-    // extractRelations emits nothing without a literal match).
-    let functionWords = null;
-    try {
-      const chunks = (pool?.length >= CORPUS_MINIMUM ? pool : list).map((p) => ({
-        terms: p?.terms instanceof Set ? p.terms : new Set(tokenize(p?.text ?? "")),
-      }));
-      const common = commonTerms(chunks);
-      functionWords = common.size ? common : null;
-    } catch {
-      functionWords = null;
-    }
 
     // The vocabulary is measured from THE MATERIAL — the answer is read with
     // the material's own verbs, because "supported" means the material could
@@ -792,6 +1193,26 @@ export function makeRelationReader(organs) {
         verbSupport: verbSurfaces.get(e.verb) ?? 0,
       };
     }
+
+    // ── the connector-class tier: grammar-lens.js's own classification,
+    // now at EXTRACTION TIME (Per-Source Testimony spec, BUILD-3) instead
+    // of capacity-runner.js's old post-hoc `checkConnectorClass` call —
+    // see this organ pair's own header above for why `connectorClass` is a
+    // separate field from `grammar` two tiers up, not a rename of it.
+    // Optional and additive, the identical posture `assertion` just above
+    // already holds: omitted, no edge carries `connectorClass` and every
+    // existing caller is byte-identical. `classifyConnector`'s own declared
+    // contract takes the whole edge (grammar-lens.js's header — today it
+    // reads only `edge.verb`, but the signature is edge-shaped so a future
+    // version could read more without a call-site change), so it is called
+    // here the same way capacity-runner.js's own pre-BUILD-3 direct call
+    // already did.
+    if (classifyConnector) {
+      for (const e of edges) {
+        e.connectorClass = classifyConnector(e, { minShare });
+      }
+    }
+
     if (assert && edges.length) {
       // The arm re-hears the SAME material with each sentence's words
       // shuffled, through the SAME vocabulary-bound extraction — never a
@@ -1036,6 +1457,12 @@ export function makeRelationReader(organs) {
         // `nearest` lists carry it for free — a conviction resting on a
         // single-witness edge says so wherever that edge is shown.
         ...(e.assertion ? { assertion: e.assertion } : {}),
+        // grammar-lens.js's own classification, tagged at extraction time
+        // above — absent (not even a null key) when `classifyConnector`
+        // was never injected, the same "no key at all" posture `assertion`
+        // holds, so a caller checking `"connectorClass" in edge` sees the
+        // organ's own presence honestly.
+        ...(e.connectorClass ? { connectorClass: e.connectorClass } : {}),
       };
     }
 

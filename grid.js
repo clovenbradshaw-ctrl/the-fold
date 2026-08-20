@@ -522,6 +522,7 @@ export function makeGrid({ operators, taskLog }) {
         broken: event.broken,
         because: event.because,
         warrant: event.warrant,
+        claim_id: event.claim_id,
         requiresEvaluate: event.requiresEvaluate,
         verdict: event.verdict,
         actGroup: event.ops.length > 1 ? event.ops.join("+") : null,
@@ -606,6 +607,73 @@ export function makeGrid({ operators, taskLog }) {
   }
 
   /**
+   * BUILD-0 of the Per-Source Testimony spec (POLICIES.md — "one coherent
+   * voice on the surface, unique per-source testimony underneath") — the
+   * claim-id spine. Intra-pass identity only, per the spec's own disclosed
+   * scope line: one PROPOSE -> extract -> evaluate -> merge -> (concede)
+   * run is one causal chain; mint the id once, carry it through. No
+   * semantic canonicalization, no cross-pass identity — a real, deferred
+   * question (the same cross-pocket grain `induceEntityKind` is still TODO
+   * on), not attempted here.
+   *
+   * Content-addressed via Web Crypto — the identical approach
+   * `builds.js::buildHash` already uses (same digest algorithm, same hex
+   * encoding), so a claim_id and a build's own hash read the same way on
+   * the record. Minted from (subject, verb, object) — the SAME three
+   * fields `hypergraph.js`'s `judge()` already reads a claim into — never
+   * from surrounding prose, so two phrasings `judge()` itself already
+   * normalizes to one triple mint the same id.
+   *
+   * NOTHING else was built for landing a claim_id, on purpose — an earlier
+   * cut of this pass added a bespoke `landCell(log, {claimId, domain,
+   * grain, operator, witness, payload})`, and it was deleted the same day
+   * it was written: every one of its fields already exists. `operator`/
+   * `grain` are free from picking a verb and a terrain in an ORDINARY act
+   * (`land()` already threads `event.domain`/`event.grain` onto the log —
+   * this file's own header, reconciliation 2, "terrain is medium-blind").
+   * `witness` (who is testifying) is the SAME question `warrant:<giver>`
+   * already answers for `relate`'s unestablished edges — `land()` already
+   * threads `event.warrant` through too; reusing the field rather than a
+   * synonym is the whole point. `payload` is exactly what `attachResult`'s
+   * own `extra` parameter already carries (its doc comment says so:
+   * "`extra`... rides alongside `result` as ordinary top-level payload...
+   * task-log.js's own `projectTasks` merges any non-reserved key"). So
+   * `claim_id` needed exactly ONE new wire, not a new mechanism: `land()`
+   * below now threads `event.claim_id` through (one field, added to the
+   * same enumerated list `warrant`/`because` already sit in) — a caller
+   * mints the id and sets it on the event object BEFORE calling `land()`;
+   * nothing else changes. On the RESULT side, `attachResult(log, taskId,
+   * result, { claim_id })` already works today with zero further change.
+   */
+  async function mintClaimId({ subject, verb, object }) {
+    const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+    const bytes = new TextEncoder().encode(JSON.stringify({ subject: norm(subject), verb: norm(verb), object: norm(object) }));
+    const buf = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return `@${[...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  /**
+   * Project every entry carrying a given claim_id — a plain filter over
+   * whatever fields those entries already have (domain/grain from
+   * `land()`'s own `event.domain`/`event.grain`, attribution from
+   * `warrant`/`because`, a computed verdict from `attachResult`'s
+   * `extra`), never a schema this function invents or requires. `at`
+   * bounds the slice by sequence — the same "as of" reading `foldBuild`
+   * already gives code, applied to a claim's own history. `domain`/
+   * `grain` narrow further when the caller wants a presupposition-style
+   * gate (e.g. `{domain: "Existence"}`); omit both for the full slice.
+   * Judging AGREE/DISAGREE/SINGLE/UNDETERMINED out of what this returns
+   * (spec §3's MERGE step) is deliberately not this function's job.
+   */
+  function foldClaim(log, claimId, { domain, grain, at } = {}) {
+    let cells = log.entries.filter((e) => e.claim_id === claimId);
+    if (typeof at === "number") cells = cells.filter((e) => e.seq <= at);
+    if (domain) cells = cells.filter((e) => e.domain === domain);
+    if (grain) cells = cells.filter((e) => e.grain === grain);
+    return { claimId, cells, domainsCovered: [...new Set(cells.map((c) => c.domain).filter(Boolean))] };
+  }
+
+  /**
    * Fold the log into current acts plus DEF landing status, per the
    * document's load-bearing rule: "a define lands on the record (testimony)
    * only if its evaluate clears; otherwise it lands as paraphrase... or a
@@ -665,6 +733,8 @@ export function makeGrid({ operators, taskLog }) {
     land,
     attachResult,
     concedeEvaluation,
+    mintClaimId,
+    foldClaim,
     foldGrid,
     createLog: (opts) => taskLog.createTaskLog(opts),
   };

@@ -118,6 +118,7 @@ const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
 const RECORD_PATH = path.join(RECORD_DIR, "explore-record.jsonl");
+const TRANSCRIBE_LOG_PATH = path.join(RECORD_DIR, "transcribe-log.jsonl");
 const MATERIALS_DIR = path.join(ROOT, "materials");
 // The web store — history the user may clear, unlike record/ which no one
 // may. pages/ holds full content, addressed by sha256 of the bytes as they
@@ -1489,6 +1490,60 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // ---- priors surface search: find which enabled priors docs mention
+    // any of the given surface names (case-insensitive substring). Returns
+    // matching passages per surface, with provenance. Used by Layer 2
+    // priors-coref in the transcription pipeline — the engine's own
+    // namesCorefer confirms identity on the client side.
+    if (req.method === "POST" && p === "/api/priors/surfaces") {
+      const body = await readJsonBody(req);
+      const surfaces = Array.isArray(body.surfaces) ? body.surfaces.map(String).filter(Boolean) : [];
+      if (!surfaces.length) return send(res, 400, { error: "surfaces (array of strings) is required" });
+      const listing = listPriorDocuments();
+      if (!listing) {
+        record("priors-surfaces", { surfaces: surfaces.length, consulted: 0, matches: 0, gap: "not-present" });
+        return send(res, 200, { matches: [], gate: { enabled: 0, total: 0 }, gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` } });
+      }
+      const { byPath } = readPriorToggles();
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const surfaceLower = surfaces.map((s) => ({ original: s, folded: s.toLowerCase() }));
+      const matches = new Map();
+      let consulted = 0;
+      const DOCS_MAX = 60;
+      for (const entry of gated.slice(0, DOCS_MAX)) {
+        const abs = path.join(PRIORS_ROOT, entry.path);
+        if (!abs.startsWith(PRIORS_ROOT + path.sep)) continue;
+        let raw;
+        try { raw = readFileSync(abs, "utf8"); } catch { continue; }
+        const doc = readPriorDocument(entry.path, raw);
+        if (!doc?.text) continue;
+        consulted++;
+        const textLower = doc.text.toLowerCase();
+        for (const { original, folded } of surfaceLower) {
+          const idx = textLower.indexOf(folded);
+          if (idx === -1) continue;
+          const sentStart = doc.text.lastIndexOf(".", idx) + 1;
+          const sentEnd = doc.text.indexOf(".", idx);
+          const passage = doc.text.slice(sentStart, sentEnd === -1 ? idx + 200 : sentEnd + 1).trim();
+          if (!matches.has(original)) matches.set(original, []);
+          matches.get(original).push({
+            passage: passage.slice(0, 300),
+            path: entry.path,
+            title: doc.title ?? null,
+            source: doc.source ?? {},
+            offset: doc.offset + sentStart,
+          });
+        }
+      }
+      const result = [...matches.entries()].map(([surface, passages]) => ({ surface, passages: passages.slice(0, 5) }));
+      record("priors-surfaces", { surfaces: surfaces.length, consulted, matches: result.length, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      return send(res, 200, {
+        matches: result,
+        gate: { enabled: gated.length, total: listing.entries.length },
+        ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
+      });
+    }
+
     // ---- web search: one query, one request to the no-key endpoint. The
     // endpoint's bot-challenge page is a typed refusal (P4: gaps are
     // results), never an empty success. Found vs shown is reported.
@@ -2039,6 +2094,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
+    // ---- transcribe-log: append-only log for transcription pipeline layers.
+    // Each entry is { layer, text, meta } — raw Whisper output, self-coref
+    // resolution, and priors-coref resolution, in order. One entry per layer
+    // per transcription run.
+    if (req.method === "POST" && p === "/api/transcribe-log") {
+      const body = await readJsonBody(req);
+      if (typeof body.layer !== "string") return send(res, 400, { error: "layer (string) is required" });
+      const entry = { at: new Date().toISOString(), layer: body.layer, text: body.text || "", meta: body.meta || {} };
+      appendFileSync(TRANSCRIBE_LOG_PATH, JSON.stringify(entry) + "\n");
+      return send(res, 200, { ok: true });
+    }
+
     // ---- the model proxy (P25 amends P1): the fold servable AS a model —
     // an OpenAI-compatible client (OpenCode's custom-provider config, the
     // Ollama desktop app's "add provider") or an Ollama-native one points
@@ -2178,7 +2245,7 @@ const server = http.createServer(async (req, res) => {
           const args = ["--no-playlist", "--no-warnings", "-o", tmpTemplate];
           if (action === "audio") {
             args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "5");
-          } else {
+          } else if (ext !== "best") {
             args.push("-f", ext);
           }
           args.push(url);
@@ -2194,8 +2261,9 @@ const server = http.createServer(async (req, res) => {
           });
           // find the output file — yt-dlp fills in %(ext)s
           let actualFile = null;
-          for (const tryExt of [".mp3", ".webm", ".m4a", ".ogg", ".mp4", ".mkv", ".video"]) {
-            if (existsSync(tmpBase + tryExt)) { actualFile = tmpBase + tryExt; break; }
+          let actualExt = null;
+          for (const tryExt of [".mp3", ".webm", ".m4a", ".ogg", ".mp4", ".mkv", ".video", ".flv", ".avi", ".mov"]) {
+            if (existsSync(tmpBase + tryExt)) { actualFile = tmpBase + tryExt; actualExt = tryExt.slice(1); break; }
           }
           if (!actualFile) throw new Error("yt-dlp produced no output file");
           // get the title for the filename
@@ -2212,8 +2280,7 @@ const server = http.createServer(async (req, res) => {
             });
           } catch {}
           const safeName = title.replace(/[^a-zA-Z0-9 _-]/g, "_").slice(0, 80).replace(/_+$/, "");
-          const fileExt = action === "audio" ? "mp3" : ext;
-          const finalName = `${safeName}.${fileExt}`;
+          const finalName = `${safeName}.${actualExt}`;
           const dest = path.join(MATERIALS_DIR, finalName);
           const buf = readFileSync(actualFile);
           writeFileSync(dest, buf);

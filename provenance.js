@@ -181,7 +181,23 @@ const CUT_RES = [
     `^\\s*${NARRATION_SUBJECT}(?:\\s*,[^,\\n]*,)?\\s+(?:\\w+\\s+){0,2}?(?:asks?|asked|aims?|wants?|wanted|focuse[sd]|transitions?|discusse[sd]|begins?|starts?|revolves|details?|describe[sd]|provides?|provided|is\\s+about|is\\s+asking|seeks?|waits?|waiting|looks?|looking|relate[sd]?|relates|relating)\\b`,
     "iu", // u: NARRATION_SUBJECT's modifier gap uses \p{L}
   ),
-  /^\s*it\s+(?:then\s+)?(?:asks?|aims?|transitions?|shifts?|moves|focuse[sd]|discusse[sd]|goes\s+on)\b/i,
+  // Measured live 2026-08-19 ("who was abraham lincoln's vice president?",
+  // gemma2:2b, real Wikipedia material): a two-sentence draft opened "This
+  // biographical passage details the life of Hannibal Hamlin…" (caught by
+  // the determiner+noun pattern above, which already carries "details?")
+  // and continued "It details his time serving as Vice President…" — the
+  // SAME register, SAME verb, but the anaphoric "it" carried a narrower,
+  // separately-maintained verb list that never had "details" on it, so
+  // only one of the two narration sentences was cut, the mass-majority
+  // test read under 50%, and the whole narrated draft shipped uncaught —
+  // silently starving the completeness gate downstream too, since a
+  // narration-framed sentence never binds a "Lincoln —VP→ X" claim for it
+  // to check. Extended with the exact source-describing verbs already
+  // measured and shipped on the determiner+noun pattern above
+  // (details?|describe[sd]|provides?|provided|highlights?|outlines?) —
+  // propagating an already-earned vocabulary to the pronoun case it was
+  // missing from, not a new guess.
+  /^\s*it\s+(?:then\s+)?(?:asks?|aims?|transitions?|shifts?|moves|focuse[sd]|discusse[sd]|goes\s+on|details?|describe[sd]|provides?|provided|highlights?|outlines?)\b/i,
   /conversation\s+so\s+far(?:,)?\s+in\s+one\s+line/i,
 ];
 const FALSE_REFUSAL_RE =

@@ -5450,6 +5450,41 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
             : ""),
       ),
     );
+    // A multi-source atom gets no PROOF chip — nothing to check, it already
+    // has a second perspective — but it must not therefore get NO mark at
+    // all. Measured live 2026-08-19: a reader watching "Andrew Johnson"
+    // (single-source, chip, then web-corroborated ✓3/3) sit right next to
+    // "Hannibal Hamlin" (multi-source, silent) read the silence as "this one
+    // was never checked" — exactly backwards, since multi-source is the
+    // STRONGER state. This is the same failure shape checkGrounding's own
+    // header already names for a different pair of facts ("examined is not
+    // the same as clean... those are different facts that must not read
+    // alike") — here, "cleared the bar so no chip needed" and "never
+    // evaluated" were reading alike because only one of them drew anything.
+    // A quiet, non-interactive mark (never a button — there is nothing to
+    // click into, no audit panel, no web crossing) closes the gap without
+    // manufacturing a false equivalence with the single-source door: no
+    // web-corroborated/uncorroborated state exists for it, only the
+    // material's own already-plural count.
+    const seenMulti = new Set();
+    for (const a of cor.atoms.filter((x) => x.sources.length >= 2)) {
+      const tokens =
+        a.kind === "number"
+          ? [String(a.text).replace(/[,%]/g, "")]
+          : a.text
+              .split(/[\s-]+/)
+              .map((w) => w.replace(/['’]s$/, ""))
+              .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+      if (!tokens.length) continue;
+      const key = tokens.join(" ").toLowerCase();
+      if (seenMulti.has(key)) continue;
+      seenMulti.add(key);
+      const mark = document.createElement("span");
+      mark.className = "proof-check settled";
+      mark.textContent = `“${a.text}” ✓✓`;
+      mark.title = `${a.kind === "number" ? "figure" : "name"} backed by ${a.sources.length} distinct sources in your material — already more than one perspective, no web check needed`;
+      stripAdd(mark);
+    }
     // The material is not ground truth — it is one perspective (user,
     // 2026-08-17: "we shouldn't trust just the pasted text"). Every atom the
     // material backs from a SINGLE source keeps its own door to a second

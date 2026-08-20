@@ -1426,8 +1426,7 @@
          verdict sentence, each page's verbatim snip, the saved copy — sits
          behind the click. */
       .grounding-strip { display: flex; flex-wrap: wrap; gap: 3px 6px; margin: 6px 0 2px; align-items: baseline; }
-      button.proof-check {
-        cursor: pointer;
+      .proof-check {
         display: inline-block;
         font-family: var(--mono);
         font-size: 11px;
@@ -1437,9 +1436,18 @@
         background: var(--record-soft);
         color: var(--record);
       }
+      button.proof-check { cursor: pointer; }
       button.proof-check:hover { border-color: var(--accent); color: var(--accent); }
       button.proof-check.web-corroborated { border-style: solid; }
       button.proof-check.selected { border-color: var(--accent); color: var(--accent); }
+      /* A multi-source atom: already more than one perspective, nothing to
+         click into (no audit panel, no web crossing) — solid border reuses
+         the "settled" look web-corroborated buttons earn, opacity keeps it
+         quieter than an active/interactive chip so the strip still reads
+         its clickable doors at a glance, and it must never look like the
+         SAME state a web check produces (that one is a verdict about the
+         world; this one is a plain count already sitting in the material). */
+      span.proof-check.settled { border-style: solid; opacity: 0.65; cursor: default; }
       /* One stable audit panel below the chips: opening a check swaps the
          panel's content in place — the chips never move, the page never
          jumps. */

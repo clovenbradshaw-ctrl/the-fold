@@ -613,6 +613,7 @@ test("the material path sends the real conversation on a flat turn — role-stru
     { role: "user", content: "hey" },
     { role: "assistant", content: "hello — what shall we look at?" },
   ];
+  let sawDiscourse = false;
   const call = async (messages) => {
     const roles = messages.map((m) => m.role);
     if (
@@ -623,6 +624,13 @@ test("the material path sends the real conversation on a flat turn — role-stru
       messages[messages.length - 1].content === "what was the harbor figure?"
     )
       sawHistory = true;
+    // Measured live 2026-08-19 ("system 2 keeps drifting off the
+    // discourse"): the discourse line used to be dropped from the system
+    // prompt the moment chatHistory existed — exactly backwards, since it
+    // carries S1's own distilled topic/flow/entities, not a redundant copy
+    // of the raw turns, and matters most when aperture.js's regime has
+    // narrowed chatHistory down to almost nothing.
+    if (messages[0].content.includes("ports · the figure under revision · Kessington")) sawDiscourse = true;
     const refs = offeredRefs(promptOf(messages));
     return refs.length ? "The figure was 12% for the spring quarter." : "Nothing.";
   };
@@ -638,6 +646,7 @@ test("the material path sends the real conversation on a flat turn — role-stru
     sawHistory,
     "the flat material call: duty+material in system, verbatim history as messages, the person's words as the final user turn",
   );
+  assert.ok(sawDiscourse, "the discourse line rides alongside chatHistory, never dropped just because history exists");
 });
 
 test("a decomposed part stays narrowly scoped even when discourse is set — the flat-only fold-in does not leak into planned parts", async () => {
@@ -868,6 +877,28 @@ test("searchedVoid also reaches a flat chat turn that carries verbatim history",
   assert.ok(sawVoid, "the void must reach the history-carrying branch too, not just the no-history one");
 });
 
+test("the discourse line reaches a materialless flat chat turn that carries verbatim history too", async () => {
+  // Same bug, same fix, the other executeMessages branch: a chat turn with
+  // no material still used to drop the one-line discourse fold the moment
+  // chatHistory existed — the exact branch a startle-narrowed conversation
+  // (aperture.js's presentWindow, down to as little as one exchange) falls
+  // into most often, which is precisely when the distilled anchor matters.
+  let sawDiscourse = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes("harbor traffic · the spring revision")) sawDiscourse = true;
+    return "Still the spring figure, yes.";
+  };
+  await runHolonicTask({
+    task: "and the other one?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    chatHistory: [{ role: "user", content: "what's the figure?" }, { role: "assistant", content: "12%." }],
+    discourse: "harbor traffic · the spring revision",
+  });
+  assert.ok(sawDiscourse, "discourse must reach the history-carrying materialless branch too, not just the no-history one");
+});
+
 test("without searchedVoid, an ordinary materialless chat turn is untouched — no phantom acknowledgement", async () => {
   let sawVoid = false;
   const call = async (messages) => {
@@ -1057,6 +1088,131 @@ test("a single-filler slot never trips the completeness gate — singular is the
     makeRelationReader: relationsFor,
   });
   assert.equal(corrections, 1, "a single real filler is the unremarked case — no completeness call spent on it");
+});
+
+test("reproduction and incompleteness each get their own correction round — the live Lincoln/Hamlin/Johnson specimen", async () => {
+  // The live failure this closes: draft 1 was a bare, correct, but
+  // VERBATIM name ("Hannibal Hamlin" in the real trace; "Hamlin" here) —
+  // reproducedFromContent convicts it (a short answer is a substring of
+  // the material's own sentence, so copiedMass === totalMass). The single
+  // correction budget went to fixing reproduction; the fix produced a
+  // fuller, paraphrased clause that was STILL incomplete (missing
+  // Johnson), and with only one shot spent, that second failure shipped
+  // unaddressed. This test pins that the reproduction fix and the
+  // completeness fix each get their own round.
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let reproductionRound = 0;
+  let incompleteRound = 0;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material also states")) {
+      incompleteRound++;
+      assert.match(user, /Johnson/, "the completeness correction must name the real missing filler");
+      return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
+    }
+    if (user.includes("copies the passage word for word")) {
+      reproductionRound++;
+      // Paraphrased, not verbatim — clears reproduction, but is now a
+      // full clause the completeness gate can examine, and it names only
+      // Hamlin, exactly like the live specimen's own draft 2.
+      return "Lincoln appointed Hamlin in 1861.";
+    }
+    // First draft: a bare, verbatim, correct-but-incomplete name — too
+    // short and clauseless for the completeness gate to see at all, but
+    // caught as reproduction because it is a substring of the material's
+    // own sentence.
+    return "Hamlin";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln appoint?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.equal(reproductionRound, 1, "the bare verbatim draft must trigger exactly one reproduction correction");
+  assert.equal(incompleteRound, 1, "the fuller-but-incomplete draft must get its OWN correction round, not be silently shipped");
+  assert.match(result.output, /Johnson/, "Johnson must surface in the final shipped answer");
+  assert.ok(!result.open.some((o) => o.includes("reproduces the material verbatim")));
+  assert.ok(!result.open.some((o) => o.includes("names only one of several")));
+});
+
+// ── the succession-box completeness signal (succession.js, additive to the
+// hypergraph-based gate above) — the real live specimen: a Wikipedia
+// succession box never states "Lincoln's vice presidents were Hamlin and
+// Johnson" as one sentence extractRelations could bind; it states two
+// separate records, each in its own "Preceded by"/"Succeeded by" fields.
+// Reused verbatim from the real running app's own captured material.
+const SUCCESSION_TEXT = `15th Vice President of the United States
+In office
+March 4, 1861 – March 4, 1865
+President Abraham Lincoln
+Preceded by John C. Breckinridge
+Succeeded by Andrew Johnson
+23rd United States Minister to Spain
+In office
+December 20, 1881 – October 17, 1882
+President Chester A. Arthur
+Preceded by Lucius Fairchild
+Succeeded by John W. Foster
+United States Senator from Maine
+In office
+March 4, 1869 – March 3, 1881
+Preceded by Lot M. Morrill
+Succeeded by Eugene Hale
+
+17th President of the United States
+In office
+April 15, 1865 – March 4, 1869
+Vice President Vacant [ a ]
+Preceded by Abraham Lincoln
+Succeeded by Ulysses S. Grant
+16th Vice President of the United States
+In office
+March 4, 1865 – April 15, 1865
+President Abraham Lincoln
+Preceded by Hannibal Hamlin
+Succeeded by Schuyler Colfax
+United States Senator
+from Tennessee
+In office
+March 4, 1875 – July 31, 1875
+Preceded by Parson Brownlow
+Succeeded by David M. Key
+
+Hannibal Hamlin (August 27, 1809 – July 4, 1891) was an American politician and diplomat who was the 15th vice president of the United States, serving from 1861 to 1865, during President Abraham Lincoln's first term. He was the first Republican vice president.`;
+
+test("a succession-box specimen: naming only Hamlin trips the completeness gate, and the correction names Johnson", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? messages[0]?.content ?? "";
+    if (user.includes("the material also states")) {
+      corrected = true;
+      assert.match(user, /Johnson/, "the correction prompt must name the real, missing filler off the succession box");
+      return "Hannibal Hamlin was Abraham Lincoln's first vice president, and Andrew Johnson was his second.";
+    }
+    // First draft: true, bound in the ordinary prose sense, and correct —
+    // but names only one of the two real succession-box holders.
+    return "Hannibal Hamlin was Abraham Lincoln's vice president.";
+  };
+  const result = await runHolonicTask({
+    task: "who was Abraham Lincoln's vice president?",
+    chunks: chunkSource("lincoln-succession.txt", SUCCESSION_TEXT),
+    call,
+    planMode: "flat",
+    // High enough that all three of this material's own retrieval chunks
+    // (the boundary the plain-prose blank lines already draw) come back
+    // regardless of which one scores highest — succession.js needs the
+    // WHOLE box structure, including the box that anchors Hamlin and the
+    // box whose chain resolves Johnson, to be in the same sourceBlock.
+    passagesPerPart: 10,
+    makeRelationReader: relationsFor,
+  });
+  assert.ok(corrected, "the succession-box signal must trigger the tailored rewrite");
+  assert.match(result.output, /Johnson/, "the shipped answer must cover the succession-box filler the first draft missed");
 });
 
 test("a fenced code answer survives byte-exact — fences are structure, never framing", async () => {

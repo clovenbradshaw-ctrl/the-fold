@@ -39,6 +39,7 @@ import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grou
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
+import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
@@ -527,10 +528,22 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
     );
   }
   if (mode === "incomplete") {
+    // Measured live 2026-08-19: an earlier draft of this prompt offered "say
+    // plainly that the material lists more than one" as an escape hatch for
+    // the genuinely-ambiguous case — gemma2:2b instead echoed that exact
+    // clause back as its OWN answer's opening sentence ("The material lists
+    // more than one vice president...") even on a draft that WAS able to
+    // name every filler. A copy-pastable phrase in a correction prompt is an
+    // instruction the model can obey too literally — the same lesson this
+    // file's own EXECUTE_SYSTEM_PROMPT history already carries (a directive
+    // about the task produces a description of the task). Reworded to name
+    // what to DO (state every filler directly, plainly) without supplying
+    // any sentence shaped to be echoed.
     return (
       `Your draft for "${part.label}" answers as if there is only one, but the material states more than one:\n` +
       failures.map((f) => `- ${f}`).join("\n") +
-      `\n\nRewrite to name all of them, or say plainly that the material lists more than one. ` +
+      `\n\nRewrite your answer to state every one of them directly, by name, the way you would if you had known all along — never describe the material itself. ` +
+      `If you genuinely cannot tell which the material means, name the ones you can and say which part is unclear. ` +
       `Do not invent a reason to prefer one over the others unless the material itself gives one.\n\n` +
       `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
@@ -1141,8 +1154,17 @@ export async function runPart({
   // When verbatim history is available (chatHistory), send it as message
   // pairs so the model can see the actual back-and-forth. The threshold
   // is the window itself — RECENCY_WINDOW messages is always small enough
-  // to send raw. Without history, fall back to the one-line discourse
-  // slice.
+  // to send raw. The one-line discourse slice is NOT a fallback for when
+  // chatHistory is absent — it is a different assembly (S1's own distilled
+  // topic/flow/entities, never re-derivable from raw turns by a small model
+  // for free) and rides ALONGSIDE chatHistory always, not only in its
+  // absence. Measured live (2026-08-19, "system 2 keeps drifting off the
+  // discourse"): the prior code dropped this line the moment chatHistory
+  // existed (`chatHistory.length ? "" : chatContext`), which is exactly
+  // backwards at the moment it matters most — aperture.js's own regime can
+  // narrow chatHistory to as little as the two messages of one exchange
+  // under startle, and that is precisely when the wider conversation's only
+  // surviving anchor is this line, not the (now-truncated) raw turns.
   const chatContext = discourse ? `\n\nThe conversation so far: ${discourse}` : "";
   // The conversation is its own assembly, and the flat material path gets it
   // REAL — the same role-structured history the chat path already sends —
@@ -1169,9 +1191,7 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content:
-              [FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") +
-              (chatHistory.length ? "" : chatContext),
+            content: [FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") + chatContext,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -1182,7 +1202,7 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
+          { role: "system", content: `${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
@@ -1234,6 +1254,40 @@ export async function runPart({
     lastNarrationTotal = scaffold.text.length;
     return scaffold.text;
   };
+  // Succession-box completeness (2026-08-19, user direction) — additive to,
+  // never a replacement for, the hypergraph-based signal directly below:
+  // that one reads a BOUND claim's own `fillers` cardinality, which only
+  // exists when extractRelations bound an SVO sentence in the first place.
+  // A Wikipedia succession box never states "Lincoln's vice presidents were
+  // Hamlin and Johnson" as a sentence — it states two separate records, each
+  // with its own "Preceded by"/"Succeeded by" fields, so no claim with
+  // `fillers.length > 1` is ever produced from this material shape and
+  // isIncomplete below stays permanently false no matter how many
+  // corrections run. succession.js's own header discloses the scope this
+  // reads (Wikipedia-style succession boxes only); this is the second,
+  // disclosed way "incomplete" becomes true, OR'd with the hypergraph
+  // signal, never touching its mechanics, its mode-priority order, or its
+  // per-mode budget.
+  const successionIncompleteFindings = (draftText) => {
+    if (!sourceBlock) return [];
+    const boxes = resolveBoxSubjects(parseSuccessionBoxes(sourceBlock), sourceBlock);
+    const groups = officeHolderGroups(boxes);
+    if (!groups.length) return [];
+    const dt = foldTypography(String(draftText ?? "")).toLowerCase();
+    const findings = [];
+    for (const g of groups) {
+      // The same relevance gate incompleteClaimsOf already holds itself to:
+      // only check completeness of an office the draft already talks about
+      // — never nag about a succession box nobody asked about.
+      const named = g.holders.filter((h) => dt.includes(foldTypography(h).toLowerCase()));
+      if (!named.length) continue;
+      const missing = g.holders.filter((h) => !named.includes(h));
+      if (missing.length) {
+        findings.push(`${g.president}'s ${g.office} — the material also states: ${missing.join(", ")}`);
+      }
+    }
+    return findings;
+  };
   // Completeness (2026-08-19, user direction: "we STILL are not getting
   // Johnson, it's not adversarially checking if there is more to the
   // story" / "every question like that spin up a little def eva rec that
@@ -1282,19 +1336,24 @@ export async function runPart({
     }
     return result;
   };
-  const isIncomplete = (c) => incompleteClaimsOf(c).length > 0;
+  // `t` (the draft text) is only ever consumed by the succession-box signal
+  // — the hypergraph signal reads solely off `c`, unchanged.
+  const isIncomplete = (t, c) => incompleteClaimsOf(c).length > 0 || successionIncompleteFindings(t).length > 0;
   // The concrete diagnosis buildCorrectionPrompt's "incomplete" mode needs:
   // not "be more complete" (teaches nothing, judge()'s own stated reason
   // every mode here names what actually went wrong) but the real fillers,
   // by name, so the model is told exactly what the material states rather
   // than asked to guess what "more" might mean. Named as `uncovered` —
   // what the answer is STILL missing, not the full filler list including
-  // what it already got right.
-  const incompleteFindings = (c) =>
-    incompleteClaimsOf(c).map(
+  // what it already got right. The succession-box findings are already
+  // full sentences naming what is missing, appended rather than reshaped.
+  const incompleteFindings = (t, c) => [
+    ...incompleteClaimsOf(c).map(
       (claim) =>
         `"${claim.subject} ${claim.verb} ${claim.object}" — the material also states: ${claim.uncovered.map((f) => f.object).join(", ")}`,
-    );
+    ),
+    ...successionIncompleteFindings(t),
+  ];
   // The verdict, with the cut accounted for: judge() deliberately reads a
   // genuinely empty reply as no-verdict ("produced no text" is its own typed
   // open, not an echo) — but a draft stripScaffoldNarration EMPTIED is the
@@ -1313,7 +1372,7 @@ export async function runPart({
         : {
             ...judge(t),
             narrated: lastNarrationTotal > 0 && lastNarrationCut > lastNarrationTotal / 2,
-            incomplete: isIncomplete(c),
+            incomplete: isIncomplete(t, c),
           };
 
   const rawDraft = await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
@@ -1333,27 +1392,47 @@ export async function runPart({
   // correction loop (already passage-gated below), and no framing cut (also
   // gated below). What the person gets is what the model said, as a person.
   let verdict = verdictOf(draft, check);
+  // The mode a round's failure is filed under — the SAME priority order as
+  // before (reproduced > echoed > narrated > incomplete > unsupported),
+  // pulled into its own function so the budget below can key on it.
+  const modeOf = (v, c) =>
+    v.reproduced
+      ? "reproduction"
+      : v.echoed
+        ? "echo"
+        : v.narrated
+          ? "narrated"
+          : v.incomplete
+            ? "incomplete"
+            : c.unsupported.length
+              ? "unsupported"
+              : null;
+  let mode = modeOf(verdict, check);
+
+  // A correction budget spent per FAILURE MODE, not per call: without this,
+  // the loop's one shot went to whichever failure the priority order named
+  // first, and a different failure that only became visible once the first
+  // was fixed (the live Lincoln/Hamlin/Johnson specimen: reproduction fired
+  // on a bare "Hannibal Hamlin", its own fix produced a fuller draft, THAT
+  // draft was incomplete — missing Johnson — and the budget was already
+  // spent) never got a turn. `mode` has exactly five possible values plus
+  // null, so bounding each at `maxCorrections` attempts bounds the whole
+  // loop at 5*maxCorrections iterations structurally — no new hand-picked
+  // ceiling (P9: no number where a structural rule will do).
+  const triedCounts = new Map();
 
   while (
-    (check.unsupported.length || verdict.echoed || verdict.reproduced || verdict.narrated || verdict.incomplete) &&
+    mode &&
     // The correction prompt answers "from the material" — with no passages
     // it cannot, and a material-framed rewrite of a passage-less echo just
     // produces a diagnosis of the prompt. The chat path above is the whole
     // answer to a passage-less echo; nothing in this loop fixes it.
     passages.length &&
-    corrections < maxCorrections
+    (triedCounts.get(mode) ?? 0) < maxCorrections
   ) {
     corrections++;
-    const mode = verdict.reproduced
-      ? "reproduction"
-      : verdict.echoed
-        ? "echo"
-        : verdict.narrated
-          ? "narrated"
-          : verdict.incomplete
-            ? "incomplete"
-            : "unsupported";
-    const correctionFailures = mode === "incomplete" ? incompleteFindings(check) : check.unsupported;
+    triedCounts.set(mode, (triedCounts.get(mode) ?? 0) + 1);
+    const correctionFailures = mode === "incomplete" ? incompleteFindings(draft, check) : check.unsupported;
     const correctionMessages = [
       { role: "system", content: EXECUTE_SYSTEM_PROMPT },
       { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, correctionFailures, mode) },
@@ -1367,6 +1446,7 @@ export async function runPart({
     draft = clean(rawCorrected);
     check = inspect(draft);
     verdict = verdictOf(draft, check);
+    mode = modeOf(verdict, check);
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction
@@ -1534,7 +1614,7 @@ export async function runPart({
     // (still true, still readable) answer ships as-is rather than being
     // torn up by the mechanical fallback, and the gap stays disclosed here
     // by name rather than silently dropped.
-    ...(verdict.incomplete ? incompleteFindings(check).map((f) => `answer names only one of several the material states: ${f}`) : []),
+    ...(verdict.incomplete ? incompleteFindings(draft, check).map((f) => `answer names only one of several the material states: ${f}`) : []),
     ...(mechanical
       ? [`shipped text assembled mechanically from the material's own sentences, each with its address: ${part.label}`]
       : []),

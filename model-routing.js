@@ -1,6 +1,6 @@
 // model-routing.js — which model answers which turn. Pure, browser-safe.
 //
-// The picker is three rungs, fastest first. The fold's argument (P2) is that
+// The picker is four rungs, fastest first. The fold's argument (P2) is that
 // a modest model with a bounded context carries a plain turn; the model the
 // user chose is reserved for the turns that need its headroom — /task,
 // decomposed multi-anchor questions, /bound, /reflect. The summary refresh
@@ -13,6 +13,7 @@
 
 export const MODEL_PICKER = [
   "gemma2:2b",
+  "qwen3:4b",
   "qwen3:8b",
   "qwen2.5:14b-instruct-q4_K_M",
 ];

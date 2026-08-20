@@ -949,9 +949,26 @@ export function initTerminal(bridge) {
         const { result } = landed.capacity;
         if (result.gap === "no_material") {
           line(result.detail, "term-exit bad");
-        } else {
+        } else if (landed.event.verb === "distinguish") {
           mirrorTerm("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
           line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+        } else if (landed.event.verb === "evaluate") {
+          const evaId = landed.ids[landed.ids.length - 1];
+          const act = bridge.grid.foldGrid(landed.log).acts.find((a) => a.task_id === evaId);
+          const claim = act?.result?.claim ?? landed.event.object;
+          if (act?.verdict === "holds" || act?.verdict === "refused") {
+            const squaredNote = act.result?.squaring?.trusted ? "confirmed" : "no confirmation";
+            line(`evaluate · "${claim}" ${act.verdict} against "${landed.event.ground}" (squared against its own negation — ${squaredNote}) — computed, not generated`, "term-mute");
+          } else {
+            const raw = act?.result?.judged?.verdict ?? act?.result?.rawVerdict ?? "unbound";
+            const reason =
+              act?.result?.rawVerdict === "holds" && act?.result?.objectCheck?.trusted === false
+                ? `a real edge shares some words but not all — checked: ${act.result.objectCheck.claimTokens.join(", ")}`
+                : act?.result?.rawVerdict && act?.result?.squaring?.trusted === false
+                  ? "the claim's own negation could not be told apart from the claim itself"
+                  : `raw reading: ${raw}`;
+            line(`evaluate · "${claim}" is undetermined against "${landed.event.ground}" (${reason})`, "term-mute");
+          }
         }
       }
     },
@@ -978,6 +995,10 @@ export function initTerminal(bridge) {
       for (const a of acts) {
         line(`${a.task_id}  ${a.operator}·${a.grain}  ${a.verb} ${a.object ?? ""}`.trim());
         if (a.result?.count !== undefined) line(`  → ${a.result.count} referent${a.result.count === 1 ? "" : "s"}: ${a.result.referents?.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+        if (a.operator === "EVA" && a.result?.claim !== undefined) {
+          const verdictText = a.verdict === "holds" || a.verdict === "refused" ? a.verdict : `undetermined (raw: ${a.result?.judged?.verdict ?? a.result?.rawVerdict ?? "unbound"})`;
+          line(`  → "${a.result.claim}" ${verdictText}`, "term-mute");
+        }
       }
       if (landings.length) {
         line("", "term-mute");

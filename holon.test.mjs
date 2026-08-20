@@ -1138,6 +1138,83 @@ test("reproduction and incompleteness each get their own correction round — th
   assert.ok(!result.open.some((o) => o.includes("names only one of several")));
 });
 
+// ── the succession-box completeness signal (succession.js, additive to the
+// hypergraph-based gate above) — the real live specimen: a Wikipedia
+// succession box never states "Lincoln's vice presidents were Hamlin and
+// Johnson" as one sentence extractRelations could bind; it states two
+// separate records, each in its own "Preceded by"/"Succeeded by" fields.
+// Reused verbatim from the real running app's own captured material.
+const SUCCESSION_TEXT = `15th Vice President of the United States
+In office
+March 4, 1861 – March 4, 1865
+President Abraham Lincoln
+Preceded by John C. Breckinridge
+Succeeded by Andrew Johnson
+23rd United States Minister to Spain
+In office
+December 20, 1881 – October 17, 1882
+President Chester A. Arthur
+Preceded by Lucius Fairchild
+Succeeded by John W. Foster
+United States Senator from Maine
+In office
+March 4, 1869 – March 3, 1881
+Preceded by Lot M. Morrill
+Succeeded by Eugene Hale
+
+17th President of the United States
+In office
+April 15, 1865 – March 4, 1869
+Vice President Vacant [ a ]
+Preceded by Abraham Lincoln
+Succeeded by Ulysses S. Grant
+16th Vice President of the United States
+In office
+March 4, 1865 – April 15, 1865
+President Abraham Lincoln
+Preceded by Hannibal Hamlin
+Succeeded by Schuyler Colfax
+United States Senator
+from Tennessee
+In office
+March 4, 1875 – July 31, 1875
+Preceded by Parson Brownlow
+Succeeded by David M. Key
+
+Hannibal Hamlin (August 27, 1809 – July 4, 1891) was an American politician and diplomat who was the 15th vice president of the United States, serving from 1861 to 1865, during President Abraham Lincoln's first term. He was the first Republican vice president.`;
+
+test("a succession-box specimen: naming only Hamlin trips the completeness gate, and the correction names Johnson", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? messages[0]?.content ?? "";
+    if (user.includes("the material also states")) {
+      corrected = true;
+      assert.match(user, /Johnson/, "the correction prompt must name the real, missing filler off the succession box");
+      return "Hannibal Hamlin was Abraham Lincoln's first vice president, and Andrew Johnson was his second.";
+    }
+    // First draft: true, bound in the ordinary prose sense, and correct —
+    // but names only one of the two real succession-box holders.
+    return "Hannibal Hamlin was Abraham Lincoln's vice president.";
+  };
+  const result = await runHolonicTask({
+    task: "who was Abraham Lincoln's vice president?",
+    chunks: chunkSource("lincoln-succession.txt", SUCCESSION_TEXT),
+    call,
+    planMode: "flat",
+    // High enough that all three of this material's own retrieval chunks
+    // (the boundary the plain-prose blank lines already draw) come back
+    // regardless of which one scores highest — succession.js needs the
+    // WHOLE box structure, including the box that anchors Hamlin and the
+    // box whose chain resolves Johnson, to be in the same sourceBlock.
+    passagesPerPart: 10,
+    makeRelationReader: relationsFor,
+  });
+  assert.ok(corrected, "the succession-box signal must trigger the tailored rewrite");
+  assert.match(result.output, /Johnson/, "the shipped answer must cover the succession-box filler the first draft missed");
+});
+
 test("a fenced code answer survives byte-exact — fences are structure, never framing", async () => {
   // Measured live: ```python read as framing (its one token was in the
   // prompt), the opening fence was dropped, and the framing trim's rejoin

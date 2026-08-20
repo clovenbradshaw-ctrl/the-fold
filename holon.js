@@ -39,6 +39,7 @@ import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grou
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
+import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
@@ -527,10 +528,22 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
     );
   }
   if (mode === "incomplete") {
+    // Measured live 2026-08-19: an earlier draft of this prompt offered "say
+    // plainly that the material lists more than one" as an escape hatch for
+    // the genuinely-ambiguous case — gemma2:2b instead echoed that exact
+    // clause back as its OWN answer's opening sentence ("The material lists
+    // more than one vice president...") even on a draft that WAS able to
+    // name every filler. A copy-pastable phrase in a correction prompt is an
+    // instruction the model can obey too literally — the same lesson this
+    // file's own EXECUTE_SYSTEM_PROMPT history already carries (a directive
+    // about the task produces a description of the task). Reworded to name
+    // what to DO (state every filler directly, plainly) without supplying
+    // any sentence shaped to be echoed.
     return (
       `Your draft for "${part.label}" answers as if there is only one, but the material states more than one:\n` +
       failures.map((f) => `- ${f}`).join("\n") +
-      `\n\nRewrite to name all of them, or say plainly that the material lists more than one. ` +
+      `\n\nRewrite your answer to state every one of them directly, by name, the way you would if you had known all along — never describe the material itself. ` +
+      `If you genuinely cannot tell which the material means, name the ones you can and say which part is unclear. ` +
       `Do not invent a reason to prefer one over the others unless the material itself gives one.\n\n` +
       `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
@@ -1241,6 +1254,40 @@ export async function runPart({
     lastNarrationTotal = scaffold.text.length;
     return scaffold.text;
   };
+  // Succession-box completeness (2026-08-19, user direction) — additive to,
+  // never a replacement for, the hypergraph-based signal directly below:
+  // that one reads a BOUND claim's own `fillers` cardinality, which only
+  // exists when extractRelations bound an SVO sentence in the first place.
+  // A Wikipedia succession box never states "Lincoln's vice presidents were
+  // Hamlin and Johnson" as a sentence — it states two separate records, each
+  // with its own "Preceded by"/"Succeeded by" fields, so no claim with
+  // `fillers.length > 1` is ever produced from this material shape and
+  // isIncomplete below stays permanently false no matter how many
+  // corrections run. succession.js's own header discloses the scope this
+  // reads (Wikipedia-style succession boxes only); this is the second,
+  // disclosed way "incomplete" becomes true, OR'd with the hypergraph
+  // signal, never touching its mechanics, its mode-priority order, or its
+  // per-mode budget.
+  const successionIncompleteFindings = (draftText) => {
+    if (!sourceBlock) return [];
+    const boxes = resolveBoxSubjects(parseSuccessionBoxes(sourceBlock), sourceBlock);
+    const groups = officeHolderGroups(boxes);
+    if (!groups.length) return [];
+    const dt = foldTypography(String(draftText ?? "")).toLowerCase();
+    const findings = [];
+    for (const g of groups) {
+      // The same relevance gate incompleteClaimsOf already holds itself to:
+      // only check completeness of an office the draft already talks about
+      // — never nag about a succession box nobody asked about.
+      const named = g.holders.filter((h) => dt.includes(foldTypography(h).toLowerCase()));
+      if (!named.length) continue;
+      const missing = g.holders.filter((h) => !named.includes(h));
+      if (missing.length) {
+        findings.push(`${g.president}'s ${g.office} — the material also states: ${missing.join(", ")}`);
+      }
+    }
+    return findings;
+  };
   // Completeness (2026-08-19, user direction: "we STILL are not getting
   // Johnson, it's not adversarially checking if there is more to the
   // story" / "every question like that spin up a little def eva rec that
@@ -1289,19 +1336,24 @@ export async function runPart({
     }
     return result;
   };
-  const isIncomplete = (c) => incompleteClaimsOf(c).length > 0;
+  // `t` (the draft text) is only ever consumed by the succession-box signal
+  // — the hypergraph signal reads solely off `c`, unchanged.
+  const isIncomplete = (t, c) => incompleteClaimsOf(c).length > 0 || successionIncompleteFindings(t).length > 0;
   // The concrete diagnosis buildCorrectionPrompt's "incomplete" mode needs:
   // not "be more complete" (teaches nothing, judge()'s own stated reason
   // every mode here names what actually went wrong) but the real fillers,
   // by name, so the model is told exactly what the material states rather
   // than asked to guess what "more" might mean. Named as `uncovered` —
   // what the answer is STILL missing, not the full filler list including
-  // what it already got right.
-  const incompleteFindings = (c) =>
-    incompleteClaimsOf(c).map(
+  // what it already got right. The succession-box findings are already
+  // full sentences naming what is missing, appended rather than reshaped.
+  const incompleteFindings = (t, c) => [
+    ...incompleteClaimsOf(c).map(
       (claim) =>
         `"${claim.subject} ${claim.verb} ${claim.object}" — the material also states: ${claim.uncovered.map((f) => f.object).join(", ")}`,
-    );
+    ),
+    ...successionIncompleteFindings(t),
+  ];
   // The verdict, with the cut accounted for: judge() deliberately reads a
   // genuinely empty reply as no-verdict ("produced no text" is its own typed
   // open, not an echo) — but a draft stripScaffoldNarration EMPTIED is the
@@ -1320,7 +1372,7 @@ export async function runPart({
         : {
             ...judge(t),
             narrated: lastNarrationTotal > 0 && lastNarrationCut > lastNarrationTotal / 2,
-            incomplete: isIncomplete(c),
+            incomplete: isIncomplete(t, c),
           };
 
   const rawDraft = await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
@@ -1380,7 +1432,7 @@ export async function runPart({
   ) {
     corrections++;
     triedCounts.set(mode, (triedCounts.get(mode) ?? 0) + 1);
-    const correctionFailures = mode === "incomplete" ? incompleteFindings(check) : check.unsupported;
+    const correctionFailures = mode === "incomplete" ? incompleteFindings(draft, check) : check.unsupported;
     const correctionMessages = [
       { role: "system", content: EXECUTE_SYSTEM_PROMPT },
       { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, correctionFailures, mode) },
@@ -1562,7 +1614,7 @@ export async function runPart({
     // (still true, still readable) answer ships as-is rather than being
     // torn up by the mechanical fallback, and the gap stays disclosed here
     // by name rather than silently dropped.
-    ...(verdict.incomplete ? incompleteFindings(check).map((f) => `answer names only one of several the material states: ${f}`) : []),
+    ...(verdict.incomplete ? incompleteFindings(draft, check).map((f) => `answer names only one of several the material states: ${f}`) : []),
     ...(mechanical
       ? [`shipped text assembled mechanically from the material's own sentences, each with its address: ${part.label}`]
       : []),

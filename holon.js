@@ -733,10 +733,15 @@ export function mechanicalAnswer(question, passages) {
     if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
   }
   if (!lines.length) return "";
+  // The preamble speaks like an answer, not like an instrument (user
+  // direction, 2026-08-20: "THIS SHOULD FEEL LIKE CHATTING WITH CLAUDE").
+  // The mechanical honesty is unchanged — these are still the material's
+  // own sentences, verbatim, each with its address — only the framing
+  // sentence stopped narrating the apparatus that assembled them.
   return [
-    "The model's drafts did not answer, so this is assembled mechanically — the material's own sentences that bear on the question, each with its address:",
+    "Here's what the material itself says about this:",
     ...lines,
-    "Nothing further was retrieved for the question's own words.",
+    "That's everything the material offers on the question's own words.",
   ].join("\n\n");
 }
 

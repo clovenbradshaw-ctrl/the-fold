@@ -156,8 +156,13 @@ export function stripScaffoldNarration(text) {
 // the pattern's reach — the verb list stays the narrow guard.
 const NARRATION_SUBJECT =
   "(?:the|this|that|your)\\s+(?:[\\p{L}\\p{N}'’-]+\\s+){0,4}?(?:passage|prompt|question|material|text|excerpt|conversation|dialogue|discussion|user|file|document|notes?|input)";
+// establishes measured live 2026-08-20 (gemma2:2b, real pasted two-VP
+// material, "who was Abe Lincoln's VP?"): "This passage establishes that
+// Hannibal Hamlin served as vice president..." shipped as a second,
+// redundant answer bubble alongside a fine direct one — the exact register
+// this file exists to strip, one verb lemma the list had not yet seen.
 const DEFLATE_RE = new RegExp(
-  `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:indicates|demonstrates|shows|states|suggests|confirms|reveals|says|notes|mentions|highlights|implies)\\s+that\\s+`,
+  `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:indicates|demonstrates|shows|states|suggests|confirms|reveals|says|notes|mentions|highlights|implies|establishes)\\s+that\\s+`,
   "iu", // u: NARRATION_SUBJECT's modifier gap uses \p{L} — without the flag the class silently matches literal braces
 );
 const CUT_RES = [

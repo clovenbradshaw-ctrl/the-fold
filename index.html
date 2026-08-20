@@ -1008,6 +1008,17 @@
         line-height: 1.5;
         color: var(--muted);
       }
+      /* The crown line (crownTestimony): the checked statement itself, in
+         prose — the answer's visible grounding, so it reads at answer
+         weight, not meter weight. `.bad` marks DISAGREE/CONTRADICTED, the
+         two cases where the news is a conflict rather than a confirmation. */
+      .crown-line {
+        margin: 10px 0 0;
+        padding: 5px 10px;
+        border-left: 2px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+      }
+      .crown-line.bad { border-left-color: var(--warn); }
       .fold-section {
         margin: 12px 0 4px;
         font-size: 10px;

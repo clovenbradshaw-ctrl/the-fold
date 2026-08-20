@@ -1,3 +1,89 @@
+**Update, later still the same day: the salience gate, and two real
+architectural corrections from watching it fail live.** Phase 2 shipped
+(fact-block.js: `buildFactBlock`, `dedupeSourceText`) and immediately
+surfaced a real problem worse than anticipated: a captured live prompt
+showed the raw MATERIAL block restating "Hannibal Hamlin, 15th vice
+president, 1861-1865" in six differently-worded snippets (a
+`web:search-results` chunk's own ordinary shape), with the new FACTS
+block adding 16-18 more lines on TOP of that, mostly irrelevant
+("recalled being told Lincoln was the best story teller"). User, direct:
+"the more we spam the model the dumber it is... we need a salience gate."
+
+Two corrections followed, both real, both worth keeping distinct from the
+volume fix itself:
+
+1. **"The model needs to steer with physics but we can't yet rely on
+   mechanical fact checking."** Mechanical checking (`crown.js`/testimony,
+   the grounding-ladder) is exact-match only by construction — it can
+   confirm a wording is or isn't addressable, never resolve a synthesis
+   across facts. Watched live: `crownTestimony` correctly computed
+   UNDETERMINED on the Hamlin claim (no source explicitly holds or
+   refutes the exact wording) and correctly declined to render anything —
+   working exactly as designed — while the model's own draft still shipped
+   confidently wrong. The fix is not "make checking smarter"; checking's
+   ceiling is real and permanent. The model is the one faculty that can
+   judge whether a SET of true facts answers a question; this file's job
+   stays "hand it fewer, more relevant true constraints," never "resolve
+   the question for it."
+2. **"Smart people don't know lots of things, they know how to expertly
+   rezero and look for voids."** This names, in this repo's own real
+   vocabulary, what today's fact-block still doesn't do: `grid.js`'s real
+   `concedeEvaluation`/`rezeroBuild` pattern (POLICIES P36) is EXACTLY the
+   discipline of revising a stated verdict when new evidence disagrees,
+   and the void-verdict system (`grid.test.mjs`'s own geometric/
+   transcendental/von-neumann void tests) is EXACTLY the discipline of
+   treating an absence of confirming evidence as a typed result, not
+   silence. A flat, ranked fact list does neither — it hands the model
+   true facts and hopes synthesis happens, rather than actively steering
+   the model to ask "is there an explicit void here — does the material
+   confirm this for the WHOLE period, or only part of it?" This is named
+   here as real, not-yet-built work: a completeness/void-aware prompt
+   framing for date-range and cardinality-shaped questions specifically,
+   reusing `incompleteClaimsOf`'s existing `clusterFillers`-based signal
+   (holon.js) as the trigger — NOT a generic instruction added to every
+   turn.
+
+**What shipped, real and tested (fact-block.js, fact-block.test.mjs, 18
+tests):** `buildFactBlock` — extraction reused from `relations.read()`,
+called on passages instead of a draft (never an address in the output —
+`buildSourceBlock`'s own no-addresses rule, followed, not loosened);
+ranked by term overlap with the question (`rankByQuestion`); capped at
+`MAX_FACT_LINES = 8`, a disclosed, NOT-measured round number (named
+honestly as a threshold to revisit, not presented as tuned), with every
+omission counted and stated in the text rather than silently dropped.
+`dedupeSourceText` — two passes: exact-normalized text match (catches
+literal copy-paste repeats, free), then — the real fix, found only after
+pass 1 alone measurably failed the live specimen — triple-identity
+matching via the SAME `relations.read()` call, with a `subsumes` check
+(one bound object is a prefix of another, same subject+verb) closing a
+second real, measured gap: the extractor captures everything after
+subject+verb to the sentence boundary as one object, so a longer trailing
+clause on the identical core fact binds to a different, longer object
+string under exact matching. No hand-picked similarity threshold anywhere
+in either pass — every collapse is justified by a real, structured signal,
+and the adversarial case (two sentences sharing a subject+verb but
+asserting DIFFERENT facts — "served 1861-1865" vs "replaced by Andrew
+Johnson in 1865") is pinned as a passing test specifically because a fuzzy
+threshold would get it wrong.
+
+**Measured, live, after wiring both into holon.js's `runPart`:** the exact
+Hamlin specimen's captured prompt dropped from 6,829 to 6,141 characters
+(~10%) with the fact block correctly capped and its omissions disclosed.
+Real, not dramatic — and the answer is STILL wrong ("Yep, he did! ... all
+of Lincoln's time in office"), for a precise, separately-diagnosed reason
+that volume reduction cannot touch: the one sentence that would flip this
+answer ("He was replaced by Andrew Johnson...") has a PRONOUN subject
+(hypergraph.js's own already-disclosed extraction gap) and, tested
+directly, extracts a GARBLED triple even when it does bind — passive
+voice ("was replaced by X") is not handled at all; `subject: "Andrew
+Johnson"` (correctly the nearest capitalized surface) pairs with `verb:
+"on"` (a stray preposition) and `object: "the Republican ticket for the
+election of 1864"` — nonsense, not the succession fact. This is core
+extractor work (passive-voice relation typing), larger and riskier than
+this pass, named here rather than attempted under time pressure. The
+salience gate is real and shipped; it was never going to be the fix for
+a fact the extractor cannot see at all.
+
 **Update, live in the browser, after every fix landed today (stripFraming,
 crown.js's period tokenizer, the narration extension): the root cause is
 confirmed still open.** Same material, same question run earlier this

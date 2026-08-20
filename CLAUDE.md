@@ -3996,3 +3996,30 @@ so stashing reverted to the last COMMIT rather than to "BUILD-4 before
 this pass" — which broke `crown.test.mjs`'s import for the few seconds
 between the stash and its immediate pop. Named here rather than smoothed
 over.
+
+## crown.js's disclosed TOKEN_RE gap, closed (added 2026-08-20)
+
+POLICIES.md's third same-day amendment to P39 is the law; this is the
+pointer. `TOKEN_RE`'s own header (crown.js) disclosed, in writing, a scope
+boundary it had not yet been tested against: a witness/source name
+containing a period would fragment the same way "self:model" once did
+before the colon fix. `eval/material-dialogue-stress.mjs` hit it for
+real, against a source named "titanic-a.txt" (an ordinary filename) —
+renderCrown rendered "According to titanic-a. txt, ...".
+
+Closed with a lookahead, not a bare widening: `\.(?=[A-Za-z0-9])`. A bare
+widening (period added to the continuation class exactly the way colon
+was) would have been unsafe in a way colon never was —
+`KNOWN_CONNECTIVES.period` is used, throughout every render function in
+this file, as a token deliberately glued flush against whatever word ends
+a sentence, so a bare widening would swallow that connective period into
+the preceding word on nearly every render. The lookahead tells the two
+cases apart: a period followed by another word character glues
+("titanic-a.txt"); a period followed by anything else — a space, the end
+of the string, another connective — stays its own token, including when a
+period-bearing witness name sits directly against the sentence's own
+closing period with no comma between them (DISAGREE's one-witness-per-side
+shape). `crown.test.mjs` gained 4 cases, two real end-to-end (SINGLE and
+DISAGREE) using `"lincoln.txt"`/`"lincolnNeg.txt"` — already-proven ground
+names from `capacity-runner.test.mjs`, pushed through `crown.js`'s own
+render for the first time. Full suite: 1104/1104, zero regressions.

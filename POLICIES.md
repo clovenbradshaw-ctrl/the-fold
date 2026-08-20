@@ -3837,3 +3837,70 @@ COMMIT, not to "BUILD-4 before this pass" — which broke `crown.test.mjs`
 exported) for the several seconds between the stash and its immediate
 pop. Named here rather than silently smoothed over, in the same spirit
 this file's own P5.5 already holds every other surprising result to.
+
+**Amended 2026-08-20 (third occurrence) — the disclosed TOKEN_RE gap
+closed: a period inside a witness/source name.** `crown.js`'s own
+tokenizer header, written the same day as the self-witness construction
+above, disclosed its own scope boundary rather than pretending it away: "a
+witness/source name containing a period, '@', or other character outside
+this class would still fragment the same way 'self:model' just did... not
+hit by any real specimen this pass exercised." It has since been hit. A
+new headless multi-turn stress harness (`eval/material-dialogue-stress.mjs`
+— the real claim-id spine end to end, `capacity-runner.js`'s own
+landAct/perSourceReadings/mergeTestimony plus `crown.js`'s renderCrown,
+over five varied topics) drove renderCrown against a source literally
+named "titanic-a.txt" — an ordinary filename, not a contrived one — and
+reproduced exactly the shape the header predicted: `witnessWords(
+"titanic-a.txt")` split into three tokens ("titanic-a", ".", "txt"),
+rendering "According to titanic-a. txt, ...".
+
+**Not a bare repeat of the colon fix.** `TOKEN_RE`'s own header already
+names colon's own precedent — widened into both the word-continuation
+class and the standalone-punctuation alternative, safe because colon's
+connective usage ("Holding:") never sits flush against a foreign preceding
+word. Period's connective usage (`KNOWN_CONNECTIVES.period`, the ".",
+used by every render function in this file to end a sentence) does
+exactly that, on purpose, in nearly every rendered sentence —
+`joinTypographically`'s whole `NO_SPACE_BEFORE` mechanism exists to glue
+it flush. A bare widening (adding "." to the continuation class with no
+further condition) would have made the tokenizer greedily eat that
+trailing connective period into whatever word precedes it on EVERY
+render, and `checkTraceCoverage`'s own independent re-tokenization would
+then disagree with construction's own trace on nearly every existing test
+— not a narrow fix, a wide regression waiting to happen. The actual fix
+is a lookahead: a period counts as a word-continuation character only
+when the very next character continues a word (`\.(?=[A-Za-z0-9])`) —
+"titanic-a.txt" glues (period followed by "t"), a sentence-final period
+stays standalone (followed by a space, another connective, or the end of
+the string).
+
+**Checked against the harder adjacency, not just the reported one.**
+DISAGREE's own "Backing it: \<witness\>." shape glues the connective
+period flush against the LAST witness with no comma when a side has
+exactly one witness — so a period-bearing witness name can sit directly
+against the sentence's own closing period, two periods back to back with
+nothing between them (`"lincoln.txt."`). Confirmed this still splits
+correctly into `["lincoln.txt", "."]`, never collapsing into one token,
+because the SECOND period is followed by a space or the end of the
+string, never by an alnum character.
+
+**Measured, real, tested.** `crown.js`: `tokenize` itself unchanged,
+`TOKEN_RE` widened, its own header rewritten to disclose the fix rather
+than the gap it used to name. `crown.test.mjs` gained 4 cases: two
+pinning `tokenize()` directly (the fix itself, and the hard adjacency's
+safety property), and two real end-to-end `renderCrown` cases through the
+actual claim-id spine (`realReadings` → `mergeTestimony` → `renderCrown`
+→ `checkTraceCoverage`, no stubs) — a SINGLE case and a DISAGREE case,
+both using `"lincoln.txt"`/`"lincolnNeg.txt"` as ground names (already
+real, proven ground names throughout `capacity-runner.test.mjs`, pushed
+through `crown.js`'s own render for the first time) rather than a fresh,
+unproven Titanic fixture — the exact Titanic claim from
+`eval/material-dialogue-stress.mjs` that originally surfaced this bug did
+not reliably bind through this repo's own extraction pipeline when tried
+live here (an unrelated, disclosed extraction-sensitivity gap, not a
+rendering one — `crown.js` never sees a claim that didn't already bind),
+so the already-proven `LINCOLN_TEXT`/`LINCOLN_TEXT_NEGATED` fixtures were
+used instead for a reliable, deterministic regression. `crown.test.mjs`:
+26/26 before, 30/30 after. Full suite: 1100/1100 before this fix's own
+edit, 1104/1104 after — exactly the +4 new cases, zero regressions
+anywhere else.

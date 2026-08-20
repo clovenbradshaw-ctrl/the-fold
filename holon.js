@@ -1511,9 +1511,87 @@ export async function runPart({
     }
     return result;
   };
+  // The MIRROR of incompleteClaimsOf, added the same day (user direction,
+  // live: "make some simple EOT statement about Abraham Lincoln's VP and
+  // see that there is a conflict" — run for real first, not assumed:
+  // `extractRelations` bound "Hannibal Hamlin —was→ Abraham Lincoln's vice
+  // president" and "Andrew Johnson —was→ Abraham Lincoln's vice president"
+  // as two REAL edges, and querying that slot with subject left open
+  // returned both subjects directly — the exact P32 `competing` shape,
+  // never wired into the completeness gate before now.
+  //
+  // Queries `relations.queryReferents`, NOT the standalone `queryFillers`
+  // export — user direction, verbatim, both times this exact seam has been
+  // built: "we need to point at REFERENTs not extant spans." Caught live
+  // building this: a test fixture spelled the object "Lincoln's" in one
+  // place and "Lincolns" in another, and `queryFillers`'s own disclosed
+  // contract (hypergraph.js's own header: "matching here is on
+  // report.edges's own exposed SURFACE STRINGS, not referent IDs") missed
+  // the match entirely — a real, reproduced instance of exactly the gap
+  // `queryReferents` (hypergraph.js, 2026-08-19, "remember to point
+  // towards referents not spans") already exists to close, RUN INSIDE the
+  // reader's own closure so "Lincoln's vice president" resolves by the
+  // SAME referent identity `judge()` itself trusts internally, not by
+  // string luck. `relations` (this closure's own injected reader,
+  // `makeRelationReader`'s return value) is what carries it — never the
+  // plain `edges` array once it has left that closure.
+  //
+  // incompleteClaimsOf asks "does this subject+verb bind more than one
+  // OBJECT" (Lincoln —appointed→ {Hamlin, Johnson}); this asks "does this
+  // verb+object bind more than one SUBJECT" ({Hamlin, Johnson} —was→
+  // Abraham Lincoln's vice president) — the question's own phrasing can
+  // outrun the material on either end, and only checking one end is why
+  // this signal sat unused even after P32 itself computed `competing`
+  // per-claim: that field only fires on an UNBOUND claim (the answer's own
+  // subject choice, checked against the slot), never surfaced independent
+  // of what the answer happened to guess. Querying the slot directly finds
+  // it regardless of which (or whether any) subject the draft picked.
+  const competingSubjectsOf = (c) => {
+    const claims = c?.relations?.claims ?? [];
+    if (!relations || !claims.length) return [];
+    const seenSlots = new Set();
+    const result = [];
+    for (const claim of claims) {
+      if (claim.verdict !== "bound") continue;
+      let subjects;
+      try {
+        subjects = relations.queryReferents({ verb: claim.verb, object: claim.object });
+      } catch {
+        subjects = null;
+      }
+      if (!subjects || subjects.length < 2) continue;
+      // The slot's own identity is the MATERIAL's confirmed subject set for
+      // this verb, never the draft's own object text — a second real bug in
+      // the same family as the queryFillers one above, caught the same way
+      // (measured, not assumed): a corrected draft's second sentence added
+      // one trailing word ("...vice president TOO") and, keyed by object
+      // string, that read as a SECOND, unrelated slot — each sentence then
+      // saw only itself as "already named" and reported the OTHER subject
+      // as still missing, forever. `subjects` already came from a single
+      // referent-resolved query; keying on ITS OWN sorted identity is what
+      // "point at referents, not spans" means applied to slot dedup itself,
+      // not just to the query that feeds it. `named` follows the same
+      // widening: any bound claim sharing this VERB is a candidate for
+      // "already covers one of the confirmed subjects," not only a claim
+      // whose own object string happens to match exactly.
+      const slot = `${claim.verb}|${subjects.map((s) => foldTypography(s.subject).toLowerCase()).sort().join(",")}`;
+      if (seenSlots.has(slot)) continue;
+      const named = claims.filter((c2) => c2.verdict === "bound" && c2.verb === claim.verb).map((c2) => foldTypography(c2.subject).toLowerCase());
+      const uncovered = subjects.filter((f) => {
+        const ft = foldTypography(f.subject).toLowerCase();
+        return !named.some((t) => t.includes(ft) || ft.includes(t));
+      });
+      if (uncovered.length) {
+        seenSlots.add(slot);
+        result.push({ ...claim, competingSubjects: subjects, uncoveredSubjects: uncovered });
+      }
+    }
+    return result;
+  };
   // `t` (the draft text) is only ever consumed by the succession-box signal
   // — the hypergraph signal reads solely off `c`, unchanged.
-  const isIncomplete = (t, c) => incompleteClaimsOf(c).length > 0 || successionIncompleteFindings(t).length > 0;
+  const isIncomplete = (t, c) =>
+    incompleteClaimsOf(c).length > 0 || competingSubjectsOf(c).length > 0 || successionIncompleteFindings(t).length > 0;
   // The concrete diagnosis buildCorrectionPrompt's "incomplete" mode needs:
   // not "be more complete" (teaches nothing, judge()'s own stated reason
   // every mode here names what actually went wrong) but the real fillers,
@@ -1541,6 +1619,10 @@ export async function runPart({
     ...incompleteClaimsOf(c).map(
       (claim) =>
         `"${claim.subject} ${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.fillers.map((f) => f.object).join(", ")} (nothing else)`,
+    ),
+    ...competingSubjectsOf(c).map(
+      (claim) =>
+        `"${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.competingSubjects.map((f) => f.subject).join(", ")} (nothing else)`,
     ),
     ...successionIncompleteFindings(t),
   ];
@@ -1632,13 +1714,32 @@ export async function runPart({
     triedCounts.set(mode, (triedCounts.get(mode) ?? 0) + 1);
     const correctionFailures = mode === "incomplete" ? incompleteFindings(draft, check) : check.unsupported;
     if (mode === "incomplete" && (triedCounts.get(mode) ?? 0) === 1) {
+      const experiencer = `holon-relation-tier reading for part ${part.label ?? part.id ?? "unlabeled"} of task ${task}`;
+      const sourceKey = `${part.id ?? "part"}-material`;
       for (const claim of incompleteClaimsOf(check)) {
         beliefLog = landCompletenessBelief(grid, beliefLog, runCapacity, landAct, {
           claim,
-          sourceKey: `${part.id ?? "part"}-material`,
+          sourceKey,
           sourceText: sourceBlock ?? "",
-          experiencer: `holon-relation-tier reading for part ${part.label ?? part.id ?? "unlabeled"} of task ${task}`,
+          experiencer,
         });
+      }
+      // The mirror case: one verb+object slot, several competing subjects
+      // (the "Abraham Lincoln's vice president" specimen) — one EOT
+      // statement landed per candidate subject, against the SAME ground,
+      // so a reader of the shared log sees both beliefs sitting side by
+      // side with their own real, independently-computed verdicts, not a
+      // single collapsed guess at which subject the question "really"
+      // meant.
+      for (const claim of competingSubjectsOf(check)) {
+        for (const filler of claim.competingSubjects) {
+          beliefLog = landCompletenessBelief(grid, beliefLog, runCapacity, landAct, {
+            claim: { subject: filler.subject, verb: claim.verb, object: claim.object },
+            sourceKey,
+            sourceText: sourceBlock ?? "",
+            experiencer,
+          });
+        }
       }
     }
     // "incomplete" is the one mode that is not a mistake to fix — it is a

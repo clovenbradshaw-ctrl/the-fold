@@ -38,10 +38,11 @@
 
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
-import { appendFileSync, createReadStream, existsSync, mkdirSync, statSync } from "node:fs";
+import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 
 const ROOT = resolve(import.meta.dirname);
 const ENGINE = resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
@@ -356,6 +357,84 @@ createServer((req, res) => {
         appended += 1;
       }
       json(res, refused && !appended ? 400 : 200, { ok: !refused, appended, refused });
+    })();
+    return;
+  }
+
+  // POST /api/transcribe — fetch audio from a YouTube URL via yt-dlp, return
+  // the audio bytes as base64 so the browser can transcribe it with Whisper.
+  // Loopback only. Body: { url: "https://youtube.com/..." }.
+  // The crossing is recorded: a YouTube download is P13 web egress.
+  if (req.method === "POST" && rel === "/api/transcribe") {
+    const refuse = (status, reason) => json(res, status, { error: reason });
+    if (!isLoopback(req)) return refuse(403, "loopback only");
+    (async () => {
+      const params = await readJsonBody(req, res);
+      if (params === null) return refuse(413, "body too large");
+      if (params === false) return refuse(400, "bad json");
+      const url = String(params?.url ?? "").trim();
+      if (!url) return refuse(400, "url is required");
+      const tmpPath = `/tmp/the-fold-transcribe-${randomUUID()}.mp3`;
+      try {
+        // Download audio via yt-dlp — extracted as mp3, lowest quality to save
+        // bandwidth and time (transcription doesn't need high fidelity).
+        const proc = spawn("yt-dlp", [
+          "--extract-audio",
+          "--audio-format", "mp3",
+          "--audio-quality", "5",
+          "-o", tmpPath,
+          "--no-playlist",
+          "--no-warnings",
+          url,
+        ], { stdio: ["ignore", "pipe", "pipe"] });
+        let stderr = "";
+        proc.stderr.on("data", (b) => { stderr += b.toString(); });
+        await new Promise((resolve, reject) => {
+          proc.on("error", reject);
+          proc.on("close", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`yt-dlp exited ${code}: ${stderr.slice(0, 500)}`));
+          });
+        });
+        // Read the downloaded file and return as base64.
+        const audio = readFileSync(tmpPath);
+        const mime = "audio/mpeg";
+        // Try to get the title from yt-dlp for a nicer source name.
+        let title = url;
+        try {
+          const titleProc = spawn("yt-dlp", [
+            "--print", "title",
+            "--no-playlist",
+            "--no-warnings",
+            url,
+          ], { stdio: ["ignore", "pipe", "ignore"] });
+          title = await new Promise((resolve) => {
+            let out = "";
+            titleProc.stdout.on("data", (b) => { out += b.toString(); });
+            titleProc.on("close", () => resolve(out.trim() || url));
+            setTimeout(() => { titleProc.kill(); resolve(url); }, 5000);
+          });
+        } catch {}
+        recordBuild({
+          at: new Date().toISOString(),
+          event: "transcribe-fetch",
+          url,
+          title,
+          mime,
+          sizeBytes: audio.length,
+        });
+        json(res, 200, {
+          audio: audio.toString("base64"),
+          mime,
+          title,
+          sizeBytes: audio.length,
+        });
+      } catch (e) {
+        recordBuild({ at: new Date().toISOString(), event: "transcribe-fetch-failed", url, reason: e.message });
+        refuse(500, e.message);
+      } finally {
+        try { unlinkSync(tmpPath); } catch {}
+      }
     })();
     return;
   }

@@ -3040,3 +3040,567 @@ not fixed" as a legitimate outcome, not a failure).
 unchanged by this pass — no new organ, no new verdict, only the persona
 label. Kind, Network (general case), Atmosphere, and Paradigm remain
 disclosed absent exactly as P33 already states.
+
+## P36 — EVA computes, REC concedes: the hypergraph as a first-class verification act, with provenance
+
+**The redirect, from the user, correcting an over-narrow first cut.** A
+prior investigation (`MECHANICAL-COVERAGE-INVESTIGATION.md`) measured how
+far this repo's hypergraph could answer questions mechanically and sketched
+a `succession-answer.js` — a NEW module, narrowly shaped to Wikipedia's own
+succession-box infobox format. The user's correction, verbatim-adjacent:
+"this is far too shaped to that problem... we want to know essentially how
+we evaluate EVA the hypergraph to be able to answer questions with
+provenance, and REC our understanding as needed, for any arbitrary thing,
+omnimodally." The fix was not a bigger succession-box parser — it was
+noticing that grid.js's `evaluate` verb is ALREADY the general EVA seam
+(P22), already logged, already terrain-typed, and already documented as
+carrying a real, disclosed gap in its own refusal text: *"grid.js records a
+declared verdict, it does not yet compute one."* Closing that gap generally
+is a smaller, more general fix than a new succession-only module, and it
+composes with material of any shape a real checking organ exists for —
+never scoped to one Wikipedia format.
+
+**What EVA computing means, concretely.** `evaluate <claim> at <terrain>
+from <stance> ground <source> broken:<perturbation>` with NO `verdict:`
+clause (already legal grammar, previously always left permanently
+undetermined) now triggers a real check when `ground` names an
+already-loaded source: `capacity-runner.js`'s `landAct` calls
+`runCapacity("relations", {claim})`, which runs `hypergraph.js`'s real
+`read(claim)` — the SAME judge() every material-grounded chat answer is
+already checked against — against the named ground's real text. Only two
+of judge()'s five verdicts are strong enough to COMPUTE a holds/refused:
+`bound` → holds, `contradicted` → refused. `unbound`/`beyond-reach`/
+`unheard`/`competing` all mean "the material does not settle this," never
+"the material says no," and are deliberately left undetermined — no
+verdict is set, `foldGrid`'s existing DEF/EVA companion read already
+renders this honestly as "wish, no verdict declared yet" with ZERO changes
+to that function. A wrong COMPUTED verdict would be worse than an honest
+non-verdict, the same discipline `arithmetic.js`'s own order-reversing-
+phrase refusal already holds elsewhere in this repo.
+
+**Provenance rides for free.** The computed verdict's own evidence —
+`hypergraph.js`'s `edgeFace`-shaped `refs` (real byte-address citations
+into the ground material), `nearest`/`bound` edges on a miss, corroboration
+counts — is attached whole as the RESULT's payload, never summarized away.
+Verified live against a real 160KB cached Wikipedia page (Andrew Johnson,
+not a fixture): `evaluate Andrew Johnson was the 17th president ... ground
+andrew-johnson.txt` computed `holds`, with 8 real passage refs spanning the
+article. The SAME real page's "The 16th vice president, he assumed the
+presidency..." — true, and stated — computed `unbound`/undetermined,
+because the sentence's subject is a pronoun; `extractRelations`'s candidate
+nomination anchors only on capitalized surfaces (the identical
+previously-undocumented gap the mechanical-coverage investigation's own
+military-governor specimen surfaced, now confirmed live on a second,
+independent real specimen). This is disclosed, not hidden: an honest
+non-verdict on a true, unreachable claim is the correct behavior, not a
+defect to paper over.
+
+**REC — "revise understanding as needed."** Before a COMPUTED verdict
+lands, the live fold is checked for an EARLIER evaluate of the SAME object
+(case-folded) already carrying a determined verdict. If the new computation
+disagrees, `grid.concedeEvaluation` lands an EVIDENCE·REC·Figure·produced
+entry FIRST — `concedes` naming the prior act, `trigger` stating the
+verbatim disagreement — mirroring `build-log.js::rezeroBuild`'s own real,
+already-shipped shape exactly ("the operator judged the projection and the
+ground it was built on is conceded"), applied to a checked claim instead of
+a code build. Only then does the new verdict attach. Nothing here ever
+silently overwrites an earlier verdict with a later one; re-confirming the
+SAME verdict a second time lands no REC at all (agreement is not a
+contradiction) — both directions pinned as regressions.
+
+**Reuse over invention, at every layer.** `capacities.js`'s `relations`
+entry (already wired 2026-08-19, same day, for graph queries) gained a
+`claim` mode rather than a new capacity id. `grid.js`'s `attachResult`
+gained an optional `extra` parameter (task-log.js's own documented payload-
+merge rule — any non-reserved key on a RESULT entry rides onto the
+projected task — means a computed `verdict` reaches `foldGrid`'s EXISTING
+companion-match with ZERO changes to that function). No new engine import,
+no new organ, no new capacity id. `term.js`'s `act` command and app.js's
+`/act` chat door both already call the SAME `landAct`/`runCapacity`
+instance (`initTerminal`'s own `runCapacity` pass-through, `relationsFor`
+already injected 2026-08-19) — this capability is live on BOTH doors with
+ZERO further wiring in either file.
+
+**Omnimodal, honestly scoped.** Today this closes for TEXT material only,
+because `hypergraph.js` is the one real checking organ this pass wires in.
+A ground ruled by `measure.js` (numeric/audio) or `store.js`/`store-sql.js`
+(tabular) has no checking organ plugged into this same seam yet — asking to
+evaluate a claim against one of those today simply finds no `claims` to
+judge and lands undetermined, which is honest (never a guess) but not yet
+a REAL typed `not_yet_executable` disclosure the way `capacity-runner.js`'s
+other nine reference-only capacities already have. Naming that gap
+precisely, rather than leaving it implicit, is real, scoped, unattempted
+next work — not claimed done here.
+
+**Named, not built: squaring polarity.** Live verification surfaced a real,
+disclosed limitation in `extractRelations`'s OWN negation handling, not in
+anything this pass built: "Andrew Johnson was never the 17th president" (a
+copula construction) did not reliably flip polarity the way "Lincoln never
+appointed Hamlin" (a transitive verb) does — evaluating both the positive
+and the fabricated-negative phrasing of the same claim against different
+material both computed `bound`. The user's own proposed check, real and
+unbuilt: evaluate a claim AND its negation independently and cross-check
+the pair — opposite verdicts (bound vs. contradicted) mean the extractor's
+negation detection is trustworthy on that sentence shape; the SAME verdict
+on both readings is itself the tell that detection silently failed on that
+construction, independent of trusting either single reading alone.
+Structurally the same move `testimony.js`'s `siblingSwap` already makes
+(ask twice, derive the verdict from the pair, never trust one pass) —
+applied to polarity itself rather than the object filler. Not attempted
+this pass.
+
+**Files.** `grid.js` (`attachResult` gained `extra`; new `concedeEvaluation`,
+exported). `capacity-runner.js` (`runCapacity`'s `relations` branch gained
+`claim`; `landAct` gained the `evaluate` branch, REC check included).
+`grid.test.mjs` unchanged, all 49 passing (purely additive signature).
+`capacity-runner.test.mjs` grew from 16 to 23 cases — computed holds with
+real provenance; computed refused from a real contradicted claim; stays
+undetermined on unbound (never guesses); REC fires on genuine disagreement;
+REC does NOT fire on repeated agreement; a human-declared `verdict:` is
+left completely untouched (zero capacity run); an unloaded ground stays
+silent, matching `distinguish`'s own precedent exactly — all against the
+REAL engine perceiver organs, no stubs. Full suite: 23/23, 49/49,
+zero regressions in either file. Live end-to-end verification against a
+real, uncached-nowhere-else 160KB Wikipedia page is recorded above.
+
+**Amended same day — a second real bug, and a rendering crash, both found
+by actually driving the live app rather than trusting the test suite
+alone.** Driving `/act evaluate` through the real chat UI crashed
+immediately: `actTurn` (app.js) and term.js's own `act` handler both
+assumed `landed.capacity.result` was always cast's `{referents}` shape
+and called `.map()` on it unconditionally — `evaluate`'s new "relations"
+result has no `referents` field, so every real evaluate crashed with
+"Cannot read properties of undefined (reading 'map')". Fixed by branching
+on `landed.event.verb` and rendering the computed verdict back through
+`grid.foldGrid` (never a locally recomputed guess), so the message always
+matches exactly what a later `grid`/`/self` read of the log shows.
+
+With that fixed, real fact-checking against the exact Andrew Johnson
+material this investigation started from found a second, different bug:
+"Andrew Johnson was the 22nd president" (false) and "Andrew Johnson was
+the 17th vice president" (false — the exact original conflation) both
+computed `holds`, squared and confirmed. Squaring only checks polarity;
+it says nothing about whether a bound claim's own object is the
+material's real object or a substituted wrong one — hypergraph.js's own
+`endpointsMatch` object fallback (`tokensShare`) needs only ONE shared
+token to call two objects "the same," and "22nd president" / "the 17th
+president of the United States" share "president" and nothing else.
+
+Fixed as `checkObjectSpecificity`: read the real edge(s) that `judge()`
+itself used to bind the claim, via the claim's own `refs` — never a
+re-derived subject/verb guess, which a first attempt got wrong live (it
+missed a claim's real backing edge on a pronoun subject and wrongly
+downgraded a TRUE claim to undetermined). Require the real backing
+edge's own object to state EVERY one of the claim's content tokens, not
+merely one. A bound-but-unconfirmed verdict downgrades to undetermined,
+disclosed with which tokens failed to match. Also found, honestly, not
+smoothed over: "Andrew Johnson was the 16th vice president" (the
+material's own TRUE words) *also* downgrades under this check — not a
+regression. That sentence ("The 16th vice president, he assumed the
+presidency...") is an appositive with no copula; `extractRelations`
+never produces a clean "X was Y" edge from it, so the earlier "holds" was
+itself a coincidental match via the same loose fallback, never a genuine
+one — the fix doesn't only catch wrong answers, it refuses to keep
+confidently shipping a right answer with no real backing.
+
+Verified live end to end through the real chat UI: the exact original
+conflation now renders "undetermined... a real edge shares some of the
+claim's own words but not all of them (checked: 17th, vice, president) —
+the material does not state this specific claim, only something that
+resembles it." `capacity-runner.test.mjs`: 27 → 30 (three new cases
+against the real engine organs and the real Andrew Johnson specimen).
+
+**Disclosed, not wired: the ordinary chat path still makes this exact
+mistake.** Everything above lives behind the explicit `/act evaluate`
+door — nothing here is wired into `holonicTurn`'s ordinary S1/S2 answer
+pipeline. Verified live, same session, same material, the plain question
+"What number vice president and what number president was Andrew
+Johnson?": the S1 fast draft answered "the 17th Vice President... served
+under President Ulysses S. Grant" (the original conflation plus a
+fabricated relationship — Johnson never served under Grant); the S2
+checked pass dropped the fabrication but still answered "the 17th vice
+president and the 17th president of the United States" (both ordinals
+wrongly stated as 17th), and the existing grounding checker marked it
+"standing on the material" regardless — it checks for the presence of
+name tokens ("Andrew Johnson," "United States"), not the specific
+numbers, the identical class of bug `checkObjectSpecificity` closes for
+the `/act` path. Wiring an equivalent check into the ordinary answer
+pipeline's own grounding ladder is real, directly motivated, unattempted
+next work — named here rather than implied done.
+
+## P37 — HL: reasoning over the hypergraph is a logic with declared givers, never a smarter matcher
+
+**The law.** Content-general inference over the relation tier's edges —
+functional exclusion, transitive composition, negation as involution,
+quantifiers — lives in `hl.js` as a LOGIC whose models are stages
+(finite, append-only hypergraphs) and whose verdicts are judgment
+outcomes, never in `judge()` as additional matching heuristics. Every
+declaration that licenses an inference (`functional`, `transitive`,
+`complete`) enters with a named giver or is refused, typed — a
+declaration is exactly as strong as its acquisition, and this module
+makes their USE sound, never their acquisition free. Opt-in and
+additive: `judge()`, `relationFindings`, `relationsClean` are
+byte-identical; nothing in the live pipeline consumes hl.js yet.
+
+**Why it exists — the measured gap.** `judge()` under-claims by
+construction on uniqueness violations: "Lincoln was the 22nd president"
+against material binding only `ordinal(lincoln, 16th)` finds no matching
+edge and lands `unbound` — a silent under-claim, not a wrong verdict,
+but the falsehood was checkable and nothing checked it. hl.js's R2
+(functional exclusion) convicts it from the declaration `functional
+(ordinal)` plus the bound edge, no numeric special case anywhere.
+Pinned end to end in `hl.test.mjs` against the REAL engine organs: a
+real `makeRelationReader` run over real passages, its public edges
+adapted into a stage, `married(lincoln, someone-else)` reading
+`unbound` before `declareFunctional("married", {giver})` and
+`contradicted` after.
+
+**The verdict lattice, and one disclosed divergence.** bound /
+contradicted / contested / unbound are Belnap–Dunn FDE (negation swaps
+the first two, fixes the rest — double negation involutes), with
+`beyond-reach` outside the lattice as genuine inexpressibility (a term
+with no anchor), absorbing through every compound. DIVERGENCE, decided
+not accidental: support+counter is CONTESTED-dominant here, where
+`judge()` verdicts `bound` and rides opposition as metadata. Any future
+adapter from HL verdicts back onto the app's badge surface must map
+this consciously — it is a real semantic difference, disclosed in both
+files' headers.
+
+**Quantifiers under the grain theorem.** ∃ binds on a witness and
+persists; ∀ over an open domain is refutable (one persistent
+counterexample) but never bindable at any finite stage — its
+non-refutation is stage-indexed (`unrefuted@stage`) and does not
+compose through ∧/∨ (typed refusal, not a silent coercion). ∀ over a
+domain declared `complete(D, {giver})` reduces to a finite conjunction
+and may bind: the postulation route, the declaration's giver carrying
+the weight. Types genuinely restrict — an out-of-type counterexample
+cannot refute a typed ∀, pinned adversarially after an external review
+caught the type parameter accepted-and-ignored in the reference
+implementation.
+
+**The judgment layer.** `attach(φ) = verdict(φ) + sensitivity(φ)`: a
+verdict earns attachment only if perturbing the claim (negation;
+functional-slot substitutions) MOVES it; an insensitive verdict
+downgrades to `undetermined` rather than attaching. Structural
+consequence, tested: bare unbound on a non-functional relation never
+attaches — a verdict that reads the same on the claim and its negation
+was never a judgment about that claim.
+
+**The anchor honesty clause.** `stageFromEdges` consumes the reader's
+PUBLIC edge face (plain strings by design); anchor identity is an
+injected `anchorOf` resolver when a caller has real referent identity,
+folded strings when not, and the stage labels which
+(`anchorKind: "resolved-referent" / "folded-string"`) — the P11
+boundary ("the same name" and "the same recurring word" are never the
+same claim) carried into the logic rather than blurred by it.
+
+**Scope and residues, named.** No functional/transitive declarations
+exist yet for any real corpus — the register is empty, and building it
+(hand-named closed class, per-relation givers, priors.js's own
+discipline) is the actual next work; R2's value on live material is
+exactly proportional to that register. Wiring HL verdicts into the
+grounding ladder or the verification taxonomy (P33's Lens cell is the
+natural seat) is unattempted. The landing was scoped to two new files
+(`hl.js`, `hl.test.mjs`, 16 conformance cases) touching zero existing
+files, because the tree was mid-edit across app.js/grid.js/term.js by a
+concurrent session — the ground-ledger.js posture. Full suite after:
+1004/1004 passing, zero regressions.
+
+**Amended 2026-08-20 — the core moved, acquisition landed, both against
+disclosed evidence rather than assumption.** Two changes to what P37
+originally described.
+
+**(1) hl.js's core (Stage, declarations, R1-R6, the verdict lattice,
+attach) moved to `eoreader6.1/packages/engine/interpretation/hl.js`.**
+Not a preference — `operators.js`'s ORGANS table, audited by domain,
+shows Interpretation as the most fragmented domain in the entire
+registry (30 of 62 organs — corrected from an initial miscount of
+"29 of 62" that failed its own arithmetic, caught by an independent
+adversarial review the same day; real counts Existence 11 / Structure
+21 / Interpretation 30) while Existence already has one (`nul/index.js`)
+and Structure's was never promoted. Same review found the omnimodal
+proof satisfies the constitution's Article II.1 but not its stronger
+Article II.11 (a real cross-modal-failure contrast, not a second
+hand-typed toy fixture) — disclosed, not yet closed. Full corrected
+account: eoreader6.1/CLAUDE.md.
+Proven content-general before trusting the move, not asserted: the
+engine's own `hl.test.mjs` runs the identical rules over a
+non-linguistic supply-chain stage with structurally identical results
+(the omnimodal test, Article II.1). The-fold's `hl.js` is now the
+adapter alone (`stageFromEdges`), re-exporting the engine's API so
+nothing that imported it broke.
+
+**(2) `hl-acquire.js` (new) is the spin-up gate, productionized from
+the manual experiment — and it exists specifically NOT to repeat a
+mistake found live, same day, in a concurrent session's work.** That
+session wired DEF/EVA/REC into mechanical question-answering ("chase")
+and hit a wall hand-tuning subject/verb/object per specimen — fixing
+one regressed another, rediscovering one parameter at a time the exact
+paraphrase-intolerance ceiling MINE-1's eleven passes already disclosed
+in CLAUDE.md. `hl-acquire.js` is built to the opposite discipline: it
+counts structure (does a subject bind more than one object for a
+relation) and uses the grammar lens ONLY as a rejection filter, never
+to re-derive roles or fix a specimen. Composes three organs this repo
+already owns (`makeRelationReader`, `makeGrammarLens` with the real UD
+treebank prior, and a refutation scan) with one reused, not re-derived,
+number: `EVIDENCE_FLOOR = 2`, `emergence/binding.js`'s own structural
+minimum ("one arrival has no co-arrival to test").
+
+**The two-tier register, and the grain theorem applied to the
+acquisition itself.** `functional(r)` is a Pattern-grain (∀-shaped)
+claim — a corpus can refute it but never earn it, the identical theorem
+probe D proved for the operator face. So `hl-acquire.js` produces
+exactly two things: REFUTED (a real, permanent counterexample) and
+CANDIDATE (unrefuted-at-this-stage, defeasible forever, licensing a
+disclosed flag only — never R2 conviction, which needs a named giver
+`declarations.js`'s own `promoteAndDeclare` requires explicitly).
+Concession of a later-refuted candidate is REC
+(`declarations.js::concede`), engine-side, mirroring `grid.js`'s own
+`concedeEvaluation` exactly.
+
+**Validated against an adversarial fixture, not War and Peace.**
+`hl-acquire.test.mjs` invents a short chronicle (Zorlan, Brannic, Iyla —
+no real referent, nothing recallable) with a genuine trap: "governs" is
+actually functional in-world; "advises" is not, but looks IDENTICALLY
+clean on the small sample (2 subjects, zero counterexamples) — the
+exact coincidental-validation risk a memorizing extractor would hide.
+Run through the REAL relation reader and REAL grammar lens twice: stage
+one acquires both as candidates; the corpus grows by one sentence
+("Zorlan advises Iyla."), re-read as one enlarged passage set (never
+diffed against a separate reader instance — vocabulary discovery needs
+real material, and this is how a re-read would actually happen), and
+`recheckCandidates` concedes "advises" from the real extractor's own
+new edge, leaving "governs" as the sole surviving candidate. Two live
+extractor quirks found and worked around HONESTLY rather than patched
+around: the real UD-treebank prior classifies "trades" as noun-
+dominant (correctly rejected by the grammar lens before the trap could
+even be reached — the first fixture draft used it and had to be
+replaced, not fixed); and a single short sentence run through its own
+isolated reader instance produces zero edges (vocabulary discovery
+needs a real corpus, not four words) — the fix was re-reading the WHOLE
+grown corpus together, which is also the honest way a real re-read
+works, not a workaround.
+
+**Full suite after: the-fold 1002/1002 (net -2 from the prior count —
+hl.test.mjs shrank from 16 to 4 cases as its logic tests moved to the
+engine; hl-acquire.test.mjs added 10), eoreader6.1's own new modules
+19/19. One pre-existing failure in eoreader6.1's full suite
+(`goldens/multimodal/score.test.mjs`, a video causal-boundary test) is
+unrelated to this work — confirmed by `git status`: the only files this
+change touches are CLAUDE.md, packages/engine/package.json, and the new
+interpretation/ directory; the failing test and the modified
+goldens/network files belong to a concurrent session already mid-edit
+there.
+
+## P38 — An index answering "does this exist" is not an index answering "is this established": never hand one to a mechanism that reads
+
+**The law.** Any organ whose behavior depends on how much a material has
+established — activation, recall, recurrence, cast membership, "is this a
+real being or a passing mention" — must be handed a referent index built
+for THAT question. It must never be handed an index built for the
+different, narrower question "did this material mention this name at
+all, even once" (a presence check). The two are computed by the same
+function (`discoverReferents`) with one parameter (`minSentences`)
+deciding which question it answers, and nothing in either index's own
+shape marks which one it is — no type, no flag, no name. Confusing them
+produces no error and no exception. It produces silence: the reading
+mechanism quietly under-fires, or fires zero times, and looks exactly
+like "this material doesn't support pronoun binding" when the real fact
+is "the wrong index was asked." Before wiring any new activation-based,
+decay-based, or recall-based mechanism to an existing referent index in
+this repo, check what floor built that index. If it is `cast.js`'s
+(`minSentences: 0`, its own header explains why — presence, not cast),
+build a separate pass with `discoverReferents(surfaces, {})` instead,
+letting the organ's own DERIVED recurrence floor apply — the same thing
+eoreader6.1's `host/corpus.js` already does, validated at book scale.
+
+**The incident this law is named for (2026-08-20).** Wiring
+`pronouns.js::resolvePronouns` into `hypergraph.js`'s relation tier (to
+stop a material edge from shipping as "He —was→ also the 16th vice
+president" instead of "Andrew Johnson —was→..."), the first cut reused
+`cast.js`'s already-built referent index — the SAME one `endpoint()`
+already uses for matching, one identity, never a second cast, the P11
+discipline this file already holds everywhere else. It compiled, it ran,
+it threw nothing, and it never resolved a single pronoun against real
+fetched Wikipedia prose, read in true left-to-right document order.
+Traced by testing the hypothesis directly rather than assuming: zero
+pronoun mentions were even ATTEMPTED, because `resolvePronouns`'s own
+gate refuses any sentence carrying ANY named surface, and `cast.js`'s
+`minSentences: 0` promotes a ONE-OFF place name ("Greeneville",
+mentioned once) to full referent status exactly like "Johnson" (mentioned
+dozens of times) — so a one-off place name in the same sentence blocked
+the attempt just as hard as a real competing person would. This is not a
+mismatch between the organ and encyclopedic prose (real biographical
+writing renames its subject constantly and IS a harder case than a
+novel's long pronoun-carried stretches, but that is a separate, honestly
+smaller residual — see below); it was one line reusing the wrong index.
+
+**The fix, and the measured before/after.** `hypergraph.js`'s
+`resolvePronounSubjects` now runs its own `discoverReferents(surfaces,
+{})` pass, per passage, instead of consuming the shared `index` —
+deliberately a SECOND discovery pass over the identical text, because the
+two callers are asking different questions of it, not the same question
+twice. Before: 0 pronoun mentions attempted across a real ~3,300-character
+Wikipedia passage naming its subject in nearly every sentence. After: real
+bindings fire and the extracted edges show it — "Johnson gave a number of
+speeches," "Johnson was eager to complete the work," "Johnson attended a
+party," "Johnson delivered a rambling address," "Johnson only presided
+over the Senate" — sentences whose raw text says only "He." Remaining
+gaps are the organ's own honest, typed refusals (`pronoun_no_candidate`,
+`pronoun_no_margin` — a sentence genuinely co-mentioning someone else, or
+a real activation margin too thin to call), not silence.
+
+**Chain of custody, for the next reader wondering how "prove the Lincoln
+fix" turned into a fix in a shared eoreader6.1 file.** Same incident,
+same day, three more real, measured, tested fixes surfaced and landed
+along the way, each following the identical discipline (measure before
+trusting, fix at the source, never chase a closed list of site-specific
+punctuation): `hypergraph.js`'s `blankFurniture` organ, scoped to
+extraction only, stopped a Wikipedia succession box's bare "Preceded
+by"/"Succeeded by" rows from gluing into garbage relations.
+`holon.js`'s `buildRedefinedPart` replaced a critique-of-the-prior-draft
+correction prompt with a fresh, uncritical re-ask carrying the material's
+own confirmed closed set as a given — three successive wording fixes to
+the critique framing each got dodged a NEW way (an echoed escape phrase,
+narrating the question, inventing an unconfirmed nearby name), which
+diagnosed the framing itself as the defect, not the wording.
+`gatherPreflightMaterial` (app.js) now folds every search result's own
+snippet into one combined, honestly-addressed `web:search-results`
+chunk — cheap, clean, and complete in a way a single fetched full page
+often is not — after first shipping it as N separate per-result chunks
+and measuring that nine near-identically-scoring candidates racing for
+three retrieval slots is a coin flip on which FACTS survive. And
+`extractSurfaces` (eoreader6.1, shared, widely used) gained `|` to its
+run-breaking punctuation set — a web-title convention
+("Topic | Section | Site") this organ, proven on book prose, had never
+been checked against — found by running real material, not by auditing
+the regex. Titles were then dropped from the search-results digest
+entirely rather than chasing the open-ended set of a title's OWN
+separator conventions one character at a time (hyphens next) — the exact
+"cannot be formatted to specific sites" refusal this repo already made
+for succession-box parsing, aimed here at title formatting instead.
+
+**Full test status across every fix in this chain.** the-fold 1003/1003,
+eoreader6.1 1116/1116 (the `extractSurfaces` fix, a shared file with real
+regression history — CLAUDE.md's own "referent-merge chain of incidents"
+— re-run in full, not spot-checked), both clean before and after.
+
+**Amended same day — belief is held BY AN EXPERIENCER, not just given by
+a source; the hypergraph now records it durably.** User direction,
+verbatim: "this requires having the hypergraph record beliefs,
+assertions, etc" and "everything isn't just given by a source it is
+believed BY an experiencer." The completeness gate's own verdict (P36's
+`fillers.length > 1` — "we were expecting one and got multiple") used to
+live only in `runPart`'s local variables, gone the moment the call
+returned. It now lands as a REAL task-log entry on the SAME shared,
+app-wide log `/act`/the terminal already write to (`state.gridLog`),
+composed from organs this repo already owns and tested — `grid.js`'s
+`evaluate` verb, `capacity-runner.js`'s `landAct` orchestration (parse →
+land → run `hypergraph.read()` → attach the RESULT), the exact organ
+`capacity-runner.test.mjs` already proves lands a REC when a second
+evaluate on the same object disagrees with the first. No parallel
+mechanism was built for this — `runPart`/`runHolonicTask` gained four
+new, fully optional, backward-compatible params (`grid`, `gridLog`,
+`runCapacity`, `landAct`; all four null is byte-identical to before),
+threaded through app.js's real `runHolonicTask` call gated on
+`state.grounded` (the same gate `makeRelationReader` already uses two
+lines up, for the identical reason: with checking off, nothing downstream
+of it has anything to land). Every landed belief carries `because
+<experiencer>` — which reading, for which part of which task, formed
+it — because grid.js's grammar is space-delimited for clause keywords
+(`ground`/`at`/`from`/`because`), NOT colon-suffixed like `broken:`/
+`warrant:`, a real bug caught by writing `because:${x}` first and testing
+it: the whole clause silently vanished into the PRECEDING `ground`
+clause's own free-text capture, landing with `because: null`. Fixed,
+and pinned as a regression (`holon.test.mjs`, two new cases: a real
+computed verdict lands with a real experiencer attached; the whole
+mechanism is provably a no-op when the four organs are omitted). Full
+suite after: 1007/1007.
+
+**Disclosed, not fixed — a live-verified gap, found the same day by
+checking the terminal's own `grid` command after a real turn, not
+assumed clean.** `isIncomplete` is an OR of two independent signals
+(`incompleteClaimsOf` — the general hypergraph-claims one — and
+`successionIncompleteFindings` — the narrower succession-box one); the
+belief-landing above only ever walks the first. A live turn whose
+redefine round was triggered by the SECOND signal correctly rewrites the
+draft (the existing mechanism, untouched) but lands nothing on the belief
+log — confirmed live: the redefine phrasing shipped, `grid` in the
+terminal read "nothing landed yet." Extending `landCompletenessBelief`
+to also land a belief per succession-box office-holder group is real,
+scoped, unattempted next work, named here rather than implied covered.
+
+**Named, not built — the next, sharper trigger this whole mechanism was
+actually pointed at.** User's own synthesis, live, watching the two-pass
+answer (P34) disagree with itself: S1 (fast) answered "Andrew Johnson,"
+S2 (checked) answered "Hannibal Hamlin" — the SAME question, the SAME
+turn, two DIFFERENT referents asserted as THE answer by the same
+instrument. "The whole point of our rationality thing is that these
+point at two different referents and point to a conflict that warrants
+deeper reasoning via a def eva rec cycle." Nothing today compares S1's
+and S2's own named referents against each other — `priorPass` threads
+S1's text into S2's prompt as context, but no mechanical check asks
+whether the two independently-formed answers agree on WHO. That
+disagreement is a real, cheap, already-available signal — arguably
+better than waiting on `clusterFillers` to find a multi-filler edge,
+since it needs no retrieval luck at all, only two passes that already
+run on every checked turn. The natural close: when S1's and S2's primary
+referents diverge, land TWO evaluates (one per candidate) against the
+turn's material via the SAME `landCompletenessBelief`/`landAct` path
+just built, and let the material's own verdicts (not a guess) decide
+whether this is a genuine "both true, redefine as an enumeration" case
+or one candidate simply wrong. Not built — the infrastructure it needs
+(durable belief-landing, REC-on-disagreement) is exactly what this
+amendment just shipped.
+
+**Amended again, same day — built, and the build caught the SAME mistake
+twice in two different shapes, both from the SAME rule.** User direction,
+verbatim, twice: "we need to point at REFERENTs not exant spans" and,
+after the fix, "update that as a rule too, not pointing at spans, we
+point to referents." This is not new to the codebase — it is
+READING-POLICY P7.2's own words ("a check on a NAME asks about the
+referent, not the string") and hypergraph.js's own `queryReferents`
+carries the identical direction in its header already, dated 2026-08-19.
+What is new is that THIS SESSION independently walked into the same hole
+twice in one sitting, building the `competingSubjectsOf` check named
+above:
+
+1. First cut queried the standalone, module-level `queryFillers(edges,
+   {verb, object})` — disclosed in hypergraph.js's own header as matching
+   on exposed SURFACE STRINGS, not referent IDs, because it runs after
+   `edges` has left the reader's closure. A test fixture spelled the same
+   object "Lincoln's" in one place and "Lincolns" in another and the
+   query missed the match outright — reproduced live, not theorized.
+   Fixed by calling `relations.queryReferents({verb, object})` instead —
+   the referent-aware sibling, run INSIDE the reader's closure against
+   the SAME `endpoint()`/`endpointsMatch` `judge()` trusts internally,
+   already built and already carrying this exact rule in its own
+   comments from a PRIOR pass — found by reading it, not written fresh.
+
+2. Second cut still broke, one layer up: the SLOT DEDUP KEY (`seenSlots`,
+   deciding whether two claims describe "the same" verb+object) was built
+   from `claim.object`'s own raw string. A corrected draft's second
+   sentence added one trailing word ("...vice president TOO") and, keyed
+   by string, that read as a second, unrelated slot — each sentence then
+   saw only ITSELF as already covering the subject it named, and reported
+   the OTHER as still missing, in both directions, forever. Fixed by
+   keying the slot on `subjects`' OWN sorted identity — the material's
+   confirmed referent set, already resolved by the query in step 1 — never
+   the draft's own varying phrasing.
+
+**The rule, general, so it does not have to be rediscovered a third
+time:** anywhere code decides whether two pieces of text name "the same"
+thing — a query, a dedup key, a coverage check, a cache key, an equality
+test — that decision must run through referent identity
+(`endpoint()`/`endpointsMatch`/`queryReferents`, or the equivalent for
+whatever the codebase's own resolved-identity primitive is), never
+through raw string/span comparison (substring, exact match, byte offset).
+A span is where a word SITS; a referent is WHAT IT NAMES; two spans can
+name the same referent while differing by a single character, and a span
+comparison will silently treat them as unrelated. This is READING-POLICY
+P7.2 restated for the-fold's own call sites, not a new rule — the value
+of writing it here is that it now names two concrete, reproduced
+the-fold incidents (not just eoreader6.1's) a future session can grep for
+before building the third one.
+
+Full suite after both fixes: the-fold 1018/1018.

@@ -3574,3 +3574,266 @@ being silently discarded next to it, not the window's own narrowing.
 
 **Full suite: 964/964 passing after the fix** (963 before — the two new
 cases plus the pre-existing count).
+
+## EVA computes, REC concedes (added 2026-08-19) — what was decided, so it is not re-derived
+
+P36 in POLICIES.md is the law; this is the map. The redirect that produced
+it, from the user: a prior investigation's own `succession-answer.js`
+sketch was "far too shaped to that problem" — the real ask was how to EVA
+the hypergraph generally, with provenance, and REC understanding as
+needed, for any material a real checking organ exists for, not one more
+Wikipedia-succession-box-shaped module.
+
+**The seam already existed.** `grid.js`'s `evaluate` verb (P22) already had
+a documented, disclosed gap in its own refusal text — "grid.js records a
+declared verdict, it does not yet compute one." Closing that generally
+turned out smaller than the narrow module it replaced: `evaluate <claim>
+... ground <source> broken:<p>` with no `verdict:` clause now runs
+`hypergraph.js`'s real `read(claim)` against the named ground when it's an
+already-loaded source, via a `claim` mode added to `capacities.js`'s
+existing `relations` capacity (no new capacity id). Only `bound`/
+`contradicted` compute holds/refused; `unbound`/`beyond-reach`/`unheard`/
+`competing` all stay undetermined by design — `foldGrid`'s existing
+DEF/EVA companion match already renders that honestly as "wish, no verdict
+declared yet," unchanged. `grid.js`'s `attachResult` gained one optional
+`extra` parameter so the computed verdict rides onto the RESULT entry as
+ordinary payload (task-log.js's own documented merge rule) — no other
+function touched.
+
+**REC mirrors `build-log.js`'s real `rezeroBuild` exactly**, applied to a
+checked claim instead of a code build: a later evaluate that disagrees
+with an earlier determined verdict for the SAME object concedes it first
+(EVIDENCE·REC·Figure·produced, `concedes` + verbatim `trigger`), landed
+via a new `grid.concedeEvaluation`, before the new verdict attaches.
+Re-confirming the same verdict lands no REC — agreement is not a
+contradiction, pinned as its own regression alongside the disagreement
+case.
+
+**Live on both doors already, zero further wiring.** `term.js`'s `act`
+command and app.js's `/act` chat door both already call the identical
+`landAct`/`runCapacity` instance app.js builds once (`relationsFor`
+already injected the same day the `relations` capacity itself was wired) —
+this shipped complete on both surfaces the moment `capacity-runner.js`
+landed.
+
+**Verified live against real, uncached-elsewhere material** (a real 160KB
+Wikipedia page, not a fixture): a true, stated fact in ordinary prose
+computed `holds` with 8 real passage citations; a second true fact stated
+with a pronoun subject ("The 16th vice president, he assumed...") computed
+honestly undetermined rather than guessed — `extractRelations` anchors
+candidate verbs on capitalized surfaces only, the same previously-
+undocumented gap `MECHANICAL-COVERAGE-INVESTIGATION.md`'s own
+military-governor specimen already surfaced, now confirmed on a second,
+independent real specimen.
+
+**Disclosed, not silently narrower than it sounds.** Text only, today —
+the omnimodal generalization the user actually asked for is honest about
+where it currently stops: a ground ruled by `measure.js` or `store.js` has
+no checking organ wired into this seam yet, and asking evaluates it as an
+honest (never-guessing) but not yet distinctly-typed undetermined, unlike
+the other nine capacities' own `not_yet_executable` gap. Also named,
+real, and unbuilt: "squaring polarity" (the user's own proposed next
+check) — evaluate a claim and its negation independently and cross-check
+the pair, since live verification found `extractRelations`'s own negation
+detection unreliable on copula constructions ("was never X") though
+reliable on transitive ones ("never appointed X") — the SAME verdict on
+both readings of one claim is itself the tell that this sentence
+construction's negation detection silently failed, the identical
+ask-twice-derive-the-verdict shape `testimony.js`'s `siblingSwap` already
+holds elsewhere, aimed at polarity instead of the object filler.
+
+**Files.** `grid.js` (`attachResult` gained `extra`; new
+`concedeEvaluation`). `capacity-runner.js` (`runCapacity`'s `relations`
+gained `claim`; `landAct` gained the `evaluate` branch). `grid.test.mjs`:
+49/49 unchanged. `capacity-runner.test.mjs`: 16 → 23, all against the real
+engine perceiver organs, no stubs.
+
+**Amended same day.** Driving this live crashed both render sites
+(app.js's `actTurn`, term.js's own `act` handler) — both assumed
+`landed.capacity.result` was always cast's `{referents}` shape; fixed by
+branching on `landed.event.verb`. A second real bug, found the same way:
+squaring confirms polarity only, so "Andrew Johnson was the 22nd
+president" and the exact original conflation, "Andrew Johnson was the
+17th vice president," both still computed `holds` — hypergraph.js's
+object-matching needs just one shared word ("president") to call two
+different objects "the same." Closed by `checkObjectSpecificity`
+(requires every one of the claim's content tokens on the real edge that
+actually backed the verdict, read via its own `refs`, never a re-derived
+guess) — `capacity-runner.test.mjs` 23 → 30. Full account, including the
+honest finding that a true appositive-sentence claim also downgrades (no
+real edge ever backed it either) and that the ORDINARY chat pipeline
+still makes the exact original mistake since none of this is wired into
+it yet: POLICIES.md P36's own same-day amendment.
+
+## HL — the logic over hypergraph stages (added 2026-08-20) — what was decided, so it is not re-derived
+
+P37 in POLICIES.md is the law; this is the map. The lineage: the
+positional-calculus probes (A–D, run in conversation against the kernel
+record and reproduced independently before anything landed) proved a
+sound/complete presupposition logic over the operator face and a
+no-upward-entailment theorem at Pattern grain; HL is the same three-face
+split pointed at the relation tier — stages (Site) as models,
+content-general rules (Act) as proof theory, judgment outcomes
+(Resolution) as verdicts.
+
+**Files.** `hl.js` (pure, standalone, imports nothing — organs and
+edges arrive as arguments; the cast.js posture without even the
+injection, since the logic needs no engine organ) + `hl.test.mjs`
+(16 conformance cases: the reference probes ported, the giver/
+provenance walls, the adapter against synthetic edges in the real
+public shape AND against a real `makeRelationReader` run over the real
+engine organs — the same sibling-repo imports hypergraph.test.mjs
+uses). Zero existing files touched, deliberately: the tree was mid-edit
+by a concurrent session across app.js/grid.js/term.js when this landed
+(the ground-ledger.js scoping precedent, reused).
+
+**What it buys that judge() structurally cannot:** R2 functional
+exclusion (a declared-functional relation's bound edge convicts any
+DIFFERENT object in the same slot — the uniqueness-violation case
+judge() can only land `unbound` on), R6 transitive composition (a
+never-stated fact derived, provenance recording the chain), definite
+descriptions as grammar (`the r(s,o)` — presupposition failure reads
+`contested` when a keyed functional relation carries multiple
+bindings), and typed quantification where the type genuinely bites.
+
+**Decisions that cost something:** contested-DOMINANT verdicts (FDE's
+"both"), knowingly diverging from judge()'s bound-plus-contested-
+metadata — both files' headers carry the divergence so an adapter maps
+it consciously; `unrefuted@stage` refusing to compose through ∧/∨
+rather than silently coercing; declarations refused without a named
+giver (empty register today — building the functional/transitive
+closed class with per-relation givers is the named next work, and R2's
+live value is exactly proportional to it); `attach` downgrading
+insensitive verdicts to `undetermined` (the PR-#61 sensitivity posture
+as a definition, not a check bolted on).
+
+**Not claimed:** nothing live consumes hl.js yet — no grounding-ladder
+wiring, no verification-taxonomy seat (P33's Lens cell is the natural
+one), no UI. The gating-vs-attractor question for R5's open-domain
+clause stays open, disclosed in the module header.
+
+## HL, amended (2026-08-20) — the core moved, acquisition landed
+
+P37's amendment in POLICIES.md is the law; this is the map update. The
+core logic (Stage, R1-R6, the verdict lattice) now lives in
+`eoreader6.1/packages/engine/interpretation/hl.js` — Interpretation-
+domain engine infrastructure, not a the-fold concern (full placement
+evidence: eoreader6.1/CLAUDE.md, "The Interpretation domain's own logic
+— HL"). This repo's own `hl.js` is the adapter alone
+(`stageFromEdges`), re-exporting the engine's API unchanged so nothing
+that imported `./hl.js` broke.
+
+**New: `hl-acquire.js` + `hl-acquire.test.mjs`.** The spin-up gate,
+composed from organs this repo already owns
+(`makeRelationReader`, `makeGrammarLens`) plus a refutation scan and
+`EVIDENCE_FLOOR = 2` (reused from `emergence/binding.js`'s own
+structural minimum, never re-derived). Produces two disclosed tiers —
+REFUTED and CANDIDATE, never GIVEN — because `functional(r)` is a
+Pattern-grain claim and the grain theorem (probe D) says a corpus can
+refute one but never earn one. Concession of a later-refuted candidate
+routes through the engine's new `declarations.js::concede` (REC,
+mirroring `grid.js::concedeEvaluation` exactly).
+
+**Built explicitly against a live mistake, not a hypothetical one.** A
+concurrent session's same-day "chase" work (DEF/EVA/REC wired to
+mechanical question-answering) hand-tuned subject/verb/object per
+specimen and hit the paraphrase-intolerance ceiling MINE-1 already
+disclosed, one parameter at a time. `hl-acquire.js` counts structure
+and uses the grammar lens only to reject, never to re-derive roles —
+named in its own header so the next pass does not repeat the mistake
+either.
+
+**Validated adversarially, not on Wikipedia.** `hl-acquire.test.mjs`'s
+invented chronicle (Zorlan/Brannic/Iyla, nothing recallable) contains a
+genuine coincidental-validation trap: "advises" looks exactly as clean
+as the genuinely-functional "governs" until the corpus grows by one
+sentence and the real extractor's own new edge refutes it — caught live
+through the REAL relation reader and grammar lens, twice (the direct-
+edge unit test and the end-to-end real-organs test), not asserted.
+
+## Pronoun resolution wired into the relation tier, and the index-purpose bug it was found through (2026-08-20) — what was decided, so it is not re-derived
+
+P38 in POLICIES.md is the law (**"an index answering 'does this exist' is
+not an index answering 'is this established' — never hand one to a
+mechanism that reads"**); this is the map. Started from a live complaint
+("who was Abraham Lincoln's vice president?" reading confused) and ended
+several layers deeper than the original bug.
+
+**What actually shipped, in the order it was found.** (1) `hypergraph.js`
+gained a `blankFurniture` organ, scoped to extraction only
+(`discoverRelationVocab`/`extractRelations`'s own input, never `list`
+itself) — a Wikipedia succession box's bare "Preceded by"/"Succeeded by"
+rows have no sentence terminator between them, and `extractRelations`'s
+MATCHER reads whitespace connectors across a bare newline on purpose (real
+Gutenberg hard-wrapped prose needs that), so the two rules collided and
+glued adjacent box rows into nonsense. Verified by replaying the exact
+retrieved passages through both completeness signals deterministically,
+bypassing the model entirely: both already computed the correct answer.
+(2) `holon.js` gained `buildRedefinedPart` — when the completeness gate
+finds a cardinality violation (P36's own `clusterFillers`/`fillers.length
+> 1`, "we were expecting one and got multiple," the object-side member of
+the family described below), the fix is no longer a critique of the prior
+draft ("your draft answers as if there is only one... rewrite it") but a
+fresh, uncritical re-ask (`buildExecutePrompt`, not
+`buildCorrectionPrompt`) carrying the confirmed closed set as a stated
+given. Three successive wording fixes to the critique framing were each
+dodged a NEW way live (an echoed escape phrase, narrating the question
+instead of answering it, inventing a real-but-unconfirmed nearby name) —
+three different dodges from three different wordings diagnosed the
+FRAMING itself as the defect, this file's own repeated lesson ("a
+directive about the task produces a description of the task") confirmed a
+third time. (3) `gatherPreflightMaterial` (app.js) folds every search
+result's own snippet into one combined `web:search-results` chunk instead
+of fetching only full pages — tried first as N separate per-result
+chunks and measured to fail: nine near-identically-scoring snippets
+racing for three retrieval slots is a coin flip on which FACTS survive,
+confirmed live when a real draw won two Hamlin-only snippets and a
+Johnson-only one over three that each independently stated both names.
+(4) `extractSurfaces` (eoreader6.1, shared) gained `|` to its
+run-breaking punctuation set, the same class of fix as the comma incident
+this file's own referent-merge history already records — found by
+running a real search-results page through it, not by auditing the
+regex: `"Hannibal Hamlin | Abraham Lincoln, Maine, Civil War |
+Britannica"` glued into one spurious "Hamlin Abraham Lincoln" surface.
+Titles were then dropped from the digest text entirely rather than
+chasing the next title separator (a bare hyphen) one character at a
+time — search-result titles are metadata, not prose, and enumerating
+every site's own title convention is the identical "cannot be formatted
+to specific sites" trap this repo already refused for succession-box
+parsing.
+
+**(5) The one P38 is actually named for.** `resolvePronouns`
+(eoreader6.1's `perceiver/text/pronouns.js`) composed into
+`hypergraph.js` via a new `resolvePronouns` organ, reusing
+`host/corpus.js`'s own declared, disclosed-as-unvalidated operating point
+(`minActivation: 0.05`, `minMargin: 0.2` — no golden exists for pronoun
+binding in either repo, moving these numbers is expected, not a
+regression) rather than inventing new ones. Scoped PER PASSAGE, never
+across passages — `relationsFor`'s own `list` is retrieved top-N
+passages, often from unrelated pages, and resolving one passage's pronoun
+against a name that only happens to occur in another would be the exact
+cross-document contamination READING-POLICY P1 already warns against
+("never carry a window across books"). First cut reused `cast.js`'s
+already-built referent index for the surface→referent lookup — compiled,
+ran, threw nothing, resolved nothing: zero pronoun mentions were even
+ATTEMPTED against real continuous Wikipedia prose, read in true document
+order. `cast.js`'s index is built with `minSentences: 0`, its own header
+naming exactly why ("presence... a name mentioned once is present once")
+— the RIGHT floor for a citation-presence check, the WRONG one for an
+activation mechanism, because `resolvePronouns`'s own gate refuses any
+sentence carrying ANY named surface, and with no floor a one-off place
+name earns referent status exactly like a real recurring person, blocking
+the attempt just as hard. Fixed by giving `resolvePronounSubjects` its
+own second `discoverReferents(surfaces, {})` pass — the organ's own
+DERIVED recurrence floor, the same one `host/corpus.js` already relies on
+by omission, validated at book scale. Measured before/after on the same
+real passage: 0 attempts → real bindings (`Johnson gave a number of
+speeches`, `Johnson was eager to complete the work`, `Johnson attended a
+party` — sentences whose raw text said only "He") plus honestly typed
+remaining gaps (`pronoun_no_candidate`, `pronoun_no_margin`), never
+silence.
+
+**Full suite, every fix in this chain, before and after each one:**
+the-fold 1003/1003; eoreader6.1 1116/1116 (its own `extractSurfaces` fix
+re-run against the FULL conformance suite, not spot-checked, given that
+file's own regression history in this document).

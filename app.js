@@ -998,12 +998,45 @@ async function actTurn(argstr, typed) {
     const { result } = landed.capacity;
     if (result.gap === "no_material") {
       lines.push(result.detail);
-    } else {
+    } else if (landed.event.verb === "distinguish") {
       mirrorTermRecord("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface), via: "chat" });
       lines.push(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`);
+    } else if (landed.event.verb === "evaluate") {
+      lines.push(formatEvaluateOutcome(grid, landed));
     }
   }
   return usageTurn(typed, lines.join("\n"));
+}
+
+/**
+ * The plain-language account of a computed evaluate — "EVA the
+ * hypergraph, with provenance" rendered for a reader, not the raw RESULT
+ * payload. `grid.foldGrid` is re-read here rather than trusting a locally
+ * recomputed verdict, so this always shows exactly what the record itself
+ * will show on a later `grid`/`/self` read — one source of truth, not two
+ * that could drift. `computed, not generated`, tables.js's own house
+ * phrase, reused rather than invented for this door.
+ */
+function formatEvaluateOutcome(grid, landed) {
+  const evaId = landed.ids[landed.ids.length - 1];
+  const { acts } = grid.foldGrid(landed.log);
+  const act = acts.find((a) => a.task_id === evaId);
+  const claim = act?.result?.claim ?? landed.event.object;
+  if (act?.verdict === "holds" || act?.verdict === "refused") {
+    const squaring = act.result?.squaring;
+    const squaredNote = squaring?.trusted
+      ? `squared against its own negation — confirmed`
+      : `squared against its own negation — no confirmation`;
+    return `evaluate · "${claim}" ${act.verdict} against "${landed.event.ground}" (${squaredNote}) — computed, not generated`;
+  }
+  const raw = act?.result?.judged?.verdict ?? act?.result?.rawVerdict ?? "unbound";
+  const reason =
+    act?.result?.rawVerdict === "holds" && act?.result?.objectCheck?.trusted === false
+      ? `a real edge shares some of the claim's own words but not all of them (checked: ${act.result.objectCheck.claimTokens.join(", ")}) — the material does not state this specific claim, only something that resembles it`
+      : act?.result?.rawVerdict && act?.result?.squaring?.trusted === false
+        ? `the claim's own negation, checked the same way, could not be told apart from the claim itself — this sentence shape's own polarity reading cannot be trusted`
+        : `the material does not settle this (raw reading: ${raw})`;
+  return `evaluate · "${claim}" is undetermined against "${landed.event.ground}" (${reason})`;
 }
 
 /**

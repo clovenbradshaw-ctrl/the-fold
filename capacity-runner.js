@@ -131,7 +131,13 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
     // `landAct`'s job below, not this dispatch's.
     if (claim) {
       const judged = reader.read(claim);
-      return { id, name: name ?? null, claim, claims: judged.claims };
+      // `edges` (the material's own real graph, not just this claim's
+      // verdict) rides along too — squaring checks POLARITY; a bound
+      // verdict can still be wrong in a second, different way a polarity
+      // check cannot see (see checkObjectSpecificity below), and that
+      // check needs the real matched edge's own object text, not just
+      // the collapsed bound/contradicted/unbound label.
+      return { id, name: name ?? null, claim, claims: judged.claims, edges: judged.edges };
     }
     if (!query) return { id, name: name ?? null, count: reader.edges.length, edges: reader.edges };
     const fillers = reader.queryReferents(query);
@@ -209,36 +215,28 @@ const NEGATION_TOKENS = new Set(["never"]);
 
 /**
  * Real, disclosed limit of this mechanical transform, validated against
- * this bug's own three known specimens (Lincoln/Hamlin — transitive,
- * negates correctly; Andrew Johnson, Grand Canyon — copula, silently
- * fails): a single fixed insertion rule is fragile (a naive "always
- * before the verb" rule dodges the copula bug entirely and would wrongly
- * TRUST a broken reading). This tries several plausible insertion points
- * instead of guessing one, and returns them ALL as candidates — the
- * caller only needs ONE to disagree for the pair to be trustworthy.
- * When a copula is present, "never" is tried both immediately before and
- * immediately after it (the validated specimens are both the AFTER
- * case — "was never"/"is never" — but BEFORE is tried too since nothing
- * here can tell which the sentence actually needs). When no copula is
- * found, "never" is tried after the first token (the transitive-verb
- * pattern already validated on "Lincoln never appointed Hamlin") and
- * after the second (the same pattern for a two-word proper-name subject,
- * untested against a real specimen — disclosed, not silently assumed
- * solved).
+ * this bug's own known specimens (Lincoln/Hamlin — transitive, negates
+ * correctly; Andrew Johnson, Grand Canyon — copula, silently fails after
+ * the copula but recovers before it): a single fixed insertion rule is
+ * fragile (a naive "always before the verb" rule dodges the copula bug
+ * entirely and would wrongly TRUST a broken reading; a naive "always
+ * after" would wrongly DISTRUST a reading that "before" would have
+ * confirmed). This tries several plausible insertion points instead of
+ * guessing one, and returns them ALL as candidates — the caller only
+ * needs ONE to disagree for the pair to be trustworthy. When a copula is
+ * present, "never" is tried both immediately before and immediately
+ * after it. When no copula is found, "never" is tried after the first
+ * token (the transitive-verb pattern validated on "Lincoln never
+ * appointed Hamlin") and after the second (the same pattern for a
+ * two-word proper-name subject). An ALREADY-negated claim gets its
+ * negation word REMOVED rather than doubled — stacking a second "never"
+ * onto an already-negated sentence produces double-negation gibberish
+ * this extractor was never going to parse sensibly.
  */
 export function negationCandidates(claim) {
   const words = String(claim ?? "").trim().split(/\s+/).filter(Boolean);
   if (words.length < 2) return [];
   const candidates = new Set();
-  // An ALREADY-negated claim ("Lincoln never appointed Hamlin") gets its
-  // negation word REMOVED, not doubled — a caller checking a negative
-  // claim is realistic input (not only squaring's own internal use), and
-  // stacking a second "never" onto an already-negated sentence produces
-  // double-negation gibberish this extractor was never going to parse
-  // sensibly, which would wrongly read as "no candidate disagrees" and
-  // downgrade an already-correct refused verdict to undetermined. Every
-  // occurrence is tried removed independently (rare, but a claim could
-  // carry more than one).
   const negationIdxs = words.map((w, i) => (NEGATION_TOKENS.has(w.toLowerCase()) ? i : -1)).filter((i) => i !== -1);
   if (negationIdxs.length) {
     for (const i of negationIdxs) {
@@ -282,6 +280,82 @@ function squarePolarity(runCapacity, groundText, groundName, claimText, primaryV
   });
   const trusted = checked.some((c) => c.verdict && c.verdict !== primaryVerdict);
   return { trusted, checked };
+}
+
+// ── object specificity — a second, DIFFERENT check squaring cannot do ──────
+//
+// Found live, testing this exact wiring against real material (the
+// original Andrew Johnson specimen this whole investigation started
+// from): "Andrew Johnson was the 22nd president" (false — the material
+// says 17th) computed `holds`, squared and confirmed. Squaring only
+// checks POLARITY (does the claim's negation disagree) — it says nothing
+// about whether a bound claim's own OBJECT is the material's real object
+// or a substituted wrong one, because hypergraph.js's own
+// `endpointsMatch` object fallback (`tokensShare`) requires only that
+// SOME token stem-matches, not that the claim's own distinguishing
+// tokens do. "22nd president" and "the 17th president of the United
+// States" share "president" and nothing else, and that ONE shared word
+// is enough for `tokensShare` to call them the same object.
+//
+// A first cut of this fix re-filtered the edge graph by an EXACT
+// subject+verb string match — wrong, found live on the second real
+// specimen tried: "Andrew Johnson was the 16th vice president" (TRUE —
+// the material's own words) binds through a PRONOUN subject ("The 16th
+// vice president, HE assumed..."), which judge()'s own referent-aware
+// endpointsMatch correctly resolves but a bare string-equality re-filter
+// does not — the true claim's own backing edge was invisible to it, and
+// a genuinely true claim got wrongly downgraded. The fix: never
+// re-derive which edge backed the claim — READ IT OFF `judged.refs`,
+// the real address(es) judge() itself already used to bind the claim,
+// and check THAT edge's object, not a re-guessed one. This also needed
+// widening from numbers-only to every content token: "Andrew Johnson was
+// the 17th vice president" (FALSE — Johnson was the 16th VP; 17th is his
+// separate PRESIDENT ordinal) still wrongly matched a numbers-only check,
+// because "17th" genuinely does appear in the material — just on the
+// wrong office. Requiring every one of the claim's own content words
+// (not just numbers) to appear on the SAME real backing edge catches
+// this: "vice" is never on the edge that actually supplied "17th".
+const STOPWORDS = new Set(["a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or", "was", "is", "are", "were", "be", "been", "am"]);
+
+function contentTokens(text) {
+  return new Set(
+    String(text ?? "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t && !STOPWORDS.has(t)),
+  );
+}
+
+/**
+ * `edges` is the real material graph (runCapacity's "relations" `claim`
+ * response now carries it alongside `claims`); `judgedRefs` is the SAME
+ * claim's own `refs` — the real address(es) judge() used to bind it,
+ * never re-derived. Returns `{ trusted, claimTokens, matchedTokens }` —
+ * `trusted` is `true` when the claim's object carries no content token
+ * to check (nothing to confirm, so nothing to doubt), when no real edge
+ * can be found at the claim's own bound address (nothing to compare
+ * against — an inconclusive check must not itself convict a verdict it
+ * cannot examine), or when the real backing edge's own object states
+ * EVERY one of the claim's content tokens, not merely one shared word.
+ */
+function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
+  const claimTokens = contentTokens(claimObjectText);
+  if (!claimTokens.size) return { trusted: true, claimTokens: [], matchedTokens: [] };
+  const refSet = new Set(judgedRefs ?? []);
+  if (!refSet.size) return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [], inconclusive: "no address to check against" };
+  const backing = (edges ?? []).filter((e) => (e.refs ?? []).some((r) => refSet.has(r)));
+  if (!backing.length) return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [], inconclusive: "no edge found at the claim's own bound address" };
+  for (const e of backing) {
+    const edgeTokens = contentTokens(e.object);
+    if ([...claimTokens].every((t) => edgeTokens.has(t))) {
+      return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [...edgeTokens] };
+    }
+  }
+  return {
+    trusted: false,
+    claimTokens: [...claimTokens],
+    matchedTokens: [...new Set(backing.flatMap((e) => [...contentTokens(e.object)]))],
+  };
 }
 
 /**
@@ -372,10 +446,20 @@ export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
       const judged = (result.claims ?? [])[0] ?? null;
       const rawVerdict = collapseVerdict(judged);
       let squaring = null;
+      let objectCheck = null;
       let computedVerdict = null;
       if (rawVerdict) {
         squaring = squarePolarity(runCapacity, groundText, groundName, parsed.event.object, rawVerdict);
         computedVerdict = squaring.trusted ? rawVerdict : null;
+        // Squaring confirms POLARITY only — a "holds" that passed squaring
+        // can still be a wrong number/office wearing a real edge's other
+        // words (see checkObjectSpecificity's own header). Checked only
+        // for `holds`: a `refused` verdict already means the material
+        // explicitly disagrees, which is a different, already-decided case.
+        if (computedVerdict === "holds") {
+          objectCheck = checkObjectSpecificity(result.edges, judged?.refs, judged?.object);
+          if (!objectCheck.trusted) computedVerdict = null;
+        }
       }
       const objectKey = (parsed.event.object ?? "").toLowerCase();
       if (computedVerdict) {
@@ -399,7 +483,7 @@ export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
       const attached = grid.attachResult(
         finalLog,
         evaId,
-        { claim: parsed.event.object, judged, source: groundName, rawVerdict, squaring },
+        { claim: parsed.event.object, judged, source: groundName, rawVerdict, squaring, objectCheck },
         computedVerdict ? { verdict: computedVerdict } : {},
       );
       if (attached.ok) finalLog = attached.log;

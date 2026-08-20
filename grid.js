@@ -544,12 +544,65 @@ export function makeGrid({ operators, taskLog }) {
    * would re-type the task in the fold") is carried here unchanged.
    * `taskId` must already be on the log — a result for nothing is a typed
    * gap, not a silent no-op.
+   *
+   * `extra` (added for computed `evaluate` verdicts) rides alongside
+   * `result` as ordinary top-level payload on the SAME RESULT entry —
+   * task-log.js's own `projectTasks` merges any non-reserved key onto the
+   * projected task (`{...prior, ...payload}`, later entries win), and
+   * `verdict` is not a reserved key, so `attachResult(log, evaId, result,
+   * {verdict: "holds"})` makes `foldGrid`'s existing DEF/EVA companion
+   * read (`companion.verdict`) see a COMPUTED verdict exactly as it would
+   * see a human-DECLARED one — no change to `foldGrid` itself. Omit
+   * `extra.verdict` (or omit `extra` entirely) to attach evidence/
+   * diagnostics without ever claiming a verdict — the honest shape for a
+   * checked-but-inconclusive claim, which `foldGrid` already reads as
+   * "wish, no verdict declared yet" with no change needed here either.
    */
-  function attachResult(log, taskId, result) {
+  function attachResult(log, taskId, result, extra = {}) {
     if (!log.entries.some((e) => e.task_id === taskId)) {
       return { ok: false, refusal: { type: "target_not_found", target: taskId, detail: `"${taskId}" is not on this log — nothing to attach a result to` } };
     }
-    return { ok: true, log: taskLog.append(log, { kind: taskLog.ENTRY_KINDS.RESULT, task_id: taskId, result }) };
+    return { ok: true, log: taskLog.append(log, { kind: taskLog.ENTRY_KINDS.RESULT, task_id: taskId, result, ...extra }) };
+  }
+
+  /**
+   * Concede a PRIOR `evaluate` act — the REC half of "re-check a claim,
+   * revise understanding as needed." Mirrors `build-log.js::rezeroBuild`'s
+   * own shape exactly (the validated precedent for "the operator judged
+   * the projection and the ground it was built on is conceded"), applied
+   * to an evaluate task instead of a build: one EVIDENCE·REC·Figure·
+   * produced entry, `concedes` naming the prior act's own task_id,
+   * `trigger` the operator's — here, the re-check's own — words for WHY,
+   * required and never defaulted for the identical reason rezeroBuild
+   * requires it ("a re-zero with no recorded reason is a version bump
+   * wearing an operator's name"). Landed BEFORE the new evaluate's own
+   * RESULT is attached (the caller's job — this function only lands the
+   * concession), so the log reads as "the old verdict was conceded, then
+   * a new one was reached," never a silent overwrite of one verdict by
+   * another. `priorTaskId` must already be on the log.
+   */
+  function concedeEvaluation(log, priorTaskId, { trigger } = {}) {
+    if (!log.entries.some((e) => e.task_id === priorTaskId)) {
+      return { ok: false, refusal: { type: "target_not_found", target: priorTaskId, detail: `"${priorTaskId}" is not on this log — nothing to concede` } };
+    }
+    if (typeof trigger !== "string" || !trigger.trim()) {
+      return { ok: false, refusal: { type: "no_trigger", detail: "concedeEvaluation: a re-zero records its own reason as `trigger` — never a silent concession" } };
+    }
+    const id = nextEventId(log);
+    return {
+      ok: true,
+      id,
+      log: taskLog.append(log, {
+        kind: taskLog.ENTRY_KINDS.EVIDENCE,
+        task_id: id,
+        description: `re-zero: ${trigger}`,
+        operator: "REC",
+        operator_basis: taskLog.OPERATOR_BASIS.PRODUCED,
+        grain: "Figure",
+        concedes: priorTaskId,
+        trigger,
+      }),
+    };
   }
 
   /**
@@ -611,6 +664,7 @@ export function makeGrid({ operators, taskLog }) {
     resolveStance,
     land,
     attachResult,
+    concedeEvaluation,
     foldGrid,
     createLog: (opts) => taskLog.createTaskLog(opts),
   };

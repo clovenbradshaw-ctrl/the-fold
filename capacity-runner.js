@@ -81,7 +81,7 @@ import { chunkSource } from "./source.js";
  * their own header).
  */
 export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
-  return function runCapacity(id, { text, name, query } = {}) {
+  return function runCapacity(id, { text, name, query, claim } = {}) {
     if (id !== "cast" && id !== "relations") {
       return {
         gap: "not_yet_executable",
@@ -117,6 +117,21 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
     const reader = relationsFor(chunkSource(name ?? "material", text));
     if (!reader.examined) {
       return { gap: "no_material", id, detail: `no relation vocabulary could be measured for "${name ?? "?"}"` };
+    }
+    // `claim` is EVA's own door: not a query over the graph (which/what
+    // filler for an open slot) but a JUDGMENT of one stated claim against
+    // it, via hypergraph.js's real `read(answer)` — the SAME judge()
+    // every material-grounded chat answer is already checked against, so
+    // an evaluate act gets no weaker a check than an ordinary turn does.
+    // `claims` carries each sentence's own verdict (bound/contradicted/
+    // unbound/beyond-reach/unheard/competing) with its real provenance
+    // (`nearest`/`bound` edges, each an edgeFace carrying `refs`) — never
+    // collapsed here into a caller's yes/no; that collapse, and the
+    // deliberate refusal to guess on the three non-committal verdicts, is
+    // `landAct`'s job below, not this dispatch's.
+    if (claim) {
+      const judged = reader.read(claim);
+      return { id, name: name ?? null, claim, claims: judged.claims };
     }
     if (!query) return { id, name: name ?? null, count: reader.edges.length, edges: reader.edges };
     const fillers = reader.queryReferents(query);
@@ -154,23 +169,173 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
 // already hold) and `runCapacity` (this file's own export, above) — no
 // new engine import, no new organ.
 
+// ── squaring polarity — a caller-side check, not an engine fix ─────────────
+//
+// hypergraph.js's own extractRelations reads a claim's polarity off a
+// negation-scope window that (measured live, real diagnostic, not assumed)
+// only ever tests text through the end of the SUBJECT capture — it never
+// reaches the verb-to-object span. "Lincoln never appointed Hamlin" only
+// negates correctly by ACCIDENT (the subject group's own greedy 2-token
+// slot happens to swallow "never" when the subject is a single word);
+// "Andrew Johnson was never the 17th president" and "Grand Canyon is never
+// one of the most studied geologic landscapes" both have full 2-token
+// subjects, leave "never" stranded past the checked window, and silently
+// keep reading as affirmative. This is a real, disclosed bug in a widely-
+// shared engine file (dozens of real callers across both repos, including
+// a conformance test named for exactly this seam) — fixing it AT THE
+// SOURCE is real, scoped, unattempted work, not undertaken here: its
+// safety can't yet be certified against the engine's own conformance
+// suite and the several already-published MINE-1 measurements that read
+// off the same polarity field.
+//
+// What CAN be built without touching relations.js at all: a caller-side
+// check that never trusts a single polarity reading. Evaluate the claim's
+// own NEGATION the same mechanical way the claim itself gets evaluated; if
+// the two readings genuinely DISAGREE (one holds, one refused), the
+// extractor's negation detection is trustworthy for this sentence shape.
+// If they AGREE — both read the same way — that agreement is itself the
+// tell that negation silently failed on this construction, and the
+// original verdict must not ship as a confident holds/refused; it
+// downgrades to undetermined, the same discipline `arithmetic.js`'s own
+// order-reversing-phrase refusal already holds elsewhere in this repo: an
+// unconfirmed computed answer is worse than an honest gap.
+const COPULAS = new Set(["was", "is", "are", "were", "am", "be", "been"]);
+// Deliberately narrower than the engine's own NEGATION_WORDS (priors.js,
+// giver lang/en) — this is a mechanical text-editing token list for
+// constructing a candidate sentence, not a semantic negation-detection
+// vocabulary, so it names only the single word this module's own
+// insert/remove transform actually produces and recognizes.
+const NEGATION_TOKENS = new Set(["never"]);
+
+/**
+ * Real, disclosed limit of this mechanical transform, validated against
+ * this bug's own three known specimens (Lincoln/Hamlin — transitive,
+ * negates correctly; Andrew Johnson, Grand Canyon — copula, silently
+ * fails): a single fixed insertion rule is fragile (a naive "always
+ * before the verb" rule dodges the copula bug entirely and would wrongly
+ * TRUST a broken reading). This tries several plausible insertion points
+ * instead of guessing one, and returns them ALL as candidates — the
+ * caller only needs ONE to disagree for the pair to be trustworthy.
+ * When a copula is present, "never" is tried both immediately before and
+ * immediately after it (the validated specimens are both the AFTER
+ * case — "was never"/"is never" — but BEFORE is tried too since nothing
+ * here can tell which the sentence actually needs). When no copula is
+ * found, "never" is tried after the first token (the transitive-verb
+ * pattern already validated on "Lincoln never appointed Hamlin") and
+ * after the second (the same pattern for a two-word proper-name subject,
+ * untested against a real specimen — disclosed, not silently assumed
+ * solved).
+ */
+export function negationCandidates(claim) {
+  const words = String(claim ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return [];
+  const candidates = new Set();
+  // An ALREADY-negated claim ("Lincoln never appointed Hamlin") gets its
+  // negation word REMOVED, not doubled — a caller checking a negative
+  // claim is realistic input (not only squaring's own internal use), and
+  // stacking a second "never" onto an already-negated sentence produces
+  // double-negation gibberish this extractor was never going to parse
+  // sensibly, which would wrongly read as "no candidate disagrees" and
+  // downgrade an already-correct refused verdict to undetermined. Every
+  // occurrence is tried removed independently (rare, but a claim could
+  // carry more than one).
+  const negationIdxs = words.map((w, i) => (NEGATION_TOKENS.has(w.toLowerCase()) ? i : -1)).filter((i) => i !== -1);
+  if (negationIdxs.length) {
+    for (const i of negationIdxs) {
+      const without = [...words.slice(0, i), ...words.slice(i + 1)].join(" ");
+      if (without) candidates.add(without);
+    }
+    return [...candidates];
+  }
+  const copulaIdx = words.findIndex((w) => COPULAS.has(w.toLowerCase()));
+  const insert = (at) => [...words.slice(0, at), "never", ...words.slice(at)].join(" ");
+  if (copulaIdx !== -1) {
+    candidates.add(insert(copulaIdx));
+    candidates.add(insert(copulaIdx + 1));
+  } else {
+    if (1 < words.length) candidates.add(insert(1));
+    if (2 < words.length) candidates.add(insert(2));
+  }
+  return [...candidates];
+}
+
+/** bound -> holds, contradicted -> refused, everything else (unbound,
+ * beyond-reach, unheard, competing) -> null — the material never decides
+ * for those, so this never guesses one on their behalf. */
+function collapseVerdict(judged) {
+  return judged?.verdict === "bound" ? "holds" : judged?.verdict === "contradicted" ? "refused" : null;
+}
+
+/**
+ * Square a computed verdict against its own claim's negation(s), all run
+ * against the SAME ground text via the SAME `runCapacity("relations",
+ * {claim})` door the primary read used. Returns `{ trusted, checked }` —
+ * `checked` is the real candidate list and their real verdicts, kept for
+ * disclosure even when trusted, never hidden once computed.
+ */
+function squarePolarity(runCapacity, groundText, groundName, claimText, primaryVerdict) {
+  const candidates = negationCandidates(claimText);
+  const checked = candidates.map((candidate) => {
+    const result = runCapacity("relations", { text: groundText, name: groundName, claim: candidate });
+    const judged = (result.claims ?? [])[0] ?? null;
+    return { candidate, verdict: collapseVerdict(judged) };
+  });
+  const trusted = checked.some((c) => c.verdict && c.verdict !== primaryVerdict);
+  return { trusted, checked };
+}
+
 /**
  * Parse `line` against `grid`, land it on `log`, and — only when it lands
- * as a `distinguish` whose `ground` clause names an ALREADY-LOADED source
- * (checked by key presence in `sources`, not truthiness, so "nothing by
- * that name is loaded" and "what's loaded there is empty" stay the two
- * different, correctly-typed facts term.js's own comment already
- * documented) — run `cast` for real and attach the referents found as a
- * RESULT on the act's own INS entry.
+ * as a `distinguish` or an `evaluate` whose `ground` clause names an
+ * ALREADY-LOADED source (checked by key presence in `sources`, not
+ * truthiness, so "nothing by that name is loaded" and "what's loaded
+ * there is empty" stay the two different, correctly-typed facts term.js's
+ * own comment already documented) — run the matching capacity for real
+ * and attach what it found as a RESULT on the act's own entry.
+ *
+ * `distinguish` runs `cast` (referent identity), unchanged from before.
+ *
+ * `evaluate` — "EVA the hypergraph, with provenance" — runs ONLY when the
+ * act carries no human-DECLARED `verdict:` clause (grid.js's own parse
+ * already lets `verdict:` be omitted; this is what fills that gap in
+ * rather than leaving it permanently open). The act's `object` is read as
+ * the claim itself (grid.js's grammar already allows a quoted, full-
+ * sentence object) and judged against the named ground's real text via
+ * `runCapacity("relations", {claim})` — hypergraph.js's own judge(), the
+ * SAME check an ordinary chat answer is graded against. Only two of
+ * judge()'s five verdicts are strong enough to COMPUTE a holds/refused:
+ * `bound` -> holds, `contradicted` -> refused. The other three (unbound,
+ * beyond-reach, unheard) and `competing` all mean "the material does not
+ * settle this," never "the material says no," and are left undetermined —
+ * `foldGrid`'s existing DEF/EVA companion read already renders this
+ * honestly as "wish, no verdict declared yet."
+ *
+ * A determined verdict is then SQUARED (see squarePolarity above) before
+ * it ships: the claim's own negation is checked the same mechanical way,
+ * and only a genuine disagreement between the two readings earns the
+ * verdict enough trust to attach as holds/refused. An unconfirmed reading
+ * downgrades to undetermined rather than shipping a wrong confident
+ * answer — real, disclosed evidence (which candidates were tried, what
+ * each computed) rides on the RESULT either way, never silently dropped.
+ *
+ * REC — "revise understanding as needed": before a squared-and-trusted
+ * verdict lands, the live fold is checked for an EARLIER evaluate of the
+ * SAME object (case-folded) already carrying a determined verdict. If the
+ * new computation disagrees, `grid.concedeEvaluation` lands an
+ * EVIDENCE·REC·Figure·produced entry FIRST — `concedes` naming the prior
+ * act, `trigger` stating the verbatim disagreement — mirroring
+ * `build-log.js`'s `rezeroBuild` shape exactly. Only then does the new
+ * verdict attach. Re-confirming the same verdict lands no REC.
  *
  * Returns `{ ok: false, refusal }` on a parse/grammar refusal (nothing
  * lands, `log` is untouched), or `{ ok: true, log, ids, event, capacity }`
  * where `capacity` is `null` when no capacity was triggered (an ordinary
- * act, OR a `ground` candidate naming nothing loaded — deliberately
- * silent either way, matching the disclosed rule above), or
- * `{ result }` when one was: `result.gap === "no_material"` on real-but-
- * empty material (nothing attached), otherwise the real referents `cast`
- * found (`{ id, name, count, referents }`, attached).
+ * act, a `verdict:`-declared evaluate, or a `ground` candidate naming
+ * nothing loaded — deliberately silent either way, matching the disclosed
+ * rule above), or `{ result }` when one was: `result.gap === "no_material"`
+ * on real-but-empty material (nothing attached), otherwise the real
+ * capacity output found — attached either way, whether or not a verdict
+ * was strong and squared-trustworthy enough to compute.
  *
  * Callers own ALL formatting/recording — this function only computes what
  * landed and what (if anything) ran; it never touches a DOM, a chat
@@ -187,6 +352,56 @@ export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
     if (result.gap !== "no_material") {
       const insId = ids[ids.length - 1];
       const attached = grid.attachResult(finalLog, insId, result);
+      if (attached.ok) finalLog = attached.log;
+    }
+    capacity = { result };
+  }
+  if (
+    parsed.event.verb === "evaluate" &&
+    parsed.event.ground &&
+    parsed.event.object &&
+    !parsed.event.verdict &&
+    runCapacity &&
+    Object.hasOwn(sources, parsed.event.ground)
+  ) {
+    const groundText = sources[parsed.event.ground];
+    const groundName = parsed.event.ground;
+    const result = runCapacity("relations", { text: groundText, name: groundName, claim: parsed.event.object });
+    if (result.gap !== "no_material") {
+      const evaId = ids[ids.length - 1];
+      const judged = (result.claims ?? [])[0] ?? null;
+      const rawVerdict = collapseVerdict(judged);
+      let squaring = null;
+      let computedVerdict = null;
+      if (rawVerdict) {
+        squaring = squarePolarity(runCapacity, groundText, groundName, parsed.event.object, rawVerdict);
+        computedVerdict = squaring.trusted ? rawVerdict : null;
+      }
+      const objectKey = (parsed.event.object ?? "").toLowerCase();
+      if (computedVerdict) {
+        const priorDetermined = grid
+          .foldGrid(finalLog)
+          .acts.filter(
+            (t) =>
+              t.operator === "EVA" &&
+              t.task_id !== evaId &&
+              (t.object ?? "").toLowerCase() === objectKey &&
+              (t.verdict === "holds" || t.verdict === "refused"),
+          )
+          .sort((a, b) => b.first_seq - a.first_seq)[0];
+        if (priorDetermined && priorDetermined.verdict !== computedVerdict) {
+          const conceded = grid.concedeEvaluation(finalLog, priorDetermined.task_id, {
+            trigger: `re-checked against "${groundName}": was "${priorDetermined.verdict}", now computes "${computedVerdict}"`,
+          });
+          if (conceded.ok) finalLog = conceded.log;
+        }
+      }
+      const attached = grid.attachResult(
+        finalLog,
+        evaId,
+        { claim: parsed.event.object, judged, source: groundName, rawVerdict, squaring },
+        computedVerdict ? { verdict: computedVerdict } : {},
+      );
       if (attached.ok) finalLog = attached.log;
     }
     capacity = { result };

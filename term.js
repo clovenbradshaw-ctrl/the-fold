@@ -718,6 +718,7 @@ export function initTerminal(bridge) {
           "  priors [on|off <p>]  live_priors' toggle state · flip a document, folder, or the whole corpus",
           "  handbook [n]         the eoreaderhandbook, vendored whole — chapter list, or one chapter's text",
           "  pip install <name>   fetch a wheel from pyodide's own ~350-package build (P21) — never arbitrary PyPI",
+          "  ytdlp info|audio|download <url>  yt-dlp via the fold server — metadata, audio extraction, or file download",
           "  act <line>           compose one act of the terminal language — verb at terrain from stance (P22)",
           "  grid [legend]        this session's landed acts and define/evaluate landings · the 9×9×9 reference table",
           "  capacities [id]      the small, disclosed capacity registry `synthesize` checks its parts against",
@@ -915,6 +916,68 @@ export function initTerminal(bridge) {
       line(`${body.name} v${body.version} ready (${fresh}) — sha256-pinned against pyodide's own lock.`, "term-mute");
       line(`this session's python runtime won't see it — its network already severed. \`exit\` then \`python\` starts fresh; \`import ${body.name}\` as that session's FIRST line loads it, same as numpy/pandas/matplotlib always have.`, "term-mute");
     },
+    // yt-dlp: metadata, audio extraction, and download via the system's yt-dlp
+    // binary. The browser cannot reach YouTube directly under P1, so every
+    // crossing lives server-side (explore-server.mjs's /api/ytdlp route).
+    // Two subcommands: info (metadata only), audio (extract as mp3, save to
+    // materials, attach as source), download (save in a given format).
+    async ytdlp(arg) {
+      const [sub, ...rest] = (arg ?? "").trim().split(/\s+/).filter(Boolean);
+      const bases = ["", "http://localhost:8812"];
+      const hit = async (path, opts) => {
+        for (const base of bases) {
+          try {
+            const res = await fetch(`${base}${path}`, opts);
+            if (res.ok) return await res.json();
+          } catch {
+            /* try the next base */
+          }
+        }
+        return null;
+      };
+      if (!sub || sub === "help" || !rest.length) {
+        return line(
+          [
+            "ytdlp info <url>       video metadata — title, duration, formats (no download)",
+            "ytdlp audio <url>      extract audio as mp3, save to materials, attach as source",
+            "ytdlp download <url> [format]  save to materials in a given format (default: best)",
+            "",
+            "requires yt-dlp + ffmpeg on the machine and a fold server running (explore-server.mjs).",
+          ].join("\n"),
+          "term-mute",
+        );
+      }
+      if (!["info", "audio", "download"].includes(sub)) {
+        return line(`ytdlp: unknown subcommand "${sub}" — info, audio, or download`, "term-exit bad");
+      }
+      const url = rest[0];
+      const format = sub === "download" ? (rest[1] ?? "best") : undefined;
+      line(`${sub === "info" ? "fetching metadata for" : sub === "audio" ? "extracting audio from" : "downloading from"} ${url}…`, "term-mute");
+      const body = await hit("/api/ytdlp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: sub, url, ...(format ? { format } : {}) }),
+      });
+      if (!body) return line("yt-dlp lives on a fold server — start explore-server.mjs (port 8812) to use ytdlp here", "term-exit bad");
+      if (body.error) return line(`ytdlp: ${body.error}`, "term-exit bad");
+      if (sub === "info") {
+        const dur = body.duration ? `${Math.floor(body.duration / 60)}:${String(Math.round(body.duration % 60)).padStart(2, "0")}` : "?";
+        line(`${body.title} — ${dur} by ${body.uploader ?? "?"}`, "term-mute");
+        if (body.description) line(body.description.slice(0, 300), "term-mute");
+        if (body.formats?.length) {
+          line("formats:", "term-mute");
+          for (const f of body.formats) {
+            line(`  ${f.format_id}  ${f.ext}  ${f.resolution ?? "audio only"}  ${f.vcodec !== "none" ? f.vcodec : f.acodec}`, "term-mute");
+          }
+        }
+      } else {
+        // audio or download — file saved to materials
+        line(`${body.file} saved (${body.bytes} bytes) — "${body.title}"`, "term-mute");
+        if (sub === "audio") {
+          line("attach in chat with ＋ to use as material, or `sources` to confirm it loaded.", "term-mute");
+        }
+      }
+    },
     // act / grid / capacities — the terminal language (grid.js): the nine
     // operators, nine terrains, nine postures, one composition law. `act`
     // parses and lands one line on the shared log (readGridLog/writeGridLog
@@ -949,9 +1012,26 @@ export function initTerminal(bridge) {
         const { result } = landed.capacity;
         if (result.gap === "no_material") {
           line(result.detail, "term-exit bad");
-        } else {
+        } else if (landed.event.verb === "distinguish") {
           mirrorTerm("term-capacity-run", { id: "cast", source: landed.event.ground, count: result.count, referents: result.referents.map((r) => r.surface) });
           line(`cast · ${result.count} referent${result.count === 1 ? "" : "s"} found in "${landed.event.ground}": ${result.referents.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+        } else if (landed.event.verb === "evaluate") {
+          const evaId = landed.ids[landed.ids.length - 1];
+          const act = bridge.grid.foldGrid(landed.log).acts.find((a) => a.task_id === evaId);
+          const claim = act?.result?.claim ?? landed.event.object;
+          if (act?.verdict === "holds" || act?.verdict === "refused") {
+            const squaredNote = act.result?.squaring?.trusted ? "confirmed" : "no confirmation";
+            line(`evaluate · "${claim}" ${act.verdict} against "${landed.event.ground}" (squared against its own negation — ${squaredNote}) — computed, not generated`, "term-mute");
+          } else {
+            const raw = act?.result?.judged?.verdict ?? act?.result?.rawVerdict ?? "unbound";
+            const reason =
+              act?.result?.rawVerdict === "holds" && act?.result?.objectCheck?.trusted === false
+                ? `a real edge shares some words but not all — checked: ${act.result.objectCheck.claimTokens.join(", ")}`
+                : act?.result?.rawVerdict && act?.result?.squaring?.trusted === false
+                  ? "the claim's own negation could not be told apart from the claim itself"
+                  : `raw reading: ${raw}`;
+            line(`evaluate · "${claim}" is undetermined against "${landed.event.ground}" (${reason})`, "term-mute");
+          }
         }
       }
     },
@@ -978,6 +1058,10 @@ export function initTerminal(bridge) {
       for (const a of acts) {
         line(`${a.task_id}  ${a.operator}·${a.grain}  ${a.verb} ${a.object ?? ""}`.trim());
         if (a.result?.count !== undefined) line(`  → ${a.result.count} referent${a.result.count === 1 ? "" : "s"}: ${a.result.referents?.map((r) => r.surface).join(", ") || "(none)"}`, "term-mute");
+        if (a.operator === "EVA" && a.result?.claim !== undefined) {
+          const verdictText = a.verdict === "holds" || a.verdict === "refused" ? a.verdict : `undetermined (raw: ${a.result?.judged?.verdict ?? a.result?.rawVerdict ?? "unbound"})`;
+          line(`  → "${a.result.claim}" ${verdictText}`, "term-mute");
+        }
       }
       if (landings.length) {
         line("", "term-mute");

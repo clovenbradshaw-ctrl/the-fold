@@ -28,7 +28,8 @@
 
 import http from "node:http";
 import { Worker } from "node:worker_threads";
-import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync, rmSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -2114,6 +2115,128 @@ const server = http.createServer(async (req, res) => {
           ? openAIResponse({ id, model: wireModel, text: turn.text, created, usage: turn.usage, fold })
           : ollamaChatResponse({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold }),
       );
+    }
+
+    // ---- yt-dlp organ: metadata, audio extraction, and download via the
+    // system's yt-dlp binary. Same posture as the transcribe route on
+    // serve.mjs — the browser cannot reach YouTube directly under P1, so every
+    // crossing lives server-side. Three actions: info (metadata only, no
+    // download), audio (extract as mp3, save to materials, return path),
+    // download (save to materials in a requested format). Recorded before and
+    // after each crossing.
+    if (req.method === "POST" && p === "/api/ytdlp") {
+      const body = await readJsonBody(req);
+      const action = String(body.action ?? "").trim();
+      const url = String(body.url ?? "").trim();
+      if (!url) return send(res, 400, { error: "url is required" });
+      if (!["info", "audio", "download"].includes(action)) {
+        return send(res, 400, { error: "action must be info, audio, or download" });
+      }
+      record("ytdlp-requested", { action, url });
+      try {
+        if (action === "info") {
+          const proc = spawn("yt-dlp", [
+            "--dump-json", "--no-playlist", "--no-warnings", url,
+          ], { stdio: ["ignore", "pipe", "pipe"] });
+          let stdout = "";
+          let stderr = "";
+          proc.stdout.on("data", (b) => { stdout += b.toString(); });
+          proc.stderr.on("data", (b) => { stderr += b.toString(); });
+          await new Promise((resolve, reject) => {
+            proc.on("error", reject);
+            proc.on("close", (code) => {
+              if (code === 0) resolve();
+              else reject(new Error(`yt-dlp exited ${code}: ${stderr.slice(0, 500)}`));
+            });
+          });
+          const info = JSON.parse(stdout);
+          const result = {
+            title: info.title ?? null,
+            duration: info.duration ?? null,
+            uploader: info.uploader ?? null,
+            upload_date: info.upload_date ?? null,
+            description: (info.description ?? "").slice(0, 2000),
+            webpage_url: info.webpage_url ?? url,
+            ext: info.ext ?? null,
+            formats: (info.formats ?? []).slice(-5).map((f) => ({
+              format_id: f.format_id,
+              ext: f.ext,
+              resolution: f.resolution,
+              filesize: f.filesize ?? null,
+              vcodec: f.vcodec,
+              acodec: f.acodec,
+            })),
+          };
+          record("ytdlp-info", { url, title: result.title, duration: result.duration });
+          return send(res, 200, result);
+        }
+        // audio or download — extract to a temp path, then move to materials
+        const ext = action === "audio" ? "mp3" : String(body.format ?? "best").trim();
+        const tmpBase = `/tmp/the-fold-ytdlp-${crypto.randomUUID()}`;
+        const tmpTemplate = `${tmpBase}.%(ext)s`;
+        try {
+          const args = ["--no-playlist", "--no-warnings", "-o", tmpTemplate];
+          if (action === "audio") {
+            args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "5");
+          } else {
+            args.push("-f", ext);
+          }
+          args.push(url);
+          const proc = spawn("yt-dlp", args, { stdio: ["ignore", "pipe", "pipe"] });
+          let stderr = "";
+          proc.stderr.on("data", (b) => { stderr += b.toString(); });
+          await new Promise((resolve, reject) => {
+            proc.on("error", reject);
+            proc.on("close", (code) => {
+              if (code === 0) resolve();
+              else reject(new Error(`yt-dlp exited ${code}: ${stderr.slice(0, 500)}`));
+            });
+          });
+          // find the output file — yt-dlp fills in %(ext)s
+          let actualFile = null;
+          for (const tryExt of [".mp3", ".webm", ".m4a", ".ogg", ".mp4", ".mkv", ".video"]) {
+            if (existsSync(tmpBase + tryExt)) { actualFile = tmpBase + tryExt; break; }
+          }
+          if (!actualFile) throw new Error("yt-dlp produced no output file");
+          // get the title for the filename
+          let title = url;
+          try {
+            const tProc = spawn("yt-dlp", [
+              "--print", "title", "--no-playlist", "--no-warnings", url,
+            ], { stdio: ["ignore", "pipe", "ignore"] });
+            title = await new Promise((resolve) => {
+              let out = "";
+              tProc.stdout.on("data", (b) => { out += b.toString(); });
+              tProc.on("close", () => resolve(out.trim() || url));
+              setTimeout(() => { tProc.kill(); resolve(url); }, 5000);
+            });
+          } catch {}
+          const safeName = title.replace(/[^a-zA-Z0-9 _-]/g, "_").slice(0, 80).replace(/_+$/, "");
+          const fileExt = action === "audio" ? "mp3" : ext;
+          const finalName = `${safeName}.${fileExt}`;
+          const dest = path.join(MATERIALS_DIR, finalName);
+          const buf = readFileSync(actualFile);
+          writeFileSync(dest, buf);
+          try { unlinkSync(actualFile); } catch {}
+          record("ytdlp-download", { action, url, title, file: finalName, bytes: buf.length });
+          return send(res, 200, {
+            file: finalName,
+            path: `materials/${finalName}`,
+            title,
+            bytes: buf.length,
+          });
+        } catch (e) {
+          // clean up any temp files
+          for (const tryExt of [".mp3", ".webm", ".m4a", ".ogg", ".mp4", ".mkv", ".video"]) {
+            try { unlinkSync(tmpBase + tryExt); } catch {}
+          }
+          record("ytdlp-failed", { action, url, error: e.message });
+          return send(res, 500, { error: e.message });
+        }
+      } catch (e) {
+        record("ytdlp-failed", { action, url, error: e.message });
+        return send(res, 500, { error: e.message });
+      }
     }
 
     // ---- the record's tail, for the UI affordance; the full file is in the tree.

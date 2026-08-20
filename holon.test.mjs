@@ -19,13 +19,18 @@ import {
   createPlanLog,
   extractArray,
   foldPlan,
+  mechanicalAnswer,
   needsDecomposition,
   parsePlan,
   projectParts,
   runHolonicTask,
+  runPart,
 } from "./holon.js";
 import { chunkSource } from "./source.js";
 import { makeRelationReader } from "./hypergraph.js";
+import { makeGrid } from "./grid.js";
+import { makeCapacityRunner, landAct } from "./capacity-runner.js";
+import { findCapacity, unresolvedCapacity } from "./capacities.js";
 
 // Real engine organs for the relation tier (hypergraph.test.mjs's own
 // pattern) — the completeness gate is worth nothing tested against a
@@ -1028,7 +1033,7 @@ test("a bound-but-incomplete answer triggers the completeness gate, and naming t
   const call = async (messages) => {
     if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
     const user = messages[1]?.content ?? "";
-    if (user.includes("the material also states")) {
+    if (user.includes("the material confirms exactly")) {
       corrected = true;
       assert.match(user, /Johnson/, "the correction prompt must name the real, missing filler — not just say 'be more complete'");
       return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
@@ -1051,6 +1056,150 @@ test("a bound-but-incomplete answer triggers the completeness gate, and naming t
     !result.open.some((o) => o.includes("names only one of several")),
     "once both fillers are covered, the gap is no longer open",
   );
+});
+
+// ── the MIRROR completeness signal: one verb+object slot, competing
+// SUBJECTS (queryFillers with subject left open) — the "Abraham Lincoln's
+// vice president" specimen, run for real first before it was wired
+// (see POLICIES.md P38's amendment for the live queryFillers proof this
+// closes). incompleteClaimsOf already caught "Lincoln —appointed→
+// {Hamlin, Johnson}" (one subject, many objects); this is the other
+// direction: "{Hamlin, Johnson} —was→ Lincoln's vice president" (one
+// object, many subjects) — a question can outrun the material on either
+// end, and only one end was ever checked before today.
+const COMPETING_SUBJECT_TEXT =
+  "Hannibal Hamlin was Lincoln's vice president. Andrew Johnson was Lincoln's vice president. Lincoln nominated Seward for the post.";
+
+test("a slot with competing SUBJECTS (not objects) trips the completeness gate too, and the correction names both", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material confirms exactly")) {
+      corrected = true;
+      assert.match(user, /Johnson/, "the correction prompt must name the real, missing subject — not just say 'be more complete'");
+      return "Hannibal Hamlin was Lincoln's vice president. Andrew Johnson was Lincoln's vice president too.";
+    }
+    // First draft: true, bound, and — the whole point — names only ONE of
+    // the two subjects the material confirms for this exact slot. Worded
+    // with a trailing clause the material itself does not carry (not a
+    // verbatim copy of the material's own sentence) so this tests the
+    // completeness gate specifically, not reproduction — the identical
+    // discipline the object-side sibling test above already uses.
+    return "Hannibal Hamlin was Lincoln's vice president in 1861.";
+  };
+  const result = await runHolonicTask({
+    task: "who was Lincoln's vice president?",
+    chunks: chunkSource("lincoln-vp.txt", COMPETING_SUBJECT_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.ok(corrected, "the competing-subjects signal must trigger the tailored rewrite");
+  assert.match(result.output, /Johnson/, "the shipped answer must cover the subject the first draft missed");
+  assert.ok(
+    !result.open.some((o) => o.includes("names only one of several")),
+    "once both subjects are covered, the gap is no longer open",
+  );
+});
+
+test("a slot with exactly ONE confirmed subject never trips the competing-subjects check — singular is the ordinary case", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrections = 0;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    corrections++;
+    // Not verbatim to COMPETING_SUBJECT_TEXT's own "...for the post." — the
+    // identical discipline every fixture in this file already applies.
+    return "Lincoln nominated Seward for the vacant post.";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln nominate?",
+    chunks: chunkSource("lincoln-vp.txt", COMPETING_SUBJECT_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.equal(corrections, 1, "a single confirmed subject is the unremarked case — no completeness call spent on it");
+});
+
+// ── the completeness gate's belief lands on the shared task-log (P38: "the
+// hypergraph records beliefs... held BY AN EXPERIENCER, not just given by a
+// source") — grid.js's own tested evaluate/REC organs, not a parallel one.
+function freshGridFixture() {
+  return import("../eoreader6.1/packages/engine/operators.js").then(async (operators) => {
+    const taskLog = await import("../eoreader6.1/packages/engine/holon/task-log.js");
+    const grid = makeGrid({ operators, taskLog });
+    grid.withCapacities({ findCapacity, unresolvedCapacity });
+    return grid;
+  });
+}
+
+test("the completeness gate lands a REAL evaluate belief on the shared grid log — not just an in-memory fact this call's own variables happen to hold", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  const runCapacity = makeCapacityRunner({
+    referentIndexFor: (passages) => {
+      // Only "relations" is exercised by this path; a minimal stand-in for
+      // the cast capacity keeps this test from needing a second real organ
+      // bundle it never calls.
+      return { referents: new Set(), resolve: () => new Set(), represent: () => null, events: [] };
+    },
+    relationsFor,
+  });
+  const grid = await freshGridFixture();
+  const log0 = grid.createLog();
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material confirms exactly")) return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
+    return "Lincoln appointed Hamlin in 1861.";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln appoint?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+    grid,
+    gridLog: log0,
+    runCapacity,
+    landAct,
+  });
+  // The log genuinely changed — a new state, not the same object handed back.
+  assert.notEqual(result.gridLog, log0, "the completeness gate must land something; the returned log cannot be identical to the one passed in");
+  const { acts } = grid.foldGrid(result.gridLog);
+  const evaluated = acts.filter((a) => a.verb === "evaluate");
+  assert.ok(evaluated.length >= 1, "at least one real evaluate act must land when the completeness gate fires");
+  const landed = evaluated[0];
+  assert.ok(
+    ["holds", "refused"].includes(landed.verdict) || landed.result?.judged?.verdict,
+    `the landed evaluate must carry a REAL computed verdict, not a bare declaration: ${JSON.stringify(landed.result)}`,
+  );
+  // The experiencer rides on the record too — a belief with no one attached
+  // to it is exactly the "given by a source" framing this closes.
+  const proposeEntry = result.gridLog.entries.find((e) => e.task_id === landed.task_id && e.kind === "propose");
+  assert.match(proposeEntry.because ?? "", /holon-relation-tier/, "the belief names WHO was reading when it formed, not just what was found");
+});
+
+test("the completeness-gate belief is fully opt-in — omitting grid/gridLog/runCapacity/landAct is byte-identical to before this existed", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material confirms exactly")) return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
+    return "Lincoln appointed Hamlin in 1861.";
+  };
+  const result = await runHolonicTask({
+    task: "who did Lincoln appoint?",
+    chunks: chunkSource("lincoln.txt", LINCOLN_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+    // grid/gridLog/runCapacity/landAct all omitted — the default.
+  });
+  assert.equal(result.gridLog, null, "no organs injected means no belief record — never a silently-created one");
+  assert.match(result.output, /Johnson/);
 });
 
 test("an answer that already names every filler never trips the completeness gate", async () => {
@@ -1106,7 +1255,7 @@ test("reproduction and incompleteness each get their own correction round — th
   const call = async (messages) => {
     if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
     const user = messages[1]?.content ?? "";
-    if (user.includes("the material also states")) {
+    if (user.includes("the material confirms exactly")) {
       incompleteRound++;
       assert.match(user, /Johnson/, "the completeness correction must name the real missing filler");
       return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
@@ -1189,7 +1338,7 @@ test("a succession-box specimen: naming only Hamlin trips the completeness gate,
   const call = async (messages) => {
     if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
     const user = messages[1]?.content ?? messages[0]?.content ?? "";
-    if (user.includes("the material also states")) {
+    if (user.includes("the material confirms exactly")) {
       corrected = true;
       assert.match(user, /Johnson/, "the correction prompt must name the real, missing filler off the succession box");
       return "Hannibal Hamlin was Abraham Lincoln's first vice president, and Andrew Johnson was his second.";
@@ -1500,4 +1649,29 @@ test("checkLink on: a URL the loaded material itself already contains is never f
   const section = result.sections[0];
   assert.equal(section.links.links[0].verdict, "in-material");
   assert.match(section.text, /https:\/\/real\.example\/mirror/);
+});
+
+test("mechanicalAnswer: prefers a real sentence over a bare infobox row with the same or higher raw overlap", () => {
+  // Measured live 2026-08-20 against real fetched material ("who was
+  // Abraham Lincoln's vice president?"): a succession box's "In office /
+  // President X / Preceded by Y / Succeeded by Z" lines have no sentence-
+  // final punctuation, and raw overlap-count alone let "President Abraham
+  // Lincoln" (3 words, all query tokens) outrank a genuinely informative
+  // sentence in the same passage. This pins the fix: terminal punctuation
+  // is a structural tell for real prose vs. page furniture, applied here
+  // the way blankStructure/stripContainer already apply it elsewhere.
+  const mixed =
+    "President Abraham Lincoln\n\n" +
+    "Hamlin left the vice presidency in 1865 and later returned to the Senate representing Maine.";
+  const out = mechanicalAnswer("Who was Abraham Lincoln's vice president?", [{ text: mixed, ref: "b" }]);
+  assert.match(out, /Hamlin left the vice presidency/);
+  assert.doesNotMatch(out, /"President Abraham Lincoln"/);
+});
+
+test("mechanicalAnswer: still surfaces a bare fragment honestly when no real sentence exists in that passage", () => {
+  const infoboxOnly =
+    "In office\nMarch 4, 1861 – March 4, 1865\nPresident Abraham Lincoln\n" +
+    "Preceded by John C. Breckinridge\nSucceeded by Andrew Johnson";
+  const out = mechanicalAnswer("Who was Abraham Lincoln's vice president?", [{ text: infoboxOnly, ref: "a" }]);
+  assert.match(out, /President Abraham Lincoln/, "never nothing when something exists, even a fragment");
 });

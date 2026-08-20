@@ -297,9 +297,123 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
 // anchoring step entirely: it does not nominate candidates near an
 // anchor, it answers a direct question ("is this word ever a verb")
 // about every word in the essay.
+// The operating point perceiver/text/pronouns.js::resolvePronouns is called
+// at, reused whole from eoreader6.1's host/corpus.js rather than invented
+// here — corpus.js's own header names exactly what these are: "an
+// engineering starting point, not yet validated against a retrieval-quality
+// golden... moving these two numbers as one gets built is expected, not a
+// regression." No golden exists for pronoun binding in THIS repo either, so
+// the honest move is the same number, credited, not a fresh guess dressed as
+// a considered choice.
+const PRONOUN_MIN_ACTIVATION = 0.05;
+const PRONOUN_MIN_MARGIN = 0.2;
+
+/**
+ * A pronoun subject is disclosed elsewhere in this file as noise, not a
+ * claim about the cast (endpoint()'s own header two-doors down; POLICIES.md
+ * has carried this as a named, open limitation since the assertion tier
+ * landed). Measured live 2026-08-20 (real fetched material, the Lincoln/
+ * Hamlin/Johnson question): "it says: He —was→ also the 16th vice
+ * president" shipped to a reader with the pronoun unresolved, even though
+ * the SAME passage names "Andrew Johnson" two sentences earlier — the
+ * antecedent was sitting right there, unread. `pronouns.js::resolvePronouns`
+ * already exists for exactly this (READING-POLICY P7.2: "a check on a name
+ * asks about the referent, not the string") and was never wired into this
+ * file. This composes it the way corpus.js already validated: PER PASSAGE,
+ * never across passages — `relationsFor`'s own `list` is retrieved top-N
+ * passages, often from unrelated pages/sites, and resolving a pronoun in one
+ * against a name that only happens to occur in another would be exactly the
+ * cross-document contamination P1's own activation-window discipline warns
+ * against ("never carry a window across books"). Scoping `splitSentences` to
+ * one passage's own text at a time means activation can only ever recall a
+ * name that passage itself named. NOT the same `index` `endpoint()` uses for
+ * referent matching elsewhere in this file, and deliberately so — see this
+ * function's own header for the measured reason (cast.js's `minSentences: 0`
+ * answers a different question than this organ needs asked).
+ *
+ * A resolved mention REWRITES the passage's extraction-only text (the
+ * pronoun token replaced by the referent's most-individuated surface)
+ * rather than patching the edge after extraction — because `extractRelations`
+ * reads the connector's SLOT off raw text, and a rewrite lets subject role,
+ * verb agreement, and everything downstream just work, the same reason
+ * `blankFurniture` above rewrites text rather than post-processing triples.
+ * Length-changing, unlike `blankFurniture` — safe here for the identical
+ * reason that fix already established: this text feeds extraction only,
+ * never an offset a citation depends on. An unresolved pronoun (below the
+ * declared floor, gender-incompatible, or nothing named yet) is left
+ * exactly as written — a typed gap upstream (pronouns.js's own `gaps`),
+ * never a guess forced through.
+ *
+ * DELIBERATELY NOT `cast.js`'s shared `index` — measured live 2026-08-20,
+ * against real continuous Wikipedia prose, read in true document order:
+ * zero pronoun hits were even ATTEMPTED. `cast.js::makeReferentIndex` calls
+ * `discoverReferents(surfaces, { minSentences: 0 })` — its own header names
+ * the reason, correctly, for what CAST membership means to a citation check
+ * ("presence... a name mentioned once is present once"), which is a
+ * DIFFERENT question from what `resolvePronouns` needs. `resolvePronouns`'s
+ * own gate refuses any sentence carrying ANY named surface at all — and
+ * with `minSentences: 0`, a one-off place name ("Greeneville", "Maryland")
+ * gets promoted to full referent status exactly like "Johnson" does,
+ * so it blocks the attempt just as hard. The REAL, validated pipeline this
+ * organ was proven on (eoreader6.1's own corpus.js, on War and Peace) never
+ * passes that override — `discoverReferents(surfaces, {})` uses its own
+ * DERIVED recurrence floor (`deriveMinSentences`), so a name mentioned once
+ * in passing never earns referent status and a truly recurring person (the
+ * one a pronoun should recall) is what dominates activation. This function
+ * runs that SAME derivation, scoped to the one passage being rewritten —
+ * a second, differently-floored discovery pass, not the shared `index`,
+ * because the two callers are asking genuinely different questions of the
+ * identical material.
+ */
+function resolvePronounSubjects(text, resolvePronouns, { splitSentences, extractSurfaces, discoverReferents }) {
+  if (!resolvePronouns || !text?.trim()) return text;
+  let sentences, discovery;
+  try {
+    sentences = splitSentences(text);
+    const surfaces = extractSurfaces(sentences, {});
+    discovery = discoverReferents(surfaces, {});
+  } catch {
+    return text;
+  }
+  if (!sentences.length || !discovery?.events?.length) return text;
+  const surfaceToReferent = new Map(discovery.events.map((e) => [e.surface, e.referent_id]));
+  // Same "most-individuated established surface represents" rule cast.js's
+  // own `represent` uses (most glyphs wins) — re-derived here because this
+  // pass's own referent ids come from a differently-floored discovery.
+  const bestSurface = new Map();
+  for (const e of discovery.events) {
+    const prev = bestSurface.get(e.referent_id);
+    if (!prev || e.surface.length > prev.length) bestSurface.set(e.referent_id, e.surface);
+  }
+  let resolved;
+  try {
+    resolved = resolvePronouns(sentences, surfaceToReferent, {
+      minActivation: PRONOUN_MIN_ACTIVATION,
+      minMargin: PRONOUN_MIN_MARGIN,
+    });
+  } catch {
+    return text;
+  }
+  if (!resolved?.bindings?.length) return text;
+  // Applied in REVERSE offset order so an earlier substitution's length
+  // change never shifts a later one's recorded offset out from under it.
+  const ordered = [...resolved.bindings].sort((a, b) => b.offset - a.offset);
+  let out = text;
+  for (const b of ordered) {
+    const name = bestSurface.get(b.referentId);
+    if (!name) continue;
+    const end = b.offset + b.pronoun.length;
+    if (out.slice(b.offset, end).toLowerCase() !== b.pronoun.toLowerCase()) continue; // stale offset, refuse rather than corrupt
+    out = out.slice(0, b.offset) + name + out.slice(end);
+  }
+  return out;
+}
+
 export function makeRelationReader(organs) {
   const {
     splitSentences,
+    extractSurfaces,
+    discoverReferents,
     diaNorm,
     discoverRelationVocab,
     extractRelations,
@@ -308,6 +422,8 @@ export function makeRelationReader(organs) {
     createLemmatizer = null,
     morphologyIndex = null,
     morphologyLanguage = null,
+    blankFurniture = null,
+    resolvePronouns = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -349,8 +465,36 @@ export function makeRelationReader(organs) {
       return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false }, edges: [], read: () => emptyReport(false) };
     }
 
-    const text = list.map((p) => p.text).join("\n\n");
     const index = indexFor(list);
+
+    // `organs.blankFurniture`, when provided, is a length-preserving blanker
+    // (eoreader6.1's spans.js::blankLabelRows) run ONLY on the copy of the
+    // material this function hands to discoverRelationVocab/extractRelations
+    // — never on `list` itself, so every OTHER reader of a passage's `.text`
+    // (referent identity below, and every caller outside this function:
+    // citations, succession.js's own dedicated succession-box parser, the
+    // grounding ladder, what actually reaches the model) still sees the real
+    // bytes untouched. Scoped this narrowly because a Wikipedia succession
+    // box's bare "In office" / "Preceded by X" / "Succeeded by Y" rows have
+    // no sentence terminator between them, and extractRelations's own MATCHER
+    // reads whitespace connectors across a bare newline on purpose (real
+    // Gutenberg hard-wrapped prose needs that) — so on this one material
+    // shape the two rules collide and glue adjacent box rows into a
+    // nonsensical triple. `organs.resolvePronouns`, when provided, rewrites a
+    // bound third-person-singular pronoun subject to its referent's own
+    // surface, PER PASSAGE — resolvePronounSubjects's own header has the
+    // measured reason and the scoping discipline. Both run on the SAME
+    // extraction-only copy; neither touches `list` itself, so a citation's
+    // offset is never at risk. Omitted, either or both, this is
+    // byte-identical to before they existed — optional and backward-
+    // compatible exactly like `verbForms` above.
+    const forExtraction = (s) => {
+      const withReferents = resolvePronounSubjects(s, resolvePronouns, { splitSentences, extractSurfaces, discoverReferents });
+      return blankFurniture ? blankFurniture(withReferents) : withReferents;
+    };
+    const extractionList = blankFurniture || resolvePronouns ? list.map((p) => ({ ...p, text: forExtraction(p.text) })) : list;
+
+    const text = extractionList.map((p) => p.text).join("\n\n");
 
     // The closed class is measured from the POOL (the whole live corpus,
     // when the caller has one), never from the turn's few offered passages,
@@ -598,7 +742,7 @@ export function makeRelationReader(organs) {
     const edges = [];
     const bucketOf = (verb, polarity) => `${verb}|${polarity}`;
     const buckets = new Map();
-    for (const p of list) {
+    for (const p of extractionList) {
       let triples = [];
       try {
         triples = verbs.size ? extractRelations(p.text, { verbs, functionWords, negationWords }) : [];
@@ -657,7 +801,7 @@ export function makeRelationReader(organs) {
       // edge"), on shape only — polarity under shuffle is noise by
       // construction (the negation window is an order fact).
       const arm = orderArm({
-        passages: list,
+        passages: extractionList,
         splitSentences,
         extract: (t) => extractRelations(t, { verbs, functionWords, negationWords }),
         draws: assert.draws,

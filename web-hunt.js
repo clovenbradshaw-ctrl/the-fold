@@ -40,6 +40,7 @@ import { chunkSource } from "./source.js";
 import { rankResults } from "./proof.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { withExperiencer } from "./experiencer.js";
+import { wordSet, hasWord, CLAIM_STOPWORDS, splitSentences as splitGroundingSentences } from "./grounding.js";
 
 async function withRetry(fn, attempts = 2) {
   let lastErr;
@@ -99,6 +100,56 @@ async function gatherPages(explore, query, anchorSentence, maxPages = 6) {
 }
 
 const hostsOf = (refs) => [...new Set((refs ?? []).map((r) => String(r).split("#")[0]))];
+const textForRef = (chunks, ref) => chunks.find((c) => c.ref === ref)?.text ?? null;
+
+/**
+ * FOUND LIVE (Colfax specimen, this session): leaving `object` fully open
+ * on a bare copula ("Colfax —was→ ___") returns EVERY "subject was X" fact
+ * a real biography states — his birth date, his Speaker election — not
+ * specifically the one the claim is actually asking about. The fix is not
+ * a hard-coded term ("vice president" typed in somewhere) — it is the
+ * SAME "company it keeps" discipline P31's own number-grounding fix
+ * already established (grounding.js: numberCompany/numberSupporters): a
+ * candidate filler is kept only if its OWN backing passage shares at
+ * least one real content word with the CLAIM's own words (never the
+ * question's invented restatement, never the filler's own candidate name
+ * — self-matching would be circular). "vice"/"president" survive this
+ * filter because they are the claim's own stable words; "Abraham"/
+ * "Lincoln" — the SPECIFIC, disputed candidate being checked — are
+ * deliberately EXCLUDED from the relevance vocabulary (see
+ * `relevanceWords` below), because filtering on the disputed answer's own
+ * name would make it impossible to ever find a DIFFERENT, correct answer;
+ * the OR-shaped match (any one shared word, not all) means this costs
+ * nothing on the true case ("vice president" alone already anchors it)
+ * while it correctly excludes passages sharing nothing at all.
+ */
+// P31's own real lesson (grounding.js, "Number grounding: company, not bare
+// occurrence"), applied here rather than re-derived worse the first time
+// this file tried it: relevance checked against a whole CHUNK (often a
+// full paragraph) false-positives on any co-occurrence anywhere in that
+// paragraph — found live, this session ("elected Speaker of the House"
+// wrongly passed because the SAME Wikipedia lead paragraph also mentions
+// "vice president" two sentences away, about a different fact entirely).
+// Scoped to the SENTENCE actually containing the filler's own discovered
+// text, falling back to the whole chunk only when no single sentence can
+// be matched (P31's own disclosed fallback — "never a new false refusal").
+function relevantFillers(fillers, chunksByPage, relevanceWords) {
+  if (!relevanceWords.size) return fillers; // nothing left to filter on — never a silent full exclusion
+  return fillers.filter((f) =>
+    f.refs.some((ref) => {
+      const host = ref.split("#")[0];
+      const chunkText = textForRef(chunksByPage.get(host) ?? [], ref);
+      if (!chunkText) return false;
+      const fFold = foldFor(f.text);
+      const sentences = splitGroundingSentences(chunkText).filter((s) => s?.text);
+      const owner = sentences.find((s) => foldFor(s.text).includes(fFold));
+      const scoped = owner ? owner.text : chunkText; // fallback: whole chunk, disclosed above
+      const passageWords = wordSet(scoped);
+      for (const w of relevanceWords) if (hasWord(passageWords, w)) return true;
+      return false;
+    }),
+  );
+}
 
 const COPULA_FORMS = new Set(["was", "is", "were", "are"]);
 function copulaOf(question) {
@@ -227,9 +278,24 @@ export async function huntUndetermined(
     gap = { silence: "not-present", detail: `explore-server unreachable at ${explore}: ${err.message}` };
   }
   const verb = copulaOf(question);
-  const { fillers, pagesWithEdges } = pages.length
+  const { fillers: rawFillers, pagesWithEdges, chunksByPage } = pages.length
     ? queryAcrossPages(relationsFor, pages, { subject, verb, object }, minHosts)
-    : { fillers: [], pagesWithEdges: 0 };
+    : { fillers: [], pagesWithEdges: 0, chunksByPage: new Map() };
+
+  // Relevance words: the claim's own content words, MINUS stopwords, MINUS
+  // the subject's own name (already fixed, tells a filler nothing), MINUS
+  // any capitalized word — a structural, never-hard-coded way to separate
+  // "vice president" (a common-noun relation phrase, kept) from "Abraham
+  // Lincoln" (a capitalized proper noun naming the SPECIFIC, disputed
+  // candidate this hunt exists to check — including it would make it
+  // impossible to ever find a genuinely different, correct answer).
+  const subjectWords = wordSet(subject ?? "");
+  const relevanceWords = new Set(
+    [...String(slotObject).matchAll(/\b\p{Ll}[\p{L}'’]*\b/gu)]
+      .map((m) => m[0].toLowerCase())
+      .filter((w) => w.length >= 2 && !CLAIM_STOPWORDS.has(w) && !hasWord(subjectWords, w)),
+  );
+  const fillers = relevantFillers(rawFillers, chunksByPage, relevanceWords);
 
   let verdict;
   if (!pages.length) verdict = "not-consulted";

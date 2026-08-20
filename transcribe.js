@@ -86,19 +86,58 @@ export function autoDownload(onProgress) {
 /**
  * Transcribe an audio Blob (mp3, wav, webm, etc.) to text.
  * Returns { text, duration }.
+ *
+ * When `onChunk` is provided, audio is split into overlapping 30-second
+ * windows and processed sequentially — each completed chunk fires onChunk
+ * with the accumulated text so far, giving a streaming feel.
+ * Without onChunk, the pipeline runs as a single call (faster, no
+ * intermediate results).
  */
-export async function transcribeBlob(blob, { onProgress, lang = "en" } = {}) {
+export async function transcribeBlob(blob, { onProgress, onChunk, lang = "en" } = {}) {
   const mono = await decodeMono(blob);
   if (!mono.length) return { text: "", duration: 0 };
 
   const asr = await loadASR(onProgress);
+  const duration = mono.length / SR;
+
+  // Streaming path: split into 30s chunks with 5s overlap
+  if (onChunk) {
+    const CHUNK_SAMPLES = SR * 30;
+    const STRIDE_SAMPLES = SR * 5;
+    let accText = "";
+    let offset = 0;
+
+    while (offset < mono.length) {
+      const end = Math.min(offset + CHUNK_SAMPLES, mono.length);
+      const chunk = mono.slice(offset, end);
+
+      const out = await asr(chunk, {
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        return_timestamps: false,
+        language: lang === "es" ? "spanish" : "english",
+      });
+
+      const chunkText = String((out && out.text) || "").trim();
+      if (chunkText) {
+        accText = accText ? `${accText} ${chunkText}` : chunkText;
+        onChunk(accText);
+      }
+
+      offset += CHUNK_SAMPLES - STRIDE_SAMPLES;
+      if (offset >= mono.length) break;
+    }
+
+    return { text: accText, duration };
+  }
+
+  // Non-streaming: single pipeline call
   const out = await asr(mono, {
     chunk_length_s: 30,
     stride_length_s: 5,
     return_timestamps: false,
     language: lang === "es" ? "spanish" : "english",
   });
-  const duration = mono.length / SR;
   return { text: String((out && out.text) || "").trim(), duration };
 }
 

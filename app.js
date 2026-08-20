@@ -93,12 +93,15 @@ import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.j
 import { makeCapacityRunner, landAct } from "./capacity-runner.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
+import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
 import { classifySentences } from "./provenance.js";
 
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
+
+import { persistSource, unpersistSource, loadSources } from "./sources-store.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -1184,15 +1187,41 @@ async function transcribeTurn(typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
+  const foldBox = node.querySelector(".turn-meta > .fold");
   logAct("asked", { text: typed });
 
-  // No argument: open a file picker for local audio.
+  // Build the streaming fold UI — three layers, each a collapsible section.
+  body.innerHTML = "";
+  const statusP = document.createElement("p");
+  statusP.className = "prose";
+  statusP.textContent = "initializing transcription…";
+  body.append(statusP);
+  const foldP = foldBox?.querySelector("p");
+  if (foldP) {
+    foldP.textContent = "";
+    const layerRaw = document.createElement("details");
+    layerRaw.className = "fold";
+    layerRaw.innerHTML = `<summary>layer 1 · raw whisper</summary><p class="t-layer-text"></p>`;
+    const layerPriors = document.createElement("details");
+    layerPriors.className = "fold";
+    layerPriors.innerHTML = `<summary>layer 2 · priors-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+    const layerSelf = document.createElement("details");
+    layerSelf.className = "fold";
+    layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+    foldP.append(layerRaw, layerPriors, layerSelf);
+  }
+  const rawText = foldP?.querySelector("details:nth-child(1) .t-layer-text");
+  const priorsText = foldP?.querySelector("details:nth-child(2) .t-layer-text");
+  const priorsStatus = foldP?.querySelector("details:nth-child(2) .t-layer-status");
+  const selfText = foldP?.querySelector("details:nth-child(3) .t-layer-text");
+  const selfStatus = foldP?.querySelector("details:nth-child(3) .t-layer-status");
+
+  function setLayerText(el, text) { if (el) el.textContent = text; }
+  function setLayerStatus(el, s) { if (el) el.textContent = s; }
+
+  // ── file picker path ──────────────────────────────────────────────────
   if (!arg) {
-    body.innerHTML = "";
-    const p = document.createElement("p");
-    p.className = "prose";
-    p.textContent = "opening file picker for audio…";
-    body.append(p);
+    statusP.textContent = "opening file picker for audio…";
     $("status").textContent = "waiting for audio file…";
 
     try {
@@ -1203,22 +1232,41 @@ async function transcribeTurn(typed) {
         releaseBusy();
         return;
       }
-      body.textContent = "transcribing with Whisper…";
+      statusP.textContent = "transcribing with Whisper…";
       $("status").textContent = "transcribing…";
       const { text, duration } = await transcribeBlob(blob, {
         onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
+        onChunk: (partial) => { setLayerText(rawText, partial); },
       });
+
+      // Layer 1 done — log raw.
+      setLayerText(rawText, text);
+      await logTranscriptionLayer("raw", text, { source: "file", duration });
+
+      // Layer 2: priors-coref — connect entities to the priors corpus first.
+      setLayerStatus(priorsStatus, "resolving…");
+      const priorsResolved = text; // priors requires activated corpus; stub today.
+      setLayerText(priorsText, priorsResolved);
+      setLayerStatus(priorsStatus, "no priors activated");
+      await logTranscriptionLayer("priors", priorsResolved, { source: "file", duration, note: "no priors activated" });
+
+      // Layer 3: self-coref — resolve pronouns against enriched entity set.
+      setLayerStatus(selfStatus, "resolving…");
+      const selfResolved = resolvePronounSubjects(priorsResolved, resolvePronouns, {
+        splitSentences: engineSentences, extractSurfaces, discoverReferents,
+      });
+      setLayerText(selfText, selfResolved);
+      setLayerStatus(selfStatus, selfResolved !== priorsResolved ? "resolved" : "no bindings");
+      await logTranscriptionLayer("self", selfResolved, { source: "file", duration, changed: selfResolved !== priorsResolved });
+
+      // Attach as material and finish.
       const name = `transcription-${Date.now()}.txt`;
       addSource(name, text);
-      body.innerHTML = "";
-      const pp = document.createElement("p");
-      pp.className = "prose";
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
-      pp.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} of audio → attached as "${name}" (${text.length.toLocaleString()} chars)`;
-      body.append(pp);
+      statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
       mirrorTermRecord("transcribe", { source: "file", duration, chars: text.length, via: "chat" });
-      logAct("recorded", { where: "transcribe", source: "file" });
+      logAct("recorded", { where: "transcribe", source: "file", layers: 3 });
       const historyNote = `transcribed audio file (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
       state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
       const turn = state.summary.turnCount + 1;
@@ -1236,32 +1284,47 @@ async function transcribeTurn(typed) {
     return;
   }
 
-  // Argument provided: treat it as a URL to fetch and transcribe.
-  body.innerHTML = "";
-  const p = document.createElement("p");
-  p.className = "prose";
-  p.textContent = `fetching audio from ${arg.slice(0, 80)}…`;
-  body.append(p);
+  // ── URL path ──────────────────────────────────────────────────────────
+  statusP.textContent = `fetching audio from ${arg.slice(0, 80)}…`;
   $("status").textContent = "fetching audio…";
 
   try {
     const { blob, title } = await fetchAudioFromUrl(arg);
-    body.textContent = "transcribing with Whisper…";
+    statusP.textContent = "transcribing with Whisper…";
     $("status").textContent = "transcribing…";
     const { text, duration } = await transcribeBlob(blob, {
       onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
+      onChunk: (partial) => { setLayerText(rawText, partial); },
     });
+
+    // Layer 1 done — log raw.
+    setLayerText(rawText, text);
+    await logTranscriptionLayer("raw", text, { source: "youtube", url: arg, title, duration });
+
+    // Layer 2: priors-coref — connect entities to the priors corpus first.
+    setLayerStatus(priorsStatus, "resolving…");
+    const priorsResolved = text;
+    setLayerText(priorsText, priorsResolved);
+    setLayerStatus(priorsStatus, "no priors activated");
+    await logTranscriptionLayer("priors", priorsResolved, { source: "youtube", title, duration, note: "no priors activated" });
+
+    // Layer 3: self-coref — resolve pronouns against enriched entity set.
+    setLayerStatus(selfStatus, "resolving…");
+    const selfResolved = resolvePronounSubjects(priorsResolved, resolvePronouns, {
+      splitSentences: engineSentences, extractSurfaces, discoverReferents,
+    });
+    setLayerText(selfText, selfResolved);
+    setLayerStatus(selfStatus, selfResolved !== priorsResolved ? "resolved" : "no bindings");
+    await logTranscriptionLayer("self", selfResolved, { source: "youtube", title, duration, changed: selfResolved !== priorsResolved });
+
+    // Attach as material and finish.
     const name = `${title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60)}-transcript.txt`;
     addSource(name, text);
-    body.innerHTML = "";
-    const pp = document.createElement("p");
-    pp.className = "prose";
     const mins = Math.floor(duration / 60);
     const secs = Math.floor(duration % 60);
-    pp.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars)`;
-    body.append(pp);
+    statusP.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
     mirrorTermRecord("transcribe", { source: "youtube", url: arg, title, duration, chars: text.length, via: "chat" });
-    logAct("recorded", { where: "transcribe", source: "youtube" });
+    logAct("recorded", { where: "transcribe", source: "youtube", layers: 3 });
     const historyNote = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
     state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
     const turn = state.summary.turnCount + 1;
@@ -3410,7 +3473,15 @@ function addMessage(role, text) {
         `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
-  el.querySelector(".body").textContent = text;
+  if (role === "user" && /^\//.test(text)) {
+    const body = el.querySelector(".body");
+    const span = document.createElement("span");
+    span.className = "command";
+    span.textContent = text;
+    body.append(span);
+  } else {
+    el.querySelector(".body").textContent = text;
+  }
   state.convos[state.active].el.append(el);
   el.scrollIntoView({ block: "end" });
   return el;
@@ -6425,6 +6496,8 @@ function addSource(name, text) {
     .filter((c) => c.source !== name)
     .concat(chunkSource(name, text, { boundaries: discoverBoundaries(text), identity }));
   renderSources();
+  // Persist to OPFS so the source survives a reload.
+  persistSource(name, text, { passages: countFor(name) });
 }
 
 /**
@@ -6454,6 +6527,8 @@ function removeSource(name) {
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
   renderSources();
+  // Remove from OPFS.
+  unpersistSource(name);
 }
 
 function countFor(name) {
@@ -6614,6 +6689,152 @@ function openAttachSheet(focus = null) {
  */
 function renderSources() {
   renderAttachStrip();
+  renderSourcesPanel();
+}
+
+function renderSourcesPanel() {
+  const list = $("sources-list");
+  if (!list) return;
+  const names = Object.keys(state.sources);
+  if (!names.length) {
+    list.innerHTML = `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    return;
+  }
+  const search = $("sources-search")?.value?.toLowerCase() ?? "";
+  const sortKey = $("sources-sort")?.value ?? "newest";
+  const entries = names.map((name) => {
+    const text = state.sources[name] ?? "";
+    return { name, text, size: text.length, passages: countFor(name) };
+  });
+  const sortCmp = {
+    newest: (a, b) => (b.meta?.addedAt ?? 0) - (a.meta?.addedAt ?? 0),
+    oldest: (a, b) => (a.meta?.addedAt ?? 0) - (b.meta?.addedAt ?? 0),
+    name: (a, b) => a.name.localeCompare(b.name),
+    largest: (a, b) => b.size - a.size || a.name.localeCompare(b.name),
+    smallest: (a, b) => a.size - b.size || a.name.localeCompare(b.name),
+  }[sortKey] ?? ((a, b) => b.name.localeCompare(a.name));
+  const filtered = search ? entries.filter((e) => e.name.toLowerCase().includes(search)) : entries;
+  filtered.sort(sortCmp);
+  list.textContent = "";
+  for (const { name, text } of filtered) {
+    const on = !state.muted.has(name);
+    const prov = state.provenance[name];
+    const ext = name.split(".").pop().toLowerCase();
+    const icon = ({ md: "M", txt: "T", csv: ",", json: "{", html: "<", js: "JS", py: "PY", sql: "S", pdf: "PDF" })[ext]
+      ?? name.charAt(0).toUpperCase();
+    const row = document.createElement("div");
+    row.className = `sources-file${on ? "" : " sources-file-muted"}`;
+    row.innerHTML = `
+      <div class="sources-file-icon">${icon}</div>
+      <div class="sources-file-info">
+        <div class="sources-file-name">${esc(name)}</div>
+        <div class="sources-file-meta">${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}</div>
+        ${prov?.line ? `<div class="sources-file-prov">${esc(prov.line)}</div>` : ""}
+      </div>
+      <div class="sources-file-actions">
+        <button type="button" data-action="mute" title="${on ? "silence" : "unsilence"} this source">${on ? "mute" : "unmute"}</button>
+        <button type="button" data-action="remove" title="remove — its addresses stop resolving">✕</button>
+      </div>`;
+    row.querySelector('[data-action="mute"]').onclick = (e) => {
+      e.stopPropagation();
+      if (on) state.muted.add(name); else state.muted.delete(name);
+      renderSources();
+    };
+    row.querySelector('[data-action="remove"]').onclick = (e) => {
+      e.stopPropagation();
+      removeSource(name);
+    };
+    row.onclick = () => openSourceViewer(name);
+    list.append(row);
+  }
+}
+
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function openSourceViewer(name) {
+  const text = state.sources[name] ?? "";
+  const prov = state.provenance[name];
+  $("source-viewer-name").textContent = name;
+  $("source-viewer-meta").textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}${prov?.line ? ` · ${prov.line}` : ""}`;
+  const body = $("source-viewer-body");
+  body.textContent = "";
+  const ext = name.split(".").pop().toLowerCase();
+  if (ext === "md" || ext === "markdown") {
+    renderBlocksInto(body, text, (chunk) => [document.createTextNode(chunk)]);
+  } else if (ext === "html" || ext === "htm") {
+    const frame = document.createElement("iframe");
+    frame.sandbox = "";
+    frame.srcdoc = toDocument({ lang: "html", code: text });
+    frame.loading = "lazy";
+    body.append(frame);
+    const src = document.createElement("details");
+    src.innerHTML = "<summary>source</summary>";
+    src.append(codeBlock(text, "html"));
+    body.append(src);
+  } else if (ext === "csv" || ext === "tsv") {
+    renderCsvTable(body, text, ext === "tsv" ? "\t" : ",");
+  } else if (ext === "json") {
+    try {
+      const formatted = JSON.stringify(JSON.parse(text), null, 2);
+      body.append(codeBlock(formatted, "json"));
+    } catch {
+      body.append(codeBlock(text, "json"));
+    }
+  } else if (CODE_EXTS.has(ext)) {
+    body.append(codeBlock(text, ext));
+  } else {
+    body.append(codeBlock(text, "plaintext"));
+  }
+  $("source-viewer").showModal();
+}
+
+const CODE_EXTS = new Set([
+  "js", "ts", "jsx", "tsx", "mjs", "cjs",
+  "py", "rb", "php", "r", "rs", "go", "java", "c", "cpp", "h", "hpp",
+  "sql", "sh", "bash", "zsh", "fish",
+  "css", "scss", "less",
+  "yaml", "yml", "toml", "ini", "cfg", "conf",
+  "xml", "svg",
+  "swift", "kt", "scala", "lua", "pl", "ex", "exs", "erl", "hs",
+  "vue", "svelte",
+]);
+
+function renderCsvTable(container, text, delimiter) {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length) { container.textContent = text; return; }
+  const parseRow = (line) => {
+    const cells = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+        else cur += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === delimiter) { cells.push(cur); cur = ""; }
+        else cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  };
+  const wrap = document.createElement("div");
+  wrap.className = "table-wrap";
+  const table = document.createElement("table");
+  const thead = table.createTHead().insertRow();
+  const headerCells = parseRow(lines[0]);
+  for (const h of headerCells) { const th = document.createElement("th"); th.textContent = h; thead.append(th); }
+  const tbody = table.createTBody();
+  for (let i = 1; i < lines.length; i++) {
+    const tr = tbody.insertRow();
+    for (const cell of parseRow(lines[i])) tr.insertCell().textContent = cell;
+  }
+  wrap.append(table);
+  container.append(wrap);
 }
 
 async function addFiles(fileList) {
@@ -6667,6 +6888,29 @@ function looksBinary(text) {
 // opposite of. Removing it here rather than on a timer means the notice is
 // governed by the one fact that matters: did this file run.
 $("not-served")?.remove();
+
+// Sources persist across sessions via OPFS. Load them before the first
+// render so the panel is populated immediately.
+(async () => {
+  try {
+    const saved = await loadSources();
+    for (const { name, text } of saved) {
+      if (!state.sources[name]) addSource(name, text);
+    }
+  } catch {}
+  renderSources();
+})();
+
+// Sources panel: search filters the list live.
+$("sources-search")?.addEventListener("input", () => renderSourcesPanel());
+
+// Sources panel: sort reorders the list.
+$("sources-sort")?.addEventListener("change", () => renderSourcesPanel());
+
+// Sources panel: ＋ Add opens the same attach picker the composer uses.
+$("sources-add")?.addEventListener("click", () => {
+  $("attach-menu")?.showModal();
+});
 
 renderSources();
 
@@ -7186,7 +7430,7 @@ function syncModelPick() {
 // backdrop (or press Escape, which <dialog> gives natively) and it goes. The
 // ✕ in each sheet's head is the third way, and the only one that is visible:
 // Escape is not discoverable and a backdrop click is a guess.
-for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet"]) {
+for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -7199,6 +7443,7 @@ for (const [btn, dlg] of [
   ["paste-x", "paste"],
   ["reopen-x", "reopen"],
   ["attach-sheet-x", "attach-sheet"],
+  ["source-viewer-x", "source-viewer"],
 ])
   $(btn).onclick = () => $(dlg).close();
 

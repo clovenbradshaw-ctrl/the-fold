@@ -118,6 +118,7 @@ const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
 const RECORD_PATH = path.join(RECORD_DIR, "explore-record.jsonl");
+const TRANSCRIBE_LOG_PATH = path.join(RECORD_DIR, "transcribe-log.jsonl");
 const MATERIALS_DIR = path.join(ROOT, "materials");
 // The web store — history the user may clear, unlike record/ which no one
 // may. pages/ holds full content, addressed by sha256 of the bytes as they
@@ -2039,6 +2040,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
+    // ---- transcribe-log: append-only log for transcription pipeline layers.
+    // Each entry is { layer, text, meta } — raw Whisper output, self-coref
+    // resolution, and priors-coref resolution, in order. One entry per layer
+    // per transcription run.
+    if (req.method === "POST" && p === "/api/transcribe-log") {
+      const body = await readJsonBody(req);
+      if (typeof body.layer !== "string") return send(res, 400, { error: "layer (string) is required" });
+      const entry = { at: new Date().toISOString(), layer: body.layer, text: body.text || "", meta: body.meta || {} };
+      appendFileSync(TRANSCRIBE_LOG_PATH, JSON.stringify(entry) + "\n");
+      return send(res, 200, { ok: true });
+    }
+
     // ---- the model proxy (P25 amends P1): the fold servable AS a model —
     // an OpenAI-compatible client (OpenCode's custom-provider config, the
     // Ollama desktop app's "add provider") or an Ollama-native one points
@@ -2178,7 +2191,7 @@ const server = http.createServer(async (req, res) => {
           const args = ["--no-playlist", "--no-warnings", "-o", tmpTemplate];
           if (action === "audio") {
             args.push("--extract-audio", "--audio-format", "mp3", "--audio-quality", "5");
-          } else {
+          } else if (ext !== "best") {
             args.push("-f", ext);
           }
           args.push(url);
@@ -2194,8 +2207,9 @@ const server = http.createServer(async (req, res) => {
           });
           // find the output file — yt-dlp fills in %(ext)s
           let actualFile = null;
-          for (const tryExt of [".mp3", ".webm", ".m4a", ".ogg", ".mp4", ".mkv", ".video"]) {
-            if (existsSync(tmpBase + tryExt)) { actualFile = tmpBase + tryExt; break; }
+          let actualExt = null;
+          for (const tryExt of [".mp3", ".webm", ".m4a", ".ogg", ".mp4", ".mkv", ".video", ".flv", ".avi", ".mov"]) {
+            if (existsSync(tmpBase + tryExt)) { actualFile = tmpBase + tryExt; actualExt = tryExt.slice(1); break; }
           }
           if (!actualFile) throw new Error("yt-dlp produced no output file");
           // get the title for the filename
@@ -2212,8 +2226,7 @@ const server = http.createServer(async (req, res) => {
             });
           } catch {}
           const safeName = title.replace(/[^a-zA-Z0-9 _-]/g, "_").slice(0, 80).replace(/_+$/, "");
-          const fileExt = action === "audio" ? "mp3" : ext;
-          const finalName = `${safeName}.${fileExt}`;
+          const finalName = `${safeName}.${actualExt}`;
           const dest = path.join(MATERIALS_DIR, finalName);
           const buf = readFileSync(actualFile);
           writeFileSync(dest, buf);

@@ -13,6 +13,29 @@
 // fabricated result. Wiring the rest is named future work in CLAUDE.md, not
 // implied done by this file existing.
 //
+// AMENDED (2026-08-20) — grammar-lens.js is wired into `landAct`'s evaluate
+// path, additively and optionally. An investigation confirmed live, on real
+// pg2600.txt prose read through this exact evaluate path, that
+// grammar-lens.js's Thrax/UD connector classification sat unused beside
+// this file's computed EVA verdicts: eleven real edges whose own connector
+// read as a preposition/conjunction/pronoun/adverb/noun — never a verb —
+// still shipped `holds` or `refused`, squaring and checkObjectSpecificity
+// both blind to the defect (see `checkConnectorClass`'s own header). The
+// fix is one more check, mirroring `checkObjectSpecificity`'s own shape
+// exactly: an OPTIONAL `classifyConnector`/`minShare` pair on `landAct`'s
+// options bag (the cast.js injection pattern this file already uses
+// everywhere else). Omitted — every pre-existing caller, term.js's `act`
+// command and app.js's `/act` door included — the check is skipped and
+// behavior is byte-identical to before this pass. Wiring it into those two
+// real call sites (which would mean loading a POSPrior@1 corpus into the
+// browser page for the first time — today it exists only at
+// `eoreader6.1/scripts/corpus/pos-prior-eng.json`, read by grammar-lens.test.mjs
+// alone, never fetched or served anywhere production code runs, plus
+// choosing a production `minShare` with its own declared justification)
+// is real, scoped, NOT attempted here — deciding how/whether to ship that
+// corpus to the page is a larger call than "one additional check" and
+// deserves its own pass, not a decision folded quietly into this one.
+//
 // PURE, ORGANS INJECTED (the cast.js pattern, one level up): the real
 // engine perceiver functions arrive as `referentIndexFor`, already bound
 // by the caller (app.js reuses the exact organ bundle it already
@@ -359,6 +382,76 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
   };
 }
 
+// ── connector class — a THIRD, DIFFERENT check neither squaring nor
+// object-specificity can do ──────────────────────────────────────────────
+//
+// Found live (a real investigation of whether grammar-lens.js's Thrax/UD
+// classification actually protects this file's computed verdicts, or sits
+// unused beside them): it sits unused. Real material —
+// "Prince Vasíli always spoke languidly" (pg2600.txt's own Chapter I) and
+// its Bezukhov-idiom regression twin below — extracts a real edge whose
+// connector is "always", an adverb (102/102 ADV in the real
+// UD_English-EWT treebank, VERB share 0), because extractRelations only
+// ever checks SLOT (something fills the connector position between two
+// argument-shaped spans), never CLASS (is that filler a verb) —
+// grammar-lens.js's own documented finding. Neither existing check here
+// catches it: squaring inserts/removes "never" and re-reads polarity,
+// which an adverb-anchored "claim" answers just as consistently as a
+// verb-anchored one; checkObjectSpecificity only ever inspects the
+// OBJECT's own content tokens, never the connector's. Measured against
+// eleven real edges pulled from real pg2600.txt prose through this exact
+// evaluate path: squaring and object-specificity together still shipped
+// `holds`/`refused` for edges whose own connector read as a preposition,
+// a conjunction, a pronoun, an adverb, or a bare noun — never a verb.
+//
+// `classifyConnector`/`minShare` are OPTIONAL, injected organs (the
+// cast.js pattern this whole file already uses for `referentIndexFor`/
+// `relationsFor`) — omitted, this function is never called (see the call
+// site below) and every existing caller (term.js's `act` command, app.js's
+// `/act` door, every test in this file predating this check) is
+// BYTE-IDENTICAL to before this check existed. `minShare` has no safe
+// default — grammar-lens.js's own header: a silently-defaulted 0.9 once
+// let two of its own real garbled connectors through unflagged — and MUST
+// be declared by whichever caller supplies `classifyConnector`, the exact
+// discipline `mismatchedConnectors` itself already demands of every other
+// caller.
+//
+// Convicts a determined verdict of EITHER shape (`holds` OR `refused`),
+// unlike `checkObjectSpecificity`'s holds-only scope: a garbled connector
+// undermines a `refused` verdict exactly as much as a `holds` one — both
+// still depend on the SAME connector word actually being the predicate
+// the claim's subject/object are read against, and "the material
+// explicitly disagrees" (checkObjectSpecificity's own stated reason for
+// skipping `refused`) is not a reason to trust what the disagreement was
+// ABOUT.
+function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, minShare) {
+  if (!classifyConnector) return { trusted: true, skipped: "no classifyConnector organ injected" };
+  const refSet = new Set(judgedRefs ?? []);
+  if (!refSet.size) return { trusted: true, inconclusive: "no address to check against" };
+  // A ref names a PASSAGE, and one passage backs every edge extracted from
+  // it — checkObjectSpecificity's own ref-filter alone is exactly right
+  // for asking "is there SOME backing edge whose object matches" (a
+  // disjunction over sibling edges is the correct question there), but a
+  // sibling edge sharing the same passage is a DIFFERENT claim's own
+  // connector, not this claim's. Found live, writing this function's own
+  // test: "Natasha noticed..." shares a ref with a neighboring "...always
+  // spoke..." edge in the same chunk, and checking every ref-sharing edge
+  // wrongly convicted "noticed" (a genuine verb) off "always" (not this
+  // claim's own connector at all). Narrowed to the edge(s) whose OWN verb
+  // is the claim's own verb — the same word judge() itself bound.
+  const backing = (edges ?? []).filter(
+    (e) => (e.refs ?? []).some((r) => refSet.has(r)) && (e.verb ?? "").toLowerCase() === (judgedVerb ?? "").toLowerCase(),
+  );
+  if (!backing.length) return { trusted: true, inconclusive: "no edge found at the claim's own bound address with a matching connector" };
+  for (const e of backing) {
+    const classification = classifyConnector(e, { minShare });
+    if (classification.settled && classification.thraxClass !== "verb") {
+      return { trusted: false, surface: e.verb, thraxClass: classification.thraxClass };
+    }
+  }
+  return { trusted: true };
+}
+
 /**
  * Parse `line` against `grid`, land it on `log`, and — only when it lands
  * as a `distinguish` or an `evaluate` whose `ground` clause names an
@@ -416,7 +509,7 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
  * landed and what (if anything) ran; it never touches a DOM, a chat
  * message, or the durable record itself.
  */
-export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
+export function landAct(grid, log, line, { sources = {}, runCapacity, classifyConnector, minShare } = {}) {
   const parsed = grid.parseAct(line, { log });
   if (!parsed.ok) return { ok: false, refusal: parsed.refusal };
   const { log: landedLog, ids } = grid.land(log, parsed.event);
@@ -447,11 +540,23 @@ export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
       const judged = (result.claims ?? [])[0] ?? null;
       const rawVerdict = collapseVerdict(judged);
       let squaring = null;
+      let connectorCheck = null;
       let objectCheck = null;
       let computedVerdict = null;
       if (rawVerdict) {
         squaring = squarePolarity(runCapacity, groundText, groundName, parsed.event.object, rawVerdict);
         computedVerdict = squaring.trusted ? rawVerdict : null;
+        // Connector class — see checkConnectorClass's own header. Checked
+        // for EITHER determined shape (unlike the object-specificity check
+        // just below, which is holds-only by its own stated reason): a
+        // garbled connector undermines a refused verdict exactly as much
+        // as a holds one. A no-op (`trusted: true, skipped: ...`) when no
+        // `classifyConnector` organ was injected — every pre-existing
+        // caller's behavior is unchanged.
+        if (computedVerdict) {
+          connectorCheck = checkConnectorClass(result.edges, judged?.refs, judged?.verb, classifyConnector, minShare);
+          if (!connectorCheck.trusted) computedVerdict = null;
+        }
         // Squaring confirms POLARITY only — a "holds" that passed squaring
         // can still be a wrong number/office wearing a real edge's other
         // words (see checkObjectSpecificity's own header). Checked only
@@ -492,7 +597,7 @@ export function landAct(grid, log, line, { sources = {}, runCapacity } = {}) {
         finalLog,
         evaId,
         withExperiencer(
-          { claim: parsed.event.object, judged, source: groundName, rawVerdict, squaring, objectCheck },
+          { claim: parsed.event.object, judged, source: groundName, rawVerdict, squaring, connectorCheck, objectCheck },
           { who: "the-fold:hypergraph.js:judge()", read: groundName },
         ),
         computedVerdict ? { verdict: computedVerdict } : {},

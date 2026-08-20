@@ -11,11 +11,13 @@ import { splitSentences } from "../eoreader6.1/packages/engine/perceiver/text/sp
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader6.1/packages/engine/perceiver/text/surfaces.js";
 import { discoverRelationVocab, extractRelations } from "../eoreader6.1/packages/engine/perceiver/text/relations.js";
 import { tokenize } from "../eoreader6.1/packages/engine/perceiver/text/material.js";
+import { classifyWord, dominantClass } from "../eoreader6.1/packages/engine/perceiver/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { makeCapacityRunner, landAct, negationCandidates } from "./capacity-runner.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "./capacities.js";
+import { makeGrammarLens } from "./grammar-lens.js";
 
 function freshRunner() {
   const referentIndexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
@@ -595,4 +597,117 @@ test("landAct: a computed EVA verdict's RESULT names its own experiencer — who
   assert.equal(landed.result.experiencer.who, "the-fold:hypergraph.js:judge()");
   assert.equal(landed.result.experiencer.read, "lincoln.txt");
   assert.equal(landed.result.experiencer.revision, null, "no stable revision for a plain attached source — disclosed, not guessed");
+});
+
+// ── connector class — grammar-lens.js wired into the evaluate path,
+// optionally, additively (see checkConnectorClass's own header in
+// capacity-runner.js for the investigation this closes). Real material,
+// real extraction, real classification: "Pierre Bezukhov always spoke
+// softly to Natasha" is the Bezukhov-idiom twin of a REAL edge this
+// investigation found live in pg2600.txt's own Chapter I ("Prince Vasíli
+// always spoke languidly") — the connector "always" is a genuine adverb
+// (102/102 ADV in the real UD_English-EWT treebank, VERB share 0), never
+// a verb, and neither squaring nor checkObjectSpecificity catches it.
+
+const CONNECTOR_POS_PRIOR = {
+  schema: "POSPrior@1",
+  forms: {
+    // Real counts, copied verbatim from eoreader6.1/scripts/corpus/
+    // pos-prior-eng.json (the real UD_English-EWT-built prior), the same
+    // way grammar-lens.test.mjs's own POS_PRIOR fixture is sourced.
+    always: { ADV: 102 },
+    spoke: { VERB: 14 },
+    noticed: { VERB: 3 },
+  },
+};
+
+// The same "ordinary majority, chosen before any example is checked"
+// declared floor grammar-lens.test.mjs's own MIN_SHARE already uses.
+const CONNECTOR_MIN_SHARE = 0.5;
+
+function freshConnectorClassifier() {
+  return makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
+}
+
+test("landAct: an evaluate whose connector reads as a genuine non-verb under the injected grammar lens downgrades holds to undetermined, never ships it", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const log = grid.createLog();
+  const text =
+    "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+    "Natasha noticed that Pierre Bezukhov always spoke softly.";
+  const classifyConnector = freshConnectorClassifier();
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Pierre Bezukhov always spoke softly to Natasha at Link from differentiate ground p.txt broken:rotation",
+    { sources: { "p.txt": text }, runCapacity, classifyConnector, minShare: CONNECTOR_MIN_SHARE },
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  // Confirm the defect is real BEFORE confirming the fix: the raw material
+  // read genuinely binds this claim (bound, not some other verdict) — the
+  // connector-class check is what pulls it back, not a coincidence of some
+  // other gap.
+  assert.equal(landed.result.judged.verdict, "bound", "the claim must genuinely bind for this to be a real regression, not an accident of some other gap");
+  assert.equal(landed.result.rawVerdict, "holds");
+  assert.equal(landed.result.squaring.trusted, true, "squaring alone does not catch this — the defect this check closes");
+  assert.equal(landed.result.connectorCheck.trusted, false);
+  assert.equal(landed.result.connectorCheck.thraxClass, "adverb");
+  assert.equal(landed.result.connectorCheck.surface, "always");
+  // Never shipped: the RESULT's own merged verdict must be neither holds
+  // nor refused, exactly the "undetermined" reading foldGrid's DEF/EVA
+  // companion match already renders honestly for every other unconvicted
+  // case in this file.
+  assert.notEqual(landed.verdict, "holds");
+  assert.notEqual(landed.verdict, "refused");
+});
+
+test("landAct: the SAME real mismatched-connector claim, with classifyConnector OMITTED, still ships holds — every pre-existing caller's behavior is unchanged", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const log = grid.createLog();
+  const text =
+    "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+    "Natasha noticed that Pierre Bezukhov always spoke softly.";
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Pierre Bezukhov always spoke softly to Natasha at Link from differentiate ground p.txt broken:rotation",
+    { sources: { "p.txt": text }, runCapacity }, // no classifyConnector — the default, pre-existing shape
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.verdict, "holds", "byte-identical to before this pass: the connector-class check never runs without an injected organ");
+  assert.equal(landed.result.connectorCheck.trusted, true);
+  assert.equal(landed.result.connectorCheck.skipped, "no classifyConnector organ injected");
+});
+
+test("landAct: a genuine verb connector clears the injected grammar lens and still ships holds — the check convicts a real defect, not every edge", () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const log = grid.createLog();
+  const classifyConnector = freshConnectorClassifier();
+  const out = landAct(
+    grid,
+    log,
+    "evaluate Natasha noticed that Pierre Bezukhov always spoke softly at Link from differentiate ground p.txt broken:rotation",
+    {
+      sources: {
+        "p.txt":
+          "Pierre Bezukhov always spoke softly to Natasha. Pierre Bezukhov always spoke softly to Marya. " +
+          "Natasha noticed that Pierre Bezukhov always spoke softly.",
+      },
+      runCapacity,
+      classifyConnector,
+      minShare: CONNECTOR_MIN_SHARE,
+    },
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.verdict, "holds", "\"noticed\" is a genuine verb — the injected lens must not convict a clean edge");
+  assert.equal(landed.result.connectorCheck.trusted, true);
 });

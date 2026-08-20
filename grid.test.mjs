@@ -542,3 +542,125 @@ test("unresolvedCapacity: shape matches the document's own refusal wording", () 
 test("listCapacities returns the same frozen table", () => {
   assert.equal(listCapacities(), CAPACITIES);
 });
+
+// ── the claim-id spine (Per-Source Testimony spec, BUILD-0) ─────────────────
+
+test("mintClaimId: deterministic and content-addressed — same triple, same id, twice", async () => {
+  const grid = freshGrid();
+  const a = await grid.mintClaimId({ subject: "Hamlin", verb: "was", object: "vice president" });
+  const b = await grid.mintClaimId({ subject: "Hamlin", verb: "was", object: "vice president" });
+  assert.equal(a, b);
+  assert.match(a, /^@[0-9a-f]{64}$/);
+});
+
+test("mintClaimId: a different object mints a different id", async () => {
+  const grid = freshGrid();
+  const a = await grid.mintClaimId({ subject: "Hamlin", verb: "was", object: "vice president" });
+  const b = await grid.mintClaimId({ subject: "Hamlin", verb: "was", object: "president" });
+  assert.notEqual(a, b);
+});
+
+test("mintClaimId: whitespace/case are normalized — a phrasing difference judge() itself already normalizes mints the SAME id", async () => {
+  const grid = freshGrid();
+  const a = await grid.mintClaimId({ subject: "Hamlin", verb: "was", object: "vice president" });
+  const b = await grid.mintClaimId({ subject: "  hamlin ", verb: "WAS", object: "vice   president" });
+  assert.equal(a, b);
+});
+
+test("land(): threads claim_id through onto the PROPOSE entry, exactly like warrant/because — omitted, unchanged from before this pass", () => {
+  const grid = freshGrid();
+  const log0 = grid.createLog();
+  const parsed = grid.parseAct("distinguish zone-2 at Network from encounter ground drone-log broken:rotation", { log: log0 });
+  assert.equal(parsed.ok, true);
+
+  const withoutId = grid.land(log0, parsed.event);
+  const bare = withoutId.log.entries.find((e) => e.task_id === withoutId.ids[0]);
+  assert.equal(bare.claim_id, undefined);
+
+  const withId = grid.land(log0, { ...parsed.event, claim_id: "@abc123" });
+  const stamped = withId.log.entries.find((e) => e.task_id === withId.ids[0]);
+  assert.equal(stamped.claim_id, "@abc123");
+  // nothing else about the entry changed by adding the one field
+  assert.equal(stamped.domain, bare.domain);
+  assert.equal(stamped.grain, bare.grain);
+});
+
+test("attachResult(): claim_id rides in `extra` exactly like a computed verdict already does — zero new grid.js surface needed", () => {
+  const grid = freshGrid();
+  const log0 = grid.createLog();
+  const parsed = grid.parseAct('evaluate "Hamlin was VP" at Link from differentiate ground m broken:rotation', { log: log0 });
+  const landed = grid.land(log0, parsed.event);
+  const withResult = grid.attachResult(landed.log, landed.ids[0], { rawVerdict: "holds" }, { verdict: "holds", claim_id: "@def456" });
+  assert.equal(withResult.ok, true);
+  const { acts } = grid.foldGrid(withResult.log);
+  const act = acts.find((a) => a.task_id === landed.ids[0]);
+  assert.equal(act.verdict, "holds");
+  assert.equal(act.claim_id, "@def456");
+});
+
+test("foldClaim: slices one claim's entries out of a log carrying several, whether the claim_id arrived via land() or attachResult()", () => {
+  const grid = freshGrid();
+  let log = grid.createLog();
+
+  // "void" — single-op (NUL), unlike "distinguish" (SIG+INS, two entries per
+  // landing) — keeps this test's own arithmetic legible.
+  const p1 = grid.parseAct("void at Void from differentiate ground m broken:rotation", { log });
+  ({ log } = grid.land(log, { ...p1.event, claim_id: "@aaa" }));
+
+  const p2 = grid.parseAct('evaluate "zone-b checked" at Link from differentiate ground m broken:rotation', { log });
+  ({ log } = grid.land(log, { ...p2.event, claim_id: "@bbb" }));
+
+  const p3 = grid.parseAct('evaluate "zone-a checked" at Link from differentiate ground m broken:rotation', { log });
+  const landed3 = grid.land(log, p3.event); // no claim_id on the ACT itself this time
+  log = landed3.log;
+  log = grid.attachResult(log, landed3.ids[0], { holds: true }, { claim_id: "@aaa" }).log;
+
+  const folded = grid.foldClaim(log, "@aaa");
+  assert.equal(folded.cells.length, 2); // p1's own PROPOSE (void) + p3's RESULT (evaluate) — never p2's @bbb entry
+  assert.ok(folded.cells.every((c) => c.claim_id === "@aaa"));
+});
+
+test("foldClaim: an unknown claim_id folds to zero cells, never a throw", () => {
+  const grid = freshGrid();
+  const log = grid.createLog();
+  const folded = grid.foldClaim(log, "@nothing-landed-here");
+  assert.deepEqual(folded.cells, []);
+  assert.deepEqual(folded.domainsCovered, []);
+});
+
+test("foldClaim: domain/grain filters narrow independently, reading whatever domain/grain the ORIGINAL act already declared", () => {
+  const grid = freshGrid();
+  let log = grid.createLog();
+
+  const existential = grid.parseAct("void at Void from differentiate ground m broken:rotation", { log }); // Existence×Ground
+  ({ log } = grid.land(log, { ...existential.event, claim_id: "@ccc" }));
+
+  // "Link" is Structure-domain (TERRAIN_BY_DOMAIN.Structure.Figure), not
+  // Interpretation — a real thing worth being exact about here, since
+  // capacity-runner.js's own evaluate lines conventionally use `at Link`
+  // today even though an EVA verdict is semantically Interpretation-domain
+  // (the spec's own leaf/crown table wants "Lens"). Disclosed, not fixed
+  // by this test — it tests what the grammar actually does.
+  const structural = grid.parseAct('evaluate "zone-2 checked" at Link from differentiate ground m broken:rotation', { log });
+  ({ log } = grid.land(log, { ...structural.event, claim_id: "@ccc" }));
+
+  assert.equal(grid.foldClaim(log, "@ccc", { domain: "Existence" }).cells.length, 1);
+  assert.equal(grid.foldClaim(log, "@ccc", { domain: "Structure" }).cells.length, 1);
+  assert.equal(grid.foldClaim(log, "@ccc", { domain: "Interpretation" }).cells.length, 0);
+  assert.deepEqual(grid.foldClaim(log, "@ccc").domainsCovered.sort(), ["Existence", "Structure"]);
+});
+
+test("foldClaim: a cursor (`at`) excludes cells landed after it — the same 'as of' reading foldBuild gives code, applied to a claim", () => {
+  const grid = freshGrid();
+  let log = grid.createLog();
+  const p1 = grid.parseAct("void at Void from differentiate ground m broken:rotation", { log });
+  const landed1 = grid.land(log, { ...p1.event, claim_id: "@ccc" });
+  log = landed1.log;
+  const cursorSeq = log.entries.find((e) => e.task_id === landed1.ids[0]).seq;
+
+  const p2 = grid.parseAct('evaluate "zone-2 checked" at Link from differentiate ground m broken:rotation', { log });
+  ({ log } = grid.land(log, { ...p2.event, claim_id: "@ccc" }));
+
+  assert.equal(grid.foldClaim(log, "@ccc").cells.length, 2);
+  assert.equal(grid.foldClaim(log, "@ccc", { at: cursorSeq }).cells.length, 1);
+});

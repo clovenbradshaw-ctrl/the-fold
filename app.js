@@ -515,6 +515,13 @@ const state = {
    * admitSkill) is unbuilt — named future work, not implied here.
    */
   skillLog: createSkillLog(),
+  /**
+   * Binary material (audio, video, images, PDFs). Not chunked, not
+   * retrieved — the mute is a retrieval concept and bytes are never
+   * retrieved. The one consumer is /measure. Stored as {blob, kind, url}
+   * where url is a revoke-able Object URL.
+   */
+  media: {},
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -1216,8 +1223,106 @@ async function transcribeTurn(typed) {
   const selfText = foldP?.querySelector("details:nth-child(3) .t-layer-text");
   const selfStatus = foldP?.querySelector("details:nth-child(3) .t-layer-status");
 
-  function setLayerText(el, text) { if (el) el.textContent = text; }
-  function setLayerStatus(el, s) { if (el) el.textContent = s; }
+function setLayerText(el, text) { if (el) el.textContent = text; }
+function setLayerStatus(el, s) { if (el) el.textContent = s; }
+
+// Layer 2: priors-coref — extract surfaces from transcription, search enabled
+// priors docs for those surfaces, use namesCorefer to confirm identity, and
+// return an enriched surface→referent map Layer 3 can use for pronoun binding.
+async function priorsCoref(text) {
+  const surfaces = extractSurfaces(text);
+  const surfaceNames = surfaces.map((s) => s.surface).filter(Boolean);
+  if (!surfaceNames.length) return { text, surfaceMap: new Map(), note: "no surfaces extracted" };
+  let matches;
+  try {
+    const resp = await fetch("/api/priors/surfaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surfaces: surfaceNames }),
+    });
+    if (!resp.ok) return { text, surfaceMap: new Map(), note: `priors search failed ${resp.status}` };
+    ({ matches } = await resp.json());
+  } catch { return { text, surfaceMap: new Map(), note: "priors search failed (network)" }; }
+  if (!matches?.length) return { text, surfaceMap: new Map(), note: "no priors matches" };
+
+  // Build a referent index from priors passages and confirm identity with
+  // namesCorefer — the engine's own containment/surname matching.
+  const allPriorsSurfaces = [];
+  for (const m of matches) {
+    for (const p of m.passages) {
+      const ps = extractSurfaces(p.passage);
+      allPriorsSurfaces.push(...ps);
+    }
+  }
+  const priorsReferents = discoverReferents(allPriorsSurfaces);
+  const surfaceMap = new Map();
+  let confirmed = 0;
+  for (const m of matches) {
+    const transcriptionSurface = m.surface;
+    const matchingReferent = surfaces.find((s) => s.surface === transcriptionSurface);
+    if (!matchingReferent) continue;
+    for (const p of m.passages) {
+      const ps = extractSurfaces(p.passage);
+      for (const pp of ps) {
+        if (namesCorefer(matchingReferent, pp)) {
+          if (!surfaceMap.has(transcriptionSurface)) surfaceMap.set(transcriptionSurface, []);
+          surfaceMap.get(transcriptionSurface).push({ surface: pp.surface, passage: p.passage, path: p.path });
+          confirmed++;
+        }
+      }
+    }
+  }
+  return { text, surfaceMap, note: `${confirmed} priors corefs from ${matches.length} surface matches`, matches, confirmed };
+}
+
+// Layer 3: self-coref with priors enrichment. Mirrors resolvePronounSubjects
+// but merges priors-discovered surfaces into the referent map so pronouns
+// have more entities to bind against.
+function resolvePronounsWithPriors(text, priorsSurfaceMap) {
+  if (!text?.trim()) return text;
+  let sentences, discovery;
+  try {
+    sentences = splitSentences(text);
+    const surfaces = extractSurfaces(sentences, {});
+    discovery = discoverReferents(surfaces, {});
+  } catch { return text; }
+  if (!sentences.length || !discovery?.events?.length) return text;
+  const surfaceToReferent = new Map(discovery.events.map((e) => [e.surface, e.referent_id]));
+  // Merge priors surfaces: for each transcription surface that matched in
+  // priors, add the priors surface as an alias for the same referent.
+  if (priorsSurfaceMap?.size) {
+    for (const [txSurface, priorsEntries] of priorsSurfaceMap) {
+      const referentId = surfaceToReferent.get(txSurface);
+      if (!referentId) continue;
+      for (const entry of priorsEntries) {
+        if (!surfaceToReferent.has(entry.surface)) surfaceToReferent.set(entry.surface, referentId);
+      }
+    }
+  }
+  const bestSurface = new Map();
+  for (const [surface, referentId] of surfaceToReferent) {
+    const prev = bestSurface.get(referentId);
+    if (!prev || surface.length > prev.length) bestSurface.set(referentId, surface);
+  }
+  let resolved;
+  try {
+    resolved = resolvePronouns(sentences, surfaceToReferent, {
+      minActivation: 0.05,
+      minMargin: 0.2,
+    });
+  } catch { return text; }
+  if (!resolved?.bindings?.length) return text;
+  const ordered = [...resolved.bindings].sort((a, b) => b.offset - a.offset);
+  let out = text;
+  for (const b of ordered) {
+    const name = bestSurface.get(b.referentId);
+    if (!name) continue;
+    const end = b.offset + b.pronoun.length;
+    if (out.slice(b.offset, end).toLowerCase() !== b.pronoun.toLowerCase()) continue;
+    out = out.slice(0, b.offset) + name + out.slice(end);
+  }
+  return out;
+}
 
   // ── file picker path ──────────────────────────────────────────────────
   if (!arg) {
@@ -1245,19 +1350,17 @@ async function transcribeTurn(typed) {
 
       // Layer 2: priors-coref — connect entities to the priors corpus first.
       setLayerStatus(priorsStatus, "resolving…");
-      const priorsResolved = text; // priors requires activated corpus; stub today.
-      setLayerText(priorsText, priorsResolved);
-      setLayerStatus(priorsStatus, "no priors activated");
-      await logTranscriptionLayer("priors", priorsResolved, { source: "file", duration, note: "no priors activated" });
+      const priorsResult = await priorsCoref(text);
+      setLayerText(priorsText, priorsResult.note);
+      setLayerStatus(priorsStatus, priorsResult.confirmed ? `confirmed ${priorsResult.confirmed}` : priorsResult.note);
+      await logTranscriptionLayer("priors", priorsResult.note, { source: "file", duration, matches: priorsResult.matches?.length ?? 0, confirmed: priorsResult.confirmed ?? 0 });
 
       // Layer 3: self-coref — resolve pronouns against enriched entity set.
       setLayerStatus(selfStatus, "resolving…");
-      const selfResolved = resolvePronounSubjects(priorsResolved, resolvePronouns, {
-        splitSentences: engineSentences, extractSurfaces, discoverReferents,
-      });
+      const selfResolved = resolvePronounsWithPriors(priorsResult.text, priorsResult.surfaceMap);
       setLayerText(selfText, selfResolved);
-      setLayerStatus(selfStatus, selfResolved !== priorsResolved ? "resolved" : "no bindings");
-      await logTranscriptionLayer("self", selfResolved, { source: "file", duration, changed: selfResolved !== priorsResolved });
+      setLayerStatus(selfStatus, selfResolved !== priorsResult.text ? "resolved" : "no bindings");
+      await logTranscriptionLayer("self", selfResolved, { source: "file", duration, changed: selfResolved !== priorsResult.text });
 
       // Attach as material and finish.
       const name = `transcription-${Date.now()}.txt`;
@@ -1303,19 +1406,17 @@ async function transcribeTurn(typed) {
 
     // Layer 2: priors-coref — connect entities to the priors corpus first.
     setLayerStatus(priorsStatus, "resolving…");
-    const priorsResolved = text;
-    setLayerText(priorsText, priorsResolved);
-    setLayerStatus(priorsStatus, "no priors activated");
-    await logTranscriptionLayer("priors", priorsResolved, { source: "youtube", title, duration, note: "no priors activated" });
+    const priorsResult = await priorsCoref(text);
+    setLayerText(priorsText, priorsResult.note);
+    setLayerStatus(priorsStatus, priorsResult.confirmed ? `confirmed ${priorsResult.confirmed}` : priorsResult.note);
+    await logTranscriptionLayer("priors", priorsResult.note, { source: "youtube", title, duration, matches: priorsResult.matches?.length ?? 0, confirmed: priorsResult.confirmed ?? 0 });
 
     // Layer 3: self-coref — resolve pronouns against enriched entity set.
     setLayerStatus(selfStatus, "resolving…");
-    const selfResolved = resolvePronounSubjects(priorsResolved, resolvePronouns, {
-      splitSentences: engineSentences, extractSurfaces, discoverReferents,
-    });
+    const selfResolved = resolvePronounsWithPriors(priorsResult.text, priorsResult.surfaceMap);
     setLayerText(selfText, selfResolved);
-    setLayerStatus(selfStatus, selfResolved !== priorsResolved ? "resolved" : "no bindings");
-    await logTranscriptionLayer("self", selfResolved, { source: "youtube", title, duration, changed: selfResolved !== priorsResolved });
+    setLayerStatus(selfStatus, selfResolved !== priorsResult.text ? "resolved" : "no bindings");
+    await logTranscriptionLayer("self", selfResolved, { source: "youtube", title, duration, changed: selfResolved !== priorsResult.text });
 
     // Attach as material and finish.
     const name = `${title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60)}-transcript.txt`;
@@ -6672,7 +6773,7 @@ function openAttachSheet(focus = null) {
     line.className = "att-line";
     const label = document.createElement("span");
     label.className = "name";
-    label.textContent = `${name} · ${fmtBytes(m.bytes.length)} ${m.kind === "wav" ? "audio" : "binary"} · /measure ${name}`;
+    label.textContent = `${name} · ${fmtBytes(m.blob.size)} ${m.kind} · /measure ${name}`;
     line.append(label);
     row.append(line);
     list.append(row);
@@ -6696,7 +6797,8 @@ function renderSourcesPanel() {
   const list = $("sources-list");
   if (!list) return;
   const names = Object.keys(state.sources);
-  if (!names.length) {
+  const mediaNames = Object.keys(state.media);
+  if (!names.length && !mediaNames.length) {
     list.innerHTML = `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
     return;
   }
@@ -6747,10 +6849,66 @@ function renderSourcesPanel() {
     row.onclick = () => openSourceViewer(name);
     list.append(row);
   }
+  for (const name of mediaNames) {
+    const m = state.media[name];
+    const row = document.createElement("div");
+    row.className = "sources-file";
+    const icon = ({ video: "▶", audio: "♫", image: "🖼", pdf: "PDF" })[m.kind] ?? "📁";
+    row.innerHTML = `
+      <div class="sources-file-icon">${icon}</div>
+      <div class="sources-file-info">
+        <div class="sources-file-name">${esc(name)}</div>
+        <div class="sources-file-meta">${m.kind} · ${fmtBytes(m.blob.size)}</div>
+      </div>
+      <div class="sources-file-actions">
+        <button type="button" data-action="remove" title="remove">✕</button>
+      </div>`;
+    row.querySelector('[data-action="remove"]').onclick = (e) => {
+      e.stopPropagation();
+      URL.revokeObjectURL(m.url);
+      delete state.media[name];
+      renderSources();
+    };
+    row.onclick = () => openMediaViewer(name);
+    list.append(row);
+  }
 }
 
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function openMediaViewer(name) {
+  const m = state.media[name];
+  if (!m) return;
+  $("source-viewer-name").textContent = name;
+  $("source-viewer-meta").textContent = `${m.kind} · ${fmtBytes(m.blob.size)}`;
+  $("source-viewer-mode").style.display = "none";
+  const body = $("source-viewer-body");
+  body.textContent = "";
+  if (m.kind === "video") {
+    const v = document.createElement("video");
+    v.src = m.url;
+    v.controls = true;
+    v.preload = "metadata";
+    body.append(v);
+  } else if (m.kind === "audio") {
+    const a = document.createElement("audio");
+    a.src = m.url;
+    a.controls = true;
+    a.preload = "metadata";
+    body.append(a);
+  } else if (m.kind === "image") {
+    const img = document.createElement("img");
+    img.src = m.url;
+    body.append(img);
+  } else {
+    const p = document.createElement("p");
+    p.textContent = "PDF viewer not yet supported. Use /measure to analyze.";
+    p.style.color = "var(--muted)";
+    body.append(p);
+  }
+  $("source-viewer").showModal();
 }
 
 function openSourceViewer(name) {
@@ -6758,9 +6916,32 @@ function openSourceViewer(name) {
   const prov = state.provenance[name];
   $("source-viewer-name").textContent = name;
   $("source-viewer-meta").textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}${prov?.line ? ` · ${prov.line}` : ""}`;
+  $("source-viewer-mode").style.display = "";
+  const ext = name.split(".").pop().toLowerCase();
+  // Store current file info for toggle
+  const info = { name, text, ext };
+  renderSourceViewerMode("read", info);
+  // Wire mode toggle
+  const modeEl = $("source-viewer-mode");
+  modeEl.onclick = (e) => {
+    const btn = e.target.closest("[data-mode]");
+    if (!btn) return;
+    modeEl.querySelectorAll(".seg").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderSourceViewerMode(btn.dataset.mode, info);
+  };
+  $("source-viewer").showModal();
+}
+
+function renderSourceViewerMode(mode, info) {
+  const { name, text, ext } = info;
   const body = $("source-viewer-body");
   body.textContent = "";
-  const ext = name.split(".").pop().toLowerCase();
+  if (mode === "raw") {
+    body.append(codeBlock(text, "plaintext"));
+    return;
+  }
+  // read mode — render the file as-is
   if (ext === "md" || ext === "markdown") {
     renderBlocksInto(body, text, (chunk) => [document.createTextNode(chunk)]);
   } else if (ext === "html" || ext === "htm") {
@@ -6787,7 +6968,6 @@ function openSourceViewer(name) {
   } else {
     body.append(codeBlock(text, "plaintext"));
   }
-  $("source-viewer").showModal();
 }
 
 const CODE_EXTS = new Set([
@@ -6837,15 +7017,36 @@ function renderCsvTable(container, text, delimiter) {
   container.append(wrap);
 }
 
+const MEDIA_EXTS = new Set([
+  "mp4", "webm", "ogv", "mov", "m4v",
+  "mp3", "wav", "ogg", "oga", "flac", "m4a",
+  "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico",
+  "pdf",
+]);
+
+function mediaKindFor(ext) {
+  if (["mp4","webm","ogv","mov","m4v"].has(ext)) return "video";
+  if (["mp3","wav","ogg","oga","flac","m4a"].has(ext)) return "audio";
+  if (["png","jpg","jpeg","gif","webp","svg","bmp","ico"].has(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  return "binary";
+}
+
 async function addFiles(fileList) {
   const files = [...fileList];
   for (const file of files) {
     try {
       $("status").textContent = `reading ${file.name} (${fmtBytes(file.size)})…`;
-      // Yield once before the read so the status actually paints; a multi-
-      // megabyte file otherwise goes from click to done with no sign anything
-      // happened.
       await new Promise((r) => setTimeout(r, 0));
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (MEDIA_EXTS.has(ext)) {
+        const blob = file;
+        const url = URL.createObjectURL(blob);
+        state.media[file.name] = { blob, kind: mediaKindFor(ext), url };
+        $("status").textContent = `${file.name} · ${mediaKindFor(ext)} loaded`;
+        renderSources();
+        continue;
+      }
       const text = await file.text();
       if (looksBinary(text)) {
         $("status").textContent = `${file.name} isn't text — skipped`;

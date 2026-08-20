@@ -1397,7 +1397,8 @@
         border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px;
       }
       .source-viewer-body .code-highlight {
-        margin: 0; padding: 12px; background: var(--bg); border: 1px solid var(--line);
+        margin: 0; padding: 12px; background: #1e1e1e; color: #d4d4d4;
+        border: 1px solid var(--line);
         border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.5;
         white-space: pre;
       }
@@ -1421,9 +1422,12 @@
       }
       .source-viewer-body .viewer-raw {
         font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
-        color: var(--muted);
       }
       #source-viewer { max-width: 780px; width: 92vw; }
+      .source-viewer-mode { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 2px; }
+      .seg { font: 12px/1 var(--sans); border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 10px; border-radius: 4px; transition: background 0.12s, color 0.12s; }
+      .seg:hover { background: var(--accent-soft); color: var(--accent); }
+      .seg.active { background: var(--accent); color: var(--panel); font-weight: 600; }
       .pane { display: none; }
       .pane.on { display: block; }
       h2 {
@@ -2016,6 +2020,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <div>
           <h3 id="source-viewer-name"></h3>
           <p class="sub" id="source-viewer-meta"></p>
+        </div>
+        <div class="source-viewer-mode" id="source-viewer-mode">
+          <button type="button" class="seg active" data-mode="read">read</button>
+          <button type="button" class="seg" data-mode="raw">raw</button>
         </div>
         <button type="button" class="sheet-close" id="source-viewer-x" title="close" aria-label="close">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>

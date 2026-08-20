@@ -509,10 +509,16 @@ function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, m
  * landed and what (if anything) ran; it never touches a DOM, a chat
  * message, or the durable record itself.
  */
-export function landAct(grid, log, line, { sources = {}, runCapacity, classifyConnector, minShare } = {}) {
+export function landAct(grid, log, line, { sources = {}, runCapacity, classifyConnector, minShare, claimId } = {}) {
   const parsed = grid.parseAct(line, { log });
   if (!parsed.ok) return { ok: false, refusal: parsed.refusal };
-  const { log: landedLog, ids } = grid.land(log, parsed.event);
+  // Per-Source Testimony spec, BUILD-0: mint the id BEFORE this call
+  // (`await grid.mintClaimId(...)`, necessarily async — Web Crypto has no
+  // sync digest) and pass it here; `land()` threads `event.claim_id`
+  // through to the log exactly like `warrant`/`because` already are. Omit
+  // it and this event lands byte-identical to every call before this pass.
+  const event = claimId ? { ...parsed.event, claim_id: claimId } : parsed.event;
+  const { log: landedLog, ids } = grid.land(log, event);
   let finalLog = landedLog;
   let capacity = null;
   if (parsed.event.verb === "distinguish" && parsed.event.ground && runCapacity && Object.hasOwn(sources, parsed.event.ground)) {
@@ -600,11 +606,139 @@ export function landAct(grid, log, line, { sources = {}, runCapacity, classifyCo
           { claim: parsed.event.object, judged, source: groundName, rawVerdict, squaring, connectorCheck, objectCheck },
           { who: "the-fold:hypergraph.js:judge()", read: groundName },
         ),
-        computedVerdict ? { verdict: computedVerdict } : {},
+        // `claim_id` rides here on the SAME `extra` this call already had
+        // (`verdict`, when computed) — task-log.js's own documented merge
+        // rule (attachResult's own doc comment) puts it on the projected
+        // task next to `domain`/`grain`/`warrant`, which that task's own
+        // PROPOSE entry already carries. No second mechanism needed for
+        // this (see mintClaimId's own header for the one that was tried
+        // and deleted the same day). Omitted when the caller never
+        // supplied one — byte-identical to every call before this pass.
+        { ...(computedVerdict ? { verdict: computedVerdict } : {}), ...(claimId ? { claim_id: claimId } : {}) },
       );
       if (attached.ok) finalLog = attached.log;
     }
     capacity = { result };
   }
-  return { ok: true, log: finalLog, ids, event: parsed.event, capacity };
+  return { ok: true, log: finalLog, ids, event, capacity };
+}
+
+/**
+ * BUILD-1 of the Per-Source Testimony spec (POLICIES.md §2) — the
+ * Testimony record, one per source, un-collapsed. Named `perSourceReadings`
+ * here rather than `Testimony`/`testimonies`: this repo already has a
+ * `testimony.js` (P32's witness tier — a model handed one claim and one
+ * page's bytes, answering a binary "does the passage say this" question
+ * twice). That is a different concept — a WITNESS reading and speaking —
+ * from what this function returns, which is never a model call: it is a
+ * plain, pure PROJECTION of what `landAct`'s evaluate branch and BUILD-0's
+ * claim_id already landed. Reusing the word here would be the "fold"
+ * collision (CLAUDE.md's own UX-pass section) happening again with a
+ * different word.
+ *
+ * Deliberately NOT a second computation. Every field below is read out of
+ * a RESULT entry `attachResult` already produced — `hypergraph.js::judge()`
+ * already computes `corroboration`, `polarity`, and `grammar` directly on
+ * the claim object; `checkConnectorClass` already computes the connector
+ * classification; `withExperiencer` already stamps who/read/revision.
+ * Nothing here calls a model or re-derives a verdict.
+ *
+ * SECOND disclosed deviation: the spec's own §2 sketch types
+ * `corroboration` as a bare `int`. `judge()`'s REAL corroboration is
+ * `{passages, sources}` — distinct sources counted apart from raw passage
+ * count, on purpose ("two chunks of one file are one perspective," this
+ * repo's own P12/P29 discipline). Collapsing that to one int would throw
+ * away a real, already-computed distinction the spec's own sketch simply
+ * hadn't seen yet; this function keeps the richer shape rather than
+ * force-fitting the spec's placeholder type.
+ *
+ * ONE DISCLOSED MISMATCH, not silently papered over: the spec's own §2
+ * text defines `who` as the SOURCE (nyt, wikipedia@revid) and `read` as
+ * WHICH PASSAGE of that source. `withExperiencer`'s existing, already-
+ * shipped convention (capacity-runner.js's evaluate branch, above) uses
+ * `who` for the MECHANISM that computed the belief ("the-fold:hypergraph.
+ * js:judge()") and `read` for the SOURCE/ground text ("hannibal-hamlin.
+ * txt"). These are not the same two questions, and this function does not
+ * rename experiencer.js's own fields to paper over the difference —
+ * `experiencer.js` keeps its existing, already-tested meaning. Instead:
+ * spec-`who` is read from `experiencer.read` (the source), spec-`read` is
+ * read from `judged.refs` (the actual passage addresses `judge()` cites —
+ * finer-grained than the whole source), and the MECHANISM identity lands
+ * on `emitted_by`, the spec's own named slot for exactly this. Changing
+ * `experiencer.js`'s own field names is a real, separate, disclosed
+ * decision — not attempted here.
+ *
+ * Returns one record per RESULT-kind cell for this claim_id — "N sources
+ * → N testimonies" (the spec's own BUILD-1 set-down criterion) falls out
+ * directly, since `landAct` lands one RESULT per evaluate call, and a
+ * caller checking N different grounds against the SAME claim_id produces
+ * N such RESULT cells.
+ */
+export function perSourceReadings(grid, log, claimId) {
+  const { cells } = grid.foldClaim(log, claimId);
+  return cells
+    .filter((c) => c.kind === "result")
+    .map((c) => {
+      const r = c.result ?? {};
+      const experiencer = r.experiencer ?? {};
+      const judged = r.judged ?? null;
+      return {
+        claim_id: claimId,
+        who: experiencer.read ?? null,
+        read: judged?.refs ?? [],
+        revision: experiencer.revision ?? null,
+        verdict: c.verdict ?? "undetermined",
+        polarity: judged?.polarity ?? null,
+        edges: judged?.refs ? [{ subject: judged.subject, verb: judged.verb, object: judged.object, refs: judged.refs }] : [],
+        grammar: r.connectorCheck ? [r.connectorCheck] : [],
+        // null (not {passages:0,sources:0}) when undetermined — judge()
+        // never runs corroboration() for an unbound/beyond-reach verdict,
+        // so "zero" would claim a computation that never happened.
+        corroboration: judged?.corroboration ?? null,
+        emitted_by: experiencer.who ?? null,
+      };
+    });
+}
+
+/**
+ * BUILD-2 of the Per-Source Testimony spec (POLICIES.md §3) — the merge
+ * instrument. A PURE function over `perSourceReadings`' own output: no
+ * model call, no new log-landing, no re-running `squarePolarity` (that
+ * already ran ONCE per source, inside each reading's own EVA computation —
+ * this function only compares the verdicts those computations already
+ * reached; "opposed polarity... this is squarePolarity firing across
+ * sources" in the spec's own prose is read here as an ANALOGY explaining
+ * why cross-source disagreement matters, not a second call to make).
+ *
+ * The spec names exactly four cases — AGREE (>=2 holds), DISAGREE (some
+ * hold, some refuse), SINGLE (exactly one holds, none refuse), UNDETERMINED
+ * (nothing holds or refuses). ONE DISCLOSED GAP in the spec's own
+ * enumeration, found while implementing rather than argued about: it never
+ * names the symmetric case of AGREE — every determining source REFUSES
+ * (unanimous contradiction), none holds. That is a real, confident,
+ * un-covered outcome, not the same as UNDETERMINED (silence) or DISAGREE
+ * (split). Named here as a fifth case, `contradicted`, reusing the exact
+ * word hypergraph.js's own per-edge vocabulary already has for this — not
+ * a new term.
+ */
+export function mergeTestimony(readings) {
+  const holds = readings.filter((r) => r.verdict === "holds");
+  const refused = readings.filter((r) => r.verdict === "refused");
+  const undetermined = readings.filter((r) => r.verdict === "undetermined");
+
+  if (holds.length && refused.length) {
+    return { case: "DISAGREE", verdict: "multiply-bound", standing: null, holds, refused, undetermined };
+  }
+  if (holds.length >= 2) {
+    return { case: "AGREE", verdict: "bound", standing: "corroborated", holds, refused, undetermined };
+  }
+  if (holds.length === 1) {
+    return { case: "SINGLE", verdict: "bound", standing: "single", holds, refused, undetermined };
+  }
+  if (refused.length) {
+    // the disclosed fifth case, symmetric to AGREE but never named in the
+    // spec's own four — see this function's own header.
+    return { case: "CONTRADICTED", verdict: "contradicted", standing: refused.length >= 2 ? "corroborated" : "single", holds, refused, undetermined };
+  }
+  return { case: "UNDETERMINED", verdict: "unbound", standing: null, holds, refused, undetermined };
 }

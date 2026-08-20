@@ -3603,4 +3603,130 @@ of writing it here is that it now names two concrete, reproduced
 the-fold incidents (not just eoreader6.1's) a future session can grep for
 before building the third one.
 
+## P39 — A claim's identity is threaded through existing fields, never a new mechanism built to carry it
+
+**The law.** When a system needs one stable identity to follow a claim
+across several independently-built stages — an act, its backing edges, a
+computed verdict, a later concession — the identity itself (a content
+address, minted once) is new, but CARRYING it never is. Before adding a
+field, a parameter, or a whole new function to thread an identity through,
+check what already threads through the same path: an operator/grain pair
+is already free from picking a verb and a terrain; an attribution field
+(who backs this) already exists if anything upstream already answers "who
+vouches for this claim"; a payload extension point already exists if
+anything upstream already merges extra fields onto a projected view. A
+new cross-cutting concern is a reason to widen an existing carrier, almost
+never a reason to build a second one beside it.
+
+**What this closes.** The Per-Source Testimony spec (one coherent voice on
+the surface, unique per-source testimony underneath, derived not stored)
+names BUILD-0 as its own foundation: mint a claim_id once, thread it
+through the act, its edges, a grammar tag, the per-source verdict, the
+merge, and any concession — intra-pass identity only, no semantic
+canonicalization, the same disclosed scope `induceEntityKind` already
+carries elsewhere in this project's own cross-pocket work.
+
+**The incident this law is named for, same day, same session.** The first
+cut built `landCell(log, {claimId, domain, grain, operator, witness,
+payload})` — a new function, landing a new EVIDENCE entry, with its own
+validation. It compiled, it tested green, and it was deleted within the
+hour, because every one of its six fields already existed somewhere else
+in this exact file: `operator`/`grain` are free from picking a verb and a
+terrain in an ORDINARY act (`land()`'s own header, reconciliation 2:
+"terrain is medium-blind, past the engine's own domain lock" — the
+identical move one field over); `witness` (who is testifying) was
+answering the exact question `warrant:<giver>` already answers for
+`relate`'s unestablished edges, and `land()` already threads
+`event.warrant` onto the log; `payload` was reinventing `attachResult`'s
+own `extra` parameter, whose doc comment already states it merges onto
+the projected task via `projectTasks`' documented rule. The fix that
+shipped needed exactly ONE new wire: `land()` gained `claim_id:
+event.claim_id` in its already-enumerated field list, the same list
+`warrant`/`because` already sit in — a caller mints the id and sets it on
+the event object before calling `land()`; nothing else changes.
+`attachResult(log, taskId, result, {claim_id})` already worked with zero
+further grid.js change, since `extra` was already general.
+
+**What actually landed, tested, real.** `grid.js` gained three
+functions: `mintClaimId({subject, verb, object})` (async, Web Crypto
+SHA-256, the identical digest approach `builds.js::buildHash` already
+uses — a claim_id and a build's own hash read the same way on the
+record); the one-line `land()` change above; and `foldClaim(log,
+claimId, {domain, grain, at})`, a plain filter over `log.entries` reading
+whatever fields those entries already carry — never a schema this
+function invents or requires, and cursor-scrubbable exactly like
+`foldBuild(log, atSeq)` already is for code. `capacity-runner.js`'s
+`landAct` gained one optional `claimId` parameter (omitted →
+byte-identical to every call before this pass) and two new pure
+functions built on top: `perSourceReadings(grid, log, claimId)` (BUILD-1
+— one record per source that checked a claim, `{claim_id, who, read,
+revision, verdict, polarity, edges, grammar, corroboration, emitted_by}`)
+and `mergeTestimony(readings)` (BUILD-2 — pure, no model, no
+log-landing, the four spec-named cases: `AGREE`, `SINGLE`, `DISAGREE`,
+`UNDETERMINED`).
+
+**Two disclosed deviations from the spec's own sketch, found by reading
+real code rather than assumed.** (1) The spec's §2 types `who` as the
+SOURCE and `read` as which passage; `withExperiencer`'s existing,
+already-shipped convention uses `who` for the MECHANISM that computed the
+belief and `read` for the source/ground text — genuinely different
+questions, not a naming accident to paper over. `experiencer.js` keeps
+its own meaning unchanged; `perSourceReadings` maps spec-`who` from
+`experiencer.read`, spec-`read` from `judged.refs` (finer-grained than
+the whole source), and the mechanism identity lands on `emitted_by`, the
+spec's own named slot for exactly this. (2) The spec types
+`corroboration` as a bare `int`; `hypergraph.js`'s `judge()` already
+computes the richer `{passages, sources}` — distinct sources counted
+apart from raw passage count, this repo's own standing P12/P29 rule ("two
+chunks of one file are one perspective"). Kept richer rather than
+collapsed to match the spec's own placeholder type; `null` (not a fake
+zero) when a claim never reaches corroboration at all.
+
+**A disclosed fifth case the spec's own four-case enumeration misses.**
+AGREE is written as "≥2 testimonies, all HOLDS" — literally, not "all
+agree." A claim every determining source REFUSES (unanimous
+contradiction, zero holds) is real, confident, and un-covered by any of
+the spec's own four names — not the same as UNDETERMINED (silence) or
+DISAGREE (a genuine split). Named `CONTRADICTED`, reusing the exact word
+`hypergraph.js`'s own per-edge vocabulary already has for this, rather
+than inventing a new term or silently filing it under UNDETERMINED and
+losing the fact that something real WAS determined, just negatively.
+
+**Measured, every case from a real testimony set through the real
+pipeline, not synthesized reading objects — including a real, reproduced
+extractor limit found building the DISAGREE fixture.** A first cut of
+the opposed-polarity fixture ("Lincoln never appointed Hamlin. Someone
+else got the job.") computed `undetermined`, not `refused` — not a
+negation-detection failure, but the SAME L2 rule this file's own P38
+entry already names, freshly reproduced: "Lincoln" appeared only
+sentence-initially in a 2-sentence text and never cleared the referent
+bar. Fixed the fixture (not the claim) by adding a third sentence putting
+"Lincoln" outside sentence-initial position, exactly matching this file's
+own already-proven `LINCOLN_TEXT` fixture shape — and confirmed the
+correction, not just retried a phrasing until something happened to
+pass. `grid.test.mjs`: 58/58. `capacity-runner.test.mjs`: 45/45,
+including one case per named outcome (AGREE, SINGLE, DISAGREE,
+CONTRADICTED, UNDETERMINED) plus an empty-set edge case. Full suite:
+1044/1044, zero regressions.
+
+**Named, not built this pass — real, scoped, disclosed next work.**
+BUILD-3 (grammar-lens tagged at hypergraph EXTRACTION time rather than
+`capacity-runner.js`'s current post-hoc `checkConnectorClass`, plus a
+named-giver declaration for the UD treebank `grammar-lens.js` already
+depends on but has never formally attributed) and BUILD-4 (the crown
+render — a template-only, model-free renderer over `mergeTestimony`'s
+own output, with a real, testable exactly-1 token-trace-coverage veto;
+inspired by, never ported from, a frozen eoreader5 legacy reference —
+Constitution I.2's re-earning discipline, not a copy) were both, as of
+this writing, in flight as separate, non-file-overlapping passes. BUILD-5
+(a `huntUndetermined` web result entering the SAME merge as one more
+witness, `who: web:<url>@<date>`) and the model's own bare, unprompted
+assertion entering as ITS OWN witness (`who: self:model` or similar,
+almost certainly barred from ever counting toward AGREE's corroboration —
+the sharper, generalized restatement of this file's own "Echo vs novel"
+entry: nothing a model says is truly ungrounded, it is grounded in
+itself, and that is a witness this system should name and weigh
+honestly rather than exempt into a separate bucket) are named, real, and
+not yet started.
+
 Full suite after both fixes: the-fold 1018/1018.

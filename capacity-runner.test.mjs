@@ -14,7 +14,7 @@ import { tokenize } from "../eoreader6.1/packages/engine/perceiver/text/material
 import { classifyWord, dominantClass } from "../eoreader6.1/packages/engine/perceiver/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { makeCapacityRunner, landAct, negationCandidates } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony } from "./capacity-runner.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "./capacities.js";
 import { makeGrammarLens } from "./grammar-lens.js";
@@ -710,4 +710,238 @@ test("landAct: a genuine verb connector clears the injected grammar lens and sti
   const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
   assert.equal(landed.verdict, "holds", "\"noticed\" is a genuine verb — the injected lens must not convict a clean edge");
   assert.equal(landed.result.connectorCheck.trusted, true);
+});
+
+// ── landAct + the claim-id spine (Per-Source Testimony spec, BUILD-0) ───────
+// End to end against real material and the real hypergraph — proves the ONE
+// real caller wired this pass: a claimId minted the way a future
+// orchestrator would (await grid.mintClaimId first, necessarily async —
+// landAct itself stays synchronous, both real production callers, term.js's
+// `act` command and app.js's `actTurn`, call it from a DOM handler), passed
+// into landAct, lands on the SAME RESULT attachResult already produced —
+// not a second entry, per the design correction in grid.js's own header
+// (an earlier `landCell` was built and deleted the same day: every field it
+// needed already existed on `land`/`attachResult`).
+
+test("landAct: with a claimId supplied, it threads onto BOTH the initial act and its computed result — the spec's own \"mint at PROPOSE, carry through EVA\" — with every existing field unchanged", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const line = "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation";
+
+  const without = landAct(grid, grid.createLog(), line, { sources, runCapacity });
+  const withId = landAct(grid, grid.createLog(), line, { sources, runCapacity, claimId });
+  assert.equal(without.ok, true);
+  assert.equal(withId.ok, true);
+
+  const { acts: actsWithout } = grid.foldGrid(without.log);
+  const { acts: actsWithId } = grid.foldGrid(withId.log);
+  const evaWithout = actsWithout.find((a) => a.task_id === without.ids[without.ids.length - 1]);
+  const evaWithId = actsWithId.find((a) => a.task_id === withId.ids[withId.ids.length - 1]);
+
+  // identical verdict either way — supplying a claimId changes nothing about the computation itself
+  assert.equal(evaWithId.verdict, evaWithout.verdict);
+  assert.deepEqual(evaWithId.result.judged, evaWithout.result.judged);
+  // the only difference: claim_id is present when supplied, absent when not
+  assert.equal(evaWithout.claim_id, undefined);
+  assert.equal(evaWithId.claim_id, claimId);
+
+  const folded = grid.foldClaim(withId.log, claimId);
+  assert.equal(folded.cells.length, 2); // the PROPOSE (the attempt, threaded via land()) and the RESULT (the verdict, threaded via attachResult's extra)
+  assert.deepEqual(folded.cells.map((c) => c.kind).sort(), ["propose", "result"]);
+});
+
+test("landAct: two separate claims about the same subject mint two different claim_ids, and foldClaim never conflates them", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const claimA = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  const claimB = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Johnson" });
+  assert.notEqual(claimA, claimB);
+
+  let log = grid.createLog();
+  const out1 = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", {
+    sources,
+    runCapacity,
+    claimId: claimA,
+  });
+  log = out1.log;
+  const out2 = landAct(grid, log, "evaluate Lincoln appointed Johnson at Link from differentiate ground lincoln broken:rotation", {
+    sources,
+    runCapacity,
+    claimId: claimB,
+  });
+  log = out2.log;
+
+  assert.equal(grid.foldClaim(log, claimA).cells.length, 2); // PROPOSE + RESULT, per claim
+  assert.equal(grid.foldClaim(log, claimB).cells.length, 2);
+  const taskIdsA = new Set(grid.foldClaim(log, claimA).cells.map((c) => c.task_id));
+  const taskIdsB = new Set(grid.foldClaim(log, claimB).cells.map((c) => c.task_id));
+  assert.equal([...taskIdsA].some((id) => taskIdsB.has(id)), false, "claim A and claim B must never share a task_id");
+});
+
+// ── perSourceReadings (Per-Source Testimony spec, BUILD-1) ──────────────────
+
+const LINCOLN_TEXT_2 = "Lincoln appointed Hamlin. It was Lincoln's first major decision as president.";
+
+test("perSourceReadings: N sources checked against the SAME claim_id return N per-source records — the spec's own BUILD-1 set-down", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT, lincoln2: LINCOLN_TEXT_2 };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", {
+    sources,
+    runCapacity,
+    claimId,
+  }));
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln2 broken:rotation", {
+    sources,
+    runCapacity,
+    claimId,
+  }));
+
+  const readings = perSourceReadings(grid, log, claimId);
+  assert.equal(readings.length, 2);
+  assert.deepEqual(readings.map((r) => r.who).sort(), ["lincoln", "lincoln2"]);
+  for (const r of readings) {
+    assert.equal(r.claim_id, claimId);
+    assert.equal(r.verdict, "holds");
+    assert.equal(r.polarity, "+");
+    assert.equal(r.emitted_by, "the-fold:hypergraph.js:judge()");
+    assert.ok(Array.isArray(r.read) && r.read.length > 0, "read must name at least one real passage address");
+    // the richer {passages, sources} shape, not a collapsed bare int (see capacity-runner.js's own disclosed deviation)
+    assert.equal(typeof r.corroboration.passages, "number");
+    assert.equal(typeof r.corroboration.sources, "number");
+    assert.ok(r.corroboration.sources >= 1);
+  }
+});
+
+test("perSourceReadings: an undetermined claim still returns a record — silence is never the answer — with corroboration honestly null, not a fake zero", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Nobody" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Nobody at Link from differentiate ground lincoln broken:rotation", {
+    sources,
+    runCapacity,
+    claimId,
+  }));
+
+  const readings = perSourceReadings(grid, log, claimId);
+  assert.equal(readings.length, 1);
+  assert.equal(readings[0].verdict, "undetermined");
+  assert.equal(readings[0].corroboration, null);
+  assert.equal(readings[0].who, "lincoln"); // the source is still named even when the claim doesn't bind
+});
+
+test("perSourceReadings: an unknown claim_id returns an empty array, never a throw", () => {
+  const grid = freshGrid();
+  const log = grid.createLog();
+  assert.deepEqual(perSourceReadings(grid, log, "@nothing-landed-here"), []);
+});
+
+// ── mergeTestimony (Per-Source Testimony spec, BUILD-2) ─────────────────────
+// Every case produced by a REAL testimony set, through the real pipeline —
+// not synthesized reading objects. "never" is the proven, engine-recognized
+// negation token (see the existing contradicted-claim test above, whose own
+// comment records that "did not" was tried first and hits a different,
+// disclosed extractor gap — reused rather than re-discovered).
+
+// "Lincoln" must appear OUTSIDE sentence-initial position at least once,
+// exactly like LINCOLN_TEXT's own header comment already requires — a
+// first cut of this fixture ("Lincoln never appointed Hamlin. Someone
+// else got the job.") put Lincoln sentence-initial-only, so it never
+// cleared the referent bar and the claim came back undetermined (L2's own
+// rule, not a negation-detection failure) — measured live, not guessed.
+const LINCOLN_TEXT_NEGATED = "Lincoln never appointed Hamlin. Lincoln appointed Johnson instead. Hamlin visited Lincoln often afterward.";
+
+test("mergeTestimony: AGREE — two sources both hold, standing corroborated", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT, lincoln2: LINCOLN_TEXT_2 };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId }));
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln2 broken:rotation", { sources, runCapacity, claimId }));
+
+  const merged = mergeTestimony(perSourceReadings(grid, log, claimId));
+  assert.equal(merged.case, "AGREE");
+  assert.equal(merged.verdict, "bound");
+  assert.equal(merged.standing, "corroborated");
+  assert.equal(merged.holds.length, 2);
+  assert.equal(merged.refused.length, 0);
+});
+
+test("mergeTestimony: SINGLE — exactly one source holds, standing single", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId }));
+
+  const merged = mergeTestimony(perSourceReadings(grid, log, claimId));
+  assert.equal(merged.case, "SINGLE");
+  assert.equal(merged.verdict, "bound");
+  assert.equal(merged.standing, "single");
+  assert.equal(merged.holds.length, 1);
+});
+
+test("mergeTestimony: DISAGREE (multiply-bound) — fires on a REAL opposed-polarity pair across two sources, mouth forbidden to resolve it", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT, lincolnNeg: LINCOLN_TEXT_NEGATED };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId }));
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincolnNeg broken:rotation", { sources, runCapacity, claimId }));
+
+  const readings = perSourceReadings(grid, log, claimId);
+  assert.deepEqual(readings.map((r) => r.verdict).sort(), ["holds", "refused"]); // confirm the real pair before merging
+
+  const merged = mergeTestimony(readings);
+  assert.equal(merged.case, "DISAGREE");
+  assert.equal(merged.verdict, "multiply-bound");
+  assert.equal(merged.standing, null);
+  assert.equal(merged.holds.length, 1);
+  assert.equal(merged.refused.length, 1);
+});
+
+test("mergeTestimony: CONTRADICTED — the disclosed fifth case, unanimous refusal, never named in the spec's own four", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincolnNeg: LINCOLN_TEXT_NEGATED };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Hamlin" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Hamlin at Link from differentiate ground lincolnNeg broken:rotation", { sources, runCapacity, claimId }));
+
+  const merged = mergeTestimony(perSourceReadings(grid, log, claimId));
+  assert.equal(merged.case, "CONTRADICTED");
+  assert.equal(merged.verdict, "contradicted");
+  assert.equal(merged.standing, "single");
+  assert.equal(merged.refused.length, 1);
+  assert.equal(merged.holds.length, 0);
+});
+
+test("mergeTestimony: UNDETERMINED — no source holds or refuses, escalation-worthy", async () => {
+  const grid = freshGrid();
+  const runCapacity = freshRelationsRunner();
+  const sources = { lincoln: LINCOLN_TEXT };
+  const claimId = await grid.mintClaimId({ subject: "Lincoln", verb: "appointed", object: "Nobody" });
+  let log = grid.createLog();
+  ({ log } = landAct(grid, log, "evaluate Lincoln appointed Nobody at Link from differentiate ground lincoln broken:rotation", { sources, runCapacity, claimId }));
+
+  const merged = mergeTestimony(perSourceReadings(grid, log, claimId));
+  assert.equal(merged.case, "UNDETERMINED");
+  assert.equal(merged.verdict, "unbound");
+  assert.equal(merged.holds.length, 0);
+  assert.equal(merged.refused.length, 0);
+});
+
+test("mergeTestimony: an empty reading set (nothing checked yet) is UNDETERMINED, never a throw", () => {
+  assert.equal(mergeTestimony([]).case, "UNDETERMINED");
 });

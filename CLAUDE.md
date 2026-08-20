@@ -3837,3 +3837,66 @@ silence.
 the-fold 1003/1003; eoreader6.1 1116/1116 (its own `extractSurfaces` fix
 re-run against the FULL conformance suite, not spot-checked, given that
 file's own regression history in this document).
+
+## The claim-id spine (added 2026-08-20) — what was decided, so it is not re-derived
+
+P39 in POLICIES.md is the law; this is the map. BUILD-0 through BUILD-2 of
+the "Per-Source Testimony" spec (one coherent voice on the surface, unique
+per-source testimony underneath, derived not stored — a proposal, gated on
+the tasks/hypergraph/grammar integration investigation this same session
+ran first). The spec's own build order does not start until its gating
+investigation reports; it reported (§7.1's role-predication-wall
+hypothesis was refuted as originally stated and refined into two real,
+separate upstream bugs — a pronoun-subject that never resolves, and an
+object silently truncated at a comma — both upstream of
+`checkObjectSpecificity`/`squarePolarity`, which behave exactly as
+designed; §7.2 confirmed `concedeEvaluation` stamps no experiencer at all,
+in either real call site).
+
+**Files.** `grid.js` gained `mintClaimId` (async, Web Crypto SHA-256,
+`builds.js::buildHash`'s own approach), one field on `land()`'s
+already-enumerated list (`claim_id: event.claim_id` — the exact place
+`warrant`/`because` already sit), and `foldClaim` (a plain filter over
+`log.entries`, cursor-scrubbable like `foldBuild`). `capacity-runner.js`'s
+`landAct` gained an optional `claimId`; `perSourceReadings` and
+`mergeTestimony` are new, pure functions built on top.
+
+**The one thing worth not re-deriving: a bespoke `landCell` function was
+built, tested, and deleted the same day.** Every field it needed already
+existed — `operator`/`grain` from picking a verb and terrain in an
+ordinary act, `witness` from the already-real `warrant:<giver>` clause,
+`payload` from `attachResult`'s own already-general `extra` parameter.
+The load-bearing lesson, stated generally in P39: a new cross-cutting
+identity is a reason to widen an existing carrier, not to build a second
+one. Caught live by a direct question ("as soon as you start making N-ary
+modules, aren't these just one of the 9 operators?") — the same
+search-for-the-organ-before-inventing-one discipline this file's every
+other section already holds, aimed at this repo's own new code instead of
+eoreader6.1's.
+
+**Two disclosed deviations from the spec's own sketch** (found by reading
+real code, not assumed): `who`/`read` map onto `experiencer.js`'s
+existing, DIFFERENT convention (mechanism vs. source) rather than
+renaming it — spec-`who` reads from `experiencer.read`, spec-`read` from
+`judged.refs`, the mechanism lands on `emitted_by`; `corroboration` stays
+`judge()`'s own real `{passages, sources}` shape rather than collapsing to
+the spec's placeholder bare `int`. And a fifth merge case the spec's own
+four never name — unanimous refusal (`CONTRADICTED`) — found while
+implementing, not designed in advance.
+
+**Not yet built, in flight as of this writing.** BUILD-3 (grammar-lens
+tagged at extraction rather than post-hoc; a named-giver declaration for
+the UD treebank grammar-lens.js already depends on) and BUILD-4 (the
+crown render — inspired by a frozen eoreader5 legacy reference
+(`row-stance-templates.md`'s exactly-1 token-trace-coverage veto), never
+ported per Constitution I.2, rebuilt fresh as a template-only, model-free
+renderer over `mergeTestimony`'s own output) are dispatched as separate,
+non-overlapping passes. Named, real, unstarted: BUILD-5 (a web-hunt result
+entering the same merge as one more witness), and — the sharper,
+generalized restatement of this file's own "Echo vs novel" section above —
+the model's own bare, unprompted assertion entering as its OWN witness
+(`who: self:model`) rather than an exceptional "ungrounded" case exempted
+from the Testimony system entirely: nothing a model says is truly
+ungrounded, it is grounded in itself, and a system that already tracks who
+backs a claim should name that witness honestly, including — especially —
+refusing to let it silently co-sign its own corroboration.

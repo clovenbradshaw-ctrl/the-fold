@@ -1490,6 +1490,60 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // ---- priors surface search: find which enabled priors docs mention
+    // any of the given surface names (case-insensitive substring). Returns
+    // matching passages per surface, with provenance. Used by Layer 2
+    // priors-coref in the transcription pipeline — the engine's own
+    // namesCorefer confirms identity on the client side.
+    if (req.method === "POST" && p === "/api/priors/surfaces") {
+      const body = await readJsonBody(req);
+      const surfaces = Array.isArray(body.surfaces) ? body.surfaces.map(String).filter(Boolean) : [];
+      if (!surfaces.length) return send(res, 400, { error: "surfaces (array of strings) is required" });
+      const listing = listPriorDocuments();
+      if (!listing) {
+        record("priors-surfaces", { surfaces: surfaces.length, consulted: 0, matches: 0, gap: "not-present" });
+        return send(res, 200, { matches: [], gate: { enabled: 0, total: 0 }, gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` } });
+      }
+      const { byPath } = readPriorToggles();
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const surfaceLower = surfaces.map((s) => ({ original: s, folded: s.toLowerCase() }));
+      const matches = new Map();
+      let consulted = 0;
+      const DOCS_MAX = 60;
+      for (const entry of gated.slice(0, DOCS_MAX)) {
+        const abs = path.join(PRIORS_ROOT, entry.path);
+        if (!abs.startsWith(PRIORS_ROOT + path.sep)) continue;
+        let raw;
+        try { raw = readFileSync(abs, "utf8"); } catch { continue; }
+        const doc = readPriorDocument(entry.path, raw);
+        if (!doc?.text) continue;
+        consulted++;
+        const textLower = doc.text.toLowerCase();
+        for (const { original, folded } of surfaceLower) {
+          const idx = textLower.indexOf(folded);
+          if (idx === -1) continue;
+          const sentStart = doc.text.lastIndexOf(".", idx) + 1;
+          const sentEnd = doc.text.indexOf(".", idx);
+          const passage = doc.text.slice(sentStart, sentEnd === -1 ? idx + 200 : sentEnd + 1).trim();
+          if (!matches.has(original)) matches.set(original, []);
+          matches.get(original).push({
+            passage: passage.slice(0, 300),
+            path: entry.path,
+            title: doc.title ?? null,
+            source: doc.source ?? {},
+            offset: doc.offset + sentStart,
+          });
+        }
+      }
+      const result = [...matches.entries()].map(([surface, passages]) => ({ surface, passages: passages.slice(0, 5) }));
+      record("priors-surfaces", { surfaces: surfaces.length, consulted, matches: result.length, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      return send(res, 200, {
+        matches: result,
+        gate: { enabled: gated.length, total: listing.entries.length },
+        ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
+      });
+    }
+
     // ---- web search: one query, one request to the no-key endpoint. The
     // endpoint's bot-challenge page is a typed refusal (P4: gaps are
     // results), never an empty success. Found vs shown is reported.

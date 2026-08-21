@@ -3996,3 +3996,73 @@ so stashing reverted to the last COMMIT rather than to "BUILD-4 before
 this pass" — which broke `crown.test.mjs`'s import for the few seconds
 between the stash and its immediate pop. Named here rather than smoothed
 over.
+
+## Belief-graph standing — conservative admission, revisable belief (added 2026-08-21)
+
+POLICIES.md P40 is the law; this is the map. The user's own framing:
+reading enriches through additional surfing, so admission stays
+conservative rather than greedy — and the graph's belief is a belief, not
+a verdict, so it must stay revisable as more is read. The flagship case:
+what surfaced as a recurring name can turn out, on further reading, to be
+a wire-service byline rather than a character, and the graph must be able
+to say so rather than pretending its first read was final.
+
+**A real bug, found while building this, kept here because the next pass
+should not re-derive the lesson.** Every join in this mechanism is keyed
+by a referent's own canonical face (`host/graph.js::referentFace`), never
+by comparing strings — and getting that wrong is not hypothetical:
+`host/terrains.js`'s co-arrival binding register was keyed by a
+referent's opaque `r.id` while the SVO stated-relations path, three
+lines above it, canonicalised to `r.display` — two disconnected nodes
+for one referent, on every one of 7/7 witnessed pairs measured on real
+Frankenstein prose. Fixed by keying both paths through `referentFace`,
+the single face `admitGraph`'s own `canon()` already uses.
+
+**Engine tier** (`packages/engine/emergence/graph.js`, eoreader6.1):
+`nodeWeights` — a node's CURRENT (decayed) weight, closing the asymmetry
+where `mentions` only ever grows while edges decay; `restandNode` — a
+witnessed revision of what a node IS, modelled on the file's own
+`injectPrior` (received, giver required, append-only, conservative on
+agreement — restating the same standing is a no-op). Deliberately
+vocabulary-agnostic: `standing` is whatever the caller declares, never
+checked against a fixed list — importing `referents/index.js`'s
+`INDIVIDUATION_TYPES` was considered and refused as the first-ever
+`emergence/` → `referents/` coupling in this codebase, for a five-word
+list this file has no business knowing the meaning of.
+
+**`referents/entity.js` gained the symmetric door `offerCandidates` never
+had.** `reviewEntities` re-runs the SAME Born gate against the grown
+reading for every currently-admitted being; a being that no longer
+clears LAPSES (removed, appended to a new append-only `lapsed` ledger
+carrying the full gap object, never reduced to a bare tag). Fixed, in
+the same pass, a real id-collision this addition would otherwise have
+created: ids were built from `entities.size`, which can now fall on a
+lapse — moved to a monotonic `bornCount`.
+
+**Host tier** (`host/graph.js`, `host/terrains.js`): `castStandings`
+reads the cast's own individuation verdicts (apparatus/emanon/protogon/
+holon), omitting `null` (a decline, never overwriting an earlier
+evidenced verdict); `reconcileGraphStandings` lands them through
+`restandNode` and — measured live on this repo's own
+`wire-quiet-subject.txt` fixture — DISCLOSES what it cannot land, rather
+than silently dropping it: "Continental Newswire" types `apparatus`
+correctly, but `extractRelations`'s own subject span ("Newswire" alone)
+never matches the referent's registered surfaces, so no node exists at
+its canonical face to restand. That miss is a real, separate, upstream
+limitation (the relation extractor's own coverage — the same class of
+gap P36/HL already name for pronoun subjects) and is named on
+`unresolved`, never fuzzy-matched away. `host/terrains.js` also withholds
+every cast-typed apparatus referent from co-arrival binding (a narrating
+apparatus co-arrives with nearly everything by construction), with the
+withholding itself a named Void entry.
+
+**the-fold's own rendering:** a standing-carrying node draws with a
+dashed pill and a small badge naming its current standing — the same
+visual grammar the Entity view's `.ind` tag already uses, not a second
+costume. The summary line counts re-typed and withheld nodes, the same
+place binding's own counts already live.
+
+Full evidence, every number, and the disclosed residues (the extractor's
+own subject-span gap; node font size still keyed to lifetime mentions,
+unchanged; `consequence.js`'s own causal identity layer left untouched
+and un-composed with review) are in POLICIES.md P40.

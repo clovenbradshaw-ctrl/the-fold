@@ -3837,3 +3837,218 @@ COMMIT, not to "BUILD-4 before this pass" — which broke `crown.test.mjs`
 exported) for the several seconds between the stash and its immediate
 pop. Named here rather than silently smoothed over, in the same spirit
 this file's own P5.5 already holds every other surprising result to.
+
+## P40 — Belief-graph standing is conservative and revisable: surfing enriches, it never forces a first read to stand
+
+**The law.** Two rules, stated together because they are one discipline
+seen from either end. First, ADMISSION stays conservative rather than
+greedy: a candidate being (referents/entity.js's own Born gate) or a
+candidate standing (host/corpus.js's individuation classifier) is
+admitted only on real, witnessed evidence, and absence of evidence is
+withheld judgement, never manufactured conviction — this repo's own
+constitutional statement from the grounding-ladder section, restated one
+layer down at node identity itself. Second, and the part that was
+missing: because more reading can always ENRICH what is already believed
+("we can always enrich our reading through additional surfing"), a
+belief the graph holds is a belief, not a verdict — it must stay
+revisable as the reading grows, and a revision is CONCEDED (the prior
+standing kept, on the record, superseded) rather than silently
+overwritten. The belief graph the model carries is exactly that: a
+belief. Surfing and folding can reveal that what looked like a character
+was an artifact — a wire-service byline, a running head, a citation
+apparatus stapled to nearly every paragraph — and the graph must be able
+to say so without pretending its first read was final.
+
+**Referents, never surface spans — the discipline this whole mechanism
+had to honour to be correct at all.** Every join in this pass is keyed
+by a referent's own canonical face (`host/graph.js::referentFace`, the
+SAME lowercased display string `admitGraph`'s own `canon()` already
+lands triples on), never by testing whether some string superficially
+resembles another. Getting this wrong is not hypothetical here: building
+this pass surfaced a REAL, pre-existing bug of exactly this shape,
+living in the SAME file the new mechanism needed to touch.
+
+**The bug found and fixed: two nodes for one referent, silently.**
+`host/terrains.js`'s co-arrival binding register keyed its candidates by
+`r.id` (a referent's opaque, positional id — `"ref:auto:elizabeth"`)
+while the SVO stated-relations path, three lines above it in the same
+function, canonicalised through `referentLookup` to `r.display`
+(`"Elizabeth"`, lowercased to `"elizabeth"`). `bindingTriples` (engine
+`emergence/binding.js`) reads `l.a.id`/`l.b.id` straight through into the
+triples it hands `readTriples` — so a witnessed co-arrival pair landed
+belief on a node keyed by the referent's OPAQUE ID, disconnected from the
+node its own STATED relations already accumulated on. Measured live on
+`pg84-frankenstein.txt`: 7 of 7 witnessed co-arrival pairs on this
+fixture had `r.id !== referentFace(r)` — every single one would have
+fragmented. Fixed by keying the binding register with `referentFace`
+throughout, the one face every organ that touches a graph node now uses.
+Pinned as a regression (`host-terrains.test.js`): after the fix, no node
+in a real, bound admission is keyed `ref:auto:…` — the shape the bug
+would leave behind if it regressed.
+
+**What shipped, engine tier (`emergence/graph.js`).** `nodeWeights(graph)`
+— every node's CURRENT weight, the sum of its incident edges' already-
+decayed weight, in one O(edges) pass — closes a real asymmetry: `mentions`
+only ever grows (a permanent tally, like a reading's raw word count),
+while edges decay by design; ranking by `mentions` alone is exactly the
+mistake `referents/entity.js`'s own register already refuses for beings
+("frequency is not significance; that is how a reader ends up calling
+the commonest word the protagonist"), now closed for graph nodes too.
+`restandNode(graph, nodeId, {standing, giver, because})` — a witnessed
+revision of what a node IS, modelled directly on the file's own
+`injectPrior`: received, never derived, `giver` required on every call
+("indistinguishable from a fabrication" otherwise, `injectPrior`'s own
+phrase, reused verbatim in the new function's own doc comment).
+APPEND-ONLY (`standingHistory`, copy-on-write so a staged snapshot never
+silently grows a later revision) and CONSERVATIVE ON AGREEMENT — restating
+the current standing is a no-op, `changed: false`, the exact rule P36
+already states for EVA/REC on the claim ledger ("re-confirming the same
+verdict lands no REC — agreement is not a contradiction"), now proven
+identically at node-standing scale. DELIBERATELY VOCABULARY-AGNOSTIC:
+`standing` is accepted as whatever the caller declares (including
+explicit `null`, a genuine retraction, distinct from never having been
+reviewed at all) — never checked against a fixed list. Importing
+`referents/index.js`'s own `INDIVIDUATION_TYPES` into `emergence/graph.js`
+was considered and refused: it would have been the FIRST-EVER coupling
+from `emergence/` to `referents/` in this codebase (checked directly,
+grepped both directions, neither currently imports the other), for a
+five-word list this file has no business knowing the meaning of — the
+same "IDENTITY IS WHATEVER IT IS GIVEN... the graph does not resolve
+identity and must not" rule this file's own header already states for
+triples, held one column over for kind. A node the graph has never
+registered (no incident edges) is refused (`unknown_node`, a typed
+report, never a throw) rather than manufactured just to hang a judgement
+on — the constitutional line the-fold's own grounding ladder already
+holds, applied here.
+
+**What shipped, host tier (`host/graph.js`, `host/terrains.js`).**
+`castStandings(session, sourceId)` reads the cast's own individuation
+verdicts (host/corpus.js's already-shipped apparatus/emanon/protogon/
+holon classifier), keyed by `referentFace`, OMITTING every referent whose
+individuation is `null` — a classifier declining for lack of evidence
+must never overwrite a standing an earlier, evidenced verdict already
+set; absence licenses withholding, never manufacturing.
+`reconcileGraphStandings(session, {sourceId})` lands each changed verdict
+through `restandNode` and — the part that could not be skipped once
+tested against real prose — DISCLOSES what it could not land. Measured
+live on this repo's own `wire-quiet-subject.txt` fixture: "Continental
+Newswire" is discovered, typed `apparatus` (namingSentenceShare 0.525,
+27 mentions), and its verdict genuinely cannot land, because
+`extractRelations`'s own subject span for this fixture's stated
+relations is the shorter fragment "Newswire" alone — not one of the
+referent's registered surfaces — so `canon()` falls through
+uncanonicalised and the SVO triple lands belief on a DIFFERENT,
+un-canonical node this reconciliation can never find by the referent's
+own face. That is a real, separate, upstream limitation (the relation
+extractor's own subject-span coverage — the same class of gap this
+file's own P36/HL sections already name for pronoun subjects, now found
+again on a different construction) — fixing it by fuzzy-matching surface
+strings was considered and refused on the merits: that is precisely the
+referent-vs-surface conflation this whole mechanism exists to refuse,
+one level down. So the miss is named on `unresolved`, never silently
+absorbed into an empty `restood` list — `admitGraph` and
+`sessionTerrains` both now return it, and `host/terrains.js` pushes a
+typed `standing_unresolved` entry onto the Void ledger naming exactly
+which referent and why. `host/terrains.js` additionally WITHHOLDS every
+cast-typed `apparatus` referent from co-arrival binding — a narrating
+apparatus co-arrives with nearly everything by construction, so binding
+it as cast would read the container's own voice as the story's
+structure — with the withholding itself a named Void entry
+(`apparatus_withheld_from_binding`), never a silent absence. Staged
+network snapshots (the reading cursor) and `sessionGraphSnapshot` both
+now rank nodes by `weight` (current belief), not lifetime `mentions`,
+and both carry the complete `standings` list (never limit-cut — a
+demotion must stay visible even once the demoted node no longer makes
+the weight cut).
+
+**What shipped, engine tier again — the symmetric door
+`referents/entity.js` never had.** The host-tier apparatus classifier
+above is one measured heuristic; the deeper, statistically rigorous Born
+gate (`admitFromArrivals` — ground/difference/witness, the same organ
+`goldens/cast`/`goldens/network` calibrate against) had NO mirror of it
+at all. `offerCandidates` sweeps forward only — a surface already
+admitted (`state.entities.has(surface)`) is skipped forever, regardless
+of how much more has since been read. `reviewEntities(state)` re-runs
+the SAME already-tested gate against the GROWN reading for every
+currently-admitted being: a being that still clears is left alone,
+silently (agreement is not a revision, the identical discipline
+`restandNode` holds one tier up); a being that no longer clears LAPSES —
+removed from `state.entities` (so its surface is honestly re-offerable,
+should the pattern genuinely return) and appended to the new, append-only
+`state.lapsed` ledger, carrying the FULL gap object `admitFromArrivals`
+returned (not reduced to a bare type tag — `refusals()`'s own
+`why.gap ?? why` idiom was copied by mistake in the first cut of
+`lapsedEntities` and caught by this pass's own test: that expression
+collapses to the tag, the opposite of what a lapse record should keep,
+fixed to pass `why` through whole). A real, deterministic transition was
+constructed and measured, not assumed: a candidate present only inside a
+short reading's own spike admits with `censored: above`; the SAME
+candidate, diluted across a much larger reading at the same recurrence
+rate, no longer clears (`made_no_difference` — the pattern/witness test
+refusing because the diluted late-half activity no longer differs from
+what reseeding the early ground alone would produce) — the wire-service-
+byline story, mechanically reproduced at the Born-gate layer, not only
+the corpus-level heuristic layer. **A real id-collision this addition
+would otherwise have created, fixed before it could ship:** `admitEntity`
+built ids from `entities.size`; once a being can LEAVE `entities` (a
+lapse), size can fall, and a later, genuinely different being could be
+handed an id a lapsed being already used. Fixed with a monotonic
+`state.bornCount`, incremented on every admission and never decremented
+— pinned as its own regression (a lapse followed by a new admission gets
+a provably fresh id).
+
+**the-fold's own rendering (`explore/explore.js`, `explore/explore.css`).**
+A node carrying a standing draws with a dashed pill (`.gnode.stood`) and
+a small uppercase badge naming the CURRENT standing — the same visual
+grammar the Entity view's own `.ind` tag already uses for individuation,
+reused rather than given a second costume. The tooltip states the prior
+standing when one was conceded, and the giver. The summary line counts
+how many nodes were re-typed on review and how many were withheld as
+apparatus, the same place binding's own counts already live — never
+buried only in a per-node hover.
+
+**Deliberately not attempted this pass, named rather than silently
+absorbed.** The relation extractor's own subject-span coverage gap
+(the reason "Continental Newswire" cannot be reconciled on the wire
+fixture) is real, upstream, and unfixed — the same class of limitation
+this file's P36/HL sections already disclose for pronoun subjects,
+surfacing here on a different sentence construction. A node's on-canvas
+FONT SIZE stays keyed to lifetime `mentions`, unchanged — only the
+served/ranked ORDER now reflects current weight; redesigning what drives
+visual size is a separate, larger decision this pass did not make.
+`entity.js`'s own surface-keying (a real being can have several surfaces,
+merged only by `referents/consequence.js`'s separate, deliberately
+non-string causal identity test) was read and deliberately left
+untouched — `consequence.js`'s own header states plainly why identity is
+never decided by comparing spellings, and `reviewEntities` operates at
+exactly the unit `entity.js` already works in, not a referent-merged one;
+folding the causal identity layer INTO review (does a being's whole
+merged-referent evidence, across all its surfaces, still clear the gate)
+is real, scoped, future work.
+
+**Files.** `packages/engine/emergence/graph.js` (`parseEdgeKey`,
+`nodeWeights`, `restandNode`) + new `conformance/graph.test.js` (8
+cases). `packages/engine/referents/entity.js` (`bornCount`, `lapsed`,
+`reviewEntities`, `lapsedEntities`) + `conformance/entity.test.js` (+3
+cases, deterministic construction verified live before being trusted).
+`packages/host/graph.js` (`referentFace`, `castStandings`,
+`reconcileGraphStandings`, `nodeWeights`/`restandNode`/`parseEdgeKey`
+re-exported, `sessionGraphSnapshot` re-weighted and carrying
+`standings`) + `conformance/host-graph.test.js` (+4 cases, two against
+the real wire fixture, one a synthetic direct demonstration once a
+matching node exists). `packages/host/terrains.js` (binding keyed by
+`referentFace`, apparatus withholding, weighted staged snapshots,
+per-call reconciliation, both new Void gap types) +
+`conformance/host-terrains.test.js` (+3 cases, one a REGRESSION test
+against the fragmentation bug on real Frankenstein prose). All in
+eoreader6.1. `the-fold/explore/explore.js` + `explore/explore.css`
+(standing rendering) in this repo.
+
+**Measured.** eoreader6.1's full conformance suite: 1094/1091/0 passing
+before this pass (3 skipped — the gitignored `goldens/cast` fixture,
+unaffected), 1112/1109/0 after — the +18 delta is exactly this pass' own
+18 new test cases (8+3+4+3), zero regressions, same 3 skips. Both new
+Frankenstein/wire-fixture findings above (the binding-fragmentation bug,
+the subject-span reconciliation miss) were confirmed live against the
+real fixtures before being written up here, not assumed from reading the
+code.

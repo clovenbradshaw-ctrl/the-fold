@@ -3120,10 +3120,20 @@ function renderNetwork(surface) {
       return [s, o].sort().join("\u0000");
     }),
   ).size;
-  const compact = `${view.nodeCount.toLocaleString()} words · ${tiesDrawn.toLocaleString()} ties — from ${sources.length ? sources.join(", ") : "nothing that survived"} · strongest ${view.nodes.length} words drawn`;
+  // Standing: a node the cast has typed since it was first believed (an
+  // apparatus demotion, most visibly — a narrating byline realised NOT to
+  // be a character) — surfaced in the summary line the same way binding's
+  // own counts already are, never buried only in a per-node tooltip.
+  const standCount = (net.standings ?? []).length;
+  const withheldCount = b?.apparatusWithheld ?? 0;
+  const compact =
+    `${view.nodeCount.toLocaleString()} words · ${tiesDrawn.toLocaleString()} ties — from ${sources.length ? sources.join(", ") : "nothing that survived"} · strongest ${view.nodes.length} words drawn` +
+    (standCount ? ` · ${standCount} re-typed on review` : "") +
+    (withheldCount ? ` · ${withheldCount} withheld as apparatus` : "");
   const n = note(surface, "shown", compact);
   n.title =
-    "A decaying belief graph — it forgets by design. Ties come from three organs, each carrying its own null: (subject, verb, object) statements from the clause ladder; co-arrivals of cast names; co-arrivals of the document's recurring vocabulary (Zipf function-words excluded, arrivals ≥ 2 — the structural minimum). Layout is seeded force-direction — presentation, not a claim.";
+    "A decaying belief graph — it forgets by design. Ties come from three organs, each carrying its own null: (subject, verb, object) statements from the clause ladder; co-arrivals of cast names; co-arrivals of the document's recurring vocabulary (Zipf function-words excluded, arrivals ≥ 2 — the structural minimum). Layout is seeded force-direction — presentation, not a claim. A dashed word has been re-typed since it was first believed — what looked like a character can turn out, on further reading, to be a narrating apparatus; the graph re-weights rather than pretending its first read was final.";
+  const standingOf = new Map((net.standings ?? []).map((st) => [st.node, st]));
 
   // Layout once per source over the FINAL stage's population, cached — the
   // cursor scrubs belief, not geography. Words are the marks: font size
@@ -3266,7 +3276,8 @@ function renderNetwork(surface) {
     const [w, h] = boxOf(nd);
     const g = document.createElementNS(svgNS, "g");
     const lit = focus ? nearFocus(nd.id) : state.sel?.surfaces?.some((s) => s.toLowerCase() === nd.id);
-    g.setAttribute("class", `gnode${nd.id === focus ? " focus" : lit ? " lit" : focus ? " far" : ""}`);
+    const standing = standingOf.get(nd.id);
+    g.setAttribute("class", `gnode${nd.id === focus ? " focus" : lit ? " lit" : focus ? " far" : ""}${standing ? " stood" : ""}`);
     const pill = document.createElementNS(svgNS, "rect");
     pill.setAttribute("x", (p.x - w / 2).toFixed(1));
     pill.setAttribute("y", (p.y - h / 2).toFixed(1));
@@ -3281,8 +3292,23 @@ function renderNetwork(surface) {
     label.setAttribute("font-size", f.toFixed(1));
     label.textContent = nd.id.length > 30 ? `${nd.id.slice(0, 29)}…` : nd.id;
     g.appendChild(label);
+    // A standing riding a node is drawn the same way the Entity view already
+    // marks individuation (explore.css .ind) — one visual language for one
+    // concept, not a second costume for it here.
+    if (standing) {
+      const badge = document.createElementNS(svgNS, "text");
+      badge.setAttribute("x", p.x.toFixed(1));
+      badge.setAttribute("y", (p.y - h / 2 - 4).toFixed(1));
+      badge.setAttribute("text-anchor", "middle");
+      badge.setAttribute("class", "nstand");
+      badge.textContent = standing.standing === null ? "retracted" : standing.standing;
+      g.appendChild(badge);
+    }
     const tip = document.createElementNS(svgNS, "title");
-    tip.textContent = `${nd.id} · ${nd.mentions} mention${nd.mentions === 1 ? "" : "s"}${nd.fromPrior ? " · from a prior" : ""}`;
+    const standLine = standing
+      ? ` · typed ${standing.standing ?? "(retracted)"}${standing.history.length > 1 ? ` (was ${standing.history[standing.history.length - 2].standing ?? "(none)"})` : ""} — ${standing.history[standing.history.length - 1].giver}`
+      : "";
+    tip.textContent = `${nd.id} · ${nd.mentions} mention${nd.mentions === 1 ? "" : "s"}${nd.weight != null ? ` · current weight ${nd.weight.toFixed(2)}` : ""}${nd.fromPrior ? " · from a prior" : ""}${standLine}`;
     g.appendChild(tip);
     g.addEventListener("click", (ev) => {
       ev.stopPropagation();

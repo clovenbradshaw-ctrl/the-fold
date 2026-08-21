@@ -4066,3 +4066,38 @@ Full evidence, every number, and the disclosed residues (the extractor's
 own subject-span gap; node font size still keyed to lifetime mentions,
 unchanged; `consequence.js`'s own causal identity layer left untouched
 and un-composed with review) are in POLICIES.md P40.
+
+## REC's recourse locality, measured (added 2026-08-21) — pointer only, nothing here changed
+
+A borrowed-literature check (bounded-recourse online algorithms; see
+eoreader6.1/CLAUDE.md's own section, same date, for the full account) asked
+whether `loops/atmosphere.js`'s REC (re-zero) firing — the engine's one
+place where "REC fires" is a literal, numeric, `tolerance`-triggered event
+— actually re-touches only a small, bounded part of the material at each
+firing, the way that literature's guarantees require. Checked against real
+material at the real shipped parameters (`packages/host/terrains.js`'s
+`ATMOSPHERE_REGIME`): it does not. A region routinely grows to cover nearly
+all of a read before conceding (or never concedes at all — Heart of
+Darkness re-zeroed zero times across the whole book), and amortized
+recompute work per turn grows near-linearly with turns on both books
+tested (r=0.987, r=0.998).
+
+**Nothing in this repo changed.** `readAtmosphere`/`createRegimeTracker`
+are consumed here (`source.js`, reusing `packages/host/terrains.js`'s
+`ATMOSPHERE_REGIME`; `explore.js` renders `regime.rezeroCount`/
+`clearingCount`/`regions.length`/`tolerance`) but the new fields this
+measurement added (`stepsRead`, `recomputeWork`, `recomputeWorkPerStep` on
+`readAtmosphere`; `recomputeWork`/`amortizedRecourse` getters on
+`createRegimeTracker`) are purely additive and this repo's own consumers
+read neither the old nor the new fields any differently — verified by
+running the existing `source-atmosphere.test.mjs`/`eval/
+atmosphere-chunking-eval.mjs` unchanged. Surfacing the new diagnostic in
+Explore's own UI was considered and deliberately not done this pass: it
+would be scope creep past what was asked (a literature check against the
+engine mechanism, not a UI feature), and explore.js/app.js are shared,
+multi-session-owned files per this document's own standing rule above —
+not touched without a clear, asked-for reason to. The measurement, the new
+fields, and the full disclosed finding (including the two distinct,
+un-disentangled causes — trigger insensitivity vs. non-incremental
+recompute — and the honestly-left-open recourse-vs-stability question) all
+live in eoreader6.1 alone.

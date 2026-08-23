@@ -9,6 +9,7 @@
 #   - clones EOReader 7 next to this repo into the legacy eoreader6.1 mount
 #     name if it isn't there yet. The Fold runtime deliberately remains
 #     unchanged while v7 proves the frozen 6.1 compatibility contract.
+#   - initializes EOReader 7's pinned legacy source submodule when needed
 #   - clones live_priors next to this repo if it isn't there yet (the
 #     priors organ's corpus, ~250MB; soft dependency — explore-server.mjs
 #     degrades to a typed gap without it, so this is best-effort)
@@ -63,7 +64,11 @@ fi
 # possible test that v7 can satisfy the existing consumer unchanged.
 
 EOREADER="$DIR/../eoreader6.1"
-if [ ! -d "$EOREADER/packages/engine" ]; then
+
+# Clone only when there is no checkout at the compatibility mount. A checkout
+# with an uninitialized submodule has dangling compatibility symlinks and must
+# be repaired in place, not mistaken for an absent repository.
+if [ ! -d "$EOREADER/.git" ] && [ ! -f "$EOREADER/.git" ]; then
   if ! command -v git >/dev/null 2>&1; then
     echo "error: git is required to fetch EOReader 7 and wasn't found" >&2
     exit 1
@@ -76,7 +81,20 @@ fi
 # before either server starts. This is idempotent and does nothing for a fully
 # initialized checkout.
 if [ -f "$EOREADER/.gitmodules" ]; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git is required to initialize EOReader 7's source pin" >&2
+    exit 1
+  fi
   (cd "$EOREADER" && git submodule update --init --recursive)
+fi
+
+# The unchanged Fold runtime expects this exact compatibility surface. Fail
+# here with a useful error rather than letting the servers fail later with a
+# misleading module-not-found stack.
+if [ ! -d "$EOREADER/packages/engine" ]; then
+  echo "error: EOReader 7 compatibility mount is incomplete: $EOREADER/packages/engine is unavailable" >&2
+  echo "  remove $EOREADER and re-run ./fold, or initialize its submodules" >&2
+  exit 1
 fi
 
 # ── live_priors (sibling repo; the priors organ's corpus). Soft dependency —

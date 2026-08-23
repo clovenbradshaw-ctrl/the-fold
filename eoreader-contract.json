@@ -1,0 +1,77 @@
+{
+  "schema": "the-fold.eoreader-contract.v1",
+  "purpose": "Runtime compatibility contract that EOReader 7 must satisfy for The Fold before native v7 migration begins.",
+  "reference": {
+    "repository": "clovenbradshaw-ctrl/eoreader6.1",
+    "branch": "main",
+    "observedHead": "00bf5605912d601c82936654055dcc8df30633fa"
+  },
+  "runtimeConsumers": {
+    "browserEngineModules": {
+      "app.js": [
+        "/engine/perceiver/text/segments.js",
+        "/engine/perceiver/text/spans.js",
+        "/engine/perceiver/text/surfaces.js",
+        "/engine/perceiver/text/pronouns.js",
+        "/engine/perceiver/text/relations.js",
+        "/engine/emergence/tiers.js",
+        "/engine/holon/task-log.js",
+        "/engine/operators.js",
+        "/engine/perceiver/text/priors.js"
+      ]
+    },
+    "nodeImports": {
+      "explore-worker.mjs": {
+        "module": "../eoreader6.1/packages/host/index.js",
+        "exports": [
+          "createSession",
+          "admitChunked",
+          "sessionTerrains",
+          "sessionKinds",
+          "kindsNullArm"
+        ]
+      },
+      "explore-server.mjs": {
+        "module": "../eoreader6.1/packages/host/index.js",
+        "exports": [
+          "foldExtract"
+        ]
+      },
+      "serve.mjs": {
+        "dynamicModule": "packages/engine/holon/task-log.js",
+        "role": "validates append-only build records against the engine task vocabulary"
+      }
+    },
+    "filesystemMounts": {
+      "serve.mjs": [
+        "packages/engine",
+        "nul",
+        "scripts/corpus"
+      ],
+      "explore-server.mjs": [
+        "packages/engine",
+        "nul",
+        "scripts/corpus"
+      ]
+    }
+  },
+  "semanticCapabilities": [
+    "addressable source material with reopenable evidence ranges",
+    "incremental text segmentation derived from form",
+    "referent discovery and co-reference support",
+    "pronoun resolution",
+    "relation vocabulary discovery and relation extraction",
+    "engine-owned surprise measurement",
+    "append-only EO task/event vocabulary",
+    "canonical EO operator algebra",
+    "provenanced text priors and locally reproducible prior data",
+    "typed null/gap behavior",
+    "host projections for terrains, kinds, referents, relations and fold extraction"
+  ],
+  "migrationLaw": [
+    "EOReader 7 must first satisfy this contract without requiring The Fold runtime changes.",
+    "Historical module paths may be implemented by a v6 compatibility facade over v7 internals.",
+    "Compatibility paths are removable only after The Fold has migrated that dependency to a canonical v7 API and equivalent behavior remains tested.",
+    "The contract describes required behavior and callable surfaces, not required v7 internal architecture."
+  ]
+}

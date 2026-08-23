@@ -6,9 +6,9 @@
 # What this does, in order, each step skipped if already satisfied:
 #   - installs Node.js if it's missing (Homebrew on macOS; prints
 #     instructions on Linux/Windows, since there's no one safe installer)
-#   - clones eoreader6.1 next to this repo if it isn't there yet (the
-#     engine both servers mount at /engine and /nul, and explore-server.mjs
-#     also imports it directly)
+#   - clones EOReader 7 next to this repo into the legacy eoreader6.1 mount
+#     name if it isn't there yet. The Fold runtime deliberately remains
+#     unchanged while v7 proves the frozen 6.1 compatibility contract.
 #   - clones live_priors next to this repo if it isn't there yet (the
 #     priors organ's corpus, ~250MB; soft dependency — explore-server.mjs
 #     degrades to a typed gap without it, so this is best-effort)
@@ -53,16 +53,30 @@ if ! command -v node >/dev/null 2>&1; then
   fi
 fi
 
-# ── eoreader6.1 (sibling repo; clone it if it's not there) ─────────────────
+# ── EOReader 7 through the frozen legacy mount ─────────────────────────────
+#
+# The Fold still imports ../eoreader6.1 by design. During the v7 migration
+# that path is the compatibility mount, not a statement about the provider's
+# version. A fresh machine therefore clones eoreader7 *into that mount name*.
+# eoreader7 currently pins the exact 6.1 cut as a submodule and exposes the
+# old root paths through compatibility symlinks, so this is the strongest
+# possible test that v7 can satisfy the existing consumer unchanged.
 
 EOREADER="$DIR/../eoreader6.1"
 if [ ! -d "$EOREADER/packages/engine" ]; then
   if ! command -v git >/dev/null 2>&1; then
-    echo "error: git is required to fetch eoreader6.1 and wasn't found" >&2
+    echo "error: git is required to fetch EOReader 7 and wasn't found" >&2
     exit 1
   fi
-  echo "cloning eoreader6.1 next to this repo..."
-  git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$EOREADER"
+  echo "cloning EOReader 7 into the legacy eoreader6.1 compatibility mount..."
+  git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git "$EOREADER"
+fi
+
+# If the v7 compatibility repo was cloned without its submodule, complete it
+# before either server starts. This is idempotent and does nothing for a fully
+# initialized checkout.
+if [ -f "$EOREADER/.gitmodules" ]; then
+  (cd "$EOREADER" && git submodule update --init --recursive)
 fi
 
 # ── live_priors (sibling repo; the priors organ's corpus). Soft dependency —

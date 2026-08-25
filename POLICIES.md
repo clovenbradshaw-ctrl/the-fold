@@ -4052,3 +4052,127 @@ Frankenstein/wire-fixture findings above (the binding-fragmentation bug,
 the subject-span reconciliation miss) were confirmed live against the
 real fixtures before being written up here, not assumed from reading the
 code.
+
+## P41 — A cell reports what it checked, or says it did not: the absence of a refusal is never a check
+
+**The law.** Two rules, one discipline, both found by reading an existing
+eval driver's own printed output rather than by reasoning about the code.
+
+First: **a checking cell may report what it checked, or report that it did
+not check — it may never report a check it never ran as though it had.**
+This is the mirror of the constitutional statement CLAUDE.md's own
+grounding-ladder section already carries for the other direction ("a
+checking organ may say 'I have nothing to compare this against'
+(withhold), or 'I compared it and it failed' (convict). It may never
+manufacture the second out of the first"). The failure this closes is the
+reflection of that one: manufacturing a confident **holds** out of the
+absence of a refusal. Concretely, `verification.js`'s Existence/Entity
+cell reported *"subject and object both resolve to referents this material
+establishes"* on every claim whose hypergraph verdict was not
+`beyond-reach` — and `beyond-reach` gates on the SUBJECT (plus the narrow
+case of an object carrying neither referent nor content word). An object
+that resolves to no referent but does carry a content word falls through
+to `endpointsMatch`'s `tokensShare` branch and never touches that gate at
+all. The absence of a refusal licensed a sentence about the subject and
+nothing whatsoever about the object.
+
+Second, the general form: **a downstream reader must not have to infer an
+upstream organ's finding from the shape of its refusals.** If a cell needs
+to know how each endpoint resolved, the organ that resolved them carries
+that answer forward as data. `judge()` now attaches
+`claim.endpoints = {subject, object}` — `"referent"` / `"form"` /
+`"tokens"` / `"none"` — read off the same `endpoint()` results it already
+computes.
+
+**The measured specimen.** `eval/reasoning-e2e-no-llm.mjs` (a driver from
+an earlier pass, unchanged at the time) printed, on the claim its own
+source labelled *"no such referent in this material at all"*:
+
+```
+Lincoln appointed Napoleon (no referent):
+  Entity: holds — subject and object both resolve to referents this material establishes
+  Link:   fails — no edge binds this exact subject, verb, and object
+```
+
+Napoleon is nowhere in that material. Worse than a wrong sentence in
+isolation: a reader seeing Existence hold and Structure fail reads "the
+material says this is false", when the truth is "the material has never
+heard of this object."
+
+**Why the verdict did not move, stated because it cost something.**
+Entity still reports `holds` wherever it held before — nothing downstream
+of `verification.js` changes. The reason is measured, not cautious: an
+object resolving by content word alone is NOT by itself evidence the
+object fails to exist. Objects are very often descriptions rather than
+names, and on the same material `"Pierre Bezukhov married the countess"`
+lands in exactly the same `tokens` bucket `"…married Napoleon"` does — a
+verdict flip keyed on that signal would fire on both, and would gate
+Link/Network/Lens through the presupposition wall for ordinary prose. The
+finding is reported, in the reason and in a machine-readable `endpoints`
+field, and left for a reader (and for a later pass with a wider
+measurement behind it) to weigh. Pinned as an explicit CONTROL case, so
+the next pass does not "fix" it into a conviction without measuring first.
+
+**A second defect, found the same way and fixed at the source.** Extending
+the same driver surfaced a fabricated binding: against four sentences
+stating only `Seward negotiated the Alaska purchase`, the claim
+`"Seward negotiated the Suez canal"` came back **bound**, while
+`"Seward negotiated Suez canal"` — the same claim without its article —
+came back `unbound`. The definite article was the entire binding:
+`endpointsMatch` falls through to `tokensShare`, one shared token is
+enough, and the shared token was `"the"`. The corpus-scale function-word
+filter (`cite.js::commonTerms`) declares its own floor and simply does not
+run below `CORPUS_MINIMUM` chunks — a declared limit whose disclosed
+residue is *"auxiliary noise in the vocabulary,"* i.e. something that can
+only WIDEN what the reader hears. On the object side it does something
+that disclosure never covered: it fabricates an edge. `makeRelationReader`
+gained an optional `organs.determiners` — a RECEIVED closed class with its
+own named giver (the engine's `perceiver/text/priors.js`:
+`DEFINITE_DETERMINERS` + `INDEFINITE_DETERMINERS`, giver `lang/en`), never
+a word list typed in this repo, the same discipline `widget.js`'s own
+router already holds. Omitted, every existing caller is byte-identical.
+
+**A correction to an earlier pass's own stated limit.** The same driver's
+first results document concluded that negation-as-contradiction "lives
+only in `capacity-runner.js`, not in bare `read()`". Measured across five
+constructions, that is wrong: `judge()` returns `contradicted` through
+bare `read()` for `"never"` and `"hardly"` alike. The real limit is the
+engine's own gate, `relations.js::negationBeforeVerbFor` — the negation
+word must sit BEFORE the verb. `"not"` and `"didn't"` are both already in
+the engine's `NEGATION_WORDS`; the shape fails, not the vocabulary.
+Periphrastic `"did not <verb>"` puts the auxiliary in the connector slot
+and swallows the real predicate into the object, so the claim checked is
+not the claim written; `"didn't"` extracts nothing at all; and post-verbal
+negation (`"negotiated not the Alaska purchase"`) stays polarity-positive
+and lands **bound** — a negated claim reported as supported, named here as
+a hazard and not fixed.
+
+**Enforcement.** `hypergraph.test.mjs` (+7: endpoint disclosure on a bound
+claim, on a token-only object, the description CONTROL, a form-resolved
+subject; the determiner defect pinned as it actually behaves so the fix
+cannot silently become a no-op, the received class closing it, and an
+opt-in byte-identity check). `verification.test.mjs` (+4: Entity never
+asserts an unresolved object, keeps its plain sentence when both ends
+really resolved, discloses a form-resolved subject, and says so when a
+claim carries no disclosure at all). `eval/reasoning-e2e-no-llm.mjs` grew
+Tiers 5–7 (negation measured across five constructions; the determiner
+defect and its close, side by side on the same material; and the whole
+ladder — `evaluate` + `squarePolarity` + `checkObjectSpecificity` — run
+end to end with zero model calls, where the article-shared false `bound`
+survives squaring and is caught one rung up, landing as a withheld verdict
+rather than a lie).
+
+**Evidence and its environment, disclosed.** Full account:
+`eval/results/reasoning-e2e-no-llm-RESULTS.md`. The sandbox this ran in
+had no checkout at the `../eoreader6.1` compatibility mount `./fold`
+creates; it was reconstructed the way that script does (submodule init in
+the sibling `eoreader7` checkout, then the mount symlink), and `npm
+install` was never run. Measured via `git stash` on exactly this pass's
+source files, over every test file importing `hypergraph.js` or
+`verification.js`: 238/224/14 before, 249/235/14 after — +11 tests, all
+passing, the same 14 failures either way (8 in `crown.test.mjs`; `hl` and
+`hl-acquire` as whole files, since the engine cut pinned at this mount
+predates `interpretation/hl.js`; 4 in `hypergraph.test.mjs` —
+POS-prior/treebank and referent-bar cases). An environment gap,
+established by running the baseline first, not a regression.
+`verification.test.mjs` is fully green before and after.

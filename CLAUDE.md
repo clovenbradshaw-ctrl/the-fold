@@ -4101,3 +4101,52 @@ fields, and the full disclosed finding (including the two distinct,
 un-disentangled causes — trigger insensitivity vs. non-incremental
 recompute — and the honestly-left-open recourse-vs-stability question) all
 live in eoreader6.1 alone.
+
+## The absence of a refusal is not a check (added 2026-08-25) — pointer
+
+POLICIES.md P41 is the law; this is the short map. Found by reading an
+existing eval driver's own printed output — `eval/reasoning-e2e-no-llm.mjs`,
+the mechanical "how far without an LLM" driver — rather than by auditing
+code.
+
+**The one-line version.** `verification.js`'s Existence/Entity cell said
+"subject and object both resolve to referents this material establishes"
+on every claim whose hypergraph verdict was not `beyond-reach` — but
+`beyond-reach` gates on the SUBJECT. It had checked one end and spoken for
+two. This is the mirror of the grounding-ladder section's own
+constitutional statement, one direction over: a cell may report what it
+checked, or say it did not check; it may never report a check it never ran
+as though it had.
+
+**What shipped, all additive.** `hypergraph.js`'s `judge()` carries
+`claim.endpoints = {subject, object}` (`referent` / `form` / `tokens` /
+`none`), so no downstream reader infers an upstream finding from the shape
+of its refusals. `verification.js`'s Entity reason is built from that;
+the VERDICT is deliberately unchanged, because a legitimate DESCRIPTION
+("the countess") lands in the same token-only bucket a genuine stranger
+("Napoleon") does — pinned as a CONTROL case so the next pass does not
+turn a disclosure into a conviction without measuring first.
+
+**A second defect from the same driver, fixed at the source.** A shared
+definite article was binding claims the material never made ("Seward
+negotiated the Suez canal" → `bound`; the same claim without "the" →
+`unbound`). `commonTerms`'s declared `CORPUS_MINIMUM` floor means the
+function-word filter does not run at all on small material, and its
+disclosed residue ("auxiliary noise in the vocabulary") only covers
+WIDENING what the reader hears — on the object side it fabricates an edge.
+`makeRelationReader` gained an optional `organs.determiners`, a received
+closed class with its own giver (`priors.js`'s `DEFINITE_DETERMINERS` +
+`INDEFINITE_DETERMINERS`, `lang/en`), never a word list typed here; opt-in,
+byte-identical when omitted. Whether the live app should inject it is the
+same open question already recorded for `verbForms` and
+`createLemmatizer`, and it is not resolved here.
+
+**One earlier claim corrected.** That driver's first results document said
+negation-as-contradiction "lives only in `capacity-runner.js`, not in bare
+`read()`". Measured across five constructions, wrong: `judge()` returns
+`contradicted` through bare `read()` for "never" and "hardly". The real
+limit is `relations.js::negationBeforeVerbFor` — the negation word must
+sit BEFORE the verb; "not"/"didn't" are already in the engine's own
+`NEGATION_WORDS`, so the shape fails, not the vocabulary. Post-verbal
+negation lands `bound` — a negated claim reported as supported — named as
+a hazard, not fixed.

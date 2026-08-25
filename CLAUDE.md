@@ -4150,3 +4150,25 @@ sit BEFORE the verb; "not"/"didn't" are already in the engine's own
 `NEGATION_WORDS`, so the shape fails, not the vocabulary. Post-verbal
 negation lands `bound` — a negated claim reported as supported — named as
 a hazard, not fixed.
+
+## Two clocks, measured (added 2026-08-25) — pointer only, nothing rewired
+
+P42 in POLICIES.md is the law (renumbered from P41 on merge — a concurrent
+PR landed its own P41 first, above); the evidence lives in eoreader7 PR #22
+(native/READING-SPEC.md S9–S15 and native/eval/results/ there). The one-line
+version: the binding/present layer forgets exponentially at a window the
+MATERIAL states (the writer's own accessibility curve — pronoun majority at
+gap 1, names unglossed at gap 4,000; genre moves it: Austen tighter than
+Shelley), and the retrieval layer forgets by POWER LAW (ACT-R, received
+d = 0.5 — beats undecayed accumulation at paired z = 3.26, and the edge
+vanishes under sentence shuffling, so it is the material's order being
+read). Exponential decay at the retrieval layer is the measured way to
+lose; so is typing either clock where a measurement is available.
+`fold.js`'s RECENCY_WINDOW = 4 and `retrieve`'s activation-free ranking are
+named in P42 as debts, not silently amended — wiring is its own pass.
+Amended same day, by falsification: at entity level (who returns next
+sentence) the law strengthened to +57% relative (z = 5.32); on real audio
+at ~46ms the fixed d = 0.5 broke (persistence dominates; the
+material-measured need-odds estimator adapted and beat it 2.8×) — so the
+omnimodal mechanism is need-odds matching, the exponent is a text-scale
+prior, and this repo's text-scale guidance stands as written.

@@ -4176,3 +4176,108 @@ predates `interpretation/hl.js`; 4 in `hypergraph.test.mjs` —
 POS-prior/treebank and referent-bar cases). An environment gap,
 established by running the baseline first, not a regression.
 `verification.test.mjs` is fully green before and after.
+
+## P42 — Two clocks, both measured from the material: binding forgets on the writer's window, retrieval forgets by power law
+
+**Renumbered from P41 on merge** — a concurrent PR (#73, above) independently
+landed its own P41 first; the number moved, nothing about the policy itself
+did (the same house convention P29's own header already records).
+
+**The law.** Memory carries TWO decay curves, never one, and neither is
+typed in. The BINDING layer (pronoun resolution, the aperture, "the reach
+of the present") forgets exponentially at a window read from the
+material's own accessibility curve — the mapping gap-since-last-mention →
+form-of-return (pronoun / definite descriptor / bare name) IS the
+writer's broadcast model of the reader's memory (Accessibility Theory,
+Ariel; referential distance, Givón 1983), measurable per material and per
+genre with no dials (dyadic bins; majority = where a plurality flips).
+The RETRIEVAL layer (ranking what comes back) forgets by POWER LAW —
+ACT-R's base-level activation, B = ln Σ t^(−d), received d = 0.5,
+Anderson's giver-named standard — which is recency-weighted but
+frequency-preserving: old evidence thins, it never vanishes. Handing
+either layer the other's clock is the measured way to lose, in both
+directions.
+
+**Amends READING-POLICY P1 constructively, not correctively.** P1 already
+says activation decays, identity does not, recall is retrieval, and
+"never enlarge the window to fix a recall failure." All of that stands
+and is now MEASURED rather than asserted (below). What this adds: the
+window P1 refuses to enlarge is the binding clock, and it is no longer
+anyone's to declare — the material states it; and a recall failure's fix
+at the retrieval layer now has a measured form — power-law activation
+ranking — rather than only "the defect is in retrieval or coreference."
+P4's zero-relevance-floor design is untouched: this is a ranking
+refinement above the floor, never a new floor.
+
+**The evidence, all in eoreader7 PR #22's committed results
+(native/eval/results/, sibling repo), each with its prediction frozen
+before its run:**
+
+- *The writer's own curve* (`writer-decay-RESULTS.md`): Frankenstein,
+  1,828 returns — pronoun-form returns majority only at gap 1, extinct
+  past 128; bare-name returns at 83–100% after gaps of 1,000–4,000
+  sentences, unglossed; definite descriptors PEAK at gaps 64–127 (.627) —
+  the writer's own re-grounding device, and the material's own fold cue.
+  Pride and Prejudice (its coref/frame prior curated for this): Austen's
+  activation clock is TIGHTER (extinct by 16), and Shelley's mid-range
+  descriptor peak is absent — the two clocks differ BY GENRE, which is
+  why neither is a constant.
+- *Retrieval's curve* (`forgetting-for-recall-RESEARCH.md` + paired
+  stats): on 3,102 prequential next-arrival steps, exponential decay
+  LOSES to undecayed accumulation (0.0382 vs 0.0549 — the wrong-shape
+  negative, kept); ACT-R power-law BEATS accumulation (0.0582, paired
+  z = 3.26), and the edge is ORDER-BORNE — under sentence shuffling it
+  vanishes and reverses (z = −1.55), the signature separating a
+  mechanism from an artifact. Forgetting improves recall exactly when
+  its shape matches the environment's need-odds (Anderson & Schooler
+  1991), and exponential is the wrong shape for retrieval because it
+  destroys frequency.
+- *The retraction discipline held en route* (`salience-dmd-RESULTS.md`
+  and its successor): a reported "~29-sentence period" was withdrawn by
+  its own arithmetic (mode half-life 0.27 sentences — it cannot
+  oscillate), and `survivesOnePeriod` now prints beside any period so
+  the claim cannot recur without its refutation beside it.
+
+**What this binds in THIS repo, named as debt rather than silently
+assumed done.** `fold.js`'s `RECENCY_WINDOW = 4` is the binding clock
+wearing a typed constant — under this policy it is a PRIOR awaiting the
+material's measured window, and any future change cites a measurement,
+not a preference. `retrieve`'s term-match ranking carries no activation
+at all; wiring power-law activation above its floor is real, scoped,
+unstarted work — this policy names the law and the debt, and the wiring
+is its own pass with its own evidence. The reflex ledger's recency slice
+and the aperture's presentWindow are the same binding clock and inherit
+the same standing. Nothing was rewired in this pass: a law landed ahead
+of its enforcement is disclosed as exactly that (VI.3's own posture).
+
+**Disclosed limits.** Measured on two novels and one benchmark task
+(next-sentence motif recurrence); the fully-empirical need-odds variant
+(the material's own measured cells, no functional form) was directionally
+right but NOT significant (z = 0.72) — the received prior stands until
+the material's own measurement holds more evidence, which is the
+prior→material ladder behaving as designed, not a failure of it.
+
+
+**Amended same day — falsified where it could be, and sharpened by it.**
+The claim was put where it could lose (eoreader7,
+`native/eval/results/forgetting-falsification-RESULTS.md`, predictions
+frozen before the runs), on both of the asked-for fronts. READING A BOOK:
+at entity level — ranking the constitutional cast by who returns next
+sentence, the thing reading a novel actually asks of memory — power-law
+recall improves on frequency by 57% relative (paired z = 5.32, edge
+vanishing under sentence shuffling): not falsified, strengthened well
+beyond the motif task. LISTENING TO AUDIO: on real music (chroma states
+at ~46ms frames), the FIXED received exponent broke exactly where the
+frozen risk clause said it might — persistence dominates at that
+timescale and recency crushes d = 0.5 (z = −51.98) — while the
+material-measured need-odds estimator ADAPTED to the medium's own
+arrival statistics and landed within noise of the persistence oracle at
+2.8× the received prior. So the law this policy states is sharpened, not
+weakened: the durable, omnimodal mechanism is NEED-ODDS MATCHING; the
+power-law with d = 0.5 is a TEXT-SCALE prior (Anderson & Schooler's own
+environments were day-scale text needs), consulted first and superseded
+by the material's measured odds — which text was too thin per-step to
+earn and audio earned decisively. For THIS repo, whose material is text
+at sentence scale, the retrieval-layer guidance stands as written; a
+future audio or fine-timescale organ inherits the mechanism, never the
+exponent.

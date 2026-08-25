@@ -52,6 +52,7 @@ import { LESSONS, stepLesson } from "./term-lessons.js";
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 import { landAct } from "./capacity-runner.js";
 import { looksMutating, detectTables, deriveStoreOps, sanitizeTableName, opsFromCsvTable } from "./store-sql.js";
+import { conduct, verifyLoop, depends as dependsOnAct, corroborate, enumerateSlot, RUNGS } from "./interact.js";
 
 export const KEEP_PER_EXEC = 256 * 1024; // display keep per command; overflow is dropped with the drop stated
 export const SEARCH_SHOWN = 8; // fold search rows shown; the total is always stated
@@ -435,6 +436,204 @@ export function parseRunCommand(text) {
  * ever calling store.js itself (it has no bridge to inject one through —
  * `runSandboxed` is a bare function, not `initTerminal`'s closure).
  */
+// ── the app's capacity to WORK WITH a runtime, not only run one ───────────
+//
+// `runSandboxed` above spawns a throwaway worker, runs one block, and kills
+// it. That is rung 6 in interact.js's own terms — one act, one effect — and
+// until this section every door the app owned was exactly that shape: `/run`,
+// `/act`, `.load`, `pip install`. There was nowhere in this repo to say "do
+// this, read what came back, then do THAT with it", which is what the word
+// interaction actually names.
+//
+// `openRuntime` is the missing primitive: the same boot/exec/done protocol
+// every worker here already speaks, held OPEN across acts, so the session's
+// own state (a python binding, a sql table, a ruby local) is still there for
+// the next one. The interactive prompt already had this; the instrument did
+// not, because `spawn()` is wired to the drawer's DOM. This one is not wired
+// to anything, which is what makes it usable by interact.js's capacities and
+// by any caller that wants a counterpart rather than a command.
+//
+// Every act is budgeted with the SAME per-runtime timeout `runSandboxed`
+// already uses (AUTO_RUN_TIMEOUT_MS) — a held session must not turn one
+// runaway act into a hung page — and a timed-out act resolves as a refused
+// response, never a thrown error, because interact.js's rung 5 is precisely
+// that a refusal is information.
+
+export function openRuntime(lang, { sources = {} } = {}) {
+  const key = AUTO_RUN_LANGS[String(lang ?? "").toLowerCase()];
+  if (!key) return Promise.resolve(null);
+  const budget = AUTO_RUN_TIMEOUT_MS[key] ?? 10_000;
+  return new Promise((resolve) => {
+    const worker = new Worker(new URL(ROSTER[key].src, import.meta.url), { type: ROSTER[key].type });
+    let pending = null;
+    let booted = false;
+    const settle = (patch) => {
+      if (!pending) return;
+      const p = pending;
+      pending = null;
+      clearTimeout(p.timer);
+      p.resolve({ accepted: patch.accepted, text: patch.text.trim() });
+    };
+    worker.onmessage = (ev) => {
+      const m = ev.data ?? {};
+      if (m.type === "ready") {
+        booted = true;
+        return resolve(session);
+      }
+      if (!pending) return;
+      if (m.type === "out") pending.out += m.text.endsWith("\n") ? m.text : m.text + "\n";
+      else if (m.type === "err") pending.err += m.text.endsWith("\n") ? m.text : m.text + "\n";
+      else if (m.type === "result") pending.out += formatCells(m.columns, m.values) + "\n";
+      else if (m.type === "done") settle({ accepted: !pending.err, text: pending.out + pending.err });
+    };
+    worker.onerror = (ev) => {
+      if (pending) settle({ accepted: false, text: `${ev.message ?? "worker error"}` });
+      else resolve(null);
+    };
+    const session = {
+      runtime: key,
+      step: (code) =>
+        new Promise((stepResolve) => {
+          if (!booted) return stepResolve({ accepted: false, text: "the runtime never booted" });
+          if (pending) return stepResolve({ accepted: false, text: "one act at a time — a step is already in flight" });
+          pending = {
+            out: "",
+            err: "",
+            resolve: stepResolve,
+            timer: setTimeout(() => settle({ accepted: false, text: `no answer within ${budget}ms` }), budget),
+          };
+          worker.postMessage({ type: "exec", code: String(code) });
+        }),
+      close() {
+        try { worker.terminate(); } catch { /* already gone */ }
+      },
+    };
+    worker.postMessage({ type: "boot", sources });
+  });
+}
+
+/** A sandboxed runtime as an interact.js counterpart. */
+export function runtimeCounterpart(lang, sources = {}) {
+  return {
+    id: String(lang),
+    kind: ROSTER[AUTO_RUN_LANGS[String(lang).toLowerCase()]]?.blurb ?? "a sandboxed runtime",
+    open: async () => {
+      const s = await openRuntime(lang, { sources });
+      return s ?? { step: async () => ({ accepted: false, text: `no sandboxed runtime named "${lang}"` }), close() {} };
+    },
+  };
+}
+
+/** The terminal language itself as a counterpart.
+ *
+ * DISCLOSED, because it is a real decision and not an implementation detail:
+ * this opens a SCRATCH log every time, never the shared app-wide `gridLog`.
+ * An intervention runs its plan many times over — `depends` alone runs it
+ * once per draw plus once per insertion position — and landing all of that on
+ * the instrument's real append-only record would bury it under an experiment
+ * nobody asked to keep. What is learned lands; what was tried to learn it does
+ * not. A caller that wants an act ON the record uses `act`, which is what that
+ * command is for. */
+export function actsCounterpart(grid) {
+  return {
+    id: "acts",
+    kind: "this repo's own act grammar, on a scratch log — experiments never land on the shared record",
+    open: async () => {
+      let log = grid.createLog();
+      return {
+        step: (lineText) => {
+          const r = landAct(grid, log, String(lineText));
+          if (!r.ok) return { accepted: false, text: `refused: ${r.refusal?.type ?? "unknown"}` };
+          log = r.log;
+          return { accepted: true, text: (r.ids ?? []).join(" ") };
+        },
+        close() {},
+      };
+    },
+  };
+}
+
+// ── the two doors' grammars, pure so they are testable off the page ────────
+
+/** `<counterpart> | <act> | <act> => <expected> | ...`
+ *
+ * `$N` inside an act is the Nth response, substituted at the moment that act
+ * is built — which is what makes the act COMPUTED rather than written down,
+ * and is the whole of rung 7 at this door. `=> text` declares what the act's
+ * effect is expected to contain, BEFORE it runs (rung 8). Returns null on a
+ * shape mismatch, the convention `parseMeasure`/`parseRunCommand` already
+ * hold here, so a caller's own door can fall through. */
+export function parseInteract(arg) {
+  const raw = String(arg ?? "").trim();
+  if (!raw) return null;
+  const bar = raw.indexOf("|");
+  const head = (bar === -1 ? raw : raw.slice(0, bar)).trim();
+  const counterpart = head.split(/\s+/)[0] ?? "";
+  if (!counterpart) return null;
+  const acts = bar === -1
+    ? []
+    : raw
+        .slice(bar + 1)
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => {
+          const m = s.match(/^(.*?)\s*=>\s*(.+)$/);
+          return m ? { act: m[1].trim(), expect: m[2].trim() } : { act: s, expect: null };
+        });
+  return { counterpart, acts };
+}
+
+/** Turn parsed acts into an interact.js script. An act carrying `$N` becomes a
+ * FUNCTION of the responses so far — which is exactly how interact.js decides
+ * a step was computed, so the rung this reports can never be one the script
+ * did not actually reach. */
+export function buildScript(acts) {
+  return (acts ?? []).map(({ act, expect }) => {
+    const refs = /\$(\d+)/.test(act);
+    const build = refs
+      ? (prior) => String(act).replace(/\$(\d+)/g, (_, n) => (prior[Number(n) - 1]?.text ?? "").trim())
+      : act;
+    return expect == null ? { act: build } : { act: build, expect: () => expect };
+  });
+}
+
+/** `<counterpart> omit:<n> effect:<text> [placebo:<act>] [draws:<n>] | <act> | <act>`
+ *
+ * Keyed rather than positional, the reason measure.js's own grammar states:
+ * a reader declaring a spec should never find that the third thing they typed
+ * silently means something else. Values may be quoted when they contain
+ * spaces. */
+export function parseDepends(arg) {
+  const raw = String(arg ?? "").trim();
+  if (!raw) return null;
+  const bar = raw.indexOf("|");
+  if (bar === -1) return null;
+  const head = raw.slice(0, bar).trim();
+  const plan = raw.slice(bar + 1).split("|").map((s) => s.trim()).filter(Boolean);
+  if (!plan.length) return null;
+  const tokens = head.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
+  const counterpart = tokens.shift() ?? "";
+  if (!counterpart) return null;
+  const opts = {};
+  for (const t of tokens) {
+    const m = t.match(/^([a-z]+):(.*)$/i);
+    if (!m) continue;
+    opts[m[1].toLowerCase()] = m[2].replace(/^"|"$/g, "");
+  }
+  if (opts.effect == null) return null;
+  const omit = Number(opts.omit ?? 0);
+  if (!Number.isInteger(omit) || omit < 0 || omit >= plan.length) return null;
+  return {
+    counterpart,
+    plan,
+    omit,
+    effect: opts.effect,
+    placebo: opts.placebo ?? null,
+    draws: Number.isFinite(Number(opts.draws)) ? Math.max(1, Number(opts.draws)) : 3,
+  };
+}
+
 export function runSandboxed(lang, code, { sources = {} } = {}) {
   const key = AUTO_RUN_LANGS[String(lang ?? "").toLowerCase()];
   if (!key) return Promise.resolve({ code: null, stdout: "", stderr: `no sandboxed runner for "${lang}"`, timedOut: false, durationMs: 0, dbOps: [] });
@@ -645,6 +844,20 @@ export function initTerminal(bridge) {
     bridge.applyStoreOps(ops);
     const n = (t) => ops.filter((o) => o.type === t).length;
     line(`database fold: ${ops.length} row-level change${ops.length === 1 ? "" : "s"} recorded (${n("insert")} insert, ${n("update")} update, ${n("delete")} delete)`, "term-mute");
+  };
+
+  // ── counterparts: the things this instrument can WORK WITH ───────────────
+  //
+  // A counterpart is anything that answers back (interact.js's CONTRACT). The
+  // sandboxed runtimes are counterparts, and so is this repo's own act
+  // grammar; the list is derived from ROSTER rather than typed out, so a
+  // runtime added there is workable-with here without an edit.
+
+  const counterpartNames = () => [...Object.keys(AUTO_RUN_LANGS), ...(bridge.grid ? ["acts"] : [])];
+  const counterpartFor = (name) => {
+    const want = String(name ?? "").toLowerCase();
+    if (want === "acts") return bridge.grid ? actsCounterpart(bridge.grid) : null;
+    return AUTO_RUN_LANGS[want] ? runtimeCounterpart(want, bridge.sources()) : null;
   };
 
   // ── worker runtimes ───────────────────────────────────────────────────────
@@ -1033,6 +1246,99 @@ export function initTerminal(bridge) {
             line(`evaluate · "${claim}" is undetermined against "${landed.event.ground}" (${reason})`, "term-mute");
           }
         }
+      }
+    },
+    // interact / depends — the capacities in interact.js, at a door.
+    //
+    // `interact` conducts a real interaction: acts in order, each one's own
+    // effect read back, a later act COMPUTED from an earlier response where
+    // the line says `$N`, and an expectation declared before an act runs where
+    // it says `=> text`. The rung it reports is derived from what the run
+    // actually did (interact.js's `rungReached`), never from what was typed —
+    // and when the script claims a loop, `verifyLoop` re-runs it open-loop and
+    // says whether the acts genuinely differed. `depends` is the intervention:
+    // the same plan with one act removed, with an irrelevant act in its place,
+    // and with that irrelevant act merely added at every position, so the
+    // question "did the effect follow THIS act" gets an answer no reading of a
+    // transcript can give.
+    async interact(arg) {
+      const parsed = parseInteract(arg);
+      if (!parsed || !parsed.acts.length) {
+        return line(
+          [
+            "interact <counterpart> | <act> | <act> ...",
+            "  $N        the Nth response, substituted when that act is built — this is what makes an act computed rather than typed",
+            "  => text   what the act's effect is expected to contain, declared BEFORE it runs",
+            "",
+            `counterparts: ${counterpartNames().join(", ")}`,
+            "example: interact python | print(6*7) | print($1+1) => 43",
+          ].join("\n"),
+          "term-mute",
+        );
+      }
+      const cp = counterpartFor(parsed.counterpart);
+      if (!cp) return line(`no counterpart named "${parsed.counterpart}" — ${counterpartNames().join(", ")}`, "term-exit bad");
+      const script = buildScript(parsed.acts);
+      setBusy(true);
+      try {
+        const result = await conduct(cp, script);
+        for (const step of result.steps) {
+          const mark = step.accepted ? " " : "✕";
+          line(`${mark} ${step.computed ? "↻ " : "  "}${step.act}`, step.accepted ? undefined : "term-exit bad");
+          if (step.text) line(`    ${step.text.split("\n").join("\n    ")}`, "term-mute");
+          if (step.met === true) line(`    ✓ expected "${step.predicted}" — and it came back`, "term-mute");
+          if (step.met === false) line(`    ✕ expected "${step.predicted}" — it did not`, "term-exit bad");
+          if (step.predicted === null && "met" in step) line("    the rule declined to predict this case", "term-mute");
+        }
+        line(`${result.reading} · rung ${result.rung} (${RUNGS[result.rung]?.name ?? "—"}): ${RUNGS[result.rung]?.capacity ?? ""}`, "term-mute");
+        if (script.some((st) => typeof st.act === "function")) {
+          const v = await verifyLoop(cp, script);
+          line(`  loop: ${v.detail}`, v.loopReal ? "term-mute" : "term-exit bad");
+        }
+        mirrorTerm("term-interact", { counterpart: cp.id, acts: result.steps.length, rung: result.rung, loop: result.steps.some((st) => st.computed) });
+      } finally {
+        setBusy(false);
+      }
+    },
+    async depends(arg) {
+      const parsed = parseDepends(arg);
+      if (!parsed) {
+        return line(
+          [
+            "depends <counterpart> effect:<text> [omit:<n>] [placebo:<act>] [draws:<n>] | <act> | <act> ...",
+            "  effect    a string some response must contain for the effect to count as reached (read across the WHOLE run, never its last line)",
+            "  omit      which act (0-based) is the one whose effect is in question — default 0",
+            "  placebo   an accepted-but-irrelevant act; without one this cannot separate THIS act from merely an act",
+            "",
+            `counterparts: ${counterpartNames().join(", ")}`,
+            'example: depends python effect:42 omit:0 placebo:pass | x = 42 | print(x)',
+          ].join("\n"),
+          "term-mute",
+        );
+      }
+      const cp = counterpartFor(parsed.counterpart);
+      if (!cp) return line(`no counterpart named "${parsed.counterpart}" — ${counterpartNames().join(", ")}`, "term-exit bad");
+      setBusy(true);
+      try {
+        const r = await dependsOnAct(cp, {
+          plan: parsed.plan,
+          act: parsed.omit,
+          placebo: parsed.placebo,
+          draws: parsed.draws,
+          effect: (obs) => obs.some((o) => o.text.includes(parsed.effect)),
+        });
+        if (r.gap) return line(`${r.gap}: ${r.detail}`, "term-exit bad");
+        line(`the act in question: ${r.act}`, "term-mute");
+        line(r.reading, "term-mute");
+        line(
+          r.dependsOnAct
+            ? "the effect DEPENDS on that act — it held with it and never without it, and an irrelevant act in its place did not stand in for it"
+            : "no dependence established — read the counts above for which arm refused it",
+          r.dependsOnAct ? undefined : "term-exit bad",
+        );
+        mirrorTerm("term-depends", { counterpart: cp.id, act: r.act, counts: r.counts, dependsOnAct: r.dependsOnAct });
+      } finally {
+        setBusy(false);
       }
     },
     grid(arg) {

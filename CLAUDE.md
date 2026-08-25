@@ -4339,3 +4339,88 @@ third framework; it fails, naming what was searched. Order 13's arbitrary arm
 perturbs claim-GROUPING rather than source identity, because
 `mergeTestimony`'s verdict is invariant to WHO said what by construction —
 shuffling source labels would be A10's trap exactly.
+
+## Working with what answers back (added 2026-08-25) — the capacities, not a score
+
+P45 in POLICIES.md is the law; this is the map. The pass began as a
+battery — a ladder scoring whether this instrument's interaction reached
+order N — and the user's correction is the whole reason the shape is what
+it is, verbatim: *"are you saying the code is examples of mhc? I want the
+app to have these capacities."* A thermometer is not a capacity. The
+machinery turned out identical either way; only its consumer changed.
+
+**Where they live.** `interact.js` (pure, counterparts injected — the
+cast.js pattern) holds seven capacities, Commons's orders 5-11 read as
+requirements on a task rather than as a scale: `conduct` (name an
+affordance, attribute an effect, compute a later act from what came back,
+predict before acting), `verifyLoop`, `corroborate`, `enumerateSlot`,
+`depends`, `orderMatters`. `interact.test.mjs` — 32 cases, process-free
+and organ-free on purpose, the same reason mhc.test.mjs states for itself.
+
+**What the app was actually missing, and it was not subtle.** Every door
+this repo owns fires ONE act and reads ONE response — `/run`, `/act`,
+`.load`, `pip install`. There was nowhere to say *do this, read what came
+back, then do that with it*, and nothing anywhere predicted an effect
+before causing it or established that an effect depended on the act that
+appeared to cause it. `openRuntime` (term.js) is the missing primitive:
+the same boot/exec/done protocol every worker already speaks, held OPEN
+across acts. The interactive prompt had a held session; the instrument did
+not, because `spawn()` is wired to the drawer's DOM.
+
+**The battery is now a SECOND CONSUMER, never a parallel copy.**
+`mhc-interact.js` imports `runPlan`/`streamOf`/`declareCounterpart`/the
+capacities from `interact.js` and re-exports them. A battery that scores
+machinery nobody runs has measured nothing that matters — and two
+implementations of one fact is the drift class this file's own postmortems
+keep naming (P22's `Array.find`, P24's runtime-type ternary, P39's deleted
+`landCell`).
+
+**Four rules, each earned by a live failure rather than reasoned into
+place** (full text in P45): a refusal is information, never an exception;
+an effect is read across the WHOLE run, never off its last response (an
+insertion control breaks any last-response predicate, which refused a
+sound item before this was understood); a control that decides a
+correctness claim does not depend on a seed (the insertion sweep was
+sampling one position and could miss the one that mattered); and
+provenance, not position, locates the computed act (reordering moves it,
+and a positional goal then reads whichever act landed there).
+
+**Rung 7 is proven, not assumed.** `verifyLoop` re-runs a script open-loop
+and reports whether the acts genuinely differed. A "closed loop" whose
+computed act comes out identical is not a loop — a real finding about the
+script, reported as `loopReal: false`, never an error.
+
+**Experiments do not land on the record.** `actsCounterpart` opens a
+SCRATCH grid log every time, never the shared app-wide `gridLog`: an
+intervention runs its plan once per draw plus once per insertion position,
+and burying the real append-only record under an experiment nobody asked
+to keep is not what that record is for. What is learned lands; what was
+tried to learn it does not.
+
+**The doors.** `interact <counterpart> | <act> | <act>` (`$N` is the Nth
+response — that substitution is what makes an act computed rather than
+typed; `=> text` declares an expectation before the act runs) and `depends
+<counterpart> effect:<text> omit:<n> placebo:<act> | <act> | ...`.
+Counterparts derive from `ROSTER` plus the act grammar, so a runtime added
+there is workable-with with no edit here. Grammars are pure and exported
+(`parseInteract`/`buildScript`/`parseDepends`), and `buildScript` is
+tested by CONDUCTING against an in-memory counterpart rather than by
+asserting what it built.
+
+**Evidence.** `eval/mhc-interaction-battery.mjs` runs the scoring consumer
+against three genuinely different REAL counterparts — this repo's act
+grammar over the engine kernel, a real `python3 -i` subprocess, a real
+`sh` subprocess, no model anywhere — and all three reach stage 11 with the
+scale holding: zero orders changed their order-hood with the counterpart.
+Full suite 608/116 before, 672/116 after: the same 116 pre-existing
+environment failures this checkout carries (missing vendored `sql.js`,
+model files, `monaco-editor`, sibling-engine import paths), confirmed via
+`git stash` against this exact worktree, zero regressions.
+
+**Disclosed, not silently absent.** A live model satisfies the contract
+and is deliberately NOT wired — scoring one re-opens P44's confound (both
+sides act, so the number is about the pair) and needs a scripted control
+of declared order beside it. The web organ, the database fold and the
+GitHub organ all satisfy the contract and have no adapter yet; each is one
+`open()` away, and naming them is not the same as having written them.
+Orders 12 and above carry no capacity: `interact.js` stops at 11.

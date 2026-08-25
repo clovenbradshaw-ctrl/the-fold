@@ -771,6 +771,7 @@ export function makeRelationReader(organs) {
     extractLeadingSurfaces = null,
     thirdPersonSingular = null,
     determiners = null,
+    negationWords: negationClass = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -1156,6 +1157,54 @@ export function makeRelationReader(organs) {
     const resolutionOf = (end) =>
       end.formOnly ? "form" : end.referents.size ? "referent" : end.tokens.size ? "tokens" : "none";
 
+    // A span whose FIRST token is a received negation word is a span whose
+    // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P42).
+    //
+    // `extractRelations`'s own polarity gate is `negationBeforeVerbFor`: the
+    // negation word must sit BEFORE the verb it negates. When it does not,
+    // the extractor does not fail loudly — it silently reads a DIFFERENT
+    // clause, and the negation ends up leading the object span while the
+    // triple's own `polarity` stays "+". Two shapes produce this, both
+    // measured live on real prose:
+    //
+    //   "Seward did not negotiate X"   -> Seward —did[+]→ not negotiate X
+    //   "Seward negotiated not X"      -> Seward —negotiated[+]→ not X
+    //
+    // Left alone, that is not a missed contradiction — it is an INVERTED
+    // one wearing a real address. Measured, against material whose only
+    // relevant sentence is "Lincoln did not dismiss Seward":
+    // `"Lincoln did dismiss Seward"` came back BOUND, cited to that very
+    // passage. Both ends had mis-parsed identically, so they matched, and
+    // neither end's polarity had been read at all.
+    //
+    // The rule is therefore symmetric — claim side AND material-edge side —
+    // and it WITHHOLDS rather than flips: this file does not know what the
+    // polarity should have been, only that nothing measured it. Flipping
+    // would assert a reading no organ earned; `beyond-reach` says exactly
+    // what happened, and (per relationFindings's own standing rule) never
+    // counts against the answer. Over-firing is safe by construction for
+    // the same reason; the FIRST-token gate keeps it narrow anyway, since
+    // that is precisely the position the mis-parse puts the word in — a
+    // negation deeper inside an object ("the treaty but not the purchase")
+    // is a different, real, still-unaddressed construction, not this one.
+    //
+    // Gated on `organs.negationWords` — a RECEIVED closed class with its own
+    // named giver (the engine's own perceiver/text/priors.js NEGATION_WORDS,
+    // giver "lang/en"), never a word list typed here. Omitted: byte-identical
+    // to every caller before this pass.
+    const firstToken = (str) => {
+      const folded = diaNorm(String(str ?? "")).toLowerCase();
+      for (const t of folded.split(/[^\p{L}\p{N}'’]+/u)) if (t) return t;
+      return "";
+    };
+    //
+    // Reads the caller's own per-call `negationWords` when one was declared
+    // (it is the class `extractRelations` itself was handed for THIS read),
+    // and the injected organ otherwise — one class, never two that could
+    // disagree about what a negation is on opposite sides of the same read.
+    const negationInUse = negationWords ?? negationClass;
+    const negationLed = (str) => Boolean(negationInUse?.has(firstToken(str)));
+
     const stemEq = (a, b) =>
       a === b || (Math.min(a.length, b.length) >= MIN_STEM && (a.startsWith(b) || b.startsWith(a)));
     const intersects = (a, b) => {
@@ -1420,6 +1469,17 @@ export function makeRelationReader(organs) {
           reason: `“${t.subject}” doesn't resolve to anyone or anything this material establishes — a limit of this check, not a mark against the answer`,
         };
       }
+      // Claim side of the polarity-never-measured rule (see `negationLed`).
+      // Checked here rather than before endpoint resolution because the
+      // `endpoints` disclosure above is still true and still worth carrying
+      // on a claim this tier is about to decline.
+      if (negationLed(t.object)) {
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `the negation in “${t.object}” landed inside the object, not before the verb — this claim's polarity was never measured, so it is not one this tier can check; a limit of this extraction, not a mark against the answer`,
+        };
+      }
       const sameSubjVerb = edges.filter(
         (e) => sameAct(e.verb, t.verb) && intersects(e.subjectEnd.referents, subj.referents),
       );
@@ -1429,7 +1489,20 @@ export function makeRelationReader(organs) {
       // fillers) is the ordinary, unremarked case and carries nothing extra.
       const fillers = clusterFillers(sameSubjVerb);
       const cardinality = fillers.length > 1 ? { fillers } : {};
-      const matching = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
+      const matched = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
+      // Material side of the same rule. An edge whose own object span is
+      // negation-led carries a polarity nothing measured, so it may not
+      // decide this claim either way — `every`, not `some`: a clean edge
+      // sitting beside an unmeasured one still binds on its own merits.
+      const matching = matched.filter((e) => !negationLed(e.object));
+      if (matched.length && !matching.length) {
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `the only passage the material offers here states this with the negation inside its own object span, so its polarity was never measured — this tier cannot say whether it agrees or disagrees; a limit of this extraction, not a mark against the answer`,
+          nearest: matched.slice(0, NEAREST_EDGES_MAX).map(edgeFace),
+        };
+      }
       if (matching.length) {
         const agree = matching.filter((e) => e.polarity === t.polarity);
         const oppose = matching.filter((e) => e.polarity !== t.polarity);

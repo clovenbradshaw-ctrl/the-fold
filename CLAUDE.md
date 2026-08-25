@@ -4147,6 +4147,34 @@ negation-as-contradiction "lives only in `capacity-runner.js`, not in bare
 `contradicted` through bare `read()` for "never" and "hardly". The real
 limit is `relations.js::negationBeforeVerbFor` — the negation word must
 sit BEFORE the verb; "not"/"didn't" are already in the engine's own
-`NEGATION_WORDS`, so the shape fails, not the vocabulary. Post-verbal
-negation lands `bound` — a negated claim reported as supported — named as
-a hazard, not fixed.
+`NEGATION_WORDS`, so the shape fails, not the vocabulary.
+
+## Polarity nothing read is never a verdict (added 2026-08-25) — pointer
+
+POLICIES.md P42 is the law; this is the short map. The section above named
+a post-verbal `bound` as a hazard and left it. Chasing it found something
+worse: the extractor mis-parses THE MATERIAL the same way it mis-parses
+the claim, so against a passage reading "Lincoln did **not** dismiss
+Seward" the claim `"Lincoln did dismiss Seward"` came back **bound, cited
+to that passage**. Not a missed contradiction — an inverted one wearing a
+real address.
+
+**The rule.** A claim or an edge whose OBJECT span is led by a received
+negation word has a polarity nothing measured, so it decides nothing:
+`beyond-reach` with a typed reason, claim side and material side alike.
+Withheld, never flipped — this tier does not know what the reading should
+have been. First token only (that is where the mis-parse puts it);
+`every`, not `some`, on the edge side (a clean edge beside an unmeasurable
+one still binds). Gated on `organs.negationWords`, the engine's own
+`NEGATION_WORDS`, `lang/en`.
+
+**And the open question, answered for two organs only.** Both received
+classes this line of work added — `determiners` (P41) and `negationWords`
+(P42) — are now INJECTED at `app.js`'s own `makeRelationReader` call site,
+not left as organs nothing enables. The distinguishing test, which does
+NOT generalise on its own to `verbForms`/`createLemmatizer`: **does the
+prior close a false binding, or does it widen what the reader hears?** The
+first is a correctness fix and ships on; the second stays a separate
+decision. Honest cost, disclosed: a true-but-never-measured claim
+(`"Lincoln did not dismiss Seward"`) loses its accidental `bound` too.
+`"didn't"` still extracts no claim at all — silence, unfixed.

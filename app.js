@@ -311,6 +311,31 @@ const relationsFor = makeRelationReader({
   extractRelations,
   tokenize,
   posPriorFor: () => posPriorCache,
+  // Two RECEIVED closed classes, both from the engine's own prior register
+  // (perceiver/text/priors.js, giver "lang/en" — the same `enginePriors`
+  // namespace this file already imports), turned ON here rather than left
+  // opt-in, because each closes a measured FALSE BINDING in the live app
+  // rather than merely widening what the reader hears (POLICIES.md P41/P42):
+  //
+  //   determiners   — without it, `endpointsMatch`'s `tokensShare` fallback
+  //                   binds on a shared definite article alone whenever the
+  //                   corpus sits under commonTerms' own CORPUS_MINIMUM
+  //                   floor, which a turn's retrieved passages routinely do.
+  //                   Measured: "Seward negotiated the Suez canal" bound
+  //                   against material stating only "…the Alaska purchase";
+  //                   the same claim without "the" did not.
+  //   negationWords — without it, a negation the extractor put inside the
+  //                   OBJECT span (rather than before the verb, its own
+  //                   `negationBeforeVerbFor` gate) leaves polarity unread on
+  //                   both sides. Measured: "Lincoln did dismiss Seward"
+  //                   bound, cited to the passage that says he did NOT.
+  //
+  // Both are strictly conservative — they only ever turn a binding into a
+  // typed `beyond-reach`/`unbound`, never the reverse — and neither can
+  // manufacture a finding against an answer (beyond-reach stays off the
+  // unsupported list by relationFindings' own standing rule).
+  determiners: new Set([...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS]),
+  negationWords: enginePriors.NEGATION_WORDS,
   // Scoped to the extractor alone (hypergraph.js's own header says exactly
   // where) — succession.js's completeness gate, retrieval, and what the
   // model is shown all still read the real bytes.

@@ -4281,3 +4281,97 @@ earn and audio earned decisively. For THIS repo, whose material is text
 at sentence scale, the retrieval-layer guidance stands as written; a
 future audio or fine-timescale organ inherits the mechanism, never the
 exponent.
+
+## P43 — Polarity that was never measured is never a verdict, and a received class that closes a false binding is turned on
+
+**Renumbered from P42 on merge** — a concurrent PR (#74) independently
+landed its own P42 first, exactly as P42 itself records happening to P41.
+The number moved; nothing about the policy did.
+
+**The law, part one.** An organ may report a verdict only on what it
+actually read. `extractRelations`'s polarity gate is
+`relations.js::negationBeforeVerbFor` — the negation word must sit BEFORE
+the verb it negates. When it does not, the extractor does not fail loudly:
+it silently reads a different clause, the negation ends up leading the
+OBJECT span, and the triple's own `polarity` stays `"+"`. **A claim or an
+edge whose object span is led by a received negation word is therefore one
+whose polarity nothing measured, and it may not decide anything** — it is
+`beyond-reach` with a typed reason, on the claim side and on the material
+side alike.
+
+**Withheld, never flipped.** This tier does not know what the polarity
+should have been; it knows only that nothing read it. Flipping would
+assert a reading no organ earned — the same manufacture-from-absence P41
+closes in the other direction. `beyond-reach` says exactly what happened,
+and (by `relationFindings`'s own standing rule) never counts against an
+answer, which is what makes over-firing safe by construction.
+
+**The measured specimen, and why it is worse than a missed contradiction.**
+Against material whose only relevant sentence is *"Lincoln did **not**
+dismiss Seward"*, the extractor mis-parses THE MATERIAL identically to the
+claim, producing the edge `Lincoln —did[+]→ not dismiss Seward`. Both ends
+then carry an unread polarity, so they match:
+
+```
+"Lincoln did dismiss Seward"  ->  bound  [cabinet.txt#520-620]
+```
+
+Not a missed contradiction — an INVERTED one, cited to the very passage
+that refutes it. This is the shape P41's own results document had named as
+a mere "hazard" (a post-verbal negation landing `bound`) and left; chasing
+it found the citation.
+
+**Scope decisions that cost something.** The gate reads the FIRST token of
+an object span only — precisely the position the mis-parse puts the word
+in; a negation deeper inside an object (`"the treaty but not the
+purchase"`) is a different, real, still-unaddressed construction, not this
+one. The material side uses `every`, not `some`: a cleanly-stated edge
+sitting beside an unmeasurable one still binds on its own merits. And the
+class in use is the caller's own per-call `negationWords` when one was
+declared, the injected organ otherwise — one class, never two that could
+disagree about what a negation is on opposite sides of the same read.
+
+**The honest cost.** Every claim whose negation the extractor mis-slots
+now reads `beyond-reach` instead of a verdict — including
+`"Lincoln did not dismiss Seward"`, which is TRUE and used to read
+`bound`. That `bound` was accidental (nothing measured its polarity; the
+opposite claim bound just as readily), so withholding is the honest
+reading — but it is a real loss of verified claims, not a free fix.
+`"Seward didn't negotiate…"` still extracts no claim at all: silence, with
+no object to type, and not fixed.
+
+**The law, part two: a received class that closes a FALSE BINDING is
+turned on, not left opt-in.** P41 landed `organs.determiners` and this
+policy lands `organs.negationWords`, both received closed classes with named
+givers (`perceiver/text/priors.js`, `lang/en`). Both are now injected at
+`app.js`'s own `makeRelationReader` call site rather than left as organs
+nothing enables — because each closes a measured false binding in the live
+app, not merely a widening of what the reader hears. Both are
+one-directional (a binding can become `unbound`/`beyond-reach`, never the
+reverse) and neither can newly convict an answer.
+
+This deliberately ANSWERS, for these two organs only, the standing open
+question CLAUDE.md records for `verbForms` and `createLemmatizer` (whether
+the live app should load a received prior by default). The distinguishing
+test is the whole argument and does not generalise on its own: **does the
+prior close a false binding, or does it widen what the reader hears?** The
+first is a correctness fix and ships on; the second is a coverage
+trade-off and stays a separate decision.
+
+**Enforcement.** `hypergraph.test.mjs` (+6: the inverted-and-cited `bound`
+pinned as the defect so the fix cannot silently become a no-op; the
+received class closing it; the claim side for both mis-slot shapes; a
+CONTROL proving a correctly-read `never`/`hardly` still contradicts and an
+ordinary positive still binds; `every`-not-`some` on a clean edge beside
+an unmeasurable one; an opt-in byte-identity check). `eval/reasoning-e2e-
+no-llm.mjs`'s Tier 5 now runs every negation shape through readers with
+and without the class, side by side, and Tier 7 runs the ladder
+deliberately WITHOUT the received classes — the two defenses are real and
+independent.
+
+**Evidence.** Full account:
+`eval/results/reasoning-e2e-no-llm-RESULTS.md` §3b. Because this pass also
+touches `app.js`, it was measured over the WHOLE suite via `git stash`
+rather than the affected files alone: 993/972/21 before, 999/978/21 after
+— +6 tests, all passing, the same 21 pre-existing environment failures,
+zero regressions.

@@ -1100,3 +1100,106 @@ test("the determiner organ is opt-in: omitted, this reader is byte-identical to 
   assert.equal(plain.read("Pierre Bezukhov married Helene.").claims[0].verdict, "bound");
   assert.equal(withOrgan.read("Pierre Bezukhov married Helene.").claims[0].verdict, "bound");
 });
+
+// ── polarity that was never measured is never a verdict (2026-08-25) ────
+//
+// `extractRelations`'s own polarity gate is `negationBeforeVerbFor` — the
+// negation word must sit BEFORE the verb. When it does not, the extractor
+// does not fail loudly: it reads a different clause, the negation ends up
+// leading the OBJECT span, and the triple's polarity stays "+". The result
+// is not a missed contradiction but an inverted one wearing a real
+// address, measured live and pinned below.
+
+const NEGATION_PASSAGES = [
+  {
+    ref: "cabinet.txt#0-260",
+    text:
+      "Lincoln appointed Seward. " +
+      "Historians still argue over how much Lincoln trusted Seward. " +
+      "Seward negotiated the Alaska purchase. " +
+      "Seward negotiated the Alaska purchase again the following spring.",
+  },
+  {
+    ref: "cabinet.txt#520-620",
+    text: "Lincoln did not dismiss Seward, whatever the newspapers printed about Lincoln that year.",
+  },
+];
+
+const negationOrgans = async () => {
+  const { NEGATION_WORDS } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
+  return { ...(await organs()), negationWords: NEGATION_WORDS };
+};
+
+test("the defect: a positive claim binds against a negation-carrying edge, citing the passage that says the opposite", async () => {
+  // Pinned as it actually behaves WITHOUT the organ, so the fix cannot
+  // silently become a no-op if the underlying matcher ever changes.
+  const reader = makeRelationReader(await organs())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.verdict, "bound", "this is the defect: the material says he did NOT");
+  assert.ok(claim.refs.includes("cabinet.txt#520-620"), "and it cites the very passage that contradicts it");
+});
+
+test("a received negation class closes it — the inverted claim becomes beyond-reach, never a verdict", async () => {
+  const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, "the claim must still be extracted");
+  assert.equal(claim.verdict, "beyond-reach", "polarity was never measured on either side");
+  assert.match(claim.reason, /polarity was never measured/);
+});
+
+test("the claim side too: a negation the extractor put inside the object is withheld, not judged", async () => {
+  const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  for (const text of ["Seward negotiated not the Alaska purchase.", "Seward did not negotiate the Alaska purchase."]) {
+    const claim = reader.read(text).claims.find((c) => c.subject === "Seward");
+    assert.ok(claim, `${text} must extract a claim`);
+    assert.equal(claim.verdict, "beyond-reach", `${text} must not be judged`);
+    assert.match(claim.reason, /never measured/);
+  }
+});
+
+test("CONTROL: a negation the extractor DOES read correctly still contradicts — the gate never swallows a real verdict", async () => {
+  const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  for (const text of ["Seward never negotiated the Alaska purchase.", "Seward hardly negotiated the Alaska purchase."]) {
+    // Matched on the VERB, not the subject: when the extractor reads the
+    // negation correctly it leaves the negation word ON the subject span
+    // ("Seward never"), which is exactly the shape that proves it was read.
+    const claim = reader.read(text).claims.find((c) => c.verb === "negotiated");
+    assert.ok(claim, `${text} must extract a claim`);
+    assert.equal(claim.polarity, "-", `${text} must be read as negated at all`);
+    assert.equal(claim.verdict, "contradicted", `${text} is read correctly and must stay a real verdict`);
+  }
+  const positive = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.verb === "negotiated");
+  assert.equal(positive.verdict, "bound", "an ordinary positive claim is untouched");
+});
+
+test("a clean edge beside an unmeasured one still binds on its own merits — every, never some", async () => {
+  // The material states the same subject+verb twice: once with the
+  // negation inside the object span (unmeasurable) and once plainly. The
+  // plain one must still be allowed to decide a matching claim.
+  const mixed = [
+    {
+      ref: "mixed.txt#0-200",
+      text:
+        "Lincoln did not dismiss Seward that winter. " +
+        "Lincoln did dismiss Cameron in January, the papers agreed. " +
+        "Everyone at the table watched Lincoln closely, and Seward said nothing.",
+    },
+  ];
+  const reader = makeRelationReader(await negationOrgans())(mixed, { pool: mixed });
+  const claim = reader.read("Lincoln did dismiss Cameron.").claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.verdict, "bound", "the plainly-stated edge is not blocked by its unmeasurable neighbour");
+});
+
+test("the negation organ is opt-in: omitted, this reader is byte-identical to every caller before it", async () => {
+  const plain = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const withOrgan = makeRelationReader(await negationOrgans())(PASSAGES, { pool: POOL });
+  for (const text of ["Pierre Bezukhov married Helene.", "Pierre Bezukhov never loved Helene."]) {
+    assert.equal(
+      plain.read(text).claims[0]?.verdict,
+      withOrgan.read(text).claims[0]?.verdict,
+      `${text} must read identically with and without the organ`,
+    );
+  }
+});

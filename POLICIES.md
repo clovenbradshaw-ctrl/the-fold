@@ -4556,3 +4556,49 @@ Borodino, whose prose is dominated by collectives); one missing probe (order
 fillers in its declared slice). The stage remains unreadable, because order 5
 — the floor — is still a measured failure. Suite 718/605/113 → 721/608/113,
 the same 113 pre-existing sibling-engine path failures, zero regressions.
+
+### P44, second amendment (2026-08-25) — the floor fixed at the source, and the layering the fix nearly got wrong
+
+**The order-5 failure is closed, in the engine, not papered over in the
+battery.** eoreader7's `discoverReferents` (native/adapters/text/surfaces.js;
+its READING-SPEC.md S17 is the engine-side record, PR #24) replaced the
+first-match assignment scan with three mechanics: assignment walks
+most-individuated-first (a bare form's counts include its compounds'
+occurrences, so mention order seats fragments before their own evidence);
+membership is decided against a group's MAXIMAL member, never its weakest;
+and a multi-group merge happens only when the arriving surface's own tokens
+CONTAIN each group's maximal evidence — a compound witnesses downward, a
+bare fragment matching two groups witnesses nothing. Chasing it also found
+a second, worse defect the battery's regime measurement had not reached:
+with the fragment seated first, two REAL bearers accreted into one referent
+through a shared first name at the generic fence — an over-merge, where the
+strandings were only under-merges.
+
+**The correction that shaped the fix, from the user, mid-pass:**
+"coreference is a solved problem — are you doing it with referents or not?"
+The first cut admitted an ambiguous bare form as its own referent — a third
+being that does not exist, asserted at the TYPE level, which structurally
+cannot answer WHICH being a mention names (the same string names different
+people at different occurrences; READING-SPEC S11's "the type signature was
+the bug"). The solved architecture — each mention resolved against
+discourse salience — already exists in this engine as activation recall
+(`resolvePronouns`, roles.js's generalization), and the canon already
+routes ambiguity closure there (P2 stage 3's second pass; P3's per-text
+prior). So the type level now says exactly what it can check and no more:
+an ambiguous form lands as a typed `ambiguous_surface` GAP carrying its
+candidate referent ids, admission withheld, closure named as the
+occurrence layer's. The general statement, which is P38's rule meeting the
+constitutional withhold-or-convict rule: **a layer that cannot check a
+claim does not get to assert it — it names the layer that can, and hands
+over the candidates.**
+
+**Measured, end to end.** Battery coreference recall 23/24 → 24/24 (War
+and Peace) and 10/12 → 12/12 (Borodino), precision 4/4 and 3/3 unchanged,
+zero over-merges. Order 5 passes on both materials, and a stage is
+readable for the first time: War and Peace reads **stage 9 (Concrete)**,
+capped by order 10's missing probe (not a ceiling); Borodino reads
+**stage 6 (Sentential)**, capped by a REAL measured ceiling — order 7,
+pronoun binding, every attempt refused `pronoun_no_margin` on prose
+dominated by collectives. Scale still held: zero violations. Engine suite
+140/150 before and after (the identical 10 pre-existing environment
+failures); the-fold suite 721/608/113, unchanged.

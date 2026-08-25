@@ -4251,17 +4251,21 @@ is readable, because the floor failed and nothing above a failed floor sums.
 Orders 0-4 are `out_of_scope_by_construction`: this instrument receives
 symbols and has no sensor.
 
-**Order 5's failure is a real finding about `discoverReferents`, and it is
-NOT "cannot refer".** Precision is perfect (4/4, 3/3 pairs kept apart, no
-observed over-merge); recall is 23/24 and 10/12 against the organ's own
-individuation rule. All three strandings are one shape — a bare token left
-alone while the longer surface containing it merged elsewhere (`Mikhail`
-alone while `Mikhail Kutuzov` sits with `Kutuzov`). The cause is
-first-match-wins assignment with no second pass: a greedy closure over a
-NON-transitive relation, where "is the same being as" necessarily is
-transitive. Union-find is deliberately not prescribed — it would merge
-`Alexander` into `Emperor`, and the real chain starts further back with
-`genericTokens` under-firing on a bounded slice.
+**Order 5's failure was a real finding about `discoverReferents`, and it is
+CLOSED at the source** (second amendment in P44; the engine-side record is
+eoreader7's READING-SPEC.md S17, PR #24). The strandings were greedy
+first-match order-dependence; chasing them found a worse accretion
+over-merge the battery had not reached. The fix: evidence-first assignment
+order, membership against the group's maximal member, merges witnessed
+downward by containment, and — the part the user's own correction
+("coreference is a solved problem") re-aimed mid-fix — an ambiguous bare
+form is a typed `ambiguous_surface` GAP with candidates, never a third
+being: which being a MENTION names is the occurrence layer's solved
+question (activation recall), and the type level does not absorb it.
+After: recall 24/24 and 12/12, precision unchanged, order 5 passes on both
+materials, and a stage is readable for the first time — War and Peace at
+9 (capped by a missing probe), Borodino at 6 (capped by the real order-7
+pronoun ceiling).
 
 **Four wrong versions of that item, all the same error, kept so it is not
 re-made** (full list in P44): the probe repeatedly asked a question a

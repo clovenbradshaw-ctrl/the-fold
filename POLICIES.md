@@ -4256,3 +4256,28 @@ of its enforcement is disclosed as exactly that (VI.3's own posture).
 right but NOT significant (z = 0.72) — the received prior stands until
 the material's own measurement holds more evidence, which is the
 prior→material ladder behaving as designed, not a failure of it.
+
+
+**Amended same day — falsified where it could be, and sharpened by it.**
+The claim was put where it could lose (eoreader7,
+`native/eval/results/forgetting-falsification-RESULTS.md`, predictions
+frozen before the runs), on both of the asked-for fronts. READING A BOOK:
+at entity level — ranking the constitutional cast by who returns next
+sentence, the thing reading a novel actually asks of memory — power-law
+recall improves on frequency by 57% relative (paired z = 5.32, edge
+vanishing under sentence shuffling): not falsified, strengthened well
+beyond the motif task. LISTENING TO AUDIO: on real music (chroma states
+at ~46ms frames), the FIXED received exponent broke exactly where the
+frozen risk clause said it might — persistence dominates at that
+timescale and recency crushes d = 0.5 (z = −51.98) — while the
+material-measured need-odds estimator ADAPTED to the medium's own
+arrival statistics and landed within noise of the persistence oracle at
+2.8× the received prior. So the law this policy states is sharpened, not
+weakened: the durable, omnimodal mechanism is NEED-ODDS MATCHING; the
+power-law with d = 0.5 is a TEXT-SCALE prior (Anderson & Schooler's own
+environments were day-scale text needs), consulted first and superseded
+by the material's measured odds — which text was too thin per-step to
+earn and audio earned decisively. For THIS repo, whose material is text
+at sentence scale, the retrieval-layer guidance stands as written; a
+future audio or fine-timescale organ inherits the mechanism, never the
+exponent.

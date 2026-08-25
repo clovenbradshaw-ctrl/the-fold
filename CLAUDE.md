@@ -4166,3 +4166,9 @@ read). Exponential decay at the retrieval layer is the measured way to
 lose; so is typing either clock where a measurement is available.
 `fold.js`'s RECENCY_WINDOW = 4 and `retrieve`'s activation-free ranking are
 named in P42 as debts, not silently amended — wiring is its own pass.
+Amended same day, by falsification: at entity level (who returns next
+sentence) the law strengthened to +57% relative (z = 5.32); on real audio
+at ~46ms the fixed d = 0.5 broke (persistence dominates; the
+material-measured need-odds estimator adapted and beat it 2.8×) — so the
+omnimodal mechanism is need-odds matching, the exponent is a text-scale
+prior, and this repo's text-scale guidance stands as written.

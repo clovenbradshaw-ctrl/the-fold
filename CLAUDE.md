@@ -4200,3 +4200,142 @@ first is a correctness fix and ships on; the second stays a separate
 decision. Honest cost, disclosed: a true-but-never-measured claim
 (`"Lincoln did not dismiss Seward"`) loses its accidental `bound` too.
 `"didn't"` still extracts no claim at all — silence, unfixed.
+
+## The MHC battery — capacity scored against a received scale (added 2026-08-25)
+
+POLICIES.md P44 is the law; this is the map. The ask: test this system's
+capacity against Commons's Model of Hierarchical Complexity.
+
+**The scale is received, and this repo already recorded the convergence.**
+`eo-wiki/articles/wiki/mhc-and-eo.md` holds the sixteen orders and names
+the MHC "an important convergent instance" — independently derived,
+arriving at the same structural conclusion this project's grain axis does
+(a higher order must be defined in terms of, and non-arbitrarily organize,
+the one below). Nothing here invents an order or reorders the sequence;
+`mhc.js`'s `GIVER` names Commons, Richards, and the wiki article the table
+was reproduced from.
+
+**Why the MHC earns its place rather than a home-grown scale.** Commons's
+own complaint about predecessor stage theories is that they confounded
+stimulus and response — scoring performances without independently
+specifying the task's complexity. That is this repo's own line drawn from
+the other direction (the cube is not a content classifier). The MHC adds
+what a local scale could not: quantal scoring, and content-independence as
+a property that can be TESTED by running one battery over two materials.
+
+**The three axioms are control arms, not assertions** — see P44. The one
+worth restating here is the consequence: **a refused item is a gap in the
+battery, never a failure of the system.** `stageFrom` will not read a stage
+across an unmeasured order and carries passes above the cap as `isolated`,
+never summed in.
+
+**READING-POLICY governs this more than anything in this repo does, and
+reading it changed the design three times.** P0 ("any claim about what
+this system can do must name the assembly") makes `assembly` a required
+field on every item and on the report — and forces the honest statement
+that this driver hand-chains organs, so it is an EXPERIMENT, not
+`packages/host`'s assembled reader. P3 ("state which priors were
+injected") caught a live false measurement: an early item scored the
+system on folding "Abraham Lincoln" into "Lincoln", which P3 says outright
+is measuring the missing coref prior, not the engine. A10 ("before
+spending a null, check the pair is licensed — a statistic insensitive to
+its perturbation fails invisibly and globally") is the rule every arm now
+lives under, since every arm IS a null; it caught the order-12 arm
+shuffling cells AFTER the organ had already gated them.
+
+**Measured result** (amended 2026-08-25, below — the first cut read this
+wrong). Orders 6, 8, 9, 11, 12, 13 pass on both materials; order 5 fails on
+both; order 7 varies by material and order 10 lacks a probe in one. **The
+scale held: zero orders changed their order-hood with the content.** No stage
+is readable, because the floor failed and nothing above a failed floor sums.
+Orders 0-4 are `out_of_scope_by_construction`: this instrument receives
+symbols and has no sensor.
+
+**Order 5's failure was a real finding about `discoverReferents`, and it is
+CLOSED at the source** (second amendment in P44; the engine-side record is
+eoreader7's READING-SPEC.md S17, PR #24). The strandings were greedy
+first-match order-dependence; chasing them found a worse accretion
+over-merge the battery had not reached. The fix: evidence-first assignment
+order, membership against the group's maximal member, merges witnessed
+downward by containment, and — the part the user's own correction
+("coreference is a solved problem") re-aimed mid-fix — an ambiguous bare
+form is a typed `ambiguous_surface` GAP with candidates, never a third
+being: which being a MENTION names is the occurrence layer's solved
+question (activation recall), and the type level does not absorb it.
+After: recall 24/24 and 12/12, precision unchanged, order 5 passes on both
+materials, and a stage is readable for the first time — War and Peace at
+9 (capped by a missing probe), Borodino at 6 (capped by the real order-7
+pronoun ceiling).
+
+**Four wrong versions of that item, all the same error, kept so it is not
+re-made** (full list in P44): the probe repeatedly asked a question a
+lower-purpose organ could not answer and then scored the reading for the
+probe's own error — including reading the coref regimes off `cast.js`'s
+`minSentences: 0` PRESENCE index, which is this repo's own P38 walked into
+by a new driver against the very organ P38 was written about.
+
+**Files.** `mhc.js` (pure, no engine import — items supply their own
+async task and arms) + `mhc.test.mjs` (31 cases, organ-free on purpose so
+the walls stay testable wherever this repo is checked out; the full suite
+went 687/574/113 → 718/605/113, the same 113 pre-existing sibling-engine
+path failures, zero regressions). `eval/mhc-battery.mjs` + `eval/results/
+mhc-RESULTS.md` + `mhc-battery.json` — a re-runnable driver, P19/P27's own
+posture, over two real Wikipedia fixtures this repo already ships.
+
+**Amended same day — order 13 trusted rather than disclosed, and a
+conceptual bug in this battery's own content-independence check.** Order 13
+was the ladder's shakiest rung: it refused on one material and passed on the
+other, and the difference was luck. Diagnosed rather than patched — it was
+A10 again, one level deeper. The arbitrary arm mixed in whichever second
+claim came to hand; on War and Peace that claim (`content -from-> Wikipedia`)
+contributed ONLY `undetermined` readings, which `mergeTestimony` genuinely
+does not read, so the mix could not change the merge and the arm reported the
+coordination arbitrary while testing nothing (fired 20 of 20 there, 0 of 20
+on Borodino, on that difference alone).
+
+Rebuilt around what is actually metasystematic: a claim's **standing across
+witnesses** — corroborated, or a lone voice — is a property of the SET that no
+member carries. Two real claims are now selected BY MEASUREMENT against a
+fixed sample of ten source-systems: one the sample corroborates (>=2 bind) and
+one it does not (exactly 1 binds). The task requires the merge to type them
+`AGREE`/`corroborated` and `SINGLE`/`single`, AND — the non-circular part —
+that below the merge the two are INDISTINGUISHABLE: each has a system saying
+exactly `holds`, the same word, carrying no standing of its own. Every arm is
+now licensed by construction: `lowerOrder` only if the two merges genuinely
+differ, `arbitrary` only if the mixed set's hold/refused counts differ from
+the clean one, `discrimination` only if the reversed claim really draws fewer
+holds. Passes on both materials, all three arms licensed and failing as they
+must.
+
+**The conceptual bug that fix surfaced.** `contentIndependence` compared raw
+per-order verdicts and reported every difference under one heading — "these
+items are reading content, not structure." For a passed-here/failed-there
+difference that is simply FALSE. The MHC's content-independence is a claim
+about the SCALE (a task's order does not depend on what it is about); it is
+emphatically not a claim that a performer succeeds equally across domains —
+separating task from performance is precisely what makes a per-domain
+difference ordinary. Three outcomes are now kept apart: a **violation** (valid
+on one material, MIS-DECLARED on another — the real thing the scale forbids),
+a **performance** difference (valid both times, completed once), and **no
+probe** (the material offers no specimen). Reading only the collapsed
+order-level status is how the first version could not see a violation at all,
+so `byOrder` now carries `refusedCount` and `unmeasuredCount` apart.
+
+Under the corrected reading: **held: true, zero violations**, seven orders
+agreeing outright, one performance difference (order 7, pronoun binding — real
+bindings on War and Peace, all `pronoun_no_margin` on Borodino, whose prose is
+dominated by collectives), one missing probe (order 10 on War and Peace, which
+offers no subject+verb slot with two distinct fillers in its declared slice).
+Suite 718/605/113 -> 721/608/113, the same 113 pre-existing failures.
+
+**Disclosed, not silently absent.** The battery resolves the engine across
+two known layouts (`eoreader6.1/packages/engine/perceiver/text`,
+`eoreader7/native/adapters/text`) and DECLARES which it found, because a
+hardcoded path would report "organ unreachable" as a statement about the
+system when it is a statement about a path — this checkout has only the
+second. Orders 14-16 carry one item (order 14, paradigmatic) whose task is
+a search for an organ that coordinates two metasystematic results into a
+third framework; it fails, naming what was searched. Order 13's arbitrary arm
+perturbs claim-GROUPING rather than source identity, because
+`mergeTestimony`'s verdict is invariant to WHO said what by construction —
+shuffling source labels would be A10's trap exactly.

@@ -1158,7 +1158,7 @@ export function makeRelationReader(organs) {
       end.formOnly ? "form" : end.referents.size ? "referent" : end.tokens.size ? "tokens" : "none";
 
     // A span whose FIRST token is a received negation word is a span whose
-    // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P42).
+    // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P43).
     //
     // `extractRelations`'s own polarity gate is `negationBeforeVerbFor`: the
     // negation word must sit BEFORE the verb it negates. When it does not,

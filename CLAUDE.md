@@ -4200,3 +4200,92 @@ first is a correctness fix and ships on; the second stays a separate
 decision. Honest cost, disclosed: a true-but-never-measured claim
 (`"Lincoln did not dismiss Seward"`) loses its accidental `bound` too.
 `"didn't"` still extracts no claim at all — silence, unfixed.
+
+## The MHC battery — capacity scored against a received scale (added 2026-08-25)
+
+POLICIES.md P44 is the law; this is the map. The ask: test this system's
+capacity against Commons's Model of Hierarchical Complexity.
+
+**The scale is received, and this repo already recorded the convergence.**
+`eo-wiki/articles/wiki/mhc-and-eo.md` holds the sixteen orders and names
+the MHC "an important convergent instance" — independently derived,
+arriving at the same structural conclusion this project's grain axis does
+(a higher order must be defined in terms of, and non-arbitrarily organize,
+the one below). Nothing here invents an order or reorders the sequence;
+`mhc.js`'s `GIVER` names Commons, Richards, and the wiki article the table
+was reproduced from.
+
+**Why the MHC earns its place rather than a home-grown scale.** Commons's
+own complaint about predecessor stage theories is that they confounded
+stimulus and response — scoring performances without independently
+specifying the task's complexity. That is this repo's own line drawn from
+the other direction (the cube is not a content classifier). The MHC adds
+what a local scale could not: quantal scoring, and content-independence as
+a property that can be TESTED by running one battery over two materials.
+
+**The three axioms are control arms, not assertions** — see P44. The one
+worth restating here is the consequence: **a refused item is a gap in the
+battery, never a failure of the system.** `stageFrom` will not read a stage
+across an unmeasured order and carries passes above the cap as `isolated`,
+never summed in.
+
+**READING-POLICY governs this more than anything in this repo does, and
+reading it changed the design three times.** P0 ("any claim about what
+this system can do must name the assembly") makes `assembly` a required
+field on every item and on the report — and forces the honest statement
+that this driver hand-chains organs, so it is an EXPERIMENT, not
+`packages/host`'s assembled reader. P3 ("state which priors were
+injected") caught a live false measurement: an early item scored the
+system on folding "Abraham Lincoln" into "Lincoln", which P3 says outright
+is measuring the missing coref prior, not the engine. A10 ("before
+spending a null, check the pair is licensed — a statistic insensitive to
+its perturbation fails invisibly and globally") is the rule every arm now
+lives under, since every arm IS a null; it caught the order-12 arm
+shuffling cells AFTER the organ had already gated them.
+
+**Measured result.** Orders 6, 8, 9, 11, 12 pass on both materials;
+order 5 fails on both; 7, 10, 13 diverge, so content-independence does not
+hold for this battery — reported as a property of the battery. No stage is
+readable, because the floor failed and nothing above a failed floor sums.
+Orders 0-4 are `out_of_scope_by_construction`: this instrument receives
+symbols and has no sensor.
+
+**Order 5's failure is a real finding about `discoverReferents`, and it is
+NOT "cannot refer".** Precision is perfect (4/4, 3/3 pairs kept apart, no
+observed over-merge); recall is 23/24 and 10/12 against the organ's own
+individuation rule. All three strandings are one shape — a bare token left
+alone while the longer surface containing it merged elsewhere (`Mikhail`
+alone while `Mikhail Kutuzov` sits with `Kutuzov`). The cause is
+first-match-wins assignment with no second pass: a greedy closure over a
+NON-transitive relation, where "is the same being as" necessarily is
+transitive. Union-find is deliberately not prescribed — it would merge
+`Alexander` into `Emperor`, and the real chain starts further back with
+`genericTokens` under-firing on a bounded slice.
+
+**Four wrong versions of that item, all the same error, kept so it is not
+re-made** (full list in P44): the probe repeatedly asked a question a
+lower-purpose organ could not answer and then scored the reading for the
+probe's own error — including reading the coref regimes off `cast.js`'s
+`minSentences: 0` PRESENCE index, which is this repo's own P38 walked into
+by a new driver against the very organ P38 was written about.
+
+**Files.** `mhc.js` (pure, no engine import — items supply their own
+async task and arms) + `mhc.test.mjs` (31 cases, organ-free on purpose so
+the walls stay testable wherever this repo is checked out; the full suite
+went 687/574/113 → 718/605/113, the same 113 pre-existing sibling-engine
+path failures, zero regressions). `eval/mhc-battery.mjs` + `eval/results/
+mhc-RESULTS.md` + `mhc-battery.json` — a re-runnable driver, P19/P27's own
+posture, over two real Wikipedia fixtures this repo already ships.
+
+**Disclosed, not silently absent.** The battery resolves the engine across
+two known layouts (`eoreader6.1/packages/engine/perceiver/text`,
+`eoreader7/native/adapters/text`) and DECLARES which it found, because a
+hardcoded path would report "organ unreachable" as a statement about the
+system when it is a statement about a path — this checkout has only the
+second. Orders 14-16 carry one item (order 14, paradigmatic) whose task is
+a search for an organ that coordinates two metasystematic results into a
+third framework; it fails, naming what was searched. Order 13's arms are
+the shakiest of the ladder: its arbitrary arm perturbs claim-GROUPING
+(shuffling source labels would be unlicensed — `mergeTestimony`'s verdict
+is invariant to source identity by construction, A10's trap exactly), and
+it still refuses on one material.

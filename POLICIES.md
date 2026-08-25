@@ -4494,3 +4494,65 @@ rescue firing correctly. In all four the reading was right and the probe
 was wrong. Pairs whose decision needs that rescue branch are now excluded
 from the score and counted as a disclosed abstention, rather than
 reimplementing the engine's partner floor in a driver.
+
+### P44, amended 2026-08-25 — order 13 earned, and content-independence read correctly
+
+**The rung.** Order 13 refused on one material and passed on the other, and
+the difference was luck rather than measurement. Diagnosed, not patched: it
+was A10 one level deeper. The arbitrary arm destroyed claim-GROUPING (the
+right coordination to perturb — `mergeTestimony`'s verdict is invariant to
+source identity by construction, so shuffling WHO said what would be the
+insensitive-statistic trap) but mixed in whichever second claim came to hand.
+On War and Peace that claim contributed only `undetermined` readings, which
+`mergeTestimony` genuinely does not read, so the mix could not change the
+merge and the arm declared the coordination arbitrary while testing nothing:
+fired 20 of 20 there, 0 of 20 on Borodino, on that difference alone.
+
+**What made it trustworthy was finding the thing that is actually
+metasystematic.** A claim's STANDING across witnesses — corroborated, or a
+lone voice — is a property of the SET that no member of it carries. Two real
+claims are selected BY MEASUREMENT against a fixed sample of ten
+source-systems: one the sample corroborates (two or more bind it) and one it
+does not (exactly one binds). The task requires the merge to type them
+`AGREE`/`corroborated` and `SINGLE`/`single`, and — the clause that makes it
+non-circular — that BELOW the merge the two are indistinguishable: each has a
+system saying exactly `holds`, the same word, carrying no standing of its own.
+The order-13 finding is therefore demonstrably not available at order 12,
+rather than asserted to be. Every arm now carries its own licence: `lowerOrder`
+only if the two merges genuinely differ, `arbitrary` only if the mixed set's
+hold/refused counts differ from the clean set's, `discrimination` only if the
+reversed claim really draws fewer holds. All three licensed and failing as
+they must, on both materials.
+
+**The general rule this adds.** A perturbation must be chosen against the
+statistic's own readable inputs, and its licence CHECKED against them, not
+assumed from the perturbation's shape. "I mixed in a second claim" looks like
+a perturbation; "the mixed set's holds and refusals differ from the clean
+set's" is one. The first version was already perturbing the right THING and
+was still unlicensed, which is why the licence has to be computed rather than
+argued.
+
+**And the conceptual bug it surfaced, which was this battery's own.**
+`contentIndependence` compared raw per-order verdicts and reported every
+difference as "these items are reading content, not structure." That is FALSE
+for a passed-here/failed-there difference. The MHC's content-independence is a
+claim about the SCALE — a task's order does not depend on what it is about —
+and emphatically NOT a claim that a performer succeeds equally across domains.
+Separating task from performance is exactly what makes a per-domain difference
+ordinary; it is what a stage measurement is for. Three outcomes are now kept
+apart: **violation** (a valid order-N task on one material, MIS-DECLARED on
+another — the only thing the scale forbids), **performance** (valid in both,
+completed in one), **no probe** (the material offers no specimen). Reading
+only the collapsed order-level status is how the first version could not see a
+violation at all, so `byOrder` carries `refusedCount` and `unmeasuredCount`
+apart — the same "two facts, never collapsed" discipline this policy already
+holds items to, applied to the rows above them.
+
+**Corrected result.** Scale **held: true**, zero violations. Seven orders
+agree outright (5 failed, 6/8/9/11/12/13 passed); one performance difference
+(order 7 — real pronoun bindings on War and Peace, all `pronoun_no_margin` on
+Borodino, whose prose is dominated by collectives); one missing probe (order
+10 on War and Peace, which offers no subject+verb slot with two distinct
+fillers in its declared slice). The stage remains unreadable, because order 5
+— the floor — is still a measured failure. Suite 718/605/113 → 721/608/113,
+the same 113 pre-existing sibling-engine path failures, zero regressions.

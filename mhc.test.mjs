@@ -274,21 +274,59 @@ test("content-independence is refused as unexamined below two materials", async 
   assert.equal(c.gap, "not_examined");
 });
 
-test("the same profile across different content holds; a divergence names the order", async () => {
+test("the same profile across different content holds", async () => {
   const a = await runBattery2(chain(7));
   const b = await runBattery2(chain(7));
-  assert.equal(contentIndependence([{ material: "a", report: a }, { material: "b", report: b }]).held, true);
+  const c = contentIndependence([{ material: "a", report: a }, { material: "b", report: b }]);
+  assert.equal(c.held, true);
+  assert.equal(c.violations.length, 0);
+  assert.equal(c.performance.length, 0);
+});
 
+test("a performance difference is NOT a content-independence violation", async () => {
+  // The MHC separates task from performance precisely so that one performer
+  // can meet an order in one domain and fail it in another. Both runs here
+  // measured a well-formed order-7 task; the system completed one. That is
+  // ordinary, and reporting it as "the item is reading content" — which an
+  // earlier version of this function did — is simply false.
+  const a = await runBattery2(chain(7));
   const c = await runBattery2(chain(7, { 7: { task: async () => false } }));
   const split = contentIndependence([{ material: "a", report: a }, { material: "c", report: c }]);
-  assert.equal(split.held, false);
-  assert.equal(split.divergent[0].order, 7);
+  assert.equal(split.held, true, "the scale's claim is untouched by a performance difference");
+  assert.equal(split.violations.length, 0);
+  assert.equal(split.performance.length, 1);
+  assert.equal(split.performance[0].order, 7);
   assert.deepEqual(
-    split.divergent[0].statuses.map((s) => s.status),
+    split.performance[0].cells.map((x) => x.status),
     ["passed", "failed"],
   );
 });
 
+test("an item valid on one material and MIS-DECLARED on another IS a violation", async () => {
+  // This is the real thing the scale forbids: the item's order-hood changed
+  // with the content.
+  const a = await runBattery2(chain(7));
+  const c = await runBattery2(chain(7, { 7: { arms: { ...item().arms, arbitrary: async () => true } } }));
+  const split = contentIndependence([{ material: "a", report: a }, { material: "c", report: c }]);
+  assert.equal(split.held, false);
+  assert.equal(split.violations.length, 1);
+  assert.equal(split.violations[0].order, 7);
+  assert.deepEqual(
+    split.violations[0].cells.map((x) => x.validity),
+    ["valid", "mis-declared"],
+  );
+});
+
+test("a material that offers no probe is neither a violation nor a performance difference", async () => {
+  const a = await runBattery2(chain(7));
+  const c = await runBattery2(chain(7, { 7: { task: async () => ({ unreachable: true, detail: "no specimen here" }) } }));
+  const split = contentIndependence([{ material: "a", report: a }, { material: "c", report: c }]);
+  assert.equal(split.held, true);
+  assert.equal(split.violations.length, 0);
+  assert.equal(split.performance.length, 0);
+  assert.equal(split.noProbe.length, 1);
+  assert.equal(split.noProbe[0].order, 7);
+});
 
 // ── what READING-POLICY binds (P0, P2, P3, A9/A10) ────────────────────────
 

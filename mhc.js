@@ -527,10 +527,18 @@ function byOrder(results) {
   for (const order of [...map.keys()].sort((a, b) => a - b)) {
     const rows = map.get(order);
     const failed = rows.filter((r) => r.status === "failed");
-    const unmeasured = rows.filter((r) => r.status === "refused" || r.status === "unmeasured");
+    // REFUSED and UNMEASURED are collapsed into one order-level `status`
+    // because for reading a stage they are the same fact (nothing was
+    // measured here). They are NOT the same fact for content-independence —
+    // a mis-declared item is a defect in the battery, an absent probe is a
+    // fact about the material — so both counts are carried apart alongside it.
+    // Reading only the collapsed status is how an earlier `contentIndependence`
+    // failed to see a real violation at all.
+    const refused = rows.filter((r) => r.status === "refused");
+    const unmeasured = rows.filter((r) => r.status === "unmeasured");
     let status = "passed";
     if (failed.length) status = "failed";
-    else if (unmeasured.length) status = "unmeasured";
+    else if (refused.length || unmeasured.length) status = "unmeasured";
     out.push(
       Object.freeze({
         order,
@@ -541,6 +549,7 @@ function byOrder(results) {
         // are carried: an order can be genuinely failed AND partly unmeasured,
         // and collapsing that to one word would hide half of it.
         failedCount: failed.length,
+        refusedCount: refused.length,
         unmeasuredCount: unmeasured.length,
       }),
     );
@@ -604,17 +613,35 @@ export function stageFrom(report) {
   });
 }
 
-/** CONTENT-INDEPENDENCE, the MHC's own central property, checked rather than
- * assumed. The scale is supposed to track "the structural organization of
- * information, not its content" — so the SAME battery run over two materials
- * of different content must return the same per-order profile. Where it does
- * not, the divergent orders are named: those items are reading content, and
- * whatever they measured is not an order of hierarchical complexity.
+/** CONTENT-INDEPENDENCE — and the distinction an earlier version of this
+ * function got wrong, which is worth stating because the wrong version is the
+ * intuitive one.
  *
- * This is the same check, one register over, that refuted the cube as a
- * content classifier — and it is run for the same reason: because the claim
- * is cheap to make and cheap to test, and this repo does not ship the first
- * without the second. */
+ * The MHC's claim is about the SCALE: a task's ORDER is a property of its
+ * subtask structure, determinable analytically, and does not depend on what
+ * the task is about. It is emphatically NOT a claim that a performer succeeds
+ * equally across domains — the whole point of separating task from performance
+ * is that one performer meets an order-11 task in one domain and fails the
+ * same order in another. That is ordinary, and it is what a stage measurement
+ * is FOR.
+ *
+ * The first version here compared raw per-order verdicts across materials and
+ * reported every difference under one heading — "these items are reading
+ * content, not structure." For a passed-here/failed-there difference that is
+ * simply false: both runs measured a well-formed order-N task and the system
+ * completed one and not the other. Three outcomes are therefore kept apart:
+ *
+ *   violation      — an item that is a VALID order-N task on one material and
+ *                    MIS-DECLARED (its axiom arms failed) on another. This is
+ *                    the real thing: the item's order-hood depends on content,
+ *                    which the scale forbids.
+ *   performance    — valid everywhere, completed in one material and not
+ *                    another. Ordinary, reported, never counted as a failure
+ *                    of the scale.
+ *   noProbe        — the material offers no specimen for the item at all.
+ *                    A fact about the material, not about either the item or
+ *                    the system.
+ */
 export function contentIndependence(reports) {
   const runs = (reports ?? []).filter(Boolean);
   if (runs.length < 2) {
@@ -624,25 +651,54 @@ export function contentIndependence(reports) {
       runs: runs.length,
     });
   }
+
+  // A valid order-N task is one whose axioms held and whose arms were
+  // licensed — which is exactly the set of items that reached a performance
+  // verdict at all.
+  const validityOf = (row) => {
+    if (!row) return "no-probe";
+    if (row.refusedCount > 0) return "mis-declared";
+    if (row.status === "passed" || row.status === "failed") return "valid";
+    return "no-probe";
+  };
+
   const orders = new Set();
   for (const r of runs) for (const o of r.report.orders) orders.add(o.order);
 
-  const divergent = [];
+  const violations = [];
+  const performance = [];
+  const noProbe = [];
   const agreed = [];
+
   for (const order of [...orders].sort((a, b) => a - b)) {
-    const statuses = runs.map((r) => ({
-      material: r.material,
-      status: r.report.orders.find((o) => o.order === order)?.status ?? "no_item_declared",
-    }));
-    const distinct = new Set(statuses.map((s) => s.status));
-    if (distinct.size === 1) agreed.push(Object.freeze({ order, status: statuses[0].status }));
-    else divergent.push(Object.freeze({ order, statuses: Object.freeze(statuses) }));
+    const cells = runs.map((r) => {
+      const row = r.report.orders.find((o) => o.order === order);
+      const status = row?.status ?? "no_item_declared";
+      return { material: r.material, status, validity: validityOf(row) };
+    });
+    const validities = new Set(cells.map((c) => c.validity));
+    const statuses = new Set(cells.map((c) => c.status));
+
+    if (validities.has("valid") && validities.has("mis-declared")) {
+      violations.push(Object.freeze({ order, cells: Object.freeze(cells) }));
+    } else if (validities.has("no-probe")) {
+      noProbe.push(Object.freeze({ order, cells: Object.freeze(cells) }));
+    } else if (statuses.size > 1) {
+      performance.push(Object.freeze({ order, cells: Object.freeze(cells) }));
+    } else {
+      agreed.push(Object.freeze({ order, status: cells[0].status }));
+    }
   }
+
   return Object.freeze({
     examined: true,
     materials: Object.freeze(runs.map((r) => r.material)),
-    held: divergent.length === 0,
+    // `held` is the SCALE's claim and nothing else: no item changed its
+    // order-hood with the content.
+    held: violations.length === 0,
+    violations: Object.freeze(violations),
+    performance: Object.freeze(performance),
+    noProbe: Object.freeze(noProbe),
     agreed: Object.freeze(agreed),
-    divergent: Object.freeze(divergent),
   });
 }

@@ -320,3 +320,72 @@ test("the four disclosed-absent cells always say WHY they are absent, never a ba
     assert.ok(t.why && t.why.length > 10, `${terrain} must name why it is unbuilt, not just say so`);
   }
 });
+
+// ── Entity says what it checked, never what it inferred (2026-08-25) ────
+//
+// The specimen, from eval/reasoning-e2e-no-llm.mjs's own Tier 4 output:
+// "Lincoln appointed Napoleon" against material with no Napoleon in it
+// comes back `unbound` (not `beyond-reach` — hypergraph.js gates that on
+// the SUBJECT), and this cell reported `holds — subject and object both
+// resolve to referents this material establishes`. It had checked one end
+// and spoken for two.
+
+test("Entity never asserts the object resolved when the claim's own disclosure says it did not", () => {
+  const hgReport = { examined: true, vocabulary: { verbs: 11 } };
+  const hgClaim = {
+    verdict: "unbound",
+    subject: "Lincoln",
+    verb: "appointed",
+    object: "Napoleon",
+    endpoints: { subject: "referent", object: "tokens" },
+  };
+  const entity = verificationTasksFor({ hgReport, hgClaim }).find((t) => t.terrain === "Entity");
+  assert.equal(entity.verdict, "holds", "the verdict itself is deliberately unchanged — only the claim made about it");
+  assert.doesNotMatch(entity.reason, /both resolve/, "the object was never resolved, so nothing may say it was");
+  assert.match(entity.reason, /Napoleon/, "the reason names the endpoint it is actually talking about");
+  assert.match(entity.reason, /compared by content word alone/);
+  assert.deepEqual(entity.endpoints, { subject: "referent", object: "tokens" }, "machine-readable, not only prose");
+});
+
+test("Entity keeps its plain both-resolved sentence exactly when both ends really did resolve", () => {
+  const hgReport = { examined: true, vocabulary: { verbs: 11 } };
+  const hgClaim = {
+    verdict: "bound",
+    subject: "Lincoln",
+    verb: "appointed",
+    object: "Seward",
+    endpoints: { subject: "referent", object: "referent" },
+  };
+  const entity = verificationTasksFor({ hgReport, hgClaim }).find((t) => t.terrain === "Entity");
+  assert.equal(entity.verdict, "holds");
+  assert.equal(entity.reason, "subject and object both resolve to referents this material establishes");
+});
+
+test("a form-resolved subject is disclosed as a form on the Entity cell, never as a named referent", () => {
+  const hgReport = { examined: true, vocabulary: { verbs: 4 } };
+  const hgClaim = {
+    verdict: "bound",
+    subject: "Butterflies",
+    verb: "undergo",
+    object: "metamorphosis",
+    formBased: true,
+    endpoints: { subject: "form", object: "referent" },
+  };
+  const entity = verificationTasksFor({ hgReport, hgClaim }).find((t) => t.terrain === "Entity");
+  assert.match(entity.reason, /recurring form/);
+  assert.doesNotMatch(entity.reason, /both resolve/);
+});
+
+test("a claim carrying no endpoint disclosure at all says so, rather than claiming the object was checked", () => {
+  // Backward compatibility with every caller that predates the disclosure —
+  // and with hypergraph.js's own grammar gate, which returns beyond-reach
+  // before endpoints are ever computed. The cell still holds; the sentence
+  // stops speaking for an end nobody reported on.
+  const hgReport = { examined: true, vocabulary: { verbs: 3 } };
+  const hgClaim = { verdict: "bound", subject: "Pierre Bezukhov", verb: "married", object: "Helene" };
+  const entity = verificationTasksFor({ hgReport, hgClaim }).find((t) => t.terrain === "Entity");
+  assert.equal(entity.verdict, "holds");
+  assert.doesNotMatch(entity.reason, /both resolve/);
+  assert.match(entity.reason, /no endpoint disclosure/);
+  assert.equal(entity.endpoints, undefined, "an absent disclosure is never fabricated into a present one");
+});

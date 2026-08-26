@@ -117,8 +117,32 @@ export function declaredSlotShape(question, { definiteDeterminers, inflectionalS
 
   const last = head[head.length - 1];
   const bareS = last.length > 3 && /s$/.test(last) && !/ss$/.test(last) && !/['’]s$/.test(last) && inflectionalSuffixes.has("s");
+  // GRAMMATICAL NUMBER IS NOT CARDINALITY. A singular head phrase used to
+  // return `declared: "single"` — an assertion about how many fillers the
+  // WORLD holds, read off English morphology alone. It is not one: "who was
+  // Lincoln's vice president?" is grammatically singular and factually
+  // two-valued (Hamlin 1861-65, Johnson 1865), and every wrong answer this
+  // question produced named exactly one man. Declaring the space
+  // single-filler before any material is consulted is the unearned overlay
+  // this codebase already refuses elsewhere — Thrax's categories deciding a
+  // fact about the world (hypergraph.js's own giver note), and P4's "numbers
+  // are declared, gaps are results" read backwards.
+  //
+  // So the absence of a plural marker now earns "unknown" — the honest zero
+  // of the space, waiting on the material — while the grammatical reading is
+  // kept as a DISCLOSURE (`grammaticalNumber`) rather than thrown away. A
+  // plural marker still earns "enumerated": that one IS positive evidence
+  // the asker expects many, and nothing downstream should stop treating it
+  // as such.
+  //
+  // Deliberately NOT claimed: this does not by itself find a second filler.
+  // web-hunt.js's REC trigger reads `declared !== "enumerated"`, which is
+  // true for both "single" and "unknown", so concession behaviour is
+  // unchanged. What changes is that nothing downstream may now read a
+  // one-filler WORLD out of a one-noun QUESTION.
   return {
-    declared: bareS ? "enumerated" : "single",
+    declared: bareS ? "enumerated" : "unknown",
+    grammaticalNumber: bareS ? "plural" : "singular",
     marker: tokens[markerAt],
     headPhrase: head.join(" "),
   };

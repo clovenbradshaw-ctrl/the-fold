@@ -4339,3 +4339,43 @@ third framework; it fails, naming what was searched. Order 13's arbitrary arm
 perturbs claim-GROUPING rather than source identity, because
 `mergeTestimony`'s verdict is invariant to WHO said what by construction —
 shuffling source labels would be A10's trap exactly.
+
+## Measured memory, wired (added 2026-08-26) — pointer
+
+POLICIES.md P45 is the law; this is the short map. `wiring-the-measured-
+memory-v2` (the spec) named six increments; this pass landed A, B, C, D, F1
+and explicitly deferred E/F2 (named, not silently skipped — E's own
+un-defer condition, a measured promotion rate from D, is unmet until D has
+run against real conversations).
+
+**The one-line version.** `fold.js`'s record/fold STORE was being
+truncated at `RECORDS_IN_PROMPT`/`MAX_FOLDS_IN_PROMPT` on every append —
+retroactive forgetting of the one tier (System 2, the addressed record)
+READING-POLICY P1 says does not decay. The store is unbounded now; only
+the PROJECTION (what a prompt actually shows) is still bounded, exactly as
+before by default (`projectRecords`/`projectFolds`, new, shared by every
+existing caller). `retrieval.js` (new) is P1's still-missing third clause,
+"recall is retrieval": eoreader7's real `native/memory/activation.js`
+(Hebbian cue, one-hop completion, reused unmodified) generates which
+dormant records are POSSIBLE, ACT-R base-level (d=0.5, received) or this
+conversation's own measured need-odds ranks them by PROBABILITY, never
+blended. `consequence.js` (new) is the promotion gate — recurrence AND a
+measured consequence, reusing this repo's OWN already-built
+`ground-ledger.js` prequential firewall rather than re-deriving one, via a
+task-log adapter reconciling eoreader6.1's shape (`GRAIN_RANK`) with
+eoreader7's real one (ordinal `GRAINS`).
+
+**Genuinely tested, not environment-gapped.** Every new test imports
+eoreader7's real `native/` modules by relative path
+(`../eoreader7/native/...`) — a real sibling in this environment, unlike
+`../eoreader6.1/`, which is not — so all 32 new tests actually run and
+pass, including a real bug caught and fixed by running against the real
+organ (need-odds tallies were being trained on a record's own BIRTH, a
+false "never needed again" signal from ordinary conversational growth
+alone; fixed to train only on genuine re-use). Full suite 722/608/114 →
+754/640/114, the same 114 pre-existing environment failures, zero
+regressions. Not wired live into app.js's browser runtime this pass
+(needs a new `/native` server mount, a `page-graph.mjs` update, a
+`constitution.test.mjs` II.13 allowance) — disclosed, not implied done;
+`eoreader-contract.json`'s new `testTimeConsumers` section names exactly
+this boundary.

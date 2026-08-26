@@ -7,13 +7,30 @@
 // The claim this module exists to make true: a conversation's context window
 // does not grow with the conversation. Each turn is folded to what it
 // contributed, a running summary tracks how the discourse evolved, and only
-// the summary plus a bounded number of ~100-char folds is ever resent. The raw
+// a bounded PROJECTION of the fold/record store is ever resent. The raw
 // transcript beyond a small recency window is never sent again.
 //
 // This module is pure. No IO, no model calls. The one model call the fold
 // spends (the summary refresh) is executed by the caller and handed back in as
 // a raw string, which is what keeps this testable in node and safe in a
 // browser.
+//
+// STORE VS PROJECTION (spec: wiring-the-measured-memory-v2, increment A).
+// `summary.folds` and `summary.records` are the STORE — append-only, never
+// truncated here. RECENCY_WINDOW already reads "the reach of the present is
+// never derived from material length" (P1); the same rule binds the store
+// itself, which had one bug this file is the fix for: `addWarrantRecord` and
+// `advanceSummaryFold`/`updateSummaryWithFold` used to slice the STORE at
+// RECORDS_IN_PROMPT/MAX_FOLDS_IN_PROMPT, which is retroactive forgetting —
+// record #9 landing destroyed record #1 permanently, for the one tier
+// (System 2, the addressed record) P1 says does not decay. What is bounded
+// now is only the PROJECTION: `buildRecordSystemMessage`/
+// `buildSummaryUpdatePrompt` slice a WINDOW out of the store at render time,
+// and that window is a parameter (defaulting to the declared constant below)
+// rather than a fact baked into the store. `deriveRecordWindow` measures that
+// window from the store's own behavior (dmdWindow, S5) when an engine organ
+// is injected; a caller with none gets the declared default, stated as
+// exactly that — a declaration, never mistaken for a measurement (P4).
 
 // ── Two folds, not one fold at two resolutions ───────────────────────────────
 //
@@ -39,14 +56,40 @@ export const ENTITIES_MAX = 8;
 export const CONTEXT_MAX_CHARS = 150;
 export const FLOW_MAX_CHARS = 200;
 export const FOLD_MAX_CHARS = 100;
+// The DECLARED PROJECTION window for folds — never the store's own size.
+// Disclosed scope: unlike RECORDS_IN_PROMPT below, this pass does not ship a
+// measured supersession for it — a fold string (System 1's own paraphrase)
+// has no structural identity this zero-import module can extract the way a
+// record's own `refs` gives deriveRecordWindow one, and inventing an NLP
+// extractor here would be exactly the thing this file's own purity refuses.
+// The declared constant stands; a caller with a real tokenizer can measure
+// its own window over `summary.folds` and pass it to buildSummaryUpdatePrompt.
 export const MAX_FOLDS_IN_PROMPT = 12;
 
+// The DECLARED PROJECTION window for records — same status as
+// MAX_FOLDS_IN_PROMPT above. The record STORE itself (summary.records) is
+// never bounded by this constant; only buildRecordSystemMessage's slice is.
 export const RECORDS_IN_PROMPT = 8;
 export const RECORD_REFS_MAX = 6;
 export const RECORD_OPEN_MAX = 4;
 
 /** Raw turns still sent verbatim. Everything older is only ever the fold. */
 export const RECENCY_WINDOW = 4;
+
+/** The record store's live window — the tail a caller may treat as
+ * currently salient (what a prompt would show, what a consolidation check
+ * treats as "live"). One implementation, shared by buildRecordSystemMessage
+ * and any caller (app.js's witness gate) that needs the identical bound
+ * without re-deriving the slice. */
+export function projectRecords(summary, { window = RECORDS_IN_PROMPT } = {}) {
+  return (summary?.records ?? []).slice(-window);
+}
+
+/** The fold store's live window — same reasoning as projectRecords above,
+ * shared by buildSummaryUpdatePrompt. */
+export function projectFolds(summary, { window = MAX_FOLDS_IN_PROMPT } = {}) {
+  return (summary?.folds ?? []).slice(-window);
+}
 
 export function truncate(text, max) {
   const s = String(text ?? "").trim();
@@ -78,12 +121,24 @@ export function mechanicalFoldLine(question, answer) {
   return truncate(`Q: ${question} A: ${answer}`, FOLD_MAX_CHARS);
 }
 
-export function buildSummaryUpdatePrompt(prev, folds) {
+/**
+ * `folds` is the STORE (every fold since the conversation began, unbounded).
+ * `window` is the PROJECTION bound applied here, at render time — never
+ * upstream, so nothing calling this with the whole store needs to know its
+ * own size. Defaults to the declared MAX_FOLDS_IN_PROMPT (see its own
+ * comment on why this pass leaves fold-window measurement unbuilt); a
+ * caller with its own measured window may pass one in. Positional turn
+ * labels below are relative to the WINDOW, not the store — unchanged
+ * behavior from before this split, since the window was previously imposed
+ * on the store itself and is now imposed here instead.
+ */
+export function buildSummaryUpdatePrompt(prev, folds, { window = MAX_FOLDS_IN_PROMPT } = {}) {
   const prevBlock = prev.topic
     ? `PREV: ${prev.topic} | ${prev.flow || ""} | ${(prev.entities || []).join(",")} | ${prev.context || ""}`
     : "First turn.";
 
-  const foldLines = folds.map((f, i) => `Turn ${i + 1}: ${f}`).join("\n");
+  const recentFolds = (folds || []).slice(-window);
+  const foldLines = recentFolds.map((f, i) => `Turn ${i + 1}: ${f}`).join("\n");
 
   return `${prevBlock}
 
@@ -167,24 +222,104 @@ function normalizeSummary(parsed, prev, folds) {
   };
 }
 
-/** Roll a new turn fold into the running summary. */
+/**
+ * Roll a new turn fold into the running summary. The fold STORE
+ * (`summary.folds`) is appended to, never truncated — a bounded window is a
+ * presentation concern (buildSummaryUpdatePrompt's own `window` parameter),
+ * not a fact this store gets to bake in. See the file header.
+ */
 export function updateSummaryWithFold(prev, turnFold, rawResponse) {
   const prevSummary = prev || emptySummary();
   const folds = [...(prevSummary.folds || []), turnFold];
-  const recentFolds = folds.slice(-MAX_FOLDS_IN_PROMPT);
   const parsed = rawResponse ? parseSummaryResponse(rawResponse) : null;
-  return normalizeSummary(parsed, prevSummary, recentFolds);
+  return normalizeSummary(parsed, prevSummary, folds);
 }
 
-/** Carry the summary forward unchanged, appending only the fold. */
+/** Carry the summary forward unchanged, appending only the fold. Store, not
+ * projection — see updateSummaryWithFold's header note. */
 export function advanceSummaryFold(prev, turnFold) {
   const prevSummary = prev || emptySummary();
   const folds = [...(prevSummary.folds || []), turnFold];
   return {
     ...prevSummary,
-    folds: folds.slice(-MAX_FOLDS_IN_PROMPT),
+    folds,
     turnCount: prevSummary.turnCount + 1,
   };
+}
+
+// ── Consolidation, witnessed ──────────────────────────────────────────────────
+//
+// The summary refresh (S1) is a consolidation step: a model rewrites
+// topic/flow/entities/context wholesale, each refresh conditioned on the
+// last — the exact chained shape drift compounds under while every single
+// step looks clean (this project's own NELL lesson). Records are already
+// protected from it (normalizeSummary's own comment: "a model that could
+// edit the record could edit the evidence"); the GIST has no such wall.
+// `extractSummaryFindings` is the mechanical check that gives it one, shaped
+// to compose with `witness.js::witnessRegressed` exactly as a code witness
+// does — a caller (app.js) that already has both imported calls
+// `witnessRegressed({ok: true, findings: []}, extractSummaryFindings(...))`
+// before accepting a refreshed summary, refusing when it regressed. The
+// `{ok:true, findings:[]}` left side is trivially clean BY CONSTRUCTION —
+// there is nothing to regress against before the transition is examined —
+// and witnessRegressed is still the right verb for it: it names the check
+// with the same vocabulary this repo already draws on for every other
+// "did this landing hold together" question, and a future pass that wants
+// to carry forward an already-disclosed absence (rather than re-flagging it
+// every single turn) only has to supply a non-trivial left side.
+//
+// Two finding kinds, matching the measured failure mode exactly (a name a
+// live record still cites silently vanishing from `entities`; a name with
+// no record or fold behind it silently appearing):
+//
+//   lost_live_entity     — named in `prevEntities`, still cited by a live
+//                           record's own text, absent from `nextEntities`.
+//   unsupported_addition — new in `nextEntities` (not already in
+//                           `prevEntities`), and no live record or fold
+//                           names it.
+//
+// The support check is literal, case-insensitive containment against a
+// record's `gist` or a fold's own text — the same posture P31's `company`
+// containment already holds this repo to: a claim of semantic
+// understanding is not made here, only "the words are there." Whatever a
+// summary already carried forward stays uncontested (an already-unsupported
+// name is not flagged again as a NEW addition), matching witnessRegressed's
+// own subset rule.
+function textSupports(haystack, name) {
+  const n = String(name ?? "").trim().toLowerCase();
+  if (!n) return false;
+  return String(haystack ?? "").toLowerCase().includes(n);
+}
+
+export function extractSummaryFindings(prevEntities, nextEntities, { records, folds } = {}) {
+  const prev = prevEntities || [];
+  const next = nextEntities || [];
+  const liveRecords = records || [];
+  const liveFolds = folds || [];
+  const supported = (name) =>
+    liveRecords.some((r) => textSupports(r?.gist, name)) ||
+    liveFolds.some((f) => textSupports(f, name));
+
+  const findings = [];
+  for (const name of prev) {
+    if (supported(name) && !next.includes(name)) {
+      findings.push({
+        kind: "lost_live_entity",
+        id: name,
+        detail: `"${name}" is still cited by a live record or fold, but the refreshed summary no longer names it`,
+      });
+    }
+  }
+  for (const name of next) {
+    if (!prev.includes(name) && !supported(name)) {
+      findings.push({
+        kind: "unsupported_addition",
+        id: name,
+        detail: `"${name}" is new in the refreshed summary, and no live record or fold names it`,
+      });
+    }
+  }
+  return { ok: findings.length === 0, findings };
 }
 
 // ── System 2: the addressed record ───────────────────────────────────────────
@@ -214,12 +349,58 @@ export function buildWarrantRecord(input) {
   };
 }
 
+/**
+ * Append a warrant record to the STORE. Never truncated here — the record
+ * tier is the one P1 says does not decay, and the store used to slice at
+ * RECORDS_IN_PROMPT, which meant record #9 landing destroyed record #1
+ * permanently. A record that falls out of the projection window
+ * (buildRecordSystemMessage) is not forgotten; it stays addressed and
+ * re-openable in the store, exactly as a turn beyond RECENCY_WINDOW is.
+ */
 export function addWarrantRecord(summary, record) {
   const prev = summary || emptySummary();
   return {
     ...prev,
-    records: [...(prev.records ?? []), record].slice(-RECORDS_IN_PROMPT),
+    records: [...(prev.records ?? []), record],
   };
+}
+
+/**
+ * Measure the record projection's window from the store's own behavior,
+ * rather than trusting the declared RECORDS_IN_PROMPT — S5's rule ("the rate
+ * is measured, not set") applied to this store. `dmdWindow` is an injected
+ * organ (native/kernel/activation.js's own export, cast.js pattern: fold.js
+ * stays zero-import and testable without it); omitted, this function returns
+ * the declared fallback outright and says so in `basis`, never silently.
+ *
+ * `derive` is mechanical, per the spec this closes: the live-identity set is
+ * the union of every record's own `refs` (the addresses a record actually
+ * cited — the closest thing this record shape has to a referent/claim id;
+ * `gist`/`channels` are free text this module has no tokenizer for and does
+ * not invent one to read). The measured window is the shallowest depth at
+ * which forgetting older records changes no conclusion about which addresses
+ * are currently live.
+ *
+ * Returns `{window, gamma, basis, tried, gap}` — `window` is `fallback` on
+ * any gap (too little material for the smallest candidate, or
+ * `reach_exceeds_candidates`), never a silent widest-candidate guess.
+ */
+export function deriveRecordWindow(records, { dmdWindow, candidates = [2, 4, 8, 16, 32], fallback = RECORDS_IN_PROMPT } = {}) {
+  const store = records || [];
+  if (typeof dmdWindow !== "function") {
+    return { window: fallback, gamma: null, basis: "declared: no measurement organ injected (dmdWindow)", tried: null, gap: null };
+  }
+  const usable = candidates.filter((c) => c < store.length);
+  if (!usable.length) {
+    return { window: fallback, gamma: null, basis: "declared: fewer records than the smallest candidate depth — nothing to measure yet", tried: null, gap: null };
+  }
+  const identitiesOf = (recent) => [...new Set(recent.flatMap((r) => r.refs || []))].sort();
+  const equal = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const measured = dmdWindow(store, identitiesOf, { candidates: usable, equal });
+  if (measured.window == null) {
+    return { window: fallback, gamma: null, basis: measured.basis, tried: measured.tried, gap: measured.gap };
+  }
+  return { window: measured.window, gamma: measured.gamma, basis: measured.basis, tried: measured.tried, gap: null };
 }
 
 // ── What actually goes in the prompt ─────────────────────────────────────────
@@ -249,9 +430,15 @@ export function buildSummarySystemMessage(summary) {
  * framing, on purpose: merged into PAST DISCOURSE, an addressed record would
  * inherit the paraphrase's disclaimer, and a paraphrase would inherit the
  * record's authority. Two facts that differ must not read alike.
+ *
+ * `window` bounds the PROJECTION only — `summary.records` is the unbounded
+ * store (see file header); this is where and when a bound is finally
+ * applied. Defaults to the declared RECORDS_IN_PROMPT; pass a measured one
+ * (deriveRecordWindow) to supersede it, the supersession being the caller's
+ * to report (S16: "never silent").
  */
-export function buildRecordSystemMessage(summary) {
-  const records = (summary?.records ?? []).slice(-RECORDS_IN_PROMPT);
+export function buildRecordSystemMessage(summary, { window = RECORDS_IN_PROMPT } = {}) {
+  const records = projectRecords(summary, { window });
   if (!records.length) return null;
   const parts = [
     "ON RECORD — earlier turns that were checked, with the addresses they were checked against. Unlike PAST DISCOURSE, these can be re-opened: the sources named here still exist and can be read again. You may rely on a line here, and you must not contradict one without saying you are doing so.",
@@ -287,12 +474,12 @@ export function buildRecordSystemMessage(summary) {
  * second system message anywhere else, so the blocks are merged rather than
  * appended as separate messages.
  */
-export function buildTurnMessages({ basePrompt, summary, history, question, sourceBlock }) {
+export function buildTurnMessages({ basePrompt, summary, history, question, sourceBlock, recordWindow }) {
   const systemParts = [];
   if (basePrompt) systemParts.push(basePrompt);
   const past = buildSummarySystemMessage(summary);
   if (past) systemParts.push(past);
-  const onRecord = buildRecordSystemMessage(summary);
+  const onRecord = buildRecordSystemMessage(summary, recordWindow != null ? { window: recordWindow } : undefined);
   if (onRecord) systemParts.push(onRecord);
   if (sourceBlock) systemParts.push(sourceBlock);
 

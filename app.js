@@ -6692,6 +6692,57 @@ function renderFold(node, { fold, record, sent, ran, verification }) {
   // see WHICH of the nine cells actually ran, and why the rest didn't,
   // gets exactly the record the checking ladder itself worked from — never
   // a claim about it.
+  // WHAT THE LOGIC DID, shown even when it did nothing. The nine-cell
+  // panel below only renders when there are hypergraph CLAIMS to decompose,
+  // so on exactly the turns worth debugging — the ones where the reader
+  // built no claim at all — the logic panel went blank and the reasoning
+  // became invisible. User direction 2026-08-26: "it should be easier to
+  // see what the logic was doing."
+  //
+  // This is the same rule buildFactBlock now follows for the model, turned
+  // on the reader instead: state the absence rather than render nothing.
+  // The numbers are read off the relation reader's OWN report — examined,
+  // the measured verb vocabulary, the edge count, the claim count — never
+  // recomputed here, so this panel cannot disagree with what the ladder
+  // actually worked from.
+  const reports = (record?.relations ?? []).filter(Boolean);
+  if (reports.length && !verification?.length) {
+    const det = document.createElement("details");
+    det.className = "fold";
+    det.innerHTML = "<summary>what the logic did — no claim was built this turn</summary>";
+    const wrap = document.createElement("div");
+    for (const [i, r] of reports.entries()) {
+      const pre = document.createElement("pre");
+      pre.className = "block";
+      const role = document.createElement("span");
+      role.className = "role";
+      const verbs = r?.vocabulary?.verbs ?? 0;
+      const edges = r?.edges?.length ?? 0;
+      const claims = r?.claims?.length ?? 0;
+      role.textContent =
+        `part ${i + 1} · ${r?.examined ? "material examined" : "NOT examined"} · ` +
+        `${verbs} verb(s) in the measured vocabulary · ${edges} edge(s) · ${claims} claim(s)`;
+      // Name the first wall the ladder hit, in its own order, rather than
+      // leaving a reader to infer it from three zeros.
+      const why = !r?.examined
+        ? "no material was examined — nothing to read relations out of"
+        : r?.vocabulary?.gap
+          ? `no relation vocabulary could be measured (${r.vocabulary.gap}) — with no verbs, no edge can be built`
+          : !edges
+            ? "a vocabulary was measured but no edge survived extraction — the material's sentences did not yield subject/verb/object structure the reader could bind"
+            : "edges exist but the answer asserted nothing this reader could match against them — the claim side is empty, not the material side";
+      pre.append(role, document.createTextNode("\n" + why + "\n\n" + JSON.stringify({
+        examined: r?.examined ?? null,
+        vocabulary: r?.vocabulary ?? null,
+        edgeCount: edges,
+        claimCount: claims,
+      }, null, 2)));
+      wrap.append(pre);
+    }
+    det.append(wrap);
+    out.append(det);
+  }
+
   if (verification?.length) {
     const det = document.createElement("details");
     det.className = "fold";

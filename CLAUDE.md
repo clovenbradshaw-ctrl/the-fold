@@ -4405,3 +4405,14 @@ without provenance.** A live Wikipedia fetch would need the SAME real
 provenance chain the web organ (P13) and witness/proof-seeking tiers
 (P32) already carry — reusing those, not a new mechanism, is the named,
 unattempted next step.
+
+**`CHAT-POLICIES.md`** (new, repo root) is where the chat-specific slice of
+this document and POLICIES.md was pulled together into one reference —
+what a turn needs (the S1/S2 shape, bounded context, the grounding ladder,
+the correction loop and its one disclosed hole, provenance as the
+governing rule) plus everything this pass measured live (real per-turn
+timing, the concurrency-confound and chatHistory-windowing lessons for
+any future probe, the Pierre Bezukhov specimen in full, the hyperlexicon
+red herring). Summarizes and points at the fuller policy entries rather
+than duplicating them — read it first before touching chat behavior,
+POLICIES.md for the full detail behind any one claim in it.

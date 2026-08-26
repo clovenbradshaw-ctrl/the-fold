@@ -15,6 +15,19 @@ re-deriving it — the same discipline CLAUDE.md already holds itself to.
 Nothing below authorizes skipping the source policy's own detail. When
 this file and POLICIES.md disagree, POLICIES.md is the law.
 
+**This is a standing document, not a one-time report — read before
+touching chat behavior, appended to after.** POLICIES.md states its own
+rule outright: "Amendments append; they do not rewrite." This file holds
+itself to the identical discipline. A later pass that changes what's
+claimed here adds a new dated section (Part II's own shape) or an
+appended *Amended \<date\>:* note beside the original claim — the same
+italicized-amendment convention POLICIES.md and CLAUDE.md already use
+throughout — never an edit that erases what was measured or decided
+before. The Open list at the end is where a next pass's own new findings
+join, not where old ones are cleared out once acted on: a closed item
+gets a dated note saying what was decided and where the work landed,
+staying in place as the record of it.
+
 ---
 
 ## Part I — what a turn needs (the standing architecture, summarized)

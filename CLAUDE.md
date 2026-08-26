@@ -4415,4 +4415,8 @@ timing, the concurrency-confound and chatHistory-windowing lessons for
 any future probe, the Pierre Bezukhov specimen in full, the hyperlexicon
 red herring). Summarizes and points at the fuller policy entries rather
 than duplicating them — read it first before touching chat behavior,
-POLICIES.md for the full detail behind any one claim in it.
+POLICIES.md for the full detail behind any one claim in it. It is a
+standing document: a future pass that changes chat behavior appends its
+own findings and decisions to it (its own header states the rule —
+amendments append, they do not rewrite, POLICIES.md's own discipline),
+not a one-time report to be left stale.

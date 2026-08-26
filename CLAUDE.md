@@ -3716,7 +3716,7 @@ clause stays open, disclosed in the module header.
 
 P37's amendment in POLICIES.md is the law; this is the map update. The
 core logic (Stage, R1-R6, the verdict lattice) now lives in
-`eoreader6.1/packages/engine/interpretation/hl.js` — Interpretation-
+`eoreader7/native/interpretation/hl.js` — Interpretation-
 domain engine infrastructure, not a the-fold concern (full placement
 evidence: eoreader6.1/CLAUDE.md, "The Interpretation domain's own logic
 — HL"). This repo's own `hl.js` is the adapter alone

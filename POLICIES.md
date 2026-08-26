@@ -3311,7 +3311,7 @@ disclosed evidence rather than assumption.** Two changes to what P37
 originally described.
 
 **(1) hl.js's core (Stage, declarations, R1-R6, the verdict lattice,
-attach) moved to `eoreader6.1/packages/engine/interpretation/hl.js`.**
+attach) moved to `eoreader7/native/interpretation/hl.js`.**
 Not a preference — `operators.js`'s ORGANS table, audited by domain,
 shows Interpretation as the most fragmented domain in the entire
 registry (30 of 62 organs — corrected from an initial miscount of

@@ -197,7 +197,7 @@ claims the chat surface already asserted. This plan's Phase 2 asks the
 same shape to run *before* generation, over retrieved material, to build
 what the model is shown.
 
-**P37 / HL** (`eoreader6.1/packages/engine/interpretation/hl.js`,
+**P37 / HL** (`eoreader7/native/interpretation/hl.js`,
 CLAUDE.md :3668, :3715) is a sound logic layer strictly stronger than
 `judge()` — functional exclusion, transitive derivation, presupposition
 failure on definite descriptions — explicitly disclosed as **not consumed

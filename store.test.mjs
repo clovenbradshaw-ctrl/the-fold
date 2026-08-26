@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import initSqlJs from "sql.js";
 
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { makeStore } from "./store.js";
 
 const store = makeStore(taskLog);

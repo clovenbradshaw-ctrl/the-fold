@@ -37,14 +37,14 @@ import { findCapacity, unresolvedCapacity } from "./capacities.js";
 // fixture that fakes what "bound" and "fillers" mean; it has to run the
 // real extraction the way a live turn actually does.
 const relationOrgans = async () => {
-  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
-  const { tokenize } = await import("../eoreader6.1/packages/engine/perceiver/text/material.js");
+  const { tokenize } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js");
   return { splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm, discoverRelationVocab, extractRelations, tokenize };
 };
 
@@ -1176,8 +1176,8 @@ test("a slot with exactly ONE confirmed subject never trips the competing-subjec
 // hypergraph records beliefs... held BY AN EXPERIENCER, not just given by a
 // source") — grid.js's own tested evaluate/REC organs, not a parallel one.
 function freshGridFixture() {
-  return import("../eoreader6.1/packages/engine/operators.js").then(async (operators) => {
-    const taskLog = await import("../eoreader6.1/packages/engine/holon/task-log.js");
+  return import("../eoreader7/legacy-eoreader6.1/packages/engine/operators.js").then(async (operators) => {
+    const taskLog = await import("../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js");
     const grid = makeGrid({ operators, taskLog });
     grid.withCapacities({ findCapacity, unresolvedCapacity });
     return grid;

@@ -15,8 +15,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { checkCubeProgression } from "../eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { checkCubeProgression } from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { makeGroundLedger } from "./ground-ledger.js";
 
 const ledger = makeGroundLedger(taskLog);

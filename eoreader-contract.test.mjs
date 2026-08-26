@@ -43,7 +43,7 @@ test("EOReader contract records runtime filesystem mounts", () => {
         assert.ok(source.includes(`"${part}"`), `${file} no longer contains declared EOReader mount component ${part}`);
       }
     }
-    assert.ok(source.includes('"eoreader6.1"'), `${file} no longer declares the current EOReader sibling mount`);
+    assert.ok(source.includes('"eoreader7", "legacy-eoreader6.1"'), `${file} no longer declares the current EOReader sibling mount`);
   }
 });
 

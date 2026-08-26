@@ -5,10 +5,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { splitSentences } from "../eoreader6.1/packages/engine/perceiver/text/spans.js";
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader6.1/packages/engine/perceiver/text/surfaces.js";
-import { discoverRelationVocab, extractRelations } from "../eoreader6.1/packages/engine/perceiver/text/relations.js";
-import { tokenize as engineTokenize } from "../eoreader6.1/packages/engine/perceiver/text/material.js";
+import { splitSentences } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js";
+import { discoverRelationVocab, extractRelations } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js";
+import { tokenize as engineTokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 

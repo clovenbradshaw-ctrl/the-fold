@@ -45,12 +45,12 @@ import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 
 const ROOT = resolve(import.meta.dirname);
-const ENGINE = resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
+const ENGINE = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
 // The engine's own null module. tiers.js (the surprise ladder) imports it as
 // ../../../nul/index.js, which resolves above the /engine mount — so nul gets
 // its own mount at the path that import lands on. Used, never copied, same as
 // the engine itself.
-const NUL = resolve(ROOT, "..", "eoreader6.1", "nul");
+const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
 // output) — never a fact this repo derives or vendors a stale copy of.
 // scripts/corpus/ is eoreader6.1's OWN gitignored, locally-reproducible
@@ -62,7 +62,7 @@ const NUL = resolve(ROOT, "..", "eoreader6.1", "nul");
 // go stale. hypergraph.js's own posPriorFor() (app.js-injected) types the
 // absence honestly when the file has never been built locally, rather than
 // assuming every checkout has run the builder.
-const PRIORS_DATA = resolve(ROOT, "..", "eoreader6.1", "scripts", "corpus");
+const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
 const PORT = Number(process.argv[2] ?? 8811);
 
 // The one package environment. Both the build runner and the terminal get

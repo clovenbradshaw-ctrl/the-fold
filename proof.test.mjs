@@ -25,7 +25,7 @@ import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
 // The real engine closed class, not a stub — the same received register
 // widget.js already injects (Amendment IV: a closed class lives in the
 // engine's prior register, never as a private list in this repo).
-import { ANAPHORIC_PRONOUNS } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import { ANAPHORIC_PRONOUNS } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({

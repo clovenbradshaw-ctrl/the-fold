@@ -13,15 +13,15 @@ import { corroborateAtoms } from "./grounding.js";
 import { readFileSync } from "node:fs";
 
 const organs = async () => {
-  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
   const { tokenize, buildFrequencyTable, functionWordSet } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/material.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js"
   );
   return {
     splitSentences,
@@ -268,7 +268,7 @@ test("classifyConnector/minShare omitted: no edge carries connectorClass at all 
 
 test("classifyConnector supplied without minShare throws — dominantClass's own never-defaulted contract, not a silent default here either", async () => {
   const { makeGrammarLens } = await import("./grammar-lens.js");
-  const { classifyWord, dominantClass } = await import("../eoreader6.1/packages/engine/perceiver/text/wordclass.js");
+  const { classifyWord, dominantClass } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js");
   const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
   const builtOrgans = { ...(await organs()), classifyConnector };
   assert.throws(() => makeRelationReader(builtOrgans), /minShare is declared alongside classifyConnector/);
@@ -276,7 +276,7 @@ test("classifyConnector supplied without minShare throws — dominantClass's own
 
 test("an edge's connectorClass, tagged at extraction time, matches exactly what classifyConnector says directly — a real non-verb and a real verb, same reader", async () => {
   const { makeGrammarLens } = await import("./grammar-lens.js");
-  const { classifyWord, dominantClass } = await import("../eoreader6.1/packages/engine/perceiver/text/wordclass.js");
+  const { classifyWord, dominantClass } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js");
   const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
   const reader = makeRelationReader({ ...(await organs()), classifyConnector, minShare: CONNECTOR_MIN_SHARE })(
     CONNECTOR_PASSAGES,
@@ -305,7 +305,7 @@ test("an edge's connectorClass, tagged at extraction time, matches exactly what 
 test("connectorClass forwards the giver when injected, and stays null when it isn't — grammar-lens.js's own BUILD-3 fix, visible through hypergraph.js", async () => {
   const { makeGrammarLens } = await import("./grammar-lens.js");
   const { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/wordclass.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js"
   );
 
   const withoutGivers = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
@@ -357,9 +357,9 @@ const REFERENT_BAR_FILLER = [
 
 async function referentBarOrgans() {
   const base = await organs();
-  const { THIRD_PERSON_SINGULAR } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
-  const { extractLeadingSurfaces } = await import("../eoreader6.1/packages/engine/perceiver/text/surfaces.js");
-  const { resolvePronouns } = await import("../eoreader6.1/packages/engine/perceiver/text/pronouns.js");
+  const { THIRD_PERSON_SINGULAR } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js");
+  const { extractLeadingSurfaces } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js");
+  const { resolvePronouns } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/pronouns.js");
   return { ...base, thirdPersonSingular: THIRD_PERSON_SINGULAR, extractLeadingSurfaces, resolvePronouns };
 }
 
@@ -540,7 +540,7 @@ test("queryReferents: the reader's own referent-aware query agrees with judge()'
 // exercise the lemma-widening amendment (2026-08-19) — every other test
 // omits both, exercising the backward-compatible exact-match default.
 const morphologyOrgans = async () => {
-  const { createLemmatizer } = await import("../eoreader6.1/packages/engine/perceiver/text/morphology.js");
+  const { createLemmatizer } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/morphology.js");
   const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
   return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms, morphologyLanguage: prior.language };
 };
@@ -1060,7 +1060,7 @@ const DETERMINER_PASSAGES = [
 
 const determinerOrgans = async () => {
   const { DEFINITE_DETERMINERS, INDEFINITE_DETERMINERS } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/priors.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js"
   );
   return {
     ...(await organs()),
@@ -1126,7 +1126,7 @@ const NEGATION_PASSAGES = [
 ];
 
 const negationOrgans = async () => {
-  const { NEGATION_WORDS } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
+  const { NEGATION_WORDS } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js");
   return { ...(await organs()), negationWords: NEGATION_WORDS };
 };
 

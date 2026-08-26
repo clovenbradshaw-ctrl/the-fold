@@ -33,7 +33,7 @@ import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync,
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { foldExtract } from "../eoreader6.1/packages/host/index.js";
+import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file
@@ -104,16 +104,16 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
-const ENGINE = path.resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
+const ENGINE = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
 // serve.mjs's nul mount, carried here for the same reason as /engine:
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
-const NUL = path.resolve(ROOT, "..", "eoreader6.1", "nul");
+const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // serve.mjs's priors-data mount, carried here for the same reason as
 // /engine and /nul: real, giver-cited data (POSPrior@1) read live off
 // eoreader6.1's own gitignored, locally-reproducible build directory —
 // never a stale copy vendored into this repo.
-const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader6.1", "scripts", "corpus");
+const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");

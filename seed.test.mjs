@@ -10,8 +10,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { INDEFINITE_DETERMINERS } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { INDEFINITE_DETERMINERS } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 import { makeBuildLog } from "./build-log.js";
 import {
   PERMISSIVE_SPDX,

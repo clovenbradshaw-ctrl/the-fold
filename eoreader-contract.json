@@ -22,7 +22,7 @@
     },
     "nodeImports": {
       "explore-worker.mjs": {
-        "module": "../eoreader6.1/packages/host/index.js",
+        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
         "exports": [
           "createSession",
           "admitChunked",
@@ -32,7 +32,7 @@
         ]
       },
       "explore-server.mjs": {
-        "module": "../eoreader6.1/packages/host/index.js",
+        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
         "exports": [
           "foldExtract"
         ]

@@ -20,11 +20,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { checkCubeProgression } from "../eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { checkCubeProgression } from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
-import * as enginePriors from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 import { makeWidgetRouter } from "./widget.js";
 
 // The router bound to the engine's REAL prior register — the same closed

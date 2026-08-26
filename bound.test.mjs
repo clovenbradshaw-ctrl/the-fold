@@ -23,9 +23,9 @@ test("cells are every figure the passages state, each with its address", () => {
 });
 
 test("the schema enumerates the offer, with the empty escape in every enum", async () => {
-  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const handlesFor = makeCastHandles({ splitSentences, extractSurfaces, discoverReferents });
   const handles = handlesFor(chunks);

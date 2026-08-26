@@ -4602,3 +4602,200 @@ pronoun binding, every attempt refused `pronoun_no_margin` on prose
 dominated by collectives. Scale still held: zero violations. Engine suite
 140/150 before and after (the identical 10 pre-existing environment
 failures); the-fold suite 721/608/113, unchanged.
+
+## P45 — The store is append-only; the prompt is a projection; recall is retrieval, not enlargement
+
+The law this closes: READING-POLICY P1, "activation decays, identity does
+not, recall is retrieval" — and the third clause had never been built. A
+spec (`wiring-the-measured-memory-v2`, superseding a same-day v1 refuted at
+line level: `fold.js` reading proved the SYSTEM 2 STORE itself, not only
+the prompt, was being truncated) named six increments; this pass landed
+four in full (A, C, D, one measurement pass covering B) plus F1, and named
+E/F2 explicitly deferred rather than built partway. CLAUDE.md carries no
+separate map section for this entry — the code's own headers (fold.js,
+retrieval.js, consequence.js) already carry the map at the point of use,
+which is where a reader actually needs it; this entry is the law and the
+evidence.
+
+**A — the store/projection split (`fold.js`).** `addWarrantRecord` sliced
+`summary.records` at `RECORDS_IN_PROMPT` on every append; `advanceSummaryFold`/
+`updateSummaryWithFold` did the same to `summary.folds` at
+`MAX_FOLDS_IN_PROMPT`. Both are retroactive forgetting of the ONE tier P1
+says does not decay — record #9 landing destroyed record #1 permanently.
+Fixed by un-slicing the store and moving the bound to render time:
+`projectRecords`/`projectFolds` (new, shared by `buildRecordSystemMessage`/
+`buildSummaryUpdatePrompt` internally and by any caller that needs the
+identical window, e.g. a consolidation check) apply the SAME default bound
+as before, so every existing caller — app.js's own `buildRecordSystemMessage(state.summary)`
+bare calls, every eval driver's `buildSummaryUpdatePrompt(summary,
+[...summary.folds, fold])` pattern — is byte-identical in live behavior by
+construction, having never needed to know the store's own size. A second,
+real consumer had to be found and fixed the same way: `tables.js`'s `/self
+folds` builder read `summary.folds` directly and would have started
+showing the ENTIRE unbounded history the moment the store stopped
+truncating itself — caught by a pre-existing test that (correctly, by this
+codebase's own "widen the boundary, don't just re-pass" rule) encoded the
+OLD truncating behavior as its assertion and had to be rewritten, not
+loosened. `/self records`, by contrast, was left genuinely unbounded — an
+explicit human request to see the full addressed history is exactly P1's
+"re-openable," not a case needing a window at all; a new test pins this as
+the deliberate asymmetry it is, not an oversight.
+
+`deriveRecordWindow` (new) measures the record-projection window from the
+store's own behavior via `dmdWindow` (eoreader7's real
+`native/kernel/activation.js`, injected, cast.js pattern — fold.js stays
+zero-import): the shallowest depth at which forgetting older records'
+`refs` (the closest thing a record has to a referent/claim id; no
+tokenizer exists here to read `gist` text, and none is invented) changes no
+conclusion about which addresses are live. Real, tested against the real
+eoreader7 module (a genuine sibling in this environment, not an
+environment-gapped stub) — a stabilized identity set measures the
+shallowest candidate; a genuinely singleton old reference correctly refuses
+as `reach_exceeds_candidates` rather than guessing the widest. NOT wired
+live into app.js's browser runtime this pass — that needs a new server
+mount (`/native`, alongside `/engine`/`/nul`), a `page-graph.mjs` update,
+and a `constitution.test.mjs` II.13 allowance, none of which this pass
+touches; the declared `RECORDS_IN_PROMPT` stands as the operative default,
+now correctly operating on a store that never destroys what falls outside
+it, which is the actual bug this increment exists to fix. Folds' own window
+stays declared only, disclosed as a scope decision, not a gap: a fold
+string has no structural identity `deriveRecordWindow`'s `refs`-based
+`derive` can reuse without inventing NLP fold.js has no business owning.
+
+**C — recall is retrieval (`retrieval.js`, new).** The missing clause: a
+turn beyond `RECENCY_WINDOW` and a record beyond the projection window are
+addressed, not forgotten, but nothing brought a dormant one BACK. Composed
+the S9 way, generate-then-rank, never blended: eoreader7's real
+`native/memory/activation.js` (`codeOf`/`recall`/`encodeFrame` — Hebbian
+sparse coding, one-hop completion, causal, already mature and consumed
+elsewhere in that repo by `adapters/text/pronouns.js`/`anchoring.js`,
+reused unmodified per the standing rule) generates the POSSIBLE set — only
+a record sharing distinctive, already-recurring vocabulary with a question
+can surface at all. Within that set, ACT-R base-level activation (received
+d=0.5, giver Anderson, the exact formula
+`native/eval/forgetting-falsification.mjs::actrScore` already measured,
+reused verbatim) ranks by PROBABILITY — recency- and frequency-weighted
+citation history — superseded by this conversation's own measured
+need-odds once a (recency, frequency) cell clears a declared evidence
+floor, the supersession reported in each candidate's own `basis`, never
+silent. Two typed gaps only (`retrieval_no_cue`, `retrieval_no_margin`),
+`[]` on either, never a guessed top-k.
+
+A real bug was found and fixed by testing against the real organ, not
+assumed correct from the design: the first cut trained need-odds tallies
+on every record's own BIRTH (treating a new record's creation as a
+"was every other live record needed and missed" trial), which seeds a
+false universal "never needed again" signal from ordinary conversational
+growth alone — a target record could land in one of those polluted cells
+by (recency, frequency) coincidence and have its real ACT-R signal masked
+by a spurious zero. Fixed: birth seeds a record's own citation history
+directly; `recordCitation`'s training loop fires only on a GENUINE re-use.
+Caught because the test suite is real (eoreader7 checked out as a true
+sibling in this environment, not environment-gapped) and was actually run
+against it, not trusted from the shape of the code.
+
+**D — the promotion gate (`consequence.js`, new).** Recurrence (retrieval.js's
+own `citedAt`, the arrivals>=2 structural floor this codebase already
+holds every binding organ to) is necessary, never sufficient (S9: a count
+is possibility, never standing — levers-RESULTS.md's own "the murder"
+finding, the general case). Consequence — did a later turn's verdict
+actually change because the claim was available — is typed three ways:
+`consequence_untested` (a gap: no later turn ever engaged this ground),
+`recurring_no_consequence` (engaged, available, nothing moved), or
+`mattered`. The timing discipline is `ground-ledger.js`, ALREADY BUILT IN
+THIS REPO, reused rather than re-derived: its two-rule prequential
+firewall (a ground version cannot be frozen retroactively; a turn cannot be
+re-priced once scored) is exactly what "score an ablation against the
+ground as it stood at that turn, permanently" needs. `adaptTaskLog` bridges
+`ground-ledger.js`'s expected shape (built against eoreader6.1's
+`holon/task-log.js`, which carries a `GRAIN_RANK` export) to eoreader7's
+real `native/kernel/task-log.js` + `native/kernel/cube.js` (which carries
+ordinal `GRAINS` instead — `GRAIN_RANK` is that ordinality made explicit,
+not a new fact) — a genuine reconciliation, not an assumed compatibility,
+tested against the real eoreader7 modules end to end, incidentally giving
+`ground-ledger.js`'s own firewall real test coverage in an environment
+where `ground-ledger.test.mjs` itself cannot load (it imports eoreader6.1
+directly, which this checkout does not have as a sibling).
+
+The ablation computation itself — "re-run the mechanical grounding with
+this claim excluded from the citation base" — is INJECTED, never computed
+here: wiring it to grounding.js/hypergraph.js's real verification organs is
+real, disclosed, unattempted work, the same posture this pass already
+holds for C's live wiring and this project's own standing precedent (HL,
+self-witness, grammar-lens: built and tested, not deep-wired into a
+multi-session-owned file without that file's own explicit scope).
+
+**B — measured, not merely assumed live from A/C's unit tests
+(`eval/measured-memory-b.mjs`, new).** No real 40+ turn conversation
+transcript with record citations exists on this disk — fold.js's store
+stopped discarding history this same pass, but nothing has run the live
+app long enough yet to leave one behind. A synthetic conversation with
+ground truth by construction (four topics, each with a declared return
+cadence and disjoint vocabulary, 90 turns) stands in, disclosed as exactly
+that — this repo's own established fallback when no real corpus exists
+(hl-acquire.test.mjs's invented chronicle; P29's own synthetic adversarial
+suite). B1 (`kernel/return-curve.js`, real, unmodified): the writer's own
+declared pronoun-vs-regloss return-form rule measures back out correctly
+(majority window 3 for pronoun, 63 for regloss) — a check that the
+composition is wired right, not a discovery about real writing, named as
+such. B2 (retrieval.js's real need-odds/ACT-R composition, exercised at
+scale): a topic returning 26 times in 90 turns earns a measured
+supersession of the ACT-R prior; one returning twice does not, exactly as
+S17's own rule requires. A genuine surprise, reported rather than smoothed
+over: a third topic (3 returns, same count as one that stayed declared)
+ALSO measured — traced to `recordCitation`'s shared cell-tally population
+(a rare topic can clear the evidence floor early by sharing a cell with a
+frequent one), a real, disclosed property of the mechanism, not a defect.
+Full numbers: `eval/results/measured-memory-b-RESULTS.md`.
+
+**F1 — the consolidation witness (`fold.js::extractSummaryFindings` +
+`app.js::refreshSummary`).** The summary refresh is a live, chained
+consolidation step — this project's own NELL lesson, unaddressed until
+now: an entity still live in the CURRENTLY-PROJECTED record/fold window can
+silently vanish from `entities` on any refresh, or an unsupported one can
+silently appear, and every individual refresh looks clean. Reuses
+`witness.js::witnessRegressed` verbatim (already in this repo, already
+generic) — the left side is trivially clean by construction (`{ok:true,
+findings:[]}`, nothing to regress against before a transition is
+examined), the right side carries the real transition-computed findings
+(`lost_live_entity` / `unsupported_addition`, literal case-insensitive
+containment against live record/fold text, the same posture P31's own
+`company` containment already holds this repo to — no claim of semantic
+understanding, only "the words are there"). A regressed refresh is refused
+(`advanceSummaryFold` carries the prior summary forward instead) and lands
+a `consolidation_regressed` act on the reflex ledger through its own
+designed unknown-act extension point — no reflex.js edit needed.
+
+**E, F2 — explicitly deferred, per the spec's own build order, not built
+partway.** E (within-conversation holon folding) is gated on D measuring a
+real promotion rate high enough that flat projection demonstrably
+degrades — D shipped this pass, but nothing has run it against a real
+conversation long enough to measure that rate yet, so E's own un-defer
+condition is unmet by construction. F2 (gating E's folds against drift) is
+gated on E existing at all. Both named here so a future pass does not
+re-derive the reasoning, and neither is silently implied as done.
+
+**Evidence.** New files: `retrieval.js` (+9 tests, real against eoreader7's
+`native/memory/activation.js`), `consequence.js` (+9 tests, real against
+eoreader7's `native/kernel/task-log.js` + `cube.js`),
+`eval/measured-memory-b.mjs` + its results doc. Modified:
+`fold.js` (+12 tests: the store/projection split, `deriveRecordWindow`
+real against eoreader7's `native/kernel/activation.js`,
+`extractSummaryFindings`), `tables.test.mjs` (+1, the real second-order fix
+this pass found), `app.js` (the `refreshSummary` witness gate — syntax
+checked, no dedicated test harness exists for this browser-only file),
+`reflex.js` (one comment corrected — a prior pass's own claim that
+`summary.folds` was unbounded-unlike-`turnFolds` no longer holds; the
+redundancy is named as real, unattempted follow-up rather than collapsed
+this pass), `eoreader-contract.json` (+1 test: a new `testTimeConsumers`
+section, declared as test-time-only and distinct from `runtimeConsumers` —
+none of this pass's production code performs a live cross-repo import,
+every eoreader7 dependency arrives injected, cast.js pattern, so there is
+nothing yet to promote to a runtime consumer). Full suite: 722/608/114
+before this pass, 754/640/114 after — the identical 114 pre-existing
+environment failures (missing `../eoreader6.1/` sibling and several
+vendored `node_modules`, this checkout's own disclosed gap, unrelated to
+this pass), zero regressions, 32 new tests all genuinely passing — not
+environment-gapped, because eoreader7 is checked out as a real sibling in
+this environment and every new test that needed it was run against the
+genuine article.

@@ -35,7 +35,10 @@ import {
   buildWarrantRecord,
   charCount,
   emptySummary,
+  extractSummaryFindings,
   mechanicalFoldLine,
+  projectFolds,
+  projectRecords,
   updateSummaryWithFold,
 } from "./fold.js";
 
@@ -2966,7 +2969,27 @@ async function refreshSummary(fold, arrivals = null) {
       ],
       { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }) },
     );
-    state.summary = updateSummaryWithFold(state.summary, fold, raw);
+    // WITNESSED (spec: wiring-the-measured-memory-v2, F1). The refresh is a
+    // consolidation step chained on its own prior output — this project's
+    // own NELL lesson, applied to the gist: check the LEAVES (the live
+    // records/folds this refresh could actually see), never fold-to-prior-
+    // fold, so drift that looks clean turn over turn cannot hide behind an
+    // ever-updating baseline. A refresh that drops a still-cited name or
+    // invents an unbacked one is refused; the prior summary is CARRIED
+    // (advanceSummaryFold) instead, and the refusal lands on the ledger —
+    // a decision the instrument made is never silent.
+    const prevSummary = state.summary;
+    const next = updateSummaryWithFold(prevSummary, fold, raw);
+    const consolidationCheck = extractSummaryFindings(prevSummary.entities, next.entities, {
+      records: projectRecords(prevSummary),
+      folds: projectFolds(prevSummary),
+    });
+    if (witnessRegressed({ ok: true, findings: [] }, consolidationCheck)) {
+      logAct("consolidation_regressed", { findings: consolidationCheck.findings });
+      state.summary = advanceSummaryFold(prevSummary, fold);
+    } else {
+      state.summary = next;
+    }
   } catch {
     state.summary = updateSummaryWithFold(state.summary, fold);
   }

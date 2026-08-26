@@ -56,6 +56,29 @@ test("serve.mjs still validates build records with EOReader task-log", () => {
   assert.match(source, /buildVocab\s*=\s*await import\(/, "serve.mjs no longer dynamically loads the engine task vocabulary");
 });
 
+test("testTimeConsumers: every declared eoreader7-native module path is actually referenced by every file that claims to consume it", () => {
+  // Weaker than the nodeImports check above on purpose: this section's
+  // consumers mix static imports (eval/measured-memory-b.mjs) with
+  // try/catch-guarded dynamic ones in several different destructuring
+  // shapes (fold.test.mjs/retrieval.test.mjs/consequence.test.mjs — see
+  // each file's own header for why: a checkout without eoreader7 as a
+  // sibling degrades to a typed skip rather than failing the whole file to
+  // load, which a top-level static import cannot do). A single regex
+  // cannot verify an exact export-name match across that many shapes
+  // honestly, so this checks the one thing that generalizes: the module
+  // PATH itself is still where the contract says it is.
+  const modules = contract.testTimeConsumers.eoreader7Native.modules;
+  for (const [modulePath, spec] of Object.entries(modules)) {
+    for (const file of spec.consumedBy) {
+      const source = read(file);
+      assert.ok(
+        source.includes(modulePath),
+        `${file} no longer references ${modulePath}; update testTimeConsumers deliberately`,
+      );
+    }
+  }
+});
+
 test("contract pins the 6.1 reference head used to begin the v7 compatibility baseline", () => {
   assert.equal(contract.reference.repository, "clovenbradshaw-ctrl/eoreader6.1");
   assert.match(contract.reference.observedHead, /^[0-9a-f]{40}$/);

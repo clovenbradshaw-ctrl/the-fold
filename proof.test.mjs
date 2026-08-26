@@ -239,6 +239,15 @@ test("preflightQuery keeps an acronym: the length floor dropped the only word sa
   assert.match(vp, /VP/, `the acronym carrying the question's whole point was dropped: ${vp}`);
   assert.match(vp, /lincoln/i, vp);
 
+  // LOWERCASE, and this is the case that matters most: the first version of
+  // this fix keyed on capitals, and the very next real report was the same
+  // question typed "vp" — still reduced to "lincoln", still fetched Lincoln
+  // Motor Company. A rule that depends on the user shift-keying an
+  // abbreviation is not a rule.
+  const vpLower = preflightQuery("who was lincoln's vp?", "");
+  assert.match(vpLower, /vp/, `lowercase abbreviation dropped — the capitals-only fix's own blind spot: ${vpLower}`);
+  assert.match(vpLower, /lincoln/i, vpLower);
+
   // Written out, this always worked — which is why the bug hid: the same
   // question in longhand is fine, so only the abbreviated form fails.
   assert.match(preflightQuery("who was lincoln's vice president?", ""), /vice president/i);

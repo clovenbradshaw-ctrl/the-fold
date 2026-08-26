@@ -3046,9 +3046,41 @@ const NAMED_URL_MAX = 3;
 // TOGGLES alone (checking+web+no material) regardless of what the
 // question even asks, which would make S2 run on every turn whenever
 // those are on and defeat the entire point of a selective gate.
+//
+// THE DODGE, found live 2026-08-26 and the reason for the third clause
+// below. The gate above reads S1's REPLY and infers the QUESTION's nature
+// from it — and that inference inverts the moment S1 answers a factual
+// question socially. Real transcript, verbatim: "who was lincoln's vp?" →
+// "Shhh... I was just about to ask the same thing! 😄". Zero checkable
+// atoms in that reply, so the gate read "small talk", skipped S2, and the
+// turn ended with no search, no material, and no checking of a question
+// that is entirely checkable. A model declining to answer is the case that
+// most needs the real pass, and it was the one case guaranteed to skip it.
+//
+// The signal for "the question itself asked something" is composed from two
+// organs already here rather than a new hand-typed list of interrogatives
+// (the engine's own prior register carries no such class, and this repo
+// does not mint closed classes locally): an interrogative TERMINATOR (the
+// engine's SENTENCE_TERMINATORS registers "?" with giver "script/latn"),
+// plus preflightQuery finding real content words in the question after its
+// own stopwording. Both are needed — "how are you?" has the terminator but
+// reduces to nothing, and "good morning" has content but is not a question.
+//
+// This clause only ever ADDS a pass, never suppresses one, so it cannot
+// make the gate quieter than it was. Disclosed limit: a factual question
+// typed without a question mark ("tell me lincoln's vp") that S1 also
+// dodges still slips through. That case is strictly rarer than the one
+// this closes, and closing it properly needs an interrogative class earned
+// in the engine rather than guessed at here.
+function dodgedASubstantiveQuestion(question) {
+  const q = String(question ?? "").trim();
+  return q.endsWith("?") && preflightQuery(q, "").length > 0;
+}
+
 function needsSystem2(question, s1Text) {
   if (!String(s1Text ?? "").trim()) return true; // S1 said nothing — worth a real pass
-  return extractCheckableAtoms(s1Text, { question }).length > 0;
+  if (extractCheckableAtoms(s1Text, { question }).length > 0) return true;
+  return dodgedASubstantiveQuestion(question);
 }
 
 // `model` is the SAME rung for both passes (user direction, 2026-08-19:

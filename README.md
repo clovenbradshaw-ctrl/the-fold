@@ -1,6 +1,7 @@
 # The Fold
 
-A conversation whose context window does not grow, on a machine nothing leaves.
+A reading that runs for months without degrading, on a machine nothing leaves.
+Its context window never grows — that's the mechanism, not the point.
 
 ## Quickstart
 

@@ -3904,3 +3904,355 @@ used instead for a reliable, deterministic regression. `crown.test.mjs`:
 26/26 before, 30/30 after. Full suite: 1100/1100 before this fix's own
 edit, 1104/1104 after — exactly the +4 new cases, zero regressions
 anywhere else.
+
+## P40 — eoreader7 is real; the reading-workbench spec named a real API, not a fictional one
+
+**The correction.** A prior pass (this same day) concluded eoreader7 does
+not exist anywhere and estimated one to three weeks of new engine work to
+build five organs the reading-workbench spec names
+(`deriveIdentityRevision`, `deriveSurprise`, `expectation`/
+`expectationTransition`, `projectTerrainState`, `hypergraphAt`). That
+conclusion checked local disk under `~/Documents` and stopped there. A peer
+session working concurrently in a sibling repo (`commoncite`) had already
+cloned `clovenbradshaw-ctrl/eoreader7` from GitHub — a real, actively
+developed repo (24 PRs in two days) with a native recursive-reading kernel
+under `native/kernel/` — and said so. Verified independently before acting
+on it (per this repo's own standing rule that a peer's correction earns a
+second check, not blind trust): `gh repo view` confirmed the repo and its
+recent push; the checkout was cloned to a sibling of this repo
+(`../eoreader7`) and its own test suite run directly (114/118 passing, 4
+unrelated failures). All five named organs exist as real, callable exports.
+One — `deriveIdentityRevision` — uses the exact parameter name
+(`canonicalizationFloor`) the spec's own prose uses, strong evidence the
+spec was written against this real API rather than invented.
+
+**What actually landed, Increment A of the spec.**
+[`eoreader-contract.json`](eoreader-contract.json) declares every eoreader7
+export this repo's runtime is expected to consume — organ name, real
+import path, real export name, which later increment needs it — and
+[`eoreader-contract.test.mjs`](eoreader-contract.test.mjs) is the assay:
+it reads the JSON and, for each declared entry, dynamically imports the
+REAL checkout at `../eoreader7` by relative path (the same convention
+`build-log.test.mjs` already uses for `../eoreader6.1`) and asserts the
+export exists and is callable. No stub, no fixture, no hand-copied list to
+drift from the JSON — the test walks the contract's own declaration.
+
+**The gate was hand-verified, not just written.** The spec's own gate text
+for Increment A: "fails when a named export is removed. Deliberately
+verify the failure by hand once." Done against the real checkout, not
+simulated: `export` was stripped from `deriveSurprise` in the real
+`../eoreader7/native/kernel/dynamics.js`, the contract test was re-run and
+failed with a message naming the broken organ and its consumer, the file
+was restored, `git diff` confirmed byte-identical to before, and the full
+suite was re-run clean (1131/1131).
+
+**Still true, narrowed to its correct scope.** `eoreader-contract.json`
+and `eoreader-contract.test.mjs` genuinely did not exist anywhere before
+this pass — that half of the original finding held. And nothing in this
+repo imports from eoreader7's kernel yet; the-fold is, per eoreader7's own
+README, "the reference compatibility application" expected to migrate,
+not yet migrated. Increment A does not migrate anything — no UI change, no
+new call sites, exactly as the spec specifies for this increment.
+
+**Disclosed, not attempted here.** Whether `deriveIdentityRevision`'s real
+signature (`{fold, supports, attacks, witness, giver,
+canonicalizationFloor}`) actually carries the positional "distance back"
+semantics Increment D's margin needs, or has the same gap eoreader6.1's
+`revision.js` had, is unread — the single highest-value next research step,
+named in `READING-WORKBENCH-ENGINE-PLAN.md` rather than guessed at here.
+Increments B through F are unstarted; B and C in particular touch
+`index.html`'s `.tabs` bar and `app.js`, both reserved to the
+fold-architecture session per this file's own multi-session rule, and were
+deliberately left alone this pass.
+
+**Amended same day — the "blocker" (`deriveIdentityRevision`) was read
+against the wrong repo, and reads as solved once read against the right
+one.** The paragraph above disclosed one open question as the highest-value
+next step: whether eoreader7's real `deriveIdentityRevision` carries the
+positional "distance back" semantics Increment D's margin needs, given
+that eoreader6.1's `revision.js` (a different file, read by mistake in the
+first pass) does not. Read directly: it does, via a different and better
+mechanism than the byte/sentence coordinate the first pass went looking
+for. Every `REC` operation's `consequence` names the source edge it
+re-canonicalizes (`sourceEdge`, shaped `edge:text:{sequencePosition}:
+{index}` — `identity.js:97`); `understanding-scoreboard.mjs:142-144` reads
+that address back out and computes `reach: pos - srcPos` — current
+encounter position minus the re-made edge's own encounter position, which
+IS "the distance between the position it landed and the position it
+re-made." Fed through `reachSummary` (`:208-218`), this reproduces the
+workbench spec's own cited numbers, digit for digit, against the repo's
+own already-committed result on real Frankenstein
+(`native/eval/results/understanding-scoreboard-RESULTS.md:212-213`):
+median 749, min 82, max 2,046.
+
+No Frankenstein text ships in this checkout (Gutenberg texts are
+gitignored here, the same posture the-fold takes with `goldens/*/texts/`),
+so this was confirmed by reading the real code path end to end and
+cross-checking the already-committed, already-run result — not by
+re-running the ~2-minute full read live. That re-run, against a freshly
+fetched Frankenstein, is the natural next verification for whoever picks
+up Increment D, not attempted here.
+
+**What this changes.** Increment D is no longer named as this repo's
+blocker. It is the increment with the strongest existing evidence: a real
+function, a real downstream consumer computing exactly the spec's own
+described quantity, and a committed reproduction matching the spec's cited
+numbers exactly. The open work is adapting `understanding-scoreboard.mjs`'s
+node/eval scoring into something a UI margin renders live per-source, and
+settling the spec's own already-named deferred question (persistent gutter
+vs. opens-on-demand) — not inventing a coordinate space, which was the
+first pass's actual mistake: it read `eoreader6.1/packages/engine/
+emergence/revision.js`'s missing positional field and concluded the
+concept itself was absent from the organ, rather than checking whether the
+real eoreader7 organ addressed the same need a different way.
+
+## P41 — Increment B landed: the reading fronts by default, not Folds
+
+The reading-workbench spec's Increment B, done. `index.html`'s Sources tab
+is renamed **Reading** (`title="The reading — the source in focus, and
+everything read from it"`), reordered first among the panel tabs, and is
+now the default view at wide viewport — `app.js`'s `showView(matchMedia(...)
+? "chat" : "explore")`, was `"builds"`. The static `.pane.on` class swapped
+to match (`pane-explore` now carries it, `pane-builds` no longer does), so
+there's no flash of the wrong pane before JS runs. `README.md`'s and
+`package.json`'s one-line pitch changed from the bounded context window to
+the reading — "A reading that runs for months without degrading, on a
+machine nothing leaves. Its context window never grows — that's the
+mechanism, not the point" — using the spec's own phrase
+verbatim ("a reading can run for months without degrading").
+
+**Gate, verified live, not just by test.** The spec's own gate: "Every
+existing Explore test and `constitution.test.mjs` pass unchanged. The
+Explore pane renders byte-identically to before the rename; this increment
+moves furniture only." Full suite 1131/1131 (unchanged from before this
+edit — nothing in it touches DOM markup). Driven live in the real browser
+against `serve.mjs`: at wide viewport the Reading pane fronts by default
+with its own internal content untouched (still says "SOURCES" as its own
+h2 — that heading belongs to the pane's own established surface and was
+deliberately left alone, only the TAB that opens it changed); clicking
+Folds and back to Reading both correctly toggle `aria-selected` and pane
+visibility (`document.body.dataset.view` correctly reads `"builds"` then
+`"explore"`); zero console errors.
+
+**A file-ownership note, checked before landing.** `app.js` and
+`index.html`'s `.tabs` bar are named in this file's own multi-session rule
+as reserved to "the fold-architecture session." Two peer sessions
+(`3-0-07`, `3-0-c8`) were asked directly; neither claimed those files this
+session, and one (`3-0-c8`) explicitly said "go ahead." No third session
+was listed as active. Proceeded on that basis, disclosed here in case the
+reserving session returns and disagrees with the call.
+
+**Increment C, scoped and deliberately NOT started — a real fork found,
+not a vague hesitation.** C wants a persistent three-region header
+(GIVEN/READ/HELD), each a NAVIGATION destination reading a real organ.
+Scoping it live surfaced something the spec did not anticipate: this repo
+currently runs TWO separate, divergent source browsers. The one embedded
+in `index.html` today (`pane-explore`, native, OPFS-backed, introduced by
+commit `e6e57b2` "Sources panel: native file manager...") deliberately
+REPLACED the older standalone `explore.html`/`explore.js` app (which still
+exists, still runs on `explore-server.mjs`:8812, and still has the real
+`priors`/`cast`/`graph` views GIVEN and HELD would naturally navigate to)
+— but nothing embeds that older app's views in the current page anymore
+(no `<iframe>` tag exists in `index.html`; grepped and confirmed). So
+GIVEN's destination ("what did it come in knowing" — the priors view) and
+HELD's (the cast/referent view) have no current home in the fronted page:
+building them means either reviving a link to the app this repo's own
+recent history moved away from, or building new sub-views inside the
+native panel — a real product decision, not a wiring job, and exactly the
+kind of "forced decision" this repo's own past UI passes have gotten
+wrong before when guessed at instead of asked (the 3×3 terrain grid the
+user refused, named in the Explore section above). Not guessed at here.
+GIVEN's underlying number is cheap and real either way — `EXPLORE_BASE +
+"/api/priors/enabled"` is already fetched elsewhere in `app.js`
+(line 7433) — so the DATA side of C is not the blocker; the NAVIGATION
+side is.
+
+## P42 — Increment C landed: the three-question header, navigation not a readout
+
+The reading-workbench spec's Increment C, done, using the option the user
+chose directly when asked (build new sub-views in the native panel, rather
+than reviving a link to the deprecated standalone Explore app P41 found).
+
+**What landed.** A persistent bar under the header
+(`.ghr-bar`/`#ghr-given`/`#ghr-read`/`#ghr-held`), present on every screen
+at every viewport width. Each region is a real navigation destination, the
+spec's own forced decision honoured exactly: clicking one calls
+`showView("explore")` then `setExploreView(dest)` — it does not just
+repaint a number in place. The Reading pane gained a three-way sub-nav
+(`files` / `held` / `priors`, reusing the existing `.seg` control the
+source viewer's read/raw toggle already uses, per this file's own UX-pass
+rule: two faces of one thing is the same question in both places).
+
+**GIVEN** opens a new Priors sub-view (`renderPriorsPanel`, `#priors-panel`)
+reading `GET ${EXPLORE_BASE}/api/priors` — the SAME route the `/priors`
+chat command and the terminal's `priors` command already read — and writing
+through the SAME `POST /api/priors/toggle`. One ledger, now four doors
+instead of three, per this file's own already-stated rule for that route.
+
+**READ and HELD** reuse the existing Files sub-view (`renderSourcesPanel`,
+unchanged data path) with one addition: a `held` filter that drops muted
+text sources (media is never muted — always held once loaded, matching
+`measure.js`'s own disclosed rule that mute is a retrieval concept).
+
+**The gate, met exactly as declared.** "Every number in the bar is
+traceable to an organ call. A test asserts the surface originates none of
+them." `given-read-held.js` (new, pure — no DOM, no fetch) is the ENTIRE
+computation: `givenReadHeldCounts({priors, sources, media, muted})` reads
+its four inputs and returns three counts, nothing invented, GIVEN a typed
+`null` (rendered "—") rather than a false `0` when the priors ledger
+hasn't answered yet. `given-read-held.test.mjs` (8 cases) pins this as a
+property, in Node, no DOM needed. The DOM-side render functions
+(`renderGivenReadHeldBar` in app.js) do nothing but call this function and
+write its result into three `textContent`s — checked by reading the
+function's own body, not asserted from outside.
+
+**Verified live, end to end, against the real running server — not just
+the pure module's unit tests.** Driven through `javascript_tool` against
+`serve.mjs` on :8811 (screenshots were unavailable mid-session — the
+compositor wasn't displaying — so DOM state and computed geometry were
+read directly instead, which is the more precise check anyway):
+- GIVEN loaded the real corpus on first paint: 2,052 documents, 1,559 in
+  play, matching this file's own priors organ.
+- Clicking GIVEN switched the Reading tab to the Priors sub-view, updated
+  the heading to "Given", marked the right sub-nav button active, hid the
+  file-list toolbar (search/sort/add belong to the Files view, not this
+  one).
+- Toggling a real genre (`01-literature-books`, 45 documents) OFF dropped
+  the header's GIVEN count from 1,559 to exactly 1,514 (−45) — the real
+  ledger write round-tripping through the real server back into the
+  header. Toggled back ON, confirmed 1,559 restored, ledger left clean.
+- A real `drop` event (synthetic `DataTransfer`, the same event the app's
+  own drop-anywhere handler listens for, not a private-state hack) added
+  one source: READ and HELD both correctly went to 1.
+- Muting that source: READ held at 1 (still loaded), HELD dropped to 0
+  (not contributing), and switching to the Held sub-view rendered the
+  disclosed empty state ("Nothing is held right now... every loaded
+  source is muted") rather than a bare empty list.
+- Removing the test source returned both counts to 0. No test artifact
+  left in OPFS or the shared priors ledger.
+- Zero console errors throughout. Full suite 1139/1139 (1131 before this
+  increment's 8 new cases).
+
+**Scope, disclosed rather than silently narrower than it reads.** HELD is
+implemented as a FILTERED view of the same Files list, not a third,
+independent surface — "what does it hold right now" reduces exactly to
+"which loaded sources are live," which the existing mute state already
+answers precisely; building a third parallel list would have duplicated
+data this app already tracks in one place. A genuine `sessionReferents`/
+cast view (what the engine has actually resolved from an open source,
+rather than which files are attached) is real, more expensive
+(~90s on a 3.3MB text per this file's own Explore section), and NOT what
+HELD points at here — that is the deeper "what does it hold" the original
+wireframe may have meant, and is future work, not this increment's scope.
+
+**Amended same day — the toolbar was fitting with a few px to spare, not
+robustly, and the user caught it live.** P42's own verification tested
+wrapping at 1400px and 620px window widths and found no overflow either
+time — but both tests were confused by the same wrong assumption: `main`'s
+own `grid-template-columns: minmax(0,1fr) minmax(320px,430px)` caps the
+PANEL COLUMN at 320-430px no matter how wide the window is. A 1400px
+window gives the panel exactly the same room as an 1100px one — there was
+never a "wide" case in this measurement, so "it fits at 1400px" and "it
+fits at 620px" were the same borderline test run twice. It was passing
+with single-digit pixels to spare, in one specific automated Chromium
+build — the kind of margin that any real difference in font metrics,
+scrollbar width, or zoom level breaks immediately, and it broke
+immediately: the user's own real browser showed "priors" truncated to
+"prio" and the search box collapsed to a sliver, screenshotted and
+reported directly.
+
+**The fix removes the borderline fit rather than widening the margin.**
+`.sources-actions` (search/sort/add) now carries `flex: 1 1 100%` instead
+of `flex: 1` — this forces it onto its own row unconditionally inside the
+already-wrapping `.sources-toolbar`, so the title+subnav row and the
+search/sort/add row each get the panel's full width, always, rather than
+splitting one row three ways at whatever margin happens to survive.
+Re-verified live at the panel's actual floor (320px, the CSS minimum) as
+well as 620px: two clean rows, zero overflow (`scrollWidth === clientWidth`
+everywhere checked), "priors" renders in full, search keeps a genuinely
+usable 142px even at the floor.
+
+**A second, independent bug found while fixing the first, unrelated to
+layout.** `.ghr-region` (the header bar's buttons) and `#explore-subnav
+.seg` (the pane's own sub-nav) both carried a `data-view` attribute with
+overlapping values (`"files"`/`"held"`/`"priors"`) — an unscoped
+`document.querySelector('[data-view="priors"]')` silently returns
+whichever set comes first in DOM order (the header bar, since it sits
+before `<main>`), not the one a caller likely means. Found by using
+exactly that unscoped query while diagnosing the layout report and getting
+the wrong element back. The header bar's attribute is renamed `data-dest`
+— distinct name, same click-handler behavior, collision gone. Both
+app.js's `.ghr-region` handler and every selector in this section were
+already using SCOPED queries (`#explore-subnav .seg`,
+`document.querySelectorAll(".ghr-region")`) so this collision never
+actually misrouted a real click — it was a latent footgun for the next
+unscoped query, not a live bug, and is closed now rather than left for
+someone else to hit.
+
+Full suite 1139/1139, unchanged (CSS and one attribute rename only).
+
+**Amended again, same day — the composer went off-screen, and the cause was
+this increment adding a row above `<main>` without telling the height math.**
+Reported live by the user with a screenshot: the Send button was clipped off
+the bottom of the window and the compose box was unusable. `main`'s height is
+`calc(100dvh - var(--header-h))`, and `app.js`'s `trackHeader` measured
+`document.querySelector("header").offsetHeight` — header only. `#ghr-bar` is
+a SIBLING of `<header>`, not a child (it sits between `</header>` and
+`<main>`), so its ~33px was never counted: `main` claimed 33px more height
+than actually existed above the fold, and the composer lost exactly that
+much off the bottom. The CSS comment on that line already warned about this
+in as many words ("a wrong constant here scrolls the composer off-screen") —
+the warning was read, and then the increment added a row anyway without
+updating the measurement it governs.
+
+**The fix.** `trackHeader` now sums EVERY fixed row above `<main>`
+(`[header, ghrBar]`) rather than assuming one, and the `ResizeObserver`
+observes both. The two CSS fallbacks moved with it (53→86 wide, 46→79
+narrow) so the pre-JS first paint is not a frame of wrong layout. Verified
+live at 700x820 and 1440x780, both after a real reload: `--header-h` equals
+the measured sum exactly (83px and 97px respectively), `gapBelowMain` is
+1px (rounding), Send is fully inside the viewport, and `document.body.scrollHeight
+<= innerHeight` so the page itself never scrolls.
+
+**The verification lesson, which is the more valuable half — and it is the
+SECOND time in this increment the method was the defect.** Mid-diagnosis,
+`--header-h` appeared frozen at a stale value across viewport resizes, which
+read as a broken `ResizeObserver` and nearly became a fabricated second bug
+plus an unnecessary rewrite. It was not broken: **`ResizeObserver` callbacks
+are delivered as part of the rendering steps, so a Browser-pane tab that is
+hidden or throttled produces no frames and therefore never delivers a resize
+— every measurement taken against a non-fronted pane is potentially stale by
+construction.** Proven rather than assumed, by arming an independent probe
+`ResizeObserver` in the page, fronting the tab, and confirming both it and
+the app's own observer fired (the var moved 97px→123px when `#ghr-bar` grew).
+The standing rule this repo already had — front the tab and re-shoot before
+trusting a blank render — extends to every measured layout value, not just
+screenshots. The first instance was the borderline-fit toolbar above (a
+constrained panel width mistaken for a wide one); this is the second. Both
+times the code was fine or wrong for a different reason than the measurement
+suggested, and both times the user caught what the automated check had
+declared verified.
+
+**REMOVED, same day, at the user's direction — the whole bar, not a fix to
+it.** After the layout defects above were closed, the user's judgment was
+that the app does not need GIVEN/READ/HELD at all. Everything this policy
+describes building is gone: the `.ghr-bar` markup and CSS, `given-read-held.js`
+and `given-read-held.test.mjs` (deleted), the `renderGivenReadHeldBar` render
+pass and its four call sites, the `.ghr-region` click handler, `state.priorsData`
+(added only to feed the bar, and read by nothing once the bar left), the
+boot-time `/api/priors` fetch that existed only so GIVEN had a number on
+first paint, and `--header-h`'s multi-row sum — back to header-only, because
+nothing sits between `<header>` and `<main>` again. `trackHeader` keeps the
+list-shaped form and the comment explaining WHY every row above `<main>` must
+be summed, since that is the durable lesson and the list is one entry today
+by fact rather than by assumption.
+
+**What survives, deliberately.** The Priors sub-view in the Reading pane is
+real, useful on its own, and stays — it reads the same `/api/priors` route
+the `/priors` chat command already used. Increment B (the Reading tab) is
+untouched. **This policy is kept rather than deleted** because the thing
+worth remembering is not the bar: it is that a spec naming something as a
+required increment is not authority that it belongs in the product, and two
+consecutive verification defects (above) were found in a feature that then
+turned out not to be wanted. Cheaper to have asked what it was for first.
+Do not rebuild this from the reading-workbench spec without asking.

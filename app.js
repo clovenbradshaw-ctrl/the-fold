@@ -541,6 +541,11 @@ const state = {
    * where url is a revoke-able Object URL.
    */
   media: {},
+
+  /** Which view the Reading pane shows: "files" | "held" | "priors". */
+  exploreView: "files",
+  /** Last GET /api/priors response, or null before the first fetch resolves
+   *  — the GIVEN count stays a typed gap ("—"), never a false 0, until then. */
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -6969,13 +6974,38 @@ function renderSources() {
   renderSourcesPanel();
 }
 
+/**
+ * Reading-workbench spec, Increment C. Switches which view the Reading pane
+ * shows — "files" (every loaded source, READ's own destination), "held"
+ * (the same list, filtered to what is actually live right now — muted
+ * sources drop out, media never does), or "priors" (GIVEN's destination,
+ * the toggle ledger). Search/sort/add belong to the file list alone; the
+ * priors view has its own toggles instead, so the toolbar's action group
+ * hides with it rather than sitting there disabled.
+ */
+function setExploreView(view) {
+  state.exploreView = view;
+  for (const btn of document.querySelectorAll("#explore-subnav .seg"))
+    btn.classList.toggle("active", btn.dataset.view === view);
+  const onPriors = view === "priors";
+  $("sources-list").hidden = onPriors;
+  $("sources-actions").hidden = onPriors;
+  $("priors-panel").hidden = !onPriors;
+  $("explore-heading").textContent = { files: "Sources", held: "Held now", priors: "Given" }[view] ?? "Sources";
+  if (onPriors) renderPriorsPanel();
+  else renderSourcesPanel();
+}
+
 function renderSourcesPanel() {
   const list = $("sources-list");
   if (!list) return;
-  const names = Object.keys(state.sources);
-  const mediaNames = Object.keys(state.media);
+  const heldOnly = state.exploreView === "held";
+  const names = (heldOnly ? Object.keys(state.sources).filter((n) => !state.muted.has(n)) : Object.keys(state.sources));
+  const mediaNames = Object.keys(state.media); // media is never muted — always held once loaded
   if (!names.length && !mediaNames.length) {
-    list.innerHTML = `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    list.innerHTML = heldOnly
+      ? `<div class="sources-empty"><p>Nothing is held right now.</p><p class="sources-empty-sub">Every loaded source is muted — nothing is contributing to retrieval this turn.</p></div>`
+      : `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
     return;
   }
   const search = $("sources-search")?.value?.toLowerCase() ?? "";
@@ -7047,6 +7077,62 @@ function renderSourcesPanel() {
     };
     row.onclick = () => openMediaViewer(name);
     list.append(row);
+  }
+}
+
+/**
+ * GIVEN's destination. Reads GET /api/priors — the SAME route `/priors`
+ * (priorsTurn, above) and the terminal's `priors` command already read —
+ * and writes through the SAME POST /api/priors/toggle. One ledger, now
+ * four doors instead of three; a flip made here is seen everywhere else,
+ * because nothing here keeps its own copy of the toggle state.
+ */
+async function renderPriorsPanel() {
+  const panel = $("priors-panel");
+  if (!panel) return;
+  panel.innerHTML = `<p class="priors-empty">reading the priors ledger…</p>`;
+  let data;
+  try {
+    data = await (await fetch(`${EXPLORE_BASE}/api/priors`)).json();
+  } catch {
+    panel.innerHTML = `<p class="priors-empty">the priors organ needs explore-server.mjs running on :8812 to answer this.</p>`;
+    return;
+  }
+  if (data?.gap) {
+    panel.innerHTML = `<p class="priors-empty">${esc(data.gap.detail ?? "no priors corpus found")}</p>`;
+    return;
+  }
+  if (!data?.categories?.length) {
+    panel.innerHTML = `<p class="priors-empty">no priors corpus found.</p>`;
+    return;
+  }
+  panel.innerHTML = "";
+  const summary = document.createElement("p");
+  summary.className = "priors-empty";
+  summary.textContent = `${data.files.toLocaleString()} documents, ${data.enabledCount.toLocaleString()} in play — every document starts off.`;
+  panel.append(summary);
+  for (const c of data.categories) {
+    const row = document.createElement("div");
+    row.className = "priors-genre";
+    const allOn = c.enabled === c.files && c.files > 0;
+    row.innerHTML = `
+      <span class="priors-genre-name">${esc(c.name)}</span>
+      <span class="priors-genre-count">${c.enabled}/${c.files}</span>
+      <button type="button" class="seg${allOn ? " active" : ""}" data-genre="${esc(c.name)}">${allOn ? "on" : "off"}</button>`;
+    row.querySelector("button").onclick = async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        await fetch(`${EXPLORE_BASE}/api/priors/toggle`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: c.name, on: !allOn }),
+        });
+      } catch {}
+      renderPriorsPanel();
+    };
+    panel.append(row);
   }
 }
 
@@ -7307,6 +7393,10 @@ $("sources-sort")?.addEventListener("change", () => renderSourcesPanel());
 $("sources-add")?.addEventListener("click", () => {
   $("attach-menu")?.showModal();
 });
+
+// The Reading pane's own sub-nav: files / held / priors.
+for (const btn of document.querySelectorAll("#explore-subnav .seg"))
+  btn.onclick = () => setExploreView(btn.dataset.view);
 
 renderSources();
 
@@ -7648,8 +7738,10 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
   tab.onclick = () => showView(tab.dataset.pane);
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
-// the panels are already beside it, so start them on the prompt.
-showView(matchMedia("(max-width: 900px)").matches ? "chat" : "builds");
+// the panels are already beside it, so start on the reading itself
+// (reading-workbench spec, Increment B) — the reading is what the app is
+// about, and asking is one tool inside it, not the other way around.
+showView(matchMedia("(max-width: 900px)").matches ? "chat" : "explore");
 
 // ── the Folds panel's controls ───────────────────────────────────────────────
 //
@@ -7899,13 +7991,19 @@ new MutationObserver(syncChip).observe(statusEl, {
 syncChip();
 
 // Keep the layout's height math honest when the header wraps to two rows.
-const header = document.querySelector("header");
+// --header-h must cover EVERY fixed row above <main>: main's height is
+// calc(100dvh - var(--header-h)), so any such row this misses is height
+// main claims and the composer loses off the bottom of the screen. Today
+// <header> is the only one — a bar added between it and <main> has to be
+// summed in here too, which is a mistake this file has already made once.
+const aboveMain = [document.querySelector("header")].filter(Boolean);
 const trackHeader = () =>
   document.documentElement.style.setProperty(
     "--header-h",
-    `${header.offsetHeight}px`,
+    `${aboveMain.reduce((h, el) => h + el.offsetHeight, 0)}px`,
   );
-new ResizeObserver(trackHeader).observe(header);
+const headerObserver = new ResizeObserver(trackHeader);
+for (const el of aboveMain) headerObserver.observe(el);
 trackHeader();
 
 $("composer").onsubmit = (e) => {

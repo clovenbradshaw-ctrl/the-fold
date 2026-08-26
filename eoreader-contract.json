@@ -1,0 +1,50 @@
+{
+  "schema": "EOReaderContract@1",
+  "engine": "eoreader7",
+  "checkout": "../eoreader7",
+  "note": "Declares every eoreader7 export the-fold's runtime expects to be able to import. Nothing in this repo imports from these paths yet (see READING-WORKBENCH-ENGINE-PLAN.md) — this is Increment A of the reading-workbench spec: the contract lands first, with no UI change and no new call sites, so the migration guarantee below is checkable before anything is built against it.",
+  "runtimeConsumers": [
+    {
+      "organ": "deriveIdentityRevision",
+      "importPath": "native/kernel/identity.js",
+      "export": "deriveIdentityRevision",
+      "for": "Increment D — the revision margin"
+    },
+    {
+      "organ": "deriveSurprise",
+      "importPath": "native/kernel/dynamics.js",
+      "export": "deriveSurprise",
+      "for": "Increment C — the READ/standing readouts; possible replacement for aperture.js/reflex.js's current foldThrough-based reading"
+    },
+    {
+      "organ": "expectation",
+      "importPath": "native/kernel/expectations.js",
+      "export": "expectation",
+      "for": "Increment D — open questions rendered where a descriptor has candidates but no projection"
+    },
+    {
+      "organ": "expectationTransition",
+      "importPath": "native/kernel/expectations.js",
+      "export": "expectationTransition",
+      "for": "Increment D — same as expectation"
+    },
+    {
+      "organ": "projectTerrainState",
+      "importPath": "native/kernel/terrain-state.js",
+      "export": "projectTerrainState",
+      "for": "Increment C — the GIVEN/READ/HELD header; Increment E — the measured ceiling"
+    },
+    {
+      "organ": "graphEdgesAtSequence",
+      "importPath": "native/kernel/hypergraph.js",
+      "export": "graphEdgesAtSequence",
+      "for": "Increment D — scrubbing the margin as-of a point in the read (the spec's hypergraphAt)"
+    },
+    {
+      "organ": "hyperlexiconAt",
+      "importPath": "native/kernel/hypergraph-projection.js",
+      "export": "hyperlexiconAt",
+      "for": "Increment D — same as graphEdgesAtSequence, at the hyperlexicon projection instead of the raw graph"
+    }
+  ]
+}

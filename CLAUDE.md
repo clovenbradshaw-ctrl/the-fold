@@ -4023,3 +4023,52 @@ shape). `crown.test.mjs` gained 4 cases, two real end-to-end (SINGLE and
 DISAGREE) using `"lincoln.txt"`/`"lincolnNeg.txt"` — already-proven ground
 names from `capacity-runner.test.mjs`, pushed through `crown.js`'s own
 render for the first time. Full suite: 1104/1104, zero regressions.
+
+## eoreader7, and Increment A of the reading-workbench spec (added 2026-08-25)
+
+POLICIES.md P40 is the law; this is the pointer. `eoreader-contract.json` +
+`eoreader-contract.test.mjs` declare and check every eoreader7 export this
+repo's runtime is expected to consume, against the REAL checkout at
+`../eoreader7` (`clovenbradshaw-ctrl/eoreader7` on GitHub — real, not the
+nonexistent thing an earlier same-day pass concluded it was; see P40 for
+the correction and how it was verified). No UI change, no new call sites —
+exactly Increment A's own declared scope, nothing more. `READING-WORKBENCH-
+ENGINE-PLAN.md` (repo root) is the fuller writeup, including its own
+erratum and the one open research question (whether `deriveIdentityRevision`
+carries the positional semantics Increment D needs) left for whoever picks
+up Increment D.
+
+## Increment B landed; Increment C blocked on a real fork, not a guess (added 2026-08-26)
+
+POLICIES.md P41 is the law; this is the pointer. The Reading tab (was
+"Sources") fronts by default at wide viewport now — `app.js`'s
+`showView(...)` default changed from `"builds"` to `"explore"`, and
+`README.md`/`package.json`'s one-line pitch changed from the bounded
+context window to the reading. Verified live: pane toggling still works
+both directions, zero console errors, full suite 1131/1131.
+
+Increment C (the three-question GIVEN/READ/HELD header) is NOT started.
+Scoping it found that this repo now runs two divergent source browsers —
+the native `pane-explore` panel embedded in this page today, and the
+older standalone `explore.html`/`explore.js` app on `explore-server.mjs`
+(still running, still has the real priors/cast/graph views, no longer
+embedded anywhere). GIVEN and HELD's natural navigation destinations live
+only in the app this repo moved away from. Real product decision, not a
+wiring job — see P41 for the full finding.
+
+## Increment C (the three-question header) — built, then REMOVED (2026-08-26)
+
+POLICIES.md P42 is the law and carries the full account. `.ghr-bar`
+(GIVEN/READ/HELD) shipped as a persistent bar under the header, each
+region a navigation destination, and was **removed the same day at the
+user's direction** — the product judgment was that the app does not need
+it. Do not rebuild it from the reading-workbench spec without asking:
+the spec still names it as Increment C, and the spec is not the authority
+on whether it belongs.
+
+What SURVIVES the removal and is still live: the Priors sub-view in the
+Reading pane (`#explore-subnav`'s third segment, reading `/api/priors`),
+and the Reading tab itself (Increment B). What went with it:
+`given-read-held.js` + its test, `state.priorsData`, the boot-time priors
+fetch, and `--header-h`'s multi-row sum (back to header-only, since
+nothing sits between `<header>` and `<main>` again).

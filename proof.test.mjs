@@ -229,6 +229,34 @@ test("preflightQuery anchors on the turn's own words; the discourse joins when t
   assert.equal(preflightQuery("", ""), "");
 });
 
+test("preflightQuery keeps an acronym: the length floor dropped the only word saying what was ASKED", () => {
+  // Measured live on the real app, 2026-08-26, whole chain visible: this
+  // question built the query "lincoln" (VP is two characters, under the
+  // length floor), DuckDuckGo answered with eight Lincoln Motor Company
+  // pages, the preflight fetched three, and a question about a vice
+  // president was answered from luxury-SUV marketing copy.
+  const vp = preflightQuery("who was lincoln's VP?", "");
+  assert.match(vp, /VP/, `the acronym carrying the question's whole point was dropped: ${vp}`);
+  assert.match(vp, /lincoln/i, vp);
+
+  // Written out, this always worked — which is why the bug hid: the same
+  // question in longhand is fine, so only the abbreviated form fails.
+  assert.match(preflightQuery("who was lincoln's vice president?", ""), /vice president/i);
+
+  // An acronym bypasses CLAIM_STOPWORDS deliberately: lowercased, the set
+  // cannot tell the COUNTRY "US" from the pronoun "us", or the agency "WHO"
+  // from the interrogative "who". Casing is the only evidence in the text.
+  // Before this fix "what did the US do" searched the EMPTY string.
+  assert.equal(preflightQuery("what did the US do", ""), "US");
+  assert.match(preflightQuery("what does the WHO recommend", ""), /WHO/);
+  assert.match(preflightQuery("explain AI safety", ""), /AI/);
+
+  // Lowercase behaviour is untouched — the floor and the stopword set both
+  // still apply exactly as before to ordinary words.
+  assert.equal(preflightQuery("the cat is on the mat", ""), "cat mat");
+  assert.equal(preflightQuery("", ""), "");
+});
+
 test("preflightQuery earns the discourse join instead of always taking it — the trazodone/Lincoln incident, independently measured and merged in", () => {
   // The exact live bug (2026-08-19): turn 1 was about trazodone; turn 2 asked
   // a complete, self-sufficient question with nothing anaphoric in it. An

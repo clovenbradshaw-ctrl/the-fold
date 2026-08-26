@@ -1596,7 +1596,15 @@ export async function runPart({
     const seenSlots = new Set();
     const result = [];
     for (const claim of claims) {
-      if (claim.verdict !== "bound" || !(claim.fillers?.length > 1)) continue;
+      // Bound gate loosened 2026-08-26 (user direction: "let's loosen the
+      // bound gates for now and just see how accurate the local model can
+      // be"), the same change and the same reason as competingSubjectsOf
+      // below. `fillers` is attached by hypergraph.js to every verdict that
+      // reaches its cardinality point, UNBOUND ONES INCLUDED — so what the
+      // material states for a slot was already computed and was being
+      // thrown away whenever the draft's own sentence failed to bind, which
+      // is precisely when the draft most needs correcting.
+      if (!(claim.fillers?.length > 1)) continue;
       const slot = `${claim.subject}|${claim.verb}`;
       if (seenSlots.has(slot)) continue;
       const named = claims
@@ -1654,7 +1662,24 @@ export async function runPart({
     const seenSlots = new Set();
     const result = [];
     for (const claim of claims) {
-      if (claim.verdict !== "bound") continue;
+      // NOT gated on `verdict === "bound"`, and this is the whole point of
+      // querying the slot rather than reading the draft's own field. What
+      // the MATERIAL confirms for a slot does not depend on whether the
+      // draft's sentence happened to bind — and the case that most needs
+      // this correction is exactly the one where it did not: measured live
+      // 2026-08-26, "who was lincoln's vp?" drafted "Lincoln's VP was
+      // Andrew Johnson", failed to bind (the answer carried its own "∅ not
+      // in the material" mark), and so skipped this gate entirely — even
+      // though the fetched material stated BOTH Hamlin and Johnson and
+      // this function would have found them. An unbound claim still
+      // carries the verb and object the draft asserted, which is all
+      // queryReferents needs; a garbled one simply returns fewer than two
+      // subjects and is skipped by the guard below, exactly as before.
+      // This comment's own paragraph above already argued for it —
+      // "querying the slot directly finds it regardless of which (or
+      // whether any) subject the draft picked" — the gate just never
+      // matched the argument.
+      if (!claim?.verb || !claim?.object) continue;
       let subjects;
       try {
         subjects = relations.queryReferents({ verb: claim.verb, object: claim.object });

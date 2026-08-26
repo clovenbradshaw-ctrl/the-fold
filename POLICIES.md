@@ -4799,3 +4799,89 @@ this pass), zero regressions, 32 new tests all genuinely passing — not
 environment-gapped, because eoreader7 is checked out as a real sibling in
 this environment and every new test that needed it was run against the
 genuine article.
+
+## P46 — What the source itself says about itself is real provenance; a model should never have to guess it
+
+Found live, chasing "does this local-model chat feel like Claude." A
+faithful headless probe of the real S1/S2 pipeline (`twoPassTurn` →
+`runHolonicTask`, real organs, no shortcuts) asked "Who is Pierre
+Bezukhov?" against this repo's own War and Peace fixture. S1 — by design,
+no material — answered from the model's own confused prior: "the main
+character in *The Brothers Karamazov* by Dostoevsky." Wrong book, wrong
+author. The checking pipeline's whole job is to catch exactly this, and
+across the run's own log it did not: `checkGrounding` correctly flagged
+"Dostoevsky"/"The Brothers Karamazov" as `unsupported_claim` when tested
+directly against the real organ — the check is not broken — but the
+correction loop spends `maxCorrections` (1) attempt PER FAILURE MODE and
+the mechanical mode-fallback only rescues `echoed`/`reproduced`/`narrated`
+verdicts, never a plain `unsupported` survivor. A draft that is original
+prose (not an echo, not a photocopy) but still wrong after its one
+correction try ships exactly as it is, with the finding that could have
+caught it simply not accumulating another action.
+
+**The user's redirect closed it a level earlier: the model should never
+have had to guess.** Not "catch the invention after the fact" — "why did
+it have to invent in the first place." Project Gutenberg's own front
+matter states `Title: War and Peace` / `Author: Leo Tolstoy` in the exact
+file this instrument already reads, before the same `*** START OF THE
+PROJECT GUTENBERG EBOOK ***` marker `stripContainer` already finds and
+discards (P5.3). Nothing had ever mined it. And when the fix was first
+reached for as "load a hyperlexicon so it can look up Wikipedia," the
+user's own correction landed before any code did: **"the model should
+NEVER have anything without provenance."** `hyperlexicon.js` (checked
+directly, both repos) is the HL relation-composition-affordance ledger
+(P37) — no lexical or encyclopedic content, nothing about book identities;
+loading it would have supplied nothing relevant. A live Wikipedia fetch
+would ALSO need its own real provenance chain (a URL, a retrieval date,
+content-addressed) — this repo already has exactly that, in the web organ
+(P13) and the witness/proof-seeking tiers (P32/P13) — and reaching for
+either is real, separate, unbuilt future work, not attempted this pass.
+
+**What shipped instead needs no network and invents nothing.**
+`source.js` gained `declaredIdentity(name, text)` — reuses `stripContainer`'s
+own START-marker regex (factored into one shared constant so the two
+functions cannot silently disagree on where the header ends, the exact
+drift class this repo's own postmortems have caught twice before) to read
+the header span BEFORE that marker, and pulls `Title:`/`Author:` off it
+with a plain line match. No Gutenberg header → `null`, not a guess — the
+control case a hand-crafted plain-text fixture pins directly.
+`identifyMaterial`'s prose fallback (the ONLY branch a Gutenberg ebook
+ever reaches — rss/atom/table/json/html/code/markdown are untouched)
+merges it in as `identity.declared`, threaded onto every chunk the same
+way `identity.guess` already is. `buildSourceBlock` surfaces it as its own
+labeled line — `(the source file's own declared header — Title: …,
+Author: … — pg2600.txt#0-797)` — ahead of the passage text, addressed to
+the real header bytes it was read from, giver named as "the source file's
+own declared header" rather than this instrument's own claim.
+
+**Measured, not assumed: verified against the real pipeline, twice, with
+two different random S1 hallucinations.** One run: S1 guessed "Anna
+Karenina." Another: "The Brothers Karamazov" again. Both times, with
+`declaredIdentity` wired in, S2's real output was "Pierre Bezukhov is the
+illegitimate son of Count Bezúkhov" (or a close paraphrase) — correctly
+cited, `grounding.clean: true`, zero unsupported findings, no trace of
+either wrong book. S1 itself is untouched and will keep guessing wrong —
+that is its own documented design (no material, on purpose, P34) — the
+fix is that S2 no longer needs to trust or repeat S1's guess, because the
+material now says plainly what it is.
+
+**Files.** `source.js` (`declaredIdentity`, `stripContainer`'s marker
+factored to a shared constant, `identifyMaterial`'s prose branch,
+`buildSourceBlock`'s new labeled line). `source.test.mjs` (new — this repo
+had no dedicated test file for source.js before this pass; scoped to what
+this pass touched, not a backfill of the whole file's coverage; 10 cases,
+including the real pg2600.txt fixture on disk and a same-regex regression
+pin between `declaredIdentity` and `stripContainer`). Full suite:
+754/640/114 before this pass, 764/650/114 after — the same 114
+pre-existing environment failures, zero regressions, all 10 new cases
+genuinely passing.
+
+**Disclosed, not silently narrower than it sounds.** Scoped to Gutenberg's
+own header convention only — an attachment with no such header (most real
+attachments) gets no `declared` field at all, exactly as before. This
+closes the ONE class of "the model had to guess what it's reading"
+measured live; it does not build a general bibliographic-metadata parser
+for arbitrary formats, and it does not build the Wikipedia/web-grounding
+half of the original ask — both real, both unattempted here, both needing
+their own design pass through this repo's existing provenance-respecting
+egress rather than a shortcut.

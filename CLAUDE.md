@@ -4379,3 +4379,44 @@ regressions. Not wired live into app.js's browser runtime this pass
 `constitution.test.mjs` II.13 allowance) — disclosed, not implied done;
 `eoreader-contract.json`'s new `testTimeConsumers` section names exactly
 this boundary.
+
+## The material's own declared identity (added 2026-08-26) — pointer
+
+POLICIES.md P46 is the law; this is the short map. Chasing "does local-model
+chat feel like Claude" surfaced a real, live, repeatable bug: S1 guessed the
+wrong book and author for Pierre Bezukhov, and S2's own checking pipeline —
+which correctly flags the fabricated names when tested directly — still
+shipped it, because the correction budget is spent per failure mode and the
+mechanical fallback only rescues echo/reproduction/narration, never a plain
+survived-`unsupported` draft (a real, disclosed gap in `holon.js`'s
+correction loop, named here but NOT fixed this pass).
+
+**The actual fix closes it a level earlier.** `source.js::declaredIdentity`
+reads Project Gutenberg's own `Title:`/`Author:` header — real bytes,
+already in the file, addressed to their own span — and `buildSourceBlock`
+surfaces it labeled as the source's own claim. The model no longer has to
+guess what book this is. Verified against the real pipeline twice, two
+different random S1 hallucinations, both times fixed by S2. A first reach
+for "load a hyperlexicon for Wikipedia" was checked and refused on the
+merits — `hyperlexicon.js` is the HL relation-composition ledger (P37), not
+a lexical source — and the user's own redirect is the standing rule for
+whatever reaches for Wikipedia next: **the model should never have anything
+without provenance.** A live Wikipedia fetch would need the SAME real
+provenance chain the web organ (P13) and witness/proof-seeking tiers
+(P32) already carry — reusing those, not a new mechanism, is the named,
+unattempted next step.
+
+**`CHAT-POLICIES.md`** (new, repo root) is where the chat-specific slice of
+this document and POLICIES.md was pulled together into one reference —
+what a turn needs (the S1/S2 shape, bounded context, the grounding ladder,
+the correction loop and its one disclosed hole, provenance as the
+governing rule) plus everything this pass measured live (real per-turn
+timing, the concurrency-confound and chatHistory-windowing lessons for
+any future probe, the Pierre Bezukhov specimen in full, the hyperlexicon
+red herring). Summarizes and points at the fuller policy entries rather
+than duplicating them — read it first before touching chat behavior,
+POLICIES.md for the full detail behind any one claim in it. It is a
+standing document: a future pass that changes chat behavior appends its
+own findings and decisions to it (its own header states the rule —
+amendments append, they do not rewrite, POLICIES.md's own discipline),
+not a one-time report to be left stale.

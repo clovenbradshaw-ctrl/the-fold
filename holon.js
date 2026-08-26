@@ -928,6 +928,34 @@ export async function runPart({
     passages = retrieve(live, question, passagesPerPart, foldedRefs);
     widened = passages.length > 0;
   }
+  // THE SEARCH DIGEST IS PINNED, never left to win a retrieval slot.
+  //
+  // gatherPreflightMaterial already combines every search result's snippet
+  // into ONE chunk (`web:search-results`) precisely because the snippets
+  // are pre-snipped, high-relevance, already-paid-for material — its own
+  // comment says so. But it was then dropped into `live` alongside the
+  // fetched full pages and had to out-score them: measured live 2026-08-26,
+  // one Lincoln turn had 1,449 passages competing for 3 slots, the digest
+  // lost, and the model answered from three Johnson-heavy page passages
+  // while the digest sentence sitting unused read "Hannibal Hamlin and
+  // Andrew Johnson, the two vice presidents of Abraham Lincoln". Same
+  // question on another draw won the digest and answered correctly — the
+  // variance was never about the model, it was a retrieval lottery.
+  //
+  // Why pinning rather than re-ranking: the digest is not competing on
+  // relevance, it is a different KIND of material — a whole results page
+  // condensed, ~2.7KB, complete by construction, where a full page is
+  // 50-160K of prose with one relevant paragraph. Scoring them against each
+  // other on keyword overlap is the category error; every snippet repeats
+  // the query's own words, which is exactly why they tie and why the
+  // tie-break decides the answer. Cost is one extra passage per part,
+  // bounded and cheap, and it is additive: retrieval's own picks are
+  // untouched, so nothing that used to reach the model stops reaching it.
+  const digestChunk = live.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
+  if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
+    passages = [digestChunk, ...passages];
+  }
+
   const sourceBlock = buildSourceBlock(passages);
   onProgress?.("research", part, { passages: passages.map((p) => p.ref), widened });
 

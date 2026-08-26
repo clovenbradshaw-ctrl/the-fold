@@ -267,7 +267,43 @@ export function buildFactBlock(relations, passages, question = "") {
     }
     boundSentenceCount += boundSentences.size;
   }
-  if (!lines.length) return null;
+  // AN EXPLICIT VOID, never a vanished block. User rule, 2026-08-26: "the
+  // best way to keep a model from hallucinating is to either give it the
+  // answer, or an explicit void in place of the answer." Returning null
+  // here did neither — the FACTS section simply disappeared from the
+  // prompt, leaving the model passages, no facts, and no statement that
+  // there were no facts. A silent absence is precisely the shape a model
+  // fills from memory, and it filled it: "who was lincoln's vp?" came back
+  // "William R. Hargis", a person who does not exist.
+  //
+  // The difference between this and `null` is not cosmetic. `null` is the
+  // absence of a claim about the material; this is a CLAIM that the
+  // material yielded nothing — the same distinction grounding.js already
+  // holds between `examined: false` and `clean` ("clean and examined are
+  // different facts"), stated here in the one place the model can read it.
+  //
+  // The `sentenceCount` guard keeps a distinction the existing tests were
+  // right to protect: NO MATERIAL and MATERIAL THAT YIELDED NOTHING are
+  // different facts, and only the second is a void worth stating. Passages
+  // that are empty or whitespace examine zero sentences — there is nothing
+  // to have failed to extract from, so `null` stays correct there and the
+  // caller's own no-material disclosure handles it. One real sentence that
+  // yielded no relation is the case this void exists for.
+  if (!lines.length && sentenceCount === 0) return null;
+  if (!lines.length) {
+    return {
+      lines: [],
+      allLines: [],
+      coverage: 0,
+      empty: true,
+      text:
+        `FACTS — none. Not one of the ${sentenceCount} sentence(s) in your material ` +
+        `yielded an extractable relation, so there is no mechanically confirmed fact ` +
+        `behind this turn. This is a stated absence, not an oversight: if the passages ` +
+        `above do not answer the question, say plainly that they do not. Do not fill ` +
+        `this space from memory.`,
+    };
+  }
   const ranked = rankByQuestion(lines, questionTerms);
   const shown = ranked.slice(0, MAX_FACT_LINES);
   const omitted = ranked.length - shown.length;

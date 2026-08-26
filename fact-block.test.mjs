@@ -140,12 +140,39 @@ test("buildFactBlock: null cases are typed gaps, never a throw or a silent empty
   assert.equal(buildFactBlock(freshRelations([empty]), [empty]), null);
 });
 
-test("buildFactBlock: material with no extractable relation vocabulary at all returns null, not a false empty success", () => {
+test("buildFactBlock: real material that yields no relation states an explicit VOID, never a vanished block", () => {
   // Too short/nameless for discoverRelationVocab to measure anything —
   // hypergraph.js's own `report.vocabulary.gap` case.
+  //
+  // CONTRACT CHANGED 2026-08-26, deliberately. This used to assert `null`,
+  // on the reasoning that an empty block must not read as a false success.
+  // That intent is kept — what changed is that `null` did not achieve it:
+  // the FACTS section simply disappeared from the prompt, leaving the model
+  // passages, no facts, and no statement that there were no facts. A silent
+  // absence is exactly the shape a model fills from memory, and it filled
+  // it — "who was lincoln's vp?" came back "William R. Hargis", a person
+  // who does not exist. User rule this now follows: give the model the
+  // answer, or an explicit void in its place, never a gap.
   const passage = { ref: "tiny#0", text: "ok." };
   const relations = freshRelations([passage]);
-  assert.equal(buildFactBlock(relations, [passage]), null);
+  const block = buildFactBlock(relations, [passage]);
+  assert.ok(block, "real material must not vanish from the prompt");
+  assert.equal(block.empty, true);
+  assert.equal(block.lines.length, 0);
+  assert.match(block.text, /FACTS — none/, block.text);
+  // The void must say what it is, not merely be short: an absence the model
+  // is told to respect, rather than an empty heading it can read past.
+  assert.match(block.text, /Do not fill this space from memory/, block.text);
+});
+
+test("buildFactBlock: NO material and material-that-yielded-nothing stay different facts", () => {
+  // The guard that keeps the void honest. A passage with no text examines
+  // zero sentences — there is nothing to have failed to extract from, so
+  // this stays `null` and the caller's own no-material disclosure handles
+  // it. Claiming "none of the 0 sentences yielded a relation" would be a
+  // void about nothing.
+  const empty = { ref: "empty#0", text: "" };
+  assert.equal(buildFactBlock(freshRelations([empty]), [empty]), null);
 });
 
 test("buildFactBlock: a question ranks its own most relevant fact first, without dropping any other real fact", () => {

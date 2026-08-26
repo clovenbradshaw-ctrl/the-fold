@@ -3077,6 +3077,42 @@ function dodgedASubstantiveQuestion(question) {
   return q.endsWith("?") && preflightQuery(q, "").length > 0;
 }
 
+/**
+ * TRULY TRIVIAL — the only thing System 1 answers alone (user direction
+ * 2026-08-26: "only respond to truly trivial things with system 1").
+ *
+ * Three structural facts about the utterance itself, no word list: at most
+ * two words, no question mark, no digit. That is the shape of chitchat —
+ * "hi", "ok", "yes", "thanks", "good morning", "lol nice" — and nothing
+ * else reaches System 1 alone.
+ *
+ * preflightQuery is deliberately NOT the test here, though it was the first
+ * thing tried. It answers "what would I look up", which is a different
+ * question from "is this worth looking up", and after the length floor
+ * dropped to > 1 (see proof.js) it splits exactly wrong at both ends:
+ * "hi" and "ok" survive stopwording and would take the full grounded path,
+ * while "what is 2+2" reduces to nothing — every token either a stopword or
+ * a single character — and would be answered by S1 with no checking at all.
+ * Measured, not reasoned about: that split was run over these same cases
+ * before this function was written.
+ *
+ * ERRS TOWARD GROUNDING, on purpose. "how are you?" carries a question mark
+ * and so takes the full path — one wasted search for a pleasantry. That is
+ * the safe direction, and the same asymmetry proof.js's own preflight
+ * comment already argues for: a false positive costs one search, a false
+ * negative is a checkable question answered from the model's memory with
+ * nothing behind it — the failure this whole line of work exists to close
+ * ("who was lincoln's vp?" answered "William R. Hargis", a person who does
+ * not exist). Loosen only with a measurement showing the wasted searches
+ * cost more than the misses they would reintroduce.
+ */
+function triviallyChatty(question) {
+  const q = String(question ?? "").trim();
+  if (!q) return true;
+  if (q.includes("?") || /\d/.test(q)) return false;
+  return q.split(/\s+/).filter(Boolean).length <= 2;
+}
+
 function needsSystem2(question, s1Text) {
   if (!String(s1Text ?? "").trim()) return true; // S1 said nothing — worth a real pass
   if (extractCheckableAtoms(s1Text, { question }).length > 0) return true;
@@ -3127,7 +3163,32 @@ async function twoPassTurn(question) {
   // S1 to the fastest rung regardless of what's selected and make the
   // picker meaningless for this experience specifically.
   const model = state.model;
+
+  // SEARCH BEFORE ANSWERING (user direction 2026-08-26: "let's have it do
+  // the searching before it answers, and only respond to truly trivial
+  // things with system 1"). The decision is made on the QUESTION, before a
+  // single token is generated — not on S1's reply afterwards, which is the
+  // inversion that let a dodge disable all checking (see needsSystem2's own
+  // note above). Anything that is not trivially chatty goes straight to the
+  // grounded pass, which preflights material FIRST and answers from it.
+  //
+  // S1 is not consulted for these turns at all. That costs the instant
+  // first paint on a real question, which was S1's whole purpose — the
+  // trade the direction above makes deliberately, because a fast wrong
+  // answer that then gets quietly corrected underneath is worse than a
+  // slower answer that was grounded to begin with.
+  if (!triviallyChatty(question)) {
+    return holonicTurn(question, question, "flat", {
+      skipUserMessage: true,
+      forceModel: model,
+      label: `model`,
+    });
+  }
+
   const { node, text: s1Text } = await runFastPass(question, model);
+  // Even on the trivial path, S1 is never trusted to be unfalsifiable: if
+  // it volunteers something checkable while answering "hi", the grounded
+  // pass still runs. The gate only ever adds a pass here.
   if (needsSystem2(question, s1Text)) {
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,

@@ -1104,6 +1104,54 @@ test("a slot with competing SUBJECTS (not objects) trips the completeness gate t
   );
 });
 
+// ── the relation tier read a correction retry's RAW draft, before the
+// ship-time framing cut (which only ran once, after the whole loop settled)
+// ever saw it (2026-08-20, found live: eval/results/material-dialogue-
+// stress-703.jsonl turn 23). A retry that opens by echoing the question
+// back — an ordinary small-model shape, the exact one the framing cut
+// exists to clean — fed that echoed line straight into relations.read(),
+// which read the QUESTION's own words as a claim about the world. The
+// shipped answer was clean; `section.relations.claims` was not. Reproduced
+// directly against the real engine organs (no mock, `node -e`, this file's
+// own COMPETING_SUBJECT_TEXT fixture): reading "Who was Lincoln's vice
+// president?\nHannibal Hamlin was Lincoln's vice president in 1861."
+// manufactures a spurious beyond-reach claim (subject "Who", object
+// carrying the "?") alongside the real bound one. inspect() now reads
+// stripFraming(text), the SAME cut the ship-time text is built from.
+test("a correction retry whose raw completion echoes the question does not leak a spurious relation claim into the shipped record", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material confirms exactly")) {
+      corrected = true;
+      // The correction retry: real small-model shape — opens by echoing the
+      // question, then answers cleanly and completely.
+      return "Who was Lincoln's vice president?\nHannibal Hamlin was Lincoln's vice president in 1861. Andrew Johnson was Lincoln's vice president too.";
+    }
+    // First draft: bound but incomplete (names only Hamlin) — the identical
+    // setup the sibling test above uses to trigger the competing-subjects
+    // retry this test depends on.
+    return "Hannibal Hamlin was Lincoln's vice president in 1861.";
+  };
+  const result = await runHolonicTask({
+    task: "who was Lincoln's vice president?",
+    chunks: chunkSource("lincoln-vp.txt", COMPETING_SUBJECT_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.ok(corrected, "the competing-subjects signal must trigger the retry this test depends on");
+  assert.ok(!result.output.includes("Who was Lincoln's vice president?"), "the shipped answer must not carry the echoed question");
+  const claims = result.sections[0]?.relations?.claims ?? [];
+  assert.ok(claims.length > 0, "the real, answered claims must still reach the record — this is not a test of suppressing the relation tier");
+  assert.ok(
+    claims.every((c) => c.subject !== "Who" && !String(c.object ?? "").includes("?")),
+    `relation claims must come only from the shipped answer, never from the echoed question: ${JSON.stringify(claims)}`,
+  );
+});
+
 test("a slot with exactly ONE confirmed subject never trips the competing-subjects check — singular is the ordinary case", async () => {
   const relationsFor = makeRelationReader(await relationOrgans());
   let corrections = 0;

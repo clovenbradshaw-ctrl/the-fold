@@ -4420,3 +4420,87 @@ standing document: a future pass that changes chat behavior appends its
 own findings and decisions to it (its own header states the rule —
 amendments append, they do not rewrite, POLICIES.md's own discipline),
 not a one-time report to be left stale.
+
+## crown.js's disclosed TOKEN_RE gap, closed (added 2026-08-20)
+
+POLICIES.md's third same-day amendment to P39 is the law; this is the
+pointer. `TOKEN_RE`'s own header (crown.js) disclosed, in writing, a scope
+boundary it had not yet been tested against: a witness/source name
+containing a period would fragment the same way "self:model" once did
+before the colon fix. `eval/material-dialogue-stress.mjs` hit it for
+real, against a source named "titanic-a.txt" (an ordinary filename) —
+renderCrown rendered "According to titanic-a. txt, ...".
+
+Closed with a lookahead, not a bare widening: `\.(?=[A-Za-z0-9])`. A bare
+widening (period added to the continuation class exactly the way colon
+was) would have been unsafe in a way colon never was —
+`KNOWN_CONNECTIVES.period` is used, throughout every render function in
+this file, as a token deliberately glued flush against whatever word ends
+a sentence, so a bare widening would swallow that connective period into
+the preceding word on nearly every render. The lookahead tells the two
+cases apart: a period followed by another word character glues
+("titanic-a.txt"); a period followed by anything else — a space, the end
+of the string, another connective — stays its own token, including when a
+period-bearing witness name sits directly against the sentence's own
+closing period with no comma between them (DISAGREE's one-witness-per-side
+shape). `crown.test.mjs` gained 4 cases, two real end-to-end (SINGLE and
+DISAGREE) using `"lincoln.txt"`/`"lincolnNeg.txt"` — already-proven ground
+names from `capacity-runner.test.mjs`, pushed through `crown.js`'s own
+render for the first time. Full suite: 1104/1104, zero regressions.
+
+## eoreader7 scoping for the reading-workbench spec (added 2026-08-25)
+
+POLICIES.md P47 is the law; this is the pointer. **Increment A ("extend the
+contract") needed no work — `eoreader-contract.json` and
+`eoreader-contract.test.mjs` already existed on `main`**, built by a
+concurrent session and more thorough than the version this branch wrote
+before fetching (P47 carries the retraction and what the skipped
+`git fetch` cost). Read the contract itself for what the runtime consumes;
+its own rule is that an entry is promoted only when a PRODUCTION file, not
+a test, imports it live.
+
+What IS new here: `READING-WORKBENCH-ENGINE-PLAN.md` (repo root), the
+scoping of the five kernel organs the spec's increments D-F name, and two
+corrections worth not re-deriving — eoreader7 is real and lives at
+`clovenbradshaw-ctrl/eoreader7` (an earlier same-day pass searched local
+disk only and wrongly concluded it did not exist), and
+`deriveIdentityRevision` DOES carry the positional semantics Increment D's
+margin needs, via each REC's `sourceEdge` address rather than a coordinate
+field. `understanding-scoreboard.mjs` computes reach from it and reproduces
+the spec's own cited numbers (median 749, min 82, max 2,046) on real
+Frankenstein.
+
+## Increment B landed; Increment C blocked on a real fork, not a guess (added 2026-08-26)
+
+POLICIES.md P48 is the law; this is the pointer. The Reading tab (was
+"Sources") fronts by default at wide viewport now — `app.js`'s
+`showView(...)` default changed from `"builds"` to `"explore"`, and
+`README.md`/`package.json`'s one-line pitch changed from the bounded
+context window to the reading. Verified live: pane toggling still works
+both directions, zero console errors, full suite 1131/1131.
+
+Increment C (the three-question GIVEN/READ/HELD header) is NOT started.
+Scoping it found that this repo now runs two divergent source browsers —
+the native `pane-explore` panel embedded in this page today, and the
+older standalone `explore.html`/`explore.js` app on `explore-server.mjs`
+(still running, still has the real priors/cast/graph views, no longer
+embedded anywhere). GIVEN and HELD's natural navigation destinations live
+only in the app this repo moved away from. Real product decision, not a
+wiring job — see P41 for the full finding.
+
+## Increment C (the three-question header) — built, then REMOVED (2026-08-26)
+
+POLICIES.md P49 is the law and carries the full account. `.ghr-bar`
+(GIVEN/READ/HELD) shipped as a persistent bar under the header, each
+region a navigation destination, and was **removed the same day at the
+user's direction** — the product judgment was that the app does not need
+it. Do not rebuild it from the reading-workbench spec without asking:
+the spec still names it as Increment C, and the spec is not the authority
+on whether it belongs.
+
+What SURVIVES the removal and is still live: the Priors sub-view in the
+Reading pane (`#explore-subnav`'s third segment, reading `/api/priors`),
+and the Reading tab itself (Increment B). What went with it:
+`given-read-held.js` + its test, `state.priorsData`, the boot-time priors
+fetch, and `--header-h`'s multi-row sum (back to header-only, since
+nothing sits between `<header>` and `<main>` again).

@@ -1,50 +1,110 @@
 {
-  "schema": "EOReaderContract@1",
-  "engine": "eoreader7",
-  "checkout": "../eoreader7",
-  "note": "Declares every eoreader7 export the-fold's runtime expects to be able to import. Nothing in this repo imports from these paths yet (see READING-WORKBENCH-ENGINE-PLAN.md) — this is Increment A of the reading-workbench spec: the contract lands first, with no UI change and no new call sites, so the migration guarantee below is checkable before anything is built against it.",
-  "runtimeConsumers": [
-    {
-      "organ": "deriveIdentityRevision",
-      "importPath": "native/kernel/identity.js",
-      "export": "deriveIdentityRevision",
-      "for": "Increment D — the revision margin"
+  "schema": "the-fold.eoreader-contract.v1",
+  "purpose": "Runtime compatibility contract that EOReader 7 must satisfy for The Fold before native v7 migration begins.",
+  "reference": {
+    "repository": "clovenbradshaw-ctrl/eoreader6.1",
+    "branch": "main",
+    "observedHead": "00bf5605912d601c82936654055dcc8df30633fa"
+  },
+  "runtimeConsumers": {
+    "browserEngineModules": {
+      "app.js": [
+        "/engine/perceiver/text/segments.js",
+        "/engine/perceiver/text/spans.js",
+        "/engine/perceiver/text/surfaces.js",
+        "/engine/perceiver/text/pronouns.js",
+        "/engine/perceiver/text/relations.js",
+        "/engine/emergence/tiers.js",
+        "/engine/holon/task-log.js",
+        "/engine/operators.js",
+        "/engine/perceiver/text/priors.js"
+      ]
     },
-    {
-      "organ": "deriveSurprise",
-      "importPath": "native/kernel/dynamics.js",
-      "export": "deriveSurprise",
-      "for": "Increment C — the READ/standing readouts; possible replacement for aperture.js/reflex.js's current foldThrough-based reading"
+    "nodeImports": {
+      "explore-worker.mjs": {
+        "module": "../eoreader6.1/packages/host/index.js",
+        "exports": [
+          "createSession",
+          "admitChunked",
+          "sessionTerrains",
+          "sessionKinds",
+          "kindsNullArm"
+        ]
+      },
+      "explore-server.mjs": {
+        "module": "../eoreader6.1/packages/host/index.js",
+        "exports": [
+          "foldExtract"
+        ]
+      },
+      "serve.mjs": {
+        "dynamicModule": "packages/engine/holon/task-log.js",
+        "role": "validates append-only build records against the engine task vocabulary"
+      }
     },
-    {
-      "organ": "expectation",
-      "importPath": "native/kernel/expectations.js",
-      "export": "expectation",
-      "for": "Increment D — open questions rendered where a descriptor has candidates but no projection"
-    },
-    {
-      "organ": "expectationTransition",
-      "importPath": "native/kernel/expectations.js",
-      "export": "expectationTransition",
-      "for": "Increment D — same as expectation"
-    },
-    {
-      "organ": "projectTerrainState",
-      "importPath": "native/kernel/terrain-state.js",
-      "export": "projectTerrainState",
-      "for": "Increment C — the GIVEN/READ/HELD header; Increment E — the measured ceiling"
-    },
-    {
-      "organ": "graphEdgesAtSequence",
-      "importPath": "native/kernel/hypergraph.js",
-      "export": "graphEdgesAtSequence",
-      "for": "Increment D — scrubbing the margin as-of a point in the read (the spec's hypergraphAt)"
-    },
-    {
-      "organ": "hyperlexiconAt",
-      "importPath": "native/kernel/hypergraph-projection.js",
-      "export": "hyperlexiconAt",
-      "for": "Increment D — same as graphEdgesAtSequence, at the hyperlexicon projection instead of the raw graph"
+    "filesystemMounts": {
+      "serve.mjs": [
+        "packages/engine",
+        "nul",
+        "scripts/corpus"
+      ],
+      "explore-server.mjs": [
+        "packages/engine",
+        "nul",
+        "scripts/corpus"
+      ]
     }
+  },
+  "testTimeConsumers": {
+    "purpose": "wiring-the-measured-memory-v2 (increments A/B/C/D). Modules from eoreader7's native/ tree, consumed ONLY by this repo's own test/eval files today — never yet by app.js/serve.mjs/explore-server.mjs at runtime, per that spec's own disclosed scoping decision (live browser wiring needs a new server mount, a page-graph.mjs update, and a constitution.test.mjs II.13 allowance, none attempted this pass). Every production module this repo added stays zero-import (cast.js pattern: organs injected, never imported) — promote an entry here to runtimeConsumers only once a PRODUCTION file, not a test, performs the import live.",
+    "eoreader7Native": {
+      "repository": "clovenbradshaw-ctrl/eoreader7",
+      "modules": {
+        "native/kernel/activation.js": {
+          "exports": ["createActivation", "dmdWindow", "gammaFor"],
+          "consumedBy": ["fold.test.mjs", "eval/measured-memory-b.mjs"],
+          "productionSeam": "fold.js::deriveRecordWindow (organ-injected — fold.js itself has zero imports)"
+        },
+        "native/kernel/return-curve.js": {
+          "exports": ["returnCurve"],
+          "consumedBy": ["eval/measured-memory-b.mjs"],
+          "productionSeam": "none yet — measurement-only this pass (eval/results/measured-memory-b-RESULTS.md)"
+        },
+        "native/memory/activation.js": {
+          "exports": ["tokens", "codeOf", "recall", "encodeFrame"],
+          "consumedBy": ["retrieval.test.mjs", "eval/measured-memory-b.mjs"],
+          "productionSeam": "retrieval.js (organ-injected — retrieval.js itself has zero imports)"
+        },
+        "native/kernel/task-log.js": {
+          "exports": ["createTaskLog", "append", "ENTRY_KINDS", "OPERATOR_BASIS"],
+          "consumedBy": ["consequence.test.mjs"],
+          "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
+        },
+        "native/kernel/cube.js": {
+          "exports": ["GRAINS"],
+          "consumedBy": ["consequence.test.mjs"],
+          "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
+        }
+      }
+    }
+  },
+  "semanticCapabilities": [
+    "addressable source material with reopenable evidence ranges",
+    "incremental text segmentation derived from form",
+    "referent discovery and co-reference support",
+    "pronoun resolution",
+    "relation vocabulary discovery and relation extraction",
+    "engine-owned surprise measurement",
+    "append-only EO task/event vocabulary",
+    "canonical EO operator algebra",
+    "provenanced text priors and locally reproducible prior data",
+    "typed null/gap behavior",
+    "host projections for terrains, kinds, referents, relations and fold extraction"
+  ],
+  "migrationLaw": [
+    "EOReader 7 must first satisfy this contract without requiring The Fold runtime changes.",
+    "Historical module paths may be implemented by a v6 compatibility facade over v7 internals.",
+    "Compatibility paths are removable only after The Fold has migrated that dependency to a canonical v7 API and equivalent behavior remains tested.",
+    "The contract describes required behavior and callable surfaces, not required v7 internal architecture."
   ]
 }

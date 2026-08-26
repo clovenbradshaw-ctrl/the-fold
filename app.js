@@ -35,7 +35,10 @@ import {
   buildWarrantRecord,
   charCount,
   emptySummary,
+  extractSummaryFindings,
   mechanicalFoldLine,
+  projectFolds,
+  projectRecords,
   updateSummaryWithFold,
 } from "./fold.js";
 
@@ -311,6 +314,31 @@ const relationsFor = makeRelationReader({
   extractRelations,
   tokenize,
   posPriorFor: () => posPriorCache,
+  // Two RECEIVED closed classes, both from the engine's own prior register
+  // (perceiver/text/priors.js, giver "lang/en" — the same `enginePriors`
+  // namespace this file already imports), turned ON here rather than left
+  // opt-in, because each closes a measured FALSE BINDING in the live app
+  // rather than merely widening what the reader hears (POLICIES.md P41/P42):
+  //
+  //   determiners   — without it, `endpointsMatch`'s `tokensShare` fallback
+  //                   binds on a shared definite article alone whenever the
+  //                   corpus sits under commonTerms' own CORPUS_MINIMUM
+  //                   floor, which a turn's retrieved passages routinely do.
+  //                   Measured: "Seward negotiated the Suez canal" bound
+  //                   against material stating only "…the Alaska purchase";
+  //                   the same claim without "the" did not.
+  //   negationWords — without it, a negation the extractor put inside the
+  //                   OBJECT span (rather than before the verb, its own
+  //                   `negationBeforeVerbFor` gate) leaves polarity unread on
+  //                   both sides. Measured: "Lincoln did dismiss Seward"
+  //                   bound, cited to the passage that says he did NOT.
+  //
+  // Both are strictly conservative — they only ever turn a binding into a
+  // typed `beyond-reach`/`unbound`, never the reverse — and neither can
+  // manufacture a finding against an answer (beyond-reach stays off the
+  // unsupported list by relationFindings' own standing rule).
+  determiners: new Set([...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS]),
+  negationWords: enginePriors.NEGATION_WORDS,
   // Scoped to the extractor alone (hypergraph.js's own header says exactly
   // where) — succession.js's completeness gate, retrieval, and what the
   // model is shown all still read the real bytes.
@@ -2946,7 +2974,27 @@ async function refreshSummary(fold, arrivals = null) {
       ],
       { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }) },
     );
-    state.summary = updateSummaryWithFold(state.summary, fold, raw);
+    // WITNESSED (spec: wiring-the-measured-memory-v2, F1). The refresh is a
+    // consolidation step chained on its own prior output — this project's
+    // own NELL lesson, applied to the gist: check the LEAVES (the live
+    // records/folds this refresh could actually see), never fold-to-prior-
+    // fold, so drift that looks clean turn over turn cannot hide behind an
+    // ever-updating baseline. A refresh that drops a still-cited name or
+    // invents an unbacked one is refused; the prior summary is CARRIED
+    // (advanceSummaryFold) instead, and the refusal lands on the ledger —
+    // a decision the instrument made is never silent.
+    const prevSummary = state.summary;
+    const next = updateSummaryWithFold(prevSummary, fold, raw);
+    const consolidationCheck = extractSummaryFindings(prevSummary.entities, next.entities, {
+      records: projectRecords(prevSummary),
+      folds: projectFolds(prevSummary),
+    });
+    if (witnessRegressed({ ok: true, findings: [] }, consolidationCheck)) {
+      logAct("consolidation_regressed", { findings: consolidationCheck.findings });
+      state.summary = advanceSummaryFold(prevSummary, fold);
+    } else {
+      state.summary = next;
+    }
   } catch {
     state.summary = updateSummaryWithFold(state.summary, fold);
   }

@@ -234,6 +234,22 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * live corpus the closed-class measure runs over; omitted, the passages
  * stand in and the measure usually refuses itself (CORPUS_MINIMUM).
  *
+ * EVERY claim `read()` returns also carries `endpoints`
+ * (`{subject, object}`, each `"referent"` / `"form"` / `"tokens"` /
+ * `"none"`): HOW each end actually resolved, so no downstream reader has
+ * to infer an upstream finding from the shape of a refusal. `beyond-reach`
+ * gates on the SUBJECT, so its ABSENCE says nothing at all about the
+ * object — see `judge()`'s own comment for the measured specimen this
+ * closes (POLICIES.md P41).
+ *
+ * `organs.determiners` — OPTIONAL, a received closed class (the engine's
+ * own priors register: DEFINITE_DETERMINERS + INDEFINITE_DETERMINERS,
+ * giver "lang/en"), excluded from an endpoint's comparable tokens. Exists
+ * because `commonTerms`'s declared CORPUS_MINIMUM floor leaves the
+ * function-word filter off entirely on small material, where a shared
+ * definite article alone is enough for `tokensShare` to bind an object the
+ * material never states. Omitted: byte-identical to every prior caller.
+ *
  * `organs.posPriorFor` — OPTIONAL, a zero-arg accessor (app.js's own lazy-
  * accessor pattern, the same shape as its `relationsFor`/`skillLibrary`/
  * `callModel` entries) returning a POSPrior@1 object or null. When it
@@ -754,6 +770,8 @@ export function makeRelationReader(organs) {
     minShare = undefined,
     extractLeadingSurfaces = null,
     thirdPersonSingular = null,
+    determiners = null,
+    negationWords: negationClass = null,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -1090,6 +1108,33 @@ export function makeRelationReader(organs) {
       for (const t of folded.toLowerCase().split(/[^\p{L}\p{N}'’]+/u)) {
         if (t.length < 3) continue;
         if (functionWords?.has(t)) continue;
+        // `organs.determiners` — OPTIONAL, a RECEIVED closed class with its
+        // own named giver (the engine's own perceiver/text/priors.js
+        // register: DEFINITE_DETERMINERS + INDEFINITE_DETERMINERS, giver
+        // "lang/en"), never a word list typed here — the same discipline
+        // widget.js's own router already holds, and the same reason
+        // relations.js's header gives for having deleted its hand-listed
+        // verb string. Omitted: byte-identical to every caller before this
+        // pass, exactly like `verbForms`/`createLemmatizer` above.
+        //
+        // Why it exists at all, measured rather than reasoned about
+        // (eval/reasoning-e2e-no-llm.mjs, second pass): the corpus-scale
+        // filter above is `commonTerms`, which declares its own floor —
+        // below CORPUS_MINIMUM chunks it returns nothing and simply does
+        // not run (cite.js:122). That floor's disclosed residue is
+        // "auxiliary noise in the vocabulary", which can only widen what
+        // the reader HEARS. On the OBJECT side it does something the
+        // disclosure never covered: `endpointsMatch` falls through to
+        // `tokensShare`, one shared token is enough, and on sub-floor
+        // material the shared token can be the determiner itself. Live,
+        // against four sentences of real prose stating only "Seward
+        // negotiated the Alaska purchase": "Seward negotiated the Suez
+        // canal" came back BOUND, while "Seward negotiated Suez canal"
+        // (same claim, no article) came back unbound — the definite
+        // article was the entire binding. That is a fabricated edge, not
+        // widened hearing, and the floor's own disclosure does not reach
+        // it.
+        if (determiners?.has(t)) continue;
         tokens.add(t);
       }
       // A form only ever ADDS a way to resolve — it never overrides a real
@@ -1100,6 +1145,65 @@ export function makeRelationReader(organs) {
       const formOnly = !named && referents.size > 0;
       return { text: String(str ?? ""), referents, tokens, formOnly };
     }
+
+    // The four ways an endpoint can come back from `endpoint()`, named once
+    // so no caller has to re-derive them from the shape of the returned
+    // object: "referent" — it resolved to a referent this material itself
+    // established (index.resolve, or a real surface mention); "form" — it
+    // resolved only through a recurring-form id (the `form:` namespace,
+    // never a cast referent); "tokens" — it resolved to nothing, and the
+    // only thing available to compare it with is its own content words;
+    // "none" — not even that.
+    const resolutionOf = (end) =>
+      end.formOnly ? "form" : end.referents.size ? "referent" : end.tokens.size ? "tokens" : "none";
+
+    // A span whose FIRST token is a received negation word is a span whose
+    // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P43).
+    //
+    // `extractRelations`'s own polarity gate is `negationBeforeVerbFor`: the
+    // negation word must sit BEFORE the verb it negates. When it does not,
+    // the extractor does not fail loudly — it silently reads a DIFFERENT
+    // clause, and the negation ends up leading the object span while the
+    // triple's own `polarity` stays "+". Two shapes produce this, both
+    // measured live on real prose:
+    //
+    //   "Seward did not negotiate X"   -> Seward —did[+]→ not negotiate X
+    //   "Seward negotiated not X"      -> Seward —negotiated[+]→ not X
+    //
+    // Left alone, that is not a missed contradiction — it is an INVERTED
+    // one wearing a real address. Measured, against material whose only
+    // relevant sentence is "Lincoln did not dismiss Seward":
+    // `"Lincoln did dismiss Seward"` came back BOUND, cited to that very
+    // passage. Both ends had mis-parsed identically, so they matched, and
+    // neither end's polarity had been read at all.
+    //
+    // The rule is therefore symmetric — claim side AND material-edge side —
+    // and it WITHHOLDS rather than flips: this file does not know what the
+    // polarity should have been, only that nothing measured it. Flipping
+    // would assert a reading no organ earned; `beyond-reach` says exactly
+    // what happened, and (per relationFindings's own standing rule) never
+    // counts against the answer. Over-firing is safe by construction for
+    // the same reason; the FIRST-token gate keeps it narrow anyway, since
+    // that is precisely the position the mis-parse puts the word in — a
+    // negation deeper inside an object ("the treaty but not the purchase")
+    // is a different, real, still-unaddressed construction, not this one.
+    //
+    // Gated on `organs.negationWords` — a RECEIVED closed class with its own
+    // named giver (the engine's own perceiver/text/priors.js NEGATION_WORDS,
+    // giver "lang/en"), never a word list typed here. Omitted: byte-identical
+    // to every caller before this pass.
+    const firstToken = (str) => {
+      const folded = diaNorm(String(str ?? "")).toLowerCase();
+      for (const t of folded.split(/[^\p{L}\p{N}'’]+/u)) if (t) return t;
+      return "";
+    };
+    //
+    // Reads the caller's own per-call `negationWords` when one was declared
+    // (it is the class `extractRelations` itself was handed for THIS read),
+    // and the injected organ otherwise — one class, never two that could
+    // disagree about what a negation is on opposite sides of the same read.
+    const negationInUse = negationWords ?? negationClass;
+    const negationLed = (str) => Boolean(negationInUse?.has(firstToken(str)));
 
     const stemEq = (a, b) =>
       a === b || (Math.min(a.length, b.length) >= MIN_STEM && (a.startsWith(b) || b.startsWith(a)));
@@ -1329,11 +1433,51 @@ export function makeRelationReader(organs) {
       // `obj` is never built with forms (see endpoint()'s own comment), so
       // `obj.formOnly` is always false and is not read here.
       claim.formBased = Boolean(subj.formOnly);
+      // HOW each endpoint resolved, disclosed on EVERY claim that gets far
+      // enough to have endpoints at all — additive, never a gate, and never
+      // read by anything in this function's own verdict arithmetic.
+      //
+      // Why it has to be carried rather than inferred: `beyond-reach` is the
+      // only signal a downstream reader had for "an endpoint did not
+      // resolve," and `beyond-reach` gates on the SUBJECT (one line below)
+      // plus the narrow case of an object carrying neither referent nor
+      // content word. An object that resolves to NO referent but does carry
+      // a content word never touches that gate — it falls through to
+      // `endpointsMatch`'s own `tokensShare` branch, which is a deliberate
+      // and correct design (an object is very often a description, "the
+      // Alaska purchase", not a name) but which means the ABSENCE of
+      // beyond-reach licenses nothing at all about the object. Inferring
+      // "both endpoints resolved" from it is reading a check that never ran
+      // — measured live 2026-08-19 by eval/reasoning-e2e-no-llm.mjs, where
+      // "Lincoln appointed Napoleon" (Napoleon nowhere in the material) came
+      // back `unbound`, and verification.js's Existence/Entity cell reported
+      // `holds — subject and object both resolve to referents this material
+      // establishes` about a name the material has never heard of.
+      //
+      // Also supersedes the paragraph directly above on one point of fact:
+      // it says `obj.formOnly` "is always false", which was true only before
+      // object-side form identity was enabled under a lemmatizer (this
+      // file's own 2026-08-19 amendment, `endpoint(t.object,
+      // Boolean(createLemmatizer))` two lines up). `claim.formBased` stays
+      // subject-only, exactly as documented and tested; the object's own
+      // mode is carried here instead of quietly widening that field.
+      claim.endpoints = { subject: resolutionOf(subj), object: resolutionOf(obj) };
       if (!subj.referents.size) {
         return {
           ...claim,
           verdict: "beyond-reach",
           reason: `“${t.subject}” doesn't resolve to anyone or anything this material establishes — a limit of this check, not a mark against the answer`,
+        };
+      }
+      // Claim side of the polarity-never-measured rule (see `negationLed`).
+      // Checked here rather than before endpoint resolution because the
+      // `endpoints` disclosure above is still true and still worth carrying
+      // on a claim this tier is about to decline.
+      if (negationLed(t.object)) {
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `the negation in “${t.object}” landed inside the object, not before the verb — this claim's polarity was never measured, so it is not one this tier can check; a limit of this extraction, not a mark against the answer`,
         };
       }
       const sameSubjVerb = edges.filter(
@@ -1345,7 +1489,20 @@ export function makeRelationReader(organs) {
       // fillers) is the ordinary, unremarked case and carries nothing extra.
       const fillers = clusterFillers(sameSubjVerb);
       const cardinality = fillers.length > 1 ? { fillers } : {};
-      const matching = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
+      const matched = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
+      // Material side of the same rule. An edge whose own object span is
+      // negation-led carries a polarity nothing measured, so it may not
+      // decide this claim either way — `every`, not `some`: a clean edge
+      // sitting beside an unmeasured one still binds on its own merits.
+      const matching = matched.filter((e) => !negationLed(e.object));
+      if (matched.length && !matching.length) {
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `the only passage the material offers here states this with the negation inside its own object span, so its polarity was never measured — this tier cannot say whether it agrees or disagrees; a limit of this extraction, not a mark against the answer`,
+          nearest: matched.slice(0, NEAREST_EDGES_MAX).map(edgeFace),
+        };
+      }
       if (matching.length) {
         const agree = matching.filter((e) => e.polarity === t.polarity);
         const oppose = matching.filter((e) => e.polarity !== t.polarity);

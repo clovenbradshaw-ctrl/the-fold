@@ -3838,6 +3838,1054 @@ exported) for the several seconds between the stash and its immediate
 pop. Named here rather than silently smoothed over, in the same spirit
 this file's own P5.5 already holds every other surprising result to.
 
+## P40 — Belief-graph standing is conservative and revisable: surfing enriches, it never forces a first read to stand
+
+**The law.** Two rules, stated together because they are one discipline
+seen from either end. First, ADMISSION stays conservative rather than
+greedy: a candidate being (referents/entity.js's own Born gate) or a
+candidate standing (host/corpus.js's individuation classifier) is
+admitted only on real, witnessed evidence, and absence of evidence is
+withheld judgement, never manufactured conviction — this repo's own
+constitutional statement from the grounding-ladder section, restated one
+layer down at node identity itself. Second, and the part that was
+missing: because more reading can always ENRICH what is already believed
+("we can always enrich our reading through additional surfing"), a
+belief the graph holds is a belief, not a verdict — it must stay
+revisable as the reading grows, and a revision is CONCEDED (the prior
+standing kept, on the record, superseded) rather than silently
+overwritten. The belief graph the model carries is exactly that: a
+belief. Surfing and folding can reveal that what looked like a character
+was an artifact — a wire-service byline, a running head, a citation
+apparatus stapled to nearly every paragraph — and the graph must be able
+to say so without pretending its first read was final.
+
+**Referents, never surface spans — the discipline this whole mechanism
+had to honour to be correct at all.** Every join in this pass is keyed
+by a referent's own canonical face (`host/graph.js::referentFace`, the
+SAME lowercased display string `admitGraph`'s own `canon()` already
+lands triples on), never by testing whether some string superficially
+resembles another. Getting this wrong is not hypothetical here: building
+this pass surfaced a REAL, pre-existing bug of exactly this shape,
+living in the SAME file the new mechanism needed to touch.
+
+**The bug found and fixed: two nodes for one referent, silently.**
+`host/terrains.js`'s co-arrival binding register keyed its candidates by
+`r.id` (a referent's opaque, positional id — `"ref:auto:elizabeth"`)
+while the SVO stated-relations path, three lines above it in the same
+function, canonicalised through `referentLookup` to `r.display`
+(`"Elizabeth"`, lowercased to `"elizabeth"`). `bindingTriples` (engine
+`emergence/binding.js`) reads `l.a.id`/`l.b.id` straight through into the
+triples it hands `readTriples` — so a witnessed co-arrival pair landed
+belief on a node keyed by the referent's OPAQUE ID, disconnected from the
+node its own STATED relations already accumulated on. Measured live on
+`pg84-frankenstein.txt`: 7 of 7 witnessed co-arrival pairs on this
+fixture had `r.id !== referentFace(r)` — every single one would have
+fragmented. Fixed by keying the binding register with `referentFace`
+throughout, the one face every organ that touches a graph node now uses.
+Pinned as a regression (`host-terrains.test.js`): after the fix, no node
+in a real, bound admission is keyed `ref:auto:…` — the shape the bug
+would leave behind if it regressed.
+
+**What shipped, engine tier (`emergence/graph.js`).** `nodeWeights(graph)`
+— every node's CURRENT weight, the sum of its incident edges' already-
+decayed weight, in one O(edges) pass — closes a real asymmetry: `mentions`
+only ever grows (a permanent tally, like a reading's raw word count),
+while edges decay by design; ranking by `mentions` alone is exactly the
+mistake `referents/entity.js`'s own register already refuses for beings
+("frequency is not significance; that is how a reader ends up calling
+the commonest word the protagonist"), now closed for graph nodes too.
+`restandNode(graph, nodeId, {standing, giver, because})` — a witnessed
+revision of what a node IS, modelled directly on the file's own
+`injectPrior`: received, never derived, `giver` required on every call
+("indistinguishable from a fabrication" otherwise, `injectPrior`'s own
+phrase, reused verbatim in the new function's own doc comment).
+APPEND-ONLY (`standingHistory`, copy-on-write so a staged snapshot never
+silently grows a later revision) and CONSERVATIVE ON AGREEMENT — restating
+the current standing is a no-op, `changed: false`, the exact rule P36
+already states for EVA/REC on the claim ledger ("re-confirming the same
+verdict lands no REC — agreement is not a contradiction"), now proven
+identically at node-standing scale. DELIBERATELY VOCABULARY-AGNOSTIC:
+`standing` is accepted as whatever the caller declares (including
+explicit `null`, a genuine retraction, distinct from never having been
+reviewed at all) — never checked against a fixed list. Importing
+`referents/index.js`'s own `INDIVIDUATION_TYPES` into `emergence/graph.js`
+was considered and refused: it would have been the FIRST-EVER coupling
+from `emergence/` to `referents/` in this codebase (checked directly,
+grepped both directions, neither currently imports the other), for a
+five-word list this file has no business knowing the meaning of — the
+same "IDENTITY IS WHATEVER IT IS GIVEN... the graph does not resolve
+identity and must not" rule this file's own header already states for
+triples, held one column over for kind. A node the graph has never
+registered (no incident edges) is refused (`unknown_node`, a typed
+report, never a throw) rather than manufactured just to hang a judgement
+on — the constitutional line the-fold's own grounding ladder already
+holds, applied here.
+
+**What shipped, host tier (`host/graph.js`, `host/terrains.js`).**
+`castStandings(session, sourceId)` reads the cast's own individuation
+verdicts (host/corpus.js's already-shipped apparatus/emanon/protogon/
+holon classifier), keyed by `referentFace`, OMITTING every referent whose
+individuation is `null` — a classifier declining for lack of evidence
+must never overwrite a standing an earlier, evidenced verdict already
+set; absence licenses withholding, never manufacturing.
+`reconcileGraphStandings(session, {sourceId})` lands each changed verdict
+through `restandNode` and — the part that could not be skipped once
+tested against real prose — DISCLOSES what it could not land. Measured
+live on this repo's own `wire-quiet-subject.txt` fixture: "Continental
+Newswire" is discovered, typed `apparatus` (namingSentenceShare 0.525,
+27 mentions), and its verdict genuinely cannot land, because
+`extractRelations`'s own subject span for this fixture's stated
+relations is the shorter fragment "Newswire" alone — not one of the
+referent's registered surfaces — so `canon()` falls through
+uncanonicalised and the SVO triple lands belief on a DIFFERENT,
+un-canonical node this reconciliation can never find by the referent's
+own face. That is a real, separate, upstream limitation (the relation
+extractor's own subject-span coverage — the same class of gap this
+file's own P36/HL sections already name for pronoun subjects, now found
+again on a different construction) — fixing it by fuzzy-matching surface
+strings was considered and refused on the merits: that is precisely the
+referent-vs-surface conflation this whole mechanism exists to refuse,
+one level down. So the miss is named on `unresolved`, never silently
+absorbed into an empty `restood` list — `admitGraph` and
+`sessionTerrains` both now return it, and `host/terrains.js` pushes a
+typed `standing_unresolved` entry onto the Void ledger naming exactly
+which referent and why. `host/terrains.js` additionally WITHHOLDS every
+cast-typed `apparatus` referent from co-arrival binding — a narrating
+apparatus co-arrives with nearly everything by construction, so binding
+it as cast would read the container's own voice as the story's
+structure — with the withholding itself a named Void entry
+(`apparatus_withheld_from_binding`), never a silent absence. Staged
+network snapshots (the reading cursor) and `sessionGraphSnapshot` both
+now rank nodes by `weight` (current belief), not lifetime `mentions`,
+and both carry the complete `standings` list (never limit-cut — a
+demotion must stay visible even once the demoted node no longer makes
+the weight cut).
+
+**What shipped, engine tier again — the symmetric door
+`referents/entity.js` never had.** The host-tier apparatus classifier
+above is one measured heuristic; the deeper, statistically rigorous Born
+gate (`admitFromArrivals` — ground/difference/witness, the same organ
+`goldens/cast`/`goldens/network` calibrate against) had NO mirror of it
+at all. `offerCandidates` sweeps forward only — a surface already
+admitted (`state.entities.has(surface)`) is skipped forever, regardless
+of how much more has since been read. `reviewEntities(state)` re-runs
+the SAME already-tested gate against the GROWN reading for every
+currently-admitted being: a being that still clears is left alone,
+silently (agreement is not a revision, the identical discipline
+`restandNode` holds one tier up); a being that no longer clears LAPSES —
+removed from `state.entities` (so its surface is honestly re-offerable,
+should the pattern genuinely return) and appended to the new, append-only
+`state.lapsed` ledger, carrying the FULL gap object `admitFromArrivals`
+returned (not reduced to a bare type tag — `refusals()`'s own
+`why.gap ?? why` idiom was copied by mistake in the first cut of
+`lapsedEntities` and caught by this pass's own test: that expression
+collapses to the tag, the opposite of what a lapse record should keep,
+fixed to pass `why` through whole). A real, deterministic transition was
+constructed and measured, not assumed: a candidate present only inside a
+short reading's own spike admits with `censored: above`; the SAME
+candidate, diluted across a much larger reading at the same recurrence
+rate, no longer clears (`made_no_difference` — the pattern/witness test
+refusing because the diluted late-half activity no longer differs from
+what reseeding the early ground alone would produce) — the wire-service-
+byline story, mechanically reproduced at the Born-gate layer, not only
+the corpus-level heuristic layer. **A real id-collision this addition
+would otherwise have created, fixed before it could ship:** `admitEntity`
+built ids from `entities.size`; once a being can LEAVE `entities` (a
+lapse), size can fall, and a later, genuinely different being could be
+handed an id a lapsed being already used. Fixed with a monotonic
+`state.bornCount`, incremented on every admission and never decremented
+— pinned as its own regression (a lapse followed by a new admission gets
+a provably fresh id).
+
+**the-fold's own rendering (`explore/explore.js`, `explore/explore.css`).**
+A node carrying a standing draws with a dashed pill (`.gnode.stood`) and
+a small uppercase badge naming the CURRENT standing — the same visual
+grammar the Entity view's own `.ind` tag already uses for individuation,
+reused rather than given a second costume. The tooltip states the prior
+standing when one was conceded, and the giver. The summary line counts
+how many nodes were re-typed on review and how many were withheld as
+apparatus, the same place binding's own counts already live — never
+buried only in a per-node hover.
+
+**Deliberately not attempted this pass, named rather than silently
+absorbed.** The relation extractor's own subject-span coverage gap
+(the reason "Continental Newswire" cannot be reconciled on the wire
+fixture) is real, upstream, and unfixed — the same class of limitation
+this file's P36/HL sections already disclose for pronoun subjects,
+surfacing here on a different sentence construction. A node's on-canvas
+FONT SIZE stays keyed to lifetime `mentions`, unchanged — only the
+served/ranked ORDER now reflects current weight; redesigning what drives
+visual size is a separate, larger decision this pass did not make.
+`entity.js`'s own surface-keying (a real being can have several surfaces,
+merged only by `referents/consequence.js`'s separate, deliberately
+non-string causal identity test) was read and deliberately left
+untouched — `consequence.js`'s own header states plainly why identity is
+never decided by comparing spellings, and `reviewEntities` operates at
+exactly the unit `entity.js` already works in, not a referent-merged one;
+folding the causal identity layer INTO review (does a being's whole
+merged-referent evidence, across all its surfaces, still clear the gate)
+is real, scoped, future work.
+
+**Files.** `packages/engine/emergence/graph.js` (`parseEdgeKey`,
+`nodeWeights`, `restandNode`) + new `conformance/graph.test.js` (8
+cases). `packages/engine/referents/entity.js` (`bornCount`, `lapsed`,
+`reviewEntities`, `lapsedEntities`) + `conformance/entity.test.js` (+3
+cases, deterministic construction verified live before being trusted).
+`packages/host/graph.js` (`referentFace`, `castStandings`,
+`reconcileGraphStandings`, `nodeWeights`/`restandNode`/`parseEdgeKey`
+re-exported, `sessionGraphSnapshot` re-weighted and carrying
+`standings`) + `conformance/host-graph.test.js` (+4 cases, two against
+the real wire fixture, one a synthetic direct demonstration once a
+matching node exists). `packages/host/terrains.js` (binding keyed by
+`referentFace`, apparatus withholding, weighted staged snapshots,
+per-call reconciliation, both new Void gap types) +
+`conformance/host-terrains.test.js` (+3 cases, one a REGRESSION test
+against the fragmentation bug on real Frankenstein prose). All in
+eoreader6.1. `the-fold/explore/explore.js` + `explore/explore.css`
+(standing rendering) in this repo.
+
+**Measured.** eoreader6.1's full conformance suite: 1094/1091/0 passing
+before this pass (3 skipped — the gitignored `goldens/cast` fixture,
+unaffected), 1112/1109/0 after — the +18 delta is exactly this pass' own
+18 new test cases (8+3+4+3), zero regressions, same 3 skips. Both new
+Frankenstein/wire-fixture findings above (the binding-fragmentation bug,
+the subject-span reconciliation miss) were confirmed live against the
+real fixtures before being written up here, not assumed from reading the
+code.
+
+## P41 — A cell reports what it checked, or says it did not: the absence of a refusal is never a check
+
+**The law.** Two rules, one discipline, both found by reading an existing
+eval driver's own printed output rather than by reasoning about the code.
+
+First: **a checking cell may report what it checked, or report that it did
+not check — it may never report a check it never ran as though it had.**
+This is the mirror of the constitutional statement CLAUDE.md's own
+grounding-ladder section already carries for the other direction ("a
+checking organ may say 'I have nothing to compare this against'
+(withhold), or 'I compared it and it failed' (convict). It may never
+manufacture the second out of the first"). The failure this closes is the
+reflection of that one: manufacturing a confident **holds** out of the
+absence of a refusal. Concretely, `verification.js`'s Existence/Entity
+cell reported *"subject and object both resolve to referents this material
+establishes"* on every claim whose hypergraph verdict was not
+`beyond-reach` — and `beyond-reach` gates on the SUBJECT (plus the narrow
+case of an object carrying neither referent nor content word). An object
+that resolves to no referent but does carry a content word falls through
+to `endpointsMatch`'s `tokensShare` branch and never touches that gate at
+all. The absence of a refusal licensed a sentence about the subject and
+nothing whatsoever about the object.
+
+Second, the general form: **a downstream reader must not have to infer an
+upstream organ's finding from the shape of its refusals.** If a cell needs
+to know how each endpoint resolved, the organ that resolved them carries
+that answer forward as data. `judge()` now attaches
+`claim.endpoints = {subject, object}` — `"referent"` / `"form"` /
+`"tokens"` / `"none"` — read off the same `endpoint()` results it already
+computes.
+
+**The measured specimen.** `eval/reasoning-e2e-no-llm.mjs` (a driver from
+an earlier pass, unchanged at the time) printed, on the claim its own
+source labelled *"no such referent in this material at all"*:
+
+```
+Lincoln appointed Napoleon (no referent):
+  Entity: holds — subject and object both resolve to referents this material establishes
+  Link:   fails — no edge binds this exact subject, verb, and object
+```
+
+Napoleon is nowhere in that material. Worse than a wrong sentence in
+isolation: a reader seeing Existence hold and Structure fail reads "the
+material says this is false", when the truth is "the material has never
+heard of this object."
+
+**Why the verdict did not move, stated because it cost something.**
+Entity still reports `holds` wherever it held before — nothing downstream
+of `verification.js` changes. The reason is measured, not cautious: an
+object resolving by content word alone is NOT by itself evidence the
+object fails to exist. Objects are very often descriptions rather than
+names, and on the same material `"Pierre Bezukhov married the countess"`
+lands in exactly the same `tokens` bucket `"…married Napoleon"` does — a
+verdict flip keyed on that signal would fire on both, and would gate
+Link/Network/Lens through the presupposition wall for ordinary prose. The
+finding is reported, in the reason and in a machine-readable `endpoints`
+field, and left for a reader (and for a later pass with a wider
+measurement behind it) to weigh. Pinned as an explicit CONTROL case, so
+the next pass does not "fix" it into a conviction without measuring first.
+
+**A second defect, found the same way and fixed at the source.** Extending
+the same driver surfaced a fabricated binding: against four sentences
+stating only `Seward negotiated the Alaska purchase`, the claim
+`"Seward negotiated the Suez canal"` came back **bound**, while
+`"Seward negotiated Suez canal"` — the same claim without its article —
+came back `unbound`. The definite article was the entire binding:
+`endpointsMatch` falls through to `tokensShare`, one shared token is
+enough, and the shared token was `"the"`. The corpus-scale function-word
+filter (`cite.js::commonTerms`) declares its own floor and simply does not
+run below `CORPUS_MINIMUM` chunks — a declared limit whose disclosed
+residue is *"auxiliary noise in the vocabulary,"* i.e. something that can
+only WIDEN what the reader hears. On the object side it does something
+that disclosure never covered: it fabricates an edge. `makeRelationReader`
+gained an optional `organs.determiners` — a RECEIVED closed class with its
+own named giver (the engine's `perceiver/text/priors.js`:
+`DEFINITE_DETERMINERS` + `INDEFINITE_DETERMINERS`, giver `lang/en`), never
+a word list typed in this repo, the same discipline `widget.js`'s own
+router already holds. Omitted, every existing caller is byte-identical.
+
+**A correction to an earlier pass's own stated limit.** The same driver's
+first results document concluded that negation-as-contradiction "lives
+only in `capacity-runner.js`, not in bare `read()`". Measured across five
+constructions, that is wrong: `judge()` returns `contradicted` through
+bare `read()` for `"never"` and `"hardly"` alike. The real limit is the
+engine's own gate, `relations.js::negationBeforeVerbFor` — the negation
+word must sit BEFORE the verb. `"not"` and `"didn't"` are both already in
+the engine's `NEGATION_WORDS`; the shape fails, not the vocabulary.
+Periphrastic `"did not <verb>"` puts the auxiliary in the connector slot
+and swallows the real predicate into the object, so the claim checked is
+not the claim written; `"didn't"` extracts nothing at all; and post-verbal
+negation (`"negotiated not the Alaska purchase"`) stays polarity-positive
+and lands **bound** — a negated claim reported as supported, named here as
+a hazard and not fixed.
+
+**Enforcement.** `hypergraph.test.mjs` (+7: endpoint disclosure on a bound
+claim, on a token-only object, the description CONTROL, a form-resolved
+subject; the determiner defect pinned as it actually behaves so the fix
+cannot silently become a no-op, the received class closing it, and an
+opt-in byte-identity check). `verification.test.mjs` (+4: Entity never
+asserts an unresolved object, keeps its plain sentence when both ends
+really resolved, discloses a form-resolved subject, and says so when a
+claim carries no disclosure at all). `eval/reasoning-e2e-no-llm.mjs` grew
+Tiers 5–7 (negation measured across five constructions; the determiner
+defect and its close, side by side on the same material; and the whole
+ladder — `evaluate` + `squarePolarity` + `checkObjectSpecificity` — run
+end to end with zero model calls, where the article-shared false `bound`
+survives squaring and is caught one rung up, landing as a withheld verdict
+rather than a lie).
+
+**Evidence and its environment, disclosed.** Full account:
+`eval/results/reasoning-e2e-no-llm-RESULTS.md`. The sandbox this ran in
+had no checkout at the `../eoreader6.1` compatibility mount `./fold`
+creates; it was reconstructed the way that script does (submodule init in
+the sibling `eoreader7` checkout, then the mount symlink), and `npm
+install` was never run. Measured via `git stash` on exactly this pass's
+source files, over every test file importing `hypergraph.js` or
+`verification.js`: 238/224/14 before, 249/235/14 after — +11 tests, all
+passing, the same 14 failures either way (8 in `crown.test.mjs`; `hl` and
+`hl-acquire` as whole files, since the engine cut pinned at this mount
+predates `interpretation/hl.js`; 4 in `hypergraph.test.mjs` —
+POS-prior/treebank and referent-bar cases). An environment gap,
+established by running the baseline first, not a regression.
+`verification.test.mjs` is fully green before and after.
+
+## P42 — Two clocks, both measured from the material: binding forgets on the writer's window, retrieval forgets by power law
+
+**Renumbered from P41 on merge** — a concurrent PR (#73, above) independently
+landed its own P41 first; the number moved, nothing about the policy itself
+did (the same house convention P29's own header already records).
+
+**The law.** Memory carries TWO decay curves, never one, and neither is
+typed in. The BINDING layer (pronoun resolution, the aperture, "the reach
+of the present") forgets exponentially at a window read from the
+material's own accessibility curve — the mapping gap-since-last-mention →
+form-of-return (pronoun / definite descriptor / bare name) IS the
+writer's broadcast model of the reader's memory (Accessibility Theory,
+Ariel; referential distance, Givón 1983), measurable per material and per
+genre with no dials (dyadic bins; majority = where a plurality flips).
+The RETRIEVAL layer (ranking what comes back) forgets by POWER LAW —
+ACT-R's base-level activation, B = ln Σ t^(−d), received d = 0.5,
+Anderson's giver-named standard — which is recency-weighted but
+frequency-preserving: old evidence thins, it never vanishes. Handing
+either layer the other's clock is the measured way to lose, in both
+directions.
+
+**Amends READING-POLICY P1 constructively, not correctively.** P1 already
+says activation decays, identity does not, recall is retrieval, and
+"never enlarge the window to fix a recall failure." All of that stands
+and is now MEASURED rather than asserted (below). What this adds: the
+window P1 refuses to enlarge is the binding clock, and it is no longer
+anyone's to declare — the material states it; and a recall failure's fix
+at the retrieval layer now has a measured form — power-law activation
+ranking — rather than only "the defect is in retrieval or coreference."
+P4's zero-relevance-floor design is untouched: this is a ranking
+refinement above the floor, never a new floor.
+
+**The evidence, all in eoreader7 PR #22's committed results
+(native/eval/results/, sibling repo), each with its prediction frozen
+before its run:**
+
+- *The writer's own curve* (`writer-decay-RESULTS.md`): Frankenstein,
+  1,828 returns — pronoun-form returns majority only at gap 1, extinct
+  past 128; bare-name returns at 83–100% after gaps of 1,000–4,000
+  sentences, unglossed; definite descriptors PEAK at gaps 64–127 (.627) —
+  the writer's own re-grounding device, and the material's own fold cue.
+  Pride and Prejudice (its coref/frame prior curated for this): Austen's
+  activation clock is TIGHTER (extinct by 16), and Shelley's mid-range
+  descriptor peak is absent — the two clocks differ BY GENRE, which is
+  why neither is a constant.
+- *Retrieval's curve* (`forgetting-for-recall-RESEARCH.md` + paired
+  stats): on 3,102 prequential next-arrival steps, exponential decay
+  LOSES to undecayed accumulation (0.0382 vs 0.0549 — the wrong-shape
+  negative, kept); ACT-R power-law BEATS accumulation (0.0582, paired
+  z = 3.26), and the edge is ORDER-BORNE — under sentence shuffling it
+  vanishes and reverses (z = −1.55), the signature separating a
+  mechanism from an artifact. Forgetting improves recall exactly when
+  its shape matches the environment's need-odds (Anderson & Schooler
+  1991), and exponential is the wrong shape for retrieval because it
+  destroys frequency.
+- *The retraction discipline held en route* (`salience-dmd-RESULTS.md`
+  and its successor): a reported "~29-sentence period" was withdrawn by
+  its own arithmetic (mode half-life 0.27 sentences — it cannot
+  oscillate), and `survivesOnePeriod` now prints beside any period so
+  the claim cannot recur without its refutation beside it.
+
+**What this binds in THIS repo, named as debt rather than silently
+assumed done.** `fold.js`'s `RECENCY_WINDOW = 4` is the binding clock
+wearing a typed constant — under this policy it is a PRIOR awaiting the
+material's measured window, and any future change cites a measurement,
+not a preference. `retrieve`'s term-match ranking carries no activation
+at all; wiring power-law activation above its floor is real, scoped,
+unstarted work — this policy names the law and the debt, and the wiring
+is its own pass with its own evidence. The reflex ledger's recency slice
+and the aperture's presentWindow are the same binding clock and inherit
+the same standing. Nothing was rewired in this pass: a law landed ahead
+of its enforcement is disclosed as exactly that (VI.3's own posture).
+
+**Disclosed limits.** Measured on two novels and one benchmark task
+(next-sentence motif recurrence); the fully-empirical need-odds variant
+(the material's own measured cells, no functional form) was directionally
+right but NOT significant (z = 0.72) — the received prior stands until
+the material's own measurement holds more evidence, which is the
+prior→material ladder behaving as designed, not a failure of it.
+
+
+**Amended same day — falsified where it could be, and sharpened by it.**
+The claim was put where it could lose (eoreader7,
+`native/eval/results/forgetting-falsification-RESULTS.md`, predictions
+frozen before the runs), on both of the asked-for fronts. READING A BOOK:
+at entity level — ranking the constitutional cast by who returns next
+sentence, the thing reading a novel actually asks of memory — power-law
+recall improves on frequency by 57% relative (paired z = 5.32, edge
+vanishing under sentence shuffling): not falsified, strengthened well
+beyond the motif task. LISTENING TO AUDIO: on real music (chroma states
+at ~46ms frames), the FIXED received exponent broke exactly where the
+frozen risk clause said it might — persistence dominates at that
+timescale and recency crushes d = 0.5 (z = −51.98) — while the
+material-measured need-odds estimator ADAPTED to the medium's own
+arrival statistics and landed within noise of the persistence oracle at
+2.8× the received prior. So the law this policy states is sharpened, not
+weakened: the durable, omnimodal mechanism is NEED-ODDS MATCHING; the
+power-law with d = 0.5 is a TEXT-SCALE prior (Anderson & Schooler's own
+environments were day-scale text needs), consulted first and superseded
+by the material's measured odds — which text was too thin per-step to
+earn and audio earned decisively. For THIS repo, whose material is text
+at sentence scale, the retrieval-layer guidance stands as written; a
+future audio or fine-timescale organ inherits the mechanism, never the
+exponent.
+
+## P43 — Polarity that was never measured is never a verdict, and a received class that closes a false binding is turned on
+
+**Renumbered from P42 on merge** — a concurrent PR (#74) independently
+landed its own P42 first, exactly as P42 itself records happening to P41.
+The number moved; nothing about the policy did.
+
+**The law, part one.** An organ may report a verdict only on what it
+actually read. `extractRelations`'s polarity gate is
+`relations.js::negationBeforeVerbFor` — the negation word must sit BEFORE
+the verb it negates. When it does not, the extractor does not fail loudly:
+it silently reads a different clause, the negation ends up leading the
+OBJECT span, and the triple's own `polarity` stays `"+"`. **A claim or an
+edge whose object span is led by a received negation word is therefore one
+whose polarity nothing measured, and it may not decide anything** — it is
+`beyond-reach` with a typed reason, on the claim side and on the material
+side alike.
+
+**Withheld, never flipped.** This tier does not know what the polarity
+should have been; it knows only that nothing read it. Flipping would
+assert a reading no organ earned — the same manufacture-from-absence P41
+closes in the other direction. `beyond-reach` says exactly what happened,
+and (by `relationFindings`'s own standing rule) never counts against an
+answer, which is what makes over-firing safe by construction.
+
+**The measured specimen, and why it is worse than a missed contradiction.**
+Against material whose only relevant sentence is *"Lincoln did **not**
+dismiss Seward"*, the extractor mis-parses THE MATERIAL identically to the
+claim, producing the edge `Lincoln —did[+]→ not dismiss Seward`. Both ends
+then carry an unread polarity, so they match:
+
+```
+"Lincoln did dismiss Seward"  ->  bound  [cabinet.txt#520-620]
+```
+
+Not a missed contradiction — an INVERTED one, cited to the very passage
+that refutes it. This is the shape P41's own results document had named as
+a mere "hazard" (a post-verbal negation landing `bound`) and left; chasing
+it found the citation.
+
+**Scope decisions that cost something.** The gate reads the FIRST token of
+an object span only — precisely the position the mis-parse puts the word
+in; a negation deeper inside an object (`"the treaty but not the
+purchase"`) is a different, real, still-unaddressed construction, not this
+one. The material side uses `every`, not `some`: a cleanly-stated edge
+sitting beside an unmeasurable one still binds on its own merits. And the
+class in use is the caller's own per-call `negationWords` when one was
+declared, the injected organ otherwise — one class, never two that could
+disagree about what a negation is on opposite sides of the same read.
+
+**The honest cost.** Every claim whose negation the extractor mis-slots
+now reads `beyond-reach` instead of a verdict — including
+`"Lincoln did not dismiss Seward"`, which is TRUE and used to read
+`bound`. That `bound` was accidental (nothing measured its polarity; the
+opposite claim bound just as readily), so withholding is the honest
+reading — but it is a real loss of verified claims, not a free fix.
+`"Seward didn't negotiate…"` still extracts no claim at all: silence, with
+no object to type, and not fixed.
+
+**The law, part two: a received class that closes a FALSE BINDING is
+turned on, not left opt-in.** P41 landed `organs.determiners` and this
+policy lands `organs.negationWords`, both received closed classes with named
+givers (`perceiver/text/priors.js`, `lang/en`). Both are now injected at
+`app.js`'s own `makeRelationReader` call site rather than left as organs
+nothing enables — because each closes a measured false binding in the live
+app, not merely a widening of what the reader hears. Both are
+one-directional (a binding can become `unbound`/`beyond-reach`, never the
+reverse) and neither can newly convict an answer.
+
+This deliberately ANSWERS, for these two organs only, the standing open
+question CLAUDE.md records for `verbForms` and `createLemmatizer` (whether
+the live app should load a received prior by default). The distinguishing
+test is the whole argument and does not generalise on its own: **does the
+prior close a false binding, or does it widen what the reader hears?** The
+first is a correctness fix and ships on; the second is a coverage
+trade-off and stays a separate decision.
+
+**Enforcement.** `hypergraph.test.mjs` (+6: the inverted-and-cited `bound`
+pinned as the defect so the fix cannot silently become a no-op; the
+received class closing it; the claim side for both mis-slot shapes; a
+CONTROL proving a correctly-read `never`/`hardly` still contradicts and an
+ordinary positive still binds; `every`-not-`some` on a clean edge beside
+an unmeasurable one; an opt-in byte-identity check). `eval/reasoning-e2e-
+no-llm.mjs`'s Tier 5 now runs every negation shape through readers with
+and without the class, side by side, and Tier 7 runs the ladder
+deliberately WITHOUT the received classes — the two defenses are real and
+independent.
+
+**Evidence.** Full account:
+`eval/results/reasoning-e2e-no-llm-RESULTS.md` §3b. Because this pass also
+touches `app.js`, it was measured over the WHOLE suite via `git stash`
+rather than the affected files alone: 993/972/21 before, 999/978/21 after
+— +6 tests, all passing, the same 21 pre-existing environment failures,
+zero regressions.
+
+---
+
+## P44 — A capacity claim names its assembly, its priors, and the task's order before the performance is scored
+
+**The law.** This instrument may be scored against Commons's Model of
+Hierarchical Complexity, and a score is admissible only when three things
+are declared BEFORE any performance is measured: the ORDER of the task
+(analytically, with its constituents named), the ASSEMBLY it was measured
+on (READING-POLICY P0), and the PRIORS injected (READING-POLICY P3). A
+number missing any of the three is not a weak measurement, it is not a
+measurement.
+
+**Why the MHC and not a scale of our own.** Commons's central complaint
+about predecessor stage theories is that they *confounded stimulus and
+response* — they scored performances without independently specifying the
+complexity of the task performed. That is the same line this repo already
+draws everywhere else from the other direction (the cube is not a content
+classifier; a task's order is DECLARED, never computed from the material
+it happens to run on). The MHC also supplies what a home-grown scale could
+not: three structural axioms, quantal scoring with no partial credit, and
+content-independence as a testable property rather than an aspiration.
+The eo-wiki's own "MHC and EO" article already records the convergence and
+supplies the order table; nothing here invents, renames, or reorders one.
+
+**The axioms are arms, not assertions.** A declared order survives a test
+or it is refused. Axiom 1 (defined in terms of the next lower order) is
+structural — every constituent must resolve to a real item exactly one
+order down. Axiom 2 (organizes them) is structural too — the item must
+state its coordination and supply arms that can perturb it. Axiom 3
+(non-arbitrarily, producing outcomes the lower order alone cannot reach)
+is two arms: `lowerOrder`, where the constituents alone must FAIL the
+task, and `arbitrary`, where the same constituents re-coordinated at
+declared seeds must also fail. A fourth arm, `discrimination`, is this
+battery's own and is labelled as such wherever it appears — the MHC scores
+task structure and says nothing about an instrument's precision.
+
+**Every arm is a null, so READING-POLICY A10 governs every arm.** "Before
+spending a null, check the pair is licensed — a statistic insensitive to
+its perturbation fails invisibly and globally." An arm must therefore SHOW
+that its perturbation reached what the task reads; one that did not is
+typed `unlicensed_perturbation` and leaves the item UNMEASURED, never read
+as "the axiom held." This is not decorative: the first cut's order-12 arm
+shuffled the ORDER of cells `verificationTasksFor` had already returned,
+which cannot reach gating that happens inside the organ before it returns,
+and it produced a false `arbitrary_coordination` refusal. A9 ("one null is
+not a null") is why an arm may declare `draws`/`fired` and report plural
+seeded grounds natural-frequency, the way `asserted.js`'s order arm does.
+
+**A refused item is a gap in the battery; it is never a failure of the
+system.** This is the task/performance separation enforced mechanically,
+and it is the whole point. When an item's arms fail, what has been
+measured is that the ITEM is mis-declared — so the system is UNMEASURED
+there. That is categorically different from an item whose axioms hold and
+whose task the system then fails, which is a real ceiling. `stageFrom`
+therefore refuses to report a stage number ACROSS an unmeasured order
+rather than guessing past it, and carries passes above the cap as
+`isolated` observations explicitly not folded into the number — the same
+posture every other verdict in this repo holds: a check may withhold, or
+convict, never manufacture the second from the first.
+
+**Files.** `mhc.js` (pure — the received order table with its giver, the
+declaration grammar, the axioms as arms, quantal scoring, `stageFrom`'s
+contiguity rule, `contentIndependence`) + `mhc.test.mjs` (31 conformance
+cases, deliberately organ-free so the walls stay testable in any
+checkout). `eval/mhc-battery.mjs` — a re-runnable driver, P19's and P27's
+own posture for measurement drivers, binding items at orders 5-14 to real
+organs over two real materials this repo already ships.
+
+**Probes are derived from the material, never hardcoded.** The first cut
+named its own answers ("Lincoln appointed Hamlin"), which made the battery
+a test of one fixture and made content-independence unaskable. Every probe
+is now read out of the material: the specimen edge is whichever the
+material corroborates most among edges whose BOTH ends resolve to admitted
+referents, the negative is that edge reversed, and a specimen the control
+material also states is rejected as non-distinctive. Where a material
+offers no such probe the item lands a typed gap naming what was missing,
+never a fabricated specimen.
+
+**The measured result, and its honest headline.** Orders 6, 8, 9, 11 and
+12 pass on both materials; order 5 fails on both; 7, 10 and 13 diverge
+between them, so content-independence does NOT hold for this battery and
+that is reported as a property of the battery, not smoothed away. No stage
+number is readable on either material, because order 5 — the floor — is a
+measured failure, and nothing above a failed floor may be summed into a
+stage. Orders 0-4 are typed `out_of_scope_by_construction`, not as a gap:
+this instrument receives symbols and has no sensor, so it is not failing
+those tasks, it is not in the business of them.
+
+**What order 5's failure actually is, since "cannot refer" would be the
+wrong reading.** Scored against `discoverReferents`'s OWN individuation
+rule, the fold gathered 23/24 (War and Peace) and 10/12 (Borodino) of the
+pairs that rule calls one being, and kept apart 4/4 and 3/3 of the pairs
+it calls different — perfect precision, no observed over-merge. The three
+strandings are one shape: a bare token left alone while the longer surface
+containing it merged with a different partner (`Mikhail` alone while
+`Mikhail Kutuzov` sits with `Kutuzov`). `discoverReferents` assigns by
+first-match-wins over already-assigned surfaces with no second pass, so
+the grouping is a greedy closure over a relation that is not transitive,
+while "is the same being as" necessarily is. The obvious fix (union-find)
+is NOT prescribed: it would also merge `Alexander` into `Emperor`, and the
+real chain runs from `genericTokens` under-firing on a bounded slice
+through a title surviving as individuating to greedy assignment — which
+link to fix is a design question, not a one-line change.
+
+**Four wrong versions of that one item, kept because each was the same
+error.** Pairs chosen by spelling drew `Russian` | `Russian Army`; pairs
+chosen by `namesCorefer` on RAW surfaces drew `Ilya Rostov` | `Petya
+Rostov`; the regimes read off `cast.js`'s referent index drew 510 capture
+artefacts, because that index is built with `minSentences: 0` — a PRESENCE
+index, which is P38's own rule ("an index answering 'does this exist' is
+not an index answering 'is this established'") walked into by this
+driver against the very organ P38 was written about; and treating every
+one-side-bare pair as a withholding reported `Anna` | `Anna Karenina` as
+wrongly merged when it is the code's own documented singleton-partner
+rescue firing correctly. In all four the reading was right and the probe
+was wrong. Pairs whose decision needs that rescue branch are now excluded
+from the score and counted as a disclosed abstention, rather than
+reimplementing the engine's partner floor in a driver.
+
+### P44, amended 2026-08-25 — order 13 earned, and content-independence read correctly
+
+**The rung.** Order 13 refused on one material and passed on the other, and
+the difference was luck rather than measurement. Diagnosed, not patched: it
+was A10 one level deeper. The arbitrary arm destroyed claim-GROUPING (the
+right coordination to perturb — `mergeTestimony`'s verdict is invariant to
+source identity by construction, so shuffling WHO said what would be the
+insensitive-statistic trap) but mixed in whichever second claim came to hand.
+On War and Peace that claim contributed only `undetermined` readings, which
+`mergeTestimony` genuinely does not read, so the mix could not change the
+merge and the arm declared the coordination arbitrary while testing nothing:
+fired 20 of 20 there, 0 of 20 on Borodino, on that difference alone.
+
+**What made it trustworthy was finding the thing that is actually
+metasystematic.** A claim's STANDING across witnesses — corroborated, or a
+lone voice — is a property of the SET that no member of it carries. Two real
+claims are selected BY MEASUREMENT against a fixed sample of ten
+source-systems: one the sample corroborates (two or more bind it) and one it
+does not (exactly one binds). The task requires the merge to type them
+`AGREE`/`corroborated` and `SINGLE`/`single`, and — the clause that makes it
+non-circular — that BELOW the merge the two are indistinguishable: each has a
+system saying exactly `holds`, the same word, carrying no standing of its own.
+The order-13 finding is therefore demonstrably not available at order 12,
+rather than asserted to be. Every arm now carries its own licence: `lowerOrder`
+only if the two merges genuinely differ, `arbitrary` only if the mixed set's
+hold/refused counts differ from the clean set's, `discrimination` only if the
+reversed claim really draws fewer holds. All three licensed and failing as
+they must, on both materials.
+
+**The general rule this adds.** A perturbation must be chosen against the
+statistic's own readable inputs, and its licence CHECKED against them, not
+assumed from the perturbation's shape. "I mixed in a second claim" looks like
+a perturbation; "the mixed set's holds and refusals differ from the clean
+set's" is one. The first version was already perturbing the right THING and
+was still unlicensed, which is why the licence has to be computed rather than
+argued.
+
+**And the conceptual bug it surfaced, which was this battery's own.**
+`contentIndependence` compared raw per-order verdicts and reported every
+difference as "these items are reading content, not structure." That is FALSE
+for a passed-here/failed-there difference. The MHC's content-independence is a
+claim about the SCALE — a task's order does not depend on what it is about —
+and emphatically NOT a claim that a performer succeeds equally across domains.
+Separating task from performance is exactly what makes a per-domain difference
+ordinary; it is what a stage measurement is for. Three outcomes are now kept
+apart: **violation** (a valid order-N task on one material, MIS-DECLARED on
+another — the only thing the scale forbids), **performance** (valid in both,
+completed in one), **no probe** (the material offers no specimen). Reading
+only the collapsed order-level status is how the first version could not see a
+violation at all, so `byOrder` carries `refusedCount` and `unmeasuredCount`
+apart — the same "two facts, never collapsed" discipline this policy already
+holds items to, applied to the rows above them.
+
+**Corrected result.** Scale **held: true**, zero violations. Seven orders
+agree outright (5 failed, 6/8/9/11/12/13 passed); one performance difference
+(order 7 — real pronoun bindings on War and Peace, all `pronoun_no_margin` on
+Borodino, whose prose is dominated by collectives); one missing probe (order
+10 on War and Peace, which offers no subject+verb slot with two distinct
+fillers in its declared slice). The stage remains unreadable, because order 5
+— the floor — is still a measured failure. Suite 718/605/113 → 721/608/113,
+the same 113 pre-existing sibling-engine path failures, zero regressions.
+
+### P44, second amendment (2026-08-25) — the floor fixed at the source, and the layering the fix nearly got wrong
+
+**The order-5 failure is closed, in the engine, not papered over in the
+battery.** eoreader7's `discoverReferents` (native/adapters/text/surfaces.js;
+its READING-SPEC.md S17 is the engine-side record, PR #24) replaced the
+first-match assignment scan with three mechanics: assignment walks
+most-individuated-first (a bare form's counts include its compounds'
+occurrences, so mention order seats fragments before their own evidence);
+membership is decided against a group's MAXIMAL member, never its weakest;
+and a multi-group merge happens only when the arriving surface's own tokens
+CONTAIN each group's maximal evidence — a compound witnesses downward, a
+bare fragment matching two groups witnesses nothing. Chasing it also found
+a second, worse defect the battery's regime measurement had not reached:
+with the fragment seated first, two REAL bearers accreted into one referent
+through a shared first name at the generic fence — an over-merge, where the
+strandings were only under-merges.
+
+**The correction that shaped the fix, from the user, mid-pass:**
+"coreference is a solved problem — are you doing it with referents or not?"
+The first cut admitted an ambiguous bare form as its own referent — a third
+being that does not exist, asserted at the TYPE level, which structurally
+cannot answer WHICH being a mention names (the same string names different
+people at different occurrences; READING-SPEC S11's "the type signature was
+the bug"). The solved architecture — each mention resolved against
+discourse salience — already exists in this engine as activation recall
+(`resolvePronouns`, roles.js's generalization), and the canon already
+routes ambiguity closure there (P2 stage 3's second pass; P3's per-text
+prior). So the type level now says exactly what it can check and no more:
+an ambiguous form lands as a typed `ambiguous_surface` GAP carrying its
+candidate referent ids, admission withheld, closure named as the
+occurrence layer's. The general statement, which is P38's rule meeting the
+constitutional withhold-or-convict rule: **a layer that cannot check a
+claim does not get to assert it — it names the layer that can, and hands
+over the candidates.**
+
+**Measured, end to end.** Battery coreference recall 23/24 → 24/24 (War
+and Peace) and 10/12 → 12/12 (Borodino), precision 4/4 and 3/3 unchanged,
+zero over-merges. Order 5 passes on both materials, and a stage is
+readable for the first time: War and Peace reads **stage 9 (Concrete)**,
+capped by order 10's missing probe (not a ceiling); Borodino reads
+**stage 6 (Sentential)**, capped by a REAL measured ceiling — order 7,
+pronoun binding, every attempt refused `pronoun_no_margin` on prose
+dominated by collectives. Scale still held: zero violations. Engine suite
+140/150 before and after (the identical 10 pre-existing environment
+failures); the-fold suite 721/608/113, unchanged.
+
+## P45 — The store is append-only; the prompt is a projection; recall is retrieval, not enlargement
+
+The law this closes: READING-POLICY P1, "activation decays, identity does
+not, recall is retrieval" — and the third clause had never been built. A
+spec (`wiring-the-measured-memory-v2`, superseding a same-day v1 refuted at
+line level: `fold.js` reading proved the SYSTEM 2 STORE itself, not only
+the prompt, was being truncated) named six increments; this pass landed
+four in full (A, C, D, one measurement pass covering B) plus F1, and named
+E/F2 explicitly deferred rather than built partway. CLAUDE.md carries no
+separate map section for this entry — the code's own headers (fold.js,
+retrieval.js, consequence.js) already carry the map at the point of use,
+which is where a reader actually needs it; this entry is the law and the
+evidence.
+
+**A — the store/projection split (`fold.js`).** `addWarrantRecord` sliced
+`summary.records` at `RECORDS_IN_PROMPT` on every append; `advanceSummaryFold`/
+`updateSummaryWithFold` did the same to `summary.folds` at
+`MAX_FOLDS_IN_PROMPT`. Both are retroactive forgetting of the ONE tier P1
+says does not decay — record #9 landing destroyed record #1 permanently.
+Fixed by un-slicing the store and moving the bound to render time:
+`projectRecords`/`projectFolds` (new, shared by `buildRecordSystemMessage`/
+`buildSummaryUpdatePrompt` internally and by any caller that needs the
+identical window, e.g. a consolidation check) apply the SAME default bound
+as before, so every existing caller — app.js's own `buildRecordSystemMessage(state.summary)`
+bare calls, every eval driver's `buildSummaryUpdatePrompt(summary,
+[...summary.folds, fold])` pattern — is byte-identical in live behavior by
+construction, having never needed to know the store's own size. A second,
+real consumer had to be found and fixed the same way: `tables.js`'s `/self
+folds` builder read `summary.folds` directly and would have started
+showing the ENTIRE unbounded history the moment the store stopped
+truncating itself — caught by a pre-existing test that (correctly, by this
+codebase's own "widen the boundary, don't just re-pass" rule) encoded the
+OLD truncating behavior as its assertion and had to be rewritten, not
+loosened. `/self records`, by contrast, was left genuinely unbounded — an
+explicit human request to see the full addressed history is exactly P1's
+"re-openable," not a case needing a window at all; a new test pins this as
+the deliberate asymmetry it is, not an oversight.
+
+`deriveRecordWindow` (new) measures the record-projection window from the
+store's own behavior via `dmdWindow` (eoreader7's real
+`native/kernel/activation.js`, injected, cast.js pattern — fold.js stays
+zero-import): the shallowest depth at which forgetting older records'
+`refs` (the closest thing a record has to a referent/claim id; no
+tokenizer exists here to read `gist` text, and none is invented) changes no
+conclusion about which addresses are live. Real, tested against the real
+eoreader7 module (a genuine sibling in this environment, not an
+environment-gapped stub) — a stabilized identity set measures the
+shallowest candidate; a genuinely singleton old reference correctly refuses
+as `reach_exceeds_candidates` rather than guessing the widest. NOT wired
+live into app.js's browser runtime this pass — that needs a new server
+mount (`/native`, alongside `/engine`/`/nul`), a `page-graph.mjs` update,
+and a `constitution.test.mjs` II.13 allowance, none of which this pass
+touches; the declared `RECORDS_IN_PROMPT` stands as the operative default,
+now correctly operating on a store that never destroys what falls outside
+it, which is the actual bug this increment exists to fix. Folds' own window
+stays declared only, disclosed as a scope decision, not a gap: a fold
+string has no structural identity `deriveRecordWindow`'s `refs`-based
+`derive` can reuse without inventing NLP fold.js has no business owning.
+
+**C — recall is retrieval (`retrieval.js`, new).** The missing clause: a
+turn beyond `RECENCY_WINDOW` and a record beyond the projection window are
+addressed, not forgotten, but nothing brought a dormant one BACK. Composed
+the S9 way, generate-then-rank, never blended: eoreader7's real
+`native/memory/activation.js` (`codeOf`/`recall`/`encodeFrame` — Hebbian
+sparse coding, one-hop completion, causal, already mature and consumed
+elsewhere in that repo by `adapters/text/pronouns.js`/`anchoring.js`,
+reused unmodified per the standing rule) generates the POSSIBLE set — only
+a record sharing distinctive, already-recurring vocabulary with a question
+can surface at all. Within that set, ACT-R base-level activation (received
+d=0.5, giver Anderson, the exact formula
+`native/eval/forgetting-falsification.mjs::actrScore` already measured,
+reused verbatim) ranks by PROBABILITY — recency- and frequency-weighted
+citation history — superseded by this conversation's own measured
+need-odds once a (recency, frequency) cell clears a declared evidence
+floor, the supersession reported in each candidate's own `basis`, never
+silent. Two typed gaps only (`retrieval_no_cue`, `retrieval_no_margin`),
+`[]` on either, never a guessed top-k.
+
+A real bug was found and fixed by testing against the real organ, not
+assumed correct from the design: the first cut trained need-odds tallies
+on every record's own BIRTH (treating a new record's creation as a
+"was every other live record needed and missed" trial), which seeds a
+false universal "never needed again" signal from ordinary conversational
+growth alone — a target record could land in one of those polluted cells
+by (recency, frequency) coincidence and have its real ACT-R signal masked
+by a spurious zero. Fixed: birth seeds a record's own citation history
+directly; `recordCitation`'s training loop fires only on a GENUINE re-use.
+Caught because the test suite is real (eoreader7 checked out as a true
+sibling in this environment, not environment-gapped) and was actually run
+against it, not trusted from the shape of the code.
+
+**D — the promotion gate (`consequence.js`, new).** Recurrence (retrieval.js's
+own `citedAt`, the arrivals>=2 structural floor this codebase already
+holds every binding organ to) is necessary, never sufficient (S9: a count
+is possibility, never standing — levers-RESULTS.md's own "the murder"
+finding, the general case). Consequence — did a later turn's verdict
+actually change because the claim was available — is typed three ways:
+`consequence_untested` (a gap: no later turn ever engaged this ground),
+`recurring_no_consequence` (engaged, available, nothing moved), or
+`mattered`. The timing discipline is `ground-ledger.js`, ALREADY BUILT IN
+THIS REPO, reused rather than re-derived: its two-rule prequential
+firewall (a ground version cannot be frozen retroactively; a turn cannot be
+re-priced once scored) is exactly what "score an ablation against the
+ground as it stood at that turn, permanently" needs. `adaptTaskLog` bridges
+`ground-ledger.js`'s expected shape (built against eoreader6.1's
+`holon/task-log.js`, which carries a `GRAIN_RANK` export) to eoreader7's
+real `native/kernel/task-log.js` + `native/kernel/cube.js` (which carries
+ordinal `GRAINS` instead — `GRAIN_RANK` is that ordinality made explicit,
+not a new fact) — a genuine reconciliation, not an assumed compatibility,
+tested against the real eoreader7 modules end to end, incidentally giving
+`ground-ledger.js`'s own firewall real test coverage in an environment
+where `ground-ledger.test.mjs` itself cannot load (it imports eoreader6.1
+directly, which this checkout does not have as a sibling).
+
+The ablation computation itself — "re-run the mechanical grounding with
+this claim excluded from the citation base" — is INJECTED, never computed
+here: wiring it to grounding.js/hypergraph.js's real verification organs is
+real, disclosed, unattempted work, the same posture this pass already
+holds for C's live wiring and this project's own standing precedent (HL,
+self-witness, grammar-lens: built and tested, not deep-wired into a
+multi-session-owned file without that file's own explicit scope).
+
+**B — measured, not merely assumed live from A/C's unit tests
+(`eval/measured-memory-b.mjs`, new).** No real 40+ turn conversation
+transcript with record citations exists on this disk — fold.js's store
+stopped discarding history this same pass, but nothing has run the live
+app long enough yet to leave one behind. A synthetic conversation with
+ground truth by construction (four topics, each with a declared return
+cadence and disjoint vocabulary, 90 turns) stands in, disclosed as exactly
+that — this repo's own established fallback when no real corpus exists
+(hl-acquire.test.mjs's invented chronicle; P29's own synthetic adversarial
+suite). B1 (`kernel/return-curve.js`, real, unmodified): the writer's own
+declared pronoun-vs-regloss return-form rule measures back out correctly
+(majority window 3 for pronoun, 63 for regloss) — a check that the
+composition is wired right, not a discovery about real writing, named as
+such. B2 (retrieval.js's real need-odds/ACT-R composition, exercised at
+scale): a topic returning 26 times in 90 turns earns a measured
+supersession of the ACT-R prior; one returning twice does not, exactly as
+S17's own rule requires. A genuine surprise, reported rather than smoothed
+over: a third topic (3 returns, same count as one that stayed declared)
+ALSO measured — traced to `recordCitation`'s shared cell-tally population
+(a rare topic can clear the evidence floor early by sharing a cell with a
+frequent one), a real, disclosed property of the mechanism, not a defect.
+Full numbers: `eval/results/measured-memory-b-RESULTS.md`.
+
+**F1 — the consolidation witness (`fold.js::extractSummaryFindings` +
+`app.js::refreshSummary`).** The summary refresh is a live, chained
+consolidation step — this project's own NELL lesson, unaddressed until
+now: an entity still live in the CURRENTLY-PROJECTED record/fold window can
+silently vanish from `entities` on any refresh, or an unsupported one can
+silently appear, and every individual refresh looks clean. Reuses
+`witness.js::witnessRegressed` verbatim (already in this repo, already
+generic) — the left side is trivially clean by construction (`{ok:true,
+findings:[]}`, nothing to regress against before a transition is
+examined), the right side carries the real transition-computed findings
+(`lost_live_entity` / `unsupported_addition`, literal case-insensitive
+containment against live record/fold text, the same posture P31's own
+`company` containment already holds this repo to — no claim of semantic
+understanding, only "the words are there"). A regressed refresh is refused
+(`advanceSummaryFold` carries the prior summary forward instead) and lands
+a `consolidation_regressed` act on the reflex ledger through its own
+designed unknown-act extension point — no reflex.js edit needed.
+
+**E, F2 — explicitly deferred, per the spec's own build order, not built
+partway.** E (within-conversation holon folding) is gated on D measuring a
+real promotion rate high enough that flat projection demonstrably
+degrades — D shipped this pass, but nothing has run it against a real
+conversation long enough to measure that rate yet, so E's own un-defer
+condition is unmet by construction. F2 (gating E's folds against drift) is
+gated on E existing at all. Both named here so a future pass does not
+re-derive the reasoning, and neither is silently implied as done.
+
+**Evidence.** New files: `retrieval.js` (+9 tests, real against eoreader7's
+`native/memory/activation.js`), `consequence.js` (+9 tests, real against
+eoreader7's `native/kernel/task-log.js` + `cube.js`),
+`eval/measured-memory-b.mjs` + its results doc. Modified:
+`fold.js` (+12 tests: the store/projection split, `deriveRecordWindow`
+real against eoreader7's `native/kernel/activation.js`,
+`extractSummaryFindings`), `tables.test.mjs` (+1, the real second-order fix
+this pass found), `app.js` (the `refreshSummary` witness gate — syntax
+checked, no dedicated test harness exists for this browser-only file),
+`reflex.js` (one comment corrected — a prior pass's own claim that
+`summary.folds` was unbounded-unlike-`turnFolds` no longer holds; the
+redundancy is named as real, unattempted follow-up rather than collapsed
+this pass), `eoreader-contract.json` (+1 test: a new `testTimeConsumers`
+section, declared as test-time-only and distinct from `runtimeConsumers` —
+none of this pass's production code performs a live cross-repo import,
+every eoreader7 dependency arrives injected, cast.js pattern, so there is
+nothing yet to promote to a runtime consumer). Full suite: 722/608/114
+before this pass, 754/640/114 after — the identical 114 pre-existing
+environment failures (missing `../eoreader6.1/` sibling and several
+vendored `node_modules`, this checkout's own disclosed gap, unrelated to
+this pass), zero regressions, 32 new tests all genuinely passing — not
+environment-gapped, because eoreader7 is checked out as a real sibling in
+this environment and every new test that needed it was run against the
+genuine article.
+
+## P46 — What the source itself says about itself is real provenance; a model should never have to guess it
+
+Found live, chasing "does this local-model chat feel like Claude." A
+faithful headless probe of the real S1/S2 pipeline (`twoPassTurn` →
+`runHolonicTask`, real organs, no shortcuts) asked "Who is Pierre
+Bezukhov?" against this repo's own War and Peace fixture. S1 — by design,
+no material — answered from the model's own confused prior: "the main
+character in *The Brothers Karamazov* by Dostoevsky." Wrong book, wrong
+author. The checking pipeline's whole job is to catch exactly this, and
+across the run's own log it did not: `checkGrounding` correctly flagged
+"Dostoevsky"/"The Brothers Karamazov" as `unsupported_claim` when tested
+directly against the real organ — the check is not broken — but the
+correction loop spends `maxCorrections` (1) attempt PER FAILURE MODE and
+the mechanical mode-fallback only rescues `echoed`/`reproduced`/`narrated`
+verdicts, never a plain `unsupported` survivor. A draft that is original
+prose (not an echo, not a photocopy) but still wrong after its one
+correction try ships exactly as it is, with the finding that could have
+caught it simply not accumulating another action.
+
+**The user's redirect closed it a level earlier: the model should never
+have had to guess.** Not "catch the invention after the fact" — "why did
+it have to invent in the first place." Project Gutenberg's own front
+matter states `Title: War and Peace` / `Author: Leo Tolstoy` in the exact
+file this instrument already reads, before the same `*** START OF THE
+PROJECT GUTENBERG EBOOK ***` marker `stripContainer` already finds and
+discards (P5.3). Nothing had ever mined it. And when the fix was first
+reached for as "load a hyperlexicon so it can look up Wikipedia," the
+user's own correction landed before any code did: **"the model should
+NEVER have anything without provenance."** `hyperlexicon.js` (checked
+directly, both repos) is the HL relation-composition-affordance ledger
+(P37) — no lexical or encyclopedic content, nothing about book identities;
+loading it would have supplied nothing relevant. A live Wikipedia fetch
+would ALSO need its own real provenance chain (a URL, a retrieval date,
+content-addressed) — this repo already has exactly that, in the web organ
+(P13) and the witness/proof-seeking tiers (P32/P13) — and reaching for
+either is real, separate, unbuilt future work, not attempted this pass.
+
+**What shipped instead needs no network and invents nothing.**
+`source.js` gained `declaredIdentity(name, text)` — reuses `stripContainer`'s
+own START-marker regex (factored into one shared constant so the two
+functions cannot silently disagree on where the header ends, the exact
+drift class this repo's own postmortems have caught twice before) to read
+the header span BEFORE that marker, and pulls `Title:`/`Author:` off it
+with a plain line match. No Gutenberg header → `null`, not a guess — the
+control case a hand-crafted plain-text fixture pins directly.
+`identifyMaterial`'s prose fallback (the ONLY branch a Gutenberg ebook
+ever reaches — rss/atom/table/json/html/code/markdown are untouched)
+merges it in as `identity.declared`, threaded onto every chunk the same
+way `identity.guess` already is. `buildSourceBlock` surfaces it as its own
+labeled line — `(the source file's own declared header — Title: …,
+Author: … — pg2600.txt#0-797)` — ahead of the passage text, addressed to
+the real header bytes it was read from, giver named as "the source file's
+own declared header" rather than this instrument's own claim.
+
+**Measured, not assumed: verified against the real pipeline, twice, with
+two different random S1 hallucinations.** One run: S1 guessed "Anna
+Karenina." Another: "The Brothers Karamazov" again. Both times, with
+`declaredIdentity` wired in, S2's real output was "Pierre Bezukhov is the
+illegitimate son of Count Bezúkhov" (or a close paraphrase) — correctly
+cited, `grounding.clean: true`, zero unsupported findings, no trace of
+either wrong book. S1 itself is untouched and will keep guessing wrong —
+that is its own documented design (no material, on purpose, P34) — the
+fix is that S2 no longer needs to trust or repeat S1's guess, because the
+material now says plainly what it is.
+
+**Files.** `source.js` (`declaredIdentity`, `stripContainer`'s marker
+factored to a shared constant, `identifyMaterial`'s prose branch,
+`buildSourceBlock`'s new labeled line). `source.test.mjs` (new — this repo
+had no dedicated test file for source.js before this pass; scoped to what
+this pass touched, not a backfill of the whole file's coverage; 10 cases,
+including the real pg2600.txt fixture on disk and a same-regex regression
+pin between `declaredIdentity` and `stripContainer`). Full suite:
+754/640/114 before this pass, 764/650/114 after — the same 114
+pre-existing environment failures, zero regressions, all 10 new cases
+genuinely passing.
+
+**Disclosed, not silently narrower than it sounds.** Scoped to Gutenberg's
+own header convention only — an attachment with no such header (most real
+attachments) gets no `declared` field at all, exactly as before. This
+closes the ONE class of "the model had to guess what it's reading"
+measured live; it does not build a general bibliographic-metadata parser
+for arbitrary formats, and it does not build the Wikipedia/web-grounding
+half of the original ask — both real, both unattempted here, both needing
+their own design pass through this repo's existing provenance-respecting
+egress rather than a shortcut.
+
 **Amended 2026-08-20 (third occurrence) — the disclosed TOKEN_RE gap
 closed: a period inside a witness/source name.** `crown.js`'s own
 tokenizer header, written the same day as the self-witness construction
@@ -3905,7 +4953,7 @@ used instead for a reliable, deterministic regression. `crown.test.mjs`:
 edit, 1104/1104 after — exactly the +4 new cases, zero regressions
 anywhere else.
 
-## P40 — eoreader7 is real; the reading-workbench spec named a real API, not a fictional one
+## P47 — eoreader7 is real; the reading-workbench spec named a real API, not a fictional one
 
 **The correction.** A prior pass (this same day) concluded eoreader7 does
 not exist anywhere and estimated one to three weeks of new engine work to
@@ -3946,13 +4994,39 @@ failed with a message naming the broken organ and its consumer, the file
 was restored, `git diff` confirmed byte-identical to before, and the full
 suite was re-run clean (1131/1131).
 
-**Still true, narrowed to its correct scope.** `eoreader-contract.json`
-and `eoreader-contract.test.mjs` genuinely did not exist anywhere before
-this pass — that half of the original finding held. And nothing in this
-repo imports from eoreader7's kernel yet; the-fold is, per eoreader7's own
-README, "the reference compatibility application" expected to migrate,
-not yet migrated. Increment A does not migrate anything — no UI change, no
-new call sites, exactly as the spec specifies for this increment.
+**RETRACTED AT MERGE — the contract already existed on `main`, and this
+pass rebuilt a worse one.** This policy originally claimed
+`eoreader-contract.json` and `eoreader-contract.test.mjs` "genuinely did
+not exist anywhere." That was true of this branch's working tree and false
+of the repository: a concurrent session had already built both, and merging
+`origin/main` surfaced them as an add/add conflict. Theirs is materially
+better — it pins a reference head, and covers browser engine modules, node
+imports, filesystem mounts, `testTimeConsumers` for eoreader7's native
+tree, declared semantic capabilities, and a stated migration law. **Theirs
+was taken wholesale; the version written here was discarded**, per this
+file's own standing rule that two independently-grown tools get reconciled
+on the merits rather than deduped by convenience.
+
+The organs this pass declared (`deriveIdentityRevision`, `deriveSurprise`,
+`expectation`/`expectationTransition`, `projectTerrainState`,
+`graphEdgesAtSequence`/`hyperlexiconAt`) were NOT carried across, and that
+is correct rather than an oversight: the surviving contract's own rule is
+that an entry is promoted "only once a PRODUCTION file, not a test,
+performs the import live," and nothing in this repo imports those five —
+not a production file, not even a test. Declaring them would have been the
+aspirational listing that contract exists to prevent.
+
+**The cheap check that was skipped.** `git fetch && git log origin/main`
+before building, not after. This repo's CLAUDE.md already carries that rule
+by name ("when a fix duplicates work already landed on another branch,
+reconcile before merging"), earned from the same mistake in eoreader6.1,
+and it was not run here. The genuinely new work in this pass is the plan
+and the corrected scoping (P47's first half, and the reach finding below),
+not the contract.
+
+Still true: nothing in this repo imports from eoreader7's kernel yet; the
+-fold is, per eoreader7's own README, "the reference compatibility
+application" expected to migrate, not yet migrated.
 
 **Disclosed, not attempted here.** Whether `deriveIdentityRevision`'s real
 signature (`{fold, supports, attacks, witness, giver,
@@ -4006,7 +5080,7 @@ emergence/revision.js`'s missing positional field and concluded the
 concept itself was absent from the organ, rather than checking whether the
 real eoreader7 organ addressed the same need a different way.
 
-## P41 — Increment B landed: the reading fronts by default, not Folds
+## P48 — Increment B landed: the reading fronts by default, not Folds
 
 The reading-workbench spec's Increment B, done. `index.html`'s Sources tab
 is renamed **Reading** (`title="The reading — the source in focus, and
@@ -4067,7 +5141,7 @@ GIVEN's underlying number is cheap and real either way — `EXPLORE_BASE +
 (line 7433) — so the DATA side of C is not the blocker; the NAVIGATION
 side is.
 
-## P42 — Increment C landed: the three-question header, navigation not a readout
+## P49 — Increment C landed: the three-question header, navigation not a readout
 
 The reading-workbench spec's Increment C, done, using the option the user
 chose directly when asked (build new sub-views in the native panel, rather

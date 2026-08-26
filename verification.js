@@ -41,8 +41,12 @@
 // duplicates them (eoreader6.1's own standing rule, "search for the organ
 // before you write one," applied to this repo's own checking ladder):
 //   Void     — hypergraph.js's `report.examined` (is there any material at all)
-//   Entity   — hypergraph.js's `beyond-reach` split (does the subject/object
-//              resolve to a referent this material establishes)
+//   Entity   — hypergraph.js's `beyond-reach` split for the verdict (does
+//              the claim's SUBJECT resolve at all), plus its per-claim
+//              `endpoints` disclosure for the reason (HOW each endpoint
+//              resolved: as a referent, as a recurring form, or by content
+//              word alone). The split alone was never enough to speak about
+//              the object — see `entityReason` below for the specimen.
 //   Field    — hypergraph.js's `report.vocabulary.gap` (is a relation
 //              vocabulary measurable from this material at all)
 //   Link     — hypergraph.js's bound / contradicted / unbound / unheard
@@ -171,6 +175,67 @@ export const VERIFICATION_GRID = Object.freeze(
   ].map((c) => Object.freeze({ ...c, giver: GIVERS[c.terrain], dependsOn: DEPENDS_ON[c.terrain], persona: PERSONAS[c.terrain] })),
 );
 
+// What Entity is actually entitled to say, given what hypergraph.js
+// actually checked (added 2026-08-25, found live by
+// eval/reasoning-e2e-no-llm.mjs's own Tier 4 output rather than reasoned
+// about here). This cell used to report, on every claim that was not
+// `beyond-reach`, the flat sentence "subject and object both resolve to
+// referents this material establishes" — and that sentence was inferred
+// from an absence, never read off a check. `beyond-reach` gates on the
+// SUBJECT (plus the narrow case of an object carrying neither referent
+// nor content word); an object that resolves to NO referent but does
+// carry a content word falls through to `endpointsMatch`'s `tokensShare`
+// branch and never touches that gate at all. So "not beyond-reach"
+// licenses a statement about the subject and nothing whatsoever about the
+// object. The specimen: "Lincoln appointed Napoleon" against material
+// that has never heard of Napoleon came back `unbound`, and this cell
+// reported that both endpoints resolved to referents the material
+// establishes — a confident Existence verdict about a name that does not
+// exist in the material, sitting one row above a Link verdict of `fails`
+// that a reader would then naturally read as "the material says this is
+// false" rather than "the material has never heard of this object".
+//
+// This is the same constitutional line CLAUDE.md already draws for the
+// other direction (a checking organ may withhold, or convict, but may
+// never manufacture the second out of the first), read here as its
+// mirror: a cell may report what it checked, or say it did not check —
+// it may never report a check it never ran as though it had.
+//
+// The VERDICT is deliberately unchanged — still `holds` wherever it held
+// before, so nothing downstream of this module moves. Measured reason,
+// not caution for its own sake: an object resolving by content word alone
+// is NOT by itself evidence the object fails to exist. Objects are very
+// often descriptions rather than names, and in the driver's own material
+// every legitimate object ("the Alaska purchase", "the oath to Grant")
+// resolves to a real referent through its own named surface while only
+// the genuine stranger (Napoleon) comes back token-only — a discriminating
+// signal on that material, but not one measured widely enough to promote
+// into a verdict flip that would gate Link/Network/Lens through the
+// presupposition wall. It is reported, in the reason and in a
+// machine-readable `endpoints` field, and left for a reader (and for a
+// later pass with a real measurement behind it) to weigh.
+const ENDPOINT_PHRASE = Object.freeze({
+  referent: "resolves to a referent this material establishes",
+  form: "resolves only through a recurring form, never a named referent",
+  tokens: "does not resolve to any referent — it was compared by content word alone",
+  none: "carries nothing this material could resolve or compare",
+});
+
+function entityReason(hgClaim) {
+  const ep = hgClaim?.endpoints;
+  // No disclosure on the claim (a hand-built claim, or the grammar gate's
+  // own early beyond-reach return, which fires before endpoints are ever
+  // computed): say what is actually known — the subject cleared, and the
+  // object was not reported on — never the old both-endpoints sentence.
+  if (!ep) return "the subject resolves to a referent this material establishes; this claim carries no endpoint disclosure, so the object's own resolution was not reported";
+  if (ep.subject === "referent" && ep.object === "referent") {
+    return "subject and object both resolve to referents this material establishes";
+  }
+  const subject = `subject ${hgClaim.subject ? `“${hgClaim.subject}” ` : ""}${ENDPOINT_PHRASE[ep.subject] ?? "resolved in an unrecognized way"}`;
+  const object = `object ${hgClaim.object ? `“${hgClaim.object}” ` : ""}${ENDPOINT_PHRASE[ep.object] ?? "resolved in an unrecognized way"}`;
+  return `${subject}; ${object}`;
+}
+
 const cell = (terrain, verdict, extra = {}) => ({
   ...VERIFICATION_GRID.find((c) => c.terrain === terrain),
   verdict,
@@ -228,7 +293,12 @@ export function verificationTasksFor({ hgReport = null, hgClaim = null, testimon
   } else if (entityFailed) {
     tasks.push(cell("Entity", "gap", { reason: hgClaim.reason ?? "an endpoint does not resolve to a referent" }));
   } else if (hgClaim) {
-    tasks.push(cell("Entity", "holds", { reason: "subject and object both resolve to referents this material establishes" }));
+    tasks.push(
+      cell("Entity", "holds", {
+        reason: entityReason(hgClaim),
+        ...(hgClaim.endpoints ? { endpoints: hgClaim.endpoints } : {}),
+      }),
+    );
   } else {
     tasks.push(NOT_YET("Entity", "no claim supplied"));
   }

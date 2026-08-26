@@ -983,3 +983,223 @@ test("a declared NON-English morphologyLanguage disables the English suffix rule
     "the English-only suffix rule must not fire once a non-English language is declared, even though the SAME morphologyIndex is still loaded",
   );
 });
+
+// ── endpoint resolution, disclosed rather than inferred (2026-08-25) ────
+//
+// Found by eval/reasoning-e2e-no-llm.mjs's own Tier 4 output, not reasoned
+// about here: `beyond-reach` gates on the SUBJECT, so its ABSENCE licenses
+// nothing at all about the object — and verification.js's Existence/Entity
+// cell was reading exactly that absence as "subject and object both
+// resolve to referents this material establishes". `claim.endpoints`
+// carries the real answer for both ends so no downstream reader has to
+// infer one.
+
+test("every judged claim discloses HOW each endpoint resolved, not merely whether the subject cleared", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const claim = reader.read("Pierre Bezukhov married Helene.").claims.find((c) => c.verb === "married");
+  assert.ok(claim, "the bound claim must be extracted at all");
+  assert.equal(claim.verdict, "bound");
+  assert.deepEqual(claim.endpoints, { subject: "referent", object: "referent" });
+});
+
+test("an object no referent covers reads as compared-by-content-word, never as a resolved referent", async () => {
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const claim = reader.read("Pierre Bezukhov married Napoleon.").claims.find((c) => c.verb === "married");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.verdict, "unbound", "the verdict itself is unchanged by this disclosure");
+  assert.equal(claim.endpoints.subject, "referent");
+  assert.equal(
+    claim.endpoints.object,
+    "tokens",
+    "Napoleon is nowhere in this material — the object resolved to no referent and was compared by its own content word alone",
+  );
+});
+
+test("CONTROL: an ordinary DESCRIPTION also reads token-only — the disclosure is never evidence of fabrication", async () => {
+  // Why the Entity cell reports this and does not convict on it: an object
+  // resolving by content word alone is the ordinary case for any object
+  // that is a description rather than a name. "the countess" is perfectly
+  // legitimate English about this material's own cast and lands in exactly
+  // the same bucket the genuine stranger (Napoleon) does. A verdict flip
+  // keyed on this signal would fire on both.
+  const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const claim = reader.read("Pierre Bezukhov married the countess.").claims.find((c) => c.verb === "married");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.endpoints.object, "tokens");
+});
+
+test("a form-resolved subject says so on the endpoint disclosure too, not only on formBased", async () => {
+  const reader = makeRelationReader(await organs())(FORM_PASSAGES);
+  const claim = reader.read("Butterflies wrote across the historical record.").claims.find((c) => c.verb === "wrote");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.formBased, true);
+  assert.equal(claim.endpoints.subject, "form", "a recurring form is never reported as a named referent");
+});
+
+// ── the determiner organ: a definite article is not evidence (2026-08-25) ──
+//
+// Measured by eval/reasoning-e2e-no-llm.mjs's second pass, on four
+// sentences of real prose. `commonTerms` declares a floor (CORPUS_MINIMUM
+// chunks) below which the corpus-scale function-word filter does not run
+// at all, and its disclosed residue is "auxiliary noise in the vocabulary"
+// — noise that can only WIDEN what the reader hears. On the object side it
+// does something that disclosure never covered: `endpointsMatch` falls
+// through to `tokensShare`, one shared token binds, and under the floor
+// the shared token can be the article itself.
+
+const DETERMINER_PASSAGES = [
+  {
+    ref: "cabinet.txt#0-191",
+    text:
+      "Lincoln appointed Seward. " +
+      "Historians still argue over how much Lincoln trusted Seward. " +
+      "Seward negotiated the Alaska purchase. " +
+      "Seward negotiated the Alaska purchase again the following spring.",
+  },
+];
+
+const determinerOrgans = async () => {
+  const { DEFINITE_DETERMINERS, INDEFINITE_DETERMINERS } = await import(
+    "../eoreader6.1/packages/engine/perceiver/text/priors.js"
+  );
+  return {
+    ...(await organs()),
+    determiners: new Set([...DEFINITE_DETERMINERS, ...INDEFINITE_DETERMINERS]),
+  };
+};
+
+test("under the corpus floor, a shared DEFINITE ARTICLE alone binds an object the material never states", async () => {
+  // The defect, pinned as it actually behaves without the organ — so that
+  // if the underlying matcher ever changes, this test says so out loud
+  // instead of the fix silently becoming a no-op.
+  const reader = makeRelationReader(await organs())(DETERMINER_PASSAGES, { pool: DETERMINER_PASSAGES });
+  const withArticle = reader.read("Seward negotiated the Suez canal.").claims.find((c) => c.verb === "negotiated");
+  const without = reader.read("Seward negotiated Suez canal.").claims.find((c) => c.verb === "negotiated");
+  assert.equal(withArticle.verdict, "bound", "the article is doing the binding — this is the defect, not the fix");
+  assert.equal(without.verdict, "unbound", "the SAME claim without its article correctly finds nothing");
+});
+
+test("a received determiner class closes it — and the material's own real edge still binds", async () => {
+  const reader = makeRelationReader(await determinerOrgans())(DETERMINER_PASSAGES, { pool: DETERMINER_PASSAGES });
+  const fabricated = reader.read("Seward negotiated the Suez canal.").claims.find((c) => c.verb === "negotiated");
+  assert.equal(fabricated.verdict, "unbound", "an article shared with the material is no longer a binding");
+  const real = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.verb === "negotiated");
+  assert.equal(real.verdict, "bound", "the claim the material really does state is untouched");
+  assert.deepEqual(real.endpoints, { subject: "referent", object: "referent" });
+});
+
+test("the determiner organ is opt-in: omitted, this reader is byte-identical to every caller before it", async () => {
+  const plain = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const withOrgan = makeRelationReader(await determinerOrgans())(PASSAGES, { pool: POOL });
+  const face = (r) => r.edges.map((e) => `${e.subject} —${e.verb}[${e.polarity}]→ ${e.object}`).sort();
+  assert.deepEqual(
+    face(plain.read("Pierre Bezukhov married Helene.")),
+    face(withOrgan.read("Pierre Bezukhov married Helene.")),
+    "the material's own edge set never depends on this organ",
+  );
+  assert.equal(plain.read("Pierre Bezukhov married Helene.").claims[0].verdict, "bound");
+  assert.equal(withOrgan.read("Pierre Bezukhov married Helene.").claims[0].verdict, "bound");
+});
+
+// ── polarity that was never measured is never a verdict (2026-08-25) ────
+//
+// `extractRelations`'s own polarity gate is `negationBeforeVerbFor` — the
+// negation word must sit BEFORE the verb. When it does not, the extractor
+// does not fail loudly: it reads a different clause, the negation ends up
+// leading the OBJECT span, and the triple's polarity stays "+". The result
+// is not a missed contradiction but an inverted one wearing a real
+// address, measured live and pinned below.
+
+const NEGATION_PASSAGES = [
+  {
+    ref: "cabinet.txt#0-260",
+    text:
+      "Lincoln appointed Seward. " +
+      "Historians still argue over how much Lincoln trusted Seward. " +
+      "Seward negotiated the Alaska purchase. " +
+      "Seward negotiated the Alaska purchase again the following spring.",
+  },
+  {
+    ref: "cabinet.txt#520-620",
+    text: "Lincoln did not dismiss Seward, whatever the newspapers printed about Lincoln that year.",
+  },
+];
+
+const negationOrgans = async () => {
+  const { NEGATION_WORDS } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
+  return { ...(await organs()), negationWords: NEGATION_WORDS };
+};
+
+test("the defect: a positive claim binds against a negation-carrying edge, citing the passage that says the opposite", async () => {
+  // Pinned as it actually behaves WITHOUT the organ, so the fix cannot
+  // silently become a no-op if the underlying matcher ever changes.
+  const reader = makeRelationReader(await organs())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.verdict, "bound", "this is the defect: the material says he did NOT");
+  assert.ok(claim.refs.includes("cabinet.txt#520-620"), "and it cites the very passage that contradicts it");
+});
+
+test("a received negation class closes it — the inverted claim becomes beyond-reach, never a verdict", async () => {
+  const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, "the claim must still be extracted");
+  assert.equal(claim.verdict, "beyond-reach", "polarity was never measured on either side");
+  assert.match(claim.reason, /polarity was never measured/);
+});
+
+test("the claim side too: a negation the extractor put inside the object is withheld, not judged", async () => {
+  const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  for (const text of ["Seward negotiated not the Alaska purchase.", "Seward did not negotiate the Alaska purchase."]) {
+    const claim = reader.read(text).claims.find((c) => c.subject === "Seward");
+    assert.ok(claim, `${text} must extract a claim`);
+    assert.equal(claim.verdict, "beyond-reach", `${text} must not be judged`);
+    assert.match(claim.reason, /never measured/);
+  }
+});
+
+test("CONTROL: a negation the extractor DOES read correctly still contradicts — the gate never swallows a real verdict", async () => {
+  const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
+  for (const text of ["Seward never negotiated the Alaska purchase.", "Seward hardly negotiated the Alaska purchase."]) {
+    // Matched on the VERB, not the subject: when the extractor reads the
+    // negation correctly it leaves the negation word ON the subject span
+    // ("Seward never"), which is exactly the shape that proves it was read.
+    const claim = reader.read(text).claims.find((c) => c.verb === "negotiated");
+    assert.ok(claim, `${text} must extract a claim`);
+    assert.equal(claim.polarity, "-", `${text} must be read as negated at all`);
+    assert.equal(claim.verdict, "contradicted", `${text} is read correctly and must stay a real verdict`);
+  }
+  const positive = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.verb === "negotiated");
+  assert.equal(positive.verdict, "bound", "an ordinary positive claim is untouched");
+});
+
+test("a clean edge beside an unmeasured one still binds on its own merits — every, never some", async () => {
+  // The material states the same subject+verb twice: once with the
+  // negation inside the object span (unmeasurable) and once plainly. The
+  // plain one must still be allowed to decide a matching claim.
+  const mixed = [
+    {
+      ref: "mixed.txt#0-200",
+      text:
+        "Lincoln did not dismiss Seward that winter. " +
+        "Lincoln did dismiss Cameron in January, the papers agreed. " +
+        "Everyone at the table watched Lincoln closely, and Seward said nothing.",
+    },
+  ];
+  const reader = makeRelationReader(await negationOrgans())(mixed, { pool: mixed });
+  const claim = reader.read("Lincoln did dismiss Cameron.").claims.find((c) => c.subject === "Lincoln");
+  assert.ok(claim, "the claim must be extracted at all");
+  assert.equal(claim.verdict, "bound", "the plainly-stated edge is not blocked by its unmeasurable neighbour");
+});
+
+test("the negation organ is opt-in: omitted, this reader is byte-identical to every caller before it", async () => {
+  const plain = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
+  const withOrgan = makeRelationReader(await negationOrgans())(PASSAGES, { pool: POOL });
+  for (const text of ["Pierre Bezukhov married Helene.", "Pierre Bezukhov never loved Helene."]) {
+    assert.equal(
+      plain.read(text).claims[0]?.verdict,
+      withOrgan.read(text).claims[0]?.verdict,
+      `${text} must read identically with and without the organ`,
+    );
+  }
+});

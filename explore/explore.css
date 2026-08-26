@@ -448,6 +448,12 @@ body.embed .page-tabs { display: none; }
 .net .gnode.lit rect { stroke: var(--accent); stroke-width: 2; }
 .net .gnode.lit text { fill: var(--accent); }
 .net .gnode.far { opacity: 0.22; }
+/* A node the cast has re-typed since it was first believed (apparatus,
+   most visibly) — a dashed pill, the same "provisional/re-considered"
+   grammar a dashed line already carries elsewhere in this app, never a new
+   hard-coded colour that would fight the theme. */
+.net .gnode.stood rect { stroke-dasharray: 3 2; }
+.net .nstand { font: 9.5px var(--mono); fill: var(--muted); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; text-transform: uppercase; letter-spacing: 0.02em; }
 
 /* Atmosphere */
 .atmo svg { width: 100%; height: auto; display: block; }

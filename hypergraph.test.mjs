@@ -1203,3 +1203,29 @@ test("the negation organ is opt-in: omitted, this reader is byte-identical to ev
     );
   }
 });
+
+test("queryReferents discloses HOW each open end resolved — the noise gate a caller needs", async () => {
+  // Measured live 2026-08-26 over 3,841 edges from four real pages: asking
+  // "who was vice president of the United States" with the subject open
+  // returned 16 candidates — Andrew Johnson and Abraham Lincoln alongside
+  // "Though he", "Congress", "000", "why it" and "impeachment trial" — and
+  // a caller had no way to tell them apart. resolutionOf already drew the
+  // line internally and its answer was being discarded with `end`.
+  //
+  // Disclosed, never filtered here: which resolutions a caller may stand on
+  // is the caller's declaration, not this organ's assumption.
+  const reader = makeRelationReader(await organs())(LINCOLN_PASSAGES, { pool: LINCOLN_POOL });
+  const subs = reader.queryReferents({ subject: "Lincoln", verb: "appointed" }) ?? [];
+  assert.ok(subs.length, "the query returned nothing to classify");
+  for (const s of subs) {
+    assert.ok(
+      ["referent", "form", "tokens", "none"].includes(s.resolution),
+      `every cluster carries a resolution; got ${JSON.stringify(s.resolution)} for ${JSON.stringify(s.subject)}`,
+    );
+  }
+  // The real people resolve to beings this material established — which is
+  // what lets a caller cut the fragments without cutting the answer.
+  const named = subs.filter((x) => x.resolution === "referent").map((x) => String(x.object ?? x.subject).toLowerCase());
+  assert.ok(named.some((n) => n.includes("hamlin")), `Hamlin should resolve as a referent, got ${JSON.stringify(subs)}`);
+  assert.ok(named.some((n) => n.includes("johnson")), `Johnson should resolve as a referent, got ${JSON.stringify(subs)}`);
+});

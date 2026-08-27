@@ -5833,3 +5833,69 @@ load that previously could not — so the baseline moved honestly from
 this pass's own, three file-level failures replaced by four real
 environmental ones inside them (missing `sql.js`, missing WebLLM weight
 shards), and zero regressions. Failure names were diffed, not counted.
+
+### P53, amended again 2026-08-27 — a gap the loop can name is a question it can ask
+
+**The direction:** *"it should also research Johnson to understand it, it
+needs to be curious."*
+
+**The defect.** The loop was honest and INCURIOUS. It admitted Andrew
+Johnson, could not place him, reported `unplaced` and stopped — filing the
+gap rather than pursuing it. The gap it filed is specific: not "something
+is missing" but "I hold a filler and the source I read never says when."
+A gap that specific is a question, and a question is something to go and
+answer.
+
+**`whatWouldSettle(loop)`** (pure, fetches nothing) turns loop state into
+the questions that would settle it, each naming what changes if answered,
+ordered by what settles fastest: placing a filler already in hand comes
+before searching for a new one, because it is one targeted read against a
+source already identified and it can close a space outright where a search
+may find nothing. `openQuestions` is already taken by `fold.js` for a
+different question (which facets of a TURN went unanswered), so this gets
+its own name rather than overloading that one. Acting on the questions is
+the caller's, exactly as reading is: **the loop knows what it needs to
+know; it does not know how to find out.**
+
+**`placeFiller(loop, {filler, span, source})`** folds an answer back in. It
+revises an admitted filler's own reading — it proposes no new candidate and
+does not re-open the ladder, because nothing new was found. It REFUSES a
+span the extent cannot contain (`span_outside_extent`): **widening an
+extent is a deliberate act with its own REC on the record, never a side
+effect of answering a question.**
+
+**Measured live, and the reader failed while the wall held.** The answer is
+genuinely there — Johnson's Wikipedia SUMMARY carries no vice-presidential
+span and his FULL page does ("…what happened on March 4, 1865", and better,
+"sworn in alongside Hamlin, his predecessor as vice president", which states
+the succession that partitions the extent outright). The loop stopped at the
+summary because that is all it thought to ask for. Given a 1,400-character
+window of the full page, the 0.5B reader answered `1808-1860` — his birth
+year and an unrelated one, both genuinely present in the bytes shown, so
+the "a model's value must appear in what it was shown" check passed.
+`placeFiller` refused it on the extent. **A wrong read did not corrupt the
+space, did not silently widen the extent, and did not produce a confident
+answer.** That refusal is the property worth having, and it is worth more
+than the reader being right would have been, because it holds for readers
+that are wrong in ways nobody anticipated.
+
+**The remaining defect is window SELECTION, named rather than fixed:** the
+window is the relation's own sentences in DOCUMENT ORDER, and on a
+90,000-character biography its first 1,400 characters are early life and
+other people's vice presidencies. Ranking by sentences naming both the
+candidate and the anchor is the obvious next move and was not measured.
+
+**One more bug, caught by writing the test.** `fill` is append-only by
+design — "a filler is never overwritten by a later one that happens to
+share its name", because two witnesses covering different extents is the
+Lincoln case itself — so placing a filler on top of its own spanless entry
+left BOTH, and `voidsOf` would have gone on reporting it unplaced forever.
+`placeFiller` rebuilds the space instead, the same rebuild `reshape`
+already does.
+
+**Files.** `void-loop.js` gained `whatWouldSettle` and `placeFiller`;
+`void-loop.test.mjs` 43 → 50. The driver gained `deeperRead` (full page,
+not summary; the window declared and the reader's years checked against
+exactly it) and `beCurious`, which lands a placement as a RESULT on the act
+that admitted it — never a silent state change. Suite 912/793/119 →
+919/800/119, identical failure set, zero regressions.

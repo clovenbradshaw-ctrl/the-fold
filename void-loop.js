@@ -925,3 +925,134 @@ export function reshape(loop, { grid, log, trigger, revised } = {}) {
     }),
   });
 }
+
+// ── CURIOSITY: a gap the loop can name is a question it can ask ─────────
+//
+// User direction, 2026-08-27: "it should also research Johnson to
+// understand it, it needs to be curious."
+//
+// The loop was honest and incurious. It admitted Andrew Johnson, could
+// not place him, reported `unplaced`, and stopped — filing the gap
+// instead of pursuing it. But the gap it filed is SPECIFIC: not "something
+// is missing" but "I hold a filler and the source I read never says when."
+// A gap that specific is a QUESTION, and a question is something to go and
+// answer rather than something to disclose.
+//
+// Measured, which is why this exists at all: Andrew Johnson's Wikipedia
+// SUMMARY carries no vice-presidential span, and his FULL page does — "in
+// light of what happened on March 4, 1865", and, better, "sworn in
+// alongside Hamlin (his predecessor as vice president)", which states the
+// succession that partitions the extent outright. The loop stopped at the
+// summary because the summary is all it thought to ask for.
+//
+// WHAT THIS FUNCTION IS AND IS NOT. It is pure and it fetches nothing: it
+// turns the loop's own state into the questions that would settle it, each
+// naming what changes if answered. Acting on them — a deeper read, a
+// search, a second source — is the caller's, exactly as reading is. The
+// loop knows what it needs to know; it does not know how to find out.
+//
+// `openQuestions` is already taken, by `fold.js`, for a different question
+// (which facets of a TURN went unanswered). This is about what would
+// settle a SPACE, so it gets its own name rather than overloading that one.
+
+const relationName = (declaration) => {
+  const c = declaration?.cells?.find((x) => x.op === "CON")?.declared;
+  return (typeof c === "object" && c ? c.id ?? c.name : c) ?? "the relation";
+};
+const anchorName = (declaration) => declaration?.cells?.find((x) => x.op === "SIG")?.declared ?? declaration?.slot ?? "the anchor";
+
+/**
+ * What this loop would need to know, in the order that settles it fastest.
+ *
+ * Placing a filler already in hand comes before finding a new one: it is
+ * one targeted read against a source already identified, and it can close
+ * a space outright, where a search for another filler may find nothing.
+ */
+export function whatWouldSettle(loop) {
+  if (loop?.schema !== "EOVoidLoop@1") return Object.freeze([]);
+  const rel = relationName(loop.declaration);
+  const anchor = anchorName(loop.declaration);
+  const coverage = voidsOf(loop.space);
+  const out = [];
+
+  // 1. A filler admitted and unplaceable. The most decisive question the
+  //    loop can ask, and the one it used to swallow.
+  if (coverage.standing !== "unbounded") {
+    for (const c of loop.candidates.filter((x) => x.standing === "testimony" && !x.span)) {
+      out.push(Object.freeze({
+        type: "place_filler",
+        about: c.value,
+        witness: c.witness,
+        ask: `when did «${c.value}» hold «${rel}» under «${anchor}»?`,
+        wouldSettle: `«${c.value}» cleared admission and nothing places it — the extent reads covered only by not counting it`,
+        // The source that already said yes is the first place to look
+        // harder, before looking anywhere else.
+        lookFirst: Object.freeze([...(c.refs ?? []), c.witness].filter(Boolean)),
+      }));
+    }
+  }
+
+  // 2. A stretch nothing covers. A real question about the world, not
+  //    about a candidate — and the one that needs a new filler.
+  for (const v of coverage.voids ?? []) {
+    out.push(Object.freeze({
+      type: "fill_void",
+      about: Object.freeze({ ...v }),
+      ask: `who held «${rel}» under «${anchor}» between ${v.from} and ${v.to}${loop.declaration.dimension ? ` (${loop.declaration.dimension})` : ""}?`,
+      wouldSettle: `${v.from}-${v.to} is filled by nothing named so far`,
+      lookFirst: Object.freeze([]),
+    }));
+  }
+
+  // 3. Evaluated and nothing settled it. Weakest, and last: a source that
+  //    said nothing is the least promising place to ask again.
+  for (const c of loop.candidates.filter((x) => x.standing === "undetermined")) {
+    out.push(Object.freeze({
+      type: "settle_undetermined",
+      about: c.value,
+      ask: `did «${c.value}» hold «${rel}» under «${anchor}»?`,
+      wouldSettle: `«${c.value}» was read and nothing bound or refuted it`,
+      lookFirst: Object.freeze([...(c.refs ?? [])]),
+    }));
+  }
+  return Object.freeze(out);
+}
+
+/**
+ * Fold an answered question back in. A deeper read that PLACES a filler
+ * revises that filler's own reading — it does not propose a new candidate
+ * and does not re-open the ladder, because nothing new was found: the same
+ * filler is now placed.
+ *
+ * REFUSES a span the space cannot contain (`span_outside_extent`) rather
+ * than silently widening the extent behind the caller's back. If the extent
+ * is genuinely wrong, that is `reshape`'s act, with its own REC on the
+ * record — never a side effect of answering a question.
+ */
+export function placeFiller(loop, { filler, span, source } = {}) {
+  if (loop?.schema !== "EOVoidLoop@1") return refuse("not_a_loop", "placeFiller: expects an EOVoidLoop@1");
+  if (loop.closed) return refuse("loop_closed", "placeFiller: this loop has already committed");
+  const idx = loop.candidates.findIndex((c) => c.value === filler && c.standing === "testimony");
+  if (idx < 0) return refuse("not_admitted", `placeFiller: «${filler}» is not an admitted filler on this loop — only something already through admission can be placed`);
+  if (loop.candidates[idx].span) return refuse("already_placed", `placeFiller: «${filler}» already carries an extent`);
+  if (!(Number.isFinite(span?.from) && Number.isFinite(span?.to) && span.from <= span.to)) {
+    return refuse("no_span", "placeFiller: a placement is a closed interval {from, to} with from <= to");
+  }
+  const extent = loop.declaration.extent;
+  if (extent && (span.to < extent.from || span.from > extent.to)) {
+    return refuse("span_outside_extent", `placeFiller: ${span.from}-${span.to} lies wholly outside ${extent.from}-${extent.to} — if the extent is wrong, concede it with \`reshape\` rather than widening it by placing something outside it`);
+  }
+  const placed = Object.freeze({ ...loop.candidates[idx], span: Object.freeze({ ...span }), placedBy: source ?? null });
+  const candidates = loop.candidates.map((c, i) => (i === idx ? placed : c));
+  // The space is REBUILT, never appended to. `fill` is append-only by
+  // design — "a filler is never overwritten by a later one that happens to
+  // share its name", because two witnesses covering different extents is
+  // the Lincoln case itself — so filling the placed copy on top of the
+  // spanless one would leave BOTH, and `voidsOf` would go on reporting the
+  // filler unplaced forever. Same rebuild `reshape` already does.
+  let space = spaceFrom(loop.declaration);
+  for (const c of candidates) {
+    if (c.standing === "testimony") space = fill(space, { filler: c.value, span: c.span, source: c.witness });
+  }
+  return Object.freeze({ ok: true, loop: Object.freeze({ ...loop, candidates: Object.freeze(candidates), space }) });
+}

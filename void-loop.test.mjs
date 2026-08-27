@@ -32,7 +32,7 @@ import { declareVoid } from "./void-shape.js";
 import {
   STANCE_LADDER, loopChoreography, currentRung,
   openLoop, proposeFrom, admit, foldLoop, descend, closeLoop,
-  reshapeTriggers, reshape,
+  reshapeTriggers, reshape, whatWouldSettle, placeFiller,
 } from "./void-loop.js";
 
 const { cellOf } = operators;
@@ -333,6 +333,70 @@ test("with no extent declared, an unplaced filler blocks nothing — nothing can
   assert.equal(foldLoop(loop).coverage.standing, "unbounded");
   assert.deepEqual([...foldLoop(loop).coverage.unplaced], ["Andrew Johnson"]);
   assert.equal(foldLoop(loop).standing, "covered");   // the cardinality route stays open
+});
+
+// ── curiosity: a gap the loop can name is a question it can ask ──────────────
+
+test("CURIOSITY: an unplaceable filler becomes a targeted question, not a filed gap", () => {
+  const { loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  const qs = whatWouldSettle(loop);
+  const q = qs[0];
+  assert.equal(q.type, "place_filler");        // asked FIRST — one read, and it can close the space
+  assert.equal(q.about, "Andrew Johnson");
+  assert.match(q.ask, /when did «Andrew Johnson» hold «was vice president of» under «Abraham Lincoln \(16th president\)»\?/);
+  assert.match(q.wouldSettle, /reads covered only by not counting it/);
+  // The source that already said yes is the first place to look harder.
+  assert.deepEqual([...q.lookFirst], ["en.wikipedia.org"]);
+});
+
+test("an uncovered stretch asks about the world; an inconclusive candidate asks last", () => {
+  const { loop } = loopWith([JOHNSON, { value: "Someone", witness: "wp" }],
+    { admission: (c) => (c.value === "Someone" ? { verdict: null, because: "silence" } : HOLDS()) });
+  const qs = whatWouldSettle(loop);
+  assert.deepEqual(qs.map((q) => q.type), ["fill_void", "settle_undetermined"]);
+  assert.match(qs[0].ask, /who held .* between 1861 and 1865/);
+  assert.match(qs[1].ask, /did «Someone» hold/);
+});
+
+test("a settled space has nothing to be curious about", () => {
+  const { loop } = loopWith([HAMLIN, JOHNSON]);
+  assert.equal(foldLoop(loop).standing, "covered");
+  assert.deepEqual([...whatWouldSettle(loop)], []);
+});
+
+test("THE ANSWER FOLDS BACK IN: placing the filler closes the space", () => {
+  // The whole point of being curious. Deeper reading finds 1865 for
+  // Johnson, and the space that was `unplaced` becomes `covered`.
+  const { loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  assert.equal(foldLoop(loop).standing, "unplaced");
+  const r = placeFiller(loop, { filler: "Andrew Johnson", span: { from: 1865, to: 1865 }, source: "wp:full-page" });
+  assert.equal(r.ok, true, JSON.stringify(r.refusal));
+  assert.equal(foldLoop(r.loop).standing, "covered");
+  assert.deepEqual([...foldLoop(r.loop).coverage.unplaced], []);
+  assert.deepEqual([...whatWouldSettle(r.loop)], []);
+  assert.match(foldLoop(r.loop).line, /Andrew Johnson \(1865-1865\)/);
+});
+
+test("placing rebuilds the space rather than appending — the spanless copy does not survive", () => {
+  // `fill` is append-only on purpose, so a naive placement would leave both
+  // entries and report the filler unplaced forever.
+  const { loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  const r = placeFiller(loop, { filler: "Andrew Johnson", span: { from: 1865, to: 1865 } });
+  assert.equal(r.loop.space.fillers.filter((f) => f.filler === "Andrew Johnson").length, 1);
+});
+
+test("placing refuses a span the space cannot contain — widening is REC's act, not a side effect", () => {
+  const { loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  const r = placeFiller(loop, { filler: "Andrew Johnson", span: { from: 1869, to: 1873 } });
+  assert.equal(r.ok, false);
+  assert.equal(r.refusal.type, "span_outside_extent");
+  assert.match(r.refusal.detail, /concede it with `reshape`/);
+});
+
+test("only something already through admission can be placed", () => {
+  const { loop } = loopWith([HAMLIN]);
+  assert.equal(placeFiller(loop, { filler: "Nobody", span: { from: 1861, to: 1862 } }).refusal.type, "not_admitted");
+  assert.equal(placeFiller(loop, { filler: "Hannibal Hamlin", span: { from: 1861, to: 1862 } }).refusal.type, "already_placed");
 });
 
 // ── the loop's own law ───────────────────────────────────────────────────────

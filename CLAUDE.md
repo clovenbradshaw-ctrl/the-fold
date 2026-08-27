@@ -4748,3 +4748,46 @@ that previously could not. 805/687/118 → 912/793/119: 60 new passing cases
 of this pass's own, three file-level failures replaced by four real
 environmental ones inside them, zero regressions, failure names diffed
 rather than counted.
+
+### Amended again 2026-08-27 — a gap the loop can name is a question it can ask
+
+P53's second amendment in POLICIES.md is the law; this is the map. User
+direction: *"it should also research Johnson to understand it, it needs to
+be curious."*
+
+**The defect.** The loop was honest and INCURIOUS: it admitted Johnson,
+could not place him, reported `unplaced` and stopped. But the gap it filed
+is specific — "I hold a filler and the source I read never says when" — and
+a gap that specific is a question.
+
+**`whatWouldSettle(loop)`** (pure, fetches nothing) turns loop state into
+the questions that would settle it, ordered by what settles fastest:
+placing a filler already in hand before searching for a new one, because it
+is one targeted read against a source already identified. `openQuestions`
+is taken by `fold.js` for a different question, so this gets its own name.
+Acting on the questions is the caller's, exactly as reading is — **the loop
+knows what it needs to know; it does not know how to find out.**
+
+**`placeFiller`** folds an answer back in and REFUSES a span the extent
+cannot contain: **widening an extent is a deliberate act with its own REC,
+never a side effect of answering a question.**
+
+**Measured live: the reader failed and the wall held.** The answer is
+genuinely there — Johnson's SUMMARY has no VP span, his FULL page does
+("…what happened on March 4, 1865"; "sworn in alongside Hamlin, his
+predecessor as vice president"). The 0.5B reader answered `1808-1860` — his
+birth year, genuinely present in the bytes shown, so the shown-bytes check
+passed — and `placeFiller` refused it on the extent. A wrong read did not
+corrupt the space, did not widen the extent, and did not produce a
+confident answer. That refusal is worth more than the reader being right,
+because it holds for readers wrong in ways nobody anticipated.
+
+**Named, not fixed:** window SELECTION. The window is the relation's
+sentences in DOCUMENT ORDER, and on a 90KB biography its first 1,400
+characters are early life and other people's vice presidencies. Ranking by
+sentences naming both candidate and anchor is the next move, unmeasured.
+
+**One more bug, caught by the test:** `fill` is append-only by design, so
+placing a filler on top of its own spanless entry left BOTH and `voidsOf`
+would report it unplaced forever. `placeFiller` rebuilds the space, the
+same rebuild `reshape` already does.

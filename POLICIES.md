@@ -5430,3 +5430,104 @@ from which the fact had been silently deleted at extraction. **Before
 concluding a model or a downstream organ is at fault, read one sentence
 that states the answer plainly and confirm the pipeline can extract it.**
 That check takes a minute and would have saved the day.
+
+## P51 — A certification is not a style: "computed, not generated" must never be a phrase the model can learn to say
+
+**The law.** A house mark that certifies "code produced this, not a
+language model" (`arithmetic.js`, `grid.js`'s evaluate outcome, tables.js/
+reflex.js's own self-doors — all four already say "computed, not
+generated" verbatim) must never appear in text that gets replayed to the
+model as its own past speech. `state.history` is exactly that replay
+surface (P23's "REAL role-structured history"): whatever an assistant
+turn's `content` says is handed back to the model, verbatim, as something
+it said. A certification living in that field is not a record, it is a
+STYLE — and a model shown its own certified turns will learn to produce
+the certification, not the thing it certifies.
+
+**Measured live, arithmetic.js's own audit.** Asked "5 subtracted from
+12" — order-reversing phrasing arithmetic.js correctly refused to compute
+— the question fell through to the ordinary model pipeline, which drafted
+"5 subtracted from 12 is 7 — computed, not generated," copying the
+caption verbatim from an EARLIER turn's own history entry
+(`arithmeticTurn`'s `answer` string, pushed into `state.history` with the
+caption baked in). The number was right; the certification was forged.
+`checkGrounding` correctly flagged the sentence as unsupported by any
+material, but the visible text still claimed a mechanical guarantee it
+never earned — exactly the "model is just the mouth" failure this
+project's own standing rule names: never let a model mimic a property in
+language it does not actually have.
+
+**The fix, one shared choke point plus one direct push.**
+`stripComputedCaption` (app.js) strips the trailing " — computed, not
+generated" from whatever gets pushed into `state.history`, leaving the
+rendered turn, the fold-line, and the record untouched — a human still
+sees the caption everywhere it was already shown; only the model's own
+replayed copy of its past turns loses it. `usageTurn` (the generic
+no-model-call turn every slash door funnels through, including grid.js's
+`/act … evaluate` — the SECOND confirmed site carrying this exact phrase)
+applies it at its one `state.history` push; `arithmeticTurn` applies it at
+its own. `mechanicalTurn`/`recallTurn` needed no change — they already
+kept the caption OUT of `state.history` by construction (pushing
+`toMarkdown(built.table)`, never `built.caption`), which is what made the
+bug's shape legible in the first place: two of four callers already had
+it right.
+
+**Disclosed, not chased further.** `selfOverview`'s own bare `/self` text
+was checked and does not carry the phrase — reflex.js's per-level captions
+only reach `state.history` through `mechanicalTurn`'s already-correct
+path. Not audited: whether the discourse-summary fold (`chatContext`,
+P34) can itself pick up a captured caption through a model-written
+paraphrase of a raw fold-line — a narrower, lower-probability path than
+direct history replay, and a different mechanism (summarization, not
+verbatim replay), named here as an open question rather than assumed
+closed.
+
+**Verified live, three consecutive turns, one conversation.** "5
+subtracted from 12" → "12" and "5" swap correctly to `((12)-(5)) = 7`. "3
+less than 10" → `((10)-(3)) = 7`. "5 divided into 20" (still refused,
+below) fell through and drafted a real, grounded, uncaptioned answer
+about division terminology — no trace of the phrase across any of it.
+
+## P52 — Order-reversing arithmetic has exactly one standard reading, except the one that doesn't
+
+**The law.** `arithmetic.js` bailed on ALL order-reversing English
+phrasing ("N subtracted from M", "N less than M", "N fewer than M", "N
+divided into M") on the theory that reversing operand order is inherently
+too risky to get right mechanically. Checked against real usage, that
+theory held for exactly one of the four. Where a phrase has one standard
+reading, refusing to compute it is not caution, it is a gap — coverage
+this door should have had from P4's own founding principle: BAIL is for
+what this module cannot read confidently, not for everything it has not
+gotten around to reading yet.
+
+**What actually generalizes and what doesn't.** "N subtracted from M", "N
+less than M", "N fewer than M" all mean M − N, with no competing everyday
+reading — nobody means anything else by "5 subtracted from 12." "N
+divided into M" is different in kind, not degree: real usage genuinely
+splits between the classic long-division idiom (M/N — "5 divided into
+20" is 4, the way the phrase is taught) and a common colloquial one (N/M
+— "20 divided into 5 groups," said loosely for plain division), and there
+is no structural signal in a bare question to tell which one a speaker
+meant. That one phrase still bails; the other three now compute.
+
+**The risk this checks before shipping.** A comparison question ("Is 3
+less than 10?") sharing the same words as the newly-computed arithmetic
+phrase is the obvious hazard — get it wrong and the app would answer a
+yes/no question with "((10)-(3)) = 7". It is safe by a property that
+already existed in the module before this pass touched it: `WRAPPER_RE`'s
+stripped set does not include a bare "Is", so "Is 3 less than 10?"
+survives normalization as "Is 10 - 3?" — the leftover "Is" fails
+`PURE_EXPRESSION_RE` regardless of what the reversal computed underneath
+it. Not a new guard added for this fix; an existing one, checked and
+found to already cover it, then pinned as a regression rather than left
+as an unverified assumption. Verified live against the real model, not
+only the unit test: "Is 3 less than 10?" answered "Yes." — a real
+comparison, never the arithmetic reversal.
+
+**Evidence.** `arithmetic.test.mjs`: 14 → 18 cases (the reversed-operand
+readings, "divided into" still refusing, and the comparison-safety case,
+each checked against the real mathjs package). Full suite: 1264/1266
+passing both before and after this pass's four new tests — the same 2
+pre-existing failures (`eoreader-contract.test.mjs`,
+`source.test.mjs`'s Tolstoy specimen), neither of which imports
+`arithmetic.js` or `app.js`, zero regressions.

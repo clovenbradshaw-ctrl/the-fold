@@ -999,6 +999,25 @@ function observeExchange(turn, question, answer) {
   return arrivals;
 }
 
+/**
+ * "— computed, not generated" (arithmetic.js, grid.js's evaluate outcome,
+ * tables.js/reflex.js's own self-doors) is a house mark meaning "code
+ * produced this fact, not a language model" — it must certify something
+ * true or it certifies nothing. Measured live: state.history is replayed
+ * to the model verbatim as its own past turns (P23's "REAL role-structured
+ * history"), so a caption left in it is not a record, it is a STYLE the
+ * model can copy — a later question the arithmetic door correctly refused
+ * (order-reversing phrasing) fell through to the model, which drafted its
+ * own ungrounded "…is 7 — computed, not generated", borrowing the phrase
+ * verbatim from an earlier turn's own history entry. The caption stays
+ * everywhere a human reads it (the rendered turn, the fold-line, the
+ * record); only the copy replayed to the model is stripped.
+ */
+const COMPUTED_CAPTION_RE = / — computed, not generated/g;
+function stripComputedCaption(text) {
+  return text.replace(COMPUTED_CAPTION_RE, "");
+}
+
 /** A command that arrived without its argument gets its usage line back — a
  * turn with no model in it, folded like any other so the exchange is on the
  * conversation's own record. */
@@ -1007,7 +1026,7 @@ function usageTurn(question, usage) {
   const node = addMessage("assistant", usage);
   state.history.push(
     { role: "user", content: question },
-    { role: "assistant", content: usage },
+    { role: "assistant", content: stripComputedCaption(usage) },
   );
   const turn = state.summary.turnCount + 1;
   logAct("answered-from-state", { what: "usage" });
@@ -1786,9 +1805,13 @@ async function chartTurn(question) {
  * in index.html) already did the work, and `found.tex` — that SAME
  * engine's own LaTeX rendering of the expression — is typeset with KaTeX
  * (also vendored) rather than shown as a bare expression string. The plain
- * `answer` string carried into history/fold/record stays untyped text
- * regardless — what the model would read back on a later turn is never
- * markup, only KaTeX's on-screen presentation of it is.
+ * `answer` string carried into the fold and the record stays untyped text
+ * regardless — never markup, only KaTeX's on-screen presentation of it is.
+ * `state.history` carries `stripComputedCaption(answer)` instead of
+ * `answer` itself: the "computed, not generated" mark is a certification
+ * this specific engine earned, and a model must never be able to read its
+ * own past turn back and learn to forge that certification onto something
+ * it merely generated (see `stripComputedCaption`'s own header).
  */
 async function arithmeticTurn(question, found) {
   addMessage("user", question);
@@ -1823,7 +1846,7 @@ async function arithmeticTurn(question, found) {
 
   state.history.push(
     { role: "user", content: question },
-    { role: "assistant", content: answer },
+    { role: "assistant", content: stripComputedCaption(answer) },
   );
   const turn = state.summary.turnCount + 1;
   logAct("answered-from-state", {

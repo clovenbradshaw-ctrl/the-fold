@@ -4532,3 +4532,46 @@ the token before it, an opening bracket leads the token after it.
 The engine edits live in the `eoreader7` submodule (`legacy-eoreader6.1`),
 not in this repo — see P50 for what changed and what is still open (filler
 selection at page scale still returns "Though he" and "22nd Amendment").
+
+## math.js audit: a forgeable certification, and a refusal that was wider than its own reason (added 2026-08-26)
+
+POLICIES.md **P51** and **P52** are the law; this is the map. The ask was
+to get `arithmetic.js` (mathjs) fully working; static wiring already
+looked complete (imported, `arithmeticTurn` called from `send()`'s
+dispatcher, index.html's script-order gotcha still correct) and the fast
+path — "17 times 24" → `408`, no model call, `window.math` verified
+loaded — worked exactly as documented on first live test. Pushing past
+"it's wired" into "does the whole feature actually hold up" found two
+real defects, neither visible from reading `arithmetic.js` alone.
+
+**P51 — the caption was forgeable.** `state.history` is replayed to the
+model verbatim as its own past turns; `arithmeticTurn` pushed its full
+"`17 * 24 = 408 — computed, not generated`" into it, so a LATER question
+that correctly bypassed the fast path (order-reversing phrasing) came back
+from the model captioned "computed, not generated" on prose it had
+generated itself — the exact house mark this app uses in four places to
+mean "code produced this, not language" was, ONE conversation later,
+free for a small model to imitate. `stripComputedCaption` closes it at
+`usageTurn` and `arithmeticTurn`'s two `state.history` pushes; the caption
+still renders everywhere a human looks.
+
+**P52 — the refusal covered four phrasings, three of which have one
+reading.** `arithmetic.js` bailed on ALL order-reversing English ("N
+subtracted from M" / "N less than M" / "N fewer than M" / "N divided into
+M") on one shared worry. Checked one phrase at a time: three have exactly
+one standard reading and now compute (`((12)-(5)) = 7`, instant, no model
+call); "divided into" genuinely splits between two live conventions (the
+long-division idiom vs. a colloquial one with the operands swapped) and
+still bails, on its own, narrower reason. The obvious hazard — hijacking
+a real comparison question ("Is 3 less than 10?") into the arithmetic
+reading — is caught by a guard that was already in the module
+(`WRAPPER_RE` never stripped a bare "Is", so the leftover word fails
+`PURE_EXPRESSION_RE` regardless), checked and pinned rather than assumed.
+
+Both verified live against the real running page, not only in
+`arithmetic.test.mjs` (14 → 18 cases): three consecutive turns in one
+conversation — a correct instant computation, a second correct instant
+computation, then "divided into" falling through to a real grounded
+answer with no trace of the caption anywhere. Full suite 1264/1266 before
+and after, same 2 pre-existing failures, neither importing
+`arithmetic.js` or `app.js`.

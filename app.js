@@ -186,6 +186,14 @@ import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { verificationTasksFor, verificationSummary } from "./verification.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
+// Zeroing the space (void-shape.js / void-brief.js): what shape does this
+// question's answer have to fill, and what part of it is still empty. Both
+// take their organs injected — the cube's algebra and web-claim.js's slot
+// reader — so neither carries a second copy of either.
+import { briefFor } from "./void-brief.js";
+import { declaredSlotShape } from "./web-claim.js";
+import { undeclaredOf, voidLine } from "./void-shape.js";
+import { cellOf } from "/engine-v7/kernel/cube.js";
 
 // The engine's surprise ladder — the measured answer to "what is most
 // surprising", and the only licensed one. Same mount, plus /nul for the
@@ -3713,7 +3721,29 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
   await refreshSummary(fold, arrivals);
-  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification });
+  // Zero the space for this turn's own question. Computed from the material
+  // the turn actually read, and DISPLAYED rather than fed to the model: the
+  // filler side is not trustworthy yet (measured — the slot query returns
+  // "Though he"/"Congress" at page scale), so this reports the shape and
+  // leaves the fillers visibly open instead of handing a model junk
+  // candidates. Never allowed to break a turn that otherwise succeeded.
+  let brief = null;
+  try {
+    const texts = result.sections.flatMap((s) => (s.passages ?? []).map((p) => p.text)).filter(Boolean);
+    if (state.grounded && texts.length) {
+      brief = briefFor(task, texts, {
+        slotShapeOf: (q) =>
+          declaredSlotShape(q, {
+            definiteDeterminers: enginePriors.DEFINITE_DETERMINERS,
+            inflectionalSuffixes: enginePriors.INFLECTIONAL_SUFFIXES,
+          }),
+        cellOf,
+      });
+    }
+  } catch (e) {
+    brief = { error: String(e?.message ?? e) };
+  }
+  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification, brief });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
@@ -6575,7 +6605,7 @@ function measure() {
  * — and that question is asked while looking at the turn. So the disclosure
  * carries all of it, and the fold is not a tab.
  */
-function renderFold(node, { fold, record, sent, ran, verification }) {
+function renderFold(node, { fold, record, sent, ran, verification, brief }) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -6692,6 +6722,36 @@ function renderFold(node, { fold, record, sent, ran, verification }) {
   // see WHICH of the nine cells actually ran, and why the rest didn't,
   // gets exactly the record the checking ladder itself worked from — never
   // a claim about it.
+  // THE SPACE, ZEROED — what shape this question's answer has to fill, and
+  // what part of it is still empty. Displayed, never fed to the model: the
+  // filler side is not trustworthy yet, so this reports the shape honestly
+  // rather than handing over candidates measured to be junk.
+  if (brief) {
+    const det = document.createElement("details");
+    det.className = "fold";
+    const st = brief.error ? "error" : brief.standing?.standing ?? "unknown";
+    det.innerHTML = `<summary>the space, zeroed — ${esc(st)}</summary>`;
+    const pre = document.createElement("pre");
+    pre.className = "block";
+    if (brief.error) {
+      pre.textContent = `the void could not be declared for this turn: ${brief.error}`;
+    } else {
+      const d = brief.declaration;
+      const lines = d.cells.map(
+        (c) =>
+          `${c.op}  ${String(c.domain).padEnd(14)} ${String(c.terrain).padEnd(10)} ${c.field}` +
+          (c.standing === "declared" ? ` = ${JSON.stringify(c.declared)}` : "  — UNDECLARED"),
+      );
+      pre.textContent =
+        lines.join("\n") +
+        `\n\n${undeclaredOf(d)}` +
+        `\n\nextent evidence: ${brief.evidence.extent ? `${brief.evidence.extent.from}-${brief.evidence.extent.to} stated ${brief.evidence.mentions}×, margin ${brief.evidence.margin} over ${brief.evidence.considered} candidate span(s)` : "no span stated in this turn's material"}` +
+        `\n\n${voidLine(brief.space)}`;
+    }
+    det.append(pre);
+    out.append(det);
+  }
+
   // WHAT THE LOGIC DID, shown even when it did nothing. The nine-cell
   // panel below only renders when there are hypergraph CLAIMS to decompose,
   // so on exactly the turns worth debugging — the ones where the reader

@@ -51,6 +51,13 @@ const ENGINE = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages"
 // its own mount at the path that import lands on. Used, never copied, same as
 // the engine itself.
 const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
+// eoreader7's NATIVE tree, mounted separately from the legacy /engine path
+// because they are different engines, not different folders: /engine is the
+// frozen 6.1 compatibility surface, /engine-v7 is v7's own kernel. Kept
+// apart by name so an import line always says which one a module came from,
+// and so retiring the legacy mount later is a deletion rather than an
+// untangling. Used, never copied — the discipline /engine and /nul hold.
+const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 // Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
 // output) — never a fact this repo derives or vendors a stale copy of.
 // scripts/corpus/ is eoreader6.1's OWN gitignored, locally-reproducible
@@ -515,7 +522,7 @@ createServer((req, res) => {
 
   // Never serve outside the directory (or the engine/nul/priors-data mounts),
   // whatever the path claims to be.
-  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA)) {
+  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(ENGINE_V7) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA)) {
     res.writeHead(403).end("no");
     return;
   }
@@ -526,6 +533,13 @@ createServer((req, res) => {
   if (rel.startsWith("/engine/")) {
     file = join(ENGINE, rel.slice("/engine/".length));
     if (!file.startsWith(ENGINE)) {
+      res.writeHead(403).end("no");
+      return;
+    }
+  }
+  if (rel.startsWith("/engine-v7/")) {
+    file = join(ENGINE_V7, rel.slice("/engine-v7/".length));
+    if (!file.startsWith(ENGINE_V7)) {
       res.writeHead(403).end("no");
       return;
     }

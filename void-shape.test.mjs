@@ -10,7 +10,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { zeroSpace, fill, voidsOf, voidLine, yearSpansIn } from "./void-shape.js";
+import { zeroSpace, fill, voidsOf, voidLine, yearSpansIn, declareVoid, undeclaredOf, spaceFrom } from "./void-shape.js";
+import { cellOf } from "../eoreader7/native/kernel/cube.js";
+
+// The specimen declared across all nine operators, as a caller would.
+const LINCOLN_VP = {
+  slot: "vice president of Abraham Lincoln",
+  anchor: "Abraham Lincoln (16th president)",
+  admits: "person",
+  extent: { from: 1861, to: 1865 },
+  dimension: "years",
+  relation: "was vice president of",
+  composition: "successive terms partition the extent",
+  cardinality: "unknown",
+  admission: "the candidate's own term span lies within the extent",
+  reopensOn: "an uncovered stretch of the extent",
+};
 
 const lincolnTerm = { from: 1861, to: 1865 };
 
@@ -168,4 +183,74 @@ test("the lifespan trap, stated as arithmetic: a wrong span closes a real void",
   let good = zeroSpace({ slot: "vice president of Abraham Lincoln", constraint: { from: 1861, to: 1869 }, dimension: "years" });
   good = fill(good, { filler: "Hannibal Hamlin", span: { from: 1861, to: 1865 } });
   assert.equal(voidsOf(good).standing, "incomplete");
+});
+
+// ── defining the VOID across all nine operators ───────────────────────
+
+test("the nine: a void is declared by every operator, against the engine's own cube", () => {
+  const d = declareVoid(LINCOLN_VP, { cellOf });
+  assert.equal(d.standing, "specified");
+  assert.equal(d.cells.length, 9);
+  assert.deepEqual(d.cells.map((c) => c.op), ["NUL", "SIG", "INS", "SEG", "CON", "SYN", "DEF", "EVA", "REC"]);
+  // Terrain and stance are the CUBE's, never restated here — if the engine
+  // changes the algebra, this fails rather than silently disagreeing.
+  const nul = d.cells.find((c) => c.op === "NUL");
+  assert.equal(nul.terrain, "Void");
+  assert.equal(nul.domain, "Existence");
+  assert.equal(nul.grain, "Ground");
+  assert.equal(d.cells.find((c) => c.op === "SEG").terrain, "Field");
+  assert.equal(d.cells.find((c) => c.op === "REC").terrain, "Paradigm");
+});
+
+test("each operator carries the specimen's answer to its own question", () => {
+  const d = declareVoid(LINCOLN_VP, { cellOf });
+  const by = Object.fromEntries(d.cells.map((c) => [c.op, c.declared]));
+  assert.equal(by.SIG, "Abraham Lincoln (16th president)"); // the anchor "lincoln" alone could not disambiguate from a car brand
+  assert.equal(by.INS, "person");                            // undeclared, the slot returned "Congress" and "22nd Amendment"
+  assert.deepEqual(by.SEG, { from: 1861, to: 1865 });        // the dimension the hole is measured along
+  assert.equal(by.DEF, "unknown");                           // read off grammar it said "single", and one filler closed a two-filler space
+});
+
+test("an under-specified void names its OWN holes — the recursion is the point", () => {
+  // The state the reading was actually in all day: a slot and an extent,
+  // and seven silent assumptions.
+  const thin = declareVoid({ slot: "vice president of Abraham Lincoln", extent: { from: 1861, to: 1865 } }, { cellOf });
+  assert.equal(thin.standing, "under-specified");
+  assert.deepEqual(thin.undeclared.map((u) => u.op).sort(), ["CON", "DEF", "EVA", "INS", "REC", "SIG", "SYN"]);
+  const line = undeclaredOf(thin);
+  assert.match(line, /SIG \(Entity\)/);
+  assert.match(line, /INS \(Kind\)/);
+  assert.match(line, /under-specified/);
+});
+
+test("a fully declared void says so, and every omission is typed rather than defaulted", () => {
+  assert.match(undeclaredOf(declareVoid(LINCOLN_VP, { cellOf })), /all nine operators are declared/);
+  const none = declareVoid({}, { cellOf });
+  assert.equal(none.undeclared.length, 9);
+  // Never a default: an unstated field is null with a standing, not a guess.
+  assert.equal(none.cells.every((c) => c.declared === null && c.standing === "undeclared"), true);
+});
+
+test("the algebra is injected, never carried here in a second copy", () => {
+  assert.throws(() => declareVoid(LINCOLN_VP), TypeError);
+  assert.throws(() => declareVoid(LINCOLN_VP, { cellOf: "nope" }), TypeError);
+  // A cube that rejects a cell is a real error, not something to route around.
+  assert.throws(() => declareVoid(LINCOLN_VP, { cellOf: () => ({ gap: "unknown_spec", reason: "x" }) }), TypeError);
+});
+
+test("declare once: the arithmetic reads the SAME extent, never a second drifting copy", () => {
+  const d = declareVoid(LINCOLN_VP, { cellOf });
+  let s = spaceFrom(d);
+  assert.deepEqual(s.constraint, { from: 1861, to: 1865 });
+  assert.equal(s.dimension, "years");
+  s = fill(s, { filler: "Andrew Johnson", span: { from: 1865, to: 1865 } });
+  const v = voidsOf(s);
+  assert.equal(v.standing, "incomplete");
+  assert.deepEqual([...v.voids], [{ from: 1861, to: 1865 }]);
+});
+
+test("a void declared with no extent yields a space that honestly cannot see holes", () => {
+  const d = declareVoid({ slot: "vice president of Abraham Lincoln", admits: "person" }, { cellOf });
+  const s = spaceFrom(d);
+  assert.equal(voidsOf(s).standing, "unbounded");
 });

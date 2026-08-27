@@ -37,6 +37,139 @@
 const isSpan = (s) =>
   !!s && Number.isFinite(s.from) && Number.isFinite(s.to) && s.from <= s.to;
 
+// ── DEFINING THE VOID: all nine operators, one pass ────────────────────
+//
+// User direction, 2026-08-26: "we need the first step to define what the
+// VOID is, using all 9 operators."
+//
+// Zeroing a space is not one declaration, it is nine. Each operator in the
+// closed algebra asks a different question about a space BEFORE anything
+// stands in it, and a space missing any of them is under-specified in a way
+// that shows up later as a wrong answer rather than as an error. The
+// previous version of this file declared two of the nine — the slot (NUL)
+// and the extent (SEG) — and called that a zeroed space. It was not; it was
+// a space with seven silent assumptions.
+//
+// The nine, with what each contributes and what its absence cost on the
+// live specimen ("who was lincoln's vp?"):
+//
+//   EXISTENCE — is there a space here at all?
+//   NUL  Differentiate/Void      what space, marked off from all it is not
+//                                → the slot itself
+//   SIG  Relate/Entity           what must resolve for the space to exist
+//                                → Abraham Lincoln. Undeclared, "lincoln"
+//                                  matched Lincoln Motor Company and the
+//                                  reading answered from car brochures.
+//   INS  Generate/Kind           what KIND of thing may stand here
+//                                → a person. Undeclared, the slot query
+//                                  returned "Congress", "22nd Amendment",
+//                                  "Though he" as candidate vice presidents.
+//
+//   STRUCTURE — what shape does it have?
+//   SEG  Differentiate/Field     the extent and its units
+//                                → 1861-1865, years. This is the dimension
+//                                  the hole is measured along.
+//   CON  Relate/Link             the relation binding filler to anchor
+//                                → "was vice president of"
+//   SYN  Generate/Network        how fillers compose across the extent
+//                                → successive terms partition it; they do
+//                                  not overlap and do not repeat.
+//
+//   INTERPRETATION — how is it judged filled?
+//   DEF  Differentiate/Lens      the declared cardinality
+//                                → unknown. Read off grammar it said
+//                                  "single", and one true filler closed a
+//                                  two-filler space.
+//   EVA  Relate/Paradigm-Figure  the admission test a candidate must pass
+//                                → its span lies within the extent
+//   REC  Generate/Paradigm       what forces the declaration to be revised
+//                                → an uncovered stretch: something holds it.
+//
+// EVERY FIELD IS OPTIONAL AND EVERY OMISSION IS TYPED. A caller that cannot
+// state one gets a declared gap for that operator, never a default — and
+// `undeclaredOf` returns exactly those gaps, so the void's OWN definition
+// can be inspected for holes by the same move the space itself gets. That
+// recursion is the point rather than a flourish: an under-specified void
+// is the thing that produced every confident wrong answer today, and it
+// should be as visible as the missing filler is.
+//
+// `cellOf` is INJECTED, never imported (the cast.js discipline this repo
+// holds for every production module): the algebra belongs to the engine,
+// and this file must not carry a second copy of it.
+
+const VOID_OPERATORS = Object.freeze([
+  ["NUL", "Ground", "slot", "what space this is, marked off from all it is not"],
+  ["SIG", "Figure", "anchor", "what must resolve for this space to exist at all"],
+  ["INS", "Pattern", "admits", "what kind of thing may stand here"],
+  ["SEG", "Ground", "extent", "the extent to be covered, and its units"],
+  ["CON", "Figure", "relation", "what binds a filler to the anchor"],
+  ["SYN", "Pattern", "composition", "how fillers compose across the extent"],
+  ["DEF", "Figure", "cardinality", "how many fillers the space is declared to hold"],
+  ["EVA", "Figure", "admission", "the test a candidate must pass to fill any of it"],
+  ["REC", "Pattern", "reopensOn", "what forces this declaration to be revised"],
+]);
+
+/**
+ * Declare a void across all nine operators. Returns the specification plus
+ * the fields `zeroSpace` needs, so a caller declares once and the
+ * arithmetic below reads from the same declaration rather than a second,
+ * drifting copy of the extent.
+ */
+export function declareVoid(fields = {}, { cellOf = null } = {}) {
+  if (typeof cellOf !== "function")
+    throw new TypeError("declareVoid: cellOf is injected from the engine's own cube — this file never carries a second copy of the algebra");
+  const cells = [];
+  const undeclared = [];
+  for (const [op, grain, field, asks] of VOID_OPERATORS) {
+    const cell = cellOf(op, grain);
+    if (cell?.gap) throw new TypeError(`declareVoid: the injected cube rejected ${op}/${grain} — ${cell.reason ?? "unknown"}`);
+    const declared = fields[field];
+    const present = declared !== undefined && declared !== null && declared !== "";
+    if (!present) undeclared.push({ op, field, asks, terrain: cell.terrain });
+    cells.push(Object.freeze({
+      op, field, asks,
+      grain: cell.grain, mode: cell.mode, domain: cell.domain,
+      terrain: cell.terrain, stance: cell.stance,
+      declared: present ? declared : null,
+      standing: present ? "declared" : "undeclared",
+    }));
+  }
+  return Object.freeze({
+    schema: "EOVoidDeclaration@1",
+    cells: Object.freeze(cells),
+    undeclared: Object.freeze(undeclared),
+    // The void's own completeness, by the same rule it applies to fillers.
+    standing: undeclared.length ? "under-specified" : "specified",
+    slot: fields.slot ?? null,
+    extent: fields.extent ?? null,
+    dimension: fields.dimension ?? null,
+  });
+}
+
+/**
+ * The holes in the void's OWN definition — which operators were never
+ * answered, as a line a reader (or a model) can act on.
+ */
+export function undeclaredOf(declaration) {
+  if (declaration?.schema !== "EOVoidDeclaration@1") throw new TypeError("undeclaredOf: not an EOVoidDeclaration@1");
+  if (!declaration.undeclared.length)
+    return `all nine operators are declared for "${declaration.slot ?? "this space"}" — the space is fully specified`;
+  return (
+    `"${declaration.slot ?? "this space"}" is under-specified: ` +
+    declaration.undeclared.map((u) => `${u.op} (${u.terrain}) — ${u.asks}`).join("; ")
+  );
+}
+
+/** Hand a nine-operator declaration straight to the arithmetic below. */
+export function spaceFrom(declaration) {
+  if (declaration?.schema !== "EOVoidDeclaration@1") throw new TypeError("spaceFrom: not an EOVoidDeclaration@1");
+  return zeroSpace({
+    slot: declaration.slot,
+    constraint: declaration.extent ?? null,
+    dimension: declaration.dimension ?? null,
+  });
+}
+
 /**
  * Zero the space. `constraint` is the extent the slot must cover — the
  * dimension along which the question is asked. Nothing is assumed about it:

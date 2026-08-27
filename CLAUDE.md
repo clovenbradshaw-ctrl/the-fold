@@ -4678,3 +4678,73 @@ zero regressions. The 118 are pre-existing and environmental —
 `legacy-eoreader6.1` is an uninitialised submodule here, so `grid.test.mjs`
 among others cannot resolve; `void-loop.test.mjs` imports eoreader7's
 **native** kernel instead, as `void-shape.test.mjs` already does.
+
+### Amended 2026-08-27 — a model reads, the material checks, HL judges
+
+P53's amendment in POLICIES.md is the law; this is the map. Two
+directions, in order: *"use the full power of the hyperlexicon"*, then —
+watching the driver grow one admission rule per specimen that broke — *"a
+small model call because we can never define every little case like
+«abbreviation gate»"*.
+
+**Why it changed.** Admitting by rule grew four rules in one afternoon on
+one specimen family, each right for its own case and wrong for the next:
+the relation stated as "running mate"; a span beside the relation that
+belongs to a DIFFERENT office; a candidate whose kind is a faction; a
+sentence boundary inside "Franklin D.". The split: **reading** is a
+model's (the half that cannot be enumerated), **judging** is HL's and
+never a model's, and between them **the material checks the model** — a
+reader returns EDGES WITH PROVENANCE, never a verdict.
+
+**`void-hl.js`** (new, pure) is the bridge: `stageFromReadings` +
+`admissionOf`, with the HL→admission mapping stated line by line
+(CONTESTED maps to `null`, not `refused` — FDE's "both" is an unsettled
+question, and convicting on it is the accusation-with-no-evidence the
+grounding ladder already forbids).
+
+**What HL bought.** Calvin Coolidge passes every surface test that can be
+written and is not Roosevelt's vice president. HL excludes him by one
+declared rule with a named giver, and `void-hl.test.mjs` pins the
+mechanism: with the declaration `contradicted`, without it — byte-identical
+stage — `unbound`. **An undeclared rule convicts nobody.**
+
+**R2's precondition, named because nothing named it:** a functional
+relation makes anchor identity load-bearing. An earlier draft claimed a
+reader's blind spot always degrades to a gap; the real engine refuted it —
+«FDR» against «Franklin D. Roosevelt» is not silence, R2 reads it as bound
+to a different object and REFUSES a true candidate. Corrected, pinned, and
+`anchorIdentity` is now reported. The fix is injecting real referent
+identity (`cast.js::makeReferentIndex`), not more rules.
+
+**The question's own singular is a functional declaration.** "Who WAS
+Lincoln's vice president?" asserts `functional(hasVicePresident)`; HL
+returns CONTESTED — presupposition failure. The honest answer is *the
+question presumed one and the material has two*.
+
+**The reader is a real local model on CPU** (`onnx-community/
+Qwen2.5-0.5B-Instruct`, q4, `@huggingface/transformers`, in-process, ~27s
+load / ~6s per read). The prompt is **measured, not drafted** — 0/4 with
+angle-bracket placeholders, 2/4 with concrete worked examples, 3/4 with a
+distinctness rule, **4/4 once INS was asked as INDIVIDUATION rather than
+kind**. "Is a War Democrat a person" is honestly yes; the slot admits ONE
+NAMED INDIVIDUAL, not a kind of person.
+
+**Two checks on the model, both P31's company law:** the model's span is
+kept only where the source states it with the relation (Johnson's
+presidency span DROPPED — which is what makes him correctly
+admitted-but-unplaced), and the relation itself is corroborated the same
+way (the model claimed Hoover against a page that never states it).
+
+**Two bugs the run found:** `Number(null)` is `0` and `Number.isFinite(0)`
+is `true`, so a null year became year zero and would have corrupted the
+coverage arithmetic; and **evaluated-and-inconclusive is not unevaluated**
+— both landed on `wish`, so one junk candidate nothing could settle pinned
+the ladder forever. Only wiring HL surfaced it, because `unbound` is the
+correct and common answer for a source that says nothing.
+
+**Baseline moved honestly.** This checkout had NO `node_modules` (the
+original 118 failures); installing the reader let three test files load
+that previously could not. 805/687/118 → 912/793/119: 60 new passing cases
+of this pass's own, three file-level failures replaced by four real
+environmental ones inside them, zero regressions, failure names diffed
+rather than counted.

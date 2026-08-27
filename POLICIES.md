@@ -5706,3 +5706,130 @@ The 118 are pre-existing and environmental (`legacy-eoreader6.1` is an
 uninitialised submodule in this checkout, so `grid.test.mjs` among others
 cannot resolve its imports; `void-loop.test.mjs` therefore imports
 eoreader7's **native** kernel, as `void-shape.test.mjs` already does).
+
+### P53, amended 2026-08-27 — a model reads, the material checks, HL judges
+
+**The direction, in two parts.** First: *"use the full power of the
+hyperlexicon."* Then, watching the driver grow one admission rule per
+specimen that broke: *"and a small model call because we can never define
+every little case like «abbreviation gate»."*
+
+**What forced it.** Admitting candidates by rule grew four rules in one
+afternoon on one specimen family, each correct for the case that prompted
+it and wrong for the next: a relation stated as "running mate" rather than
+"vice president"; a span sitting beside the relation that belongs to a
+DIFFERENT office two clauses over; a candidate whose kind is a faction;
+and a sentence boundary falling inside "Franklin D." so the anchor landed
+in the next fragment. That is the shape of a rule set nobody finishes.
+
+**The split.** READING is a model's job — turning a page into "who held
+what, under whom, over what span" is the half that cannot be enumerated.
+JUDGING is HL's and must never be a model's — a verdict has to be sound,
+reproducible and answerable for, which is what declared rules with named
+givers buy and a model's opinion cannot. Between them, THE MATERIAL CHECKS
+THE MODEL: a model's claim is never ground. So a reader never returns a
+verdict; it returns EDGES WITH PROVENANCE, and swapping the reader changes
+nothing about the judgment.
+
+**`void-hl.js`** (new, pure) is the bridge: `stageFromReadings` stands
+readings up as an HL stage with declarations, `admissionOf` asks HL and
+maps its answer onto the loop's admission vocabulary. The mapping is a set
+of decisions, each stated: BOUND → `holds`; CONTRADICTED → `refused`;
+CONTESTED → `null`, because FDE's "both" is an unsettled question and
+convicting on it is the accusation-with-no-evidence this repo's grounding
+ladder already forbids; UNBOUND and BEYOND_REACH → `null`.
+
+**What HL bought, on the case no rule could reach.** Calvin Coolidge is a
+real vice president whose own page states the relation, whose kind is a
+person, and who is not Roosevelt's — he passes every surface test that can
+be written. Under HL he is CONTRADICTED by one declared rule with a named
+giver (`functional(vicePresidentOf)`, giver: the office's own structure).
+`void-hl.test.mjs` pins the mechanism: with the declaration,
+`contradicted`; without it, on a byte-identical stage, `unbound`. **An
+undeclared rule convicts nobody.** Live, the FDR specimen ran thirteen
+candidates across two rungs with ZERO false admissions and two R2
+exclusions (Coolidge, James M. Cox).
+
+**R2'S PRECONDITION, found by testing and named because nothing named it.**
+An earlier draft of `void-hl.js` claimed a reader's blind spot always
+degrades to a gap. The real engine refuted it: with a functional
+declaration, a reading that says «FDR» where the slot says «Franklin D.
+Roosevelt» is not silence — R2 reads it as bound to a DIFFERENT object and
+REFUSES a true candidate. **A functional relation makes anchor identity
+load-bearing**, and with a string fold an alias convicts. The claim is
+corrected rather than dropped, pinned as a regression, and
+`stageFromReadings` reports `anchorIdentity` so a caller relying on the
+default fold can see that it is. The fix is injecting real referent
+identity (`cast.js::makeReferentIndex`), not more rules.
+
+**THE QUESTION'S OWN SINGULAR IS A FUNCTIONAL DECLARATION.** "Who WAS
+Lincoln's vice president?" is a definite description whose singular
+phrasing asserts `functional(hasVicePresident)`; read in that direction HL
+returns CONTESTED — presupposition failure. The honest answer is not one
+filler, it is *the question presumed one and the material has two*. Both
+directions are real and say different things: `vicePresidentOf(vp,
+president)` IS functional and excludes Coolidge; `hasVicePresident` is
+not, and asserting it is what the question does.
+
+**The reader is a real local model on CPU** — `onnx-community/
+Qwen2.5-0.5B-Instruct` at q4 via `@huggingface/transformers`, in-process,
+no server and no GPU (~27s load, ~6s per read). **The prompt is measured,
+not drafted**, four shapes scored against four real specimens: angle-
+bracket placeholders 0/4 (echoed the placeholder and answered `false` on a
+text that plainly stated the relation — `provenance.js`'s own documented
+leak); concrete worked examples 2/4; + a distinctness rule and a
+both-offices example 3/4; + **INS asked as INDIVIDUATION rather than
+kind** 4/4. That last is the one to keep: "is a War Democrat a person" is
+honestly YES — a faction is made of people — and the slot does not admit a
+KIND of person, it admits ONE NAMED INDIVIDUAL. The engine's own
+individuation vocabulary, asked as a question, did what a kind-matcher
+could not.
+
+**Two checks on the model, both the same law.** P31's company rule, aimed
+at a model instead of at prose: the model's span is accepted only where
+the source states it in the same breath as the relation. Measured —
+Hamlin's 1861-1865 KEPT, Johnson's 1865-1869 DROPPED (his presidency),
+Coolidge's 1923-1929 DROPPED. Dropping Johnson's span is what makes the
+good result reachable: he lands admitted-but-unplaced, exactly what the
+material supports. The relation gets the same treatment after the model
+claimed Herbert Hoover was Roosevelt's vice president against a page that
+never states the relation at all.
+
+**Two bugs the run found.** `Number(null)` is `0` and `Number.isFinite(0)`
+is `true`, so a null year became year zero — measured live as `span 0-0`,
+a span that would have been filled into the space and corrupted the
+coverage arithmetic, surviving only because the company check happened to
+drop it. And **evaluated-and-inconclusive is not unevaluated**: both landed
+on `wish`, so a candidate HL had already returned `unbound` for was
+indistinguishable from one never looked at, and since `descend` refuses
+while a wish is untested, one junk candidate nothing could settle pinned
+the ladder forever. Surfaced only by wiring HL, where `unbound` is the
+correct and common answer for a source that says nothing.
+
+**Result.** `Hannibal Hamlin (1861-1865); Andrew Johnson` — both fillers,
+exactly the right two, junk refused with reasons read off each candidate's
+own source, nothing invented, and `NOT COMMITTED — unplaced_filler`
+because the material never places Johnson.
+
+**Limits.** A year-grain extent cannot see a hole inside one year (SEG's
+own cell: "the extent to be covered, AND ITS UNITS"). The 0.5B reader is
+wrong in exactly one place — "Northern Democrats" read as one named
+individual on the Lincoln specimen (7/8 there, 13/13 on FDR) — contained
+by the architecture as an unplaced filler that blocks the close and shows
+in the answer, but a wrong filler nonetheless, and a READER limit rather
+than an architectural one; whether a larger reader closes it is measurable
+and was not measured. Garner is never offered at all, because the page
+names him "Garner" and the crude generator cannot connect that to "John
+Nance Garner" — the coreference gap P38's referent index exists for.
+
+**Files.** `void-hl.js` + `void-hl.test.mjs` (17 cases against the REAL
+engine HL). `void-loop.js` gained the `undetermined` standing, the
+unplaced guard, `unplaced_filler`, and the `covered_but_unplaced` /
+`extent_excludes` triggers; `void-loop.test.mjs` 36 → 43. Suite: this
+checkout had NO `node_modules` at all (the original 118 failures), and
+installing `@huggingface/transformers` for the reader let three test files
+load that previously could not — so the baseline moved honestly from
+805/687/118 to 912/793/119, where the delta is 60 new passing cases of
+this pass's own, three file-level failures replaced by four real
+environmental ones inside them (missing `sql.js`, missing WebLLM weight
+shards), and zero regressions. Failure names were diffed, not counted.

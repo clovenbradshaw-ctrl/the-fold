@@ -439,7 +439,14 @@ export function admit(loop, { grid, log, admission } = {}) {
     if (verdict === "holds") space = fill(space, { filler: cand.value, span: cand.span, source: cand.witness });
     byId.set(cand.defineId, Object.freeze({
       ...cand,
-      standing: verdict === "holds" ? "testimony" : verdict === "refused" ? "refused" : "wish",
+      // EVALUATED-AND-INCONCLUSIVE IS NOT UNEVALUATED. Both used to land
+      // back on `wish`, so a candidate HL had already read and returned
+      // `unbound` for stayed indistinguishable from one never looked at —
+      // and since `descend` refuses while a wish is untested, a single
+      // junk candidate nothing could settle pinned the ladder forever.
+      // Surfaced by wiring the HL tier, where `unbound` is the CORRECT
+      // and common answer for a source that simply says nothing.
+      standing: verdict === "holds" ? "testimony" : verdict === "refused" ? "refused" : "undetermined",
       verdict,
       because: read.because ?? null,
       // WHICH test refused it, because `reshape` treats the two
@@ -476,7 +483,8 @@ export function admit(loop, { grid, log, admission } = {}) {
  */
 export function foldLoop(loop) {
   if (loop?.schema !== "EOVoidLoop@1") return refuse("not_a_loop", "foldLoop: expects an EOVoidLoop@1");
-  const wishes = loop.candidates.filter((c) => c.standing === "wish");
+  const wishes = loop.candidates.filter((c) => c.standing === "wish");                 // proposed, never evaluated
+  const undetermined = loop.candidates.filter((c) => c.standing === "undetermined");   // evaluated, nothing settled it
   const testimony = loop.candidates.filter((c) => c.standing === "testimony");
   const refused = loop.candidates.filter((c) => c.standing === "refused");
   const coverage = voidsOf(loop.space);
@@ -484,21 +492,53 @@ export function foldLoop(loop) {
   const cardinalityMet = Number.isFinite(cardinality) && testimony.length === cardinality;
   const rung = currentRung(loop);
 
+  // A SPACE IS NOT COVERED WHILE IT HOLDS A FILLER IT CANNOT PLACE.
+  //
+  // `voidsOf` has always computed `unplaced` separately — a filler admitted
+  // with no span, "a real witness whose extent is unknown, disclosed
+  // separately rather than silently counted as covering everything (which
+  // would close the void by ignorance)" — and nothing has ever read it.
+  // Same shape as the finding this whole line of work started from
+  // (`clusterFillers` computing cardinality that nothing downstream asked
+  // for), one file over.
+  //
+  // Reading it matters because "covered" is the licence to commit, and a
+  // space whose completeness depends on IGNORING something it admitted is
+  // not complete — it is complete-if-you-don't-count-that. Measured on the
+  // real specimen: Hamlin's own page states 1861-1865 and covers the whole
+  // declared extent, Johnson's own page states the relation and states no
+  // span at all, and the honest reading of those two together is not
+  // "Hamlin, complete" — it is "Hamlin, and one more the material does not
+  // place."
+  //
+  // Only when there IS a constraint. With no extent declared, `voidsOf`
+  // returns `unbounded` and nothing can be placed within it, so an unplaced
+  // filler is not evidence of anything — it is the honest state of a space
+  // that was never given a shape, and the cardinality route stays open.
+  const unplacedBlocks = coverage.standing !== "unbounded" && coverage.unplaced.length > 0;
+
+  // `unplaced` overrides a COVERED reading and never a genuinely short one:
+  // a space that is short has somewhere to go (descend, find more) and
+  // reporting it as unplaceable would stop the ladder on the wrong finding.
+  const wouldBeCovered = coverage.standing === "covered" || cardinalityMet;
   const standing = loop.closed
     ? "committed"
-    : coverage.standing === "covered" || cardinalityMet
+    : wouldBeCovered && !unplacedBlocks
       ? "covered"
       : wishes.length
         ? "outstanding"
-        : rung
-          ? "posture_spent"
-          : "ladder_spent";
+        : wouldBeCovered
+          ? "unplaced"
+          : rung
+            ? "posture_spent"
+            : "ladder_spent";
 
   return Object.freeze({
     ok: true,
     standing,
     rung: rung ? rung.stance : null,
     wishes: Object.freeze(wishes),
+    undetermined: Object.freeze(undetermined),
     testimony: Object.freeze(testimony),
     refused: Object.freeze(refused),
     coverage,
@@ -586,6 +626,15 @@ export function closeLoop(loop, { grid, log, stance } = {}) {
   if (loop?.schema !== "EOVoidLoop@1") return refuse("not_a_loop", "closeLoop: expects an EOVoidLoop@1");
   if (loop.closed) return refuse("loop_closed", "closeLoop: this loop has already committed");
   const fold = foldLoop(loop);
+  if (fold.standing === "unplaced") {
+    return refuse(
+      "unplaced_filler",
+      `closeLoop: ${fold.coverage.unplaced.map((f) => `«${f}»`).join(", ")} cleared admission and the material never placed ` +
+      `${fold.coverage.unplaced.length > 1 ? "them" : "it"} — the extent reads covered only by not counting ` +
+      `${fold.coverage.unplaced.length > 1 ? "them" : "it"}, which is not the same as being covered`,
+      { standing: fold.standing, unplaced: fold.coverage.unplaced, coverage: fold.coverage },
+    );
+  }
   if (fold.standing !== "covered") {
     return refuse("void_open", `closeLoop: ${voidLine(loop.space)}`, { standing: fold.standing, coverage: fold.coverage });
   }
@@ -746,6 +795,27 @@ export function reshapeTriggers(loop) {
     }));
   }
 
+  // The space reports itself complete while holding a filler it could not
+  // place. Either the filler does not belong or the extent's own GRAIN is
+  // too coarse to sit it anywhere — SEG's cell is "the extent to be
+  // covered, AND ITS UNITS", and the units are the half that goes unread.
+  // Deliberately carries NO `suggested`: this module can see that the grain
+  // is wrong and cannot see what the right one would be, and inventing one
+  // would be the manufactured precision the rest of this apparatus exists
+  // to refuse. A caller gets the finding and the cell, not a guess.
+  const coverageNow = voidsOf(loop.space);
+  if (coverageNow.standing === "covered" && coverageNow.unplaced.length) {
+    out.push(Object.freeze({
+      type: "covered_but_unplaced",
+      field: "extent",
+      detail:
+        `the extent reads covered, and ${coverageNow.unplaced.map((f) => `«${f}»`).join(", ")} cleared admission with no ` +
+        `extent the material states — a space is not complete while it holds a filler it cannot place, so either the grain ` +
+        `of ${extent ? `${extent.from}-${extent.to}` : "this extent"} is too coarse to sit it anywhere or it does not belong`,
+      unplaced: Object.freeze([...coverageNow.unplaced]),
+    }));
+  }
+
   const cardinality = loop.choreography.propose.declared;
   if (Number.isFinite(cardinality) && testimony.length > cardinality) {
     out.push(Object.freeze({
@@ -826,6 +896,10 @@ export function reshape(loop, { grid, log, trigger, revised } = {}) {
   const carried = loop.candidates.map((c) => {
     if (c.standing === "refused" && c.refusedBy === "extensional") {
       return Object.freeze({ ...c, standing: "wish", verdict: null, because: null, refusedBy: null, evaluateId: null });
+    }
+    // Nothing settled it on the OLD ground; the new one gets to be asked.
+    if (c.standing === "undetermined") {
+      return Object.freeze({ ...c, standing: "wish", verdict: null, because: null, evaluateId: null });
     }
     return c;
   });

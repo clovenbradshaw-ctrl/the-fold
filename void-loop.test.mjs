@@ -231,9 +231,26 @@ test("EVA lands one act per wish and attaches the verdict as a RESULT, never as 
 
 test("an inconclusive admission leaves the candidate superposed — not refused", () => {
   const { loop } = loopWith([JOHNSON], { admission: () => ({ verdict: null, because: "nothing in the material settles it" }) });
-  assert.equal(loop.candidates[0].standing, "wish");
+  assert.equal(loop.candidates[0].standing, "undetermined");
   assert.equal(loop.candidates[0].verdict, null);
-  assert.equal(foldLoop(loop).standing, "outstanding");
+  assert.deepEqual(foldLoop(loop).undetermined.map((c) => c.value), ["Andrew Johnson"]);
+});
+
+test("evaluated-and-inconclusive never pins the ladder the way unevaluated does", () => {
+  // `unbound` is the CORRECT and common answer for a source that says
+  // nothing about the relation, so a junk candidate nothing can settle
+  // must not block the descent — it has been looked at.
+  const { grid, log, loop } = loopWith([JOHNSON], { admission: () => ({ verdict: null, because: "silence" }) });
+  assert.equal(foldLoop(loop).wishes.length, 0);
+  assert.equal(foldLoop(loop).standing, "posture_spent");
+  assert.equal(descend(loop, { grid, log, trigger: "nothing here settles it" }).ok, true);
+});
+
+test("a re-zeroed ground re-asks what the old one could not settle", () => {
+  const { grid, log, loop } = loopWith([JOHNSON], { admission: () => ({ verdict: null, because: "silence" }) });
+  const r = reshape(loop, { grid, log, trigger: "the office runs further", revised: decl({ extent: { from: 1861, to: 1869 } }) });
+  assert.equal(r.ok, true, JSON.stringify(r.refusal));
+  assert.equal(r.loop.candidates[0].standing, "wish");   // askable again
 });
 
 test("a span wholly outside the extent is refused as arithmetic, without consulting the organ", () => {
@@ -260,6 +277,62 @@ test("THE SPECIMEN: one true filler admitted, and the loop still reports the spa
   assert.equal(fold.coverage.standing, "incomplete");
   assert.deepEqual([...fold.coverage.voids], [{ from: 1861, to: 1865 }]);
   assert.match(fold.line, /Do not fill this gap from memory/);
+});
+
+// ── a space is not covered while it holds a filler it cannot place ───────────
+
+const JOHNSON_UNPLACED = { value: "Andrew Johnson", witness: "en.wikipedia.org" };  // relation stated, no span
+
+test("THE GOOD RESULT: a covered extent plus an admitted filler it cannot place is NOT complete", () => {
+  // Measured on the real specimen: Hamlin's own page states 1861-1865 and
+  // covers the whole declared extent; Johnson's own page states the
+  // relation and states no span at all. "Hamlin, complete" is the wrong
+  // reading of those two together.
+  const { loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  const fold = foldLoop(loop);
+  assert.equal(fold.coverage.standing, "covered");          // the extent itself IS covered
+  assert.deepEqual([...fold.coverage.unplaced], ["Andrew Johnson"]);
+  assert.equal(fold.standing, "unplaced");                  // and the loop still refuses to call it done
+  // Both fillers are named in the answer, one of them without an extent.
+  assert.match(fold.line, /Hannibal Hamlin \(1861-1865\); Andrew Johnson/);
+});
+
+test("committing a space that reads covered only by not counting a filler is refused by name", () => {
+  const { grid, log, loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  const r = closeLoop(loop, { grid, log, stance: "closure" });
+  assert.equal(r.ok, false);
+  assert.equal(r.refusal.type, "unplaced_filler");
+  assert.deepEqual(r.refusal.unplaced, ["Andrew Johnson"]);
+  assert.match(r.refusal.detail, /which is not the same as being covered/);
+});
+
+test("covered_but_unplaced names the cell and carries NO suggested extent", () => {
+  const { loop } = loopWith([HAMLIN, JOHNSON_UNPLACED]);
+  const t = reshapeTriggers(loop).find((x) => x.type === "covered_but_unplaced");
+  assert.ok(t);
+  assert.equal(t.field, "extent");
+  // This module can see the grain is wrong and cannot see what the right
+  // one would be. Inventing one would be manufactured precision.
+  assert.equal(t.suggested, undefined);
+  assert.match(t.detail, /too coarse to sit it anywhere or it does not belong/);
+});
+
+test("a genuinely SHORT space with an unplaced filler still descends — unplaced never masks a hole", () => {
+  // The control for the ordering: `unplaced` overrides a covered reading,
+  // never a short one, or the ladder would stop on the wrong finding.
+  const { grid, log, loop } = loopWith([JOHNSON_UNPLACED]);
+  const fold = foldLoop(loop);
+  assert.equal(fold.coverage.standing, "incomplete");
+  assert.equal(fold.standing, "posture_spent");
+  assert.equal(descend(loop, { grid, log, trigger: "still short" }).ok, true);
+});
+
+test("with no extent declared, an unplaced filler blocks nothing — nothing can be placed in an unbounded space", () => {
+  const one = declareVoid({ ...LINCOLN_VP, extent: null, dimension: null, cardinality: 1 }, { cellOf });
+  const { loop } = loopWith([JOHNSON_UNPLACED], { declaration: one });
+  assert.equal(foldLoop(loop).coverage.standing, "unbounded");
+  assert.deepEqual([...foldLoop(loop).coverage.unplaced], ["Andrew Johnson"]);
+  assert.equal(foldLoop(loop).standing, "covered");   // the cardinality route stays open
 });
 
 // ── the loop's own law ───────────────────────────────────────────────────────

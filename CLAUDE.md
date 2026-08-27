@@ -4575,3 +4575,106 @@ computation, then "divided into" falling through to a real grounded
 answer with no trace of the caption anywhere. Full suite 1264/1266 before
 and after, same 2 pre-existing failures, neither importing
 `arithmetic.js` or `app.js`.
+
+## The void loop — answering as DEF/EVA/REC (added 2026-08-27)
+
+P53 in POLICIES.md is the law; this is the map. User direction, verbatim:
+*"answering all questions starts with defining the VOID that needs to be
+filled with a DEF, EVA, REC loop"*, then *"and the stance face?"*, then
+*"test e2e … asking the VP question and similar ones where the findings
+should reshape the void."*
+
+**Both halves already existed and could not reach each other.**
+`void-shape.js` declares a space across all nine operators and does the
+coverage arithmetic; `grid.js` lands DEF/EVA/REC on an append-only log
+with every refusal the composition law names. But `declareVoid`'s ONLY
+caller (`void-brief.js`) built its declaration at `app.js:3753` — **after
+`renderAnswer` had already run**, in a try/catch so it could not break the
+turn — and discarded it; and grid.js's acts were reachable only by a
+person typing `/act`. `void-loop.js` is the loop, and deliberately the
+only new thing: no second log, no second algebra, no second coverage test.
+
+**The choreography is read off the void's own cells, never chosen here.**
+DEF = `Differentiate·Figure` at Lens (**Dissecting**), EVA =
+`Relate·Figure` at Lens (**Binding**), REC = `Generate·Pattern` at
+Paradigm (**Composing**) — cut the candidates out, bind each to the
+ground, compose a new ground when the binding fails. Two things fell out
+of that table rather than being designed in: **DEF is the only Dissecting
+cell in the whole declaration** (cardinality is the single cut, and
+exactly the cell whose absence produced the two-filler-slot-read-as-one
+specimen), and **DEF and EVA share a terrain and differ only in stance**
+(you cut with the lens, then bind with it — which is why they are a loop).
+
+**Two stance faces, and they must not be merged.** The DERIVED stance
+(`STANCE_BY_MODE`) is a property of a cell, computed, cannot be wrong. The
+DECLARED stance (`from <stance>`) is the actor's posture, refusable three
+ways. `grid.js` refuses to import the engine's labels because a grid act
+is medium-blind; a void declaration is domain-locked by construction
+(`cellOf` uses the operator's own domain) so its stances are legitimately
+meaningful. Same word, two standings — harmonizing them breaks one.
+
+**The ladder and the loop's own law.** `extraction` → `cultivation` →
+`encounter`, descended only on exhaustion (`skills.js`'s ladder, stances
+in place of tiers). Witness says WHO, stance says HOW, and both ride every
+candidate. `grid.js` pins one stance illegality (`synthesize` may not
+declare `from relate`); **this module generalizes it and owns the
+generalization** — the loop may not close from the posture that proposed
+its fillers, or the EVA between was ceremony. DEF **fans out** (an array,
+all landed before any EVA): propose-one-test-it-propose-the-next is a
+greedy search, and a greedy search over two true fillers returns whichever
+it drew first, which is the specimen.
+
+**REC has two triggers, and grid.js already had both paths.** A spent
+posture → `concedeEvaluation` (EVIDENCE·REC, no supersedes). A wrong
+DECLARATION → `revise … supersedes <opening>` (SUPERSEDE — the act that
+zeroed the space is superseded, because the space was wrong). Reshaping
+resets the ladder, carries testimony across, and returns
+extensionally-refused candidates to `wish` — their refusal rested on the
+extent just conceded.
+
+**Three walls found by testing, not by reasoning** (full text in P53): the
+blanket `under-specified` refusal was a wall nothing useful could pass and
+made the cardinality close unreachable — **the third time this repo has
+caught that shape**, now graded to `no_slot` / `no_anchor` /
+`no_closing_condition` with the rest disclosed; a trigger this module
+GENERATES has to be carriable by the act line this module COMPOSES, so
+generated details quote with `« »` (crown.js's own mark) since the
+composition law has no escape syntax; and `extent_excludes` — a space
+refusing every candidate that could fill it while reporting itself short —
+which only appeared by running the loop on real bytes.
+
+**Evidence.** `eval/void-loop-e2e.mjs` over live Wikipedia. 28 junk
+candidates from a deliberately crude generator, **zero reached
+testimony**; a candidate stating the relation with no span correctly
+stayed a *wish* rather than being convicted; FDR reshaped its own space
+(`1933-1937` → `1933-1945`), re-admitted the re-opened filler, descended
+twice, and then **refused to commit** — "Henry Wallace" alone is a true
+sentence and a wrong answer.
+
+**Two limits, disclosed rather than engineered around.** The loop is
+exactly as good as the space it was given: Lincoln committed
+`Hannibal Hamlin (1861-1865)` as complete, which is right against the
+declared space and not the whole answer, because a **year-grain extent
+cannot see a hole inside one year** and Johnson held the office six weeks
+inside 1865 — the defect is SEG's own cell ("the extent to be covered,
+**and its units**"). And the generator's own failure is a coreference
+failure: `Garner` near the relation is invisible to a two-word capitalised
+scan, exactly the class `cast.js`'s referent index (P38) exists for and
+which the crude control deliberately does not use.
+
+**Not wired into a live turn**, and named rather than implied: `app.js`
+still builds its brief after the answer and throws it away. Moving
+`briefFor` ahead of retrieval and running the loop AS the turn is the next
+pass — `app.js` is the fold-architecture session's contract and this pass
+does not reach into it.
+
+**Files.** `void-loop.js` (pure; only `./void-shape.js` imported, `grid`
+and the admission organ injected — the cast.js discipline) +
+`void-loop.test.mjs` (36 cases against the REAL cube, grid and
+void-shape). `eval/void-loop-e2e.mjs` + `eval/results/
+void-loop-e2e-RESULTS.md` + its transcript. No existing file touched.
+Suite 805/687/118 → 841/723/118, failure names diffed rather than counted:
+zero regressions. The 118 are pre-existing and environmental —
+`legacy-eoreader6.1` is an uninitialised submodule here, so `grid.test.mjs`
+among others cannot resolve; `void-loop.test.mjs` imports eoreader7's
+**native** kernel instead, as `void-shape.test.mjs` already does.

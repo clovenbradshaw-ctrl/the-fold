@@ -5531,3 +5531,178 @@ passing both before and after this pass's four new tests — the same 2
 pre-existing failures (`eoreader-contract.test.mjs`,
 `source.test.mjs`'s Tolstoy specimen), neither of which imports
 `arithmetic.js` or `app.js`, zero regressions.
+
+---
+
+## P53 — Answering starts by defining the VOID, and the loop that fills it is DEF/EVA/REC
+
+**The direction, verbatim** (2026-08-27): *"answering all questions starts
+with defining the VOID that needs to be filled with a DEF, EVA, REC
+loop"* — then, on the stance face: *"and the stance face?"* — then, on
+verification: *"test e2e … asking the VP question and similar ones where
+the findings should reshape the void."*
+
+**The law.** A question is answered by zeroing its space across all nine
+operators and running one loop against it: DEF fans out candidate fillers
+from a declared posture, EVA admits or refuses each against the declared
+admission test, and REC re-zeros when either the posture is spent or the
+findings contradict the space itself. The answer is what the loop leaves
+standing. An uncovered extent is a **finding**, never a blank, and never a
+plausible partial answer.
+
+**Both halves already existed; neither could reach the other.** `grid.js`
+lands DEF/EVA/REC on an append-only task log with every refusal the
+composition law names. `void-shape.js` declares a space across the nine
+and does the coverage arithmetic. But `declareVoid`'s only caller
+(`void-brief.js`) built a declaration **after `renderAnswer` had already
+run**, wrapped so it could not break the turn, and threw it away; and
+grid.js's acts were reachable only by a person typing `/act`. `void-loop.js`
+is the loop and is deliberately the only new thing — no second log, no
+second algebra, no second coverage test.
+
+**The choreography is READ, never chosen.** Every act the loop lands takes
+its terrain and stance from the void's own cells, computed by the engine's
+cube at declaration time. Computed against the real cube, DEF is
+`Differentiate·Figure` at Lens (**Dissecting**), EVA is `Relate·Figure` at
+Lens (**Binding**), REC is `Generate·Pattern` at Paradigm (**Composing**) —
+so the loop's spine is *cut the candidates out, bind each to the ground,
+compose a new ground when the binding fails*. Two facts fall out of that
+table that were not designed in: **DEF is the only Dissecting cell in the
+whole declaration** (cardinality is the single cut in a space otherwise
+made of clearings, bindings and compositions — and exactly the cell whose
+absence produced the two-filler-slot-read-as-one specimen), and **DEF and
+EVA share a terrain and differ only in stance** (you cut with the lens,
+then you bind with it — which is why they are a loop and not two unrelated
+checks). Nothing here hardcodes a terrain/stance table, so a change in the
+engine's algebra moves this loop rather than leaving a drifting copy.
+
+**Two stance faces, kept apart.** The DERIVED stance (`STANCE_BY_MODE`) is
+a property of a cell — computed, never chosen, cannot be wrong. The
+DECLARED stance (`from <stance>`) is the actor's posture — declared per act
+and refusable three ways. `grid.js` will not import the engine's stance
+labels and its header says why: a grid act is medium-blind, so an engine
+label there would read as authoritative output when it is not. A void
+declaration does not have that problem — `cellOf(op, grain)` uses the
+operator's own domain, so its nine cells are domain-locked by construction.
+Same word, two standings; harmonizing them breaks one.
+
+**The ladder, and the loop's own law.** `extraction` → `cultivation` →
+`encounter`, descended only on exhaustion, each descent a typed entry —
+`skills.js`'s own ladder discipline with stances in place of tiers.
+`encounter` is last and is the only rung that can supply a filler the
+material never named; naming it as a posture is what makes fabrication
+visible instead of ambient. Witness and stance are different facts and
+both ride every candidate: the witness says WHO (material, library,
+`self:model`), the stance says HOW. `grid.js` pins one stance illegality
+(`synthesize` may not declare `from relate` — "you cannot commit a whole
+from a stance that refuses to commit"); **this file generalizes it and OWNS
+the generalization**: the loop may not close from the posture it proposed
+from, because a fan-out from `encounter` closed from `encounter` tested
+nothing and the EVA between was ceremony (`stance_did_not_change`).
+
+**Fan-out, not walk.** `proposeFrom` takes an ARRAY and lands every
+candidate before any admission runs. Structural, not stylistic:
+propose-one-test-it-propose-the-next is a greedy search, and a greedy
+search over two true fillers returns whichever it drew first — which *is*
+the specimen. The set of DEFs with no clearing EVA is the superposition,
+addressable on the log, projectable at a cursor, and revisable because
+supersession keeps the past.
+
+**REC has two triggers and grid.js already had both paths.** A spent
+posture lands `concedeEvaluation` (EVIDENCE·REC, no supersedes —
+`build-log.js::rezeroBuild`'s own semantics: a re-zero concedes a ground,
+it does not compile a new whole). A **wrong declaration** lands
+`revise … supersedes <opening>` (SUPERSEDE — the act that zeroed the space
+is superseded, because the space it zeroed was the wrong one). Reshaping
+resets the ladder, keeps the descents as record, carries testimony across,
+and returns extensionally-refused candidates to `wish` — their refusal
+rested on the very extent just conceded. A revision that changes nothing
+is refused as churn (`no_change`), the same wall `reviseBuild` holds for
+identical code and for the same reason: it would not terminate.
+
+**Three walls found by testing, not by reasoning.**
+
+1. *The blanket under-specified refusal was a wall nothing useful could
+   pass.* The first cut refused any `under-specified` declaration outright,
+   on the position that if the nine cannot be declared there is no question
+   yet. Its own test caught the cost: a space with no numeric extent could
+   never open, so the cardinality close — the only route such a space has —
+   was unreachable code, and `void-shape.js`'s deliberate `constraint: null`
+   branch could never be reached through a loop. **Third time this repo has
+   caught that shape** (the measuring door's unreachable `best_of_n`,
+   `nul`'s borrowed window floor). Graded to three named refusals —
+   `no_slot`, `no_anchor`, `no_closing_condition` (neither extent nor
+   numeric cardinality, so nothing could ever license a commit) — with
+   everything else undeclared riding the loop as `underSpecified` and
+   reported by `foldLoop`: visible exactly as `void-shape.js` asks, without
+   being fatal.
+
+2. *A trigger this module generates must be carriable by the act line this
+   module composes.* The composition law has no escape syntax, so
+   `reshapeTriggers`' own details quoted with `"` were refused by the
+   loop's own quoting wall — the natural flow (take the finding, pass it as
+   the trigger) was impossible. Generated details now quote with `« »`,
+   this repo's own mark in generated prose (`crown.js`), leaving the
+   refusal of a straight `"` intact where it belongs: a filler's identity,
+   and a hand-written trigger.
+
+3. *`extent_excludes`, found by running it on real material.* The first cut
+   of `reshapeTriggers` only read *admitted* fillers that ran past the
+   extent. The e2e showed the stronger signal is the opposite: a space
+   refusing every candidate that could fill it **while reporting itself
+   short** is evidence about the space. The disclosure is deliberately
+   weaker than `extent_too_small`'s, and the reason is an ordering cost
+   named rather than hidden — `admit` refuses a wholly-outside span as
+   arithmetic *before* the admission organ is consulted, which saves a
+   fetch per obviously-excluded candidate and loses real information: a
+   candidate excluded by a *wrong* extent never gets the check that would
+   show the extent was wrong. So the trigger claims exactly what happened,
+   **excluded without being read**, and names the cell to revise rather
+   than deciding which of extent-or-admission is at fault.
+
+**Evidence.** `eval/void-loop-e2e.mjs` over live Wikipedia, transcript and
+full findings in `eval/results/void-loop-e2e-RESULTS.md`. Twenty-eight junk
+candidates offered by a deliberately crude generator across two specimens;
+**zero reached testimony**, each refused with a reason read off its own
+source, and a candidate that stated the relation with no span correctly
+stayed a *wish* rather than being convicted. The FDR specimen reshaped its
+own space (`1933-1937` → `1933-1945`), re-admitted the re-opened candidate
+against the new ground, descended twice more, and then **refused to
+commit** — "Henry Wallace" alone is a true sentence and a wrong answer, and
+`void_open` declined it.
+
+**Two limits, disclosed rather than engineered around.** (1) *The loop is
+exactly as good as the space it was given.* Lincoln committed
+`Hannibal Hamlin (1861-1865)` and called it complete — arithmetically
+correct against the declared space, and not the whole answer, because
+Andrew Johnson held the office six weeks *inside* 1865 and a year-grain
+extent cannot see a hole inside one year. The defect is in SEG's own cell
+("the extent to be covered, **and its units**"), the same granularity
+disclosure `void-shape.js`'s `merge` already carries. Stated plainly
+because it is the sharpest form of the position: **an under-declared space
+produces a confidently complete wrong answer, and no loop machinery
+downstream recovers it.** (2) *The generator's failure is a coreference
+failure* — Garner was never found because the page names him `Garner` near
+the relation and a two-word capitalised scan cannot see a single surname or
+connect it to `John Nance Garner`, exactly the class `cast.js`'s referent
+index (P38) exists for and which the crude control generator deliberately
+does not use.
+
+**Not wired into a live turn.** `void-loop.js` is pure with organs
+injected, `void-loop.test.mjs` is its conformance suite, and the e2e drives
+it over real bytes — but `app.js`'s turn still builds its brief after
+`renderAnswer` and discards it. Moving `briefFor` ahead of retrieval, and
+running the loop as the turn, is the next pass; `app.js` is the
+fold-architecture session's contract and this pass does not reach into it.
+
+**Files.** `void-loop.js` (new, pure — imports only `./void-shape.js`;
+`grid` and the admission organ are injected, the cast.js discipline).
+`void-loop.test.mjs` (36 conformance cases against the REAL cube, REAL
+grid and REAL void-shape; no stubs that matter). `eval/void-loop-e2e.mjs`
++ `eval/results/void-loop-e2e-RESULTS.md` + `void-loop-e2e-transcript.txt`.
+No existing file touched. Suite 805/687/118 before, 841/723/118 after —
+failure names diffed against the baseline, not counted: zero regressions.
+The 118 are pre-existing and environmental (`legacy-eoreader6.1` is an
+uninitialised submodule in this checkout, so `grid.test.mjs` among others
+cannot resolve its imports; `void-loop.test.mjs` therefore imports
+eoreader7's **native** kernel, as `void-shape.test.mjs` already does).

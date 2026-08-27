@@ -13,13 +13,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import * as enginePriors from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
+import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { declaredReferents, scoutDefinition, deltaOps, extractDeclaration } from "./code-scout.js";
 import { makeBuildLog } from "./build-log.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const NUL = readFileSync(join(HERE, "..", "eoreader6.1", "nul", "index.js"), "utf8");
+const NUL = readFileSync(join(HERE, "..", "eoreader7", "legacy-eoreader6.1", "nul", "index.js"), "utf8");
 const SUFFIXES = enginePriors.INFLECTIONAL_SUFFIXES;
 const buildLog = makeBuildLog(taskLog);
 

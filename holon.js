@@ -40,6 +40,7 @@ import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
+import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
@@ -733,10 +734,15 @@ export function mechanicalAnswer(question, passages) {
     if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
   }
   if (!lines.length) return "";
+  // The preamble speaks like an answer, not like an instrument (user
+  // direction, 2026-08-20: "THIS SHOULD FEEL LIKE CHATTING WITH CLAUDE").
+  // The mechanical honesty is unchanged — these are still the material's
+  // own sentences, verbatim, each with its address — only the framing
+  // sentence stopped narrating the apparatus that assembled them.
   return [
-    "The model's drafts did not answer, so this is assembled mechanically — the material's own sentences that bear on the question, each with its address:",
+    "Here's what the material itself says about this:",
     ...lines,
-    "Nothing further was retrieved for the question's own words.",
+    "That's everything the material offers on the question's own words.",
   ].join("\n\n");
 }
 
@@ -922,6 +928,34 @@ export async function runPart({
     passages = retrieve(live, question, passagesPerPart, foldedRefs);
     widened = passages.length > 0;
   }
+  // THE SEARCH DIGEST IS PINNED, never left to win a retrieval slot.
+  //
+  // gatherPreflightMaterial already combines every search result's snippet
+  // into ONE chunk (`web:search-results`) precisely because the snippets
+  // are pre-snipped, high-relevance, already-paid-for material — its own
+  // comment says so. But it was then dropped into `live` alongside the
+  // fetched full pages and had to out-score them: measured live 2026-08-26,
+  // one Lincoln turn had 1,449 passages competing for 3 slots, the digest
+  // lost, and the model answered from three Johnson-heavy page passages
+  // while the digest sentence sitting unused read "Hannibal Hamlin and
+  // Andrew Johnson, the two vice presidents of Abraham Lincoln". Same
+  // question on another draw won the digest and answered correctly — the
+  // variance was never about the model, it was a retrieval lottery.
+  //
+  // Why pinning rather than re-ranking: the digest is not competing on
+  // relevance, it is a different KIND of material — a whole results page
+  // condensed, ~2.7KB, complete by construction, where a full page is
+  // 50-160K of prose with one relevant paragraph. Scoring them against each
+  // other on keyword overlap is the category error; every snippet repeats
+  // the query's own words, which is exactly why they tie and why the
+  // tie-break decides the answer. Cost is one extra passage per part,
+  // bounded and cheap, and it is additive: retrieval's own picks are
+  // untouched, so nothing that used to reach the model stops reaching it.
+  const digestChunk = live.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
+  if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
+    passages = [digestChunk, ...passages];
+  }
+
   const sourceBlock = buildSourceBlock(passages);
   onProgress?.("research", part, { passages: passages.map((p) => p.ref), widened });
 
@@ -946,6 +980,29 @@ export async function runPart({
   // live corpus. Injected — this module stays pure and the page supplies
   // the engine's organs.
   const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
+
+  // HYPERGRAPH-FIRST-GENERATION.md, Phase 2: the material's own extracted
+  // facts, read BEFORE the model drafts — reusing the SAME `relations`
+  // reader `inspect` (below) uses to check a draft, called here on the
+  // passages themselves instead. Real, disclosed partial coverage
+  // (fact-block.js's own header); supplements `sourceBlock`, never
+  // replaces it. `null` on a decomposed part with no `relations` organ
+  // injected, or on any part where nothing bound — every existing caller
+  // that never reaches this line is unaffected.
+  const factBlock = relations ? buildFactBlock(relations, passages, question) : null;
+
+  // The salience gate's other half (fact-block.js's own header): the raw
+  // MATERIAL block, deduplicated of near-identical restatements BEFORE it
+  // reaches the model — real, measured need, same live pass: a
+  // `web:search-results` chunk's own ordinary shape (several pages'
+  // short bios concatenated) restated "Hannibal Hamlin, 15th vice
+  // president, 1861-65" in six differently-worded snippets in one real
+  // captured prompt. `dedupedSourceBlock` is PROMPT-ONLY — `sourceBlock`
+  // itself (untouched, above) still backs succession-box parsing, the
+  // correction prompts, and everything else this function's own
+  // `sourceBlock` comment already disclosed staying out of this dedup's
+  // reach.
+  const dedupedSourceBlock = passages.length ? buildSourceBlock(dedupeSourceText(passages, relations)) : sourceBlock;
 
   const inspect = (text) => {
     // The label is model-authored output that ships as a heading, so it is
@@ -1025,7 +1082,16 @@ export async function runPart({
     // A part's label is never itself a sentence worth relation-checking
     // (flat mode's is a constant with no content at all; a decomposed
     // part's is a short phrase), so nothing is lost dropping it here.
-    const relationReport = relations ? relations.read(text) : null;
+    // `stripFraming(text)`, NOT bare `text` (2026-08-20): this `inspect`
+    // runs mid-loop, on a retry's raw completion, before the ship-time cut
+    // (below, now just a call to the same stripFraming) has ever run — and
+    // a correction retry echoing the question back as its opening line is
+    // exactly the shape the ship-time cut exists to clean. Left unstripped,
+    // that echoed line reaches relations.read() as content and the
+    // extractor reads the QUESTION's own words as claims about the world.
+    // stripFraming's own header has the measured incident (turn 23,
+    // material-dialogue-stress-703.jsonl) and the direct reproduction.
+    const relationReport = relations ? relations.read(stripFraming(text)) : null;
     // Every quotation followed to the bytes (quotes.js): a fabricated
     // quotation joins the unsupported list — the strongest claim an answer
     // makes gets the same bounded correction as an invented figure. That
@@ -1226,6 +1292,58 @@ export async function runPart({
       .map((s) => s.replace(ADDRESS_RE, " ").trim())
       .filter(Boolean)
       .filter((s) => !isFraming(s));
+  // `t` with its leading and trailing framing sentences cut, byte-exact
+  // except for the cut itself — the ship-time text below is defined as a
+  // call to this function; nothing after this point recomputes the cut a
+  // second, divergent way. Factored out 2026-08-20 so inspect()'s relation
+  // tier (below) can read the SAME text the page, the fold, and the record
+  // eventually see, instead of the model's raw, still-framed completion.
+  // Measured live: eval/results/material-dialogue-stress-703.jsonl turn 23,
+  // question "Where is Saturn in the order of planets from the Sun?" — the
+  // logged `shippedText` is clean ("The passage confirms that Saturn is the
+  // sixth planet from the Sun.", no echo, no question), but the logged
+  // `relationClaims` carries THREE entries, not one: the real bound claim
+  // (subject "that Saturn", verb "is", object "the sixth planet from the
+  // Sun") riding beside two claims extracted from the QUESTION itself
+  // (subject "Where" / verb "is" / object "Saturn in the order of planets
+  // from the Sun?", verdict beyond-reach; subject "is Saturn" / verb "in" /
+  // object "the order of planets from the Sun?", verdict unheard) — neither
+  // string appears in `shippedText` OR the logged first `draftText`, so the
+  // only place they could have come from is a correction retry's raw
+  // completion, read before this cut had ever run (it previously lived
+  // only here, AFTER the correction loop settles). hypergraph.js's SVO
+  // extractor doesn't know "framing" is not part of the answer — it read
+  // the question's own words as claims. Downstream cost is not cosmetic:
+  // capacity-runner.js's `candidates = claims.filter(c => c.verdict !==
+  // "bound")` (the per-source triangulation gate) spends real model calls
+  // chasing claims that were never part of the answer.
+  const stripFraming = (t) => {
+    const raw = String(t ?? "").trim();
+    const sentences = splitSentences(raw.replace(ADDRESS_RE, " "))
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const firstContent = passages.length ? sentences.findIndex((s) => !isFraming(s)) : sentences.length ? 0 : -1;
+    if (firstContent < 0) return "";
+    let lastContent = -1;
+    for (let i = sentences.length - 1; i >= 0; i--) {
+      if (!isFraming(sentences[i])) {
+        lastContent = i;
+        break;
+      }
+    }
+    const from = firstContent === 0 ? 0 : raw.indexOf(sentences[firstContent]);
+    if (from < 0) return raw;
+    let to = raw.length;
+    if (passages.length && lastContent < sentences.length - 1) {
+      const lastAt = raw.lastIndexOf(sentences[lastContent]);
+      if (lastAt >= 0) {
+        const end = lastAt + sentences[lastContent].length;
+        const tail = raw.slice(end).match(/^[.!?…)\]"'”’]*/);
+        to = end + (tail ? tail[0].length : 0);
+      }
+    }
+    return raw.slice(from, to).trim();
+  };
   /** A folded sentence is the material's own if some passage contains it. */
   const isVerbatimSentence = (sf) => sf.length > 0 && passagesFolded.some((pf) => pf.includes(sf));
   /**
@@ -1352,19 +1470,31 @@ export async function runPart({
   const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
   const s2Frame = priorPass ? S2_FRAME_PREFIX : "";
   const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
+  // Phase 2's own material, for the INITIAL draft prompt only — `sourceBlock`
+  // itself stays untouched everywhere else in this function (succession-box
+  // parsing at parseSuccessionBoxes below reads raw material text and must
+  // never see this block's synthetic lines; the correction prompts below
+  // stay exactly as they were, Phase 3's own "measure before touching the
+  // correction loop" scope). Facts first, raw passages after — orient with
+  // the pre-digested read, then let the fuller text supply what the
+  // extractor's own disclosed limits couldn't reach — the fuller text
+  // being `dedupedSourceBlock` (above), not raw `sourceBlock`: the
+  // salience gate's other half, cutting near-identical restatements
+  // rather than adding a structured list ON TOP of an unfiltered raw one.
+  const draftMaterial = factBlock ? [factBlock.text, dedupedSourceBlock].filter(Boolean).join("\n\n") : dedupedSourceBlock;
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") + chatContext,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, draftMaterial].join("\n\n") + chatContext,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : [
           { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-          { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
+          { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse) },
         ]
     : chatHistory.length
       ? [
@@ -1494,7 +1624,15 @@ export async function runPart({
     const seenSlots = new Set();
     const result = [];
     for (const claim of claims) {
-      if (claim.verdict !== "bound" || !(claim.fillers?.length > 1)) continue;
+      // Bound gate loosened 2026-08-26 (user direction: "let's loosen the
+      // bound gates for now and just see how accurate the local model can
+      // be"), the same change and the same reason as competingSubjectsOf
+      // below. `fillers` is attached by hypergraph.js to every verdict that
+      // reaches its cardinality point, UNBOUND ONES INCLUDED — so what the
+      // material states for a slot was already computed and was being
+      // thrown away whenever the draft's own sentence failed to bind, which
+      // is precisely when the draft most needs correcting.
+      if (!(claim.fillers?.length > 1)) continue;
       const slot = `${claim.subject}|${claim.verb}`;
       if (seenSlots.has(slot)) continue;
       const named = claims
@@ -1552,7 +1690,24 @@ export async function runPart({
     const seenSlots = new Set();
     const result = [];
     for (const claim of claims) {
-      if (claim.verdict !== "bound") continue;
+      // NOT gated on `verdict === "bound"`, and this is the whole point of
+      // querying the slot rather than reading the draft's own field. What
+      // the MATERIAL confirms for a slot does not depend on whether the
+      // draft's sentence happened to bind — and the case that most needs
+      // this correction is exactly the one where it did not: measured live
+      // 2026-08-26, "who was lincoln's vp?" drafted "Lincoln's VP was
+      // Andrew Johnson", failed to bind (the answer carried its own "∅ not
+      // in the material" mark), and so skipped this gate entirely — even
+      // though the fetched material stated BOTH Hamlin and Johnson and
+      // this function would have found them. An unbound claim still
+      // carries the verb and object the draft asserted, which is all
+      // queryReferents needs; a garbled one simply returns fewer than two
+      // subjects and is skipped by the guard below, exactly as before.
+      // This comment's own paragraph above already argued for it —
+      // "querying the slot directly finds it regardless of which (or
+      // whether any) subject the draft picked" — the gate just never
+      // matched the argument.
+      if (!claim?.verb || !claim?.object) continue;
       let subjects;
       try {
         subjects = relations.queryReferents({ verb: claim.verb, object: claim.object });
@@ -1867,11 +2022,6 @@ export async function runPart({
   // as "😄": the opening made of the greeting's own words, the question
   // back convicted by the question-mark rule). In plain chat what the
   // person gets is what the model said.
-  const raw = String(draft ?? "").trim();
-  const sentences = splitSentences(raw.replace(ADDRESS_RE, " "))
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const firstContent = passages.length ? sentences.findIndex((s) => !isFraming(s)) : sentences.length ? 0 : -1;
   // Dropping the framing prefix is a CUT, never a rejoin. Rejoining trimmed
   // sentence pieces with spaces destroyed every newline and indent the
   // draft had — measured live on a fenced Python block, which arrived at
@@ -1887,34 +2037,10 @@ export async function runPart({
   // dumb as it sounds. Both cuts stay slices of raw (never a rejoin), both
   // bail to the whole draft when a sentence cannot be located, and the gap
   // the trailing echo gestured at is already `open`'s job to report.
-  let lastContent = -1;
-  for (let i = sentences.length - 1; i >= 0; i--) {
-    if (!isFraming(sentences[i])) {
-      lastContent = i;
-      break;
-    }
-  }
-  const text =
-    firstContent < 0
-      ? ""
-      : (() => {
-          const from = firstContent === 0 ? 0 : raw.indexOf(sentences[firstContent]);
-          if (from < 0) return raw;
-          let to = raw.length;
-          // Material path only: in plain chat a trailing question is
-          // conversation ("How can I help you today?"), not a dodge —
-          // measured immediately by this file's own chat test.
-          if (passages.length && lastContent < sentences.length - 1) {
-            const lastAt = raw.lastIndexOf(sentences[lastContent]);
-            if (lastAt >= 0) {
-              // Keep the sentence and whatever closing punctuation follows it.
-              const end = lastAt + sentences[lastContent].length;
-              const tail = raw.slice(end).match(/^[.!?…)\]"'”’]*/);
-              to = end + (tail ? tail[0].length : 0);
-            }
-          }
-          return raw.slice(from, to).trim();
-        })();
+  // Now just a call to stripFraming (2026-08-20, defined above alongside
+  // contentSentencesOf/isFraming): same cut, same result, but no longer the
+  // only place it runs — see stripFraming's own header for why.
+  const text = stripFraming(draft);
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.

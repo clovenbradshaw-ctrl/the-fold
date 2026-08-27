@@ -1742,7 +1742,27 @@ export function makeRelationReader(organs) {
         if (found) found.refs.push(...e.refs);
         else clusters.push({ [faceField]: e[faceField], end: e[openField], refs: [...e.refs] });
       }
-      return clusters.map(({ end, ...rest }) => ({ ...rest, refs: [...new Set(rest.refs)] }));
+      // EVERY CLUSTER CARRIES HOW ITS OPEN END RESOLVED. This function is
+      // named queryReferents and returned whatever sat in the open slot,
+      // referent or not — so at page scale it answered "who was vice
+      // president of the United States" with "Though he", "Congress",
+      // "000", "why it" and "impeachment trial" alongside Andrew Johnson,
+      // and a caller had no way to tell them apart (measured live
+      // 2026-08-26 over 3,841 edges from four real pages).
+      //
+      // `resolutionOf` already draws exactly this line and its answer was
+      // being thrown away with `end`: "referent" — it resolved to a being
+      // this material itself established; "form" — only through a
+      // recurring-form id; "tokens" — to nothing but its own content
+      // words; "none" — not even that. Disclosed rather than filtered
+      // here, because which of those a caller may stand on is the caller's
+      // declaration to make, not this organ's to assume — the same posture
+      // every other typed gap in this file already holds.
+      return clusters.map(({ end, ...rest }) => ({
+        ...rest,
+        resolution: resolutionOf(end),
+        refs: [...new Set(rest.refs)],
+      }));
     }
 
     return {

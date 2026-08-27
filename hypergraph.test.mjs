@@ -13,15 +13,15 @@ import { corroborateAtoms } from "./grounding.js";
 import { readFileSync } from "node:fs";
 
 const organs = async () => {
-  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
   const { tokenize, buildFrequencyTable, functionWordSet } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/material.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js"
   );
   return {
     splitSentences,
@@ -268,7 +268,7 @@ test("classifyConnector/minShare omitted: no edge carries connectorClass at all 
 
 test("classifyConnector supplied without minShare throws — dominantClass's own never-defaulted contract, not a silent default here either", async () => {
   const { makeGrammarLens } = await import("./grammar-lens.js");
-  const { classifyWord, dominantClass } = await import("../eoreader6.1/packages/engine/perceiver/text/wordclass.js");
+  const { classifyWord, dominantClass } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js");
   const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
   const builtOrgans = { ...(await organs()), classifyConnector };
   assert.throws(() => makeRelationReader(builtOrgans), /minShare is declared alongside classifyConnector/);
@@ -276,7 +276,7 @@ test("classifyConnector supplied without minShare throws — dominantClass's own
 
 test("an edge's connectorClass, tagged at extraction time, matches exactly what classifyConnector says directly — a real non-verb and a real verb, same reader", async () => {
   const { makeGrammarLens } = await import("./grammar-lens.js");
-  const { classifyWord, dominantClass } = await import("../eoreader6.1/packages/engine/perceiver/text/wordclass.js");
+  const { classifyWord, dominantClass } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js");
   const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
   const reader = makeRelationReader({ ...(await organs()), classifyConnector, minShare: CONNECTOR_MIN_SHARE })(
     CONNECTOR_PASSAGES,
@@ -305,7 +305,7 @@ test("an edge's connectorClass, tagged at extraction time, matches exactly what 
 test("connectorClass forwards the giver when injected, and stays null when it isn't — grammar-lens.js's own BUILD-3 fix, visible through hypergraph.js", async () => {
   const { makeGrammarLens } = await import("./grammar-lens.js");
   const { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/wordclass.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js"
   );
 
   const withoutGivers = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
@@ -357,9 +357,9 @@ const REFERENT_BAR_FILLER = [
 
 async function referentBarOrgans() {
   const base = await organs();
-  const { THIRD_PERSON_SINGULAR } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
-  const { extractLeadingSurfaces } = await import("../eoreader6.1/packages/engine/perceiver/text/surfaces.js");
-  const { resolvePronouns } = await import("../eoreader6.1/packages/engine/perceiver/text/pronouns.js");
+  const { THIRD_PERSON_SINGULAR } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js");
+  const { extractLeadingSurfaces } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js");
+  const { resolvePronouns } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/pronouns.js");
   return { ...base, thirdPersonSingular: THIRD_PERSON_SINGULAR, extractLeadingSurfaces, resolvePronouns };
 }
 
@@ -540,7 +540,7 @@ test("queryReferents: the reader's own referent-aware query agrees with judge()'
 // exercise the lemma-widening amendment (2026-08-19) — every other test
 // omits both, exercising the backward-compatible exact-match default.
 const morphologyOrgans = async () => {
-  const { createLemmatizer } = await import("../eoreader6.1/packages/engine/perceiver/text/morphology.js");
+  const { createLemmatizer } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/morphology.js");
   const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
   return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms, morphologyLanguage: prior.language };
 };
@@ -1060,7 +1060,7 @@ const DETERMINER_PASSAGES = [
 
 const determinerOrgans = async () => {
   const { DEFINITE_DETERMINERS, INDEFINITE_DETERMINERS } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/priors.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js"
   );
   return {
     ...(await organs()),
@@ -1126,7 +1126,7 @@ const NEGATION_PASSAGES = [
 ];
 
 const negationOrgans = async () => {
-  const { NEGATION_WORDS } = await import("../eoreader6.1/packages/engine/perceiver/text/priors.js");
+  const { NEGATION_WORDS } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js");
   return { ...(await organs()), negationWords: NEGATION_WORDS };
 };
 
@@ -1202,4 +1202,30 @@ test("the negation organ is opt-in: omitted, this reader is byte-identical to ev
       `${text} must read identically with and without the organ`,
     );
   }
+});
+
+test("queryReferents discloses HOW each open end resolved — the noise gate a caller needs", async () => {
+  // Measured live 2026-08-26 over 3,841 edges from four real pages: asking
+  // "who was vice president of the United States" with the subject open
+  // returned 16 candidates — Andrew Johnson and Abraham Lincoln alongside
+  // "Though he", "Congress", "000", "why it" and "impeachment trial" — and
+  // a caller had no way to tell them apart. resolutionOf already drew the
+  // line internally and its answer was being discarded with `end`.
+  //
+  // Disclosed, never filtered here: which resolutions a caller may stand on
+  // is the caller's declaration, not this organ's assumption.
+  const reader = makeRelationReader(await organs())(LINCOLN_PASSAGES, { pool: LINCOLN_POOL });
+  const subs = reader.queryReferents({ subject: "Lincoln", verb: "appointed" }) ?? [];
+  assert.ok(subs.length, "the query returned nothing to classify");
+  for (const s of subs) {
+    assert.ok(
+      ["referent", "form", "tokens", "none"].includes(s.resolution),
+      `every cluster carries a resolution; got ${JSON.stringify(s.resolution)} for ${JSON.stringify(s.subject)}`,
+    );
+  }
+  // The real people resolve to beings this material established — which is
+  // what lets a caller cut the fragments without cutting the answer.
+  const named = subs.filter((x) => x.resolution === "referent").map((x) => String(x.object ?? x.subject).toLowerCase());
+  assert.ok(named.some((n) => n.includes("hamlin")), `Hamlin should resolve as a referent, got ${JSON.stringify(subs)}`);
+  assert.ok(named.some((n) => n.includes("johnson")), `Johnson should resolve as a referent, got ${JSON.stringify(subs)}`);
 });

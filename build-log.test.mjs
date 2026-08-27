@@ -12,9 +12,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { cellOf } from "../eoreader6.1/packages/engine/operators.js";
-import { checkCubeProgression } from "../eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { cellOf } from "../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
+import { checkCubeProgression } from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
 
@@ -456,7 +456,7 @@ test("an every-patch rides the entry with its counts and the cursor recompiles e
 
 import { witnessCode, witnessHtml, witnessRegressed, scriptBodies } from "./witness.js";
 import { scoutSpan, literalSwap } from "./widget.js";
-import { INFLECTIONAL_SUFFIXES } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import { INFLECTIONAL_SUFFIXES } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the ask is NUL · Ground, its own thread, and a re-zero lands the amended ask beside its rebirth", () => {
   let log = buildLog.proposeBuild({ n: 1, turn: 1, seg: widgetSeg, caption: "w", instruction: "make me a counter" });

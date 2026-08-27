@@ -22,7 +22,7 @@
     },
     "nodeImports": {
       "explore-worker.mjs": {
-        "module": "../eoreader6.1/packages/host/index.js",
+        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
         "exports": [
           "createSession",
           "admitChunked",
@@ -32,7 +32,7 @@
         ]
       },
       "explore-server.mjs": {
-        "module": "../eoreader6.1/packages/host/index.js",
+        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
         "exports": [
           "foldExtract"
         ]
@@ -53,6 +53,39 @@
         "nul",
         "scripts/corpus"
       ]
+    }
+  },
+  "testTimeConsumers": {
+    "purpose": "wiring-the-measured-memory-v2 (increments A/B/C/D). Modules from eoreader7's native/ tree, consumed ONLY by this repo's own test/eval files today — never yet by app.js/serve.mjs/explore-server.mjs at runtime, per that spec's own disclosed scoping decision (live browser wiring needs a new server mount, a page-graph.mjs update, and a constitution.test.mjs II.13 allowance, none attempted this pass). Every production module this repo added stays zero-import (cast.js pattern: organs injected, never imported) — promote an entry here to runtimeConsumers only once a PRODUCTION file, not a test, performs the import live.",
+    "eoreader7Native": {
+      "repository": "clovenbradshaw-ctrl/eoreader7",
+      "modules": {
+        "native/kernel/activation.js": {
+          "exports": ["createActivation", "dmdWindow", "gammaFor"],
+          "consumedBy": ["fold.test.mjs", "eval/measured-memory-b.mjs"],
+          "productionSeam": "fold.js::deriveRecordWindow (organ-injected — fold.js itself has zero imports)"
+        },
+        "native/kernel/return-curve.js": {
+          "exports": ["returnCurve"],
+          "consumedBy": ["eval/measured-memory-b.mjs"],
+          "productionSeam": "none yet — measurement-only this pass (eval/results/measured-memory-b-RESULTS.md)"
+        },
+        "native/memory/activation.js": {
+          "exports": ["tokens", "codeOf", "recall", "encodeFrame"],
+          "consumedBy": ["retrieval.test.mjs", "eval/measured-memory-b.mjs"],
+          "productionSeam": "retrieval.js (organ-injected — retrieval.js itself has zero imports)"
+        },
+        "native/kernel/task-log.js": {
+          "exports": ["createTaskLog", "append", "ENTRY_KINDS", "OPERATOR_BASIS"],
+          "consumedBy": ["consequence.test.mjs"],
+          "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
+        },
+        "native/kernel/cube.js": {
+          "exports": ["GRAINS"],
+          "consumedBy": ["consequence.test.mjs"],
+          "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
+        }
+      }
     }
   },
   "semanticCapabilities": [

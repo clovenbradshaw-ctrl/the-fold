@@ -10,9 +10,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as operators from "../eoreader6.1/packages/engine/operators.js";
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { DEFINITE_DETERMINERS, INFLECTIONAL_SUFFIXES } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as operators from "../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { DEFINITE_DETERMINERS, INFLECTIONAL_SUFFIXES } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "./capacities.js";
 import { huntUndetermined } from "./web-hunt.js";

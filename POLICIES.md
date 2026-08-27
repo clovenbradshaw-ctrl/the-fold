@@ -3311,7 +3311,7 @@ disclosed evidence rather than assumption.** Two changes to what P37
 originally described.
 
 **(1) hl.js's core (Stage, declarations, R1-R6, the verdict lattice,
-attach) moved to `eoreader6.1/packages/engine/interpretation/hl.js`.**
+attach) moved to `eoreader7/native/interpretation/hl.js`.**
 Not a preference — `operators.js`'s ORGANS table, audited by domain,
 shows Interpretation as the most fragmented domain in the entire
 registry (30 of 62 organs — corrected from an initial miscount of
@@ -4603,7 +4603,1306 @@ dominated by collectives. Scale still held: zero violations. Engine suite
 140/150 before and after (the identical 10 pre-existing environment
 failures); the-fold suite 721/608/113, unchanged.
 
-## P45 — Working with something that answers back is a capacity the instrument holds, not a score it receives
+## P45 — The store is append-only; the prompt is a projection; recall is retrieval, not enlargement
+
+The law this closes: READING-POLICY P1, "activation decays, identity does
+not, recall is retrieval" — and the third clause had never been built. A
+spec (`wiring-the-measured-memory-v2`, superseding a same-day v1 refuted at
+line level: `fold.js` reading proved the SYSTEM 2 STORE itself, not only
+the prompt, was being truncated) named six increments; this pass landed
+four in full (A, C, D, one measurement pass covering B) plus F1, and named
+E/F2 explicitly deferred rather than built partway. CLAUDE.md carries no
+separate map section for this entry — the code's own headers (fold.js,
+retrieval.js, consequence.js) already carry the map at the point of use,
+which is where a reader actually needs it; this entry is the law and the
+evidence.
+
+**A — the store/projection split (`fold.js`).** `addWarrantRecord` sliced
+`summary.records` at `RECORDS_IN_PROMPT` on every append; `advanceSummaryFold`/
+`updateSummaryWithFold` did the same to `summary.folds` at
+`MAX_FOLDS_IN_PROMPT`. Both are retroactive forgetting of the ONE tier P1
+says does not decay — record #9 landing destroyed record #1 permanently.
+Fixed by un-slicing the store and moving the bound to render time:
+`projectRecords`/`projectFolds` (new, shared by `buildRecordSystemMessage`/
+`buildSummaryUpdatePrompt` internally and by any caller that needs the
+identical window, e.g. a consolidation check) apply the SAME default bound
+as before, so every existing caller — app.js's own `buildRecordSystemMessage(state.summary)`
+bare calls, every eval driver's `buildSummaryUpdatePrompt(summary,
+[...summary.folds, fold])` pattern — is byte-identical in live behavior by
+construction, having never needed to know the store's own size. A second,
+real consumer had to be found and fixed the same way: `tables.js`'s `/self
+folds` builder read `summary.folds` directly and would have started
+showing the ENTIRE unbounded history the moment the store stopped
+truncating itself — caught by a pre-existing test that (correctly, by this
+codebase's own "widen the boundary, don't just re-pass" rule) encoded the
+OLD truncating behavior as its assertion and had to be rewritten, not
+loosened. `/self records`, by contrast, was left genuinely unbounded — an
+explicit human request to see the full addressed history is exactly P1's
+"re-openable," not a case needing a window at all; a new test pins this as
+the deliberate asymmetry it is, not an oversight.
+
+`deriveRecordWindow` (new) measures the record-projection window from the
+store's own behavior via `dmdWindow` (eoreader7's real
+`native/kernel/activation.js`, injected, cast.js pattern — fold.js stays
+zero-import): the shallowest depth at which forgetting older records'
+`refs` (the closest thing a record has to a referent/claim id; no
+tokenizer exists here to read `gist` text, and none is invented) changes no
+conclusion about which addresses are live. Real, tested against the real
+eoreader7 module (a genuine sibling in this environment, not an
+environment-gapped stub) — a stabilized identity set measures the
+shallowest candidate; a genuinely singleton old reference correctly refuses
+as `reach_exceeds_candidates` rather than guessing the widest. NOT wired
+live into app.js's browser runtime this pass — that needs a new server
+mount (`/native`, alongside `/engine`/`/nul`), a `page-graph.mjs` update,
+and a `constitution.test.mjs` II.13 allowance, none of which this pass
+touches; the declared `RECORDS_IN_PROMPT` stands as the operative default,
+now correctly operating on a store that never destroys what falls outside
+it, which is the actual bug this increment exists to fix. Folds' own window
+stays declared only, disclosed as a scope decision, not a gap: a fold
+string has no structural identity `deriveRecordWindow`'s `refs`-based
+`derive` can reuse without inventing NLP fold.js has no business owning.
+
+**C — recall is retrieval (`retrieval.js`, new).** The missing clause: a
+turn beyond `RECENCY_WINDOW` and a record beyond the projection window are
+addressed, not forgotten, but nothing brought a dormant one BACK. Composed
+the S9 way, generate-then-rank, never blended: eoreader7's real
+`native/memory/activation.js` (`codeOf`/`recall`/`encodeFrame` — Hebbian
+sparse coding, one-hop completion, causal, already mature and consumed
+elsewhere in that repo by `adapters/text/pronouns.js`/`anchoring.js`,
+reused unmodified per the standing rule) generates the POSSIBLE set — only
+a record sharing distinctive, already-recurring vocabulary with a question
+can surface at all. Within that set, ACT-R base-level activation (received
+d=0.5, giver Anderson, the exact formula
+`native/eval/forgetting-falsification.mjs::actrScore` already measured,
+reused verbatim) ranks by PROBABILITY — recency- and frequency-weighted
+citation history — superseded by this conversation's own measured
+need-odds once a (recency, frequency) cell clears a declared evidence
+floor, the supersession reported in each candidate's own `basis`, never
+silent. Two typed gaps only (`retrieval_no_cue`, `retrieval_no_margin`),
+`[]` on either, never a guessed top-k.
+
+A real bug was found and fixed by testing against the real organ, not
+assumed correct from the design: the first cut trained need-odds tallies
+on every record's own BIRTH (treating a new record's creation as a
+"was every other live record needed and missed" trial), which seeds a
+false universal "never needed again" signal from ordinary conversational
+growth alone — a target record could land in one of those polluted cells
+by (recency, frequency) coincidence and have its real ACT-R signal masked
+by a spurious zero. Fixed: birth seeds a record's own citation history
+directly; `recordCitation`'s training loop fires only on a GENUINE re-use.
+Caught because the test suite is real (eoreader7 checked out as a true
+sibling in this environment, not environment-gapped) and was actually run
+against it, not trusted from the shape of the code.
+
+**D — the promotion gate (`consequence.js`, new).** Recurrence (retrieval.js's
+own `citedAt`, the arrivals>=2 structural floor this codebase already
+holds every binding organ to) is necessary, never sufficient (S9: a count
+is possibility, never standing — levers-RESULTS.md's own "the murder"
+finding, the general case). Consequence — did a later turn's verdict
+actually change because the claim was available — is typed three ways:
+`consequence_untested` (a gap: no later turn ever engaged this ground),
+`recurring_no_consequence` (engaged, available, nothing moved), or
+`mattered`. The timing discipline is `ground-ledger.js`, ALREADY BUILT IN
+THIS REPO, reused rather than re-derived: its two-rule prequential
+firewall (a ground version cannot be frozen retroactively; a turn cannot be
+re-priced once scored) is exactly what "score an ablation against the
+ground as it stood at that turn, permanently" needs. `adaptTaskLog` bridges
+`ground-ledger.js`'s expected shape (built against eoreader6.1's
+`holon/task-log.js`, which carries a `GRAIN_RANK` export) to eoreader7's
+real `native/kernel/task-log.js` + `native/kernel/cube.js` (which carries
+ordinal `GRAINS` instead — `GRAIN_RANK` is that ordinality made explicit,
+not a new fact) — a genuine reconciliation, not an assumed compatibility,
+tested against the real eoreader7 modules end to end, incidentally giving
+`ground-ledger.js`'s own firewall real test coverage in an environment
+where `ground-ledger.test.mjs` itself cannot load (it imports eoreader6.1
+directly, which this checkout does not have as a sibling).
+
+The ablation computation itself — "re-run the mechanical grounding with
+this claim excluded from the citation base" — is INJECTED, never computed
+here: wiring it to grounding.js/hypergraph.js's real verification organs is
+real, disclosed, unattempted work, the same posture this pass already
+holds for C's live wiring and this project's own standing precedent (HL,
+self-witness, grammar-lens: built and tested, not deep-wired into a
+multi-session-owned file without that file's own explicit scope).
+
+**B — measured, not merely assumed live from A/C's unit tests
+(`eval/measured-memory-b.mjs`, new).** No real 40+ turn conversation
+transcript with record citations exists on this disk — fold.js's store
+stopped discarding history this same pass, but nothing has run the live
+app long enough yet to leave one behind. A synthetic conversation with
+ground truth by construction (four topics, each with a declared return
+cadence and disjoint vocabulary, 90 turns) stands in, disclosed as exactly
+that — this repo's own established fallback when no real corpus exists
+(hl-acquire.test.mjs's invented chronicle; P29's own synthetic adversarial
+suite). B1 (`kernel/return-curve.js`, real, unmodified): the writer's own
+declared pronoun-vs-regloss return-form rule measures back out correctly
+(majority window 3 for pronoun, 63 for regloss) — a check that the
+composition is wired right, not a discovery about real writing, named as
+such. B2 (retrieval.js's real need-odds/ACT-R composition, exercised at
+scale): a topic returning 26 times in 90 turns earns a measured
+supersession of the ACT-R prior; one returning twice does not, exactly as
+S17's own rule requires. A genuine surprise, reported rather than smoothed
+over: a third topic (3 returns, same count as one that stayed declared)
+ALSO measured — traced to `recordCitation`'s shared cell-tally population
+(a rare topic can clear the evidence floor early by sharing a cell with a
+frequent one), a real, disclosed property of the mechanism, not a defect.
+Full numbers: `eval/results/measured-memory-b-RESULTS.md`.
+
+**F1 — the consolidation witness (`fold.js::extractSummaryFindings` +
+`app.js::refreshSummary`).** The summary refresh is a live, chained
+consolidation step — this project's own NELL lesson, unaddressed until
+now: an entity still live in the CURRENTLY-PROJECTED record/fold window can
+silently vanish from `entities` on any refresh, or an unsupported one can
+silently appear, and every individual refresh looks clean. Reuses
+`witness.js::witnessRegressed` verbatim (already in this repo, already
+generic) — the left side is trivially clean by construction (`{ok:true,
+findings:[]}`, nothing to regress against before a transition is
+examined), the right side carries the real transition-computed findings
+(`lost_live_entity` / `unsupported_addition`, literal case-insensitive
+containment against live record/fold text, the same posture P31's own
+`company` containment already holds this repo to — no claim of semantic
+understanding, only "the words are there"). A regressed refresh is refused
+(`advanceSummaryFold` carries the prior summary forward instead) and lands
+a `consolidation_regressed` act on the reflex ledger through its own
+designed unknown-act extension point — no reflex.js edit needed.
+
+**E, F2 — explicitly deferred, per the spec's own build order, not built
+partway.** E (within-conversation holon folding) is gated on D measuring a
+real promotion rate high enough that flat projection demonstrably
+degrades — D shipped this pass, but nothing has run it against a real
+conversation long enough to measure that rate yet, so E's own un-defer
+condition is unmet by construction. F2 (gating E's folds against drift) is
+gated on E existing at all. Both named here so a future pass does not
+re-derive the reasoning, and neither is silently implied as done.
+
+**Evidence.** New files: `retrieval.js` (+9 tests, real against eoreader7's
+`native/memory/activation.js`), `consequence.js` (+9 tests, real against
+eoreader7's `native/kernel/task-log.js` + `cube.js`),
+`eval/measured-memory-b.mjs` + its results doc. Modified:
+`fold.js` (+12 tests: the store/projection split, `deriveRecordWindow`
+real against eoreader7's `native/kernel/activation.js`,
+`extractSummaryFindings`), `tables.test.mjs` (+1, the real second-order fix
+this pass found), `app.js` (the `refreshSummary` witness gate — syntax
+checked, no dedicated test harness exists for this browser-only file),
+`reflex.js` (one comment corrected — a prior pass's own claim that
+`summary.folds` was unbounded-unlike-`turnFolds` no longer holds; the
+redundancy is named as real, unattempted follow-up rather than collapsed
+this pass), `eoreader-contract.json` (+1 test: a new `testTimeConsumers`
+section, declared as test-time-only and distinct from `runtimeConsumers` —
+none of this pass's production code performs a live cross-repo import,
+every eoreader7 dependency arrives injected, cast.js pattern, so there is
+nothing yet to promote to a runtime consumer). Full suite: 722/608/114
+before this pass, 754/640/114 after — the identical 114 pre-existing
+environment failures (missing `../eoreader6.1/` sibling and several
+vendored `node_modules`, this checkout's own disclosed gap, unrelated to
+this pass), zero regressions, 32 new tests all genuinely passing — not
+environment-gapped, because eoreader7 is checked out as a real sibling in
+this environment and every new test that needed it was run against the
+genuine article.
+
+## P46 — What the source itself says about itself is real provenance; a model should never have to guess it
+
+Found live, chasing "does this local-model chat feel like Claude." A
+faithful headless probe of the real S1/S2 pipeline (`twoPassTurn` →
+`runHolonicTask`, real organs, no shortcuts) asked "Who is Pierre
+Bezukhov?" against this repo's own War and Peace fixture. S1 — by design,
+no material — answered from the model's own confused prior: "the main
+character in *The Brothers Karamazov* by Dostoevsky." Wrong book, wrong
+author. The checking pipeline's whole job is to catch exactly this, and
+across the run's own log it did not: `checkGrounding` correctly flagged
+"Dostoevsky"/"The Brothers Karamazov" as `unsupported_claim` when tested
+directly against the real organ — the check is not broken — but the
+correction loop spends `maxCorrections` (1) attempt PER FAILURE MODE and
+the mechanical mode-fallback only rescues `echoed`/`reproduced`/`narrated`
+verdicts, never a plain `unsupported` survivor. A draft that is original
+prose (not an echo, not a photocopy) but still wrong after its one
+correction try ships exactly as it is, with the finding that could have
+caught it simply not accumulating another action.
+
+**The user's redirect closed it a level earlier: the model should never
+have had to guess.** Not "catch the invention after the fact" — "why did
+it have to invent in the first place." Project Gutenberg's own front
+matter states `Title: War and Peace` / `Author: Leo Tolstoy` in the exact
+file this instrument already reads, before the same `*** START OF THE
+PROJECT GUTENBERG EBOOK ***` marker `stripContainer` already finds and
+discards (P5.3). Nothing had ever mined it. And when the fix was first
+reached for as "load a hyperlexicon so it can look up Wikipedia," the
+user's own correction landed before any code did: **"the model should
+NEVER have anything without provenance."** `hyperlexicon.js` (checked
+directly, both repos) is the HL relation-composition-affordance ledger
+(P37) — no lexical or encyclopedic content, nothing about book identities;
+loading it would have supplied nothing relevant. A live Wikipedia fetch
+would ALSO need its own real provenance chain (a URL, a retrieval date,
+content-addressed) — this repo already has exactly that, in the web organ
+(P13) and the witness/proof-seeking tiers (P32/P13) — and reaching for
+either is real, separate, unbuilt future work, not attempted this pass.
+
+**What shipped instead needs no network and invents nothing.**
+`source.js` gained `declaredIdentity(name, text)` — reuses `stripContainer`'s
+own START-marker regex (factored into one shared constant so the two
+functions cannot silently disagree on where the header ends, the exact
+drift class this repo's own postmortems have caught twice before) to read
+the header span BEFORE that marker, and pulls `Title:`/`Author:` off it
+with a plain line match. No Gutenberg header → `null`, not a guess — the
+control case a hand-crafted plain-text fixture pins directly.
+`identifyMaterial`'s prose fallback (the ONLY branch a Gutenberg ebook
+ever reaches — rss/atom/table/json/html/code/markdown are untouched)
+merges it in as `identity.declared`, threaded onto every chunk the same
+way `identity.guess` already is. `buildSourceBlock` surfaces it as its own
+labeled line — `(the source file's own declared header — Title: …,
+Author: … — pg2600.txt#0-797)` — ahead of the passage text, addressed to
+the real header bytes it was read from, giver named as "the source file's
+own declared header" rather than this instrument's own claim.
+
+**Measured, not assumed: verified against the real pipeline, twice, with
+two different random S1 hallucinations.** One run: S1 guessed "Anna
+Karenina." Another: "The Brothers Karamazov" again. Both times, with
+`declaredIdentity` wired in, S2's real output was "Pierre Bezukhov is the
+illegitimate son of Count Bezúkhov" (or a close paraphrase) — correctly
+cited, `grounding.clean: true`, zero unsupported findings, no trace of
+either wrong book. S1 itself is untouched and will keep guessing wrong —
+that is its own documented design (no material, on purpose, P34) — the
+fix is that S2 no longer needs to trust or repeat S1's guess, because the
+material now says plainly what it is.
+
+**Files.** `source.js` (`declaredIdentity`, `stripContainer`'s marker
+factored to a shared constant, `identifyMaterial`'s prose branch,
+`buildSourceBlock`'s new labeled line). `source.test.mjs` (new — this repo
+had no dedicated test file for source.js before this pass; scoped to what
+this pass touched, not a backfill of the whole file's coverage; 10 cases,
+including the real pg2600.txt fixture on disk and a same-regex regression
+pin between `declaredIdentity` and `stripContainer`). Full suite:
+754/640/114 before this pass, 764/650/114 after — the same 114
+pre-existing environment failures, zero regressions, all 10 new cases
+genuinely passing.
+
+**Disclosed, not silently narrower than it sounds.** Scoped to Gutenberg's
+own header convention only — an attachment with no such header (most real
+attachments) gets no `declared` field at all, exactly as before. This
+closes the ONE class of "the model had to guess what it's reading"
+measured live; it does not build a general bibliographic-metadata parser
+for arbitrary formats, and it does not build the Wikipedia/web-grounding
+half of the original ask — both real, both unattempted here, both needing
+their own design pass through this repo's existing provenance-respecting
+egress rather than a shortcut.
+
+**Amended 2026-08-20 (third occurrence) — the disclosed TOKEN_RE gap
+closed: a period inside a witness/source name.** `crown.js`'s own
+tokenizer header, written the same day as the self-witness construction
+above, disclosed its own scope boundary rather than pretending it away: "a
+witness/source name containing a period, '@', or other character outside
+this class would still fragment the same way 'self:model' just did... not
+hit by any real specimen this pass exercised." It has since been hit. A
+new headless multi-turn stress harness (`eval/material-dialogue-stress.mjs`
+— the real claim-id spine end to end, `capacity-runner.js`'s own
+landAct/perSourceReadings/mergeTestimony plus `crown.js`'s renderCrown,
+over five varied topics) drove renderCrown against a source literally
+named "titanic-a.txt" — an ordinary filename, not a contrived one — and
+reproduced exactly the shape the header predicted: `witnessWords(
+"titanic-a.txt")` split into three tokens ("titanic-a", ".", "txt"),
+rendering "According to titanic-a. txt, ...".
+
+**Not a bare repeat of the colon fix.** `TOKEN_RE`'s own header already
+names colon's own precedent — widened into both the word-continuation
+class and the standalone-punctuation alternative, safe because colon's
+connective usage ("Holding:") never sits flush against a foreign preceding
+word. Period's connective usage (`KNOWN_CONNECTIVES.period`, the ".",
+used by every render function in this file to end a sentence) does
+exactly that, on purpose, in nearly every rendered sentence —
+`joinTypographically`'s whole `NO_SPACE_BEFORE` mechanism exists to glue
+it flush. A bare widening (adding "." to the continuation class with no
+further condition) would have made the tokenizer greedily eat that
+trailing connective period into whatever word precedes it on EVERY
+render, and `checkTraceCoverage`'s own independent re-tokenization would
+then disagree with construction's own trace on nearly every existing test
+— not a narrow fix, a wide regression waiting to happen. The actual fix
+is a lookahead: a period counts as a word-continuation character only
+when the very next character continues a word (`\.(?=[A-Za-z0-9])`) —
+"titanic-a.txt" glues (period followed by "t"), a sentence-final period
+stays standalone (followed by a space, another connective, or the end of
+the string).
+
+**Checked against the harder adjacency, not just the reported one.**
+DISAGREE's own "Backing it: \<witness\>." shape glues the connective
+period flush against the LAST witness with no comma when a side has
+exactly one witness — so a period-bearing witness name can sit directly
+against the sentence's own closing period, two periods back to back with
+nothing between them (`"lincoln.txt."`). Confirmed this still splits
+correctly into `["lincoln.txt", "."]`, never collapsing into one token,
+because the SECOND period is followed by a space or the end of the
+string, never by an alnum character.
+
+**Measured, real, tested.** `crown.js`: `tokenize` itself unchanged,
+`TOKEN_RE` widened, its own header rewritten to disclose the fix rather
+than the gap it used to name. `crown.test.mjs` gained 4 cases: two
+pinning `tokenize()` directly (the fix itself, and the hard adjacency's
+safety property), and two real end-to-end `renderCrown` cases through the
+actual claim-id spine (`realReadings` → `mergeTestimony` → `renderCrown`
+→ `checkTraceCoverage`, no stubs) — a SINGLE case and a DISAGREE case,
+both using `"lincoln.txt"`/`"lincolnNeg.txt"` as ground names (already
+real, proven ground names throughout `capacity-runner.test.mjs`, pushed
+through `crown.js`'s own render for the first time) rather than a fresh,
+unproven Titanic fixture — the exact Titanic claim from
+`eval/material-dialogue-stress.mjs` that originally surfaced this bug did
+not reliably bind through this repo's own extraction pipeline when tried
+live here (an unrelated, disclosed extraction-sensitivity gap, not a
+rendering one — `crown.js` never sees a claim that didn't already bind),
+so the already-proven `LINCOLN_TEXT`/`LINCOLN_TEXT_NEGATED` fixtures were
+used instead for a reliable, deterministic regression. `crown.test.mjs`:
+26/26 before, 30/30 after. Full suite: 1100/1100 before this fix's own
+edit, 1104/1104 after — exactly the +4 new cases, zero regressions
+anywhere else.
+
+## P47 — eoreader7 is real; the reading-workbench spec named a real API, not a fictional one
+
+**The correction.** A prior pass (this same day) concluded eoreader7 does
+not exist anywhere and estimated one to three weeks of new engine work to
+build five organs the reading-workbench spec names
+(`deriveIdentityRevision`, `deriveSurprise`, `expectation`/
+`expectationTransition`, `projectTerrainState`, `hypergraphAt`). That
+conclusion checked local disk under `~/Documents` and stopped there. A peer
+session working concurrently in a sibling repo (`commoncite`) had already
+cloned `clovenbradshaw-ctrl/eoreader7` from GitHub — a real, actively
+developed repo (24 PRs in two days) with a native recursive-reading kernel
+under `native/kernel/` — and said so. Verified independently before acting
+on it (per this repo's own standing rule that a peer's correction earns a
+second check, not blind trust): `gh repo view` confirmed the repo and its
+recent push; the checkout was cloned to a sibling of this repo
+(`../eoreader7`) and its own test suite run directly (114/118 passing, 4
+unrelated failures). All five named organs exist as real, callable exports.
+One — `deriveIdentityRevision` — uses the exact parameter name
+(`canonicalizationFloor`) the spec's own prose uses, strong evidence the
+spec was written against this real API rather than invented.
+
+**What actually landed, Increment A of the spec.**
+[`eoreader-contract.json`](eoreader-contract.json) declares every eoreader7
+export this repo's runtime is expected to consume — organ name, real
+import path, real export name, which later increment needs it — and
+[`eoreader-contract.test.mjs`](eoreader-contract.test.mjs) is the assay:
+it reads the JSON and, for each declared entry, dynamically imports the
+REAL checkout at `../eoreader7` by relative path (the same convention
+`build-log.test.mjs` already uses for `../eoreader6.1`) and asserts the
+export exists and is callable. No stub, no fixture, no hand-copied list to
+drift from the JSON — the test walks the contract's own declaration.
+
+**The gate was hand-verified, not just written.** The spec's own gate text
+for Increment A: "fails when a named export is removed. Deliberately
+verify the failure by hand once." Done against the real checkout, not
+simulated: `export` was stripped from `deriveSurprise` in the real
+`../eoreader7/native/kernel/dynamics.js`, the contract test was re-run and
+failed with a message naming the broken organ and its consumer, the file
+was restored, `git diff` confirmed byte-identical to before, and the full
+suite was re-run clean (1131/1131).
+
+**RETRACTED AT MERGE — the contract already existed on `main`, and this
+pass rebuilt a worse one.** This policy originally claimed
+`eoreader-contract.json` and `eoreader-contract.test.mjs` "genuinely did
+not exist anywhere." That was true of this branch's working tree and false
+of the repository: a concurrent session had already built both, and merging
+`origin/main` surfaced them as an add/add conflict. Theirs is materially
+better — it pins a reference head, and covers browser engine modules, node
+imports, filesystem mounts, `testTimeConsumers` for eoreader7's native
+tree, declared semantic capabilities, and a stated migration law. **Theirs
+was taken wholesale; the version written here was discarded**, per this
+file's own standing rule that two independently-grown tools get reconciled
+on the merits rather than deduped by convenience.
+
+The organs this pass declared (`deriveIdentityRevision`, `deriveSurprise`,
+`expectation`/`expectationTransition`, `projectTerrainState`,
+`graphEdgesAtSequence`/`hyperlexiconAt`) were NOT carried across, and that
+is correct rather than an oversight: the surviving contract's own rule is
+that an entry is promoted "only once a PRODUCTION file, not a test,
+performs the import live," and nothing in this repo imports those five —
+not a production file, not even a test. Declaring them would have been the
+aspirational listing that contract exists to prevent.
+
+**The cheap check that was skipped.** `git fetch && git log origin/main`
+before building, not after. This repo's CLAUDE.md already carries that rule
+by name ("when a fix duplicates work already landed on another branch,
+reconcile before merging"), earned from the same mistake in eoreader6.1,
+and it was not run here. The genuinely new work in this pass is the plan
+and the corrected scoping (P47's first half, and the reach finding below),
+not the contract.
+
+Still true: nothing in this repo imports from eoreader7's kernel yet; the
+-fold is, per eoreader7's own README, "the reference compatibility
+application" expected to migrate, not yet migrated.
+
+**Disclosed, not attempted here.** Whether `deriveIdentityRevision`'s real
+signature (`{fold, supports, attacks, witness, giver,
+canonicalizationFloor}`) actually carries the positional "distance back"
+semantics Increment D's margin needs, or has the same gap eoreader6.1's
+`revision.js` had, is unread — the single highest-value next research step,
+named in `READING-WORKBENCH-ENGINE-PLAN.md` rather than guessed at here.
+Increments B through F are unstarted; B and C in particular touch
+`index.html`'s `.tabs` bar and `app.js`, both reserved to the
+fold-architecture session per this file's own multi-session rule, and were
+deliberately left alone this pass.
+
+**Amended same day — the "blocker" (`deriveIdentityRevision`) was read
+against the wrong repo, and reads as solved once read against the right
+one.** The paragraph above disclosed one open question as the highest-value
+next step: whether eoreader7's real `deriveIdentityRevision` carries the
+positional "distance back" semantics Increment D's margin needs, given
+that eoreader6.1's `revision.js` (a different file, read by mistake in the
+first pass) does not. Read directly: it does, via a different and better
+mechanism than the byte/sentence coordinate the first pass went looking
+for. Every `REC` operation's `consequence` names the source edge it
+re-canonicalizes (`sourceEdge`, shaped `edge:text:{sequencePosition}:
+{index}` — `identity.js:97`); `understanding-scoreboard.mjs:142-144` reads
+that address back out and computes `reach: pos - srcPos` — current
+encounter position minus the re-made edge's own encounter position, which
+IS "the distance between the position it landed and the position it
+re-made." Fed through `reachSummary` (`:208-218`), this reproduces the
+workbench spec's own cited numbers, digit for digit, against the repo's
+own already-committed result on real Frankenstein
+(`native/eval/results/understanding-scoreboard-RESULTS.md:212-213`):
+median 749, min 82, max 2,046.
+
+No Frankenstein text ships in this checkout (Gutenberg texts are
+gitignored here, the same posture the-fold takes with `goldens/*/texts/`),
+so this was confirmed by reading the real code path end to end and
+cross-checking the already-committed, already-run result — not by
+re-running the ~2-minute full read live. That re-run, against a freshly
+fetched Frankenstein, is the natural next verification for whoever picks
+up Increment D, not attempted here.
+
+**What this changes.** Increment D is no longer named as this repo's
+blocker. It is the increment with the strongest existing evidence: a real
+function, a real downstream consumer computing exactly the spec's own
+described quantity, and a committed reproduction matching the spec's cited
+numbers exactly. The open work is adapting `understanding-scoreboard.mjs`'s
+node/eval scoring into something a UI margin renders live per-source, and
+settling the spec's own already-named deferred question (persistent gutter
+vs. opens-on-demand) — not inventing a coordinate space, which was the
+first pass's actual mistake: it read `eoreader6.1/packages/engine/
+emergence/revision.js`'s missing positional field and concluded the
+concept itself was absent from the organ, rather than checking whether the
+real eoreader7 organ addressed the same need a different way.
+
+## P48 — Increment B landed: the reading fronts by default, not Folds
+
+The reading-workbench spec's Increment B, done. `index.html`'s Sources tab
+is renamed **Reading** (`title="The reading — the source in focus, and
+everything read from it"`), reordered first among the panel tabs, and is
+now the default view at wide viewport — `app.js`'s `showView(matchMedia(...)
+? "chat" : "explore")`, was `"builds"`. The static `.pane.on` class swapped
+to match (`pane-explore` now carries it, `pane-builds` no longer does), so
+there's no flash of the wrong pane before JS runs. `README.md`'s and
+`package.json`'s one-line pitch changed from the bounded context window to
+the reading — "A reading that runs for months without degrading, on a
+machine nothing leaves. Its context window never grows — that's the
+mechanism, not the point" — using the spec's own phrase
+verbatim ("a reading can run for months without degrading").
+
+**Gate, verified live, not just by test.** The spec's own gate: "Every
+existing Explore test and `constitution.test.mjs` pass unchanged. The
+Explore pane renders byte-identically to before the rename; this increment
+moves furniture only." Full suite 1131/1131 (unchanged from before this
+edit — nothing in it touches DOM markup). Driven live in the real browser
+against `serve.mjs`: at wide viewport the Reading pane fronts by default
+with its own internal content untouched (still says "SOURCES" as its own
+h2 — that heading belongs to the pane's own established surface and was
+deliberately left alone, only the TAB that opens it changed); clicking
+Folds and back to Reading both correctly toggle `aria-selected` and pane
+visibility (`document.body.dataset.view` correctly reads `"builds"` then
+`"explore"`); zero console errors.
+
+**A file-ownership note, checked before landing.** `app.js` and
+`index.html`'s `.tabs` bar are named in this file's own multi-session rule
+as reserved to "the fold-architecture session." Two peer sessions
+(`3-0-07`, `3-0-c8`) were asked directly; neither claimed those files this
+session, and one (`3-0-c8`) explicitly said "go ahead." No third session
+was listed as active. Proceeded on that basis, disclosed here in case the
+reserving session returns and disagrees with the call.
+
+**Increment C, scoped and deliberately NOT started — a real fork found,
+not a vague hesitation.** C wants a persistent three-region header
+(GIVEN/READ/HELD), each a NAVIGATION destination reading a real organ.
+Scoping it live surfaced something the spec did not anticipate: this repo
+currently runs TWO separate, divergent source browsers. The one embedded
+in `index.html` today (`pane-explore`, native, OPFS-backed, introduced by
+commit `e6e57b2` "Sources panel: native file manager...") deliberately
+REPLACED the older standalone `explore.html`/`explore.js` app (which still
+exists, still runs on `explore-server.mjs`:8812, and still has the real
+`priors`/`cast`/`graph` views GIVEN and HELD would naturally navigate to)
+— but nothing embeds that older app's views in the current page anymore
+(no `<iframe>` tag exists in `index.html`; grepped and confirmed). So
+GIVEN's destination ("what did it come in knowing" — the priors view) and
+HELD's (the cast/referent view) have no current home in the fronted page:
+building them means either reviving a link to the app this repo's own
+recent history moved away from, or building new sub-views inside the
+native panel — a real product decision, not a wiring job, and exactly the
+kind of "forced decision" this repo's own past UI passes have gotten
+wrong before when guessed at instead of asked (the 3×3 terrain grid the
+user refused, named in the Explore section above). Not guessed at here.
+GIVEN's underlying number is cheap and real either way — `EXPLORE_BASE +
+"/api/priors/enabled"` is already fetched elsewhere in `app.js`
+(line 7433) — so the DATA side of C is not the blocker; the NAVIGATION
+side is.
+
+## P49 — Increment C landed: the three-question header, navigation not a readout
+
+The reading-workbench spec's Increment C, done, using the option the user
+chose directly when asked (build new sub-views in the native panel, rather
+than reviving a link to the deprecated standalone Explore app P41 found).
+
+**What landed.** A persistent bar under the header
+(`.ghr-bar`/`#ghr-given`/`#ghr-read`/`#ghr-held`), present on every screen
+at every viewport width. Each region is a real navigation destination, the
+spec's own forced decision honoured exactly: clicking one calls
+`showView("explore")` then `setExploreView(dest)` — it does not just
+repaint a number in place. The Reading pane gained a three-way sub-nav
+(`files` / `held` / `priors`, reusing the existing `.seg` control the
+source viewer's read/raw toggle already uses, per this file's own UX-pass
+rule: two faces of one thing is the same question in both places).
+
+**GIVEN** opens a new Priors sub-view (`renderPriorsPanel`, `#priors-panel`)
+reading `GET ${EXPLORE_BASE}/api/priors` — the SAME route the `/priors`
+chat command and the terminal's `priors` command already read — and writing
+through the SAME `POST /api/priors/toggle`. One ledger, now four doors
+instead of three, per this file's own already-stated rule for that route.
+
+**READ and HELD** reuse the existing Files sub-view (`renderSourcesPanel`,
+unchanged data path) with one addition: a `held` filter that drops muted
+text sources (media is never muted — always held once loaded, matching
+`measure.js`'s own disclosed rule that mute is a retrieval concept).
+
+**The gate, met exactly as declared.** "Every number in the bar is
+traceable to an organ call. A test asserts the surface originates none of
+them." `given-read-held.js` (new, pure — no DOM, no fetch) is the ENTIRE
+computation: `givenReadHeldCounts({priors, sources, media, muted})` reads
+its four inputs and returns three counts, nothing invented, GIVEN a typed
+`null` (rendered "—") rather than a false `0` when the priors ledger
+hasn't answered yet. `given-read-held.test.mjs` (8 cases) pins this as a
+property, in Node, no DOM needed. The DOM-side render functions
+(`renderGivenReadHeldBar` in app.js) do nothing but call this function and
+write its result into three `textContent`s — checked by reading the
+function's own body, not asserted from outside.
+
+**Verified live, end to end, against the real running server — not just
+the pure module's unit tests.** Driven through `javascript_tool` against
+`serve.mjs` on :8811 (screenshots were unavailable mid-session — the
+compositor wasn't displaying — so DOM state and computed geometry were
+read directly instead, which is the more precise check anyway):
+- GIVEN loaded the real corpus on first paint: 2,052 documents, 1,559 in
+  play, matching this file's own priors organ.
+- Clicking GIVEN switched the Reading tab to the Priors sub-view, updated
+  the heading to "Given", marked the right sub-nav button active, hid the
+  file-list toolbar (search/sort/add belong to the Files view, not this
+  one).
+- Toggling a real genre (`01-literature-books`, 45 documents) OFF dropped
+  the header's GIVEN count from 1,559 to exactly 1,514 (−45) — the real
+  ledger write round-tripping through the real server back into the
+  header. Toggled back ON, confirmed 1,559 restored, ledger left clean.
+- A real `drop` event (synthetic `DataTransfer`, the same event the app's
+  own drop-anywhere handler listens for, not a private-state hack) added
+  one source: READ and HELD both correctly went to 1.
+- Muting that source: READ held at 1 (still loaded), HELD dropped to 0
+  (not contributing), and switching to the Held sub-view rendered the
+  disclosed empty state ("Nothing is held right now... every loaded
+  source is muted") rather than a bare empty list.
+- Removing the test source returned both counts to 0. No test artifact
+  left in OPFS or the shared priors ledger.
+- Zero console errors throughout. Full suite 1139/1139 (1131 before this
+  increment's 8 new cases).
+
+**Scope, disclosed rather than silently narrower than it reads.** HELD is
+implemented as a FILTERED view of the same Files list, not a third,
+independent surface — "what does it hold right now" reduces exactly to
+"which loaded sources are live," which the existing mute state already
+answers precisely; building a third parallel list would have duplicated
+data this app already tracks in one place. A genuine `sessionReferents`/
+cast view (what the engine has actually resolved from an open source,
+rather than which files are attached) is real, more expensive
+(~90s on a 3.3MB text per this file's own Explore section), and NOT what
+HELD points at here — that is the deeper "what does it hold" the original
+wireframe may have meant, and is future work, not this increment's scope.
+
+**Amended same day — the toolbar was fitting with a few px to spare, not
+robustly, and the user caught it live.** P42's own verification tested
+wrapping at 1400px and 620px window widths and found no overflow either
+time — but both tests were confused by the same wrong assumption: `main`'s
+own `grid-template-columns: minmax(0,1fr) minmax(320px,430px)` caps the
+PANEL COLUMN at 320-430px no matter how wide the window is. A 1400px
+window gives the panel exactly the same room as an 1100px one — there was
+never a "wide" case in this measurement, so "it fits at 1400px" and "it
+fits at 620px" were the same borderline test run twice. It was passing
+with single-digit pixels to spare, in one specific automated Chromium
+build — the kind of margin that any real difference in font metrics,
+scrollbar width, or zoom level breaks immediately, and it broke
+immediately: the user's own real browser showed "priors" truncated to
+"prio" and the search box collapsed to a sliver, screenshotted and
+reported directly.
+
+**The fix removes the borderline fit rather than widening the margin.**
+`.sources-actions` (search/sort/add) now carries `flex: 1 1 100%` instead
+of `flex: 1` — this forces it onto its own row unconditionally inside the
+already-wrapping `.sources-toolbar`, so the title+subnav row and the
+search/sort/add row each get the panel's full width, always, rather than
+splitting one row three ways at whatever margin happens to survive.
+Re-verified live at the panel's actual floor (320px, the CSS minimum) as
+well as 620px: two clean rows, zero overflow (`scrollWidth === clientWidth`
+everywhere checked), "priors" renders in full, search keeps a genuinely
+usable 142px even at the floor.
+
+**A second, independent bug found while fixing the first, unrelated to
+layout.** `.ghr-region` (the header bar's buttons) and `#explore-subnav
+.seg` (the pane's own sub-nav) both carried a `data-view` attribute with
+overlapping values (`"files"`/`"held"`/`"priors"`) — an unscoped
+`document.querySelector('[data-view="priors"]')` silently returns
+whichever set comes first in DOM order (the header bar, since it sits
+before `<main>`), not the one a caller likely means. Found by using
+exactly that unscoped query while diagnosing the layout report and getting
+the wrong element back. The header bar's attribute is renamed `data-dest`
+— distinct name, same click-handler behavior, collision gone. Both
+app.js's `.ghr-region` handler and every selector in this section were
+already using SCOPED queries (`#explore-subnav .seg`,
+`document.querySelectorAll(".ghr-region")`) so this collision never
+actually misrouted a real click — it was a latent footgun for the next
+unscoped query, not a live bug, and is closed now rather than left for
+someone else to hit.
+
+Full suite 1139/1139, unchanged (CSS and one attribute rename only).
+
+**Amended again, same day — the composer went off-screen, and the cause was
+this increment adding a row above `<main>` without telling the height math.**
+Reported live by the user with a screenshot: the Send button was clipped off
+the bottom of the window and the compose box was unusable. `main`'s height is
+`calc(100dvh - var(--header-h))`, and `app.js`'s `trackHeader` measured
+`document.querySelector("header").offsetHeight` — header only. `#ghr-bar` is
+a SIBLING of `<header>`, not a child (it sits between `</header>` and
+`<main>`), so its ~33px was never counted: `main` claimed 33px more height
+than actually existed above the fold, and the composer lost exactly that
+much off the bottom. The CSS comment on that line already warned about this
+in as many words ("a wrong constant here scrolls the composer off-screen") —
+the warning was read, and then the increment added a row anyway without
+updating the measurement it governs.
+
+**The fix.** `trackHeader` now sums EVERY fixed row above `<main>`
+(`[header, ghrBar]`) rather than assuming one, and the `ResizeObserver`
+observes both. The two CSS fallbacks moved with it (53→86 wide, 46→79
+narrow) so the pre-JS first paint is not a frame of wrong layout. Verified
+live at 700x820 and 1440x780, both after a real reload: `--header-h` equals
+the measured sum exactly (83px and 97px respectively), `gapBelowMain` is
+1px (rounding), Send is fully inside the viewport, and `document.body.scrollHeight
+<= innerHeight` so the page itself never scrolls.
+
+**The verification lesson, which is the more valuable half — and it is the
+SECOND time in this increment the method was the defect.** Mid-diagnosis,
+`--header-h` appeared frozen at a stale value across viewport resizes, which
+read as a broken `ResizeObserver` and nearly became a fabricated second bug
+plus an unnecessary rewrite. It was not broken: **`ResizeObserver` callbacks
+are delivered as part of the rendering steps, so a Browser-pane tab that is
+hidden or throttled produces no frames and therefore never delivers a resize
+— every measurement taken against a non-fronted pane is potentially stale by
+construction.** Proven rather than assumed, by arming an independent probe
+`ResizeObserver` in the page, fronting the tab, and confirming both it and
+the app's own observer fired (the var moved 97px→123px when `#ghr-bar` grew).
+The standing rule this repo already had — front the tab and re-shoot before
+trusting a blank render — extends to every measured layout value, not just
+screenshots. The first instance was the borderline-fit toolbar above (a
+constrained panel width mistaken for a wide one); this is the second. Both
+times the code was fine or wrong for a different reason than the measurement
+suggested, and both times the user caught what the automated check had
+declared verified.
+
+**REMOVED, same day, at the user's direction — the whole bar, not a fix to
+it.** After the layout defects above were closed, the user's judgment was
+that the app does not need GIVEN/READ/HELD at all. Everything this policy
+describes building is gone: the `.ghr-bar` markup and CSS, `given-read-held.js`
+and `given-read-held.test.mjs` (deleted), the `renderGivenReadHeldBar` render
+pass and its four call sites, the `.ghr-region` click handler, `state.priorsData`
+(added only to feed the bar, and read by nothing once the bar left), the
+boot-time `/api/priors` fetch that existed only so GIVEN had a number on
+first paint, and `--header-h`'s multi-row sum — back to header-only, because
+nothing sits between `<header>` and `<main>` again. `trackHeader` keeps the
+list-shaped form and the comment explaining WHY every row above `<main>` must
+be summed, since that is the durable lesson and the list is one entry today
+by fact rather than by assumption.
+
+**What survives, deliberately.** The Priors sub-view in the Reading pane is
+real, useful on its own, and stays — it reads the same `/api/priors` route
+the `/priors` chat command already used. Increment B (the Reading tab) is
+untouched. **This policy is kept rather than deleted** because the thing
+worth remembering is not the bar: it is that a spec naming something as a
+required increment is not authority that it belongs in the product, and two
+consecutive verification defects (above) were found in a feature that then
+turned out not to be wanted. Cheaper to have asked what it was for first.
+Do not rebuild this from the reading-workbench spec without asking.
+
+## P50 — A punctuation class is a CATEGORY, and one wall stands at every site that crosses it
+
+**The law, two halves.** First: when an organ decides something by testing
+punctuation, it is testing a CLASS, and the class must be named by its
+Unicode general category, never by an enumeration of the characters seen so
+far. Second: a wall of that kind is rarely at one site — the same crossing
+is usually tested independently in several places, and fixing one of them
+proves nothing, because the pipeline only produces its result when every
+site agrees.
+
+**What this closes, measured 2026-08-26.** "who was lincoln's vp?" returned
+one vice president all day — sometimes Hamlin, sometimes Johnson, each a
+true sentence, neither the answer. The cause was not the model, not the
+retrieval, and not the logic. It was that the one sentence stating the fact
+plainly could not be read:
+
+```
+"Hannibal Hamlin (August 27, 1809 - July 4, 1891) was an American
+ politician ... the 15th vice president of the United States."
+
+surfaces  ["Hamlin", "Hamlin August", "July", ...]   ← "Hannibal Hamlin"
+                                                       never formed; the
+                                                       glue crossed the "("
+relations an American —politician→ who was the 15th vice president...
+```
+
+The subject of the sentence was lost, so no edge ever named Hamlin as a
+vice president. Every downstream organ then behaved correctly on material
+that was missing the fact.
+
+**The class was already known and simply never named.** `surfaces.js`
+started with `[,;:]`, gained `|` in 2026-08-20 for search-result titles,
+and that fix's own note said the quiet part out loud: the pipe was "a
+run-breaking mark this file had a category for and simply never listed."
+Brackets were the next character in a list that has no end — the same trap
+this repo already refused for succession boxes and for site-specific title
+conventions. Unicode carries the category: `\p{Ps}` is every opening
+punctuation mark in every script and `\p{Pe}` every closing one, so
+`( [ { （ 「 【 ［` and their partners are covered without a list, and a
+script this codebase has never been run against is covered in advance
+rather than after the next incident.
+
+**Deliberately not widened to all of `\p{Po}`:** that sweeps in the
+apostrophe, and a raw chunk ending in one ("'quoted'") would break a run no
+reader would call broken. A category is the right grain; the widest
+category is not.
+
+**THREE SITES, ONE WALL.** The bracket crossing was tested independently in
+`surfaces.js`'s run-break marks, in `relations.js`'s scan for the token
+following a surface, and in `relations.js`'s subject→verb matcher. Fixing
+the first removed the spurious "Hamlin August" and changed nothing about
+the answer. Fixing the second made "was" discoverable as a verb for the
+first time and still produced no Hamlin edge. Only with the third did the
+edge appear. **A fix that improves an intermediate number without moving
+the result is evidence of more sites, not of a partial win** — and each
+site had to be found by tracing the specimen through the pipeline, not by
+grepping for the character.
+
+**Leading marks need the other side.** A comma trails the token before it,
+so the previous chunk's ENDING marks the break. An opening bracket LEADS
+the token after it, and a check written only against the previous chunk's
+tail cannot see it. A punctuation test written for one shape silently fails
+the other, and both must be read off the same raw chunk so they cannot
+drift apart.
+
+**Why skipping an aside is meaning, not a workaround.** A parenthetical
+after a name carries facts ABOUT the being just named — its dates, its
+aliases. The being and its aside are one mention, so the token that follows
+the MENTION is the token that follows the being. This is the same
+"referent, not span" discipline this codebase already holds elsewhere,
+applied to where a mention ends.
+
+**Measured after:**
+
+```
+Hannibal Hamlin —was→ an American politician ... the 15th vice president
+Andrew Johnson  —was→ the 16th vice president
+```
+
+Full suite 1259/1261, no regressions.
+
+**DISCLOSED, and the next wall.** This fixes reading ONE SENTENCE. It does
+not fix selecting fillers out of a large graph: at page scale (3,868 edges)
+the slot query still returns "Though he", "22nd Amendment" and "000" as
+candidate vice presidents, because matching is substring-tolerant and no
+Kind gate filters candidates to the kind the slot admits. That is a
+different defect with a different fix, and conflating the two is what would
+make this policy read as "the answer is fixed" when it is not.
+
+**The lesson underneath all of it: a reading failure wears the model's
+face.** For most of a day the symptom was "the small model keeps giving one
+VP", and every hypothesis chased the model, the prompt, the retrieval, and
+the logic in turn. The instrument's own marks were right the whole time
+("∅ not in the material"), the correction loop was right, and the
+completeness gate was right — all of them reasoning correctly over material
+from which the fact had been silently deleted at extraction. **Before
+concluding a model or a downstream organ is at fault, read one sentence
+that states the answer plainly and confirm the pipeline can extract it.**
+That check takes a minute and would have saved the day.
+
+## P51 — A certification is not a style: "computed, not generated" must never be a phrase the model can learn to say
+
+**The law.** A house mark that certifies "code produced this, not a
+language model" (`arithmetic.js`, `grid.js`'s evaluate outcome, tables.js/
+reflex.js's own self-doors — all four already say "computed, not
+generated" verbatim) must never appear in text that gets replayed to the
+model as its own past speech. `state.history` is exactly that replay
+surface (P23's "REAL role-structured history"): whatever an assistant
+turn's `content` says is handed back to the model, verbatim, as something
+it said. A certification living in that field is not a record, it is a
+STYLE — and a model shown its own certified turns will learn to produce
+the certification, not the thing it certifies.
+
+**Measured live, arithmetic.js's own audit.** Asked "5 subtracted from
+12" — order-reversing phrasing arithmetic.js correctly refused to compute
+— the question fell through to the ordinary model pipeline, which drafted
+"5 subtracted from 12 is 7 — computed, not generated," copying the
+caption verbatim from an EARLIER turn's own history entry
+(`arithmeticTurn`'s `answer` string, pushed into `state.history` with the
+caption baked in). The number was right; the certification was forged.
+`checkGrounding` correctly flagged the sentence as unsupported by any
+material, but the visible text still claimed a mechanical guarantee it
+never earned — exactly the "model is just the mouth" failure this
+project's own standing rule names: never let a model mimic a property in
+language it does not actually have.
+
+**The fix, one shared choke point plus one direct push.**
+`stripComputedCaption` (app.js) strips the trailing " — computed, not
+generated" from whatever gets pushed into `state.history`, leaving the
+rendered turn, the fold-line, and the record untouched — a human still
+sees the caption everywhere it was already shown; only the model's own
+replayed copy of its past turns loses it. `usageTurn` (the generic
+no-model-call turn every slash door funnels through, including grid.js's
+`/act … evaluate` — the SECOND confirmed site carrying this exact phrase)
+applies it at its one `state.history` push; `arithmeticTurn` applies it at
+its own. `mechanicalTurn`/`recallTurn` needed no change — they already
+kept the caption OUT of `state.history` by construction (pushing
+`toMarkdown(built.table)`, never `built.caption`), which is what made the
+bug's shape legible in the first place: two of four callers already had
+it right.
+
+**Disclosed, not chased further.** `selfOverview`'s own bare `/self` text
+was checked and does not carry the phrase — reflex.js's per-level captions
+only reach `state.history` through `mechanicalTurn`'s already-correct
+path. Not audited: whether the discourse-summary fold (`chatContext`,
+P34) can itself pick up a captured caption through a model-written
+paraphrase of a raw fold-line — a narrower, lower-probability path than
+direct history replay, and a different mechanism (summarization, not
+verbatim replay), named here as an open question rather than assumed
+closed.
+
+**Verified live, three consecutive turns, one conversation.** "5
+subtracted from 12" → "12" and "5" swap correctly to `((12)-(5)) = 7`. "3
+less than 10" → `((10)-(3)) = 7`. "5 divided into 20" (still refused,
+below) fell through and drafted a real, grounded, uncaptioned answer
+about division terminology — no trace of the phrase across any of it.
+
+## P52 — Order-reversing arithmetic has exactly one standard reading, except the one that doesn't
+
+**The law.** `arithmetic.js` bailed on ALL order-reversing English
+phrasing ("N subtracted from M", "N less than M", "N fewer than M", "N
+divided into M") on the theory that reversing operand order is inherently
+too risky to get right mechanically. Checked against real usage, that
+theory held for exactly one of the four. Where a phrase has one standard
+reading, refusing to compute it is not caution, it is a gap — coverage
+this door should have had from P4's own founding principle: BAIL is for
+what this module cannot read confidently, not for everything it has not
+gotten around to reading yet.
+
+**What actually generalizes and what doesn't.** "N subtracted from M", "N
+less than M", "N fewer than M" all mean M − N, with no competing everyday
+reading — nobody means anything else by "5 subtracted from 12." "N
+divided into M" is different in kind, not degree: real usage genuinely
+splits between the classic long-division idiom (M/N — "5 divided into
+20" is 4, the way the phrase is taught) and a common colloquial one (N/M
+— "20 divided into 5 groups," said loosely for plain division), and there
+is no structural signal in a bare question to tell which one a speaker
+meant. That one phrase still bails; the other three now compute.
+
+**The risk this checks before shipping.** A comparison question ("Is 3
+less than 10?") sharing the same words as the newly-computed arithmetic
+phrase is the obvious hazard — get it wrong and the app would answer a
+yes/no question with "((10)-(3)) = 7". It is safe by a property that
+already existed in the module before this pass touched it: `WRAPPER_RE`'s
+stripped set does not include a bare "Is", so "Is 3 less than 10?"
+survives normalization as "Is 10 - 3?" — the leftover "Is" fails
+`PURE_EXPRESSION_RE` regardless of what the reversal computed underneath
+it. Not a new guard added for this fix; an existing one, checked and
+found to already cover it, then pinned as a regression rather than left
+as an unverified assumption. Verified live against the real model, not
+only the unit test: "Is 3 less than 10?" answered "Yes." — a real
+comparison, never the arithmetic reversal.
+
+**Evidence.** `arithmetic.test.mjs`: 14 → 18 cases (the reversed-operand
+readings, "divided into" still refusing, and the comparison-safety case,
+each checked against the real mathjs package). Full suite: 1264/1266
+passing both before and after this pass's four new tests — the same 2
+pre-existing failures (`eoreader-contract.test.mjs`,
+`source.test.mjs`'s Tolstoy specimen), neither of which imports
+`arithmetic.js` or `app.js`, zero regressions.
+
+---
+
+## P53 — Answering starts by defining the VOID, and the loop that fills it is DEF/EVA/REC
+
+**The direction, verbatim** (2026-08-27): *"answering all questions starts
+with defining the VOID that needs to be filled with a DEF, EVA, REC
+loop"* — then, on the stance face: *"and the stance face?"* — then, on
+verification: *"test e2e … asking the VP question and similar ones where
+the findings should reshape the void."*
+
+**The law.** A question is answered by zeroing its space across all nine
+operators and running one loop against it: DEF fans out candidate fillers
+from a declared posture, EVA admits or refuses each against the declared
+admission test, and REC re-zeros when either the posture is spent or the
+findings contradict the space itself. The answer is what the loop leaves
+standing. An uncovered extent is a **finding**, never a blank, and never a
+plausible partial answer.
+
+**Both halves already existed; neither could reach the other.** `grid.js`
+lands DEF/EVA/REC on an append-only task log with every refusal the
+composition law names. `void-shape.js` declares a space across the nine
+and does the coverage arithmetic. But `declareVoid`'s only caller
+(`void-brief.js`) built a declaration **after `renderAnswer` had already
+run**, wrapped so it could not break the turn, and threw it away; and
+grid.js's acts were reachable only by a person typing `/act`. `void-loop.js`
+is the loop and is deliberately the only new thing — no second log, no
+second algebra, no second coverage test.
+
+**The choreography is READ, never chosen.** Every act the loop lands takes
+its terrain and stance from the void's own cells, computed by the engine's
+cube at declaration time. Computed against the real cube, DEF is
+`Differentiate·Figure` at Lens (**Dissecting**), EVA is `Relate·Figure` at
+Lens (**Binding**), REC is `Generate·Pattern` at Paradigm (**Composing**) —
+so the loop's spine is *cut the candidates out, bind each to the ground,
+compose a new ground when the binding fails*. Two facts fall out of that
+table that were not designed in: **DEF is the only Dissecting cell in the
+whole declaration** (cardinality is the single cut in a space otherwise
+made of clearings, bindings and compositions — and exactly the cell whose
+absence produced the two-filler-slot-read-as-one specimen), and **DEF and
+EVA share a terrain and differ only in stance** (you cut with the lens,
+then you bind with it — which is why they are a loop and not two unrelated
+checks). Nothing here hardcodes a terrain/stance table, so a change in the
+engine's algebra moves this loop rather than leaving a drifting copy.
+
+**Two stance faces, kept apart.** The DERIVED stance (`STANCE_BY_MODE`) is
+a property of a cell — computed, never chosen, cannot be wrong. The
+DECLARED stance (`from <stance>`) is the actor's posture — declared per act
+and refusable three ways. `grid.js` will not import the engine's stance
+labels and its header says why: a grid act is medium-blind, so an engine
+label there would read as authoritative output when it is not. A void
+declaration does not have that problem — `cellOf(op, grain)` uses the
+operator's own domain, so its nine cells are domain-locked by construction.
+Same word, two standings; harmonizing them breaks one.
+
+**The ladder, and the loop's own law.** `extraction` → `cultivation` →
+`encounter`, descended only on exhaustion, each descent a typed entry —
+`skills.js`'s own ladder discipline with stances in place of tiers.
+`encounter` is last and is the only rung that can supply a filler the
+material never named; naming it as a posture is what makes fabrication
+visible instead of ambient. Witness and stance are different facts and
+both ride every candidate: the witness says WHO (material, library,
+`self:model`), the stance says HOW. `grid.js` pins one stance illegality
+(`synthesize` may not declare `from relate` — "you cannot commit a whole
+from a stance that refuses to commit"); **this file generalizes it and OWNS
+the generalization**: the loop may not close from the posture it proposed
+from, because a fan-out from `encounter` closed from `encounter` tested
+nothing and the EVA between was ceremony (`stance_did_not_change`).
+
+**Fan-out, not walk.** `proposeFrom` takes an ARRAY and lands every
+candidate before any admission runs. Structural, not stylistic:
+propose-one-test-it-propose-the-next is a greedy search, and a greedy
+search over two true fillers returns whichever it drew first — which *is*
+the specimen. The set of DEFs with no clearing EVA is the superposition,
+addressable on the log, projectable at a cursor, and revisable because
+supersession keeps the past.
+
+**REC has two triggers and grid.js already had both paths.** A spent
+posture lands `concedeEvaluation` (EVIDENCE·REC, no supersedes —
+`build-log.js::rezeroBuild`'s own semantics: a re-zero concedes a ground,
+it does not compile a new whole). A **wrong declaration** lands
+`revise … supersedes <opening>` (SUPERSEDE — the act that zeroed the space
+is superseded, because the space it zeroed was the wrong one). Reshaping
+resets the ladder, keeps the descents as record, carries testimony across,
+and returns extensionally-refused candidates to `wish` — their refusal
+rested on the very extent just conceded. A revision that changes nothing
+is refused as churn (`no_change`), the same wall `reviseBuild` holds for
+identical code and for the same reason: it would not terminate.
+
+**Three walls found by testing, not by reasoning.**
+
+1. *The blanket under-specified refusal was a wall nothing useful could
+   pass.* The first cut refused any `under-specified` declaration outright,
+   on the position that if the nine cannot be declared there is no question
+   yet. Its own test caught the cost: a space with no numeric extent could
+   never open, so the cardinality close — the only route such a space has —
+   was unreachable code, and `void-shape.js`'s deliberate `constraint: null`
+   branch could never be reached through a loop. **Third time this repo has
+   caught that shape** (the measuring door's unreachable `best_of_n`,
+   `nul`'s borrowed window floor). Graded to three named refusals —
+   `no_slot`, `no_anchor`, `no_closing_condition` (neither extent nor
+   numeric cardinality, so nothing could ever license a commit) — with
+   everything else undeclared riding the loop as `underSpecified` and
+   reported by `foldLoop`: visible exactly as `void-shape.js` asks, without
+   being fatal.
+
+2. *A trigger this module generates must be carriable by the act line this
+   module composes.* The composition law has no escape syntax, so
+   `reshapeTriggers`' own details quoted with `"` were refused by the
+   loop's own quoting wall — the natural flow (take the finding, pass it as
+   the trigger) was impossible. Generated details now quote with `« »`,
+   this repo's own mark in generated prose (`crown.js`), leaving the
+   refusal of a straight `"` intact where it belongs: a filler's identity,
+   and a hand-written trigger.
+
+3. *`extent_excludes`, found by running it on real material.* The first cut
+   of `reshapeTriggers` only read *admitted* fillers that ran past the
+   extent. The e2e showed the stronger signal is the opposite: a space
+   refusing every candidate that could fill it **while reporting itself
+   short** is evidence about the space. The disclosure is deliberately
+   weaker than `extent_too_small`'s, and the reason is an ordering cost
+   named rather than hidden — `admit` refuses a wholly-outside span as
+   arithmetic *before* the admission organ is consulted, which saves a
+   fetch per obviously-excluded candidate and loses real information: a
+   candidate excluded by a *wrong* extent never gets the check that would
+   show the extent was wrong. So the trigger claims exactly what happened,
+   **excluded without being read**, and names the cell to revise rather
+   than deciding which of extent-or-admission is at fault.
+
+**Evidence.** `eval/void-loop-e2e.mjs` over live Wikipedia, transcript and
+full findings in `eval/results/void-loop-e2e-RESULTS.md`. Twenty-eight junk
+candidates offered by a deliberately crude generator across two specimens;
+**zero reached testimony**, each refused with a reason read off its own
+source, and a candidate that stated the relation with no span correctly
+stayed a *wish* rather than being convicted. The FDR specimen reshaped its
+own space (`1933-1937` → `1933-1945`), re-admitted the re-opened candidate
+against the new ground, descended twice more, and then **refused to
+commit** — "Henry Wallace" alone is a true sentence and a wrong answer, and
+`void_open` declined it.
+
+**Two limits, disclosed rather than engineered around.** (1) *The loop is
+exactly as good as the space it was given.* Lincoln committed
+`Hannibal Hamlin (1861-1865)` and called it complete — arithmetically
+correct against the declared space, and not the whole answer, because
+Andrew Johnson held the office six weeks *inside* 1865 and a year-grain
+extent cannot see a hole inside one year. The defect is in SEG's own cell
+("the extent to be covered, **and its units**"), the same granularity
+disclosure `void-shape.js`'s `merge` already carries. Stated plainly
+because it is the sharpest form of the position: **an under-declared space
+produces a confidently complete wrong answer, and no loop machinery
+downstream recovers it.** (2) *The generator's failure is a coreference
+failure* — Garner was never found because the page names him `Garner` near
+the relation and a two-word capitalised scan cannot see a single surname or
+connect it to `John Nance Garner`, exactly the class `cast.js`'s referent
+index (P38) exists for and which the crude control generator deliberately
+does not use.
+
+**Not wired into a live turn.** `void-loop.js` is pure with organs
+injected, `void-loop.test.mjs` is its conformance suite, and the e2e drives
+it over real bytes — but `app.js`'s turn still builds its brief after
+`renderAnswer` and discards it. Moving `briefFor` ahead of retrieval, and
+running the loop as the turn, is the next pass; `app.js` is the
+fold-architecture session's contract and this pass does not reach into it.
+
+**Files.** `void-loop.js` (new, pure — imports only `./void-shape.js`;
+`grid` and the admission organ are injected, the cast.js discipline).
+`void-loop.test.mjs` (36 conformance cases against the REAL cube, REAL
+grid and REAL void-shape; no stubs that matter). `eval/void-loop-e2e.mjs`
++ `eval/results/void-loop-e2e-RESULTS.md` + `void-loop-e2e-transcript.txt`.
+No existing file touched. Suite 805/687/118 before, 841/723/118 after —
+failure names diffed against the baseline, not counted: zero regressions.
+The 118 are pre-existing and environmental (`legacy-eoreader6.1` is an
+uninitialised submodule in this checkout, so `grid.test.mjs` among others
+cannot resolve its imports; `void-loop.test.mjs` therefore imports
+eoreader7's **native** kernel, as `void-shape.test.mjs` already does).
+
+### P53, amended 2026-08-27 — a model reads, the material checks, HL judges
+
+**The direction, in two parts.** First: *"use the full power of the
+hyperlexicon."* Then, watching the driver grow one admission rule per
+specimen that broke: *"and a small model call because we can never define
+every little case like «abbreviation gate»."*
+
+**What forced it.** Admitting candidates by rule grew four rules in one
+afternoon on one specimen family, each correct for the case that prompted
+it and wrong for the next: a relation stated as "running mate" rather than
+"vice president"; a span sitting beside the relation that belongs to a
+DIFFERENT office two clauses over; a candidate whose kind is a faction;
+and a sentence boundary falling inside "Franklin D." so the anchor landed
+in the next fragment. That is the shape of a rule set nobody finishes.
+
+**The split.** READING is a model's job — turning a page into "who held
+what, under whom, over what span" is the half that cannot be enumerated.
+JUDGING is HL's and must never be a model's — a verdict has to be sound,
+reproducible and answerable for, which is what declared rules with named
+givers buy and a model's opinion cannot. Between them, THE MATERIAL CHECKS
+THE MODEL: a model's claim is never ground. So a reader never returns a
+verdict; it returns EDGES WITH PROVENANCE, and swapping the reader changes
+nothing about the judgment.
+
+**`void-hl.js`** (new, pure) is the bridge: `stageFromReadings` stands
+readings up as an HL stage with declarations, `admissionOf` asks HL and
+maps its answer onto the loop's admission vocabulary. The mapping is a set
+of decisions, each stated: BOUND → `holds`; CONTRADICTED → `refused`;
+CONTESTED → `null`, because FDE's "both" is an unsettled question and
+convicting on it is the accusation-with-no-evidence this repo's grounding
+ladder already forbids; UNBOUND and BEYOND_REACH → `null`.
+
+**What HL bought, on the case no rule could reach.** Calvin Coolidge is a
+real vice president whose own page states the relation, whose kind is a
+person, and who is not Roosevelt's — he passes every surface test that can
+be written. Under HL he is CONTRADICTED by one declared rule with a named
+giver (`functional(vicePresidentOf)`, giver: the office's own structure).
+`void-hl.test.mjs` pins the mechanism: with the declaration,
+`contradicted`; without it, on a byte-identical stage, `unbound`. **An
+undeclared rule convicts nobody.** Live, the FDR specimen ran thirteen
+candidates across two rungs with ZERO false admissions and two R2
+exclusions (Coolidge, James M. Cox).
+
+**R2'S PRECONDITION, found by testing and named because nothing named it.**
+An earlier draft of `void-hl.js` claimed a reader's blind spot always
+degrades to a gap. The real engine refuted it: with a functional
+declaration, a reading that says «FDR» where the slot says «Franklin D.
+Roosevelt» is not silence — R2 reads it as bound to a DIFFERENT object and
+REFUSES a true candidate. **A functional relation makes anchor identity
+load-bearing**, and with a string fold an alias convicts. The claim is
+corrected rather than dropped, pinned as a regression, and
+`stageFromReadings` reports `anchorIdentity` so a caller relying on the
+default fold can see that it is. The fix is injecting real referent
+identity (`cast.js::makeReferentIndex`), not more rules.
+
+**THE QUESTION'S OWN SINGULAR IS A FUNCTIONAL DECLARATION.** "Who WAS
+Lincoln's vice president?" is a definite description whose singular
+phrasing asserts `functional(hasVicePresident)`; read in that direction HL
+returns CONTESTED — presupposition failure. The honest answer is not one
+filler, it is *the question presumed one and the material has two*. Both
+directions are real and say different things: `vicePresidentOf(vp,
+president)` IS functional and excludes Coolidge; `hasVicePresident` is
+not, and asserting it is what the question does.
+
+**The reader is a real local model on CPU** — `onnx-community/
+Qwen2.5-0.5B-Instruct` at q4 via `@huggingface/transformers`, in-process,
+no server and no GPU (~27s load, ~6s per read). **The prompt is measured,
+not drafted**, four shapes scored against four real specimens: angle-
+bracket placeholders 0/4 (echoed the placeholder and answered `false` on a
+text that plainly stated the relation — `provenance.js`'s own documented
+leak); concrete worked examples 2/4; + a distinctness rule and a
+both-offices example 3/4; + **INS asked as INDIVIDUATION rather than
+kind** 4/4. That last is the one to keep: "is a War Democrat a person" is
+honestly YES — a faction is made of people — and the slot does not admit a
+KIND of person, it admits ONE NAMED INDIVIDUAL. The engine's own
+individuation vocabulary, asked as a question, did what a kind-matcher
+could not.
+
+**Two checks on the model, both the same law.** P31's company rule, aimed
+at a model instead of at prose: the model's span is accepted only where
+the source states it in the same breath as the relation. Measured —
+Hamlin's 1861-1865 KEPT, Johnson's 1865-1869 DROPPED (his presidency),
+Coolidge's 1923-1929 DROPPED. Dropping Johnson's span is what makes the
+good result reachable: he lands admitted-but-unplaced, exactly what the
+material supports. The relation gets the same treatment after the model
+claimed Herbert Hoover was Roosevelt's vice president against a page that
+never states the relation at all.
+
+**Two bugs the run found.** `Number(null)` is `0` and `Number.isFinite(0)`
+is `true`, so a null year became year zero — measured live as `span 0-0`,
+a span that would have been filled into the space and corrupted the
+coverage arithmetic, surviving only because the company check happened to
+drop it. And **evaluated-and-inconclusive is not unevaluated**: both landed
+on `wish`, so a candidate HL had already returned `unbound` for was
+indistinguishable from one never looked at, and since `descend` refuses
+while a wish is untested, one junk candidate nothing could settle pinned
+the ladder forever. Surfaced only by wiring HL, where `unbound` is the
+correct and common answer for a source that says nothing.
+
+**Result.** `Hannibal Hamlin (1861-1865); Andrew Johnson` — both fillers,
+exactly the right two, junk refused with reasons read off each candidate's
+own source, nothing invented, and `NOT COMMITTED — unplaced_filler`
+because the material never places Johnson.
+
+**Limits.** A year-grain extent cannot see a hole inside one year (SEG's
+own cell: "the extent to be covered, AND ITS UNITS"). The 0.5B reader is
+wrong in exactly one place — "Northern Democrats" read as one named
+individual on the Lincoln specimen (7/8 there, 13/13 on FDR) — contained
+by the architecture as an unplaced filler that blocks the close and shows
+in the answer, but a wrong filler nonetheless, and a READER limit rather
+than an architectural one; whether a larger reader closes it is measurable
+and was not measured. Garner is never offered at all, because the page
+names him "Garner" and the crude generator cannot connect that to "John
+Nance Garner" — the coreference gap P38's referent index exists for.
+
+**Files.** `void-hl.js` + `void-hl.test.mjs` (17 cases against the REAL
+engine HL). `void-loop.js` gained the `undetermined` standing, the
+unplaced guard, `unplaced_filler`, and the `covered_but_unplaced` /
+`extent_excludes` triggers; `void-loop.test.mjs` 36 → 43. Suite: this
+checkout had NO `node_modules` at all (the original 118 failures), and
+installing `@huggingface/transformers` for the reader let three test files
+load that previously could not — so the baseline moved honestly from
+805/687/118 to 912/793/119, where the delta is 60 new passing cases of
+this pass's own, three file-level failures replaced by four real
+environmental ones inside them (missing `sql.js`, missing WebLLM weight
+shards), and zero regressions. Failure names were diffed, not counted.
+
+### P53, amended again 2026-08-27 — a gap the loop can name is a question it can ask
+
+**The direction:** *"it should also research Johnson to understand it, it
+needs to be curious."*
+
+**The defect.** The loop was honest and INCURIOUS. It admitted Andrew
+Johnson, could not place him, reported `unplaced` and stopped — filing the
+gap rather than pursuing it. The gap it filed is specific: not "something
+is missing" but "I hold a filler and the source I read never says when."
+A gap that specific is a question, and a question is something to go and
+answer.
+
+**`whatWouldSettle(loop)`** (pure, fetches nothing) turns loop state into
+the questions that would settle it, each naming what changes if answered,
+ordered by what settles fastest: placing a filler already in hand comes
+before searching for a new one, because it is one targeted read against a
+source already identified and it can close a space outright where a search
+may find nothing. `openQuestions` is already taken by `fold.js` for a
+different question (which facets of a TURN went unanswered), so this gets
+its own name rather than overloading that one. Acting on the questions is
+the caller's, exactly as reading is: **the loop knows what it needs to
+know; it does not know how to find out.**
+
+**`placeFiller(loop, {filler, span, source})`** folds an answer back in. It
+revises an admitted filler's own reading — it proposes no new candidate and
+does not re-open the ladder, because nothing new was found. It REFUSES a
+span the extent cannot contain (`span_outside_extent`): **widening an
+extent is a deliberate act with its own REC on the record, never a side
+effect of answering a question.**
+
+**Measured live, and the reader failed while the wall held.** The answer is
+genuinely there — Johnson's Wikipedia SUMMARY carries no vice-presidential
+span and his FULL page does ("…what happened on March 4, 1865", and better,
+"sworn in alongside Hamlin, his predecessor as vice president", which states
+the succession that partitions the extent outright). The loop stopped at the
+summary because that is all it thought to ask for. Given a 1,400-character
+window of the full page, the 0.5B reader answered `1808-1860` — his birth
+year and an unrelated one, both genuinely present in the bytes shown, so
+the "a model's value must appear in what it was shown" check passed.
+`placeFiller` refused it on the extent. **A wrong read did not corrupt the
+space, did not silently widen the extent, and did not produce a confident
+answer.** That refusal is the property worth having, and it is worth more
+than the reader being right would have been, because it holds for readers
+that are wrong in ways nobody anticipated.
+
+**The remaining defect is window SELECTION, named rather than fixed:** the
+window is the relation's own sentences in DOCUMENT ORDER, and on a
+90,000-character biography its first 1,400 characters are early life and
+other people's vice presidencies. Ranking by sentences naming both the
+candidate and the anchor is the obvious next move and was not measured.
+
+**One more bug, caught by writing the test.** `fill` is append-only by
+design — "a filler is never overwritten by a later one that happens to
+share its name", because two witnesses covering different extents is the
+Lincoln case itself — so placing a filler on top of its own spanless entry
+left BOTH, and `voidsOf` would have gone on reporting it unplaced forever.
+`placeFiller` rebuilds the space instead, the same rebuild `reshape`
+already does.
+
+**Files.** `void-loop.js` gained `whatWouldSettle` and `placeFiller`;
+`void-loop.test.mjs` 43 → 50. The driver gained `deeperRead` (full page,
+not summary; the window declared and the reader's years checked against
+exactly it) and `beCurious`, which lands a placement as a RESULT on the act
+that admitted it — never a silent state change. Suite 912/793/119 →
+919/800/119, identical failure set, zero regressions.
+
+## P54 — Working with something that answers back is a capacity the instrument holds, not a score it receives
+
+*(Renumbered from P45 on merge — concurrent PRs landed P45 through P53 first. The number moved; nothing about the policy did. Same convention P42 and P29 already record for their own merges.)*
 
 **The law.** Where this instrument acts on something that RESPONDS — a
 sandboxed runtime, its own act grammar, a shell, a database, a web organ,

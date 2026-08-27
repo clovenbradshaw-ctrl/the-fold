@@ -12,12 +12,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as operators from "../eoreader6.1/packages/engine/operators.js";
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { splitSentences } from "../eoreader6.1/packages/engine/perceiver/text/spans.js";
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader6.1/packages/engine/perceiver/text/surfaces.js";
-import { discoverRelationVocab, extractRelations } from "../eoreader6.1/packages/engine/perceiver/text/relations.js";
-import { tokenize as engineTokenize } from "../eoreader6.1/packages/engine/perceiver/text/material.js";
+import * as operators from "../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { splitSentences } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js";
+import { discoverRelationVocab, extractRelations } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js";
+import { tokenize as engineTokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, SELF_WITNESS } from "./capacity-runner.js";
@@ -115,6 +115,26 @@ test("tokenize: splits words from declared punctuation, keeps apostrophes and hy
   assert.deepEqual(tokenize("Bezukhov's well-known claim, 17th."), ["Bezukhov's", "well-known", "claim", ",", "17th", "."]);
   assert.deepEqual(tokenize(""), []);
   assert.deepEqual(tokenize(null), []);
+});
+
+test("tokenize: a period inside a witness/source name stays glued into ONE token — the disclosed TOKEN_RE gap named in this file's own header, closed 2026-08-20", () => {
+  // The exact real specimen that hit this: eval/material-dialogue-stress.mjs
+  // drove renderCrown against a source literally named "titanic-a.txt" (an
+  // ordinary filename, not a contrived one) and got "According to
+  // titanic-a. txt, ..." — see TOKEN_RE's own header for the full account.
+  // Reproduced here with both that name and this file's own "lincoln.txt"
+  // (already a real ground name throughout capacity-runner.test.mjs).
+  assert.deepEqual(tokenize("titanic-a.txt"), ["titanic-a.txt"]);
+  assert.deepEqual(tokenize("lincoln.txt"), ["lincoln.txt"]);
+});
+
+test("tokenize: a real sentence-final period is never swallowed into the word before it — not even when that word is a period-bearing witness name sitting directly against it with no space, the adjacency this fix was specifically checked against", () => {
+  assert.deepEqual(tokenize("Lincoln appointed Hamlin."), ["Lincoln", "appointed", "Hamlin", "."]);
+  // DISAGREE's own witness-list-then-period shape (no comma) when a side
+  // has exactly one witness: the witness's OWN internal period sits
+  // directly before the connective's period, nothing between them — see
+  // the real DISAGREE render below.
+  assert.deepEqual(tokenize("lincoln.txt."), ["lincoln.txt", "."]);
 });
 
 test("KNOWN_CONNECTIVES: the vocabulary is closed and frozen — cannot be silently extended at runtime", () => {
@@ -280,9 +300,35 @@ test("renderCrown: SINGLE — real one-source claim discloses single-witness sta
   assert.equal(merged.case, "SINGLE");
   const crown = renderCrown(merged);
   assert.ok(crown.text.includes("lincoln"), "SINGLE must name its lone witness inline");
-  assert.ok(crown.text.includes("independent corroboration"), "SINGLE must disclose the uncorroborated standing in the sentence itself");
+  // The standing tag is retired from the sentence (2026-08-20, chat-voice
+  // pass): "According to <witness>," IS the single-standing disclosure in
+  // plain English, and the exact standing rides on apparatus below.
+  assert.ok(crown.text.startsWith("According to"), "SINGLE's witness-naming prefix is what carries the uncorroborated standing now");
+  assert.ok(!crown.text.includes("independent corroboration"), "the retired standing tag must not resurface in the sentence");
+  assert.equal(crown.apparatus.standing, "single", "the exact standing rides on apparatus, not on an inline tag");
   assert.equal(crown.verified, true);
   assert.notEqual(crown.text, "Lincoln appointed Hamlin.", "a one-witness claim is a different epistemic object than a corroborated one — the surface must carry the difference");
+});
+
+test("renderCrown: SINGLE — a witness/source name containing a period (an ordinary filename shape, e.g. \"lincoln.txt\") renders as ONE clean token, never fragmenting into a stray mid-name space", async () => {
+  // The exact bug this pins: before TOKEN_RE's 2026-08-20 fix,
+  // witnessWords("lincoln.txt") split into three tokens ("lincoln", ".",
+  // "txt") and renderCrown rendered "According to lincoln. txt, ..." —
+  // found live via eval/material-dialogue-stress.mjs against a real source
+  // literally named "titanic-a.txt" (see TOKEN_RE's own header). "lincoln.
+  // txt" is used here rather than a fresh fixture because it is already a
+  // real, proven ground name throughout capacity-runner.test.mjs — this is
+  // that exact name pushed through crown.js's own render for the first
+  // time.
+  const readings = await realReadings({ "lincoln.txt": LINCOLN_TEXT }, CLAIM, CLAIM_LINE);
+  const merged = mergeTestimony(readings);
+  assert.equal(merged.case, "SINGLE");
+  const crown = renderCrown(merged);
+  assert.equal(crown.text, "According to lincoln.txt, Lincoln appointed Hamlin.");
+  assert.ok(!crown.text.includes("lincoln. txt"), "the witness name must never fragment with a stray mid-name space");
+  assert.equal(crown.verified, true);
+  const recheck = checkTraceCoverage(crown, { ...CLAIM, witnesses: ["lincoln.txt"] });
+  assert.equal(recheck.ok, true, JSON.stringify(recheck.violations));
 });
 
 // ── renderCrown: DISAGREE — the load-bearing case ───────────────────────────
@@ -294,7 +340,7 @@ test("renderCrown: DISAGREE — real opposed-polarity pair across two sources ne
   assert.equal(merged.case, "DISAGREE");
   const crown = renderCrown(merged);
   assert.ok(crown.text.includes("lincoln") && crown.text.includes("lincolnNeg"), crown.text);
-  assert.ok(crown.text.includes("Holding") && crown.text.includes("Refusing"), "DISAGREE must always show both sides, never one alone");
+  assert.ok(crown.text.includes("Backing it") && crown.text.includes("Denying it"), "DISAGREE must always show both sides, never one alone");
   assert.notEqual(crown.text, "Lincoln appointed Hamlin.", "DISAGREE must never collapse to the bare AGREE-shaped assertion");
   assert.notEqual(crown.text, "it is not the case that Lincoln appointed Hamlin.", "DISAGREE must never collapse to the bare CONTRADICTED-shaped assertion either");
   assert.equal(crown.apparatus.standing, null, "DISAGREE structurally has no standing to report — mergeTestimony's own null, passed through unchanged");
@@ -336,10 +382,31 @@ test("renderCrown: DISAGREE — structurally never emits a single-polarity claim
   ];
   for (const merged of cases) {
     const crown = renderCrown(merged);
-    assert.ok(crown.text.includes("Holding"), crown.text);
-    assert.ok(crown.text.includes("Refusing"), crown.text);
+    assert.ok(crown.text.includes("Backing it"), crown.text);
+    assert.ok(crown.text.includes("Denying it"), crown.text);
     assert.ok(!/^(Lincoln|It is not the case)/.test(crown.text), "must never open as a bare one-sided assertion");
   }
+});
+
+test("renderCrown: DISAGREE — a period-bearing witness name sitting DIRECTLY before the connective period, no comma between them, never swallows the sentence-final period into the name", async () => {
+  // The exact adjacency TOKEN_RE's own header names as the reason a bare
+  // widening (matching colon's own fix exactly) would have been unsafe:
+  // DISAGREE's "Backing it: <witness>." / "Denying it: <witness>." shape
+  // glues the connective period flush against the LAST witness with no
+  // comma when a side has exactly one witness — here that witness's own
+  // name already ends mid-word in a period ("lincoln.txt"), so two periods
+  // sit back to back with nothing between them. Independently re-checked
+  // with checkTraceCoverage below, not just eyeballed off crown.text: this
+  // is the exact bijection this fix was built to keep correct.
+  const readings = await realReadings({ "lincoln.txt": LINCOLN_TEXT, "lincolnNeg.txt": LINCOLN_TEXT_NEGATED }, CLAIM, CLAIM_LINE);
+  assert.deepEqual(readings.map((r) => r.verdict).sort(), ["holds", "refused"]); // confirm the real pair before rendering
+  const merged = mergeTestimony(readings);
+  assert.equal(merged.case, "DISAGREE");
+  const crown = renderCrown(merged);
+  assert.equal(crown.text, "Sources disagree on whether Lincoln appointed Hamlin. Backing it: lincoln.txt. Denying it: lincolnNeg.txt.");
+  assert.equal(crown.verified, true);
+  const recheck = checkTraceCoverage(crown, { ...CLAIM, witnesses: ["lincoln.txt", "lincolnNeg.txt"] });
+  assert.equal(recheck.ok, true, JSON.stringify(recheck.violations));
 });
 
 // ── renderCrown: CONTRADICTED — the disclosed fifth case ───────────────────
@@ -352,7 +419,10 @@ test("renderCrown: CONTRADICTED (single) — real lone refutation renders a disc
   const crown = renderCrown(merged);
   assert.ok(crown.text.includes("lincolnNeg"), "single-standing CONTRADICTED must name its lone witness, exactly like SINGLE does");
   assert.ok(crown.text.includes("not the case"));
-  assert.ok(crown.text.includes("independent corroboration"));
+  // Mirrors SINGLE's own retired-tag shape (see that test's note): the
+  // witness-naming prefix carries the standing, apparatus carries the word.
+  assert.ok(!crown.text.includes("independent corroboration"), "the retired standing tag must not resurface here either");
+  assert.equal(crown.apparatus.standing, "single");
   assert.equal(crown.verified, true);
 });
 
@@ -373,7 +443,7 @@ test("renderCrown: CONTRADICTED carries real computed information forward — it
   const readings = await realReadings({ lincolnNeg: LINCOLN_TEXT_NEGATED }, CLAIM, CLAIM_LINE);
   const merged = mergeTestimony(readings);
   const crown = renderCrown(merged);
-  assert.notEqual(crown.text, "Nothing here determines this yet.");
+  assert.notEqual(crown.text, "The material doesn't settle this.");
   // CONTRADICTED still names the actual claim words — UNDETERMINED never does.
   assert.ok(crown.text.includes("Lincoln") && crown.text.includes("Hamlin"));
 });
@@ -388,14 +458,14 @@ test("renderCrown: UNDETERMINED — real claim the material never settles render
   const merged = mergeTestimony(readings);
   assert.equal(merged.case, "UNDETERMINED");
   const crown = renderCrown(merged);
-  assert.equal(crown.text, "Nothing here determines this yet.");
+  assert.equal(crown.text, "The material doesn't settle this.");
   assert.equal(crown.verified, true);
   assert.ok(!crown.text.includes("Lincoln") && !crown.text.includes("Nobody"), "UNDETERMINED must not surface any claim word — nothing was determined to assert");
 });
 
 test("renderCrown: an empty testimony set (mergeTestimony([])) also renders the same typed UNDETERMINED refusal, never a throw", () => {
   const crown = renderCrown(mergeTestimony([]));
-  assert.equal(crown.text, "Nothing here determines this yet.");
+  assert.equal(crown.text, "The material doesn't settle this.");
   assert.equal(crown.verified, true);
 });
 
@@ -412,7 +482,7 @@ test("renderCrown: a malformed merge object claiming AGREE/SINGLE/CONTRADICTED/D
     { case: "DISAGREE", standing: null, holds: [edgeless("a", "holds")], refused: [edgeless("b", "refused")], undetermined: [] },
   ]) {
     const crown = renderCrown(merged);
-    assert.equal(crown.text, "Nothing here determines this yet.", `case ${merged.case} did not degrade safely`);
+    assert.equal(crown.text, "The material doesn't settle this.", `case ${merged.case} did not degrade safely`);
     assert.equal(crown.verified, true);
     // The apparatus still honestly reports which case mergeTestimony
     // claimed, even though the sentence itself fell back — the fallback is
@@ -480,6 +550,6 @@ test("renderCrown: DISAGREE between a self:model assertion and a real source's r
   // The reader can tell which is which because the label itself says so —
   // no special-casing anywhere in crown.js renders self:model any
   // differently from a filename; this is the whole mitigation.
-  assert.ok(crown.text.includes(`Holding: ${SELF_WITNESS}`), crown.text);
-  assert.ok(crown.text.includes("Refusing: lincolnNeg"), crown.text);
+  assert.ok(crown.text.includes(`Backing it: ${SELF_WITNESS}`), crown.text);
+  assert.ok(crown.text.includes("Denying it: lincolnNeg"), crown.text);
 });

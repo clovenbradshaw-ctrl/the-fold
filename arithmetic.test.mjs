@@ -24,11 +24,17 @@ test("normalizeArithmeticPhrase: English operator words become symbols, longest 
   assert.equal(normalizeArithmeticPhrase("20 percent of 50"), "((50)*(20)/100)");
 });
 
-test("normalizeArithmeticPhrase: order-reversing phrasing bails rather than guesses", () => {
-  // "5 subtracted from 12" means 12 - 5, not 5 - 12 — a wrong mechanical
-  // answer is worse than none, so this phrasing is refused outright.
-  assert.equal(normalizeArithmeticPhrase("5 subtracted from 12"), null);
-  assert.equal(normalizeArithmeticPhrase("3 less than 10"), null);
+test("normalizeArithmeticPhrase: order-reversing phrasing reads with the operands in the order the phrase means", () => {
+  // "5 subtracted from 12" means 12 - 5, not 5 - 12 — each of these three
+  // has exactly one standard reading (arithmetic.js's own header explains
+  // why "divided into", just below, is treated differently).
+  assert.equal(normalizeArithmeticPhrase("5 subtracted from 12"), "((12)-(5))");
+  assert.equal(normalizeArithmeticPhrase("3 less than 10"), "((10)-(3))");
+  assert.equal(normalizeArithmeticPhrase("3 fewer than 10"), "((10)-(3))");
+});
+
+test("normalizeArithmeticPhrase: \"divided into\" still bails — real usage splits on which side is the divisor", () => {
+  assert.equal(normalizeArithmeticPhrase("5 divided into 20"), null);
 });
 
 test("normalizeArithmeticPhrase: thousands separators are stripped only digit-to-digit", () => {
@@ -52,8 +58,24 @@ test("detectArithmetic: a real question with a free symbol never reaches evaluat
   assert.equal(detectArithmetic("What's the capital of Japan?", { math }), null);
 });
 
-test("detectArithmetic: order-reversing phrasing never reaches evaluation, even with digits present", () => {
-  assert.equal(detectArithmetic("What is 5 subtracted from 12?", { math }), null);
+test("detectArithmetic: order-reversing phrasing is found and reads with the operands reversed", () => {
+  const found = detectArithmetic("What is 5 subtracted from 12?", { math });
+  assert.ok(found);
+  assert.equal(found.expression, "((12)-(5))");
+});
+
+test("detectArithmetic: \"divided into\" still never reaches evaluation, even with digits present", () => {
+  assert.equal(detectArithmetic("What is 5 divided into 20?", { math }), null);
+});
+
+test("detectArithmetic: a genuine yes/no comparison is never read as the arithmetic reversal", () => {
+  // "Is 3 less than 10?" asks a question, not for 10 − 3 — safe not
+  // because "less than" is excluded (it isn't, above) but because "Is"
+  // sits outside WRAPPER_RE's stripped set: it survives normalization as
+  // a stray word and fails PURE_EXPRESSION_RE regardless of what the
+  // reversal computes underneath it.
+  assert.equal(detectArithmetic("Is 3 less than 10?", { math }), null);
+  assert.equal(detectArithmetic("Is 5 subtracted from 12 correct?", { math }), null);
 });
 
 test("checkArithmetic: the live measured failure — 17 times 24 is 408, not 372", () => {
@@ -74,6 +96,13 @@ test("checkArithmetic: percentage, square root, exponent — each against mathjs
   assert.equal(checkArithmetic("20 percent of 50", { math }).value, 10);
   assert.equal(checkArithmetic("square root of 144", { math }).value, 12);
   assert.equal(checkArithmetic("12 squared", { math }).value, 144);
+});
+
+test("checkArithmetic: order-reversing phrasing computes against mathjs's own answer, operands in the order the phrase means", () => {
+  assert.equal(checkArithmetic("5 subtracted from 12", { math }).value, 7);
+  assert.equal(checkArithmetic("3 less than 10", { math }).value, 7);
+  assert.equal(checkArithmetic("3 fewer than 10", { math }).value, 7);
+  assert.equal(checkArithmetic("5 divided into 20", { math }), null);
 });
 
 test("checkArithmetic: a non-arithmetic question returns null, not a false zero", () => {

@@ -136,14 +136,52 @@ function isNumeral(t) {
  * the book. The offset is carried forward, because a strip that forgot to
  * move it would silently shift every address in the reader (P5.2).
  */
+const GUTENBERG_START_RE = /\*\*\*\s*START OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i;
+
 export function stripContainer(text) {
   const s = String(text ?? "");
-  const start = s.match(/\*\*\*\s*START OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i);
+  const start = s.match(GUTENBERG_START_RE);
   const offset = start ? start.index + start[0].length : 0;
   let body = s.slice(offset);
   const end = body.match(/\*\*\*\s*END OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i);
   if (end) body = body.slice(0, end.index);
   return { text: body, offset };
+}
+
+/**
+ * What the container itself says it is — never a guess, never fetched.
+ * Gutenberg's own front matter states its Title/Author before the same
+ * START marker stripContainer already finds (one regex, not two: the
+ * boundary between "header" and "body" is the same question both
+ * functions ask). Provenance is the file's own bytes: `ref` addresses
+ * exactly the header span this was read from, and `giver` says plainly
+ * that this is the SOURCE's declaration, not this instrument's. Scoped to
+ * Gutenberg's own convention on purpose — a real, disclosed absence for
+ * every other container shape, not a guess dressed as one (identifyMaterial's
+ * own `guess: null` discipline, applied to bibliographic identity instead
+ * of structural kind).
+ *
+ * Built 2026-08-26, live-diagnosed cause: S1 named the wrong book and
+ * author for Pierre Bezukhov (Dostoevsky's The Brothers Karamazov —
+ * this corpus is Tolstoy's War and Peace), and a correction pass that
+ * still failed shipped uncorrected because nothing had ever told the
+ * model what book this actually is. The fix is not a better check after
+ * the fact; it is not making the model guess in the first place.
+ */
+export function declaredIdentity(name, text) {
+  const s = String(text ?? "");
+  const start = s.match(GUTENBERG_START_RE);
+  if (!start) return null;
+  const header = s.slice(0, start.index);
+  const title = header.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || null;
+  const author = header.match(/^Author:\s*(.+)$/m)?.[1]?.trim() || null;
+  if (!title && !author) return null;
+  return {
+    title,
+    author,
+    giver: "the source file's own declared header",
+    ref: `${name}#0-${start.index}`,
+  };
 }
 
 /**
@@ -313,7 +351,8 @@ export function identifyMaterial(name, text, { bytes } = {}) {
   };
   if (CODE_EXT[ext]) return { kind: `code:${ext}`, guess: `${CODE_EXT[ext]} source code`, certainty: "extension" };
   if (ext === "md" || ext === "markdown") return { kind: "markdown", guess: "a Markdown document", certainty: "extension" };
-  return { kind: "prose", guess: null, certainty: "default" };
+  const declared = declaredIdentity(name, s);
+  return declared ? { kind: "prose", guess: null, certainty: "default", declared } : { kind: "prose", guess: null, certainty: "default" };
 }
 
 function isParseableJson(s) {
@@ -665,7 +704,14 @@ export function buildSourceBlock(chunks) {
   ];
   for (const c of chunks) {
     const body = c.header ? `columns: ${c.header}\n${c.text}` : c.text;
-    parts.push(c.identity?.guess ? `(this looks like: ${c.identity.guess})\n${body}` : body);
+    const lines = [];
+    const d = c.identity?.declared;
+    if (d) {
+      const fields = [d.title && `Title: ${d.title}`, d.author && `Author: ${d.author}`].filter(Boolean).join(", ");
+      lines.push(`(${d.giver} — ${fields} — ${d.ref})`);
+    }
+    if (c.identity?.guess) lines.push(`(this looks like: ${c.identity.guess})`);
+    parts.push(lines.length ? `${lines.join("\n")}\n${body}` : body);
   }
   return parts.join("\n\n");
 }

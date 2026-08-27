@@ -33,12 +33,12 @@ import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync,
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { foldExtract } from "../eoreader6.1/packages/host/index.js";
+import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file
 // owns only the crossings
-import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, papersOf } from "./priors-toggles.js";
+import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, papersOf, withinPriorScope } from "./priors-toggles.js";
 import { gradeLicense, admissibleFiles, pickSeedFile, seedProvenance, INGEST_MAX_BYTES } from "./seed.js";
 import {
   extractReadable,
@@ -104,16 +104,16 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
-const ENGINE = path.resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
+const ENGINE = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
 // serve.mjs's nul mount, carried here for the same reason as /engine:
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
-const NUL = path.resolve(ROOT, "..", "eoreader6.1", "nul");
+const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // serve.mjs's priors-data mount, carried here for the same reason as
 // /engine and /nul: real, giver-cited data (POSPrior@1) read live off
 // eoreader6.1's own gitignored, locally-reproducible build directory —
 // never a stale copy vendored into this repo.
-const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader6.1", "scripts", "corpus");
+const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -1442,6 +1442,11 @@ const server = http.createServer(async (req, res) => {
         sentence: String(c.sentence ?? ""),
       };
       if (!claim.tokens.length) return send(res, 400, { error: "claim needs tokens or text — the check judges the claim's own words, never a paraphrase" });
+      // An explicit, request-scoped slice — "check against exactly this
+      // (geography, period) universe" — never persisted, never a substitute
+      // for the toggle ledger below (withinPriorScope's own header has the
+      // full reasoning). Absent or blank scope changes nothing.
+      const scope = typeof body.scope === "string" && body.scope.trim() ? body.scope.trim() : null;
       const listing = listPriorDocuments();
       if (!listing) {
         record("priors-check", { claim: claim.text || claim.tokens.join(" "), consulted: 0, stating: 0, gap: "not-present" });
@@ -1458,7 +1463,7 @@ const server = http.createServer(async (req, res) => {
       // toggle now changes what the surf actually consults, not just what
       // the tab offers to attach.
       const { byPath } = readPriorToggles();
-      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on && withinPriorScope(e.path, scope));
       const ranked = rankPriorCandidates(claim, gated);
       const documents = [];
       for (const cand of ranked.slice(0, PRIORS_DOCS_CONSULTED)) {
@@ -1478,14 +1483,15 @@ const server = http.createServer(async (req, res) => {
         documents.push(checkPrior(claim, readPriorDocument(cand.path, raw)));
       }
       const folded = foldPriors(claim, { candidates: ranked.length, documents });
-      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating, corpusEnabled: gated.length, corpusTotal: listing.entries.length, ...(scope ? { scope } : {}) });
       return send(res, 200, {
         ...folded,
         // Stated plainly rather than left implicit: how many of the corpus's
         // documents were even eligible to be a candidate this time, per the
-        // toggle ledger — the number a reader needs to tell "the shelf said
-        // nothing" apart from "the shelf was switched off".
-        gate: { enabled: gated.length, total: listing.entries.length },
+        // toggle ledger (and the scope, when one was asked for) — the number
+        // a reader needs to tell "the shelf said nothing" apart from "the
+        // shelf was switched off" apart from "that universe has nothing".
+        gate: { enabled: gated.length, total: listing.entries.length, ...(scope ? { scope } : {}) },
         ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
       });
     }
@@ -1504,8 +1510,15 @@ const server = http.createServer(async (req, res) => {
         record("priors-surfaces", { surfaces: surfaces.length, consulted: 0, matches: 0, gap: "not-present" });
         return send(res, 200, { matches: [], gate: { enabled: 0, total: 0 }, gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` } });
       }
+      // Same request-scoped slice /api/priors/check takes — named here
+      // because DOCS_MAX otherwise means a universe sorting late in the
+      // corpus's own alphabetical walk (a single new category behind 15
+      // established ones) can lose the race for one of the 60 consulted
+      // slots to sheer document COUNT elsewhere, never reached regardless
+      // of how well it'd answer the surface asked for.
+      const scope = typeof body.scope === "string" && body.scope.trim() ? body.scope.trim() : null;
       const { byPath } = readPriorToggles();
-      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on && withinPriorScope(e.path, scope));
       const surfaceLower = surfaces.map((s) => ({ original: s, folded: s.toLowerCase() }));
       const matches = new Map();
       let consulted = 0;
@@ -1536,10 +1549,10 @@ const server = http.createServer(async (req, res) => {
         }
       }
       const result = [...matches.entries()].map(([surface, passages]) => ({ surface, passages: passages.slice(0, 5) }));
-      record("priors-surfaces", { surfaces: surfaces.length, consulted, matches: result.length, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      record("priors-surfaces", { surfaces: surfaces.length, consulted, matches: result.length, corpusEnabled: gated.length, corpusTotal: listing.entries.length, ...(scope ? { scope } : {}) });
       return send(res, 200, {
         matches: result,
-        gate: { enabled: gated.length, total: listing.entries.length },
+        gate: { enabled: gated.length, total: listing.entries.length, ...(scope ? { scope } : {}) },
         ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
       });
     }

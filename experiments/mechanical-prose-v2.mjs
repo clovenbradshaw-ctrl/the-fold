@@ -40,14 +40,14 @@ import { readFileSync } from "node:fs";
 import { makeRelationReader } from "../hypergraph.js";
 
 const organs = async () => {
-  const { splitSentences } = await import("../../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../../eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
-  const { tokenize } = await import("../../eoreader6.1/packages/engine/perceiver/text/material.js");
+  const { tokenize } = await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js");
   return {
     splitSentences,
     extractSurfaces,
@@ -61,9 +61,9 @@ const organs = async () => {
 };
 
 const { classifyWord, dominantClass } = await import(
-  "../../eoreader6.1/packages/engine/perceiver/text/wordclass.js"
+  "../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js"
 );
-const POS_PRIOR = JSON.parse(readFileSync(new URL("../../eoreader6.1/scripts/corpus/pos-prior-eng.json", import.meta.url), "utf8"));
+const POS_PRIOR = JSON.parse(readFileSync(new URL("../../eoreader7/legacy-eoreader6.1/scripts/corpus/pos-prior-eng.json", import.meta.url), "utf8"));
 const WORDCLASS_MIN_SHARE = 0.5; // hyperlexicon.js's own declared floor, reused verbatim — not a new number.
 
 // ── material: same source, wider slice so the passage count clears

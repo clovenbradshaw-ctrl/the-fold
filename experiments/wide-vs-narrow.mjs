@@ -57,8 +57,8 @@ import vm from "node:vm";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import * as operators from "../../eoreader6.1/packages/engine/operators.js";
-import * as taskLog from "../../eoreader6.1/packages/engine/holon/task-log.js";
+import * as operators from "../../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
+import * as taskLog from "../../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { witnessCode } from "../witness.js";
 
 // ── CLI ──────────────────────────────────────────────────────────────────

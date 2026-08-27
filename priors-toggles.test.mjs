@@ -13,6 +13,7 @@ import {
   declarationsFrom,
   papersOf,
   provenanceLine,
+  withinPriorScope,
 } from "./priors-toggles.js";
 
 test("the ledger folds last-write-wins per path, counting bad lines", () => {
@@ -92,6 +93,20 @@ test("a document without a header has no papers, and that is a result", () => {
   assert.equal(provenance, null);
   assert.equal(line, null);
   assert.equal(bodyStart, 0);
+});
+
+test("no scope admits everything", () => {
+  assert.equal(withinPriorScope("01-literature-books/gutenberg/moby.md", null), true);
+  assert.equal(withinPriorScope("01-literature-books/gutenberg/moby.md", ""), true);
+});
+
+test("a scope admits its own path and everything inside it, nothing beside it", () => {
+  const scope = "16-wordplay/nyt-crosswords/us-en/1960s";
+  assert.equal(withinPriorScope(scope, scope), true);
+  assert.equal(withinPriorScope(`${scope}/clue-42.md`, scope), true);
+  assert.equal(withinPriorScope("16-wordplay/nyt-crosswords/us-en/1970s/clue-1.md", scope), false);
+  // a sibling folder sharing the scope as a PREFIX of its own name is not inside it
+  assert.equal(withinPriorScope("16-wordplay/nyt-crosswords/us-en/1960s-extra/clue-1.md", scope), false);
 });
 
 test("the papers line is the canonical fields in declared order, or null", () => {

@@ -430,6 +430,15 @@ export function normalizeSelfLevel(word) {
 // the existing `folds` table builder's own comment already discloses is
 // bounded: "the first row is not always turn 1"). Turn N's recap is simply
 // `turnFolds[N-1]`; nothing new needs to be recorded to answer this.
+//
+// Amended (wiring-the-measured-memory-v2, increment A): `summary.folds` is
+// now unbounded too — the STORE never truncates; only the folds table's own
+// projected VIEW does (fold.js::projectFolds). `state.turnFolds` is
+// therefore a disclosed-redundant parallel store as of this pass, not a
+// fixed defect — collapsing it onto `summary.folds` is real, unattempted
+// follow-up work, out of this pass's own scope (it touches every reader of
+// `turnFolds`, not this ordinal-recall feature alone), left named rather
+// than half-done.
 
 /** First..twentieth, the closed class this covers by an explicit table —
  * realistic conversation lengths stay well inside it. Past twentieth, or

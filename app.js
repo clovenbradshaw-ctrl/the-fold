@@ -35,7 +35,10 @@ import {
   buildWarrantRecord,
   charCount,
   emptySummary,
+  extractSummaryFindings,
   mechanicalFoldLine,
+  projectFolds,
+  projectRecords,
   updateSummaryWithFold,
 } from "./fold.js";
 
@@ -183,6 +186,14 @@ import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { verificationTasksFor, verificationSummary } from "./verification.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
+// Zeroing the space (void-shape.js / void-brief.js): what shape does this
+// question's answer have to fill, and what part of it is still empty. Both
+// take their organs injected — the cube's algebra and web-claim.js's slot
+// reader — so neither carries a second copy of either.
+import { briefFor } from "./void-brief.js";
+import { declaredSlotShape } from "./web-claim.js";
+import { undeclaredOf, voidLine } from "./void-shape.js";
+import { cellOf } from "/engine-v7/kernel/cube.js";
 
 // The engine's surprise ladder — the measured answer to "what is most
 // surprising", and the only licensed one. Same mount, plus /nul for the
@@ -566,6 +577,11 @@ const state = {
    * where url is a revoke-able Object URL.
    */
   media: {},
+
+  /** Which view the Reading pane shows: "files" | "held" | "priors". */
+  exploreView: "files",
+  /** Last GET /api/priors response, or null before the first fetch resolves
+   *  — the GIVEN count stays a typed gap ("—"), never a false 0, until then. */
 };
 
 // ── conversations ────────────────────────────────────────────────────────────
@@ -983,6 +999,25 @@ function observeExchange(turn, question, answer) {
   return arrivals;
 }
 
+/**
+ * "— computed, not generated" (arithmetic.js, grid.js's evaluate outcome,
+ * tables.js/reflex.js's own self-doors) is a house mark meaning "code
+ * produced this fact, not a language model" — it must certify something
+ * true or it certifies nothing. Measured live: state.history is replayed
+ * to the model verbatim as its own past turns (P23's "REAL role-structured
+ * history"), so a caption left in it is not a record, it is a STYLE the
+ * model can copy — a later question the arithmetic door correctly refused
+ * (order-reversing phrasing) fell through to the model, which drafted its
+ * own ungrounded "…is 7 — computed, not generated", borrowing the phrase
+ * verbatim from an earlier turn's own history entry. The caption stays
+ * everywhere a human reads it (the rendered turn, the fold-line, the
+ * record); only the copy replayed to the model is stripped.
+ */
+const COMPUTED_CAPTION_RE = / — computed, not generated/g;
+function stripComputedCaption(text) {
+  return text.replace(COMPUTED_CAPTION_RE, "");
+}
+
 /** A command that arrived without its argument gets its usage line back — a
  * turn with no model in it, folded like any other so the exchange is on the
  * conversation's own record. */
@@ -991,7 +1026,7 @@ function usageTurn(question, usage) {
   const node = addMessage("assistant", usage);
   state.history.push(
     { role: "user", content: question },
-    { role: "assistant", content: usage },
+    { role: "assistant", content: stripComputedCaption(usage) },
   );
   const turn = state.summary.turnCount + 1;
   logAct("answered-from-state", { what: "usage" });
@@ -1770,9 +1805,13 @@ async function chartTurn(question) {
  * in index.html) already did the work, and `found.tex` — that SAME
  * engine's own LaTeX rendering of the expression — is typeset with KaTeX
  * (also vendored) rather than shown as a bare expression string. The plain
- * `answer` string carried into history/fold/record stays untyped text
- * regardless — what the model would read back on a later turn is never
- * markup, only KaTeX's on-screen presentation of it is.
+ * `answer` string carried into the fold and the record stays untyped text
+ * regardless — never markup, only KaTeX's on-screen presentation of it is.
+ * `state.history` carries `stripComputedCaption(answer)` instead of
+ * `answer` itself: the "computed, not generated" mark is a certification
+ * this specific engine earned, and a model must never be able to read its
+ * own past turn back and learn to forge that certification onto something
+ * it merely generated (see `stripComputedCaption`'s own header).
  */
 async function arithmeticTurn(question, found) {
   addMessage("user", question);
@@ -1807,7 +1846,7 @@ async function arithmeticTurn(question, found) {
 
   state.history.push(
     { role: "user", content: question },
-    { role: "assistant", content: answer },
+    { role: "assistant", content: stripComputedCaption(answer) },
   );
   const turn = state.summary.turnCount + 1;
   logAct("answered-from-state", {
@@ -2966,7 +3005,27 @@ async function refreshSummary(fold, arrivals = null) {
       ],
       { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }) },
     );
-    state.summary = updateSummaryWithFold(state.summary, fold, raw);
+    // WITNESSED (spec: wiring-the-measured-memory-v2, F1). The refresh is a
+    // consolidation step chained on its own prior output — this project's
+    // own NELL lesson, applied to the gist: check the LEAVES (the live
+    // records/folds this refresh could actually see), never fold-to-prior-
+    // fold, so drift that looks clean turn over turn cannot hide behind an
+    // ever-updating baseline. A refresh that drops a still-cited name or
+    // invents an unbacked one is refused; the prior summary is CARRIED
+    // (advanceSummaryFold) instead, and the refusal lands on the ledger —
+    // a decision the instrument made is never silent.
+    const prevSummary = state.summary;
+    const next = updateSummaryWithFold(prevSummary, fold, raw);
+    const consolidationCheck = extractSummaryFindings(prevSummary.entities, next.entities, {
+      records: projectRecords(prevSummary),
+      folds: projectFolds(prevSummary),
+    });
+    if (witnessRegressed({ ok: true, findings: [] }, consolidationCheck)) {
+      logAct("consolidation_regressed", { findings: consolidationCheck.findings });
+      state.summary = advanceSummaryFold(prevSummary, fold);
+    } else {
+      state.summary = next;
+    }
   } catch {
     state.summary = updateSummaryWithFold(state.summary, fold);
   }
@@ -3018,9 +3077,77 @@ const NAMED_URL_MAX = 3;
 // TOGGLES alone (checking+web+no material) regardless of what the
 // question even asks, which would make S2 run on every turn whenever
 // those are on and defeat the entire point of a selective gate.
+//
+// THE DODGE, found live 2026-08-26 and the reason for the third clause
+// below. The gate above reads S1's REPLY and infers the QUESTION's nature
+// from it — and that inference inverts the moment S1 answers a factual
+// question socially. Real transcript, verbatim: "who was lincoln's vp?" →
+// "Shhh... I was just about to ask the same thing! 😄". Zero checkable
+// atoms in that reply, so the gate read "small talk", skipped S2, and the
+// turn ended with no search, no material, and no checking of a question
+// that is entirely checkable. A model declining to answer is the case that
+// most needs the real pass, and it was the one case guaranteed to skip it.
+//
+// The signal for "the question itself asked something" is composed from two
+// organs already here rather than a new hand-typed list of interrogatives
+// (the engine's own prior register carries no such class, and this repo
+// does not mint closed classes locally): an interrogative TERMINATOR (the
+// engine's SENTENCE_TERMINATORS registers "?" with giver "script/latn"),
+// plus preflightQuery finding real content words in the question after its
+// own stopwording. Both are needed — "how are you?" has the terminator but
+// reduces to nothing, and "good morning" has content but is not a question.
+//
+// This clause only ever ADDS a pass, never suppresses one, so it cannot
+// make the gate quieter than it was. Disclosed limit: a factual question
+// typed without a question mark ("tell me lincoln's vp") that S1 also
+// dodges still slips through. That case is strictly rarer than the one
+// this closes, and closing it properly needs an interrogative class earned
+// in the engine rather than guessed at here.
+function dodgedASubstantiveQuestion(question) {
+  const q = String(question ?? "").trim();
+  return q.endsWith("?") && preflightQuery(q, "").length > 0;
+}
+
+/**
+ * TRULY TRIVIAL — the only thing System 1 answers alone (user direction
+ * 2026-08-26: "only respond to truly trivial things with system 1").
+ *
+ * Three structural facts about the utterance itself, no word list: at most
+ * two words, no question mark, no digit. That is the shape of chitchat —
+ * "hi", "ok", "yes", "thanks", "good morning", "lol nice" — and nothing
+ * else reaches System 1 alone.
+ *
+ * preflightQuery is deliberately NOT the test here, though it was the first
+ * thing tried. It answers "what would I look up", which is a different
+ * question from "is this worth looking up", and after the length floor
+ * dropped to > 1 (see proof.js) it splits exactly wrong at both ends:
+ * "hi" and "ok" survive stopwording and would take the full grounded path,
+ * while "what is 2+2" reduces to nothing — every token either a stopword or
+ * a single character — and would be answered by S1 with no checking at all.
+ * Measured, not reasoned about: that split was run over these same cases
+ * before this function was written.
+ *
+ * ERRS TOWARD GROUNDING, on purpose. "how are you?" carries a question mark
+ * and so takes the full path — one wasted search for a pleasantry. That is
+ * the safe direction, and the same asymmetry proof.js's own preflight
+ * comment already argues for: a false positive costs one search, a false
+ * negative is a checkable question answered from the model's memory with
+ * nothing behind it — the failure this whole line of work exists to close
+ * ("who was lincoln's vp?" answered "William R. Hargis", a person who does
+ * not exist). Loosen only with a measurement showing the wasted searches
+ * cost more than the misses they would reintroduce.
+ */
+function triviallyChatty(question) {
+  const q = String(question ?? "").trim();
+  if (!q) return true;
+  if (q.includes("?") || /\d/.test(q)) return false;
+  return q.split(/\s+/).filter(Boolean).length <= 2;
+}
+
 function needsSystem2(question, s1Text) {
   if (!String(s1Text ?? "").trim()) return true; // S1 said nothing — worth a real pass
-  return extractCheckableAtoms(s1Text, { question }).length > 0;
+  if (extractCheckableAtoms(s1Text, { question }).length > 0) return true;
+  return dodgedASubstantiveQuestion(question);
 }
 
 // `model` is the SAME rung for both passes (user direction, 2026-08-19:
@@ -3067,7 +3194,32 @@ async function twoPassTurn(question) {
   // S1 to the fastest rung regardless of what's selected and make the
   // picker meaningless for this experience specifically.
   const model = state.model;
+
+  // SEARCH BEFORE ANSWERING (user direction 2026-08-26: "let's have it do
+  // the searching before it answers, and only respond to truly trivial
+  // things with system 1"). The decision is made on the QUESTION, before a
+  // single token is generated — not on S1's reply afterwards, which is the
+  // inversion that let a dodge disable all checking (see needsSystem2's own
+  // note above). Anything that is not trivially chatty goes straight to the
+  // grounded pass, which preflights material FIRST and answers from it.
+  //
+  // S1 is not consulted for these turns at all. That costs the instant
+  // first paint on a real question, which was S1's whole purpose — the
+  // trade the direction above makes deliberately, because a fast wrong
+  // answer that then gets quietly corrected underneath is worse than a
+  // slower answer that was grounded to begin with.
+  if (!triviallyChatty(question)) {
+    return holonicTurn(question, question, "flat", {
+      skipUserMessage: true,
+      forceModel: model,
+      label: `model`,
+    });
+  }
+
   const { node, text: s1Text } = await runFastPass(question, model);
+  // Even on the trivial path, S1 is never trusted to be unfalsifiable: if
+  // it volunteers something checkable while answering "hi", the grounded
+  // pass still runs. The gate only ever adds a pass here.
   if (needsSystem2(question, s1Text)) {
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,
@@ -3592,7 +3744,29 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
   await refreshSummary(fold, arrivals);
-  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification });
+  // Zero the space for this turn's own question. Computed from the material
+  // the turn actually read, and DISPLAYED rather than fed to the model: the
+  // filler side is not trustworthy yet (measured — the slot query returns
+  // "Though he"/"Congress" at page scale), so this reports the shape and
+  // leaves the fillers visibly open instead of handing a model junk
+  // candidates. Never allowed to break a turn that otherwise succeeded.
+  let brief = null;
+  try {
+    const texts = result.sections.flatMap((s) => (s.passages ?? []).map((p) => p.text)).filter(Boolean);
+    if (state.grounded && texts.length) {
+      brief = briefFor(task, texts, {
+        slotShapeOf: (q) =>
+          declaredSlotShape(q, {
+            definiteDeterminers: enginePriors.DEFINITE_DETERMINERS,
+            inflectionalSuffixes: enginePriors.INFLECTIONAL_SUFFIXES,
+          }),
+        cellOf,
+      });
+    }
+  } catch (e) {
+    brief = { error: String(e?.message ?? e) };
+  }
+  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification, brief });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
@@ -6454,7 +6628,7 @@ function measure() {
  * — and that question is asked while looking at the turn. So the disclosure
  * carries all of it, and the fold is not a tab.
  */
-function renderFold(node, { fold, record, sent, ran, verification }) {
+function renderFold(node, { fold, record, sent, ran, verification, brief }) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -6571,6 +6745,87 @@ function renderFold(node, { fold, record, sent, ran, verification }) {
   // see WHICH of the nine cells actually ran, and why the rest didn't,
   // gets exactly the record the checking ladder itself worked from — never
   // a claim about it.
+  // THE SPACE, ZEROED — what shape this question's answer has to fill, and
+  // what part of it is still empty. Displayed, never fed to the model: the
+  // filler side is not trustworthy yet, so this reports the shape honestly
+  // rather than handing over candidates measured to be junk.
+  if (brief) {
+    const det = document.createElement("details");
+    det.className = "fold";
+    const st = brief.error ? "error" : brief.standing?.standing ?? "unknown";
+    det.innerHTML = `<summary>the space, zeroed — ${esc(st)}</summary>`;
+    const pre = document.createElement("pre");
+    pre.className = "block";
+    if (brief.error) {
+      pre.textContent = `the void could not be declared for this turn: ${brief.error}`;
+    } else {
+      const d = brief.declaration;
+      const lines = d.cells.map(
+        (c) =>
+          `${c.op}  ${String(c.domain).padEnd(14)} ${String(c.terrain).padEnd(10)} ${c.field}` +
+          (c.standing === "declared" ? ` = ${JSON.stringify(c.declared)}` : "  — UNDECLARED"),
+      );
+      pre.textContent =
+        lines.join("\n") +
+        `\n\n${undeclaredOf(d)}` +
+        `\n\nextent evidence: ${brief.evidence.extent ? `${brief.evidence.extent.from}-${brief.evidence.extent.to} stated ${brief.evidence.mentions}×, margin ${brief.evidence.margin} over ${brief.evidence.considered} candidate span(s)` : "no span stated in this turn's material"}` +
+        `\n\n${voidLine(brief.space)}`;
+    }
+    det.append(pre);
+    out.append(det);
+  }
+
+  // WHAT THE LOGIC DID, shown even when it did nothing. The nine-cell
+  // panel below only renders when there are hypergraph CLAIMS to decompose,
+  // so on exactly the turns worth debugging — the ones where the reader
+  // built no claim at all — the logic panel went blank and the reasoning
+  // became invisible. User direction 2026-08-26: "it should be easier to
+  // see what the logic was doing."
+  //
+  // This is the same rule buildFactBlock now follows for the model, turned
+  // on the reader instead: state the absence rather than render nothing.
+  // The numbers are read off the relation reader's OWN report — examined,
+  // the measured verb vocabulary, the edge count, the claim count — never
+  // recomputed here, so this panel cannot disagree with what the ladder
+  // actually worked from.
+  const reports = (record?.relations ?? []).filter(Boolean);
+  if (reports.length && !verification?.length) {
+    const det = document.createElement("details");
+    det.className = "fold";
+    det.innerHTML = "<summary>what the logic did — no claim was built this turn</summary>";
+    const wrap = document.createElement("div");
+    for (const [i, r] of reports.entries()) {
+      const pre = document.createElement("pre");
+      pre.className = "block";
+      const role = document.createElement("span");
+      role.className = "role";
+      const verbs = r?.vocabulary?.verbs ?? 0;
+      const edges = r?.edges?.length ?? 0;
+      const claims = r?.claims?.length ?? 0;
+      role.textContent =
+        `part ${i + 1} · ${r?.examined ? "material examined" : "NOT examined"} · ` +
+        `${verbs} verb(s) in the measured vocabulary · ${edges} edge(s) · ${claims} claim(s)`;
+      // Name the first wall the ladder hit, in its own order, rather than
+      // leaving a reader to infer it from three zeros.
+      const why = !r?.examined
+        ? "no material was examined — nothing to read relations out of"
+        : r?.vocabulary?.gap
+          ? `no relation vocabulary could be measured (${r.vocabulary.gap}) — with no verbs, no edge can be built`
+          : !edges
+            ? "a vocabulary was measured but no edge survived extraction — the material's sentences did not yield subject/verb/object structure the reader could bind"
+            : "edges exist but the answer asserted nothing this reader could match against them — the claim side is empty, not the material side";
+      pre.append(role, document.createTextNode("\n" + why + "\n\n" + JSON.stringify({
+        examined: r?.examined ?? null,
+        vocabulary: r?.vocabulary ?? null,
+        edgeCount: edges,
+        claimCount: claims,
+      }, null, 2)));
+      wrap.append(pre);
+    }
+    det.append(wrap);
+    out.append(det);
+  }
+
   if (verification?.length) {
     const det = document.createElement("details");
     det.className = "fold";
@@ -6994,13 +7249,38 @@ function renderSources() {
   renderSourcesPanel();
 }
 
+/**
+ * Reading-workbench spec, Increment C. Switches which view the Reading pane
+ * shows — "files" (every loaded source, READ's own destination), "held"
+ * (the same list, filtered to what is actually live right now — muted
+ * sources drop out, media never does), or "priors" (GIVEN's destination,
+ * the toggle ledger). Search/sort/add belong to the file list alone; the
+ * priors view has its own toggles instead, so the toolbar's action group
+ * hides with it rather than sitting there disabled.
+ */
+function setExploreView(view) {
+  state.exploreView = view;
+  for (const btn of document.querySelectorAll("#explore-subnav .seg"))
+    btn.classList.toggle("active", btn.dataset.view === view);
+  const onPriors = view === "priors";
+  $("sources-list").hidden = onPriors;
+  $("sources-actions").hidden = onPriors;
+  $("priors-panel").hidden = !onPriors;
+  $("explore-heading").textContent = { files: "Sources", held: "Held now", priors: "Given" }[view] ?? "Sources";
+  if (onPriors) renderPriorsPanel();
+  else renderSourcesPanel();
+}
+
 function renderSourcesPanel() {
   const list = $("sources-list");
   if (!list) return;
-  const names = Object.keys(state.sources);
-  const mediaNames = Object.keys(state.media);
+  const heldOnly = state.exploreView === "held";
+  const names = (heldOnly ? Object.keys(state.sources).filter((n) => !state.muted.has(n)) : Object.keys(state.sources));
+  const mediaNames = Object.keys(state.media); // media is never muted — always held once loaded
   if (!names.length && !mediaNames.length) {
-    list.innerHTML = `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    list.innerHTML = heldOnly
+      ? `<div class="sources-empty"><p>Nothing is held right now.</p><p class="sources-empty-sub">Every loaded source is muted — nothing is contributing to retrieval this turn.</p></div>`
+      : `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
     return;
   }
   const search = $("sources-search")?.value?.toLowerCase() ?? "";
@@ -7072,6 +7352,62 @@ function renderSourcesPanel() {
     };
     row.onclick = () => openMediaViewer(name);
     list.append(row);
+  }
+}
+
+/**
+ * GIVEN's destination. Reads GET /api/priors — the SAME route `/priors`
+ * (priorsTurn, above) and the terminal's `priors` command already read —
+ * and writes through the SAME POST /api/priors/toggle. One ledger, now
+ * four doors instead of three; a flip made here is seen everywhere else,
+ * because nothing here keeps its own copy of the toggle state.
+ */
+async function renderPriorsPanel() {
+  const panel = $("priors-panel");
+  if (!panel) return;
+  panel.innerHTML = `<p class="priors-empty">reading the priors ledger…</p>`;
+  let data;
+  try {
+    data = await (await fetch(`${EXPLORE_BASE}/api/priors`)).json();
+  } catch {
+    panel.innerHTML = `<p class="priors-empty">the priors organ needs explore-server.mjs running on :8812 to answer this.</p>`;
+    return;
+  }
+  if (data?.gap) {
+    panel.innerHTML = `<p class="priors-empty">${esc(data.gap.detail ?? "no priors corpus found")}</p>`;
+    return;
+  }
+  if (!data?.categories?.length) {
+    panel.innerHTML = `<p class="priors-empty">no priors corpus found.</p>`;
+    return;
+  }
+  panel.innerHTML = "";
+  const summary = document.createElement("p");
+  summary.className = "priors-empty";
+  summary.textContent = `${data.files.toLocaleString()} documents, ${data.enabledCount.toLocaleString()} in play — every document starts off.`;
+  panel.append(summary);
+  for (const c of data.categories) {
+    const row = document.createElement("div");
+    row.className = "priors-genre";
+    const allOn = c.enabled === c.files && c.files > 0;
+    row.innerHTML = `
+      <span class="priors-genre-name">${esc(c.name)}</span>
+      <span class="priors-genre-count">${c.enabled}/${c.files}</span>
+      <button type="button" class="seg${allOn ? " active" : ""}" data-genre="${esc(c.name)}">${allOn ? "on" : "off"}</button>`;
+    row.querySelector("button").onclick = async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        await fetch(`${EXPLORE_BASE}/api/priors/toggle`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: c.name, on: !allOn }),
+        });
+      } catch {}
+      renderPriorsPanel();
+    };
+    panel.append(row);
   }
 }
 
@@ -7167,7 +7503,22 @@ function renderSourceViewerMode(mode, info) {
   } else if (CODE_EXTS.has(ext)) {
     body.append(codeBlock(text, ext));
   } else {
-    body.append(codeBlock(text, "plaintext"));
+    renderPlainTextInto(body, text);
+  }
+}
+
+// A plain-text source (pasted notes, an unrecognized extension) reads as
+// prose, not as a horizontally-scrolling code dump: paragraphs wrap at the
+// pane's width and stay literal — unlike .md sources, nothing here is
+// interpreted as markdown syntax. "raw" mode keeps codeBlock's monospace,
+// unwrapped rendering on purpose, so the exact bytes stay inspectable.
+function renderPlainTextInto(container, text) {
+  for (const para of text.split(/\n{2,}/)) {
+    if (!para) continue;
+    const p = document.createElement("p");
+    p.className = "para";
+    p.textContent = para;
+    container.append(p);
   }
 }
 
@@ -7317,6 +7668,10 @@ $("sources-sort")?.addEventListener("change", () => renderSourcesPanel());
 $("sources-add")?.addEventListener("click", () => {
   $("attach-menu")?.showModal();
 });
+
+// The Reading pane's own sub-nav: files / held / priors.
+for (const btn of document.querySelectorAll("#explore-subnav .seg"))
+  btn.onclick = () => setExploreView(btn.dataset.view);
 
 renderSources();
 
@@ -7658,8 +8013,10 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
   tab.onclick = () => showView(tab.dataset.pane);
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
-// the panels are already beside it, so start them on the prompt.
-showView(matchMedia("(max-width: 900px)").matches ? "chat" : "builds");
+// the panels are already beside it, so start on the reading itself
+// (reading-workbench spec, Increment B) — the reading is what the app is
+// about, and asking is one tool inside it, not the other way around.
+showView(matchMedia("(max-width: 900px)").matches ? "chat" : "explore");
 
 // ── the Folds panel's controls ───────────────────────────────────────────────
 //
@@ -7909,13 +8266,19 @@ new MutationObserver(syncChip).observe(statusEl, {
 syncChip();
 
 // Keep the layout's height math honest when the header wraps to two rows.
-const header = document.querySelector("header");
+// --header-h must cover EVERY fixed row above <main>: main's height is
+// calc(100dvh - var(--header-h)), so any such row this misses is height
+// main claims and the composer loses off the bottom of the screen. Today
+// <header> is the only one — a bar added between it and <main> has to be
+// summed in here too, which is a mistake this file has already made once.
+const aboveMain = [document.querySelector("header")].filter(Boolean);
 const trackHeader = () =>
   document.documentElement.style.setProperty(
     "--header-h",
-    `${header.offsetHeight}px`,
+    `${aboveMain.reduce((h, el) => h + el.offsetHeight, 0)}px`,
   );
-new ResizeObserver(trackHeader).observe(header);
+const headerObserver = new ResizeObserver(trackHeader);
+for (const el of aboveMain) headerObserver.observe(el);
 trackHeader();
 
 $("composer").onsubmit = (e) => {

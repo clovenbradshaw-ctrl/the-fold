@@ -89,6 +89,28 @@ export function effectivePrior(byPath, relPath) {
   }
 }
 
+/**
+ * Whether a document's path falls within a declared SCOPE — a caller-named
+ * restriction for one request, never persisted, never a substitute for the
+ * ledger above. Same ancestry test `effectivePrior` climbs, read the other
+ * direction: true when `relPath` IS `scope` or sits anywhere inside it. No
+ * scope (null/empty) admits everything — scoping is opt-in, so an ordinary
+ * check's candidate set is unchanged unless a caller asks for a slice.
+ *
+ * Named for the case a corpus grown by (geography, period) folders needs:
+ * checking a claim against exactly one dated, placed slice of live_priors
+ * (a "universe") rather than whatever happens to be toggled on for browsing
+ * — an instrument's deliberate choice, not the reader's ambient setting, so
+ * it composes with `effectivePrior` (AND, never OR): a document a person
+ * has toggled off stays off even when a scope would otherwise admit it.
+ */
+export function withinPriorScope(relPath, scope) {
+  const s = normalizePriorPath(scope);
+  if (!s) return true;
+  const p = normalizePriorPath(relPath);
+  return p === s || p.startsWith(s + "/");
+}
+
 /** The declarations as JSON-shaped rows for the wire, sorted by path so the
  * same ledger always serializes the same way. */
 export function declarationRows(byPath) {

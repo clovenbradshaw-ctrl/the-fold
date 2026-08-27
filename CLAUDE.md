@@ -4504,3 +4504,31 @@ and the Reading tab itself (Increment B). What went with it:
 `given-read-held.js` + its test, `state.priorsData`, the boot-time priors
 fetch, and `--header-h`'s multi-row sum (back to header-only, since
 nothing sits between `<header>` and `<main>` again).
+
+## Reading: a bracketed aside hid the subject (added 2026-08-26)
+
+POLICIES.md **P50** is the law; this is the map. Three sites tested the
+same punctuation crossing independently — `surfaces.js`'s run-break marks,
+`relations.js`'s scan for the token after a surface, and `relations.js`'s
+subject→verb matcher — and each allowed only whitespace where a
+parenthetical aside can stand. So the one sentence that states the fact
+plainly ("Hannibal Hamlin (August 27, 1809 – July 4, 1891) was … the 15th
+vice president") yielded no edge naming Hamlin at all, and a question with
+two right answers returned one for a whole day.
+
+The rule is Unicode's own category (`\p{Ps}`/`\p{Pe}`), never an
+enumeration — the generalization `surfaces.js`'s own pipe fix already
+asked for. Brackets need two sides where a comma needs one: a comma trails
+the token before it, an opening bracket leads the token after it.
+
+**Three things worth carrying to the next reading bug:**
+1. A fix that moves an intermediate number without moving the result means
+   there are MORE SITES, not that you half-won.
+2. A punctuation decision is a class; name the category, not the characters.
+3. **A reading failure wears the model's face.** Before blaming the model,
+   the prompt, retrieval, or the logic, take one sentence that states the
+   answer plainly and confirm the pipeline can extract it.
+
+The engine edits live in the `eoreader7` submodule (`legacy-eoreader6.1`),
+not in this repo — see P50 for what changed and what is still open (filler
+selection at page scale still returns "Though he" and "22nd Amendment").

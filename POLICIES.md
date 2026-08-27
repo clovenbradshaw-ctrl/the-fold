@@ -5330,3 +5330,103 @@ required increment is not authority that it belongs in the product, and two
 consecutive verification defects (above) were found in a feature that then
 turned out not to be wanted. Cheaper to have asked what it was for first.
 Do not rebuild this from the reading-workbench spec without asking.
+
+## P50 — A punctuation class is a CATEGORY, and one wall stands at every site that crosses it
+
+**The law, two halves.** First: when an organ decides something by testing
+punctuation, it is testing a CLASS, and the class must be named by its
+Unicode general category, never by an enumeration of the characters seen so
+far. Second: a wall of that kind is rarely at one site — the same crossing
+is usually tested independently in several places, and fixing one of them
+proves nothing, because the pipeline only produces its result when every
+site agrees.
+
+**What this closes, measured 2026-08-26.** "who was lincoln's vp?" returned
+one vice president all day — sometimes Hamlin, sometimes Johnson, each a
+true sentence, neither the answer. The cause was not the model, not the
+retrieval, and not the logic. It was that the one sentence stating the fact
+plainly could not be read:
+
+```
+"Hannibal Hamlin (August 27, 1809 - July 4, 1891) was an American
+ politician ... the 15th vice president of the United States."
+
+surfaces  ["Hamlin", "Hamlin August", "July", ...]   ← "Hannibal Hamlin"
+                                                       never formed; the
+                                                       glue crossed the "("
+relations an American —politician→ who was the 15th vice president...
+```
+
+The subject of the sentence was lost, so no edge ever named Hamlin as a
+vice president. Every downstream organ then behaved correctly on material
+that was missing the fact.
+
+**The class was already known and simply never named.** `surfaces.js`
+started with `[,;:]`, gained `|` in 2026-08-20 for search-result titles,
+and that fix's own note said the quiet part out loud: the pipe was "a
+run-breaking mark this file had a category for and simply never listed."
+Brackets were the next character in a list that has no end — the same trap
+this repo already refused for succession boxes and for site-specific title
+conventions. Unicode carries the category: `\p{Ps}` is every opening
+punctuation mark in every script and `\p{Pe}` every closing one, so
+`( [ { （ 「 【 ［` and their partners are covered without a list, and a
+script this codebase has never been run against is covered in advance
+rather than after the next incident.
+
+**Deliberately not widened to all of `\p{Po}`:** that sweeps in the
+apostrophe, and a raw chunk ending in one ("'quoted'") would break a run no
+reader would call broken. A category is the right grain; the widest
+category is not.
+
+**THREE SITES, ONE WALL.** The bracket crossing was tested independently in
+`surfaces.js`'s run-break marks, in `relations.js`'s scan for the token
+following a surface, and in `relations.js`'s subject→verb matcher. Fixing
+the first removed the spurious "Hamlin August" and changed nothing about
+the answer. Fixing the second made "was" discoverable as a verb for the
+first time and still produced no Hamlin edge. Only with the third did the
+edge appear. **A fix that improves an intermediate number without moving
+the result is evidence of more sites, not of a partial win** — and each
+site had to be found by tracing the specimen through the pipeline, not by
+grepping for the character.
+
+**Leading marks need the other side.** A comma trails the token before it,
+so the previous chunk's ENDING marks the break. An opening bracket LEADS
+the token after it, and a check written only against the previous chunk's
+tail cannot see it. A punctuation test written for one shape silently fails
+the other, and both must be read off the same raw chunk so they cannot
+drift apart.
+
+**Why skipping an aside is meaning, not a workaround.** A parenthetical
+after a name carries facts ABOUT the being just named — its dates, its
+aliases. The being and its aside are one mention, so the token that follows
+the MENTION is the token that follows the being. This is the same
+"referent, not span" discipline this codebase already holds elsewhere,
+applied to where a mention ends.
+
+**Measured after:**
+
+```
+Hannibal Hamlin —was→ an American politician ... the 15th vice president
+Andrew Johnson  —was→ the 16th vice president
+```
+
+Full suite 1259/1261, no regressions.
+
+**DISCLOSED, and the next wall.** This fixes reading ONE SENTENCE. It does
+not fix selecting fillers out of a large graph: at page scale (3,868 edges)
+the slot query still returns "Though he", "22nd Amendment" and "000" as
+candidate vice presidents, because matching is substring-tolerant and no
+Kind gate filters candidates to the kind the slot admits. That is a
+different defect with a different fix, and conflating the two is what would
+make this policy read as "the answer is fixed" when it is not.
+
+**The lesson underneath all of it: a reading failure wears the model's
+face.** For most of a day the symptom was "the small model keeps giving one
+VP", and every hypothesis chased the model, the prompt, the retrieval, and
+the logic in turn. The instrument's own marks were right the whole time
+("∅ not in the material"), the correction loop was right, and the
+completeness gate was right — all of them reasoning correctly over material
+from which the fact had been silently deleted at extraction. **Before
+concluding a model or a downstream organ is at fault, read one sentence
+that states the answer plainly and confirm the pipeline can extract it.**
+That check takes a minute and would have saved the day.

@@ -6718,3 +6718,72 @@ another.
 today, because those are the recognizers `network.js` ships (P57's own limit).
 And a question whose material holds no arrangement returns the typed
 `no_arrangement` gap — a fact about the material, never a failure of the walk.
+
+
+### Amended 2026-08-28 (second) — the shapes are INDUCED, and that is what reaches a corpus
+
+**User direction, verbatim:** *"we need to prove it is reading from the corpus,
+leveraging the terrains to be able to make conclusions it couldnt do with raw
+content fed to it."*
+
+The proof required closing this policy's own disclosed limit first, because
+measured against a real corpus the declared shapes are not leverage:
+
+```
+883 pages · 25.9MB  →  8 bound systems
+```
+
+`periodicity.js` describes a line by its own characters, collapsed by Unicode
+class — `Sir Robert Peel` is `Aa Aa Aa`, `20 June 1837 – 30 August 1841` is
+`9 Aa 9 . 9 Aa 9` — and finds the period by measuring how much MORE alike lines
+`p` apart are than adjacent ones. No months, no names, no dates, no language;
+the same descriptions arise in any script sharing those categories.
+
+**The null destroys ORDER and nothing else** — the same lines, the same shapes,
+the same counts, shuffled. An arrangement is a fact about order, so that is the
+only thing worth removing. Measured on one real page: the two record blocks
+land **z 3.46 and 4.04, beaten by 3 of 400 draws**; the most structured prose on
+the same page reaches z 1.86 and the least reaches z 0.13 at 182 of 400.
+
+**The statistic had to be fixed before it separated anything, and the first
+version is worth not re-making.** Scoring each null draw at ITS OWN best period
+saturated uselessly — a real block ranked 0.990 and ordinary prose 0.955. Held
+at the OBSERVED period, the same measurement separates cleanly. A null scored
+against a moving target measures the search, not the finding.
+
+**The comparison, same bytes, same corpus slice:**
+
+```
+DECLARED shapes (two, hand-picked):    0 systems
+INDUCED  shapes (no vocabulary):     306 regions on 50 pages
+```
+
+And what induction reaches is the point, not the count:
+
+```
+p=4 z=5.21  Accession of Andrew Johnson as president  ⏎  3 years, 323 days
+p=2 z=3.17  - 1888 (Chicago) : Harrison / Morton      ⏎  - 1892 (Minneapolis) : Harrison / Morton
+p=4 z=3.12  James Knox Polk                           ⏎  George M. Dallas
+```
+
+An event and a DURATION; a convention and a ticket; a president and a vice
+president. None is `name → date range`, so the declared recognizers were
+structurally blind to every one of them — including the last, which is the
+Lincoln question's own answer sitting in an arrangement nobody could see.
+
+**The honest cost, reported rather than hidden.** Induction also finds page
+furniture — `Sign in to view more content` / `Create your free account`,
+`+ Follow` / `Rate this article`, `23 contributions` / `-`. Those regions are
+genuinely periodic and the null is right about them. **Periodicity answers
+where an arrangement IS; it does not answer what an arrangement is ABOUT**, and
+conflating the two would be this repo's oldest refuted move in new clothes. The
+second question belongs to the caller — `read-source.js` already settles it by
+the anchor's own words, and a tie is not narrowed.
+
+**No threshold lives in the module.** `beatenBy`, `draws`, `z` and `censored`
+are reported; the eval driver declares `ALPHA = 0.01` — the null's own tail —
+beside every finding, so moving it and seeing what changes costs nothing.
+
+**Files.** `periodicity.js` + `periodicity.test.mjs` (7 cases, including the
+real block against the real prose on the same page, and a check that the module
+exposes no verdict). `eval/induced-arrangements.mjs`, re-runnable.

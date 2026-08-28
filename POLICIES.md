@@ -7591,3 +7591,79 @@ by identity, not by new kernel semantics.
 and it is not the reader's — structural, never metric; positions are
 temporal, occupants are not; S20 is its interval-witness special case and
 now says so. Full narrative: `eval/results/sequence-admission-RESULTS.md`.
+
+## P62 — retrieve() was blind to every non-Latin script; the bytes were never the problem
+
+**User direction, verbatim:** *"fix retrieve() so it tokenizes Hebrew and
+all languages too. we have the bytes."*
+
+**The bug, measured live, not assumed.** `source.js::tokenize` split on
+`/[^a-z0-9%.\-]+/` — an ASCII allow-list, applied AFTER lowercasing.
+`tokenize("שלום")` (bare Hebrew, "peace") returned `[]`. Every chunk-
+construction path (`chunkProse`/`makeChunk`/`chunkByBoundaries`/
+`chunkRows`) populates its `.terms` Set from `tokenize()` and only
+`tokenize()`, and `retrieve()` calls `tokenize()` exactly once, on the
+question. So the defect was never partial: a non-Latin corpus and a
+non-Latin question were BOTH blind, on both sides of the one term-overlap
+comparison `retrieve` makes — not merely unranked, structurally invisible.
+`foldDiacritics` was checked and is NOT the cause: even bare, unpointed
+Hebrew (no diacritic anywhere) tokenized to `[]`, because the base
+LETTERS themselves sat outside the ASCII class, not just their vowel
+marks.
+
+**The fix reuses a precedent already sitting in the same file.**
+`foldTypography` (source.js, built for a different purpose — comparing a
+model's drafted prose against source material) already splits on
+`/[^\p{L}\p{N}.]+/gu`, and its own header already states the reason:
+*"Unicode classes, not `[a-z0-9]`, because a Cyrillic or CJK corpus must
+fold to its words and not to nothing."* `tokenize` had simply never been
+brought into line with that precedent. It now splits on
+`/[^\p{L}\p{N}%.\-]+/u` — `\p{L}`/`\p{N}` are a STRICT SUPERSET of
+`a-z`/`0-9` post-lowercase, so every existing ASCII caller is
+byte-identical by construction, not merely by measurement (confirmed by a
+full-suite run regardless: 1073/944/127, the same 127 pre-existing
+failures by name, zero regressions).
+
+**The companion fix, and why it is not gated behind an opt-in the way
+`verbForms`/`createLemmatizer` are.** `foldDiacritics` widened too: Hebrew
+nikud (U+0591–U+05C7) and Arabic tashkil (U+064B–U+065F, plus U+0670) now
+fold away, the same Bezúkhov/Bezukhov shape this function already handled
+for Latin, one script class over — a vocalized Talmud folio (real material,
+fetched live from Sefaria for this test) and an unvocalized typed question
+are otherwise the identical mismatch. Folding a vowel mark away can only
+WIDEN what matches, never narrow a real distinction into a false one — the
+same "safe by construction" class P41/P43's determiner/negation priors
+already are — so this ships on for every caller, not behind a flag.
+
+**Disclosed, not silently claimed: CJK is a narrower, honest improvement,
+not real segmentation.** A boundary-based tokenizer cannot introduce a
+split where the bytes have none — there is no character between adjacent
+CJK ideographs for `\p{L}`-class splitting to find, regardless of which
+characters count as "word" characters. Checked, not assumed, and it is
+worse than merely "unsegmented": `tokenize("北京")` (Beijing, a genuine
+two-character word) is STILL `[]`, because the same length floor
+(`t.length > 2`) that drops a two-letter English word drops it too; only a
+longer run of several ideographs survives, as one oversized merged token,
+never a real word boundary. Both facts are pinned as tests
+(`fold.test.mjs`), not glossed over. Real CJK reading needs a dictionary-
+or model-based word breaker AND a length floor that is not tuned to
+English's own average word length — neither attempted here.
+
+**Verified against real material, not a synthetic string.** Six real
+folios of the Babylonian Talmud (Berakhot 2a–4b, William Davidson Edition,
+fetched live from Sefaria's API the same session this bug was found in)
+chunked, and `retrieve()` on a real unvocalized Hebrew question found the
+right passage — the exact practical case the fix was written for, not
+only the unit-level round-trip.
+
+**Files.** `source.js` (`tokenize`, `foldDiacritics` — both widened,
+`retrieve`/`chunkSource`/every chunk-building path untouched: the fix is
+entirely upstream of them). `fold.test.mjs` (+4 cases: a vocalized-Hebrew
+retrieval round-trip mirroring the pre-existing accented-Latin one;
+Hebrew/Cyrillic/Arabic surviving `tokenize` directly; the CJK limit pinned
+as exactly what it is, both halves). No other file touched — `retrieve`,
+every chunker, and every other consumer of `tokenize`/`foldDiacritics`
+(`cite.js`'s `commonTerms`/`CORPUS_MINIMUM` included, checked directly:
+its own algorithm reads only `c.terms`, so a non-Latin corpus goes from
+"the function-word veto never fires" to "it fires for real," a quality
+gain with no ASCII-side behavior change) needed no change to benefit.

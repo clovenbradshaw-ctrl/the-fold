@@ -38,11 +38,23 @@ const STOPWORDS = new Set(
  * accented name in them was flagged "not in the material"). The engine had
  * the same bug in the opposite state (CLAUDE.md); one shared fold is the fix
  * for the class, not the instance.
+ *
+ * Widened for the same reason a second time (2026-08-28): a vocalized Hebrew
+ * corpus (nikud — real material, fetched live from the Talmud) and an
+ * unvocalized question are the identical Bezúkhov/Bezukhov shape one script
+ * over — measured, `foldDiacritics("שָׁלוֹם") !== "שלום"` before this. Hebrew
+ * nikud (U+0591–U+05C7) and Arabic tashkil (U+064B–U+065F, plus U+0670's
+ * superscript alef) sit outside the Latin/Greek/Cyrillic combining-marks
+ * block this fold already stripped, so they survived untouched. Folding a
+ * vowel mark away can only WIDEN what matches — it never narrows a real
+ * distinction into a false one, the same "safe by construction" class as
+ * P41/P43's determiner/negation priors — so this is not gated behind an
+ * opt-in the way `verbForms`/`createLemmatizer` are.
  */
 export function foldDiacritics(s) {
   return String(s || "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f\u0591-\u05c7\u064b-\u065f\u0670]/g, "");
 }
 
 /**
@@ -103,7 +115,34 @@ export function foldTypography(s) {
 export function tokenize(text) {
   return foldDiacritics(text)
     .toLowerCase()
-    .split(/[^a-z0-9%.\-]+/)
+    // Unicode word/number classes, not `[a-z0-9]` — the same boundary
+    // `foldTypography` already splits on, two functions up in this file, and
+    // for the same reason (its own header: "a Cyrillic or CJK corpus must
+    // fold to its words and not to nothing"). This function had not been
+    // brought into line with that precedent: measured live, a real fetched
+    // page of Hebrew Talmud (`tokenize("שלום")`) returned `[]`, so `retrieve`
+    // — which scores by term overlap on `tokenize`'s own output, on BOTH the
+    // question and every chunk's `.terms` — was blind on it in both
+    // directions, not merely unranked. `%`/`.`/`-` stay listed: they are
+    // this function's own extra allowance (a percent sign, and dots/dashes
+    // kept INSIDE a token, below), never `foldTypography`'s job.
+    //
+    // Disclosed, not silently claimed: this fixes every WHITESPACE-DELIMITED
+    // script (Hebrew, Arabic, Cyrillic, Greek, Devanagari, …) — it does not
+    // give CJK real word segmentation, because there is no boundary
+    // character between adjacent ideographs for a split-on-boundaries
+    // tokenizer to find, regardless of which characters count as "word"
+    // characters. Checked, not assumed, and it is WORSE than "unsegmented":
+    // `tokenize("北京")` — Beijing, a real two-character word — is still
+    // `[]`, because the length floor below (`t.length > 2`) drops it the
+    // same way it drops a two-letter English word; only a LONGER run of
+    // several ideographs (`tokenize("北京大学")`, four characters, "Peking
+    // University") survives, as one oversized amalgam token, never a real
+    // word boundary. Both facts are pinned in fold.test.mjs rather than
+    // implied — real CJK reading needs a dictionary- or model-based word
+    // breaker AND a length floor that is not tuned to English, neither
+    // attempted here.
+    .split(/[^\p{L}\p{N}%.\-]+/u)
     // Dots and dashes are kept inside a token so "12.5" and "hit-and-run"
     // survive, which means the last word of a sentence arrives as "bolo." and
     // matches nothing. Trim them at the edges only.

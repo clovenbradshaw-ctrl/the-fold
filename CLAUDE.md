@@ -5243,3 +5243,35 @@ type, rediscovered four times), and the planned `chainOf` kernel change is
 retired unbuilt: position identity carries the locus. The three shipped
 eval drivers keep the old encoding as the measurement record; new work
 declares a sequence.
+
+## retrieve() was blind to every non-Latin script (added 2026-08-28) — pointer
+
+POLICIES.md **P62** is the law; this is the short map. User direction,
+verbatim: *"fix retrieve() so it tokenizes Hebrew and all languages too. we
+have the bytes."* `source.js::tokenize` split on an ASCII allow-list
+(`/[^a-z0-9%.\-]+/`), so `tokenize("שלום")` returned `[]` — and since every
+chunk-building path and `retrieve()`'s own query side both route through
+`tokenize` and only `tokenize`, a non-Latin corpus and a non-Latin question
+were blind on BOTH sides of the one comparison, not merely unranked.
+`foldDiacritics` was checked and cleared: bare, unpointed Hebrew failed
+identically, so the base letters were the defect, not the vowel marks.
+
+**The fix reuses a precedent already in the same file.** `foldTypography`
+already splits on `\p{L}\p{N}` for exactly the stated reason ("a Cyrillic
+or CJK corpus must fold to its words and not to nothing") — `tokenize` had
+simply never been brought into line with it. `\p{L}`/`\p{N}` is a strict
+superset of `a-z`/`0-9` post-lowercase, so every ASCII caller is
+byte-identical by construction, confirmed by a zero-regression full-suite
+run (1073/944/127, same 127 by name). `foldDiacritics` widened too —
+Hebrew nikud and Arabic tashkil now fold, the identical Bezúkhov/Bezukhov
+shape one script class over, shipped on for every caller (folding a vowel
+mark away can only widen what matches, never narrow a real distinction) —
+verified live against six real fetched Talmud folios, a vocalized corpus
+answering an unvocalized question.
+
+**Disclosed, not silently claimed:** CJK gets no real word segmentation —
+there is no boundary character between adjacent ideographs for a
+split-on-boundaries tokenizer to find, and a genuine two-character CJK
+word (`tokenize("北京")`) is STILL `[]`, dropped by the same length floor
+that drops a two-letter English word. Both halves pinned as tests, not
+glossed over.

@@ -5111,3 +5111,115 @@ not a cleverer veto: the derivation only ever received adjacency.
 **The lesson worth carrying:** a mechanism that runs is not a mechanism that
 helps, and the control separating them is the cheap one that got skipped. Run
 the dumb baseline first.
+
+### Amended 2026-08-28 (fourth) — a uniqueness violation is a grain signal
+
+POLICIES.md P60's fourth amendment is the law; this is the pointer. Asked to
+be sure the edges were *"not politics shaped but learn anything"*, the fix from
+the previous amendment turned out shaped: `person#office#start` hardcodes
+"someone holds an office for a term" and goes dark elsewhere — the same mistake
+`relation-composition.js`'s header records the kernel making with Greek grammar
+("AN ARRANGEMENT HAS ENDS, NOT PARTS OF SPEECH").
+
+**The general rule:** an edge relates OCCURRENCES, not the durable entities
+those occurrences belong to. A one-to-one relation violated at entity grain is
+evidence the **grain is too coarse**, not that the relation is unsound — which
+reframes P60's veto as having pointed at a fixable modelling error all along.
+
+`eval/grain-refinement.mjs` proves it is not domain-bound: a 68-line core with
+**zero** domain words (scanned, not eyeballed) runs unmodified over real
+Wikidata succession and an invented hospital-bed corpus. Both reach **1.000
+precision at occurrence grain with no veto anywhere**. The non-political control
+carries a trap declared in the fixture before the run and it fires exactly as
+predicted at entity grain.
+
+It also corrects the previous amendment: naming occurrences by statement index
+gives identical results, and the synthetic adapter uses no dates at all —
+**dates were one adapter's way of naming occurrences**, not the fix.
+
+**The lesson:** a mechanism that needs material labelled in one domain's
+vocabulary has learned that domain, not anything general. Prove otherwise by
+running the identical core over a corpus from somewhere else.
+
+## Stance on the admission record, sedimented (added 2026-08-28)
+
+User direction, in two corrections that each changed the design. First:
+**"these are always defeasible assertions of the reader, the structure of their
+cognition, not anything allegedly in the world."** Second: **"remember that
+it's 27 cells, not 9x9x9."**
+
+**What the first correction fixed.** An earlier draft here proposed attaching
+stance to EDGES. Wrong: an edge does not HAVE a stance, it was ADMITTED under
+one. `grid.js` already put stance on acts and never on edges, which was the
+architecture being right where this was about to make it wrong.
+
+It also retro-explains the falsification probe. That probe concluded "structure
+does not license composition" because the scan could not separate the twins,
+and it was written up as an EVIDENCE problem. It is not: **licensing was never
+a world-question.** The corpus was being asked something categorically outside
+what a corpus answers, which is why only a named giver can grant it and why no
+further reading would ever have helped. The defeat mechanisms were already
+built correctly for reader-structure too — `refuteRelation` finds cycles and
+uniqueness violations (internal incoherence), never "the world disagrees"; and
+the void loop's `posture_spent` -> REC is a defeasible commitment defeated by
+exhaustion rather than falsified.
+
+**What the second correction fixed.** The space is **27 = operator x grain**;
+mode, domain, terrain and stance are all DERIVED from that pair (`cube.js`:
+`{ op, grain, mode, domain, terrain: TERRAIN_BY_DOMAIN[domain][grain],
+stance: STANCE_BY_MODE[mode][grain] }`). There is no free stance axis to
+declare, and `moves.js` already enumerates the 27 as `${op}·${grain}`. An
+earlier probe here assigned stances to RELATIONS as if they were primitive;
+what it actually found is that three relation-properties correspond to three
+ACTS — DEF·Figure (Dissecting), EVA·Figure (Binding), REC·Pattern
+(Composing) — which is the void loop's own choreography. Disclosed honestly:
+that probe assigned `governs` vs `advises` by whether they were functional, so
+those two were contaminated; the `replaces` vs `after:` split is independent
+and is the clean evidence (it is S19's hand-fix, read as a cell difference).
+
+**The wiring was nearly free, because the cell was already on the record.**
+`hear()` already wrote `operator` (INS first sighting, SYN on a re-sighting)
+and `grain` (Figure). The cell was derivable the whole time and simply never
+read off. `makeHyperlexicon` now takes an optional injected `cellOf` (the
+cast.js pattern, the engine's own function, never a restated table) and carries
+`cell`/`stance`/`terrain`/`mode`/`domain` on each entry.
+
+**A finding that fell out rather than being designed:** INS is Existence-domain
+and SYN is Structure-domain, so a first sighting lands `INS·Figure` ->
+terrain **Entity**, and a re-sighting lands `SYN·Figure` -> terrain
+**Link**. Same stance (Making, both Generate·Figure); the terrain moves.
+A birth brings a thing into existence; corroboration makes it structural.
+
+**Sedimentation reuses the kernel organ unmodified.**
+`readingFromHyperlexicon(log, {source})` projects a log into the shape
+`experience-priors.js` already counts (`fold.transformationObjects` ->
+`stanceExpectations`). The adapter lives in the consumer, not the kernel: that
+organ is domain-agnostic and has no business learning what a hyperlexicon note
+is. Measured through the REAL organ: 5 postures across 2 works, `Making` at
+occurrences 5 / workSupport 2 — clearing `memoryStanding`'s
+`recurrent_cross_work_memory` bar of >= 2 works.
+
+**THE PLANE SEPARATION IS A WALL, NOT A CONVENTION.** Only the act crosses —
+operator, stance, terrain. No subject, verb, object, witness or span does, and
+`graphEntries` stays deliberately EMPTY, because relation vocabulary is
+world-facing. A prior that learned those would be learning the world from its
+own habits. Enforced by a test that serializes the projection and scans for
+every world-facing string; planting a `subject` leak fails it.
+
+**The consequence worth stating, since nothing else can catch it:** cells,
+stances and affordances are constrained only by coherence, productivity, and a
+named giver's declared risk — which is strictly weaker than correspondence. A
+reader can be internally coherent, productive, and systematically misreading,
+and this apparatus cannot detect that. Only an oracle can, and only on FACTS.
+The two planes must never share machinery, or the instrument begins proving its
+own cognition correct.
+
+**Files.** `hyperlexicon.js` (optional `cellOf`; `cellFields`;
+`readingFromHyperlexicon`) + `hyperlexicon-stance.test.mjs` (7 cases, native
+kernel only). The tests are a SEPARATE file on purpose: `hyperlexicon.test.mjs`
+reaches the engine through `legacy-eoreader6.1`, an uninitialised submodule in
+this checkout, so that whole file cannot load and a test appended to it would
+never have run — caught by appending there first and watching 7 new cases
+silently not execute. Suite 1069/940/127, failure names diffed against a
+stashed baseline: identical, zero regressions. Both eval drivers re-run
+unchanged (9 derived, 6 licensed).

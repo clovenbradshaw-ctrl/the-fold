@@ -1,7 +1,7 @@
 // periodicity.js — find a recurring arrangement WITHOUT being told what its
-// lines look like. The half of P57 that was measured and not built.
+// lines look like. The half of P58 that was measured and not built.
 //
-// THE LIMIT THIS CLOSES, stated in P57 as the honest cost of shipping the
+// THE LIMIT THIS CLOSES, stated in P58 as the honest cost of shipping the
 // binder: `network.js`'s shape recognizers were chosen after looking at the
 // page. Handed the instrument's whole read corpus — 883 saved pages, 25.9MB —
 // they bound **8 systems**. Two hand-picked shapes do not reach a corpus, and

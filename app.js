@@ -184,7 +184,7 @@ import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
 import { dayOf, renderHolders } from "./wikidata.js";
 
-// WHAT WE HAVE READ, AS A SECOND GIVER (P56/P57/P58). `seek.js` is
+// WHAT WE HAVE READ, AS A SECOND GIVER (P57/P58/P59). `seek.js` is
 // source-independent and `wikidata.js` was its only adapter, so a question the
 // published record cannot answer went unanswered even when a page stating the
 // answer plainly was already fetched and already saved. `network.js` binds the
@@ -3850,7 +3850,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // built from, never a second set gathered separately.
     narrateTheVoid(live.map((c) => c.text).filter(Boolean), "material");
 
-    // ── the identity seek (P55) ──────────────────────────────────────────
+    // ── the identity seek (P56) ──────────────────────────────────────────
     // The void has just declared what the question hangs on (SIG's anchor)
     // and what kind of thing fills it (the head phrase). Those two strings
     // are exactly what `/api/entity/seek` needs, so the seek runs HERE:
@@ -3859,7 +3859,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // What comes back are BINDINGS — referents with qids, real extents, and
     // a fetchable address each — and they enter through `observed`, the same
     // door the relation tier's own findings already use. The model is never
-    // told a qid, a coverage ratio, or that a giver was consulted (P54): it
+    // told a qid, a coverage ratio, or that a giver was consulted (P55): it
     // receives the fillers as content, and the custody stays on the record.
     let seekFillers = [];
     if (state.grounded && state.webProof && voidBrief?.declaration) {
@@ -4066,7 +4066,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
               if (rendered) {
                 // KEEP THE REASONING. `body.textContent = ""` was here, and
                 // it destroyed the live `.reasoning` element along with the
-                // draft — the exact defect P53 records in renderAnswer ("the
+                // draft — the exact defect P54 records in renderAnswer ("the
                 // ticker was cleared and the live log element destroyed by
                 // renderAnswer's own body.textContent = ''"), reproduced.
                 // Everything the walk narrated — what it went looking for,
@@ -4078,7 +4078,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 // record was consulted, the holders were found, and only
                 // then was the sentence assembled. Printing the conclusion
                 // above the work reads as the instrument having known it all
-                // along — P53's own complaint about chronology, in the other
+                // along — P54's own complaint about chronology, in the other
                 // direction.
                 // `think()` appends into `traceEl`, so the `.reasoning`
                 // divs are its CHILDREN, not the body's — a first attempt
@@ -4138,7 +4138,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 body.appendChild(p);
                 // No caption. It read "on the public record — 2 holder(s),
                 // computed, not generated" — a label about the machinery,
-                // which is the firewall's own rule (P54) applied to what a
+                // which is the firewall's own rule (P55) applied to what a
                 // READER sees rather than what a model does. The names carry
                 // their sources as links; that is the attribution, and it
                 // needs no announcement.
@@ -4170,7 +4170,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     if (seekFillers.length) narrateTheVoid(live.map((c) => c.text).filter(Boolean), "material", seekFillers);
 
     result = await runHolonicTask({
-      // The fillers as CONTENT, never as apparatus talk (P54): a stated
+      // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
       // from. Empty unless the seek actually bound something, so a turn
       // without bindings sends byte-identical bytes to before.

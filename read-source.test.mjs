@@ -52,7 +52,7 @@ test("a bound arrangement is never overwritten by a sentence that happens to dat
   assert.equal(ada.relations[0].scope.from, "1842-01-01");
 });
 
-test("members point at their system and the system points at nothing — the sink P58 exists for", async () => {
+test("members point at their system and the system points at nothing — the sink P59 exists for", async () => {
   const src = build([{ ref: "web:x", text: "Ada Lovelace\n1842-1843\nGrace Hopper\n1944-1945", title: "x" }]);
   const sys = src.systems()[0];
   assert.deepEqual(await src.neighbours(sys.id), [], "a system is a pure sink");

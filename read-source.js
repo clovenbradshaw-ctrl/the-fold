@@ -1,5 +1,5 @@
 // read-source.js — what this instrument has READ, presented as a source
-// `seek.js` can navigate. The adapter that makes P56's hyperlexicon and P57's
+// `seek.js` can navigate. The adapter that makes P57's hyperlexicon and P58's
 // Pattern-grain binder reachable by the walk that already answers.
 //
 // WHY IT EXISTS. `seek.js` is source-independent by construction — its own
@@ -20,7 +20,7 @@
 // page, and both are addressed.
 //
 // WHAT IT REFUSES TO DO. It does not name what binds a system — `network.js`
-// deliberately returns arrangements unlabelled (P57) and this file does not
+// deliberately returns arrangements unlabelled (P58) and this file does not
 // invent the label either. What it supplies is a slot per bound system, the
 // source's own surrounding words as that slot's context, and the members
 // pointing at it. Which system a question means is settled by `specialize`
@@ -52,7 +52,7 @@ const iso = (d) =>
  * The relation is a single constant, `RELATION`, and that is deliberate: this
  * source genuinely knows only that these members are LISTED IN that system.
  * Calling it "held office" would be a claim the arrangement never made. The
- * walk learns it by example like any other, through `inbound` (P58), because a
+ * walk learns it by example like any other, through `inbound` (P59), because a
  * system built this way is a sink.
  */
 export const RELATION = "listed-in";
@@ -78,7 +78,7 @@ export function makeReadSource({ binder, passages = [], extractSurfaces = null }
     const found = binder.bindRecurring(text, { ref: p.ref ?? null });
     for (const sys of found.systems) {
       // One slot per bound system. Collapsing them merged two different lists
-      // on one page into a single set (P58) — Britain's ten prime ministers
+      // on one page into a single set (P59) — Britain's ten prime ministers
       // and New Zealand's fifteen premiers, indistinguishable by arrangement.
       const id = `read:${slug(p.ref ?? "source")}:${systems.length}`;
       const context = [p.title, ...(sys.context ?? []).map((c) => c.text)].filter(Boolean).join(" ");
@@ -98,7 +98,7 @@ export function makeReadSource({ binder, passages = [], extractSurfaces = null }
             value: id,
             scope: { from: iso(e.from), to: iso(e.to) },
             // The bytes that produced this binding, so a reader can walk to
-            // them exactly as a qid walks to an entity page (P55: the custody
+            // them exactly as a qid walks to an entity page (P56: the custody
             // is kept even though the model never sees it).
             span: inst.span,
             assertion: assertionId(label, RELATION, slot.label),
@@ -180,7 +180,7 @@ export function makeReadSource({ binder, passages = [], extractSurfaces = null }
 
     // Members point at their system and a system points at nothing, so the
     // outbound question is honestly empty here — which is exactly the sink
-    // P58 was written for, and why `inbound` below is not optional in practice.
+    // P59 was written for, and why `inbound` below is not optional in practice.
     async neighbours(id) { return (entities.get(id)?.relations ?? []).map((r) => r.value); },
 
     async inbound(id) {

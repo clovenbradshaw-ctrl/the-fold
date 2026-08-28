@@ -152,7 +152,7 @@ const ALLOWANCES = [
       "and api.github.com as constants the SERVER reads (explore-server.mjs is what calls " +
       "fetch on them); the browser page loads github.js only for its pure shapes (base64, " +
       "path building, response parsing). Checked, not asserted: none of the three files holds " +
-      "an egress call at all, so nothing in them can issue a request. wikidata.js (P55) is the " +
+      "an egress call at all, so nothing in them can issue a request. wikidata.js (P56) is the " +
       "same split once more, for the identity organ: it names the giver's own API and " +
       "Special:EntityData addresses so the URL shape lives beside the parser that " +
       "understands the response, and explore-server.mjs's /api/entity/seek is what actually " +

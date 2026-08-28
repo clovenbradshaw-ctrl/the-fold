@@ -200,6 +200,18 @@ test("a skill claims only when every anchor appears in the task's own words", as
   assert.equal(claimSkill(library, "bake a cake").skill, null);
 });
 
+test("a non-Latin anchor requires genuine presence, never a vacuous match (P62)", async () => {
+  // Before source.js::tokenize was widened past ASCII, tokenize("שלום")
+  // returned [] and `[].every(...)` is vacuously true — a Hebrew-only
+  // anchor claimed EVERY task unconditionally, regardless of content. The
+  // fix lives entirely in source.js; this pins the fixed behavior here,
+  // where the bug actually bit.
+  const GREET = { ...HYPHENATE, name: "hebrew-greeting", anchors: ["שלום"] };
+  const { library } = await admitted(GREET);
+  assert.equal(claimSkill(library, "bake a cake").skill, null);
+  assert.equal(claimSkill(library, "אני אומר שלום לך").skill?.name, "hebrew-greeting");
+});
+
 test("the more specific claim wins; an exact tie is refused as ambiguous, typed", async () => {
   const twin = { ...HYPHENATE, name: "hyphenate-title-twin", body: HYPHENATE.body + " " };
   const wider = {

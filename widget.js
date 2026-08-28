@@ -177,7 +177,22 @@ export function makeWidgetRouter(priors) {
     foldDiacritics(String(s ?? ""))
       .toLowerCase()
       .replace(/[‘’]/g, "'")
-      .split(/[^a-z0-9']+/)
+      // Unicode letters/numbers, not `[a-z0-9]` (P62's own widening,
+      // applied here the same surgical way — the character class alone,
+      // never a swap to `tokenize`, since `forms` must keep every word
+      // tokenize drops). Before this, an iteration message written wholly
+      // in a non-Latin script tokenized to `[]`, and `iterationTell`'s own
+      // `if (!toks.length) return null` (below) short-circuited BEFORE
+      // `resolvesInto` ever ran — so the one genuinely script-agnostic
+      // path here (content-word resolution against the build's own bytes,
+      // built on `terms`/`tokenize`, already fixed) never got a chance to
+      // fire. Disclosed, not overclaimed: `NEGATION_WORDS`/`FIRST_PERSON`/
+      // `ANAPHORIC_PRONOUNS`/the determiner classes are received English
+      // closed classes (this function's own header states the giver,
+      // `lang/en`) and stay English-only regardless — judgment and
+      // anaphora detection are not fixed by this, only unblocked from an
+      // early, wrong `null`.
+      .split(/[^\p{L}\p{N}']+/u)
       .filter(Boolean);
   const terms = (s) => tokenize(String(s ?? ""));
 
@@ -271,7 +286,8 @@ export function makeWidgetRouter(priors) {
       .toLowerCase()
       .replace(/[‘’]/g, "'")
       .split(/[.!?;,:]+/)
-      .map((c) => c.split(/[^a-z0-9']+/).filter(Boolean))
+      // Same widening as `forms`, same reason — this is its per-clause twin.
+      .map((c) => c.split(/[^\p{L}\p{N}']+/u).filter(Boolean))
       .filter((c) => c.length);
 
   /**

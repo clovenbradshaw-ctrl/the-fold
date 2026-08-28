@@ -7171,6 +7171,17 @@ inducing them.
 
 ## P60 — The physics and chemistry of the cube: priors compile once, chemistry is given, reasoning settles
 
+> **Corrected in place 2026-08-28** (third amendment below carries the
+> measurement). This policy originally claimed the reaction circuit *produces*
+> never-stated facts. Measured against a naive transitive control, it produces
+> them **with provenance and a refusal surface, and adds no reach** — an
+> unlicensed 20-line join reaches every product it reaches, plus 14 more.
+> **The circuit is a filter, not a generator.** The headline is corrected here
+> rather than only amended below, because a false claim about the apparatus
+> standing at the top of its own policy is the exact defect this system exists
+> to prevent. What follows is the original text, unaltered, with its
+> amendments appended in order.
+
 **User direction, near-verbatim (2026-08-28):** *"figure out how to get the
 fold and eoreader7 to leverage all the priors as well as possible, whether
 it's predigesting or what, and running a true 'neural net' style thing so we
@@ -7260,7 +7271,9 @@ fixtures, no model call anywhere: 26 facts byte-addressed and
 self-verified; admitted through P57's door to 25 notes with the
 cross-fixture repeat FOLDED (one note, two witnesses, two addresses);
 control arm 0 derived / 41 pair types withheld; chemistry arm **9
-never-stated facts derived, quiescent in 3 steps**, headline
+never-stated facts derived, quiescent in 3 steps** (each carrying provenance
+and a refusal surface; against a naive transitive control this adds licensing,
+not reach — see the third amendment), headline
 **"Ulysses S. Grant held the presidency after Abraham Lincoln"** (derived
 through Andrew Johnson; labels verified against live wikidata.org) and a
 depth-2, 2-path fact (Colfax after Breckinridge, through Johnson AND
@@ -7476,3 +7489,64 @@ work is done by occurrence identity; the dates are incidental.
 needs the material to have been labelled with one domain's vocabulary, it has
 not learned anything general — it has learned that domain. Prove otherwise by
 running the identical core over a corpus from somewhere else.
+
+### Amended 2026-08-28 (fifth) - the spec's five increments, and the one that split its own prediction
+
+Executed against a handed-down spec (A-E). A-D landed; **E was optional and is
+not built** - named here rather than implied.
+
+**A - the giver named.** The governing law *"the low establishes the possibility
+for the high; the high establishes the probability for the low"* (READING-SPEC
+S9) carried no giver, while the apparatus refuses gifts whose giver cannot be
+named. It is now credited to **Arthur Koestler, *The Ghost in the Machine*
+(1967)** - the holon, and hierarchic order's "fixed rules and flexible
+strategies"; the two directions are the Janus-faced holon's two faces.
+`native/eval/prior-art-cited.mjs` makes the rule enforceable against the spec's
+own class of law: 21 laws, 21 with resolvable givers. **The lint's first version
+was a comment, not a wall** - its detection window ran past the heading into the
+next law and found *its* giver, so a deleted giver read as present. Caught by
+planting the defect; fixed by bounding the window. It also reports a real
+collision: **S17 is used twice**, and the-fold cites S17 three times, so an
+external citation of it is ambiguous. Not renumbered - that would break those
+citations.
+
+**B - the chemistry says what it is.** `reaction.js`'s header and P60's headline
+now state the measured result: **a filter, not a generator.**
+`derivation-filter.test.mjs` holds it honest - the licensed fact set must stay a
+SUBSET of the naive join's, with a third case guarding against the control
+silently becoming a copy of the shipped arm (vacuous truth).
+
+**C - the wall is executable.** `afterVeto(licensedByGiver, scans)` makes the
+shape explicit: a named giver licenses, the scan only removes, and nothing
+outside `licensedByGiver` can return however clean its scan. Two call sites had
+spelled it `licensed: !scan.refuted`. A source guard forbids admitting on a
+negated refusal, with a `veto-report:` marker for legitimate reporting uses.
+**That guard was also a comment before it was a wall**: its pattern matched only
+`!ident.refuted`, so a planted `!scanAt(...)[0].refuted` walked straight
+through. Widened to any negated read.
+
+**D - intervals, and a prediction that split.** `refuteRelation` gained
+`intervalOf`: a repeat standing refutes only where two standings OVERLAP, and
+(added when the first half proved insufficient) a cycle refutes only where it
+CLOSES WITHIN ONE STANDING. Half-open, so a same-instant handover is disjoint;
+a missing bound reads as unbounded, because disjointness excuses and must be
+shown. Against the pre-registered prediction: **confirmed exactly** - 15 true
+facts recovered, precisely the number the office gate destroyed; **refuted
+exactly** - precision fell to 0.909, byte-identical to no gate at all.
+
+**The reason is the finding.** Intervals fix the **gate's** over-refusal; they
+do nothing about the **composition's** conflation at a bridge. A chain hopping
+through a multi-tenure referent at referent grain has already lost which
+standing it passed through, and no gate downstream can recover it. The spec
+treated these as one defect. Neither half alone holds both recall and precision
+- the interval gate recovers recall and loses precision; occurrence-grain
+bridges hold precision and recover little. Joining them is named,
+measured-as-necessary, and unbuilt.
+
+**A defect found on the way, unrelated to the spec:** three kernel files carried
+literal NUL bytes in template-literal key separators. Git handled them as text,
+so no diff was ever affected - but **grep and ripgrep skip any file containing
+one**, and Increment C asks for a *grep-level* guarantee. A guarantee whose tool
+silently omits kernel files is worthless, so those NULs became escape sequences.
+Two more sit in the-fold's `app.js` and `explore-server.mjs`, left untouched:
+those belong to the fold-architecture session.

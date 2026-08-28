@@ -1247,14 +1247,60 @@ export function makeRelationReader(organs) {
     const edges = [];
     const bucketOf = (verb, polarity) => `${verb}|${polarity}`;
     const buckets = new Map();
-    for (const p of extractionList) {
-      let triples = [];
-      try {
-        triples = verbs.size ? extractRelations(p.text, { verbs, functionWords, negationWords }) : [];
-      } catch {
-        triples = [];
-      }
-      for (const t of triples) {
+    // EXTRACTION IS PER SENTENCE, AND EVERY EDGE CARRIES THE BYTES THAT MADE
+    // IT (2026-08-27, user direction: "they should carry the exact bytes that
+    // produced them if we're doing the hypergraph right").
+    //
+    // This file used to call `extractRelations` on a whole passage and keep
+    // only `p.ref` — passage grain. Every other addressed thing in this repo
+    // is byte-exact and self-verifying (P5.2, mandatory: 11,132/11,132 on War
+    // and Peace), so the one tier that makes CLAIMS about the material was
+    // also the one tier that could not say which bytes it read them from.
+    //
+    // Measured before adopting, on the three real pages the live app fetched
+    // (161k/182k/56k chars): sentence offsets self-verify 1,606/1,606 against
+    // the passage's own bytes; per-passage extraction found 2,314 edges,
+    // per-sentence 2,289 — 48 lost, 23 gained. Every sampled LOST edge is
+    // cross-boundary garbage ("content —from→ wikipedia", "free encyclopedia
+    // —president→ of", and several carrying a literal newline inside the
+    // subject: "1869\n\n17th —president→ of", "tailor\n\nsignature —military→
+    // service\nbranch"), i.e. the P38 infobox-gluing class, now excluded
+    // STRUCTURALLY rather than by widening blankFurniture again. The gained
+    // ones are real ("16th vice —president→ of", "15th governor —of→
+    // tennessee").
+    //
+    // THE ADDRESS IS INTO THE ORIGINAL MATERIAL, NEVER THE REWRITTEN COPY.
+    // `extractionList` has been through `forExtraction` — blankFurniture is
+    // length-preserving but `resolvePronounSubjects` is NOT (it substitutes a
+    // name for a pronoun), so an offset into that text would name bytes the
+    // reader never had. So the extractor reads the REWRITTEN sentence (a
+    // pronoun subject still resolves) while the span addresses the ORIGINAL
+    // one, paired by sentence index. Pairing is CHECKED, not assumed —
+    // measured 3/3 on those same pages under a length-changing rewrite — and
+    // when the counts disagree the edge honestly falls back to passage grain
+    // with no span at all, rather than carrying an address that would be off
+    // by a sentence. A wrong address is worse than a coarse one.
+    for (let pi = 0; pi < extractionList.length; pi++) {
+      const p = extractionList[pi];
+      const originalText = String(list[pi]?.text ?? p.text);
+      const readSentences = splitSentences(p.text) ?? [];
+      const originalSentences = splitSentences(originalText) ?? [];
+      const paired = readSentences.length === originalSentences.length;
+      for (let si = 0; si < readSentences.length; si++) {
+        const sentence = readSentences[si];
+        let triples = [];
+        try {
+          triples = verbs.size ? extractRelations(sentence.text, { verbs, functionWords, negationWords }) : [];
+        } catch {
+          triples = [];
+        }
+        if (!triples.length) continue;
+        const origin = paired ? originalSentences[si] : null;
+        const span =
+          origin && p.ref
+            ? { ref: p.ref, start: origin.offset, end: origin.offset + origin.text.length, text: origin.text }
+            : null;
+        for (const t of triples) {
         const subjectEnd = endpoint(t.subject, true);
         const objectEnd = endpoint(t.object, Boolean(createLemmatizer));
         const bucketKey = bucketOf(t.verb, t.polarity);
@@ -1270,6 +1316,12 @@ export function makeRelationReader(organs) {
           // passage dedupe inside extractRelations itself — that residue
           // is the extractor's, disclosed here rather than papered over.)
           existing.statements += 1;
+          // Every sentence that states this edge, not just the first: an
+          // edge stated three times has three addresses, and which one a
+          // reader is shown should be their choice, not extraction order's.
+          if (span && !existing.spans.some((x) => x.ref === span.ref && x.start === span.start)) {
+            existing.spans.push(span);
+          }
         } else {
           const fresh = {
             subject: t.subject,
@@ -1279,10 +1331,14 @@ export function makeRelationReader(organs) {
             subjectEnd,
             objectEnd,
             refs: [p.ref].filter(Boolean),
+            // The bytes this edge was read from. Empty only when the
+            // sentence pairing above refused — never a guessed address.
+            spans: span ? [span] : [],
             statements: 1,
           };
           edges.push(fresh);
           bucket.push(fresh);
+        }
         }
       }
     }
@@ -1512,6 +1568,26 @@ export function makeRelationReader(organs) {
             ...claim,
             verdict: "bound",
             refs,
+            // THE EXACT BYTES THAT BOUND IT, carried onto the claim and not
+            // left on the edge. `refs` names the passage; `spans` names the
+            // sentence, byte-addressed and self-verifying. Without this a
+            // caller wanting to show a reader (or a model) what a claim
+            // actually rests on has only a whole chunk to offer, which is
+            // how page furniture — "'President Lincoln' and 'Mr. Lincoln'
+            // redirect here" — reached a prompt as though it were evidence.
+            spans: (() => {
+              const seen = new Set();
+              const out = [];
+              for (const e of agree) {
+                for (const sp of e.spans ?? []) {
+                  const k = `${sp.ref}#${sp.start}-${sp.end}`;
+                  if (seen.has(k)) continue;
+                  seen.add(k);
+                  out.push(sp);
+                }
+              }
+              return out;
+            })(),
             corroboration: corroboration(refs),
             // The material stating BOTH polarities is a fact worth carrying,
             // never averaged away: divergence between perspectives is a
@@ -1606,6 +1682,11 @@ export function makeRelationReader(organs) {
         object: e.object,
         polarity: e.polarity,
         refs: e.refs,
+        // The exact bytes this edge was read from, carried THROUGH the
+        // projection. Without this line `edges` is the one face of this
+        // tier that cannot say where it read anything — measured 0/2,298
+        // when the field was added at construction and dropped here.
+        spans: e.spans ?? [],
         // null when no posPrior was available — a disclosed absence of the
         // check, never a false "plausible". Never used to drop or downrank
         // an edge here; a caller (verification.js) reads it as it chooses.

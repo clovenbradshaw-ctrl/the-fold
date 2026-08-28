@@ -17,7 +17,8 @@
         "/engine/emergence/tiers.js",
         "/engine/holon/task-log.js",
         "/engine/operators.js",
-        "/engine/perceiver/text/priors.js"
+        "/engine/perceiver/text/priors.js",
+        "/engine/perceiver/text/wordclass.js"
       ]
     },
     "nodeImports": {

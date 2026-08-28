@@ -35,6 +35,7 @@
         --record: #6d28d9;
         --record-soft: #faf7ff;
         --warn: #b42318;
+        --think: #9a6b00;
         --sans: -apple-system, "SF Pro Text", "Segoe UI Variable Text",
           "Segoe UI", Roboto, sans-serif;
         --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
@@ -57,6 +58,7 @@
           --record: #a78bfa;
           --record-soft: #17141f;
           --warn: #f0857a;
+          --think: #d4a441;
         }
       }
       :root[data-theme="dark"] {
@@ -70,6 +72,7 @@
         --record: #a78bfa;
         --record-soft: #17141f;
         --warn: #f0857a;
+        --think: #d4a441;
       }
       * { box-sizing: border-box; }
       body {
@@ -238,13 +241,23 @@
         margin-left: 10px;
         cursor: help;
       }
+      /* EVERY RULE HERE IS SCOPED TO `.msg .body` — the answer surface —
+         and none of them reach the `.turn-meta` disclosure, which is a
+         sibling of `.body`, not a child. That scoping IS the "hidden
+         drawing, never a hidden finding" rule expressed in CSS: what is
+         suppressed is the mark drawn over the prose; the finding itself
+         still lists in the thinking drawer, where the reader went looking
+         for it. Two rules below used to be unscoped (`.grounding-strip`,
+         `.proof-panel`) and, since those two now append INTO the drawer
+         rather than beside the answer, an unscoped rule hid the finding
+         too — the one thing the comment above says it must not do. */
       body.marks-off .msg .body button.ref,
-      body.marks-off .msg .body .edge-badge { display: none; }
-      /* The fact-check chips follow the same switch — hidden, never unmade:
-         the checks still ran, the ledger still holds their verdicts, the
-         fold's disclosure still lists them. */
-      body.marks-off .grounding-strip,
-      body.marks-off .proof-panel { display: none; }
+      body.marks-off .msg .body span.ref.bad,
+      body.marks-off .msg .body .edge-badge,
+      body.marks-off .msg .body .crown-line,
+      body.marks-off .msg .body .grounds,
+      body.marks-off .msg .body .grounding-strip,
+      body.marks-off .msg .body .proof-panel { display: none; }
       body.marks-off .sent[data-ground="model"],
       body.marks-off .sent.claims {
         border-bottom: 0;
@@ -335,6 +348,69 @@
         font-size: 12px;
         color: var(--muted);
       }
+      /* The reasoning is PROSE and is typeset as prose — the one thing the
+         run log above is deliberately not. Both used to share `.thinking`,
+         and the shared monospace-12px-pre-wrap treatment made paragraphs
+         about the question read as more log output: a grey wall a reader
+         parses rather than reads (user, 2026-08-27: "our current affordance
+         is too structured"). Proportional face, a reading line-height, a
+         reading measure, and real paragraph spacing so the turns in a
+         thought are visible as spacing rather than as newlines inside one
+         undifferentiated block. The quiet left rule marks it as thinking
+         rather than answer without borrowing the accent the disclosure
+         panels already use for their own rail. */
+      .reasoning {
+        border-left: 2px solid var(--line);
+        padding-left: 13px;
+        margin: 2px 0 12px;
+      }
+      .reasoning p {
+        margin: 0 0 9px;
+        font-size: 13px;
+        line-height: 1.62;
+        color: var(--muted);
+        max-width: 66ch;
+        overflow-wrap: anywhere;
+      }
+      .reasoning p:last-child { margin-bottom: 0; }
+      /* Inside the disclosure the panel's own rail is already there, so a
+         second one doubles up — the same reset `details.fold details.fold >
+         div` already makes for nested panels. */
+      details.fold .reasoning { border-left: 0; padding-left: 0; margin-top: 0; }
+      /* The MODEL's own deliberation (qwen3/deepseek-r1's `thinking` field),
+         added 2026-08-27 — see app.js's `showModelThinking` for why this is
+         never the same voice as `.reasoning`: that is the instrument's own
+         mechanical narration, true by construction; this is the model's
+         unchecked first pass. Same layout family (rail, paragraphs, 66ch
+         measure) so the two read as siblings, not as two different
+         applications — but a distinct accent (amber, not the violet the
+         rest of this page's accent already means "instrument-checked") and
+         a small-caps label, so a reader can never mistake one for the
+         other at a glance. Italic marks it as reported speech — this is
+         the model's own voice, quoted, not the page's. */
+      .model-thinking {
+        border-left: 2px solid var(--think);
+        padding-left: 13px;
+        margin: 2px 0 12px;
+      }
+      .model-thinking-label {
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--think);
+        margin-bottom: 4px;
+      }
+      .model-thinking-body p {
+        margin: 0 0 9px;
+        font-size: 13px;
+        line-height: 1.62;
+        font-style: italic;
+        color: var(--muted);
+        max-width: 66ch;
+        overflow-wrap: anywhere;
+      }
+      .model-thinking-body p:last-child { margin-bottom: 0; }
+      details.fold .model-thinking { border-left-width: 2px; margin-top: 0; }
       .tabs .chat-tab { display: none; }
       .tabs .short { display: none; }
 
@@ -1778,7 +1854,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
            way of simply reading the answer. Off hides the drawing, never the
            finding — every mark is still in the turn's "thinking", and the
            tally still counts what the marks would have shown. -->
-      <button id="marks-toggle" type="button" aria-pressed="true" title="Checking — read every answer against your material, mark what it stands on, and look up what nothing backs. Off is a plain chatbot: the model answers and nothing is verified.">
+      <button id="marks-toggle" type="button" aria-pressed="true" title="Checking — read every answer against your material and look up what nothing backs. The findings list under &quot;thinking&quot;; they are not drawn over the answer. Off is a plain chatbot: the model answers and nothing is verified.">
         <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
       </button>
         <button id="theme-toggle" type="button" title="Appearance"></button>

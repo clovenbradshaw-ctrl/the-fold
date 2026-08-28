@@ -234,6 +234,8 @@ export function buildFactBlock(relations, passages, question = "") {
   );
   const seen = new Set();
   const lines = [];
+  const spans = [];
+  const spanSeen = new Set();
   let sentenceCount = 0;
   let boundSentenceCount = 0;
   for (const p of passages) {
@@ -264,6 +266,20 @@ export function buildFactBlock(relations, passages, question = "") {
       seen.add(key);
       const negated = claim.polarity === "-" ? " not" : "";
       lines.push(`${claim.subject} —${negated} ${claim.verb}→ ${claim.object}`);
+      // THE SPANS THAT PRODUCED THIS NOTE, and only those (user direction,
+      // 2026-08-28: "use only the spans linked to the precise hyperlexicon
+      // elements"). A note is defeasible, so what defeats it has to be
+      // present — but the whole retrieved chunk is not that. Sending the
+      // chunk sent page furniture along with it; measured live, a prompt
+      // carried "'President Lincoln' and 'Mr. Lincoln' redirect here" as
+      // though it were evidence. The sentence that actually bound the claim
+      // is the evidence, it is byte-addressed, and it is what goes.
+      for (const sp of claim.spans ?? []) {
+        const at = `${sp.ref}#${sp.start}-${sp.end}`;
+        if (spanSeen.has(at)) continue;
+        spanSeen.add(at);
+        spans.push({ at, ref: sp.ref, text: String(sp.text ?? "").replace(/\s+/g, " ").trim() });
+      }
     }
     boundSentenceCount += boundSentences.size;
   }
@@ -296,28 +312,69 @@ export function buildFactBlock(relations, passages, question = "") {
       allLines: [],
       coverage: 0,
       empty: true,
+      // FIREWALL (firewall.js): the void keeps every bit of its force —
+      // the "William R. Hargis" incident below proved a SILENT absence is
+      // what a model fills from memory — while losing the machinery it
+      // used to describe to say so ("Not one of the 97 sentence(s) in your
+      // material yielded an extractable relation… no mechanically
+      // confirmed fact behind this turn"). The counts are real and still
+      // computed; they ride on `coverage`/`sentenceCount` to the thinking
+      // panel, where a reader can see them, and not into the model.
       text:
-        `FACTS — none. Not one of the ${sentenceCount} sentence(s) in your material ` +
-        `yielded an extractable relation, so there is no mechanically confirmed fact ` +
-        `behind this turn. This is a stated absence, not an oversight: if the passages ` +
-        `above do not answer the question, say plainly that they do not. Do not fill ` +
-        `this space from memory.`,
+        `I made no notes on these — nothing I could read came out of them. That is a stated ` +
+        `emptiness, not an oversight: read the sources' own words below, and if the answer is ` +
+        `not there, say plainly that it is not. Do not fill this in from memory.`,
     };
   }
   const ranked = rankByQuestion(lines, questionTerms);
   const shown = ranked.slice(0, MAX_FACT_LINES);
-  const omitted = ranked.length - shown.length;
   const coverage = sentenceCount ? Math.round((boundSentenceCount / sentenceCount) * 100) : 0;
   return {
     lines: shown,
     allLines: ranked,
+    // The other register, ready to render: minimal, byte-addressed, and
+    // each under the source that wrote it.
+    spans,
     coverage,
+    // What the header used to say out loud to the model, kept as data for
+    // the thinking panel instead (firewall.js).
+    omitted: ranked.length - shown.length,
+    sentenceCount,
+    boundSentenceCount,
+    // FIREWALL (firewall.js): this header used to carry its own build
+    // notes into a 2B model's context — "(7 of 97 sentence(s) with an
+    // extractable relation; the passages above are the complete record,
+    // this list is a partial aid, not a substitute for them; 3
+    // lower-ranked fact(s) omitted here…)". Every one of those clauses is
+    // a statement about how this instrument works, and the measured
+    // consequence was a model that answered by describing its input
+    // ("The prompt specifically identifies Hannibal Hamlin…"). The
+    // numbers are not lost: `coverage`, `lines` and `allLines` are
+    // returned as fields, and the disclosure panel is where a reader
+    // reads them.
+    // TWO REGISTERS, AND THE NOTES ARE DEFEASIBLE (user direction,
+    // 2026-08-28): "never give it the raw text alone, we always feed it the
+    // hyperlexicon's surf and fold with the minimal raw spans from the
+    // original... it makes a distinction between 'this is my reading' and
+    // the raw spans with sources explicit" — and then, sharper: "let's
+    // consider the hyperlexicon fold the speaking model's NOTES, DEFEASIBLE."
+    //
+    // That is the right standing for this block and it is not what the block
+    // used to claim. It opened "Known to be true:", which asserts something
+    // about the WORLD while having only done something about a READING — and
+    // on a bad extraction (this file's own header lists three: pronoun
+    // subjects, glued infobox rows, swallowed causal clauses) that phrasing
+    // hands a model a fabrication wearing a certificate.
+    //
+    // Notes are the honest shape. They belong to the model about to speak
+    // rather than to an authority handing it facts; they are provisional;
+    // and they LOSE to the sources' own words, which sit beside them under
+    // their own names. Saying which wins is the whole point of keeping the
+    // two registers apart — a model that cannot tell a note from a quotation
+    // has no way to prefer the quotation.
     text:
-      `FACTS — read directly from your material (${boundSentenceCount} of ${sentenceCount} ` +
-      `sentence(s) with an extractable relation; the passages above are the complete record, ` +
-      `this list is a partial aid, not a substitute for them` +
-      (omitted ? `; ${omitted} lower-ranked fact(s) omitted here, still present in the passages above` : "") +
-      `):\n` +
+      `My notes so far — what I made of the sources, which may be wrong; ` +
+      `where a note and a source disagree, the source is right:\n` +
       shown.map((l) => `- ${l}`).join("\n"),
   };
 }

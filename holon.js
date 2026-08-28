@@ -426,7 +426,7 @@ export function buildPlanPrompt(task, maxParts = MAX_PARTS) {
 // claims. An instruction referencing a thing the pipeline mechanically
 // removed is not a harmless leftover; it is a fabrication order.
 export const EXECUTE_SYSTEM_PROMPT =
-  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the prompt — do not copy sentences from it, and do not just restate the prompt back. Where the material does not cover the part, say so plainly instead of filling the gap.";
+  "You are writing one part of a larger piece. Write plain prose for that part, and only that part, in your own words. Say what is established below — do not copy sentences out of it, and do not restate the question back. Where the answer is not there, say so plainly instead of filling the gap.";
 
 // The no-material reply's other face. A prompt that matched no material is
 // not necessarily a research gap — a greeting, a question of taste, a joke —
@@ -434,7 +434,7 @@ export const EXECUTE_SYSTEM_PROMPT =
 // question is: hi". This prompt is the one place chat is allowed to be chat:
 // no material framing, no citation grammar, just a reply to a person.
 export const CHAT_SYSTEM_PROMPT =
-  "A friendly conversation with no source material. The user's message matched no document to cite, so reply to it directly, briefly, and naturally, as a person would. Do not restate the message back; say something new in response.";
+  "A friendly conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new.";
 
 // S1's own face: think out loud, give a first take, not a finished answer.
 // The hedge IS the character — it makes S2's arrival feel natural ("I
@@ -457,7 +457,12 @@ export const S1_SYSTEM_PROMPT =
 // steering on top) — CHAT_SYSTEM_PROMPT's existing honesty framing already
 // covers what to DO with an empty search; this only supplies the FACT that
 // one happened.
-export const SEARCHED_VOID_PREFIX = "A web search ran for this and found nothing usable — the search came back empty, it was not skipped.";
+// The void keeps its FORCE and loses its MACHINERY (firewall, 2026-08-27).
+// P32's point stands — a confirmed absence must not read to the model like
+// an absence nobody checked — but "a web search ran… it was not skipped"
+// tells the model how this instrument is built in order to say so. What
+// the model needs is that the emptiness is real and is not its to fill.
+export const SEARCHED_VOID_PREFIX = "Nothing could be found on this. The emptiness is real and confirmed — say so plainly; it is not yours to fill in.";
 
 // The System 1 / System 2 pass: first-person framing so S2 understands it's
 // following up on its OWN initial reaction, not investigating someone else's.
@@ -488,8 +493,15 @@ const S2_FRAME_PREFIX = "";
 // turn — never a directive about it. Decomposed parts keep the directive
 // shape: there a part label genuinely exists and the meta level is the
 // true level.
+// FIREWALL (2026-08-27, firewall.js): this string used to say "Passages
+// retrieved for this turn follow… do not describe the message or the
+// passages" — naming our own parts three times while instructing the model
+// not to name them. Measured live, it complied with the vocabulary and not
+// the instruction: "The prompt specifically identifies Hannibal Hamlin…".
+// Nothing here names a part of this instrument now, so there is no word to
+// borrow. `firewall.test.mjs` fails if one comes back.
 export const FLAT_EXECUTE_SYSTEM_PROMPT =
-  "You are answering the latest message in a conversation. Passages retrieved for this turn follow. Answer the message in your own words — do not describe the message or the passages, and do not restate the message back. Write from the passages when they cover the question; where they do not cover it, say so plainly instead of filling the gap.";
+  "You are talking with someone. Answer what they asked, in your own words, the way a person would — not a summary of the question and not a description of what you were given. Everything below is yours to answer from. If the answer is not there, say plainly that it is not, rather than filling the gap.";
 
 export function buildExecutePrompt(part, sourceBlock, discourse = "") {
   const head = `Write this part: ${part.label}. ${part.description}`;
@@ -536,9 +548,20 @@ export function buildExecutePrompt(part, sourceBlock, discourse = "") {
  */
 export function buildRedefinedPart(part, findings) {
   if (!findings?.length) return part;
+  // "The record confirms exactly this" was the wording here until
+  // 2026-08-27, and it was measured leaking — not inferred, READ, in a
+  // reasoning model's own visible thinking on a live turn: "the prompt says
+  // 'the record confirms exactly this, and nothing beyond it'. So I should
+  // emphasize... But must not say 'the record' since that's from the
+  // prompt." The model spent real tokens working out that a phrase in its
+  // own instructions was not a phrase it was allowed to use. That is the
+  // whole cost of scaffolding vocabulary: it becomes a thing to comply
+  // with rather than a fact to use. Named plainly instead — the findings
+  // are what several sources establish, and "several sources establish" is
+  // a fact about the world, not a term of art from a rulebook.
   return {
     ...part,
-    description: `${part.description} The record confirms exactly this, and nothing beyond it, even if other names or claims sit nearby in the material below: ${findings.join("; ")}.`,
+    description: `${part.description} These are established, and are the complete set, even if other names or claims sit nearby: ${findings.join("; ")}.`,
   };
 }
 
@@ -734,16 +757,24 @@ export function mechanicalAnswer(question, passages) {
     if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
   }
   if (!lines.length) return "";
-  // The preamble speaks like an answer, not like an instrument (user
-  // direction, 2026-08-20: "THIS SHOULD FEEL LIKE CHATTING WITH CLAUDE").
-  // The mechanical honesty is unchanged — these are still the material's
-  // own sentences, verbatim, each with its address — only the framing
-  // sentence stopped narrating the apparatus that assembled them.
-  return [
-    "Here's what the material itself says about this:",
-    ...lines,
-    "That's everything the material offers on the question's own words.",
-  ].join("\n\n");
+  // NO FRAMING SENTENCES. This used to open "Here's what the material itself
+  // says about this:" and close "That's everything the material offers on
+  // the question's own words." — user direction, 2026-08-27, shown this
+  // exact output for the third time: "i never want to see output 'talking'
+  // content like this."
+  //
+  // Both sentences were meta-commentary ABOUT the material rather than an
+  // answer, and both used the generic scaffolding word the same session had
+  // already had removed from `buildSourceBlock` and `buildRedefinedPart`
+  // ("just have it be like 'Wikipedia, Retrieved...'"). A reader asking what
+  // the capital of France is does not want to be told what a corpus offers;
+  // the quoted sentences already say it, verbatim and addressed, and they
+  // say it better without a narrator introducing them.
+  //
+  // What ships is now exactly what this function was always honest about
+  // being: the material's own sentences, each with its address, and nothing
+  // in this instrument's voice wrapped around them.
+  return lines.join("\n\n");
 }
 
 /**
@@ -864,6 +895,27 @@ export async function runPart({
   // only reaches the chat branch below (a part that HAS passages already
   // knows the surf turned something up; this is specifically the void).
   searchedVoid = null,
+  // HOW BIG THE ANSWER SHOULD BE, measured before the model drafts — never
+  // a length the model guesses at (2026-08-27, user direction: "the vast
+  // majority of 'reasoning' [should] be mechanical, and the result of the
+  // reasoning is a very simple prompt to the model, with the smallest
+  // context possible").
+  //
+  // The measured failure this closes: "What is the capital of France?" —
+  // one city, one word — came back as five sentences of hedged
+  // meta-commentary ("The passages consistently establish that Paris
+  // functions as France's capital city, with multiple sources explicitly
+  // identifying it as such...") after two correction rounds and 214
+  // seconds. The model was not being evasive; it had no idea how much
+  // answer was wanted, so it padded to the size of its own uncertainty and
+  // the checker then punished the padding as unsupported claims. AN
+  // UNMEASURED SLOT GETS FILLED WITH HEDGING.
+  //
+  // The size is not a new measurement — it is `void-brief.js`'s already-
+  // declared cardinality, which app.js computes BEFORE this call (moments 1
+  // and 2, both ahead of any drafting). A caller with no void passes null
+  // and every branch below is byte-identical to before this existed.
+  answerShape = null,
   // S1's own answer text, or null when there was no fast pass (or the S2
   // gate never fired). Flat only, reaching both the chat branches and the
   // flat material branch (unlike searchedVoid, S1's answer stays relevant
@@ -1424,6 +1476,18 @@ export async function runPart({
       const content = finished.map((s) => s.trim()).filter((s) => s && !isFraming(s));
       return reproducedFromContent(content);
     },
+    // A reasoning-capable model (qwen3, deepseek-r1) streams its own
+    // deliberation through Ollama's own separate `message.thinking` field —
+    // app.js's completeOnce now captures it and fires this the SAME way
+    // onDelta already fires, so it reaches the page through the SAME
+    // onProgress channel every other phase already uses, one new phase name
+    // rather than a second callback surface. Never read by anything in this
+    // file: the draft that gets checked, corrected and recorded is still
+    // built from `onDelta`'s own accumulation alone. A model that has
+    // nothing to call `.thinking` (gemma2:2b, this app's default) simply
+    // never fires this — completeOnce only calls it when Ollama actually
+    // sends the field.
+    onThinking: (partial) => onProgress?.("thinking", part, { partial }),
   };
 
   // A part with no material is plain chat, not a research gap. The
@@ -1470,6 +1534,12 @@ export async function runPart({
   const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
   const s2Frame = priorPass ? S2_FRAME_PREFIX : "";
   const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
+  // Stated as a FACT about the answer's shape, in the positive, never as a
+  // prohibition ("do not write more than…"). Tonight's own measurement is
+  // why: a reasoning model spent visible tokens working out how to comply
+  // with a phrase in its prompt rather than using it. A size it can simply
+  // aim at is information; a length limit is one more rule to satisfy.
+  const shapeSuffix = answerShape ? ` ${answerShape}` : "";
   // Phase 2's own material, for the INITIAL draft prompt only — `sourceBlock`
   // itself stays untouched everywhere else in this function (succession-box
   // parsing at parseSuccessionBoxes below reads raw material text and must
@@ -1481,13 +1551,39 @@ export async function runPart({
   // being `dedupedSourceBlock` (above), not raw `sourceBlock`: the
   // salience gate's other half, cutting near-identical restatements
   // rather than adding a structured list ON TOP of an unfiltered raw one.
-  const draftMaterial = factBlock ? [factBlock.text, dedupedSourceBlock].filter(Boolean).join("\n\n") : dedupedSourceBlock;
+  // TWO REGISTERS, AND THE SPANS ARE ONLY THE ONES THE NOTES REST ON.
+  // User direction, 2026-08-28: "never give it the raw text alone, we
+  // always feed it the hyperlexicon's surf and fold with the minimal raw
+  // spans from the original"; then "use only the spans linked to the
+  // precise hyperlexicon elements."
+  //
+  // So the notes go first, saying plainly that they are notes and that a
+  // source beats them; then the sentences that actually bound those notes,
+  // each under its own address. The whole retrieved chunk no longer goes:
+  // measured live, it carried page furniture ("'President Lincoln' and
+  // 'Mr. Lincoln' redirect here") into a prompt as though it were evidence.
+  //
+  // THE ONE FALLBACK, disclosed rather than silent: when nothing bound,
+  // there are no notes AND no spans, and sending neither would leave a
+  // model with nothing at all on a question the raw text may well answer —
+  // this repo's own extraction gap is large enough that this is the common
+  // case, not the corner. So a no-note turn still gets the deduplicated
+  // raw block, with the notes block already stating that nothing could be
+  // read out of it.
+  const spanBlock =
+    factBlock?.spans?.length
+      ? factBlock.spans.map((sp) => `${sp.ref}:
+"${sp.text}"`).join("\n\n")
+      : null;
+  const draftMaterial = factBlock
+    ? [factBlock.text, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : dedupedSourceBlock;
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, draftMaterial].join("\n\n") + chatContext,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -2122,6 +2218,10 @@ export async function runHolonicTask({
   // says why) — a task-wide fact, since a preflight search runs once,
   // before the plan, never per-part.
   searchedVoid = null,
+  // The measured answer size (void-narration.js::answerShapeLine), task-wide
+  // for the identical reason searchedVoid is: the void is declared once per
+  // TURN, before any part runs. null → byte-identical to before.
+  answerShape = null,
   // S1's own answer, task-wide for the identical reason searchedVoid is —
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
@@ -2238,6 +2338,7 @@ export async function runHolonicTask({
       // when planMode is "flat".
       flat: planMode === "flat",
       searchedVoid,
+      answerShape,
       priorPass,
       onProgress,
       grid,

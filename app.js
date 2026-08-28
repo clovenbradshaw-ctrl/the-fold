@@ -182,7 +182,7 @@ import {
 } from "./proof.js";
 import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
-import { renderHolders } from "./wikidata.js";
+import { dayOf, renderHolders } from "./wikidata.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { verificationTasksFor, verificationSummary } from "./verification.js";
@@ -3453,6 +3453,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // log line opens a fresh run. The log lines end up reading as stage
   // directions between thoughts, which is what they are.
   const traceEl = document.createElement("div");
+  // ONE THINKING AFFORDANCE, NOT TWO. A `<details class="fold">` was built
+  // here to hold the trace — but `addMessage` already gives every assistant
+  // turn one (the turn-meta disclosure), and `renderFold` already takes a
+  // `reasoning` argument that puts exactly this narration at the top of it.
+  // Two affordances both labelled "thinking" is worse than either: a reader
+  // has to open both to find out which one has the work in it. The trace
+  // streams into the body while the turn runs and moves into the existing
+  // disclosure when it lands.
   body.replaceChildren(traceEl, tickEl, draftEl);
 
   let logBlock = null;
@@ -3470,14 +3478,29 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   /** One passage of thinking. Split on blank lines so each paragraph is its
    * own element — a single pre-wrap blob is exactly the undifferentiated
    * wall this replaces. */
+  // A READABLE PACE. Thoughts used to land the instant they were computed,
+  // so a whole chain appeared at once and read as a dump rather than as
+  // thinking. Each paragraph is revealed on its own short beat — the work is
+  // already done, this only spaces out its ARRIVAL so it can be followed.
+  // Purely presentational: `reasoning` (the record) is appended immediately
+  // and synchronously, so nothing downstream waits on a timer and a turn that
+  // ends early loses none of its trace.
+  const THOUGHT_BEAT_MS = 420;
+  let beat = 0;
   const think = (text) => {
     reasoning.push(text);
     logBlock = null; // a thought closes the current run of log lines
     const w = document.createElement("div");
     w.className = "reasoning";
     w.append(...paragraphsOf(text));
+    w.style.opacity = "0";
+    w.style.transition = "opacity 240ms ease";
     traceEl.append(w);
-    node.scrollIntoView({ block: "end" });
+    const at = beat++;
+    setTimeout(() => {
+      w.style.opacity = "1";
+      node.scrollIntoView({ block: "end" });
+    }, at * THOUGHT_BEAT_MS);
   };
 
   // A FOURTH — no, third-and-separate — voice: the MODEL'S OWN deliberation,
@@ -3782,12 +3805,109 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // receives the fillers as content, and the custody stays on the record.
     let seekFillers = [];
     if (state.grounded && state.webProof && voidBrief?.declaration) {
-      const anchorTerm = voidBrief.declaration.cells?.find((c) => c.op === "SIG")?.declared ?? null;
-      const slotTerm = voidBrief.headPhrase ?? null;
+      let anchorTerm = voidBrief.declaration.cells?.find((c) => c.op === "SIG")?.declared ?? null;
+      let slotTerm = voidBrief.headPhrase ?? null;
+      // THE MODEL AS THE EAR, NOT THE MOUTH — one standalone call whose
+      // only job is to say what the question is ABOUT, in the words a public
+      // record would file it under. It never sees the record and never
+      // states the answer; what it produces is a QUERY, and the query is
+      // then put to the source, which either resolves it to a real referent
+      // with real dated relations or does not. A bad rewrite fails at the
+      // next step instead of becoming an answer.
+      //
+      // WHY IT IS NEEDED, measured: asked "who was lincoln's vp?", the shape
+      // reader gives anchor "lincoln" and slot "vp". "vp" is fine — the
+      // source ranks the vice-presidency second for it. "lincoln" is not:
+      // across fifteen candidates the source offers a city in Nebraska, a
+      // cathedral city, a district, a given name, a Spielberg film, two
+      // universities and a Brazilian footballer, and never the president.
+      // No amount of widening finds him, because the surface genuinely does
+      // not name him. Only the question's own sense does.
+      //
+      // IT IS DISCOURSE-AWARE for the same reason: "and who was his vice
+      // president?" carries the anchor in the conversation, not the sentence.
+      //
+      // WORKED EXAMPLES, NOT A SPECIFICATION. The first version described
+      // the task in the abstract ("`anchor` is the person, place or thing
+      // the question hangs on") and gemma2:2b returned
+      // {"anchor":"Lincoln's Vice President","slot":"Political Office
+      // Holder"} — the two swapped and a category invented. Shown two
+      // worked examples instead, the same model returns {"who":"Abraham
+      // Lincoln","what":"Vice President"}. A small model follows a pattern
+      // it can see; it does not follow a definition.
+      let askedAs = { anchor: anchorTerm, slot: slotTerm, rewritten: false };
+      try {
+        const said = discourseLine ? `The conversation so far: ${discourseLine}\n\n` : "";
+        const out = await completeOnce(
+          [
+            {
+              role: "system",
+              content:
+                // The PURPOSE, not a list of transformations. Told to
+                // "rewrite using full names and no abbreviations" a model
+                // does that and only that; told what the restatement is FOR,
+                // it also resolves what the question refers back to, picks
+                // the name a reference source actually files under, and
+                // leaves alone what is already fine. Measured on the same
+                // 2B: "who was lincoln's vp?" → "Who was Abraham Lincoln's
+                // Vice President?", and — a case never tested for —
+                // "who was FDR's AG?" → "Who was Franklin D. Roosevelt's
+                // Attorney General?".
+                "Restate the question in the terms best for querying a reference source. " +
+                "Reply with the restated question and nothing else.",
+            },
+            { role: "user", content: `${said}${task}` },
+          ],
+          { temperature: 0, maxTokens: 60, model: turnModel },
+        );
+        // completeOnce resolves {text, doneReason} — reading it as a string
+        // was a real bug that made this step throw on every turn and report
+        // itself as a refusal, so it had never once run.
+        const rewritten = String(out?.text ?? "").trim().split("\n")[0].trim();
+        // THE MODEL TALKS; WE PARSE. No JSON, no schema, no protocol the
+        // model has to honour — it writes one ordinary sentence and this
+        // instrument's OWN shape reader, the same `voidBriefFor` that read
+        // the original question, reads the rewrite. A structured interface
+        // is the thing P22 says never to architect around; widening the
+        // extractor is the sanctioned repair, and here the extractor already
+        // exists and is already trusted.
+        //
+        // Asked for JSON with a worked example the same 2B model returned
+        // two swapped fields and an invented category. Asked for a sentence
+        // it returns "Who was Abraham Lincoln's Vice President?" — which our
+        // own reader then turns into anchor "Abraham Lincoln", slot "vice
+        // president" using code that never had to trust anything.
+        const reread = rewritten && rewritten !== task ? voidBriefFor(rewritten, []) : null;
+        const who = reread?.declaration?.cells?.find((c) => c.op === "SIG")?.declared ?? null;
+        const what = reread?.headPhrase ?? null;
+        if (who && what) {
+          // NULL-SAFE ON PURPOSE, and this was a real bug, not a tidy-up.
+          // `anchorTerm.toLowerCase()` threw whenever the question's own
+          // words named nothing to hang on — which is EXACTLY the question
+          // that most needs a restatement. The throw landed in the catch
+          // below, so the one turn the rewrite existed for was the one turn
+          // it never ran on: "who was the 23rd president?" has no possessive
+          // and reached the ordinary pipeline ungrounded every time.
+          const changed = who.toLowerCase() !== String(anchorTerm ?? "").toLowerCase() ||
+            what.toLowerCase() !== String(slotTerm ?? "").toLowerCase();
+          think(changed ? `Read as: "${what}" of "${who}". Looking there.` : `Looking for "${what}" of "${who}".`);
+          askedAs = { anchor: who, slot: what, rewritten: changed };
+        } else if (anchorTerm && slotTerm) {
+          think(`I could not put the question into fuller words, so I am looking with its own: "${slotTerm}" of "${anchorTerm}".`);
+        }
+      } catch {
+        if (anchorTerm && slotTerm) {
+          think(`I could not put the question into fuller words, so I am looking with its own: "${slotTerm}" of "${anchorTerm}".`);
+        }
+      }
+      const askedFallback = { anchor: anchorTerm, slot: slotTerm };
+      anchorTerm = askedAs.anchor;
+      slotTerm = askedAs.slot;
+
       if (!anchorTerm || !slotTerm) {
-        // A SKIPPED CHECK SAYS SO. This condition failing silently is the
-        // exact shape P41 names — the walk simply did not happen and the
-        // reader saw a turn that looked identical to one where it had.
+        // A SKIPPED CHECK SAYS SO (P41) — and it says so HERE, after the
+        // restatement has had its turn, not before. Announcing the skip up
+        // front described a state the rewrite was about to change.
         think(
           `I did not check the public record here: ` +
             `${anchorTerm ? "" : "nothing in the question resolved to a thing to hang it on"}` +
@@ -3795,17 +3915,38 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             `${slotTerm ? "" : "no kind of thing was named to look for"}.`,
         );
       }
+
       if (anchorTerm && slotTerm) {
         try {
           think(`Checking who is on record as ${slotTerm} for ${anchorTerm}.`);
-          const seek = await webApi("/api/entity/seek", { anchor: anchorTerm, slot: slotTerm, question: task });
+          let seek = await webApi("/api/entity/seek", { anchor: anchorTerm, slot: slotTerm, question: task });
+          // A REWRITE THAT FINDS NOTHING IS NOT A REASON TO STOP LOOKING.
+          // The rewrite is a proposal; if the source cannot resolve it, the
+          // question's own words get their turn before anything is refused.
+          if (seek?.gap && askedAs.rewritten) {
+            think(`Nothing on record under those words — trying the question's own: "${askedFallback.slot}" of "${askedFallback.anchor}".`);
+            const retry = await webApi("/api/entity/seek", { anchor: askedFallback.anchor, slot: askedFallback.slot, question: task });
+            if (!retry?.gap) seek = retry;
+          }
           if (seek?.gap) {
             think(`No one is on record that way — ${seek.gap.detail}.`);
+          } else if (!seek?.perTerm?.length) {
+            think(`The public record had nothing to say about that.`);
           } else if (seek?.perTerm?.length) {
             // Rank by coverage, never by which term came first — the seek
             // itself refuses to choose, and tiling is what tells the real
             // answer from a true-but-unmeant one (wikidata.js::coverageOf).
             const best = [...seek.perTerm].sort((a, b) => (b.coverage?.ratio ?? 0) - (a.coverage?.ratio ?? 0))[0];
+            if (!best?.bound?.length) {
+              think(`Nobody is on record holding that during any period ${anchorTerm} is recorded for.`);
+            } else if (!(best.coverage?.ratio > 0)) {
+              // Bound, but the terms do not account for the span — so the set
+              // is not closed and must not be stated as though it were.
+              think(
+                `Found ${best.bound.length} on record, but their terms do not account for the whole span, ` +
+                  `so I cannot say that is all of them.`,
+              );
+            }
             if (best?.bound?.length && (best.coverage?.ratio ?? 0) > 0) {
               // Both grains, the same shape succession.js's own reader
               // produces: NUMERIC years because void-shape.js's coverage
@@ -3821,7 +3962,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                   const dated = Number.isFinite(from) && Number.isFinite(to) && from <= to;
                   return {
                     filler: b.label,
-                    span: dated ? { from, to, fromText: String(b.start).slice(1, 11), toText: String(b.end).slice(1, 11) } : null,
+                    // The SAME formatter renderHolders uses, not a second
+                    // slice of the giver's storage format: these strings go
+                    // to the model as content, and a 2B model handed
+                    // "1861-03-04" writes "1861-03-04" back.
+                    span: dated ? { from, to, fromText: dayOf(b.start), toText: dayOf(b.end) } : null,
                     source: `${b.giver} ${b.qid}`,
                     address: b.address,
                   };
@@ -3844,24 +3989,84 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
               // pipeline runs untouched.
               const rendered = renderHolders({ anchor: anchorTerm, slot: slotTerm, bound: best.bound, coverage: best.coverage });
               if (rendered) {
-                body.textContent = "";
+                // KEEP THE REASONING. `body.textContent = ""` was here, and
+                // it destroyed the live `.reasoning` element along with the
+                // draft — the exact defect P53 records in renderAnswer ("the
+                // ticker was cleared and the live log element destroyed by
+                // renderAnswer's own body.textContent = ''"), reproduced.
+                // Everything the walk narrated — what it went looking for,
+                // what the record said — was being erased at the moment it
+                // was about to matter most.
+                //
+                // And the answer goes AFTER the reasoning, not before it.
+                // The work genuinely preceded the conclusion here: the
+                // record was consulted, the holders were found, and only
+                // then was the sentence assembled. Printing the conclusion
+                // above the work reads as the instrument having known it all
+                // along — P53's own complaint about chronology, in the other
+                // direction.
+                // `think()` appends into `traceEl`, so the `.reasoning`
+                // divs are its CHILDREN, not the body's — a first attempt
+                // filtered `body.children` for `.reasoning`, found nothing,
+                // and wiped the trace anyway. Keep the trace element itself.
+                //
+                // OPEN WHILE IT WORKS, CLOSED ONCE IT HAS ANSWERED. The
+                // trace streams live so a reader can watch the question get
+                // taken apart; the moment there is an answer, the work stops
+                // being the thing on screen and becomes the thing available.
+                // It stays ABOVE the answer either way — the reasoning
+                // genuinely preceded the conclusion, and printing the
+                // conclusion first would read as having known it all along.
+                body.replaceChildren();
+                // EACH NAME CARRIES ITS OWN SOURCE, inline. The addresses
+                // used to sit in a row under the answer — "wikidata.org
+                // Q273546 wikidata.org Q8612" — which is a bibliography, not
+                // an attribution: a reader had to work out for themselves
+                // which id belonged to which person. The rendered sentence is
+                // re-read here and every filler's own name is linked to the
+                // record it came from.
+                //
+                // SAFE BY CONSTRUCTION, and only here: the sentence was
+                // assembled from the fillers' own labels moments ago
+                // (renderHolders), so matching those exact labels back
+                // against it is not fuzzy — and the addresses are the
+                // giver's, never the model's. P20's rule (a model must not
+                // be shown this instrument's address format, because it
+                // invents them) is untouched: this runs after the answer
+                // exists and nothing here reaches a prompt.
                 const p = document.createElement("p");
-                p.textContent = rendered;
-                body.appendChild(p);
-                const cap = document.createElement("div");
-                cap.className = "caption";
-                cap.textContent = `on the public record — ${seekFillers.length} holder(s), computed, not generated`;
-                body.appendChild(cap);
-                for (const f of seekFillers) {
-                  const a = document.createElement("a");
-                  a.className = "ref";
-                  a.href = f.address;
-                  a.target = "_blank";
-                  a.rel = "noreferrer";
-                  a.textContent = f.source;
-                  body.appendChild(a);
-                  body.appendChild(document.createTextNode(" "));
+                const linkable = seekFillers
+                  .filter((f) => f.filler && f.address)
+                  // longest first, so one name that contains another is
+                  // matched whole rather than half-wrapped
+                  .sort((a, b) => b.filler.length - a.filler.length);
+                if (!linkable.length) {
+                  p.textContent = rendered;
+                } else {
+                  const escape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                  const parts = rendered.split(new RegExp(`(${linkable.map((f) => escape(f.filler)).join("|")})`, "g"));
+                  for (const part of parts) {
+                    const hit = linkable.find((f) => f.filler === part);
+                    if (!hit) {
+                      p.appendChild(document.createTextNode(part));
+                      continue;
+                    }
+                    const a = document.createElement("a");
+                    a.href = hit.address;
+                    a.target = "_blank";
+                    a.rel = "noreferrer";
+                    a.title = hit.source;
+                    a.textContent = part;
+                    p.appendChild(a);
+                  }
                 }
+                body.appendChild(p);
+                // No caption. It read "on the public record — 2 holder(s),
+                // computed, not generated" — a label about the machinery,
+                // which is the firewall's own rule (P54) applied to what a
+                // READER sees rather than what a model does. The names carry
+                // their sources as links; that is the attribution, and it
+                // needs no announcement.
                 // The same turn bookkeeping every other path does — a turn is
                 // not exempt from the fold or the record because no model ran
                 // (FOLD-CONSTITUTION I.5, twoPassTurn's own gate-off path).
@@ -3872,7 +4077,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 const foldLine = mechanicalFoldLine(task, rendered);
                 state.turnFolds.push(foldLine);
                 state.summary = advanceSummaryFold(state.summary, foldLine);
-                renderFold(node, { fold: foldLine });
+                renderFold(node, { fold: foldLine, reasoning });
                 renderThreads();
                 $("status").textContent = `ready · ${state.model}`;
                 releaseBusy();

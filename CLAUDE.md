@@ -4575,3 +4575,186 @@ computation, then "divided into" falling through to a real grounded
 answer with no trace of the caption anywhere. Full suite 1264/1266 before
 and after, same 2 pre-existing failures, neither importing
 `arithmetic.js` or `app.js`.
+
+## The void, said out loud (added 2026-08-27) — what was decided, so it is not re-derived
+
+POLICIES.md **P53** is the law; this is the map. User direction, verbatim:
+*"hide the 'grounding' badges for now, and i want the 'thinking' reasoning
+to show in real time its work figuring out the shape of an answer that would
+satisfy."* One request, not two — the apparatus keeps RUNNING while it stops
+being PAINTED over the answer.
+
+**The defect.** `void-brief.js`'s declaration ran ONCE, after
+`runHolonicTask` returned and after `renderAnswer` had already painted, into
+a collapsed panel. So the one thing the void exists to establish — what
+would COUNT as a satisfying answer, decided before the answer exists — was
+the one thing a reader could never watch happen. It could not have narrated
+if it wanted to: the ticker was cleared and the live log element destroyed
+by `renderAnswer`'s own `body.textContent = ""` before it ran.
+
+**Three moments, one `voidBriefFor`** (app.js), so they cannot drift into
+three declarations: from the question alone before any model call; from
+`live` — the same array handed to `runHolonicTask` on the next line — still
+before the model drafts; and from the UNION of everything the turn held.
+`void-narration.js` is pure and narration-only, and `standingLine` carries
+`voidsOf`'s own `reason` VERBATIM: paraphrase is how a narrator comes to
+disagree with the arithmetic it reports. The delta rule drops any step whose
+line is unchanged — a second identical sentence is repetition, not learning.
+
+**Three bugs, all found by RUNNING it.** (1) The anchor fallback was the
+possessive TOKEN (`lincoln's`), so `extentFor` searched for a form real
+prose rarely uses and the space read `unbounded` however good the material
+was — **a wrong anchor disables the measurement, it does not merely mislabel
+it**; `possessorIn` fixes it, and the signal is the possessive `'s` (a
+received marker), never the capitalisation, which only decides how far left
+the name runs. (2) Moment 3 declared over RETRIEVED passages alone and so
+clobbered moment 2's better read with a weaker one (extent `2×` → `1×`, live
+measurement) — the void is a claim about the QUESTION's space, not about
+which passages the model was shown, so it declares over the union. (3)
+`#marks-toggle` set `state.grounded` AND `body.marks-off` in lockstep, so
+`marks-off` could never hide anything on a newly rendered turn and
+*checked-but-unpainted* was unreachable; the control now owns only the mode.
+
+**The CSS rule worth keeping: every `marks-off` rule is scoped to
+`.msg .body`.** `.turn-meta` is a SIBLING of `.body`, so scoping puts the
+drawer out of reach by construction — that IS "hidden drawing, never a
+hidden finding" written in CSS. Two rules had been unscoped and were hiding
+findings in the drawer they were never meant to reach.
+
+**Deliberately NOT done, with the measurement that decided it.** Feeding
+`voidLine` to the model — which its own docstring says it exists for — would
+make the answer WORSE today: the void reports `nothing named yet`, so its
+line ends "Do not fill this gap from memory — say it is open," which would
+suppress the one true filler the model does read. **A void whose filler side
+is blind turns an incomplete answer into a refusal.** Gated on the filler
+side, not on appetite. And the filler side was re-measured on the three real
+pages this session fetched: the live relation reader's open subject slot
+returns `Though he`, `Congress`, `as`, `After` as candidate vice presidents
+— the same ceiling `void-brief.js`'s header and MINE-1 already record, on a
+third independent specimen. Chasing fillers through the clause extractor is
+a closed road.
+
+**What IS established** — and it answers the standing open question, *"i
+can't tell if we created a good void to EVA against"*: measured live before
+the model drafted, NUL/SIG/SEG/DEF all declared correctly (`vice president
+of Abraham Lincoln`, `Abraham Lincoln`, `1861-1865`, `unknown`), five holes
+named rather than defaulted, and the standing *"1861-1865 is filled by
+nothing named so far."* The answer that turn still said "There is no mention
+of anything else beyond this" — the instrument measured the incompleteness
+the model asserted away, and that disagreement is now visible in real time
+instead of buried in a receipt.
+
+## The firewall, and identity from a giver (added 2026-08-27) — what was decided, so it is not re-derived
+
+POLICIES.md **P54** and **P55** are the law; this is the map. P55 is
+deliberately written over PARTLY-BUILT work, at the user's own direction
+("its the right shape even if we haven't gotten 100% of the way there yet") —
+read it for which parts ship today and which are named absences.
+
+**P54, the one-line version.** Apparatus vocabulary is not model-facing. The
+live app answered *"The prompt specifically identifies Hannibal Hamlin…"*
+because `EXECUTE_SYSTEM_PROMPT` contained the literal phrase "the prompt"
+twice, `FLAT_EXECUTE_SYSTEM_PROMPT` named "the passages" three times (twice
+while forbidding the model to mention them), and `buildFactBlock` carried
+"(7 of 97 sentence(s) with an extractable relation…)" into a 2B model's
+context. That is L5, not style: every one of those strings also INSTRUCTED
+the model not to do it. `firewall.js`'s `APPARATUS_TERMS` +
+`assertModelFacing` is enforced by `firewall.test.mjs` against the REAL
+exported prompt constants and the REAL `buildFactBlock` output, so a future
+prompt that explains the machinery fails the suite. Counts moved to fields
+for the thinking panel — moving bookkeeping is not deleting it, pinned both
+ways. The void kept its force (the "William R. Hargis" case).
+
+**P55, the one-line version.** A tier that reads SLOT cannot answer a
+question about IDENTITY. Measured: 2,298 SVO edges over three real pages, 13
+mentioning a vice presidency, and the slot query returns ONE endpoint whose
+surfaces are "it failed", "Trefousse believes", "Another factor". The label
+slot is filled by non-verbs (`—the→`, `—and→`, `—biographer→`, `—vice→`) —
+and eoreader7's kernel already conceded the general point: *"AN ARRANGEMENT
+HAS ENDS, NOT PARTS OF SPEECH."*
+
+**What ships:** `wikidata.js` (pure, 11 tests, real captured fixtures) —
+Hamlin `Q273546` and Johnson `Q8612` are both `P31=Q5` human, both hold
+`P39=Q11699`, with real term qualifiers, and **the chain closes mutually by
+qid**, closing `chains.test.mjs`'s own disclosed substring-matching weakness
+("the real fix is a referent index" — this is it). Its dates independently
+match `succession.js`'s infobox reader: two givers agreeing. Every hypergraph
+edge now carries `spans` — **2,584/2,584 self-verified** against real bytes
+(P5.2 applied to the one tier that was exempt), and per-sentence extraction
+killed 48 cross-boundary garbage edges (literal `\n\n` in the subject) while
+gaining 23 real ones.
+
+**Two refusals worth not re-deriving:** Wikipedia's short `description` is
+NOT an entity type (it calls Andrew Johnson "President of the United States",
+the same conflation the model made). A part of speech is a CANDIDATE SET, not
+a per-occurrence verdict — `and` really does have a Verb sense, so it can
+never be refused on type; `the`/`biographer`/`vice_president` have none, so
+refusing those as labels is sound. Asymmetric use only.
+
+**Named absences, so nobody reports them as done:** `resolvePronounSubjects`
+still rewrites text instead of holding an `{occurrence → referent}` binding
+beside immutable edges (the shape is `relation-composition.js`'s
+`endpointOf`/`rememberBinding`/`activate(edge,{replace:true})`, with
+`identity.js::deriveIdentityRevision` as the revision grammar; hazard:
+`EOPronounBinding@1` is consumed in three kernel files and produced nowhere).
+`primary.js`'s citation walk is BUILT and ROUTED and UNWIRED — driven live it
+pulls 95 real off-family citations from the saved Andrew Johnson page, but
+`app.js` imports only `snipClaim` and nothing calls `/api/web/primary`. And
+archive coverage is the weakest link, stated plainly: of 1,598 saved pages, 4
+`saved`, 5 `pending`, 1,588 with no archive state at all.
+
+**The rule that governs whatever gets built next:** the custody ledger is
+PROVENANCE, NOT PROMPT MATERIAL (user, verbatim: "this doesn't all get fed to
+the model"). P54 governs what reaches the model; richer provenance must never
+become a bigger prompt.
+
+## The hyperlexicon, the move space, and navigation (added 2026-08-28)
+
+POLICIES.md **P56**, **P57** and **P58** are the law; this is the map. All
+three came out of one specimen: *"who was Queen Victoria's prime minister?"*
+answered *"Robert Peel"* — one name read out of a list of ten.
+
+**P56 — content is EOT, admitted at a door.** `hyperlexicon.js` is `store.js`
+one register over ("the reality of the database should be the EOT event
+stream, the current state always projected"), aimed at what this instrument
+has READ. First sighting `INS · Figure`, later sightings `SUPERSEDE · SYN`
+with witnesses and spans UNIONED — two pages agreeing become one note with two
+witnesses, not two notes. `admit` returns `{log, heard, turnedAway}` and
+`turnedAway` is not optional. This is where `grammar-lens.js` finally gets
+wired, asymmetrically (P55): a settled non-verb is refused with its giver, an
+out-of-vocabulary word admits.
+
+**P57 — the cube classifies MOVES, not content.** `moves.js` enumerates 27
+cells (operator × grain, terrain derived, never chosen) and computes coverage
+against the real capacity registry. It reads no document — the
+content-classifier move stays refuted. The finding: `relations` sits at
+CON·Figure (Link) and **CON·Pattern (Network) is empty**, which is why a
+record block yields **zero** edges rather than few. *A grain gap floors; a
+vocabulary gap degrades* — measure which before spending a tenth vocabulary
+configuration. `network.js` occupies that cell: injected shape recognizers,
+`RECURRENCE_FLOOR = 2`, a cycle of one shape binds nothing (CON *relates*), an
+unrecognized line is a hole and never a wildcard. It deliberately does not
+name what binds a system.
+
+**P58 — `seek.js` can learn from a sink.** `learnRelation` read only what a
+slot points AT; a slot built from a list points at nothing, so `examined` came
+back 0 with the members unread. `inbound(id)` is optional, consulted only when
+`neighbours` is empty, and reports `via` so the two directions of evidence are
+never confused. With it the walk answers the specimen by navigation, no model
+reading a span.
+
+**Three honest limits, disclosed rather than implied fixed.** `network.js`'s
+recognizers are still pre-established — the vocabulary-free route (a line's
+collapsed character-class signature; lag-2 similarity 0.926 vs 0.579 inside a
+record block, flat in prose) is MEASURED and unbuilt. `tiles=false, gaps=18`
+because real handovers carry day-level gaps, so the coverage gate refuses to
+call the set closed — a real decision, not a threshold to tune. And nothing
+here is wired into `app.js`: `hyperlexicon.js` has no caller and the
+hyperlexicon-as-`seek`-source adapter is a driver, not a module.
+
+**`succession.js` is condemned but still in the tree** (user, 2026-08-28: *"it
+should never have been made"*). It is not a delete: it reads a different
+layout (`In office / dates / Preceded by / Succeeded by`) and has two live
+consumers — `holon.js`'s cardinality gate and `app.js`'s `fillersFor`.
+Replacing it means shape recognizers for that layout plus reworking both call
+sites.

@@ -623,7 +623,11 @@ test("the material path sends the real conversation on a flat turn — role-stru
     const roles = messages.map((m) => m.role);
     if (
       messages[0].content.startsWith(FLAT_EXECUTE_SYSTEM_PROMPT) &&
-      messages[0].content.includes("MATERIAL") &&
+      // The material rides in the system message — identified by its own
+      // SOURCE NAME now, not a generic "MATERIAL" banner (user direction
+      // 2026-08-27; source.js::sourceFace). The passage text itself is the
+      // durable check: whatever heading precedes it, the material is here.
+      messages[0].content.includes("harbor") &&
       roles.join(",") === "system,user,assistant,user" &&
       messages[1].content === "hey" &&
       messages[messages.length - 1].content === "what was the harbor figure?"

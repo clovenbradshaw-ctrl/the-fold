@@ -697,21 +697,60 @@ export function retrieve(chunks, question, limit = 3, foldedRefs = []) {
  * closes is a model treating a fetched feed's 8 separate posts as one
  * essay because nothing anywhere said what the material actually was.
  */
+/**
+ * A source's own name, as a person would say it — never "the material".
+ *
+ * USER DIRECTION, 2026-08-27: 'i dont like where it says "material offers,
+ * material states" — just have it be like "Wikipedia, Retrieved..."'. The
+ * reason is measured, not stylistic: a generic scaffolding word is a term
+ * of art the model must first decide how to talk about, and tonight a
+ * reasoning model was caught doing exactly that out loud, spending real
+ * tokens working out that a phrase in its own prompt was not one it was
+ * allowed to echo. A real host and a real date are FACTS it can simply
+ * relay. Nothing here is invented: the host comes from the chunk's own
+ * source name (assigned at fetch, `web:<host>-<i>`) and the date from the
+ * fetch record's own `retrievedAt`, so an absent date prints nothing
+ * rather than a guessed one.
+ */
+function sourceFace(chunk) {
+  const name = String(chunk?.source ?? "");
+  const when = chunk?.identity?.retrievedAt ? String(chunk.identity.retrievedAt).slice(0, 10) : null;
+  let who;
+  if (name === "web:search-results") who = "Web search results";
+  else if (name.startsWith("web:")) who = name.slice(4).replace(/-\d+$/, "");
+  else who = name;
+  return when ? `${who}, retrieved ${when}` : who;
+}
+
 export function buildSourceBlock(chunks) {
   if (!chunks.length) return null;
-  const parts = [
-    "MATERIAL — passages retrieved for this turn. Answer from these when they cover the question; if they do not, say so rather than filling the gap.",
-  ];
+  // GROUPED BY SOURCE, each named once. Previously every passage sat under
+  // one generic "MATERIAL —" banner that also restated what to do with them
+  // ("answer from these when they cover the question") — a duty the execute
+  // system prompt already states, in the same call, in almost the same
+  // words. Saying it twice is not twice as clear; it is one more rule to
+  // comply with. Provenance here, duty there, each said once.
+  const parts = [];
+  const bySource = new Map();
   for (const c of chunks) {
-    const body = c.header ? `columns: ${c.header}\n${c.text}` : c.text;
-    const lines = [];
-    const d = c.identity?.declared;
-    if (d) {
-      const fields = [d.title && `Title: ${d.title}`, d.author && `Author: ${d.author}`].filter(Boolean).join(", ");
-      lines.push(`(${d.giver} — ${fields} — ${d.ref})`);
+    const key = c.source ?? "";
+    if (!bySource.has(key)) bySource.set(key, []);
+    bySource.get(key).push(c);
+  }
+  for (const group of bySource.values()) {
+    const bodies = [];
+    for (const c of group) {
+      const body = c.header ? `columns: ${c.header}\n${c.text}` : c.text;
+      const lines = [];
+      const d = c.identity?.declared;
+      if (d) {
+        const fields = [d.title && `Title: ${d.title}`, d.author && `Author: ${d.author}`].filter(Boolean).join(", ");
+        lines.push(`(${d.giver} — ${fields} — ${d.ref})`);
+      }
+      if (c.identity?.guess) lines.push(`(this looks like: ${c.identity.guess})`);
+      bodies.push(lines.length ? `${lines.join("\n")}\n${body}` : body);
     }
-    if (c.identity?.guess) lines.push(`(this looks like: ${c.identity.guess})`);
-    parts.push(lines.length ? `${lines.join("\n")}\n${body}` : body);
+    parts.push(`${sourceFace(group[0])}:\n${bodies.join("\n\n")}`);
   }
   return parts.join("\n\n");
 }

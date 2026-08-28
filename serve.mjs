@@ -54,9 +54,10 @@ const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // eoreader7's NATIVE tree, mounted separately from the legacy /engine path
 // because they are different engines, not different folders: /engine is the
 // frozen 6.1 compatibility surface, /engine-v7 is v7's own kernel. Kept
-// apart by name so an import line always says which one a module came from,
-// and so retiring the legacy mount later is a deletion rather than an
-// untangling. Used, never copied — the discipline /engine and /nul hold.
+// apart by name so a reader of an import line always knows which one a
+// module came from, and so retiring the legacy mount later is a deletion
+// rather than an untangling. Used, never copied — the same discipline
+// /engine and /nul already hold.
 const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 // Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
 // output) — never a fact this repo derives or vendors a stale copy of.
@@ -462,13 +463,13 @@ createServer((req, res) => {
       const audioBuf = Buffer.concat(chunks);
       if (!audioBuf.length) return refuse(400, "empty audio");
       const tmpPath = `/tmp/the-fold-upload-${randomUUID()}.dat`;
-      const wavPath = `/tmp/the-fold-upload-${randomUUID()}.wav`;
+      const pcmPath = `/tmp/the-fold-upload-${randomUUID()}.raw`;
       try {
         writeFileSync(tmpPath, audioBuf);
-        // Convert to mono 16kHz WAV (Whisper's native format)
+        // Convert to raw mono 16kHz float32 PCM (no WAV header to parse)
         await new Promise((resolve, reject) => {
           const proc = spawn("ffmpeg", [
-            "-y", "-i", tmpPath, "-ar", "16000", "-ac", "1", "-f", "wav", wavPath
+            "-y", "-i", tmpPath, "-ar", "16000", "-ac", "1", "-f", "f32le", pcmPath
           ], { stdio: ["ignore", "ignore", "pipe"] });
           let stderr = "";
           proc.stderr.on("data", (b) => { stderr += b.toString(); });
@@ -480,7 +481,7 @@ createServer((req, res) => {
         try {
           const probe = spawn("ffprobe", [
             "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", wavPath
+            "-of", "default=noprint_wrappers=1:nokey=1", tmpPath
           ], { stdio: ["ignore", "pipe", "ignore"] });
           duration = await new Promise((resolve) => {
             let out = "";
@@ -494,9 +495,8 @@ createServer((req, res) => {
         const asr = await pipeline("automatic-speech-recognition", "onnx-community/whisper-base", {
           device: "cpu", dtype: "q8",
         });
-        const wavBuf = readFileSync(wavPath);
-        // WAV header is 44 bytes; skip to raw PCM
-        const pcm = new Float32Array(wavBuf.buffer, wavBuf.byteOffset + 44, (wavBuf.byteLength - 44) / 2);
+        const pcmBuf = readFileSync(pcmPath);
+        const pcm = new Float32Array(pcmBuf.buffer, pcmBuf.byteOffset, pcmBuf.byteLength / 4);
         const t0 = Date.now();
         const out = await asr(pcm, {
           chunk_length_s: 30, stride_length_s: 5,
@@ -512,7 +512,7 @@ createServer((req, res) => {
         refuse(500, e.message);
       } finally {
         try { unlinkSync(tmpPath); } catch {}
-        try { unlinkSync(wavPath); } catch {}
+        try { unlinkSync(pcmPath); } catch {}
       }
     })();
     return;

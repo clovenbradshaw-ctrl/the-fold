@@ -26,6 +26,7 @@
 
 import { foldTypography } from "./source.js";
 import { namesIn, splitSentences } from "./cite.js";
+import { chainFillers } from "./chains.js";
 
 // A record's own title line: "<ordinal><suffix> <office> of the United
 // States". The office phrase is deliberately NOT hardcoded to "Vice
@@ -102,7 +103,7 @@ export function parseSuccessionBoxes(text) {
 // rule holon.js's own incompleteClaimsOf already uses to decide whether a
 // draft's wording covers a material filler, applied here to two names
 // instead of a claim object and a filler object.
-const namesMatch = (a, b) => {
+export const namesMatch = (a, b) => {
   if (!a || !b) return false;
   const fa = foldTypography(String(a)).toLowerCase();
   const fb = foldTypography(String(b)).toLowerCase();
@@ -231,4 +232,126 @@ export function officeHolderGroups(resolvedBoxes) {
     if (!group.holders.some((h) => namesMatch(h, box.subject))) group.holders.push(box.subject);
   }
   return [...groups.values()].filter((g) => g.holders.length >= 2);
+}
+
+// The "In office" date line's own year span. Deliberately NOT
+// void-shape.js's `yearSpansIn` — that function's own header discloses its
+// scope as BARE four-digit spans ("1861-1865"); Wikipedia's actual "In
+// office" line is full dates on both sides of the dash ("March 4, 1861 –
+// April 15, 1865"), which yearSpansIn's connector-adjacency regex cannot
+// match (found live, building this: it silently returned zero spans on
+// every real box). Reading it correctly needs the box's OWN field
+// structure, not a wider general regex — the exact reason this module
+// exists as a separate reader in the first place (this file's own header).
+// The date line is always the line immediately after the one matching
+// IN_OFFICE_RE; every run of four digits on it is a year, first is FROM,
+// last is TO — a month/day never contributes a 4-digit run.
+const FOUR_DIGIT_RE = /\p{Nd}{4}/gu;
+// The SAME line's own full dates, when it states them. Added 2026-08-27 on
+// direct direction ("drill down to the actual dates not just the years"),
+// and the Johnson record is the argument for it: his vice presidency ran
+// March 4, 1865 to April 15, 1865, which as a YEAR span is "1865-1865" — a
+// degenerate extent that says nothing at all. Years are the right unit for
+// COMPARING two spans (they are what `void-shape.js` can order and subtract,
+// and its own `hasSpan` requires `Number.isFinite` on both ends); they are
+// the wrong unit for SAYING one. So both are carried, and neither is asked
+// to do the other's job.
+//
+// Unicode classes, not `[A-Z][a-z]+` — the same rule L2 already holds this
+// repo to on capitalisation generally, and the same reason `FOUR_DIGIT_RE`
+// above is `\p{Nd}` rather than `[0-9]`: an English month name is what this
+// specimen happens to carry, not what the pattern is entitled to assume.
+const FULL_DATE_RE = /\p{Lu}\p{Ll}+\s+\p{Nd}{1,2},\s*\p{Nd}{4}/gu;
+const officeSpanOf = (box) => {
+  const idx = box.lines.findIndex((l) => IN_OFFICE_RE.test(l));
+  const dateLine = idx >= 0 ? box.lines[idx + 1] : null;
+  if (!dateLine) return null;
+  const years = [...dateLine.matchAll(FOUR_DIGIT_RE)].map((m) => Number(m[0]));
+  if (years.length < 2) return null;
+  const from = Math.min(...years);
+  const to = Math.max(...years);
+  if (from > to) return null;
+  // Positional first/last, deliberately NOT min/max: a date's TEXT is the
+  // line's own wording and has no ordering of its own to compute. The two
+  // readings are then required to AGREE before either text is attached —
+  // if the first stated date's year is not the span's own start, this line
+  // is shaped some way this reader does not actually understand, and the
+  // honest result is the year span alone rather than a precise-looking date
+  // that came from a misread. Refusing beats asserting (P41's own rule: a
+  // check may report what it checked, never speak for one it did not run).
+  const dates = [...dateLine.matchAll(FULL_DATE_RE)].map((m) => m[0]);
+  if (dates.length < 2) return { from, to };
+  const fromText = dates[0];
+  const toText = dates[dates.length - 1];
+  const yearIn = (d) => Number(String(d).match(/\p{Nd}{4}/u)?.[0]);
+  const fromYear = yearIn(fromText);
+  const toYear = yearIn(toText);
+  if (fromYear !== from || toYear !== to) return { from, to };
+  return { from, to, fromText, toText };
+};
+
+/**
+ * successionFillers — the void's own fillers, structurally, from THIS
+ * reader's own confirmed set, never a second discovery pass.
+ *
+ * CORRECTED 2026-08-27, on direct challenge ("'box subjects' is a wikipedia
+ * specific, office of, all of this is designed to solve this one problem
+ * when what we need is a universal system for answering any question").
+ * The first cut of this function did its OWN grouping and its OWN
+ * "does this box belong to a confirmed multi-holder set" check, baked to
+ * office/president vocabulary — a second, narrower copy of exactly the
+ * chain-verification chains.js now owns generically. succession.js's job
+ * shrinks to what is genuinely genre-specific and nothing more: turning
+ * Wikipedia's own box shape into GENERIC records — {id, prev, next, seq,
+ * fields} — and reading one record's own extent off its own field
+ * structure (`officeSpanOf`). Grouping, cross-checked-pointer verification,
+ * and closure grading are `chains.js::chainFillers`'s, unchanged, and would
+ * be identical code for a version history, a chain of custody, or a
+ * championship's own title-holder sequence — this function never repeats
+ * that logic, it feeds it.
+ *
+ * `resolveBoxSubjects` still does its own genre-specific resolution first
+ * (a box's own text never states its own subject — only who preceded and
+ * succeeded them) — that reading is not redundant with chainFillers's own
+ * verification underneath it: `chainFillers` independently re-checks the
+ * SAME precededBy/succeededBy pointers against each box's already-resolved
+ * subject, structurally, through generic machinery, rather than trusting
+ * one resolution pass blindly (the same "check it a second way" posture
+ * this repo already holds testimony.js's sibling-swap and P36's
+ * squarePolarity to).
+ *
+ * `matches` defaults to this module's own `namesMatch` — bidirectional
+ * substring containment, with the disclosed gap `chains.test.mjs` now pins
+ * directly (a period-abbreviated initial does not resolve to its full name
+ * by containment alone; the real fix is a referent index, not attempted
+ * here). A caller with a real one (cast.js's `makeReferentIndex`) injects
+ * it in `matches`'s place.
+ */
+export function successionFillers(anchor, texts, { matches = namesMatch } = {}) {
+  const anchorRe = anchor
+    ? new RegExp(String(anchor).split(/\s+/).filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i")
+    : null;
+  const records = [];
+  const bySubject = new Map(); // subject id -> its own box, for officeSpanOf
+  for (const text of texts ?? []) {
+    const boxes = resolveBoxSubjects(parseSuccessionBoxes(text), text);
+    for (const box of boxes) {
+      if (!box.subject || !box.office || !box.presidentName) continue;
+      if (anchorRe && !anchorRe.test(box.presidentName)) continue;
+      records.push({
+        id: box.subject,
+        prev: box.precededBy,
+        next: box.succeededBy,
+        seq: box.ordinal,
+        fields: { office: foldTypography(box.office).toLowerCase(), president: foldTypography(box.presidentName).toLowerCase() },
+      });
+      bySubject.set(box.subject, box);
+    }
+  }
+  const fillers = chainFillers(records, {
+    groupBy: (r) => `${r.fields.office}|${r.fields.president}`,
+    spanOf: (r) => officeSpanOf(bySubject.get(r.id)),
+    matches,
+  });
+  return fillers.map(({ _record, ...f }) => f);
 }

@@ -7591,3 +7591,197 @@ by identity, not by new kernel semantics.
 and it is not the reader's — structural, never metric; positions are
 temporal, occupants are not; S20 is its interval-witness special case and
 now says so. Full narrative: `eval/results/sequence-admission-RESULTS.md`.
+
+## P62 — retrieve() was blind to every non-Latin script; the bytes were never the problem
+
+**User direction, verbatim:** *"fix retrieve() so it tokenizes Hebrew and
+all languages too. we have the bytes."*
+
+**The bug, measured live, not assumed.** `source.js::tokenize` split on
+`/[^a-z0-9%.\-]+/` — an ASCII allow-list, applied AFTER lowercasing.
+`tokenize("שלום")` (bare Hebrew, "peace") returned `[]`. Every chunk-
+construction path (`chunkProse`/`makeChunk`/`chunkByBoundaries`/
+`chunkRows`) populates its `.terms` Set from `tokenize()` and only
+`tokenize()`, and `retrieve()` calls `tokenize()` exactly once, on the
+question. So the defect was never partial: a non-Latin corpus and a
+non-Latin question were BOTH blind, on both sides of the one term-overlap
+comparison `retrieve` makes — not merely unranked, structurally invisible.
+`foldDiacritics` was checked and is NOT the cause: even bare, unpointed
+Hebrew (no diacritic anywhere) tokenized to `[]`, because the base
+LETTERS themselves sat outside the ASCII class, not just their vowel
+marks.
+
+**The fix reuses a precedent already sitting in the same file.**
+`foldTypography` (source.js, built for a different purpose — comparing a
+model's drafted prose against source material) already splits on
+`/[^\p{L}\p{N}.]+/gu`, and its own header already states the reason:
+*"Unicode classes, not `[a-z0-9]`, because a Cyrillic or CJK corpus must
+fold to its words and not to nothing."* `tokenize` had simply never been
+brought into line with that precedent. It now splits on
+`/[^\p{L}\p{N}%.\-]+/u` — `\p{L}`/`\p{N}` are a STRICT SUPERSET of
+`a-z`/`0-9` post-lowercase, so every existing ASCII caller is
+byte-identical by construction, not merely by measurement (confirmed by a
+full-suite run regardless: 1073/944/127, the same 127 pre-existing
+failures by name, zero regressions).
+
+**The companion fix, and why it is not gated behind an opt-in the way
+`verbForms`/`createLemmatizer` are.** `foldDiacritics` widened too: Hebrew
+nikud (U+0591–U+05C7) and Arabic tashkil (U+064B–U+065F, plus U+0670) now
+fold away, the same Bezúkhov/Bezukhov shape this function already handled
+for Latin, one script class over — a vocalized Talmud folio (real material,
+fetched live from Sefaria for this test) and an unvocalized typed question
+are otherwise the identical mismatch. Folding a vowel mark away can only
+WIDEN what matches, never narrow a real distinction into a false one — the
+same "safe by construction" class P41/P43's determiner/negation priors
+already are — so this ships on for every caller, not behind a flag.
+
+**Disclosed, not silently claimed: CJK is a narrower, honest improvement,
+not real segmentation.** A boundary-based tokenizer cannot introduce a
+split where the bytes have none — there is no character between adjacent
+CJK ideographs for `\p{L}`-class splitting to find, regardless of which
+characters count as "word" characters. Checked, not assumed, and it is
+worse than merely "unsegmented": `tokenize("北京")` (Beijing, a genuine
+two-character word) is STILL `[]`, because the same length floor
+(`t.length > 2`) that drops a two-letter English word drops it too; only a
+longer run of several ideographs survives, as one oversized merged token,
+never a real word boundary. Both facts are pinned as tests
+(`fold.test.mjs`), not glossed over. Real CJK reading needs a dictionary-
+or model-based word breaker AND a length floor that is not tuned to
+English's own average word length — neither attempted here.
+
+**Verified against real material, not a synthetic string.** Six real
+folios of the Babylonian Talmud (Berakhot 2a–4b, William Davidson Edition,
+fetched live from Sefaria's API the same session this bug was found in)
+chunked, and `retrieve()` on a real unvocalized Hebrew question found the
+right passage — the exact practical case the fix was written for, not
+only the unit-level round-trip.
+
+**Files.** `source.js` (`tokenize`, `foldDiacritics` — both widened,
+`retrieve`/`chunkSource`/every chunk-building path untouched: the fix is
+entirely upstream of them). `fold.test.mjs` (+4 cases: a vocalized-Hebrew
+retrieval round-trip mirroring the pre-existing accented-Latin one;
+Hebrew/Cyrillic/Arabic surviving `tokenize` directly; the CJK limit pinned
+as exactly what it is, both halves). No other file touched — `retrieve`,
+every chunker, and every other consumer of `tokenize`/`foldDiacritics`
+(`cite.js`'s `commonTerms`/`CORPUS_MINIMUM` included, checked directly:
+its own algorithm reads only `c.terms`, so a non-Latin corpus goes from
+"the function-word veto never fires" to "it fires for real," a quality
+gain with no ASCII-side behavior change) needed no change to benefit.
+
+**Amended same day — a background consumer sweep found three siblings, two
+worth fixing and one worth pinning.** A general-purpose agent was asked,
+independently of the fix above, to map every consumer of `tokenize`/
+`foldDiacritics`/`retrieve` before this was trusted as done. Its report
+confirmed the fix's own safety analysis (`cite.js`, `hypergraph.js`,
+`grounding.js` all checked as either unaffected or strictly improved) and
+also surfaced three sibling ASCII-only regexes doing the SAME job as
+`tokenize` while never routing through it — none caused by this pass, all
+real, and disclosed here rather than left for the next reader to
+rediscover one at a time.
+
+1. **`skills.js::claimSkill` had a live vacuous-truth bug, now closed as a
+   side effect.** `s.skill.anchors.every((a) => tokenize(a).every((t) =>
+   toks.has(t)))` — before this fix, a non-Latin-only anchor tokenized to
+   `[]`, and `[].every(...)` is vacuously `true`: such a skill claimed
+   EVERY task unconditionally, regardless of content. No code change was
+   needed in `skills.js` itself (the fix lives entirely in `source.js`),
+   but the fixed behavior is now pinned where the bug actually bit
+   (`skills.test.mjs`: a Hebrew-anchored skill correctly refuses an
+   unrelated task and correctly claims one that genuinely contains it).
+
+2. **`fact-block.js` had its own, uncoordinated copy of the same job —
+   fixed the same way.** `rankByQuestion` and `buildFactBlock`'s own
+   `questionTerms` both built term sets with an independent
+   `.split(/[^a-z0-9']+/)`, ranking hypergraph-derived facts for the
+   model-facing notes block by overlap with the question. Widened to
+   `\p{L}\p{N}'` — the character class alone, not a swap to `tokenize()`
+   itself, because this ranking is deliberately lighter (no stopword
+   filter, no length floor) and reusing `tokenize` wholesale would change
+   more than the one thing that was actually broken.
+
+3. **`capacity-runner.js::contentTokens` was the more serious of the
+   two — a CHECK going blind, not just a ranking going blind.**
+   `checkObjectSpecificity`'s own documented rule: `trusted` is `true`
+   "when the claim's object carries no content token to check (nothing to
+   confirm, so nothing to doubt)." On non-Latin content, the old
+   `.split(/[^a-z0-9]+/)` always produced an empty set — so a non-Latin
+   EVA/`landAct` verdict was silently TRUSTED rather than checked, the
+   exact "checks go blind rather than wrong" failure shape this repo's
+   own grounding-ladder section already names as worse than an ordinary
+   miss (P41's own restatement of the same rule, aimed at a different
+   cell). Widened the same surgical way; the fix is real but currently
+   unreachable by any existing test (no non-Latin claim fixture exists
+   for this path) — named here rather than left implicit.
+
+Not touched, and disclosed rather than silently declined: `widget.js`'s
+`forms()`/`clauseForms()` (its own comment already states why they are
+deliberately NOT built on `tokenize` — they need to keep stopwords/short
+words tokenize drops — so a non-English widget-iteration command still
+won't route; a real, separate gap, out of scope for a retrieval fix);
+`seed.js`'s own language/determiner-name splitter (a narrow, inherently
+Latin-script domain); `crown.js`'s `TOKEN_RE` (scoped to witness/source
+names, ASCII by construction in every real fixture today).
+
+Full suite after all three fixes: 1074/945/127 — the same 127 by name,
+confirmed via `git stash` diff a second time.
+
+**Amended same day — the two disclosed gaps above closed, one fully and
+one partially, each on its own honest terms.**
+
+1. **`capacity-runner.js::contentTokens` is no longer "real but
+   unreachable by any test."** A new case
+   (`capacity-runner.test.mjs`, the mocked-`runCapacity` pattern
+   `squarePolarity`'s own test already established, since the real
+   `extractRelations` is capitalization-anchored and English-only and
+   cannot itself produce a Hebrew edge) hands `landAct` a real Hebrew
+   claim object ("נשיא עשרים", "president twenty") and a real,
+   genuinely-mismatched backing edge ("נשיא שבע עשרה", "president
+   seventeen") — the identical shape as the pre-existing English "22nd
+   president" vs "17th president" case, one script over. Before this
+   fix, `claimTokens` would have been the empty set and
+   `checkObjectSpecificity`'s own "nothing to confirm, so nothing to
+   doubt" rule would have TRUSTED the mismatch unconditionally; the test
+   asserts the opposite — `claimTokens` carries the real Hebrew word
+   tokens, the verdict downgrades, and the shared word ("נשיא") versus
+   the claim's own distinguishing word ("עשרים", absent from the real
+   edge) are both checked by name. Could not be executed in this
+   session's own environment (the file's other real-pipeline cases need
+   `legacy-eoreader6.1`, an uninitialised submodule here, an unrelated
+   pre-existing gap this document already names elsewhere) — verified
+   instead by extracting `contentTokens`/`negationCandidates`'s exact
+   logic into an isolated script and running it directly against the
+   same Hebrew strings, confirming the tokenization and the negation-
+   candidate routing the test depends on both behave exactly as traced
+   from the real source.
+
+2. **`widget.js`'s `forms()`/`clauseForms()` had their OWN, separate
+   ASCII-only split regex — narrowed, not eliminated.** The deliberate
+   design decision named above (kept OFF `tokenize`, to preserve
+   stopwords/short words a widget-iteration command needs) is
+   unchanged and still correct — this is not that decision being
+   reversed. What was fixed is a DIFFERENT, smaller bug living inside
+   their own independent regex: `.split(/[^a-z0-9']+/)` was itself
+   ASCII-only, so a message written wholly in a non-Latin script
+   tokenized to `[]`, and `iterationTell`'s `if (!toks.length) return
+   null` short-circuited before the one genuinely script-agnostic path
+   here — content-word resolution against the build's own bytes, built
+   on the already-fixed `tokenize` — ever got a chance to run. Widened
+   the same surgical, character-class-only way as every sibling above
+   (`\p{L}\p{N}'`, never a swap to `tokenize` itself). Pinned in
+   `widget.test.mjs`: a Hebrew iteration message now resolves against a
+   Hebrew build's own bytes exactly as an English one already did,
+   while a genuinely unrelated Hebrew message still correctly falls
+   through to `null`. Honest residue, restated rather than implied
+   fixed: `NEGATION_WORDS`/`FIRST_PERSON`/`ANAPHORIC_PRONOUNS`/the
+   determiner classes stay received, English-only closed classes
+   (`lang/en`, named in their own headers) — judgment and anaphora
+   detection are not fixed by this, only unblocked from an early, wrong
+   `null`. Could not be executed in this session's environment for the
+   same submodule reason as above.
+
+Full suite after both closures: 1074/945/127 — the same 127 pre-existing
+failures by name, confirmed via a third `git stash` diff (the file-level
+failures for both `capacity-runner.test.mjs` and `widget.test.mjs` are
+unchanged by name, since the whole file fails at module load regardless
+of which cases it carries — the fix is verified by direct execution of
+the extracted logic instead, per each item above).

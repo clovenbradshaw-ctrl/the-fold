@@ -50,6 +50,7 @@ import {
   openQuestions,
   readRange,
   retrieve,
+  tokenize,
 } from "./source.js";
 
 test("a fold line is bounded no matter how long the turn was", () => {
@@ -383,6 +384,41 @@ test("an accented corpus answers an unaccented question", () => {
   // And in the other direction: an unaccented corpus, an accented question.
   const plain = chunkSource("q.txt", "Natasha danced with Andrew until the small hours.");
   assert.equal(retrieve(plain, "Natásha").length, 1);
+});
+
+test("a vocalized Hebrew corpus answers an unvocalized question — and the reverse", () => {
+  // Measured live before this fix, against a real fetched Talmud folio:
+  // tokenize("שלום") === []. A pointed (vocalized) corpus and an unpointed
+  // question are the identical Bezúkhov/Bezukhov shape one script over.
+  const talmud = "מֵאֵימָתַי קוֹרִין אֶת שְׁמַע בָּעֲרָבִין מִשָּׁעָה שֶׁהַכֹּהֲנִים נִכְנָסִים לֶאֱכוֹל בִּתְרוּמָתָן";
+  const chunks = chunkSource("berakhot.txt", talmud);
+  assert.equal(retrieve(chunks, "מאימתי קורין שמע").length, 1);
+  // And unpointed corpus, pointed question.
+  const plain = chunkSource("q.txt", "מאימתי קורין את שמע בערבין");
+  assert.equal(retrieve(plain, "מֵאֵימָתַי קוֹרִין").length, 1);
+});
+
+test("tokenize is not ASCII-only — every whitespace-delimited script survives", () => {
+  // The bug this closes: tokenize's split class was `[a-z0-9%.-]`, so any
+  // string outside that alphabet was ONE giant boundary run and tokenize
+  // returned []. retrieve() calls tokenize() on both the question and every
+  // chunk's own .terms (chunkSource -> chunkProse/makeChunk/chunkRows, all
+  // three via tokenize alone), so the failure was blind on both sides, not
+  // merely unranked.
+  assert.deepEqual(tokenize("שלום עולם"), ["שלום", "עולם"]);
+  assert.deepEqual(tokenize("Наташа Ростова"), ["наташа", "ростова"]);
+  assert.deepEqual(tokenize("مرحبا بالعالم"), ["مرحبا", "بالعالم"]);
+});
+
+test("CJK is a disclosed, narrower fix — not real word segmentation", () => {
+  // Checked live, not assumed: a boundary-based tokenizer cannot introduce a
+  // split where the text itself has none — there is no character between
+  // adjacent CJK ideographs for `\p{L}`-class splitting to find. A bare
+  // two-character real word ("Beijing") is STILL [] here, because the same
+  // length floor that drops a two-letter English word drops it too; only a
+  // longer run survives, as one oversized merged token, never a real word.
+  assert.deepEqual(tokenize("北京"), []);
+  assert.deepEqual(tokenize("北京大学"), ["北京大学"]);
 });
 
 const CSV = `org_id,organization_name,reason,case_number

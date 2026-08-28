@@ -576,6 +576,65 @@ test("landAct: the EXACT original conflation this investigation was built to cat
   assert.ok(!landed.result.objectCheck.matchedTokens.includes("vice"), "the real backing edge never states 'vice' — it's the president edge, not a vice-president one");
 });
 
+// ── object specificity, non-Latin text (P62) — contentTokens must split
+// real Unicode letters, not just ASCII, or this check goes BLIND rather
+// than wrong. Before source.js's tokenize fix, contentTokens split on
+// `[^a-z0-9]+` — pure ASCII — so a Hebrew claimObjectText tokenized to the
+// EMPTY set, and checkObjectSpecificity's own "nothing to confirm, so
+// nothing to doubt" rule (its own header, above) then TRUSTED the verdict
+// UNCONDITIONALLY: a genuine object mismatch on non-Latin text would have
+// shipped `holds` uncaught — this repo's own named "checks go blind rather
+// than wrong" failure class, worse than an ordinary miss. The real
+// relation extractor (extractRelations) is capitalization-anchored and
+// English-only, so — unlike the Johnson tests above, which use the real
+// freshRelationsRunner() — this uses the mocked-runCapacity pattern
+// (squarePolarity's own test, above) to hand landAct a real Hebrew claim
+// and a real, genuinely mismatched Hebrew edge directly.
+
+test("checkObjectSpecificity (via a mocked runCapacity): a Hebrew claim object sharing only ONE word with its real backing edge downgrades — contentTokens must split real Unicode letters, not an empty set (P62)", () => {
+  const grid = freshGrid();
+  const log = grid.createLog();
+  // "נשיא עשרים" — "president twenty"; "נשיא שבע עשרה" — "president
+  // seventeen". Both share the role word "נשיא" (president) and nothing
+  // else, the identical shape as the English "22nd president" vs "17th
+  // president" case above — the ONE shared word is what a looser check
+  // (or a check gone blind on an empty token set) would wrongly accept.
+  const realEdgeObject = "נשיא שבע עשרה";
+  const mockRunCapacity = (id, { claim }) => {
+    // squarePolarity's own negation candidates always insert the literal
+    // (Latin) word "never" — negationCandidates has no Hebrew vocabulary
+    // to match a copula or negation word against, so it falls to the
+    // plain word-insertion branch. Routing on that substring, rather than
+    // on an exact string match against a separately-declared constant,
+    // means this mock does not depend on grid.parseAct preserving the
+    // claim text byte-for-byte — only on it never inventing "never".
+    if (claim.includes("never")) {
+      return { id, claims: [{ verdict: "contradicted", refs: [] }], edges: [] };
+    }
+    return {
+      id,
+      claims: [{ verdict: "bound", refs: ["hebrew.txt#0-20"], object: claim }],
+      edges: [{ refs: ["hebrew.txt#0-20"], object: realEdgeObject }],
+    };
+  };
+  const out = landAct(
+    grid,
+    log,
+    "evaluate נשיא עשרים at Link from differentiate ground hebrew.txt broken:rotation",
+    { sources: { "hebrew.txt": "irrelevant — runCapacity is mocked" }, runCapacity: mockRunCapacity },
+  );
+  assert.equal(out.ok, true);
+  const { acts } = grid.foldGrid(out.log);
+  const landed = acts.find((a) => a.task_id === out.ids[out.ids.length - 1]);
+  assert.equal(landed.result.rawVerdict, "holds", "the raw verdict still binds on the shared word alone, exactly like the English 'president' case");
+  assert.notEqual(landed.verdict, "holds", "the mismatch on the non-shared Hebrew word must still downgrade the verdict");
+  assert.equal(landed.result.objectCheck.trusted, false);
+  assert.ok(landed.result.objectCheck.claimTokens.length > 0, "contentTokens must split the Hebrew claim into real word tokens, never the empty set the pre-P62 ASCII split produced");
+  assert.ok(landed.result.objectCheck.claimTokens.includes("עשרים"), "the claim's own distinguishing word is a real token, not silently dropped");
+  assert.ok(landed.result.objectCheck.matchedTokens.includes("נשיא"), "the shared word is present in what the real edge stated");
+  assert.ok(!landed.result.objectCheck.matchedTokens.includes("עשרים"), "the claim's OWN distinguishing word is absent from the real backing edge — the mismatch this check exists to catch");
+});
+
 // ── experiencer — every computed belief names who is believing it ─────────
 // (experiencer.js, user direction: "everything isn't just given by a source
 // it is believed BY an experiencer"). Wired into this one seam tonight —

@@ -939,6 +939,14 @@ export async function runPart({
   gridLog = null,
   runCapacity = null,
   landAct = null,
+  // The typed-note ledger (hyperlexicon.js, P57) — same shape and same
+  // backward-compatibility discipline as grid/gridLog just above: `hyperlexicon`
+  // is the organ bundle (makeHyperlexicon's own {admit, foldHyperlexicon, ...}),
+  // `hyperlexiconLog` is the mutable, app-wide, cross-turn state threaded in and
+  // threaded back out. Both null (the default) is byte-identical to before this
+  // existed — no existing caller's behavior changes.
+  hyperlexicon = null,
+  hyperlexiconLog = null,
 }) {
   // Stable sub-assemblies (2026-08-19, user direction). The part's own words
   // and the fold's discourse line are two DIFFERENT assemblies, and the old
@@ -1033,6 +1041,30 @@ export async function runPart({
   // the engine's organs.
   const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
 
+  // hyperlexicon.js (P57): admit this part's own bound claims into the
+  // shared, cross-turn ledger — accumulation, not re-derivation on every
+  // part. `hyperlexicon`/`hyperlexiconLog` absent (the default for every
+  // existing caller) leaves `beliefNotes` at `hyperlexiconLog` (null) and
+  // touches nothing downstream — byte-identical to before this existed,
+  // the same discipline `grid`/`gridLog` already hold above.
+  let beliefNotes = hyperlexiconLog;
+  if (hyperlexicon && relations) {
+    for (const p of passages) {
+      const text = String(p?.text ?? "");
+      if (!text.trim()) continue;
+      const claims = relations.read(text)?.claims ?? [];
+      const edges = claims
+        .filter((c) => c.verdict === "bound")
+        .map((c) => ({ subject: c.subject, verb: c.verb, object: c.object, spans: c.spans ?? [] }));
+      if (!edges.length) continue;
+      beliefNotes = hyperlexicon.admit(
+        beliefNotes ?? hyperlexicon.createHyperlexicon(),
+        edges,
+        { witness: p.ref ?? null },
+      ).log;
+    }
+  }
+
   // HYPERGRAPH-FIRST-GENERATION.md, Phase 2: the material's own extracted
   // facts, read BEFORE the model drafts — reusing the SAME `relations`
   // reader `inspect` (below) uses to check a draft, called here on the
@@ -1042,6 +1074,30 @@ export async function runPart({
   // injected, or on any part where nothing bound — every existing caller
   // that never reaches this line is unaffected.
   const factBlock = relations ? buildFactBlock(relations, passages, question) : null;
+
+  // The ledger's own standing beyond what this part just read — notes
+  // corroborated across MORE THAN ONE witness (`foldHyperlexicon` sorts
+  // most-witnessed first), from earlier parts or earlier turns this part's
+  // own reading did not happen to touch again. Deduped against `factBlock`'s
+  // own fresh lines so nothing doubles. Firewall-clean (firewall.js's
+  // `APPARATUS_TERMS`): no "passage"/"retrieved"/"this turn" — "read in N
+  // places" is the same natural-corroboration phrasing this repo's own
+  // proof-seeking tier already uses ("stated by N of M pages").
+  const HYPERLEXICON_LEDGER_LINES = 5;
+  const ledgerBlock = (() => {
+    if (!hyperlexicon || !beliefNotes) return null;
+    const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
+    const standing = hyperlexicon
+      .foldHyperlexicon(beliefNotes)
+      .filter((n) => n.witnesses.length >= 2)
+      .filter((n) => !shown.has(`${n.subject} — ${n.verb}→ ${n.object}`.toLowerCase()))
+      .slice(0, HYPERLEXICON_LEDGER_LINES);
+    if (!standing.length) return null;
+    return (
+      `From earlier reading, confirmed independently in more than one place:\n` +
+      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${n.witnesses.length} places)`).join("\n")
+    );
+  })();
 
   // The salience gate's other half (fact-block.js's own header): the raw
   // MATERIAL block, deduplicated of near-identical restatements BEFORE it
@@ -1576,8 +1632,8 @@ export async function runPart({
 "${sp.text}"`).join("\n\n")
       : null;
   const draftMaterial = factBlock
-    ? [factBlock.text, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : dedupedSourceBlock;
+    ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   const executeMessages = passages.length
     ? flat
       ? [
@@ -2192,6 +2248,9 @@ export async function runPart({
     // nothing was landed; a real, new log state when a belief was
     // recorded. landCompletenessBelief's own header, and this parameter's.
     gridLog: beliefLog,
+    // The updated hyperlexicon, same threading discipline: unchanged when
+    // no organ was injected or nothing bound this part.
+    hyperlexiconLog: beliefNotes,
   };
 }
 
@@ -2236,6 +2295,11 @@ export async function runHolonicTask({
   gridLog = null,
   runCapacity = null,
   landAct = null,
+  // Same shape, same threading, same default-null backward compatibility
+  // as grid/gridLog just above — see runPart's own header for the full
+  // reasoning (P57's own hyperlexicon.js).
+  hyperlexicon = null,
+  hyperlexiconLog = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
@@ -2307,6 +2371,7 @@ export async function runHolonicTask({
   // updated, so two parts of one turn never race each other into two
   // divergent forks of what should be one shared record.
   let sharedGridLog = gridLog;
+  let sharedHyperlexiconLog = hyperlexiconLog;
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -2345,9 +2410,12 @@ export async function runHolonicTask({
       gridLog: sharedGridLog,
       runCapacity,
       landAct,
+      hyperlexicon,
+      hyperlexiconLog: sharedHyperlexiconLog,
     });
     seenRefs.push(...result.refs);
     sharedGridLog = result.gridLog;
+    sharedHyperlexiconLog = result.hyperlexiconLog;
     sectionsById.set(t.part_id, result);
     return {
       refs: result.refs,
@@ -2394,5 +2462,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog };
 }

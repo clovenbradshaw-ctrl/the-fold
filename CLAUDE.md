@@ -5243,3 +5243,60 @@ type, rediscovered four times), and the planned `chainOf` kernel change is
 retired unbuilt: position identity carries the locus. The three shipped
 eval drivers keep the old encoding as the measurement record; new work
 declares a sequence.
+
+## retrieve() was blind to every non-Latin script (added 2026-08-28) — pointer
+
+POLICIES.md **P62** is the law; this is the short map. User direction,
+verbatim: *"fix retrieve() so it tokenizes Hebrew and all languages too. we
+have the bytes."* `source.js::tokenize` split on an ASCII allow-list
+(`/[^a-z0-9%.\-]+/`), so `tokenize("שלום")` returned `[]` — and since every
+chunk-building path and `retrieve()`'s own query side both route through
+`tokenize` and only `tokenize`, a non-Latin corpus and a non-Latin question
+were blind on BOTH sides of the one comparison, not merely unranked.
+`foldDiacritics` was checked and cleared: bare, unpointed Hebrew failed
+identically, so the base letters were the defect, not the vowel marks.
+
+**The fix reuses a precedent already in the same file.** `foldTypography`
+already splits on `\p{L}\p{N}` for exactly the stated reason ("a Cyrillic
+or CJK corpus must fold to its words and not to nothing") — `tokenize` had
+simply never been brought into line with it. `\p{L}`/`\p{N}` is a strict
+superset of `a-z`/`0-9` post-lowercase, so every ASCII caller is
+byte-identical by construction, confirmed by a zero-regression full-suite
+run (1073/944/127, same 127 by name). `foldDiacritics` widened too —
+Hebrew nikud and Arabic tashkil now fold, the identical Bezúkhov/Bezukhov
+shape one script class over, shipped on for every caller (folding a vowel
+mark away can only widen what matches, never narrow a real distinction) —
+verified live against six real fetched Talmud folios, a vocalized corpus
+answering an unvocalized question.
+
+**Disclosed, not silently claimed:** CJK gets no real word segmentation —
+there is no boundary character between adjacent ideographs for a
+split-on-boundaries tokenizer to find, and a genuine two-character CJK
+word (`tokenize("北京")`) is STILL `[]`, dropped by the same length floor
+that drops a two-letter English word. Both halves pinned as tests, not
+glossed over.
+
+**Amended same day — a consumer sweep found and closed two sibling
+ASCII-only regexes doing the same job, uncoordinated.** `skills.js`'s
+`claimSkill` had a live vacuous-truth bug (a non-Latin-only anchor
+tokenized to `[]` and claimed every task unconditionally) closed as a
+side effect of the source.js fix alone, now pinned where it bit.
+`fact-block.js`'s own question-ranking regex and `capacity-runner.js`'s
+`contentTokens` (the more serious one — an empty content-token set makes
+`checkObjectSpecificity` TRUST an unchecked non-Latin verdict rather than
+examine it) both got the identical character-class widening. `widget.js`'s
+deliberately-separate `forms()`/`clauseForms()` stays as is — a real,
+disclosed, out-of-scope gap, not silently declined.
+
+**Amended same day (second occurrence) — the two named gaps above closed.**
+`capacity-runner.js::contentTokens` now has a real test (a mocked-
+`runCapacity` Hebrew claim/edge pair, since the real extractor is
+English-only and cannot produce a Hebrew edge itself) proving a claim
+mismatch on non-Latin text downgrades rather than being trusted blind.
+`widget.js`'s `forms()`/`clauseForms()` keep their deliberate design (OFF
+`tokenize`, so stopwords/short words survive) but their OWN independent
+split regex was itself ASCII-only, short-circuiting `iterationTell` to
+`null` before the already-fixed, script-agnostic `resolvesInto` path ever
+ran on non-Latin text — narrowed the same character-class-only way,
+judgment/anaphora detection staying named English-only exactly as before.
+Full detail and both tests: POLICIES.md P62's same-day amendment.

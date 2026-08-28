@@ -362,10 +362,19 @@ function squarePolarity(runCapacity, groundText, groundName, claimText, primaryV
 const STOPWORDS = new Set(["a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or", "was", "is", "are", "were", "be", "been", "am"]);
 
 function contentTokens(text) {
+  // Unicode letters/numbers, not `[a-z0-9]` (P62, source.js::tokenize's own
+  // widening, applied here directly rather than by importing tokenize — see
+  // that function's own comment for why a lighter, separate split survives).
+  // This one matters more than most siblings: an empty content-token set on
+  // non-Latin text does not merely rank badly, it flips `trusted` to `true`
+  // by this function's own documented "nothing to confirm, so nothing to
+  // doubt" rule — a verification mechanism going BLIND reads as a claim
+  // PASSING, exactly the "checks go blind rather than wrong" failure class
+  // this repo's grounding ladder already names as worse than an ordinary miss.
   return new Set(
     String(text ?? "")
       .toLowerCase()
-      .split(/[^a-z0-9]+/)
+      .split(/[^\p{L}\p{N}]+/u)
       .filter((t) => t && !STOPWORDS.has(t)),
   );
 }

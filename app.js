@@ -208,7 +208,16 @@ import { briefFor, observedFillers } from "./void-brief.js";
 import { narrateVoid, noSlotLine } from "./void-narration.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { undeclaredOf, voidLine } from "./void-shape.js";
-import { cellOf } from "/engine-v7/kernel/cube.js";
+import { cellOf, GRAINS } from "/engine-v7/kernel/cube.js";
+// The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
+// relation reading admits, corroborated across turns by the same cell the
+// cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
+// GRAIN_RANK shape hyperlexicon.js reads — the same adapter this repo's own
+// hyperlexicon-stance.test.mjs already exercises, reused rather than a
+// second reconciliation.
+import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
+import { adaptTaskLog } from "./consequence.js";
+import { makeHyperlexicon } from "./hyperlexicon.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
 // the `briefFor` call site below. One confirmed set, two consumers: this is
@@ -402,6 +411,29 @@ const relationsFor = makeRelationReader({
   // holds for the same reason.
 });
 
+// The typed-note ledger (hyperlexicon.js, P57), built once — the SAME
+// native cube.js `cellOf` two lines above already gives this file, plus
+// the ordinal task-log the engine-v7 mount serves, reconciled through
+// `consequence.js::adaptTaskLog` (the exact wiring
+// hyperlexicon-stance.test.mjs already proves against the real organ).
+// `hyperlexiconFor` is the organ passed to `runHolonicTask`; the mutable
+// log itself lives on `state.hyperlexiconLog`, right beside `state.gridLog`
+// and under its own documented posture: app-wide, never per-conversation,
+// never persisted to disk (a fresh page load is a fresh ledger — see
+// state.gridLog's own comment for why that is the deliberate choice, not
+// an oversight).
+const hyperlexiconFor = makeHyperlexicon({
+  ...adaptTaskLog({
+    createTaskLog: nativeTaskLog.createTaskLog,
+    append: nativeTaskLog.append,
+    ENTRY_KINDS: nativeTaskLog.ENTRY_KINDS,
+    OPERATOR_BASIS: nativeTaskLog.OPERATOR_BASIS,
+    GRAINS,
+  }),
+  projectTasks: nativeTaskLog.projectTasks,
+  cellOf,
+});
+
 // One meter per conversation, built on the engine's own tiers. reflex.js
 // declares the numbers (window from the fold's own present, draws and alpha
 // from read-frankenstein) — nothing here picks any.
@@ -560,6 +592,14 @@ const state = {
    * restored from it).
    */
   gridLog: grid.createLog(),
+
+  /**
+   * The typed-note ledger's own state (hyperlexicon.js, P57) — same
+   * app-wide, never-per-conversation, never-persisted posture as
+   * `gridLog` immediately above, for the identical reason: a fresh page
+   * load is a fresh reading. `null` until the first turn admits something.
+   */
+  hyperlexiconLog: null,
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -4222,6 +4262,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       gridLog: state.grounded ? state.gridLog : null,
       runCapacity: state.grounded ? runCapacity : null,
       landAct: state.grounded ? landAct : null,
+      // Same gate, same reason: the ledger only ever admits from `relations`
+      // reading, which is itself null with checking off — see two lines up.
+      hyperlexicon: state.grounded ? hyperlexiconFor : null,
+      hyperlexiconLog: state.grounded ? state.hyperlexiconLog : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -4323,6 +4367,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // overwrite when a real state came back, so a turn that landed nothing
     // never clobbers what `/act`/the terminal already hold.
     if (result.gridLog) state.gridLog = result.gridLog;
+    // Same discipline: only a real, updated ledger overwrites — a checking-
+    // off turn (`result.hyperlexiconLog` null) never clobbers what an
+    // earlier checked turn already admitted.
+    if (result.hyperlexiconLog) state.hyperlexiconLog = result.hyperlexiconLog;
     clearInterval(ticker);
   } catch (err) {
     clearInterval(ticker);

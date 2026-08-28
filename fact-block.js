@@ -76,9 +76,15 @@ const rankByQuestion = (lines, questionTerms) => {
     .map((l, i) => ({
       l,
       i,
+      // Unicode letters/numbers, not `[a-z0-9]` — the same widening
+      // source.js::tokenize just earned (P62), applied here directly
+      // rather than by importing tokenize itself: this ranking is
+      // deliberately lighter (no stopword filter, no length floor), and
+      // reusing tokenize wholesale would change more than the one thing
+      // that was actually broken.
       score: l
         .toLowerCase()
-        .split(/[^a-z0-9']+/)
+        .split(/[^\p{L}\p{N}']+/u)
         .filter((w) => questionTerms.has(w)).length,
     }))
     .sort((a, b) => b.score - a.score || a.i - b.i)
@@ -229,7 +235,7 @@ export function buildFactBlock(relations, passages, question = "") {
   const questionTerms = new Set(
     String(question ?? "")
       .toLowerCase()
-      .split(/[^a-z0-9']+/)
+      .split(/[^\p{L}\p{N}']+/u)
       .filter(Boolean),
   );
   const seen = new Set();

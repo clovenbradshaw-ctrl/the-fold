@@ -4973,3 +4973,77 @@ layout (`In office / dates / Preceded by / Succeeded by`) and has two live
 consumers — `holon.js`'s cardinality gate and `app.js`'s `fillersFor`.
 Replacing it means shape recognizers for that layout plus reworking both call
 sites.
+
+## The physics and chemistry of the cube — priors compiled, reasoning settled (added 2026-08-28)
+
+POLICIES.md **P60** is the law; this is the map. The ask, near-verbatim:
+leverage all the priors as well as possible ("whether it's predigesting or
+what") and run a true "neural net"-style thing that MECHANICALLY reasons
+using the physics and chemistry of the cube.
+
+**The finding first: the parts existed, unconnected.** eoreader7's kernel
+already sediments completed readings into portable memory
+(`experience-priors.js` WHICH + `rhythm-priors.js` WHEN, merge built for
+never-rescanning), already holds the chemistry table (the kernel
+hyperlexicon — "only a GIVEN affordance with a named giver licenses
+composition"), already bonds chains at referent bridges with ≥2-independent-
+witness nomination (`relation-composition.js`), and already has the physics
+(`activation.js` decay at declared/measured window; `terrain-activation.js`
+one-hop presence). What did not exist: persistence (the engine's own driver
+reads ~40min of priors and discards them at exit), iteration (composition
+evaluated once at a cursor — products never re-enter), and any gate tying
+reasoning to the reach of the present.
+
+**eoreader7 `native/kernel/reaction.js`** (new) is the circuit: a cue
+settles against a prior-conditioned substrate. Physics — a chain reacts
+only in contact with the present (declared floor; `cue:null`/`floor:null`
+the disclosed ungated control; `window` inherited from activation's own
+wall). Chemistry — a GIVEN affordance may declare what it YIELDS
+(`meta.yields`, no schema change), so products re-enter and chain, one
+bridge-hop per step, to quiescence; provenance walks to raw witnesses;
+raw-stated facts are never re-derived (`alreadyWitnessed`); extra paths
+counted, never duplicated. Deliberately NOT spreading activation —
+memory/activation.js's measured refusal of the similarity flood is honored:
+the front moves because products light their own ends, each hop its own
+act. Plus `closureAffordances` (4-row transitive-closure table),
+`affordancesFromDeclarations` (GIVEN transitive(r) ⇒ (r,r)→r; candidates
+and functional yield NOTHING — the grain theorem), `nominateFromExperience`
+(the cross-work gate, extracted from the engine driver into one tested
+implementation).
+
+**the-fold `predigest.js`** (new, pure, organs injected): compile-once
+priors — `EOCompiledPriors@1` with corpus manifest, received-priors
+INVENTORY (pointers with givers, typed gaps for absences, never copies),
+standing triple untouched (compiling never promotes); typed load refusals;
+and `assertionEdges` projecting the P57 hyperlexicon into engine edges
+(witness = the assertion's own byte address; endpoint identity disclosed
+as `identity: "assertion-log"`).
+
+**Measured** (`eval/results/predigest-priors-RESULTS.md`,
+`mechanical-reasoning-RESULTS.md`): 111 works sedimented in 34.1s into a
+174KB standing artifact; then, on the committed Wikidata fixtures with no
+model call anywhere — 26 byte-addressed facts through P57's door (the
+cross-fixture repeat folding to ONE note with TWO witnesses), control arm
+0 derived / 41 withheld pair types, chemistry arm **9 never-stated facts**
+(headline: *Ulysses S. Grant held the presidency after Abraham Lincoln*,
+derived through Andrew Johnson with fixture byte addresses; a depth-2
+2-path fact: Colfax after Breckinridge through Johnson AND Hamlin), physics
+arm showing the front propagate Hamlin → Johnson → Johnson's offices
+(5→4→0), priors arm nominating 0 of 9 (the canon never met these forms —
+the gate refusing IS the measurement).
+
+**The rule this pass earned, by running it:** the first chemistry run
+derived BOTH directions of one Senate pair — Hamlin held the seat multiple
+terms, and a person-level bridge conflates tenures. *"The same person" is
+not "the same tenure": a bridge must carry the identity the relation's
+semantics needs.* The shipped gate licenses an office's chemistry only
+where `replaces:<office>` is functional AND inverse-functional over persons
+in this material (a refutation search, R2's own vocabulary): 6 offices
+licensed as the driver's declared risk, the Senate seat refused with its
+counterexamples named. The finer per-bridge gate is named future work.
+
+**Not wired into a live turn**, deliberately: app.js is the
+fold-architecture session's contract (the P45/P53 boundary), and the
+browser runtime needs a `/native` mount + page-graph + II.13 allowance
+first. The compiled artifact, both drivers, and both result docs are
+committed so everything reproduces from the repos alone.

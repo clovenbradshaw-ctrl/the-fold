@@ -7168,3 +7168,134 @@ not yet BOUND — turning a found period into typed rows still runs through the
 two declared recognizers. Closing that is what would let `read-source.js` walk
 an arrangement nobody described in advance, which is the whole point of
 inducing them.
+
+## P60 — The physics and chemistry of the cube: priors compile once, chemistry is given, reasoning settles
+
+**User direction, near-verbatim (2026-08-28):** *"figure out how to get the
+fold and eoreader7 to leverage all the priors as well as possible, whether
+it's predigesting or what, and running a true 'neural net' style thing so we
+can 'mechanically' reason using the physics and chemistry of the cube."*
+
+### The finding: the parts existed; the circuit did not
+
+Every half of that sentence names an organ already built and tested, and
+almost none of them could reach each other:
+
+- **Priors, three tiers.** Received priors on disk with givers
+  (ConstructionPrior@1, MorphologyPrior@1, UniMorph, the closed classes);
+  sedimented experience (eoreader7's `experience-priors.js` — WHICH
+  structures a reader has met — and `rhythm-priors.js` — WHEN a being
+  returns — with merge-without-rescan built in, which IS predigestion's
+  mechanism); and composition affordances (the kernel hyperlexicon:
+  "experience may nominate candidates; only a GIVEN affordance with a named
+  giver licenses composition"). But the engine's own `experienced-new-book`
+  driver spends ~40 minutes sedimenting prior works and discards every
+  prior at process exit — nothing PERSISTED.
+- **Physics.** `kernel/activation.js` (P1's first clause — decay at a
+  measured or declared window, never defaulted) and `terrain-activation.js`
+  (presence spreads one hop, costs O(what a proposition touches)). Nothing
+  GATED any reasoning on it.
+- **Chemistry.** `relation-composition.js` (chains bond only at referent
+  bridges; candidates nominated only at ≥2 independent witnesses, by
+  bipartite matching) and `interpretation/declarations.js`
+  (functional/transitive with givers; the grain theorem — a corpus refutes
+  a Pattern-grain claim, never earns one). But composition was evaluated
+  ONCE at a cursor: licensed products could never re-enter and chain, so
+  hl.js's R6 (transitive composition) had no operational form.
+
+### What shipped
+
+**eoreader7 `native/kernel/reaction.js`** — the circuit, and only the
+circuit: `createReactionSubstrate({ entries, hyperlexicon, window })` +
+`cue` / `step({floor})` / `settle({cue, floor, maxSteps})`. A chain may
+react only in contact with the present (any of its three atoms lit at the
+caller's declared floor; `cue: null`+`floor: null` is the disclosed
+ungated control, `window: null` activation's own undecayed control). A
+GIVEN affordance may declare what a reaction YIELDS (`meta.yields`, carried
+through the hyperlexicon's existing meta channel — no schema change
+anywhere): with yields, the product is a real derived hyperedge that
+re-enters the ledger and chains again — one bridge-hop per step, to
+quiescence or a declared cap; without, a terminal bridge fact. A derived
+edge's witness names its own derivation and its meta carries both parents,
+the bridge, the giver, and its depth — the provenance closure walks to raw
+witnessed edges (pinned by test). A derivation that would restate a RAW
+witnessed fact is refused as `alreadyWitnessed`; a second path to an
+already-derived fact is counted, never duplicated. Multi-hop reach is NOT
+spreading activation — memory/activation.js's measured refusal of the
+similarity flood is honored: the front moves only because a product lights
+its own ends, and every hop is its own act. Plus `closureAffordances` (the
+four-row table closing a non-transitive adjacency into its declared
+transitive product), `affordancesFromDeclarations` (GIVEN transitive(r) ⇒
+(r,r)→r under the declaration's own giver; candidates and functional yield
+nothing), and `nominateFromExperience` (the cross-work gate extracted from
+the driver into one tested implementation). 13 conformance cases against
+the real organs; native suite 150/140/10 → 163/153/10, identical failure
+names, zero regressions.
+
+**the-fold `predigest.js`** — compile once, load forever:
+`sedimentReading`/`compilePriors` (the engine organs injected, cast.js
+pattern) produce `EOCompiledPriors@1` with its corpus manifest, its
+received-priors INVENTORY (schema+giver+path, or a typed gap — never a
+copy), and the engine's own standing triple untouched (compiling never
+promotes); `loadCompiledPriors` refuses typed (wrong schema, no giver,
+tampered half); `assertionEdges` projects the-fold hyperlexicon assertions
+(P57) into the engine's edge shape with the witness as the assertion's own
+byte address and endpoint identity DISCLOSED as the assertion log's own
+(`identity: "assertion-log"` — the P30/P38 referent-model residue named on
+every participant). 5 conformance cases including the full circle: fold
+assertions → reaction substrate → a never-stated fact derived with
+provenance to the fold's own addresses. Suite 992/865/125 → 997/870/125,
+identical failure names.
+
+### Measured (full evidence: eval/results/*)
+
+`eval/predigest-priors.mjs`: **111 works** (handbook 44 + eo-wiki 67) read
+and sedimented in **34.1s**, one-time, into a 174KB standing artifact;
+`live_priors` a typed gap; POSPrior@1 a named absence. The recurrent
+vocabulary honestly leads with prepositions — the known no-POS-prior cost,
+recorded faithfully because nomination is not licensing.
+
+`eval/mechanical-reasoning.mjs`, over the three committed Wikidata
+fixtures, no model call anywhere: 26 facts byte-addressed and
+self-verified; admitted through P57's door to 25 notes with the
+cross-fixture repeat FOLDED (one note, two witnesses, two addresses);
+control arm 0 derived / 41 pair types withheld; chemistry arm **9
+never-stated facts derived, quiescent in 3 steps**, headline
+**"Ulysses S. Grant held the presidency after Abraham Lincoln"** (derived
+through Andrew Johnson; labels verified against live wikidata.org) and a
+depth-2, 2-path fact (Colfax after Breckinridge, through Johnson AND
+Hamlin); physics arm: cue at Hamlin alone, the front visibly propagating
+person-to-person (5→4→0); priors arm: the compiled canon nominated **0 of
+9** candidates — the gate refusing chemistry it never met is the
+measurement.
+
+### The rule this pass earned, found by running it (P5.5)
+
+Office-scoping the relation (`replaces:<office>`) was designed in advance —
+cross-office composition through a shared person is provably unsound. What
+only the run surfaced: the first pass derived BOTH DIRECTIONS of one Senate
+pair, because Hamlin held that seat for multiple terms and a person-level
+bridge conflates two tenures. **"The same person" is not "the same tenure"
+— a bridge must carry the identity the relation's semantics needs.** The
+gate: an office's chemistry is licensed only where `replaces:<office>` is
+functional AND inverse-functional over persons in this material (nobody
+begins or leaves it twice) — R2's own vocabulary as a refutation search.
+Measured: 6 offices licensed as the driver's declared risk (a named
+process-giver, unrefuted-at-this-stage per the grain theorem), 1 refused
+with its counterexamples named (Hamlin began the Senate seat against three
+distinct predecessors in this material alone).
+
+### Disclosed limits
+
+Address precision (a span names the first place the file states the qid as
+a value — real, self-verified bytes, not the exact qualifier node); the
+finer per-bridge tenure gate (refusing only multi-tenure bridges inside a
+refused office) named as future work — the substrate consults affordances
+per relation pair and has no per-bridge veto hook; nothing here is wired
+into app.js's live turn (the fold-architecture session's contract — the
+same boundary P45/P53 already hold), so the browser runtime still needs a
+`/native` mount + page-graph + II.13 allowance before any of this reaches
+a live turn; and the compiled artifact's terrain/stance/operator
+expectations are empty under this driver's assembly (no terrain-state
+projection run — same as the engine's own driver), stated rather than
+implied as an empty corpus.

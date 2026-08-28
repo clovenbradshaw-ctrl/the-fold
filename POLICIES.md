@@ -7369,3 +7369,52 @@ refused), the same 9 derived facts, the same headline — and is strictly
 stronger, catching both `uniqueness` and `cycle` where the hand-written
 version looked only at uniqueness. Suites: eoreader7 163/153/10 →
 179/169/10; the-fold identical failure set, zero regressions in either.
+
+### Amended 2026-08-28 (third) — measured against an independent oracle: the veto helps, the chemistry does not
+
+Prompted by a direct challenge — *"prove if this actually helped"* — and the
+honest answer was that P60 had not proven it. P60 measured that the mechanism
+RUNS (9 never-stated facts, with provenance). It never measured whether those
+facts are TRUE, never measured whether the gate PREVENTS anything, and never
+ran the control that decides whether any of the apparatus is load-bearing.
+
+`eval/derivation-precision.mjs` (offline, re-runnable) runs four arms against
+an oracle that is independent BY CONSTRUCTION: the derivation reads P1365/P1366
+(`replaces`/`replaced by`); the oracle reads P580/P582 (term start/end),
+committed as `eval/fixtures/succession-terms.json` with its giver.
+
+| arm | derived | true | false | precision |
+|---|---|---|---|---|
+| A shipped (office gate) | 9 | 5 | **0** | **1.000** |
+| B gate removed | 26 | 20 | 2 | 0.909 |
+| C naive join, zero apparatus | 23 | 16 | 3 | 0.842 |
+| D per-bridge gate (the disclosed future work) | 10 | 6 | **0** | **1.000** |
+
+**The veto helps** — 0.842 → 1.000 against the no-apparatus control, every
+false fact eliminated including a self-loop (*"Amos Nourse after Amos
+Nourse"*), and every false fact in every arm sits in the one office the gate
+refused. That is a measured outcome where P60 shipped an assertion.
+
+**The chemistry does not.** `chemistryFoundThatNaiveMissed: 0` — a 20-line
+transitive join finds every fact the licensed chemistry finds, plus 14 more.
+**The apparatus is a filter, not a generator.** P60's framing described the
+mechanism accurately and oversold what it buys; the deriving was never the
+hard part, and the reaction front is not where the value is.
+
+**The cost is now priced rather than named: 15 true facts destroyed per 2 false
+ones prevented** (7.5:1), all in the one refused office, because the refusal is
+office-scoped and one multi-tenure holder forfeits every composition in that
+office. Arm D builds P60's own disclosed "finer per-bridge gate" and recovers
+exactly **1** of the 15 — so that future work is directionally right and **is
+not the fix**. Most of the 15 genuinely pass through a multi-tenure bridge and
+are true anyway; no material-internal test can see it.
+
+**The real next step, and it is not another gate:** admit term DATES as
+material. The oracle settles every one of these cases in a single comparison
+and the derivation cannot, because it only ever received adjacency. Ingesting
+P580/P582 as edges is the fix; a cleverer veto is not.
+
+**The standing lesson.** *A mechanism that runs is not a mechanism that helps,
+and the control that separates them is the cheap one you skipped.* The naive
+join took twenty lines and answered the question the whole apparatus was built
+to answer. Run the dumb control first.

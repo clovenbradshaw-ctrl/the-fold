@@ -5223,3 +5223,23 @@ never have run — caught by appending there first and watching 7 new cases
 silently not execute. Suite 1069/940/127, failure names diffed against a
 stashed baseline: identical, zero regressions. Both eval drivers re-run
 unchanged (9 derived, 6 licensed).
+
+
+## The sequence type, admitted by measurement (added 2026-08-28) — pointer
+
+POLICIES.md **P61** is the law here; eoreader7's **S21** is the law there;
+`eval/results/sequence-admission-RESULTS.md` is the full account. The bar
+was the user's, set before the run: demonstrably improve retrieval,
+reasoning AND prediction, or stay a prototype. It passed — retrieval 47/47
+vs 40/47 with 7 conflations; reasoning 95/31-true/0-false @ 1.000 depth 6,
+strictly dominating every shipped arm; prediction 7 recovered / 0 wrong vs
+a structural zero — **after its pre-registered prediction arm failed** (3
+wrong guesses, all in a POOLED locus: "US senator" is one name for a
+hundred concurrent seats). The failure is kept verbatim and produced
+`refuteLocus`, the wall the module's own declared algebra had promised and
+lacked. Four of this file's own patches are subsumed (`replaces:<office>`,
+`intervalOf`, `person#office#start`, interval-aware cycles — one missing
+type, rediscovered four times), and the planned `chainOf` kernel change is
+retired unbuilt: position identity carries the locus. The three shipped
+eval drivers keep the old encoding as the measurement record; new work
+declares a sequence.

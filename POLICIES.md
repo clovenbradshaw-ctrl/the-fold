@@ -7550,3 +7550,44 @@ one**, and Increment C asks for a *grep-level* guarantee. A guarantee whose tool
 silently omits kernel files is worthless, so those NULs became escape sequences.
 Two more sit in the-fold's `app.js` and `explore-server.mjs`, left untouched:
 those belong to the fold-architecture session.
+
+
+## P61 — Admission by measurement: the sequence type, and the gate that now precedes a kernel organ
+
+**User direction, verbatim (2026-08-28):** *"this needs to demonstrably
+improve retrieval and reasoning before admission"* — *"and prediction."*
+Applied to the sequence type, and standing for whatever asks for kernel
+admission next: elegance, row-count collapse, and baseline reproduction are
+not admission; measured improvement on declared predictions is.
+
+**The gate** (`eval/sequence-admission.mjs`, offline, predictions written
+before the run): retrieval 47/47 unique-correct where the flat shape
+conflated 7, zero wrong; reasoning 95 derived / 31 oracle-true / 0 false at
+precision 1.000 and depth 6 with no office gate and no interval option —
+strictly dominating the pareto frontier no shipped arm could (5 true @ 1.000
+/ 20 true @ 0.909), the recall carried by continuity edges that exist only
+because dates are material; prediction 7 leave-one-out recoveries at zero
+wrong against a structural-zero baseline.
+
+**The pre-registered prediction arm FAILED, and the failure is the most
+valuable line in the results.** Three wrong guesses, all in "United States
+senator" — ONE locus name for a hundred concurrent seats, boundaries
+synchronized by the March-4 turnover, strict abutment crossing into a
+parallel seat. The module's own declared algebra (`functionalPerPosition`)
+was refutable from the material and nothing checked — the comment-not-a-wall
+shape, in a module one day old. `refuteLocus` is the wall the failure
+earned: concurrent standings of different occupants refute a locus as a
+POOL, prediction refuses there, and a correct-by-luck recovery was returned
+along with the wrong ones. Both arms are in the committed results; admission
+rides the amended arm and says so.
+
+**What admission retired:** the planned `chainOf` locus constraint and role
+propagation — the blast-radius audit's riskiest item — proved unnecessary,
+because position IDENTITY carries the locus and the kernel chains it
+correctly unchanged. The constraint the 24 affordance rows encoded is held
+by identity, not by new kernel semantics.
+
+**The law is S21** (eoreader7 READING-SPEC): the material has its own arrow,
+and it is not the reader's — structural, never metric; positions are
+temporal, occupants are not; S20 is its interval-witness special case and
+now says so. Full narrative: `eval/results/sequence-admission-RESULTS.md`.

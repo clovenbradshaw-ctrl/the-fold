@@ -6751,12 +6751,19 @@ saturated uselessly — a real block ranked 0.990 and ordinary prose 0.955. Held
 at the OBSERVED period, the same measurement separates cleanly. A null scored
 against a moving target measures the search, not the finding.
 
-**The comparison, same bytes, same corpus slice:**
+**The comparison, the whole read corpus, same bytes, 277s:**
 
 ```
-DECLARED shapes (two, hand-picked):    0 systems
-INDUCED  shapes (no vocabulary):     306 regions on 50 pages
+883 pages · 25.7MB
+
+DECLARED shapes (two, hand-picked):       8 systems
+INDUCED  shapes (no vocabulary):      4,992 regions on 537 pages
 ```
+
+Eight against nearly five thousand, and 537 of 883 pages carry at least one
+arrangement where the declared recognizers reached six. The declared shapes
+were not a smaller version of the same reading; they were a different reading,
+of two layouts, in a corpus made of hundreds.
 
 And what induction reaches is the point, not the count:
 
@@ -6786,4 +6793,13 @@ beside every finding, so moving it and seeing what changes costs nothing.
 
 **Files.** `periodicity.js` + `periodicity.test.mjs` (7 cases, including the
 real block against the real prose on the same page, and a check that the module
-exposes no verdict). `eval/induced-arrangements.mjs`, re-runnable.
+exposes no verdict). `eval/induced-arrangements.mjs`, re-runnable over the
+whole corpus in ~5 minutes; `node eval/induced-arrangements.mjs 120` for a
+slice.
+
+**Named, unbuilt, and the obvious next step:** nothing yet feeds an induced
+region back into `network.js`'s binder, so the 4,992 regions are LOCATED and
+not yet BOUND — turning a found period into typed rows still runs through the
+two declared recognizers. Closing that is what would let `read-source.js` walk
+an arrangement nobody described in advance, which is the whole point of
+inducing them.

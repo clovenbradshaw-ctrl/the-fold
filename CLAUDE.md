@@ -5111,3 +5111,32 @@ not a cleverer veto: the derivation only ever received adjacency.
 **The lesson worth carrying:** a mechanism that runs is not a mechanism that
 helps, and the control separating them is the cheap one that got skipped. Run
 the dumb baseline first.
+
+### Amended 2026-08-28 (fourth) — a uniqueness violation is a grain signal
+
+POLICIES.md P60's fourth amendment is the law; this is the pointer. Asked to
+be sure the edges were *"not politics shaped but learn anything"*, the fix from
+the previous amendment turned out shaped: `person#office#start` hardcodes
+"someone holds an office for a term" and goes dark elsewhere — the same mistake
+`relation-composition.js`'s header records the kernel making with Greek grammar
+("AN ARRANGEMENT HAS ENDS, NOT PARTS OF SPEECH").
+
+**The general rule:** an edge relates OCCURRENCES, not the durable entities
+those occurrences belong to. A one-to-one relation violated at entity grain is
+evidence the **grain is too coarse**, not that the relation is unsound — which
+reframes P60's veto as having pointed at a fixable modelling error all along.
+
+`eval/grain-refinement.mjs` proves it is not domain-bound: a 68-line core with
+**zero** domain words (scanned, not eyeballed) runs unmodified over real
+Wikidata succession and an invented hospital-bed corpus. Both reach **1.000
+precision at occurrence grain with no veto anywhere**. The non-political control
+carries a trap declared in the fixture before the run and it fires exactly as
+predicted at entity grain.
+
+It also corrects the previous amendment: naming occurrences by statement index
+gives identical results, and the synthetic adapter uses no dates at all —
+**dates were one adapter's way of naming occurrences**, not the fix.
+
+**The lesson:** a mechanism that needs material labelled in one domain's
+vocabulary has learned that domain, not anything general. Prove otherwise by
+running the identical core over a corpus from somewhere else.

@@ -7418,3 +7418,61 @@ P580/P582 as edges is the fix; a cleverer veto is not.
 and the control that separates them is the cheap one you skipped.* The naive
 join took twenty lines and answered the question the whole apparatus was built
 to answer. Run the dumb control first.
+
+### Amended 2026-08-28 (fourth) — a uniqueness violation is a GRAIN signal, and the previous amendment's fix was shaped
+
+User direction, verbatim: *"be sure these edges are not politics shaped but
+learn anything."* The correction landed on work from minutes earlier and was
+right.
+
+**What was shaped.** The third amendment named "admit term DATES as material"
+as the fix, and the first implementation of it named each tenure
+`person#office#start` — which works, and hardcodes *"someone holds an office
+for a term."* It goes dark on material nobody labelled that way. That is the
+mistake `relation-composition.js`'s own header already records the kernel
+making once ("AN ARRANGEMENT HAS ENDS, NOT PARTS OF SPEECH… went dark on
+everything else — not because the structure was absent but because nobody
+wrote 'subject' on it"), committed a second time with a political role schema
+in place of a Greek grammatical one.
+
+**The general rule, with no domain in it:** an edge relates OCCURRENCES — the
+episodes its ends actually belong to — not the durable entities those episodes
+belong to. A one-to-one relation violated at entity grain is evidence **the
+grain is too coarse**, not evidence the relation is unsound. Refine to the
+material's own occurrence identity and re-scan; a violation that dissolves was
+a grain defect. This reframes P60's veto directly: the uniqueness violation was
+pointing at a fixable modelling error, and P60 read it as a permanent property
+of the material.
+
+**Checked, not claimed.** `eval/grain-refinement.mjs`'s core is 68 lines
+containing zero occurrences of person, office, tenure, patient, bed, occupant,
+slot, succession, politic, senate, president, vice or wikidata — asserted by a
+scan in the driver's own run. Domain vocabulary lives only in adapters
+(spec ← kernel ← adapters).
+
+| adapter | entity grain | occurrence grain |
+|---|---|---|
+| Wikidata succession (real, political) | 101 derived, 2 false, 0.939 | 49 derived, **0 false, 1.000** |
+| Hospital-bed occupancy (invented, non-political) | 9 derived, 1 false, 0.889 | 5 derived, **0 false, 1.000** |
+
+The non-political control carries a trap **declared in the fixture before the
+run** — a returning occupant makes person-grain composition yield "Brix after
+Chen", backwards — and that is exactly the one false fact at entity grain,
+gone at occurrence grain. **Precision reaches 1.000 in both domains with no
+veto anywhere:** soundness from finer material, not from refusal.
+
+**The signal distinguishes two cases and says which.** The synthetic relation
+reports *"GRAIN DEFECT — the violation dissolves"*; the three real Wikidata
+relations report *"real — the violation survives refinement"*, because partial
+material leaves counterpart mentions unbindable. Reported, never assumed.
+
+**And this corrects the previous amendment's own conclusion.** Naming
+occurrences by statement INDEX reproduces an identical fact set
+(`datesOnlyNameTenures: true`), and the synthetic adapter uses no dates in its
+identifiers at all. **Dates were one adapter's way of naming occurrences.** The
+work is done by occurrence identity; the dates are incidental.
+
+**The standing lesson, now recorded twice in two registers:** when a mechanism
+needs the material to have been labelled with one domain's vocabulary, it has
+not learned anything general — it has learned that domain. Prove otherwise by
+running the identical core over a corpus from somewhere else.

@@ -5287,3 +5287,16 @@ side effect of the source.js fix alone, now pinned where it bit.
 examine it) both got the identical character-class widening. `widget.js`'s
 deliberately-separate `forms()`/`clauseForms()` stays as is — a real,
 disclosed, out-of-scope gap, not silently declined.
+
+**Amended same day (second occurrence) — the two named gaps above closed.**
+`capacity-runner.js::contentTokens` now has a real test (a mocked-
+`runCapacity` Hebrew claim/edge pair, since the real extractor is
+English-only and cannot produce a Hebrew edge itself) proving a claim
+mismatch on non-Latin text downgrades rather than being trusted blind.
+`widget.js`'s `forms()`/`clauseForms()` keep their deliberate design (OFF
+`tokenize`, so stopwords/short words survive) but their OWN independent
+split regex was itself ASCII-only, short-circuiting `iterationTell` to
+`null` before the already-fixed, script-agnostic `resolvesInto` path ever
+ran on non-Latin text — narrowed the same character-class-only way,
+judgment/anaphora detection staying named English-only exactly as before.
+Full detail and both tests: POLICIES.md P62's same-day amendment.

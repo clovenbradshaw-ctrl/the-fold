@@ -7724,3 +7724,64 @@ names, ASCII by construction in every real fixture today).
 
 Full suite after all three fixes: 1074/945/127 — the same 127 by name,
 confirmed via `git stash` diff a second time.
+
+**Amended same day — the two disclosed gaps above closed, one fully and
+one partially, each on its own honest terms.**
+
+1. **`capacity-runner.js::contentTokens` is no longer "real but
+   unreachable by any test."** A new case
+   (`capacity-runner.test.mjs`, the mocked-`runCapacity` pattern
+   `squarePolarity`'s own test already established, since the real
+   `extractRelations` is capitalization-anchored and English-only and
+   cannot itself produce a Hebrew edge) hands `landAct` a real Hebrew
+   claim object ("נשיא עשרים", "president twenty") and a real,
+   genuinely-mismatched backing edge ("נשיא שבע עשרה", "president
+   seventeen") — the identical shape as the pre-existing English "22nd
+   president" vs "17th president" case, one script over. Before this
+   fix, `claimTokens` would have been the empty set and
+   `checkObjectSpecificity`'s own "nothing to confirm, so nothing to
+   doubt" rule would have TRUSTED the mismatch unconditionally; the test
+   asserts the opposite — `claimTokens` carries the real Hebrew word
+   tokens, the verdict downgrades, and the shared word ("נשיא") versus
+   the claim's own distinguishing word ("עשרים", absent from the real
+   edge) are both checked by name. Could not be executed in this
+   session's own environment (the file's other real-pipeline cases need
+   `legacy-eoreader6.1`, an uninitialised submodule here, an unrelated
+   pre-existing gap this document already names elsewhere) — verified
+   instead by extracting `contentTokens`/`negationCandidates`'s exact
+   logic into an isolated script and running it directly against the
+   same Hebrew strings, confirming the tokenization and the negation-
+   candidate routing the test depends on both behave exactly as traced
+   from the real source.
+
+2. **`widget.js`'s `forms()`/`clauseForms()` had their OWN, separate
+   ASCII-only split regex — narrowed, not eliminated.** The deliberate
+   design decision named above (kept OFF `tokenize`, to preserve
+   stopwords/short words a widget-iteration command needs) is
+   unchanged and still correct — this is not that decision being
+   reversed. What was fixed is a DIFFERENT, smaller bug living inside
+   their own independent regex: `.split(/[^a-z0-9']+/)` was itself
+   ASCII-only, so a message written wholly in a non-Latin script
+   tokenized to `[]`, and `iterationTell`'s `if (!toks.length) return
+   null` short-circuited before the one genuinely script-agnostic path
+   here — content-word resolution against the build's own bytes, built
+   on the already-fixed `tokenize` — ever got a chance to run. Widened
+   the same surgical, character-class-only way as every sibling above
+   (`\p{L}\p{N}'`, never a swap to `tokenize` itself). Pinned in
+   `widget.test.mjs`: a Hebrew iteration message now resolves against a
+   Hebrew build's own bytes exactly as an English one already did,
+   while a genuinely unrelated Hebrew message still correctly falls
+   through to `null`. Honest residue, restated rather than implied
+   fixed: `NEGATION_WORDS`/`FIRST_PERSON`/`ANAPHORIC_PRONOUNS`/the
+   determiner classes stay received, English-only closed classes
+   (`lang/en`, named in their own headers) — judgment and anaphora
+   detection are not fixed by this, only unblocked from an early, wrong
+   `null`. Could not be executed in this session's environment for the
+   same submodule reason as above.
+
+Full suite after both closures: 1074/945/127 — the same 127 pre-existing
+failures by name, confirmed via a third `git stash` diff (the file-level
+failures for both `capacity-runner.test.mjs` and `widget.test.mjs` are
+unchanged by name, since the whole file fails at module load regardless
+of which cases it carries — the fix is verified by direct execution of
+the extracted logic instead, per each item above).

@@ -524,6 +524,15 @@
       .scroll { overflow-y: auto; padding: 16px 20px; flex: 1; min-height: 0; }
       .msg { margin-bottom: 16px; max-width: 68ch; }
       .msg .body { font-size: 15.5px; line-height: 1.6; }
+      /* A source link is the app's own accent, not the browser's default blue.
+         The mechanical answer renders each name as a link to the record that
+         named it, and unstyled those came out #0000EE — a colour that reads as
+         foreign on the dark theme and is genuinely hard to see against it.
+         `--accent` is already defined per theme, so this follows light/dark
+         with no second colour to keep in step. The underline stays: it is what
+         says "link" when colour alone cannot be relied on. */
+      .msg .body a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+      .msg .body a:hover { text-decoration-thickness: 2px; }
       .msg .who {
         font-size: 11px;
         text-transform: uppercase;

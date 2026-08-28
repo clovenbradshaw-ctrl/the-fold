@@ -183,6 +183,16 @@ import {
 import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
 import { dayOf, renderHolders } from "./wikidata.js";
+
+// WHAT WE HAVE READ, AS A SECOND GIVER (P56/P57/P58). `seek.js` is
+// source-independent and `wikidata.js` was its only adapter, so a question the
+// published record cannot answer went unanswered even when a page stating the
+// answer plainly was already fetched and already saved. `network.js` binds the
+// record blocks a Link-grain extractor structurally cannot see; `read-source.js`
+// presents them through the same four questions the Wikidata walk uses.
+import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
+import { makeReadSource } from "./read-source.js";
+import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { verificationTasksFor, verificationSummary } from "./verification.js";
@@ -3388,6 +3398,54 @@ function voidBriefFor(task, texts, observed = []) {
   });
 }
 
+/**
+ * seekWhatWeRead — the same walk as `/api/entity/seek`, over this turn's own
+ * passages instead of a publisher's API.
+ *
+ * Runs entirely in the page: `network.js` binds the recurring arrangements a
+ * Link-grain extractor returns zero on, `read-source.js` presents them as a
+ * source, and `seek.js` navigates it exactly as it navigates Wikidata. The
+ * shape of the result is the SAME `{perTerm}` the route returns, so every
+ * consumer below — ranking by coverage, `renderHolders`, the fillers handed to
+ * the model — works unchanged and no second rendering path exists.
+ */
+async function seekWhatWeRead(anchorTerm, slotTerm, chunks) {
+  try {
+    const binder = makeNetworkBinder({ shapes: [extentShape, surfaceShape({ extractSurfaces })] });
+    const passages = (chunks ?? [])
+      .map((c) => ({ ref: c.ref ?? c.address ?? null, text: c.text ?? "", title: c.title ?? c.sourceName ?? null }))
+      .filter((p) => p.text.trim());
+    if (!passages.length) return null;
+    const source = makeReadSource({ binder, passages, extractSurfaces });
+    if (!source.systems().length) {
+      // A TYPED ABSENCE, not a silent one: nothing in this turn's material is
+      // arranged as a record block, which is a fact about the material and not
+      // a failure of the walk.
+      return { gap: { type: "no_arrangement", detail: "nothing we have read is laid out as a list with extents" } };
+    }
+    const got = await seekBindings({ anchor: anchorTerm, slot: slotTerm }, source);
+    if (got?.gap) return got;
+    // Re-shaped to the route's own vocabulary so the consumers below cannot
+    // tell which giver answered — which is the point of one interface.
+    return {
+      perTerm: (got.perScope ?? []).map((p) => ({
+        coverage: p.coverage,
+        bound: (p.bound ?? []).map((b) => ({
+          label: b.label,
+          start: b.scope?.from ?? null,
+          end: b.scope?.to ?? null,
+          giver: "read",
+          qid: null,
+          address: b.span?.ref ?? null,
+        })),
+      })),
+    };
+  } catch (err) {
+    // A walk that throws is a walk that did not run — never an empty answer.
+    return { gap: { type: "walk_failed", detail: String(err?.message ?? err) } };
+  }
+}
+
 // `opts.skipUserMessage`: the S1/S2 pass (below) already rendered the
 // person's own message bubble before running S1; S2 answers the SAME
 // message and must not add a second "you" bubble for it.
@@ -3929,7 +3987,24 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             if (!retry?.gap) seek = retry;
           }
           if (seek?.gap) {
-            think(`No one is on record that way — ${seek.gap.detail}.`);
+            // THE PUBLISHED RECORD IS NOT THE ONLY RECORD. Measured live:
+            // "who was Queen Victoria's prime minister?" gaps on Wikidata with
+            // `no_relating_property` — the generic role holds no members, and
+            // the country-specific office is reached by a property the
+            // specialize step does not walk — while the page that lists all
+            // ten with their exact terms was already fetched and saved. So the
+            // gap is not the end of the walk; it is the point at which the
+            // SAME four questions get asked of what this instrument has read.
+            think(`Nobody is on the published record that way — ${seek.gap.detail}. Reading what we have instead.`);
+            const readSeek = await seekWhatWeRead(anchorTerm, slotTerm, live);
+            if (readSeek && !readSeek.gap) {
+              seek = readSeek;
+            } else if (readSeek?.gap) {
+              think(`Nothing in what we have read answers it either — ${readSeek.gap.detail}.`);
+            }
+          }
+          if (seek?.gap) {
+            // nothing further to say; the two attempts have each reported.
           } else if (!seek?.perTerm?.length) {
             think(`The public record had nothing to say about that.`);
           } else if (seek?.perTerm?.length) {

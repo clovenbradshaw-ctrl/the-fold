@@ -6685,3 +6685,36 @@ module, and nothing in `app.js` calls it.
 **Files.** `seek.js` (`inbound`, `via`) + 3 new `seek.test.mjs` cases,
 including a blind control proving the old path really did learn nothing from a
 sink.
+
+
+### Amended 2026-08-28 — wired: what we have read is the second giver
+
+`read-source.js` presents `network.js`'s bound arrangements through the same
+four questions `wikidata.js` answers, and `app.js`'s seek block calls it when
+the published record gaps. **The gap is not the end of the walk; it is the
+point at which the same questions get asked of what this instrument has
+read.** The result is re-shaped to the route's own vocabulary so no consumer —
+ranking by coverage, `renderHolders`, the fillers handed to the model — can
+tell which giver answered, which is the point of one interface.
+
+Measured over the live turn's own material: **20 bindings held by 10 people**,
+all inside Victoria's reign, New Zealand's premiers correctly excluded by
+`specialize`. The relation is LEARNED (`listed-in`, via `inbound`), never named
+by the adapter — it knows only that these members are listed in that system,
+and calling it "held office" would be a claim the arrangement never made.
+
+**Three bugs, all found by running it.** The prose pass required a bound system
+in the SAME passage, so the reign range — which arrives in a search-results
+digest holding no record block at all — was skipped exactly where it mattered
+and the anchor stayed unscoped; a dated name is dated in a DOCUMENT. A list
+titled after the anchor matches the anchor's own words as strongly as the
+anchor does, and `chooseAnchor` takes the first candidate with a bounded
+extent, so documents now sort last and are never the thing being asked about.
+And `seekBindings` dropped the relation's own address when building a binding —
+custody now survives the walk, a qid for one giver and a byte range for
+another.
+
+**Disclosed:** a `[surface → extent]` arrangement is the only shape wired
+today, because those are the recognizers `network.js` ships (P57's own limit).
+And a question whose material holds no arrangement returns the typed
+`no_arrangement` gap — a fact about the material, never a failure of the walk.

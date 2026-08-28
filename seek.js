@@ -257,7 +257,12 @@ export async function seekBindings({ anchor, slot, kind = null }, source, { span
         if (r.relation !== rel || r.value !== slotId) continue;
         const s = r.scope;
         if (!s?.from || !(s.from >= scope.scope.from && s.from < scope.scope.to)) continue;
-        bound.push({ id: m.id, label: m.label, scope: s, prev: r.prev ?? null, next: r.next ?? null });
+        // CUSTODY SURVIVES THE WALK. Whatever address a source put on the
+        // relation travels with the binding — a qid for one giver, a byte
+        // range in a saved page for another. Dropping it here made a binding
+        // that could be stated but not walked back to, which is the one thing
+        // this instrument's provenance rules exist to prevent.
+        bound.push({ id: m.id, label: m.label, scope: s, prev: r.prev ?? null, next: r.next ?? null, span: r.span ?? null });
       }
     }
     bound.sort((a, b) => String(a.scope.from).localeCompare(String(b.scope.from)));

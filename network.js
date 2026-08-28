@@ -222,6 +222,25 @@ export function readDate(s) {
 }
 
 /**
+ * rangesIn(text) — every date range in a stretch of text, wherever it sits.
+ *
+ * `extentShape` requires a line to be NOTHING BUT extents, which is what stops
+ * ordinary sentences joining an arrangement. This is the other half of the
+ * same reading, for the case where a range is stated in prose: "monarch of the
+ * United Kingdom … from 20 June 1837 until her death on 22 January 1901". The
+ * exhaustiveness test is what differs, not the reading itself.
+ */
+export function rangesIn(text) {
+  const out = [];
+  for (const m of String(text ?? "").matchAll(RANGE_RE)) {
+    const from = readDate(m[1]);
+    const to = readDate(m[2]);
+    if (from && to) out.push({ from, to, fromText: m[1], toText: m[2], at: m.index ?? null });
+  }
+  return out;
+}
+
+/**
  * A line that is ENTIRELY one or more extents, and nothing else. The
  * exhaustiveness matters: "he served from 1841 to 1846 with distinction" holds
  * a range and is prose, and typing it as an extent would let ordinary

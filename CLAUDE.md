@@ -5087,3 +5087,27 @@ earned."*
 **The generalization, and the answer to the staleness question:** evidence
 cannot grant a licence, only take one away. Against the neuron analogy, that
 is **pruning, not Hebbian strengthening**.
+
+### Amended 2026-08-28 (third) — the veto helps, the chemistry does not
+
+POLICIES.md P60's third amendment is the law; this is the pointer. Asked to
+*prove it actually helped*, the honest answer was that P60 hadn't: it measured
+that the mechanism RUNS, never that its facts are TRUE or that the gate
+PREVENTS anything. `eval/derivation-precision.mjs` (offline) scores four arms
+against an oracle independent by construction — the derivation reads
+P1365/P1366, the oracle reads P580/P582 term dates.
+
+**Two findings.** The veto is real: precision 0.842 (naive join, zero
+apparatus) → 1.000 (shipped gate), every false fact eliminated, all of them in
+the one office the gate refused. And the chemistry adds **no derivation power
+at all** — a 20-line transitive join finds every fact the licensed chemistry
+finds plus 14 more. **The apparatus is a filter, not a generator.**
+
+**The cost is now priced: 15 true facts lost per 2 false ones prevented.** The
+disclosed "finer per-bridge gate" was built as arm D and recovers 1 of the 15 —
+directionally right, not the fix. The fix is admitting term DATES as material,
+not a cleverer veto: the derivation only ever received adjacency.
+
+**The lesson worth carrying:** a mechanism that runs is not a mechanism that
+helps, and the control separating them is the cheap one that got skipped. Run
+the dumb baseline first.

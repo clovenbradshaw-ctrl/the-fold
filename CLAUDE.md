@@ -5047,3 +5047,43 @@ fold-architecture session's contract (the P45/P53 boundary), and the
 browser runtime needs a `/native` mount + page-graph + II.13 allowance
 first. The compiled artifact, both drivers, and both result docs are
 committed so everything reproduces from the repos alone.
+
+### Amended 2026-08-28 — self-individuation refuted at Step 0; the scan is a veto, and the loop is pruning
+
+P60's amendment in POLICIES.md is the law; this is the map update. Asked to
+remove the giver requirement so a composition could "INS itself", the
+proposal was TESTED BEFORE IT WAS BUILT (`eval/falsification-probe.mjs`,
+`eval/results/falsification-RESULTS.md`): six corpora, ground truth declared
+in advance, real door and real kernel nominator. A five-fact succession chain
+and a five-fact dominance chain are structurally identical by construction
+and opposite in truth — **the scan cannot tell them apart.** Refuting a
+composition needs a POSITIVE counterexample (a cycle, or a uniqueness
+violation); open-world absence refutes nothing. One driver and six fixtures
+instead of five modules shipping plausible falsehoods with real provenance.
+
+**`eoreader7 native/kernel/refutation.js`** is the same scan reframed as a
+**veto organ**: `refuted: false` is never a licence and every result says so,
+a scan below two resolved edges reports `insufficient` power rather than
+"unrefuted", unresolved ends are counted. `reaction.js` gained
+`settle({veto})` (vetoed tallied APART from withheld — nobody vouched vs
+somebody vouched and was refuted), `derivedUnder`, `withdraw` with transitive
+cascade, `admit`. `declarations.js` gained `composes` so chemistry lives on
+the append-only register and can be conceded.
+
+**Two traps caught by running, not reasoning.** `parent-nontransitive` was
+refused for the WRONG reason (uniqueness, never transitivity — recorded so
+nobody reads it as the scan understanding composition). And the first audit
+reported the derived closure REFUTED because Colfax is `after` both Hamlin
+and Breckinridge — which is transitivity being correct; `expectUnique` is now
+declared, never inferred, and `closureAffordances` names the 1:1 side.
+
+**Measured** (`eval/results/pruning-timeline-RESULTS.md`): streaming the real
+succession facts one at a time, the Senate licence **survived 10 facts, was
+refuted at 11**, conceded with a real REC, one derived product withdrawn,
+history whole (26 derived / 25 live), veto holding. Six licences survived the
+whole stream — reported as *"unrefuted by THIS material — not a licence
+earned."*
+
+**The generalization, and the answer to the staleness question:** evidence
+cannot grant a licence, only take one away. Against the neuron analogy, that
+is **pruning, not Hebbian strengthening**.

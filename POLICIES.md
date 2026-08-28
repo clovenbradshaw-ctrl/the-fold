@@ -7299,3 +7299,73 @@ a live turn; and the compiled artifact's terrain/stance/operator
 expectations are empty under this driver's assembly (no terrain-state
 projection run — same as the engine's own driver), stated rather than
 implied as an empty corpus.
+
+### P60 amended 2026-08-28 — self-individuation refuted before it was built; the scan is a VETO, and pruning is the loop
+
+**User direction:** *"we need to remove the giver thing, it should be able to
+INS itself, but giving it an external name needs a given."* The reasoning was
+sound in shape — an existence claim is earnable where a ∀-claim is not — and
+it was tested before it was built.
+
+**Step 0 refuted it.** `eval/falsification-probe.mjs` ran six corpora with
+ground truth declared in advance through the real door and the real kernel
+nominator. `succession-clean` and `defeated-acyclic` are STRUCTURALLY
+IDENTICAL by construction — five adjacency facts, 1:1, acyclic, both
+nominated at identical support, both clearing uniqueness — and opposite in
+truth: succession composes soundly, dominance does not. **The scan cannot
+tell them apart.** Refuting a transitive-composition claim needs a POSITIVE
+counterexample; positive-only material supplies one only as a cycle or a
+uniqueness violation; where neither is present, open-world absence refutes
+nothing. Cost: one driver and six fixtures, instead of five modules shipping
+plausible falsehoods with impeccable provenance.
+
+Two further findings kept: `parent-nontransitive` was refused **for the
+wrong reason** (uniqueness, never transitivity — A10's trap, recorded so no
+pass reads it as the scan understanding composition), and `lineage-chain`
+closed the middle ground — `son_of` composes soundly but to *descendant of*,
+so structure cannot say what is yielded, and "an anonymous composition
+exists here" is not a safe weaker claim because a composition site is always
+structurally present.
+
+**What shipped instead.** `kernel/refutation.js` — the same scan, reframed
+as a **veto organ, not a licensing one**. `refuted: false` is never a
+licence and every result says so; a scan below two resolved edges reports
+`power: "insufficient"` rather than "unrefuted" (P41); unresolved-end edges
+are counted, never dropped. `reaction.js` gained `settle({veto})` (refused
+pairs refused at the door, tallied APART from `withheld` — "nobody vouched"
+and "somebody vouched and was refuted" are different facts a concession
+needs to tell apart), `derivedUnder`, `withdraw` with transitive cascade,
+and `admit` for a growing substrate. `declarations.js` gained a `composes`
+declKind so chemistry lives on the append-only register and can be conceded.
+
+**A second correction, found by running rather than reasoning.** The first
+audit ran the uniqueness check on every relation an affordance named and
+reported the derived transitive closure REFUTED — because Colfax is `after`
+both Hamlin and Breckinridge, which is the closure being CORRECT.
+Many-to-many is what transitivity means. `expectUnique` is now declared by
+the caller and defaults OFF; `closureAffordances` names the side its giver
+claims is 1:1 (`meta.adjacency`) and the audit reads that rather than
+inferring it. **A check applied where its precondition does not hold
+produces a refutation that means nothing** — A10 again, one layer in.
+
+**The loop, measured on real data** (`eval/results/pruning-timeline-RESULTS.md`):
+streaming the 26 real succession facts one at a time, the Senate licence
+**survived 10 facts and was refuted at fact 11** on a named counterexample;
+the declaration was conceded with a real REC, one already-derived product
+was withdrawn, history stayed whole (26 derived, 25 live), and the veto
+stopped further derivation. Six licences survived the whole stream, reported
+as *"unrefuted by THIS material — not a licence earned, and not a claim of
+soundness."*
+
+**The generalization.** Evidence cannot grant a licence; it can take one
+away. Against the neuron analogy that prompted this, that is **pruning, not
+Hebbian strengthening** — and it is also the answer to the staleness
+question, since a compiled prior that can be refuted by later material is
+one that does not silently rot.
+
+**Faithfulness verified, not assumed:** replacing the hand-written tenure
+check with the kernel organ reproduced the same verdict (6 licensed, 1
+refused), the same 9 derived facts, the same headline — and is strictly
+stronger, catching both `uniqueness` and `cycle` where the hand-written
+version looked only at uniqueness. Suites: eoreader7 163/153/10 →
+179/169/10; the-fold identical failure set, zero regressions in either.

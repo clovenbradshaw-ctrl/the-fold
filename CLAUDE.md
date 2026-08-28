@@ -5243,3 +5243,94 @@ type, rediscovered four times), and the planned `chainOf` kernel change is
 retired unbuilt: position identity carries the locus. The three shipped
 eval drivers keep the old encoding as the measurement record; new work
 declares a sequence.
+
+## The thinking affordance, vastly simplified (added 2026-08-28)
+
+User direction, verbatim: "vastly simplify the thinking affordance to just
+what the history of the system was on that turn (including the full prompt
+history related to that turn)." Landed one day after "the void, said out
+loud" (above) grew the disclosure to eight things stacked under one word —
+the live narration, the model's own deliberation, the fold line and its
+char-count note, the running summary's bookkeeping, the append-only record,
+a run log, the void's own JSON declaration, and the nine-cell verification
+taxonomy. This tears all of it back out. `renderFold` now takes one
+parameter, `sent`, and renders exactly two things: the verbatim messages
+array for every model call this turn actually made (JSON.stringify, one
+`<pre>` per call — the existing "what was sent" panel, promoted from a
+nested `<details>` to the whole of it), or, when a turn spent no model call
+at all (arithmetic, a chart, the entity-seek public-record lookup, `/run`'s
+sandbox, `/self`'s ladder…), one honest line saying so — never a blank box.
+
+**Nothing that used to render there stopped RUNNING.** The void's own
+declaration still drives the entity-seek branch's actual behavior
+(`voidBrief` is read for real, not just narrated); the record still feeds
+`state.summary`; the verification taxonomy's only consumer was this
+panel, so that computation (and its now-unused `verificationTasksFor`/
+`verificationSummary` import) was deleted outright rather than left
+computing for nobody. Consistent with this file's own standing rule for
+the build-turn gate ("hidden drawing, never a hidden finding"): checks run,
+findings still land on the append-only record: only the drawing stopped.
+
+**The one-function rewrite uncovered three MORE writers into the same box**
+that a first pass at just `renderFold` would have missed entirely, found by
+grepping every `querySelector(".turn-meta > .fold`-shaped call in the file
+rather than trusting the one function's name:
+
+1. `renderGrounding` (quotation checks, per-claim verdicts, corroboration
+   counts, and an interactive "check online" proof-seeking chip strip that
+   triggers real web fetches on click) and the tally line inside
+   `renderAnswer` ("standing on the material: N sentence(s)…") both wrote
+   into the identical `<p>` `renderFold` also writes into — the SAME
+   element, not a sibling. The tally always ran BEFORE `renderFold` in
+   every turn that reaches it, so it was already being built and wiped
+   unseen the moment `renderFold`'s own `out.textContent = ""` landed —
+   pure dead code, deleted. `renderGrounding` runs at the same point but
+   has real, load-bearing side effects beyond drawing (the ledger notes,
+   the `run()` closures the automatic background proof-seeking walk
+   executes, and that walk's `onVerdict` callback, which updates the
+   `.edge-badge` marks live in the ANSWER's own prose — a different,
+   untouched surface). Gutting the function was wrong; instead its `box`
+   is now a scratch element created with `document.createElement("div")`,
+   never attached to the page — every line under it still runs exactly as
+   before, with nothing left to append the result to.
+2. `crownTestimony` (the per-source testimony spine, P39) runs AFTER
+   `renderFold` and fire-and-forget (never awaited), so its own `disclose()`
+   calls were literally appending "testimony · CASE …" lines onto the
+   thinking box a few seconds after `renderFold` had already drawn the
+   simplified content — the one writer that would have kept showing up
+   even after the main rewrite landed, had it not been caught. Same fix:
+   `disclose` now writes into a detached scratch div. The crown sentence
+   itself (the visible "According to X, …" the reader actually sees) was
+   already appended to the answer's own `body`, untouched.
+3. `transcribeTurn`'s three-layer pipeline display (raw Whisper text,
+   priors-coref, self-coref) built its `<details>` layers directly inside
+   the real fold box — a live progress view of `/transcribe`, hidden by
+   default since the disclosure itself starts collapsed. `renderFold`'s own
+   rewrite already wiped it the instant the turn finished (same "cleared
+   then overwritten" shape as the tally), so this was a second case of the
+   same defect rather than a new decision — same scratch-element fix, kept
+   consistent with the other two rather than deleted, since unlike the
+   tally this one's layer-population calls are threaded through the whole
+   function under two different code paths (file and URL) and a bigger
+   removal would have been a larger, riskier change for the same outcome.
+
+**The generalizing check, so the next pass does not have to re-find these
+by hand:** `grep -n 'querySelector(All)\?(["'"'"'\`][^"'"'"'\`]*\.fold'` across
+app.js now returns exactly one hit — `renderFold`'s own — confirming it is
+the sole remaining writer into the real disclosure element. Any future
+function that wants to put something in "thinking" again should be measured
+against that grep before it ships.
+
+**Not attempted:** a live end-to-end test through the real composer. This
+checkout has neither the sibling `eoreader7` repo (`/engine`, `/engine-v7`,
+`/nul` all 404 from `serve.mjs`) nor `node_modules` (`mathjs`, `monaco`,
+`katex` all 404 too) nor a reachable Ollama — `fillModels()`'s own fetch to
+`:11434` never resolves or rejects in this sandbox even with the request
+faked via Playwright route interception, so `state.ready` never flips and
+the composer's submit handler no-ops on every attempt. Verified instead:
+`node --check` on the edited file; a live headless load of the page showing
+zero new console/page errors beyond the pre-existing 404s just named; and
+the grep above. This is a pre-existing environment gap, not a property of
+the change — the same gap this file's own recent passes (P56, the sequence
+work above) already navigated around by testing their engine-side modules
+directly rather than through this page.

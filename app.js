@@ -29,11 +29,9 @@ import {
   FOLD_SYSTEM_PROMPT,
   addWarrantRecord,
   advanceSummaryFold,
-  buildRecordSystemMessage,
   buildSummarySystemMessage,
   buildSummaryUpdatePrompt,
   buildWarrantRecord,
-  charCount,
   emptySummary,
   extractSummaryFindings,
   mechanicalFoldLine,
@@ -42,7 +40,7 @@ import {
   updateSummaryWithFold,
 } from "./fold.js";
 
-import { RENDERABLE, mergeHtmlScript, parseSegments, tableFrom, toDocument } from "./artifact.js";
+import { RENDERABLE, mergeHtmlScript, parseSegments, toDocument } from "./artifact.js";
 // skills.js's balanced-object walk, reused as the one mechanical reading of
 // "the JSON an ollama reply carried" (the delta grammar's extractor).
 import { extractObject, createSkillLog, appendSkill, SKILL_ENTRY_KINDS, projectLibrary, skillDigest, claimSkill, fillSlots, checkSkillShape, scanBody } from "./skills.js";
@@ -195,7 +193,6 @@ import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
-import { verificationTasksFor, verificationSummary } from "./verification.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this
 // question's answer have to fill, and what part of it is still empty. Both
@@ -207,7 +204,6 @@ import { briefFor, observedFillers } from "./void-brief.js";
 // full account of what was wrong with the receipt).
 import { narrateVoid, noSlotLine } from "./void-narration.js";
 import { declaredSlotShape } from "./web-claim.js";
-import { undeclaredOf, voidLine } from "./void-shape.js";
 import { cellOf } from "/engine-v7/kernel/cube.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
@@ -1421,7 +1417,6 @@ async function transcribeTurn(typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
-  const foldBox = node.querySelector(".turn-meta > .fold");
   logAct("asked", { text: typed });
 
   // Build the streaming fold UI — three layers, each a collapsible section.
@@ -1430,25 +1425,27 @@ async function transcribeTurn(typed) {
   statusP.className = "prose";
   statusP.textContent = "initializing transcription…";
   body.append(statusP);
-  const foldP = foldBox?.querySelector("p");
-  if (foldP) {
-    foldP.textContent = "";
-    const layerRaw = document.createElement("details");
-    layerRaw.className = "fold";
-    layerRaw.innerHTML = `<summary>layer 1 · raw whisper</summary><p class="t-layer-text"></p>`;
-    const layerPriors = document.createElement("details");
-    layerPriors.className = "fold";
-    layerPriors.innerHTML = `<summary>layer 2 · priors-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
-    const layerSelf = document.createElement("details");
-    layerSelf.className = "fold";
-    layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
-    foldP.append(layerRaw, layerPriors, layerSelf);
-  }
-  const rawText = foldP?.querySelector("details:nth-child(1) .t-layer-text");
-  const priorsText = foldP?.querySelector("details:nth-child(2) .t-layer-text");
-  const priorsStatus = foldP?.querySelector("details:nth-child(2) .t-layer-status");
-  const selfText = foldP?.querySelector("details:nth-child(3) .t-layer-text");
-  const selfStatus = foldP?.querySelector("details:nth-child(3) .t-layer-status");
+  // `foldP` used to be the turn's own "thinking" box, so a reader could
+  // expand it and watch the three layers populate live — it no longer is
+  // (2026-08-28, renderFold's own header carries the reason). A detached
+  // scratch element instead: the layers below still build and populate
+  // exactly as before, there is simply nothing left to attach them to.
+  const foldP = document.createElement("p");
+  const layerRaw = document.createElement("details");
+  layerRaw.className = "fold";
+  layerRaw.innerHTML = `<summary>layer 1 · raw whisper</summary><p class="t-layer-text"></p>`;
+  const layerPriors = document.createElement("details");
+  layerPriors.className = "fold";
+  layerPriors.innerHTML = `<summary>layer 2 · priors-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+  const layerSelf = document.createElement("details");
+  layerSelf.className = "fold";
+  layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+  foldP.append(layerRaw, layerPriors, layerSelf);
+  const rawText = foldP.querySelector("details:nth-child(1) .t-layer-text");
+  const priorsText = foldP.querySelector("details:nth-child(2) .t-layer-text");
+  const priorsStatus = foldP.querySelector("details:nth-child(2) .t-layer-status");
+  const selfText = foldP.querySelector("details:nth-child(3) .t-layer-text");
+  const selfStatus = foldP.querySelector("details:nth-child(3) .t-layer-status");
 
 function setLayerText(el, text) { if (el) el.textContent = text; }
 function setLayerStatus(el, s) { if (el) el.textContent = s; }
@@ -2235,6 +2232,9 @@ async function maybeSeedBuild(question) {
   // decoder's wall: the schema's enum IS the candidate list plus "none",
   // so a repo outside the found set is unrepresentable, and everything
   // after the pick (fetch, file admission, provenance) stays mechanical.
+  // The thinking affordance's whole content, now: every messages array this
+  // turn actually sent to the model, verbatim (renderFold, below).
+  const sentCalls = [];
   if (!seed && r?.candidates?.length) {
     logAct("checked", { seedScrub: archetype, candidates: r.candidates.length, spliced: false });
     $("status").textContent = `asking ${state.model} to navigate ${r.candidates.length} candidates…`;
@@ -2245,7 +2245,9 @@ async function maybeSeedBuild(question) {
         `Candidates:\n` +
         r.candidates.map((c) => `- ${c.repo} — ${c.description ?? "no description"} (license ${c.license ?? "unknown"}, ${c.stars}★)`).join("\n") +
         `\n\nPick the one whose description best matches the request, or none if none of them is it.`;
-      const reply = await complete([{ role: "user", content: pickPrompt }], {
+      const pickMessages = [{ role: "user", content: pickPrompt }];
+      sentCalls.push({ n: sentCalls.length + 1, messages: pickMessages });
+      const reply = await complete(pickMessages, {
         model: state.model,
         json: { type: "object", properties: { pick: { type: "string", enum: [...names, "none"] } }, required: ["pick"] },
       });
@@ -2261,8 +2263,10 @@ async function maybeSeedBuild(question) {
         let file = ofLang.length === 1 ? ofLang[0] : ofLang.find((f) => /(?:^|\/)index\./i.test(f.path)) ?? null;
         if (!file && ofLang.length > 1) {
           // The file choice is navigation too — same physics, paths as enum.
+          const fileMessages = [{ role: "user", content: `Which file is the ${archetype} itself?\n${ofLang.map((f) => `- ${f.path}`).join("\n")}` }];
+          sentCalls.push({ n: sentCalls.length + 1, messages: fileMessages });
           const fReply = await complete(
-            [{ role: "user", content: `Which file is the ${archetype} itself?\n${ofLang.map((f) => `- ${f.path}`).join("\n")}` }],
+            fileMessages,
             { model: state.model, json: { type: "object", properties: { pick: { type: "string", enum: ofLang.map((f) => f.path) } }, required: ["pick"] } },
           );
           file = ofLang.find((f) => f.path === extractObject(fReply)?.pick) ?? null;
@@ -2303,7 +2307,7 @@ async function maybeSeedBuild(question) {
   const fold = mechanicalFoldLine(question, note);
   state.turnFolds.push(fold);
   state.summary = advanceSummaryFold(state.summary, fold);
-  renderFold(node, { fold });
+  renderFold(node, { sent: sentCalls });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
@@ -2459,6 +2463,9 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   let answer = "";
   let landedPatch = null;
   let opsGap = null;
+  // The thinking affordance's whole content, now: every messages array this
+  // turn actually sent to the model, verbatim (renderFold, below).
+  const sentCalls = [];
 
   // THE MECHANICAL RUNG FIRST (widget.js::literalSwap): an ask that names
   // both ends of a value change — "from 30 to 60", "#4CAF50 to #2196F3" —
@@ -2490,7 +2497,9 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   }
 
   if (!landedPatch) try {
-    const reply = await complete([{ role: "user", content: opsPrompt }], {
+    const opsMessages = [{ role: "user", content: opsPrompt }];
+    sentCalls.push({ n: sentCalls.length + 1, messages: opsMessages });
+    const reply = await complete(opsMessages, {
       model: state.model,
       json: PATCH_SCHEMA,
     });
@@ -2542,7 +2551,9 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
       `Reply with the complete revised code in one fenced block.\n\n` +
       `\`\`\`${lang}\n${cur.code ?? ""}\n\`\`\``;
     try {
-      answer = await complete([{ role: "user", content: prompt }], {
+      const wholeMessages = [{ role: "user", content: prompt }];
+      sentCalls.push({ n: sentCalls.length + 1, messages: wholeMessages });
+      answer = await complete(wholeMessages, {
         model: state.model,
         onDelta: (out) => {
           body.textContent = out;
@@ -2713,7 +2724,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   state.summary = advanceSummaryFold(state.summary, fold);
   logAct("folded", { line: fold });
 
-  renderFold(node, { fold });
+  renderFold(node, { sent: sentCalls });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
@@ -2749,16 +2760,18 @@ async function boundTurn(question, typed) {
   const prep = `offer: ${handles.length} name(s), ${cells.length} figure(s), from ${passages.length} passage(s)`;
   body.textContent = `${prep}\nA · free draft…`;
 
+  // The thinking affordance's whole content, now: every messages array this
+  // turn actually sent to the model, verbatim (renderFold, below).
+  const sentCalls = [];
   let free = "";
   try {
     $("status").textContent = "free draft…";
-    free = await complete(
-      [
-        { role: "system", content: BASE_PROMPT },
-        { role: "user", content: sourceBlock ? `${question}\n\n${sourceBlock}` : question },
-      ],
-      { model: state.model, autoContinue: true },
-    );
+    const freeMessages = [
+      { role: "system", content: BASE_PROMPT },
+      { role: "user", content: sourceBlock ? `${question}\n\n${sourceBlock}` : question },
+    ];
+    sentCalls.push({ n: sentCalls.length + 1, messages: freeMessages });
+    free = await complete(freeMessages, { model: state.model, autoContinue: true });
   } catch (err) {
     free = `[engine error: ${err.message || err}]`;
   }
@@ -2774,13 +2787,12 @@ async function boundTurn(question, typed) {
   let boundRaw = "";
   try {
     $("status").textContent = "bound…";
-    boundRaw = await complete(
-      [
-        { role: "system", content: BOUND_SYSTEM_PROMPT },
-        { role: "user", content: buildBoundPrompt(question, sourceBlock) },
-      ],
-      { json: buildBoundSchema({ handles, cells }), model: state.model },
-    );
+    const boundMessages = [
+      { role: "system", content: BOUND_SYSTEM_PROMPT },
+      { role: "user", content: buildBoundPrompt(question, sourceBlock) },
+    ];
+    sentCalls.push({ n: sentCalls.length + 1, messages: boundMessages });
+    boundRaw = await complete(boundMessages, { json: buildBoundSchema({ handles, cells }), model: state.model });
   } catch (err) {
     boundRaw = "";
   }
@@ -2875,8 +2887,8 @@ async function boundTurn(question, typed) {
   logAct("folded", { line: fold });
   const arrivals = observeExchange(turn, question, flat);
 
-  await refreshSummary(fold, arrivals);
-  renderFold(node, { fold, record });
+  await refreshSummary(fold, arrivals, sentCalls);
+  renderFold(node, { sent: sentCalls });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
@@ -2914,16 +2926,18 @@ async function reflectTurn(question, typed) {
     .filter(Boolean)
     .join("\n\n");
 
+  // The thinking affordance's whole content, now: every messages array this
+  // turn actually sent to the model, verbatim (renderFold, below).
+  const sentCalls = [];
   let answer = "";
   try {
     $("status").textContent = "reflecting…";
-    answer = await complete(
-      [
-        { role: "system", content: sys },
-        { role: "user", content: question },
-      ],
-      { onDelta: (out) => { body.textContent = out; }, model: state.model, autoContinue: true },
-    );
+    const messages = [
+      { role: "system", content: sys },
+      { role: "user", content: question },
+    ];
+    sentCalls.push({ n: sentCalls.length + 1, messages });
+    answer = await complete(messages, { onDelta: (out) => { body.textContent = out; }, model: state.model, autoContinue: true });
   } catch (err) {
     answer = `[engine error: ${err.message || err}]`;
   }
@@ -2991,10 +3005,9 @@ async function reflectTurn(question, typed) {
   logAct("folded", { line: fold });
   const arrivals = observeExchange(turn, question, answer);
 
-  await refreshSummary(fold, arrivals);
-  renderFold(node, { fold, record });
+  await refreshSummary(fold, arrivals, sentCalls);
+  renderFold(node, { sent: sentCalls });
   renderThreads();
-  renderEvidence(node, question, offered, used, grounding, "self ledger");
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
 }
@@ -3027,7 +3040,12 @@ async function reflectTurn(question, typed) {
  * unseen by any refresh. The skip is on the ledger as a `carried` act —
  * a decision the instrument made is never silent.
  */
-async function refreshSummary(fold, arrivals = null) {
+// `sentCalls`: the caller's own capture of every messages array sent to the
+// model this turn (renderFold's whole content, now) — this refresh is one
+// more call in that same turn when it fires, so it is appended to the same
+// array rather than left to vanish as a call the turn's own disclosure never
+// knew happened.
+async function refreshSummary(fold, arrivals = null, sentCalls = null) {
   state.turnFolds.push(fold);
   if (
     arrivals &&
@@ -3042,19 +3060,20 @@ async function refreshSummary(fold, arrivals = null) {
   state.heldFolds = 0;
   try {
     $("status").textContent = "folding…";
-    const raw = await complete(
-      [
-        { role: "system", content: FOLD_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: buildSummaryUpdatePrompt(state.summary, [
-            ...(state.summary.folds || []),
-            fold,
-          ]),
-        },
-      ],
-      { effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }) },
-    );
+    const messages = [
+      { role: "system", content: FOLD_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: buildSummaryUpdatePrompt(state.summary, [
+          ...(state.summary.folds || []),
+          fold,
+        ]),
+      },
+    ];
+    sentCalls?.push({ n: sentCalls.length + 1, messages });
+    const raw = await complete(messages, {
+      effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }),
+    });
     // WITNESSED (spec: wiring-the-measured-memory-v2, F1). The refresh is a
     // consolidation step chained on its own prior output — this project's
     // own NELL lesson, applied to the gist: check the LEAVES (the live
@@ -3244,6 +3263,9 @@ async function runFastPass(question, model) {
     ...history,
     { role: "user", content: question },
   ];
+  // The thinking affordance's whole content, now: every messages array this
+  // turn actually sent to the model, verbatim (renderFold, below).
+  const sent = [{ n: 1, messages }];
   let text = "";
   try {
     const raw = await complete(messages, { model, onDelta: (partial) => { body.textContent = partial; } });
@@ -3251,10 +3273,10 @@ async function runFastPass(question, model) {
   } catch (e) {
     text = "";
     body.textContent = `(fast pass failed: ${e?.message ?? e})`;
-    return { node, text: "" };
+    return { node, text: "", sent };
   }
   body.textContent = text || "(no reply)";
-  return { node, text };
+  return { node, text, sent };
 }
 
 // The orchestrator: S1 renders first and fast; S2 (the FULL existing
@@ -3292,7 +3314,7 @@ async function twoPassTurn(question) {
     });
   }
 
-  const { node, text: s1Text } = await runFastPass(question, model);
+  const { node, text: s1Text, sent } = await runFastPass(question, model);
   // Even on the trivial path, S1 is never trusted to be unfalsifiable: if
   // it volunteers something checkable while answering "hi", the grounded
   // pass still runs. The gate only ever adds a pass here.
@@ -3316,7 +3338,7 @@ async function twoPassTurn(question) {
   const fold = mechanicalFoldLine(question, s1Text);
   state.turnFolds.push(fold);
   state.summary = advanceSummaryFold(state.summary, fold);
-  renderFold(node, { fold });
+  renderFold(node, { sent });
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
@@ -3481,11 +3503,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // The run narrates itself while it works — the thinking, live, in three
   // layers: the log lines (what the turn decided and found), a ticker (what
   // phase it is in and for how long, against the measured pace), and the
-  // draft streaming in as the model writes it. The log is kept and
-  // disclosed under the answer afterward; the draft area is display-only
-  // and is replaced by the checked rendering when the turn lands. Defined
-  // early — before the named-URL fetch below — because that step narrates
-  // through the same `show`.
+  // draft streaming in as the model writes it. All three are LIVE-ONLY now
+  // (2026-08-28: the persisted "thinking" disclosure was vastly simplified
+  // to just the prompt history — renderFold's own header carries the
+  // reason) — the log and reasoning are still kept, for the acts they
+  // trigger along the way (an entity-seek lookup, a void declaration), but
+  // nothing here re-draws them once the turn lands; the draft area is
+  // simply replaced by the checked rendering. Defined early — before the
+  // named-URL fetch below — because that step narrates through the same
+  // `show`.
   const log = [];
   const reasoning = [];
   const tickEl = document.createElement("div");
@@ -4342,7 +4368,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const fold = mechanicalFoldLine(task, answer);
     state.turnFolds.push(fold);
     state.summary = advanceSummaryFold(state.summary, fold);
-    renderFold(node, { fold, ran: log, sent: sentCalls });
+    renderFold(node, { sent: sentCalls });
     renderThreads();
     $("status").textContent = `ready · ${state.model}`;
     state.busy = false;
@@ -4414,28 +4440,6 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // it is stamped with THIS turn's number, not the next one's.
   const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
   const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
-  // The nine-cell decomposition (verification.js), one per hypergraph
-  // claim this turn actually produced — computed here because this is the
-  // one place `relationClaims` and each section's own `examined`/
-  // `vocabulary` report are both in scope together. A materialless or
-  // plain-mode turn has no claims to decompose, so this stays empty rather
-  // than fabricating cells from nothing (Void alone, with no claim, would
-  // be a single-cell report pretending to be the whole taxonomy).
-  const verification = state.grounded
-    ? result.sections.flatMap((s) =>
-        (s.relations?.claims ?? []).map((hgClaim) => ({
-          claim: { subject: hgClaim.subject, verb: hgClaim.verb, object: hgClaim.object },
-          // Each claim pairs with ITS OWN section's report — a decomposed
-          // task runs one relation reader per part, and a claim from part 2
-          // must never be composed against part 1's examined/vocabulary.
-          // cursor: the turn number already computed above (seq, not a
-          // fabricated timestamp — this repo's standing discipline) — a
-          // verdict is a claim as of this tick, and which tick is itself
-          // part of the record.
-          tasks: verificationTasksFor({ hgReport: s.relations, hgClaim, cursor: turn }),
-        })),
-      )
-    : [];
   // The instruction is the model's own plan — task + plan parts, mechanically
   // assembled. It goes into the build log's PROPOSE entries (build-log.js)
   // so the code is always projected from the instruction that produced it.
@@ -4453,7 +4457,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   } else {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
-  await refreshSummary(fold, arrivals);
+  await refreshSummary(fold, arrivals, sentCalls);
   // MOMENT 3: everything the turn held, retrieved passages INCLUDED.
   //
   // THE UNION IS LOAD-BEARING AND WAS FOUND LIVE. This pass used to declare
@@ -4478,10 +4482,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // trustworthy at page scale (measured again this session — the slot query
   // over these very pages returns "Though he", "Congress", "as" and "After"
   // as candidate vice presidents), so this reports the shape and leaves the
-  // fillers visibly open rather than handing over junk candidates. Anything
-  // narrated here lands in the resting "how the task ran" log, since the
-  // live element is gone by now — the same one-way handoff `show` already
-  // had.
+  // fillers visibly open rather than handing over junk candidates. This is
+  // the LAST narration the void gets to make (2026-08-28: the persisted
+  // "thinking" disclosure no longer re-draws it at all) — the live element
+  // is gone by now, so whatever this call says only ever reached the reader
+  // in the moment it streamed.
   // AND THE MATERIAL'S OWN CARDINALITY FINDING, which only exists now.
   // `clusterFillers` (hypergraph.js) rides every claim as `claim.fillers`
   // and has done since 2026-08-19 — holon.js's completeness gate reads it,
@@ -4495,17 +4500,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     "material",
     observedFillers(voidBrief?.declaration?.slot, voidBrief?.declaration?.cells?.find((c) => c.op === "SIG")?.declared, relationClaims),
   );
-  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification, brief: voidBrief, reasoning, modelThinking: modelThinkText });
+  renderFold(node, { sent: sentCalls });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
     releaseBusy();
     return;
   }
-  // Evidence terms are the plan's own words — each part retrieved on its own
-  // description, so the task's terms alone would call honest matches misses.
-  const evidenceQuestion = `${task} ${result.plan.parts.map((p) => `${p.label} ${p.description}`).join(" ")}`;
-  renderEvidence(node, evidenceQuestion, offered, result.refs, null);
   // The grounding inspector: every claim with its typed verdict, its
   // corroboration counted across passages and sources, its click-through
   // addresses, and its door to the world (proof-seeking). Read off the
@@ -4543,27 +4544,25 @@ function addMessage(role, text) {
   el.dataset.tokIn = String(tokensSeen.in);
   el.dataset.tokOut = String(tokensSeen.out);
   el.dataset.tokCalls = String(tokensSeen.calls);
-  // The fold is disclosed, not displayed. Printed under every turn it just
-  // repeated the exchange you had already read; kept behind a one-word
-  // affordance, it is there the moment you want to ask "what did this turn
-  // actually leave behind?" — which is the question the fold answers.
+  // The disclosure is kept behind a one-word affordance, there the moment
+  // you want to ask "what did this turn actually see?"
   //
-  // That word is "thinking" (user, 2026-08-17): the box is the resting place
-  // of the same narration the turn streams live while it works — `.thinking`
-  // is already that element's class — plus what the narration produced. The
-  // word "fold" is spent on the artifact type in the Folds pane and may not
-  // mean two things. The `.fold` CLASS below is left alone deliberately: it
-  // is the disclosure's shared styling, nested boxes included, and renaming
-  // it would buy nothing a reader ever sees.
+  // That word is "thinking" (user, 2026-08-17). It used to be the resting
+  // place of everything a turn produced — the live narration, the model's
+  // own deliberation, the running summary, the append-only record, a run
+  // log, the void's own declaration, a nine-cell verification breakdown —
+  // eight things behind one word. Vastly simplified (2026-08-28, user
+  // direction): now it holds exactly one thing, the full prompt history —
+  // every messages array this turn actually sent to a model, verbatim
+  // (renderFold, below, carries the reason). Everything that used to be
+  // drawn here still runs and still lands on the append-only record
+  // (FOLD-CONSTITUTION I.5); it is simply no longer drawn here. The `.fold`
+  // CLASS below is left alone deliberately: it is the disclosure's shared
+  // styling and renaming it would buy nothing a reader ever sees.
   el.innerHTML =
     `<div class="who"></div><div class="body"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
-        // ONE affordance per turn. Everything the turn left behind — the
-        // fold line, the summary, the record, the material it was checked
-        // against, how a task ran — opens from the same word. Two
-        // disclosures asked the reader to know the taxonomy before opening;
-        // one asks only curiosity.
         `<details class="fold"><summary>thinking</summary><p></p></details>` +
         `</div>`
       : "");
@@ -4671,45 +4670,19 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // turn: the tally below is skipped and renderGrounding reads the class to
   // withhold its chip strip and automatic proof-seeking. The marks
   // toggle's own discipline, keyed per turn: the checks still ran, the
-  // findings still land on the record and in the thinking disclosure —
-  // what is withheld is the drawing, never the finding.
+  // findings still land on the append-only record (the thinking disclosure
+  // itself no longer draws them either, since 2026-08-28 — renderFold's own
+  // header) — what is withheld is the drawing, never the finding.
   const buildTurn = landedThisTurn.some((b) => b.type === "code");
   if (buildTurn) body.closest(".msg")?.classList.add("build-turn");
-
-  // The turn's epistemic state, at a glance: how much of what was just said
-  // stands on the material, how much on the model, and how much states
-  // facts nothing backs. Counted from the same classification the marks
-  // were drawn from — one measurement, two renderings.
-  // The tally is a reading of the checks. With checking off there are no
-  // checks to read, and "0 sentences stand on the material" would be a
-  // measurement nobody took dressed as one that was.
-  if (classified.length && state.grounded && !buildTurn) {
-    // A cited-but-drifted sentence counts under claims — the drift is the
-    // salient fact — so the three buckets partition cleanly.
-    const claims = classified.filter((e) => e.absent.length).length;
-    const m = classified.filter((e) => e.ground === "material" && !e.absent.length).length;
-    const voice = classified.filter((e) => e.ground === "model" && !e.absent.length).length;
-    // The relation tier's counts, from the same classification. Bound edges
-    // are quiet support; contradicted and unbound are the news.
-    const edges = classified.flatMap((e) => e.edges ?? []);
-    const bound = edges.filter((c) => c.verdict === "bound").length;
-    const broken = edges.filter((c) => c.verdict === "contradicted" || c.verdict === "unbound").length;
-    const tally = document.createElement("p");
-    tally.className = `fold-note grounds${claims || broken ? " bad" : ""}`;
-    tally.textContent =
-      `standing on the material: ${m} sentence(s)` +
-      (voice > 0 ? ` · the model's own words: ${voice}` : "") +
-      (claims ? ` · claiming things nothing given backs: ${claims}` : "") +
-      (bound ? ` · statements the material also makes: ${bound}` : "") +
-      (broken ? ` · statements it never makes: ${broken}` : "");
-    // Into the fold, not the surface (user direction, 2026-08-20: "THIS
-    // SHOULD FEEL LIKE CHATTING WITH CLAUDE") — the tally is a reading of
-    // the checks, and the reading's place is the disclosure. The visible
-    // grounding on the answer is now the crown line (crownTestimony), which
-    // says the same news as prose with its source named, not as a meter.
-    const tallyBox = body.closest(".msg")?.querySelector(".turn-meta > .fold p");
-    (tallyBox ?? body).append(tally);
-  }
+  // A tally of the turn's epistemic state — how much of what was just said
+  // stands on the material, how much on the model, how much stands on
+  // nothing — used to be drawn into the "thinking" box here (one reading of
+  // the same `classified` array the answer's own marks are drawn from).
+  // Removed, not relocated (2026-08-28: renderFold's own header carries the
+  // fuller account) — every turn that reaches this point still calls
+  // renderFold immediately after, which clears that same box, so the tally
+  // was already being built and thrown away unseen before this cleanup.
 }
 
 /**
@@ -4747,9 +4720,17 @@ async function crownTestimony(node, relationClaims) {
   const names = Object.keys(state.sources);
   if (!names.length) return;
   const body = node.querySelector(".body");
-  const foldBox = node.querySelector(".turn-meta > .fold p");
+  // `disclose` used to narrate this walk into the "thinking" box — it no
+  // longer does (2026-08-28, renderFold's own header carries the reason),
+  // and this runs fire-and-forget AFTER renderFold has already drawn that
+  // turn's box, so an untouched `foldBox` here would still get testimony
+  // lines appended onto it after the fact. `disclose` writes into a detached
+  // scratch element instead: every real effect below it (minting the claim
+  // id, landing each source's `evaluate` act on `state.gridLog`, and — the
+  // part a reader actually sees — appending the determined crown sentence
+  // onto the answer's own `body`) runs exactly as before.
+  const foldBox = document.createElement("div");
   const disclose = (text) => {
-    if (!foldBox) return;
     const line = document.createElement("div");
     line.className = "fold-note";
     line.textContent = text;
@@ -6236,51 +6217,6 @@ function restoreBuilds() {
   }
 }
 
-/**
- * The evidence for a turn, as a table, built from the retrieval result itself.
- *
- * This is the case the artifact parser cannot cover: the rows exist before the
- * model says anything, so there is nothing to read them out of. Which passages
- * were handed over, which of the question's terms each one matched, and
- * whether the answer actually cited it — all of it is known mechanically, and
- * a turn's evidence should not depend on the model having chosen to tabulate
- * it.
- */
-function renderEvidence(node, question, passages, used, grounding, label = "material") {
-  // Into the turn's ONE disclosure, as its section — the same affordance
-  // everything else the turn left behind opens from.
-  const box = node.querySelector(".turn-meta > .fold p");
-  if (!box || !passages.length) return;
-  const terms = [...new Set(tokenize(question))];
-  const cited = new Set(used);
-
-  const seg = tableFrom(passages, [
-    { label: "address", get: (p) => chipText(p.ref) },
-    {
-      label: "matched",
-      get: (p) => terms.filter((t) => p.terms.has(t)).join(", "),
-    },
-    { label: "chars", get: (p) => p.text.length.toLocaleString() },
-    { label: "cited", get: (p) => (cited.has(p.ref) ? "yes" : "—") },
-  ]);
-
-  const parts = [
-    section(`${label} · ${passages.length} retrieved, ${cited.size} cited`),
-    artifactNode(seg, null),
-  ];
-  // What the answer said that the material does not: the check that catches an
-  // invented figure, which neither the address check nor attribution can see.
-  if (grounding?.examined) {
-    const note = document.createElement("p");
-    note.className = grounding.clean ? "fold-note" : "fold-note bad";
-    note.textContent = grounding.clean
-      ? `every figure and name in the answer appears in the ${label} (${grounding.atomsChecked} checked)`
-      : `not in the ${label}: ${unsupportedClaims(grounding).join("; ")}`;
-    parts.push(note);
-  }
-  box.append(...parts);
-}
-
 // ── the grounding inspector, and the door to the world ──────────────────────
 
 /** One POST to the explore server's recorded egress (P13). The page carries
@@ -6825,24 +6761,35 @@ function renderProofResult(slot, out) {
 }
 
 /**
- * The grounding disclosure for a finished turn — the same single fold
- * affordance everything else opens from. Three parts, all read off checks
- * the turn already ran: the relation tier's verdicts (with click-through
- * to the addresses that bind or contradict each edge), the corroboration
- * count for every checkable atom (support graded by independent
- * perspectives, never a bit), and — for what the material does not back —
- * the door to the world: proof-seeking per claim, automatic up to the
- * declared budget when the consent toggle is on.
+ * The grounding CHECKS for a finished turn: the relation tier's verdicts,
+ * the corroboration count for every checkable atom (support graded by
+ * independent perspectives, never a bit), and — for what the material does
+ * not back — the door to the world: proof-seeking per claim, automatic up
+ * to the declared budget when the consent toggle is on.
+ *
+ * Used to draw all of this into the "thinking" disclosure as a fourth
+ * affordance-sized panel; it no longer draws anything there (2026-08-28,
+ * user direction: "vastly simplify the thinking affordance to just... the
+ * full prompt history" — renderFold's own header carries the fuller
+ * account). `box` below is a SCRATCH element, never attached to the page,
+ * so every line under it keeps running exactly as before — the ledger
+ * notes, the proof-seeking `run()` calls this function hands to the
+ * automatic background walk at the bottom, and that walk's own `onVerdict`
+ * callback (which updates the `.edge-badge` marks live in the ANSWER's own
+ * prose, not in this panel) — with nothing left to append it to. This is
+ * the same "hidden drawing, never a hidden finding" posture the build-turn
+ * gate below already uses, generalized to the whole panel: the checks still
+ * run and still land on the append-only record: only the drawing stopped.
  */
 function renderGrounding(node, { answer, offered, findings = [], relations = [], quotes = [], quoteCorrections = [], question = "" }) {
-  const box = node.querySelector(".turn-meta > .fold p");
-  if (!box) return;
+  const box = document.createElement("div");
   // Fold membership (renderAnswer sets the class): this turn landed a code
   // build, so the prose being checked is the model's explanation of its own
   // artifact — content that belongs to the fold, not to the chat's claim
   // ledger. The chip strip and the automatic proof-seeking are withheld
-  // from the chat surface; the analytic parts still land inside the
-  // thinking disclosure below, and the record keeps every finding.
+  // from the chat surface (as they now are for every turn, drawing-wise —
+  // see this function's own header); the record keeps every finding either
+  // way.
   const buildTurn = node.classList.contains("build-turn");
   const parts = [];
   // The confirmations live ON the answer, not in the drawer (user,
@@ -7339,35 +7286,19 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
 }
 
 /**
- * The comparison that means something is conversation against conversation:
- * everything the transcript holds, against what stood in for it this turn.
- * Retrieved material and the base prompt are the same size on turn 1 and turn
- * 400, so counting them here would flatter the fold on a short conversation
- * and tell you nothing about a long one.
- */
-function measure() {
-  return {
-    transcript: charCount(state.history),
-    carried:
-      (buildSummarySystemMessage(state.summary)?.length ?? 0) +
-      (buildRecordSystemMessage(state.summary)?.length ?? 0) +
-      charCount(state.history.slice(-RECENCY_WINDOW)),
-    material: state.lastMaterialChars,
-    messages: state.history.length,
-    raw: Math.min(state.history.length, RECENCY_WINDOW),
-  };
-}
-
-/**
- * The whole fold for one turn, under that turn.
+ * The whole "thinking" disclosure for one turn, under that turn.
  *
- * A panel showing the fold's current state can only ever show the latest one,
- * which is the wrong shape for a thing that happens per turn: the question you
- * actually have is "what did THIS turn leave behind, and what was it given?"
- * — and that question is asked while looking at the turn. So the disclosure
- * carries all of it, and the fold is not a tab.
+ * Vastly simplified (user direction, 2026-08-28): this used to carry the
+ * turn's live narration, the model's own deliberation, the running summary's
+ * bookkeeping, the append-only record, a run log, a void declaration, and a
+ * nine-cell verification breakdown — eight things stacked under one word.
+ * None of that stopped running or landing on the record (FOLD-CONSTITUTION
+ * I.5); it stopped being DRAWN here, because the one question this box exists
+ * to answer is simpler than all of it: what did the model actually see this
+ * turn? `sent` is every messages array this turn actually sent to a model,
+ * captured verbatim at the call boundary — this is the whole of it now.
  */
-function renderFold(node, { fold, record, sent, ran, verification, brief, reasoning, modelThinking }) {
+function renderFold(node, { sent } = {}) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -7395,224 +7326,29 @@ function renderFold(node, { fold, record, sent, ran, verification, brief, reason
   const out = box.querySelector("p");
   out.textContent = "";
 
-  // THE REASONING FIRST, and that ordering is the point. It used to survive
-  // the turn only inside "how the task ran" — a mono <pre> in a nested
-  // <details> inside this one, three clicks deep, interleaved with retrieval
-  // counts. User direction, 2026-08-27: make the work of shaping the answer
-  // "way easier to see". So it sits at the top of the disclosure, in prose,
-  // before the fold line and before every nested panel: open "thinking" and
-  // the first thing there is what the turn thought.
-  if (reasoning?.length) {
-    const wrap = document.createElement("div");
-    wrap.className = "reasoning";
-    for (const t of reasoning) wrap.append(...paragraphsOf(t));
-    if (wrap.childElementCount) out.append(wrap);
+  if (!sent?.length) {
+    // Honest absence, not a blank box: a turn can genuinely spend no model
+    // call (arithmetic, a chart, a public-record lookup, /run's sandbox) —
+    // stating that plainly beats a disclosure that opens onto nothing.
+    const p = document.createElement("p");
+    p.className = "fold-note";
+    p.textContent = "no model call this turn — answered mechanically, so there is no prompt to show.";
+    out.append(p);
+    return;
   }
 
-  // The MODEL's own deliberation, if it had one — kept, not discarded, and
-  // drawn in its own distinct voice right beside the void's reasoning rather
-  // than merged into it. See `showModelThinking`'s own header (this file) for
-  // why the two must never be mistaken for one another: this is the model's
-  // unchecked first pass, not the instrument's own mechanical narration.
-  if (modelThinking) {
-    const w = document.createElement("div");
-    w.className = "model-thinking";
-    const label = document.createElement("div");
-    label.className = "model-thinking-label";
-    label.textContent = "the model, thinking";
-    const b = document.createElement("div");
-    b.className = "model-thinking-body";
-    b.append(...paragraphsOf(modelThinking));
-    w.append(label, b);
-    out.append(w);
-  }
-
-  const line = document.createElement("div");
-  line.className = "fold-line";
-  line.textContent = fold;
-  out.append(line, foldNote(measure()));
-
-  const s = state.summary;
-  const fields = [
-    ["topic", s.topic],
-    ["flow", s.flow],
-    ["entities", s.entities?.join(", ")],
-    ["carried context", s.context],
-  ].filter(([, v]) => v);
-  // The running summary is the app's own bookkeeping (what it will carry
-  // into the next turn), not part of this answer's grounding — showing it
-  // open here read as if the summary were being grounded (user, 2026-08-17).
-  // Collapsed by default, same affordance as "how the task ran".
-  if (fields.length) {
-    const dl = document.createElement("dl");
-    dl.className = "fields";
-    for (const [k, v] of fields) {
-      const dt = document.createElement("dt");
-      dt.textContent = k;
-      const dd = document.createElement("dd");
-      dd.textContent = v;
-      dl.append(dt, dd);
-    }
-    const det = document.createElement("details");
-    det.className = "fold";
-    det.innerHTML = "<summary>what the app carries forward — its own bookkeeping, not the answer's grounding</summary>";
-    det.append(dl);
-    out.append(det);
-  }
-
-  if (record) {
-    out.append(section("on record · what this turn established"), recordNode(record));
-  }
-
-  // A holonic turn's run log — which part retrieved what, what failed its
-  // check — disclosed alongside the fold, because it is the same kind of
-  // answer to the same question: what did this turn actually do?
-  if (ran?.length) {
-    const det = document.createElement("details");
-    det.className = "fold";
-    det.innerHTML = "<summary>how the task ran</summary>";
-    const pre = document.createElement("pre");
-    pre.className = "block";
-    pre.textContent = ran.join("\n");
-    det.append(pre);
-    out.append(det);
-  }
-
-  // The verbatim prompt, one block per model call — an explicit affordance
-  // (user-directed, 2026-08-18), not a re-narrated summary of it. This
-  // parameter existed and rendered nothing (no caller ever passed `sent` —
-  // the same documented-but-never-called shape CLAUDE.md names for
-  // routeMessage) until holonicTurn's own `call` wrapper started
-  // capturing every messages array it actually hands to the model.
   // Rendered as raw JSON.stringify, not this app's own pretty-printed
   // role/content style, because "verbatim" is the whole point — a reader
   // asking to see the actual wire payload should see exactly that, not a
   // second-hand restatement of it.
-  if (sent?.length) {
-    const det = document.createElement("details");
-    det.className = "fold";
-    det.innerHTML = "<summary>what was sent — the verbatim prompt, one call at a time</summary>";
-    const wrap = document.createElement("div");
-    for (const call of sent) {
-      const pre = document.createElement("pre");
-      pre.className = "block";
-      const role = document.createElement("span");
-      role.className = "role";
-      role.textContent = `call ${call.n} · ${call.messages.length} message(s)`;
-      pre.append(role, document.createTextNode("\n" + JSON.stringify(call.messages, null, 2)));
-      wrap.append(pre);
-    }
-    det.append(wrap);
-    out.append(det);
-  }
-
-  // Every claim's nine-cell verification decomposition (verification.js,
-  // the EO-grounded taxonomy), one JSON block per claim — the SAME
-  // discipline "what was sent" already holds (raw JSON.stringify, not a
-  // re-narrated summary), applied to routing/checking decisions instead of
-  // model prompts. User direction, verbatim (2026-08-19): "make sure all
-  // routing like this is stored in the json of the prompt and response
-  // available through the 'thinking' affordance." A reader who wants to
-  // see WHICH of the nine cells actually ran, and why the rest didn't,
-  // gets exactly the record the checking ladder itself worked from — never
-  // a claim about it.
-  // THE SPACE, ZEROED — what shape this question's answer has to fill, and
-  // what part of it is still empty. Displayed, never fed to the model: the
-  // filler side is not trustworthy yet, so this reports the shape honestly
-  // rather than handing over candidates measured to be junk.
-  if (brief) {
-    const det = document.createElement("details");
-    det.className = "fold";
-    const st = brief.error ? "error" : brief.standing?.standing ?? "unknown";
-    det.innerHTML = `<summary>the space, zeroed — ${esc(st)}</summary>`;
+  for (const call of sent) {
     const pre = document.createElement("pre");
     pre.className = "block";
-    if (brief.error) {
-      pre.textContent = `the void could not be declared for this turn: ${brief.error}`;
-    } else {
-      const d = brief.declaration;
-      const lines = d.cells.map(
-        (c) =>
-          `${c.op}  ${String(c.domain).padEnd(14)} ${String(c.terrain).padEnd(10)} ${c.field}` +
-          (c.standing === "declared" ? ` = ${JSON.stringify(c.declared)}` : "  — UNDECLARED"),
-      );
-      pre.textContent =
-        lines.join("\n") +
-        `\n\n${undeclaredOf(d)}` +
-        `\n\nextent evidence: ${brief.evidence.extent ? `${brief.evidence.extent.from}-${brief.evidence.extent.to} stated ${brief.evidence.mentions}×, margin ${brief.evidence.margin} over ${brief.evidence.considered} candidate span(s)` : "no span stated in this turn's material"}` +
-        `\n\n${voidLine(brief.space)}`;
-    }
-    det.append(pre);
-    out.append(det);
-  }
-
-  // WHAT THE LOGIC DID, shown even when it did nothing. The nine-cell
-  // panel below only renders when there are hypergraph CLAIMS to decompose,
-  // so on exactly the turns worth debugging — the ones where the reader
-  // built no claim at all — the logic panel went blank and the reasoning
-  // became invisible. User direction 2026-08-26: "it should be easier to
-  // see what the logic was doing."
-  //
-  // This is the same rule buildFactBlock now follows for the model, turned
-  // on the reader instead: state the absence rather than render nothing.
-  // The numbers are read off the relation reader's OWN report — examined,
-  // the measured verb vocabulary, the edge count, the claim count — never
-  // recomputed here, so this panel cannot disagree with what the ladder
-  // actually worked from.
-  const reports = (record?.relations ?? []).filter(Boolean);
-  if (reports.length && !verification?.length) {
-    const det = document.createElement("details");
-    det.className = "fold";
-    det.innerHTML = "<summary>what the logic did — no claim was built this turn</summary>";
-    const wrap = document.createElement("div");
-    for (const [i, r] of reports.entries()) {
-      const pre = document.createElement("pre");
-      pre.className = "block";
-      const role = document.createElement("span");
-      role.className = "role";
-      const verbs = r?.vocabulary?.verbs ?? 0;
-      const edges = r?.edges?.length ?? 0;
-      const claims = r?.claims?.length ?? 0;
-      role.textContent =
-        `part ${i + 1} · ${r?.examined ? "material examined" : "NOT examined"} · ` +
-        `${verbs} verb(s) in the measured vocabulary · ${edges} edge(s) · ${claims} claim(s)`;
-      // Name the first wall the ladder hit, in its own order, rather than
-      // leaving a reader to infer it from three zeros.
-      const why = !r?.examined
-        ? "no material was examined — nothing to read relations out of"
-        : r?.vocabulary?.gap
-          ? `no relation vocabulary could be measured (${r.vocabulary.gap}) — with no verbs, no edge can be built`
-          : !edges
-            ? "a vocabulary was measured but no edge survived extraction — the material's sentences did not yield subject/verb/object structure the reader could bind"
-            : "edges exist but the answer asserted nothing this reader could match against them — the claim side is empty, not the material side";
-      pre.append(role, document.createTextNode("\n" + why + "\n\n" + JSON.stringify({
-        examined: r?.examined ?? null,
-        vocabulary: r?.vocabulary ?? null,
-        edgeCount: edges,
-        claimCount: claims,
-      }, null, 2)));
-      wrap.append(pre);
-    }
-    det.append(wrap);
-    out.append(det);
-  }
-
-  if (verification?.length) {
-    const det = document.createElement("details");
-    det.className = "fold";
-    det.innerHTML = "<summary>verification — the nine-cell taxonomy, one claim at a time</summary>";
-    const wrap = document.createElement("div");
-    for (const v of verification) {
-      const pre = document.createElement("pre");
-      pre.className = "block";
-      const role = document.createElement("span");
-      role.className = "role";
-      role.textContent = `${v.claim.subject} —${v.claim.verb}→ ${v.claim.object} · ${verificationSummary(v.tasks)}`;
-      pre.append(role, document.createTextNode("\n" + JSON.stringify(v.tasks, null, 2)));
-      wrap.append(pre);
-    }
-    det.append(wrap);
-    out.append(det);
+    const role = document.createElement("span");
+    role.className = "role";
+    role.textContent = `call ${call.n} · ${call.messages.length} message(s)`;
+    pre.append(role, document.createTextNode("\n" + JSON.stringify(call.messages, null, 2)));
+    out.append(pre);
   }
 }
 
@@ -7622,62 +7358,6 @@ function section(text) {
   h.textContent = text;
   return h;
 }
-
-function foldNote({ transcript, carried, material, messages, raw }) {
-  const p = document.createElement("p");
-  p.className = "fold-note";
-  p.textContent =
-    `${carried.toLocaleString()} chars of conversation carried, standing in for a ${transcript.toLocaleString()}-char transcript` +
-    ` · ${messages} messages exist, ${raw} sent raw` +
-    (material ? ` · plus ${material.toLocaleString()} chars of material` : "") +
-    // Said out loud rather than hidden, because the first few turns look like
-    // the fold losing: its framing is a fixed cost, paid in full on turn one.
-    // What is flat is what happens after.
-    (carried > transcript ? " — the framing is a fixed cost, not yet outgrown" : "");
-  return p;
-}
-
-function recordNode(r) {
-  const el = document.createElement("div");
-  el.className = "record";
-  const turn = document.createElement("div");
-  turn.className = "turn";
-  turn.textContent = `turn ${r.turn}${r.channels.length ? ` · carried by ${r.channels.join(", ")}` : ""}`;
-  // The plane, said where the record is read. A self record supports claims
-  // about how the instrument worked; drawn the same as a material record,
-  // it would borrow an authority it does not have.
-  if (r.plane === "self")
-    turn.textContent += " · plane: self — checked against the instrument's own ledger, not the material";
-  el.append(turn);
-  if (r.refs.length) {
-    const line = document.createElement("div");
-    line.className = "line";
-    line.innerHTML = '<span class="label">checked against </span>';
-    for (const ref of r.refs) {
-      const b = document.createElement("button");
-      b.className = "ref";
-      const label = refLabel(ref);
-      b.textContent = chipText(ref);
-      if (label) b.title = ref;
-      b.onclick = () => reopen(ref);
-      line.append(b);
-    }
-    el.append(line);
-  }
-  for (const [label, list, bad] of [
-    ["not supported by that material", r.unsupported, true],
-    ["left open", r.open, false],
-  ]) {
-    if (!list.length) continue;
-    const line = document.createElement("div");
-    line.className = `line${bad ? " bad" : ""}`;
-    line.innerHTML = `<span class="label">${label} </span>`;
-    line.append(document.createTextNode(list.join("; ")));
-    el.append(line);
-  }
-  return el;
-}
-
 
 /** Context shown on each side of the cited span. A bounded window, with the
  * withheld counts NAMED — a dialog rendering a 3 MB novel whole would jank,

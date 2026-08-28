@@ -182,6 +182,7 @@ import {
 } from "./proof.js";
 import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
+import { renderHolders } from "./wikidata.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { verificationTasksFor, verificationSummary } from "./verification.js";
@@ -190,10 +191,19 @@ import { EXPLORE_BASE } from "./explore-bridge.js";
 // question's answer have to fill, and what part of it is still empty. Both
 // take their organs injected — the cube's algebra and web-claim.js's slot
 // reader — so neither carries a second copy of either.
-import { briefFor } from "./void-brief.js";
+import { briefFor, observedFillers } from "./void-brief.js";
+// The same declaration, said out loud while it is being made rather than
+// filed as a receipt afterward (void-narration.js's own header carries the
+// full account of what was wrong with the receipt).
+import { narrateVoid, noSlotLine } from "./void-narration.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { undeclaredOf, voidLine } from "./void-shape.js";
 import { cellOf } from "/engine-v7/kernel/cube.js";
+// The completeness gate's own confirmed set (succession.js), re-shaped as
+// real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
+// the `briefFor` call site below. One confirmed set, two consumers: this is
+// NOT a second discovery pass alongside holon.js's own.
+import { successionFillers } from "./succession.js";
 
 // The engine's surprise ladder — the measured answer to "what is most
 // surprising", and the only licensed one. Same mount, plus /nul for the
@@ -226,6 +236,12 @@ grid.withCapacities({ findCapacity, unresolvedCapacity });
 // same injection pattern as buildLog above, so this stays node-testable
 // against the real register (widget.test.mjs).
 import * as enginePriors from "/engine/perceiver/text/priors.js";
+// classifyWord/dominantClass over the SAME real UD-treebank POS prior
+// hypergraph.js's own posPriorFor() already loads (posPriorCache, below) —
+// used here for exactly one question, "is this token an adposition"
+// (of/in/for/at/…), so declaredSlotShape's anchor recovery generalizes past
+// a single hardcoded preposition without a second word list.
+import { classifyWord, dominantClass } from "/engine/perceiver/text/wordclass.js";
 import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
@@ -800,7 +816,7 @@ async function connect() {
  * bare string, so a caller can tell "the model finished" from "the cap
  * cut it off" without re-deriving that fact by guessing at the text.
  */
-async function completeOnce(messages, { onDelta, maxTokens, json, model, temperature } = {}) {
+async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature } = {}) {
   // One request, to the one place a model lives. `model` is routed: plain
   // turns and the summary refresh spend the fastest rung; deep work (task,
   // bound, reflect) spends the model the user chose. Whatever it is, the
@@ -837,6 +853,7 @@ async function completeOnce(messages, { onDelta, maxTokens, json, model, tempera
   const decoder = new TextDecoder();
   let buffer = "";
   let out = "";
+  let thinking = "";
   let doneReason = null;
   for (;;) {
     const { done, value } = await reader.read();
@@ -873,6 +890,24 @@ async function completeOnce(messages, { onDelta, maxTokens, json, model, tempera
         const pace = foldPace(state.paceLog, modelName);
         if (pace.decodeTps) $("status").textContent = `ready · ${modelName} · ${Math.round(pace.decodeTps)} tok/s`;
       }
+      // A reasoning-capable model (qwen3, deepseek-r1) streams its own
+      // deliberation as a SEPARATE field, `message.thinking` — measured live
+      // against this app's own real Ollama (2026-08-27): every chunk during
+      // the thinking phase carries `content: ""` and the real text under
+      // `thinking`, then the reverse once the model starts its answer. Ollama
+      // does this split itself; nothing here needs to parse a `<think>` tag
+      // out of prose. Before this, nothing read `.thinking` at all, so a
+      // reasoning model's own deliberation was silently discarded — not
+      // wrong, just invisible, every token of it. `onThinking` is the SAME
+      // shape as `onDelta` (fired with the accumulated text so far) so an
+      // existing caller pattern extends here rather than inventing a second
+      // one; omitted, this costs nothing extra — the field is simply never
+      // read.
+      const thinkDelta = chunk.message?.thinking || "";
+      if (thinkDelta) {
+        thinking += thinkDelta;
+        onThinking?.(thinking);
+      }
       const delta = chunk.message?.content || "";
       if (!delta) continue;
       out += delta;
@@ -891,11 +926,11 @@ async function completeOnce(messages, { onDelta, maxTokens, json, model, tempera
         } catch {
           // already closed — nothing to do
         }
-        return { text: out, doneReason: "cancelled" };
+        return { text: out, thinking, doneReason: "cancelled" };
       }
     }
   }
-  return { text: out, doneReason };
+  return { text: out, thinking, doneReason };
 }
 
 // A continuation asks the model to keep writing, never to restate what it
@@ -927,12 +962,17 @@ const MAX_AUTO_CONTINUATIONS = 6;
  * `MAX_AUTO_CONTINUATIONS` so a model that never naturally stops costs a
  * finite, disclosed number of calls rather than an unbounded one.
  */
-async function complete(messages, { onDelta, maxTokens, json, model, temperature, autoContinue = false } = {}) {
+async function complete(messages, { onDelta, onThinking, maxTokens, json, model, temperature, autoContinue = false } = {}) {
   let fullText = "";
   let convo = messages;
   for (let i = 0; ; i++) {
     const { text, doneReason } = await completeOnce(convo, {
       onDelta: onDelta ? (partial) => onDelta(fullText + partial) : undefined,
+      // Only the FIRST call's thinking is meaningful to stream live — a
+      // continuation nudge asks the model to keep writing prose, not to
+      // deliberate again, so accumulating a second call's thinking onto the
+      // first's would suggest an ongoing thought that in fact restarted.
+      onThinking: onThinking && i === 0 ? onThinking : undefined,
       maxTokens,
       json,
       model,
@@ -1268,48 +1308,11 @@ async function runTurn(runCmd, typed) {
  * machine: the server only fetches the YouTube audio bytes (P13 web egress),
  * and the transcription itself runs entirely in the browser sandbox.
  */
-async function transcribeTurn(typed) {
-  const arg = typed.replace(/^\/transcribe\s*/, "").trim();
-  addMessage("user", typed);
-  const node = addMessage("assistant", "");
-  const body = node.querySelector(".body");
-  const foldBox = node.querySelector(".turn-meta > .fold");
-  logAct("asked", { text: typed });
-
-  // Build the streaming fold UI — three layers, each a collapsible section.
-  body.innerHTML = "";
-  const statusP = document.createElement("p");
-  statusP.className = "prose";
-  statusP.textContent = "initializing transcription…";
-  body.append(statusP);
-  const foldP = foldBox?.querySelector("p");
-  if (foldP) {
-    foldP.textContent = "";
-    const layerRaw = document.createElement("details");
-    layerRaw.className = "fold";
-    layerRaw.innerHTML = `<summary>layer 1 · raw whisper</summary><p class="t-layer-text"></p>`;
-    const layerPriors = document.createElement("details");
-    layerPriors.className = "fold";
-    layerPriors.innerHTML = `<summary>layer 2 · priors-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
-    const layerSelf = document.createElement("details");
-    layerSelf.className = "fold";
-    layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
-    foldP.append(layerRaw, layerPriors, layerSelf);
-  }
-  const rawText = foldP?.querySelector("details:nth-child(1) .t-layer-text");
-  const priorsText = foldP?.querySelector("details:nth-child(2) .t-layer-text");
-  const priorsStatus = foldP?.querySelector("details:nth-child(2) .t-layer-status");
-  const selfText = foldP?.querySelector("details:nth-child(3) .t-layer-text");
-  const selfStatus = foldP?.querySelector("details:nth-child(3) .t-layer-status");
-
-function setLayerText(el, text) { if (el) el.textContent = text; }
-function setLayerStatus(el, s) { if (el) el.textContent = s; }
-
 // Layer 2: priors-coref — extract surfaces from transcription, search enabled
 // priors docs for those surfaces, use namesCorefer to confirm identity, and
 // return an enriched surface→referent map Layer 3 can use for pronoun binding.
 async function priorsCoref(text) {
-  const surfaces = extractSurfaces(text);
+  const surfaces = extractSurfaces(engineSentences(text));
   const surfaceNames = surfaces.map((s) => s.surface).filter(Boolean);
   if (!surfaceNames.length) return { text, surfaceMap: new Map(), note: "no surfaces extracted" };
   let matches;
@@ -1329,7 +1332,7 @@ async function priorsCoref(text) {
   const allPriorsSurfaces = [];
   for (const m of matches) {
     for (const p of m.passages) {
-      const ps = extractSurfaces(p.passage);
+      const ps = extractSurfaces(engineSentences(p.passage));
       allPriorsSurfaces.push(...ps);
     }
   }
@@ -1341,7 +1344,7 @@ async function priorsCoref(text) {
     const matchingReferent = surfaces.find((s) => s.surface === transcriptionSurface);
     if (!matchingReferent) continue;
     for (const p of m.passages) {
-      const ps = extractSurfaces(p.passage);
+      const ps = extractSurfaces(engineSentences(p.passage));
       for (const pp of ps) {
         if (namesCorefer(matchingReferent, pp)) {
           if (!surfaceMap.has(transcriptionSurface)) surfaceMap.set(transcriptionSurface, []);
@@ -1361,7 +1364,7 @@ function resolvePronounsWithPriors(text, priorsSurfaceMap) {
   if (!text?.trim()) return text;
   let sentences, discovery;
   try {
-    sentences = splitSentences(text);
+    sentences = engineSentences(text);
     const surfaces = extractSurfaces(sentences, {});
     discovery = discoverReferents(surfaces, {});
   } catch { return text; }
@@ -1402,6 +1405,43 @@ function resolvePronounsWithPriors(text, priorsSurfaceMap) {
   }
   return out;
 }
+
+async function transcribeTurn(typed) {
+  const arg = typed.replace(/^\/transcribe\s*/, "").trim();
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  const foldBox = node.querySelector(".turn-meta > .fold");
+  logAct("asked", { text: typed });
+
+  // Build the streaming fold UI — three layers, each a collapsible section.
+  body.innerHTML = "";
+  const statusP = document.createElement("p");
+  statusP.className = "prose";
+  statusP.textContent = "initializing transcription…";
+  body.append(statusP);
+  const foldP = foldBox?.querySelector("p");
+  if (foldP) {
+    foldP.textContent = "";
+    const layerRaw = document.createElement("details");
+    layerRaw.className = "fold";
+    layerRaw.innerHTML = `<summary>layer 1 · raw whisper</summary><p class="t-layer-text"></p>`;
+    const layerPriors = document.createElement("details");
+    layerPriors.className = "fold";
+    layerPriors.innerHTML = `<summary>layer 2 · priors-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+    const layerSelf = document.createElement("details");
+    layerSelf.className = "fold";
+    layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
+    foldP.append(layerRaw, layerPriors, layerSelf);
+  }
+  const rawText = foldP?.querySelector("details:nth-child(1) .t-layer-text");
+  const priorsText = foldP?.querySelector("details:nth-child(2) .t-layer-text");
+  const priorsStatus = foldP?.querySelector("details:nth-child(2) .t-layer-status");
+  const selfText = foldP?.querySelector("details:nth-child(3) .t-layer-text");
+  const selfStatus = foldP?.querySelector("details:nth-child(3) .t-layer-status");
+
+function setLayerText(el, text) { if (el) el.textContent = text; }
+function setLayerStatus(el, s) { if (el) el.textContent = s; }
 
   // ── file picker path ──────────────────────────────────────────────────
   if (!arg) {
@@ -3156,6 +3196,29 @@ function needsSystem2(question, s1Text) {
 // experience is actually testing (does the apparatus — retrieval,
 // checking, correction — earn its cost) from a confound (a bigger model
 // would also improve the answer on its own, with or without any of that).
+/**
+ * The conversation so far, distilled to one line — topic, flow, entities.
+ *
+ * ONE reading of "the conversation so far", shared by both passes. It was
+ * computed inline in `holonicTurn` alone, which meant S1 — the pass that
+ * answers FIRST — never saw it at all, and this is the SECOND time tonight
+ * that exact omission has been found: P34's own amendment fixed it in
+ * holon.js's `executeMessages`, where the fold was included only when raw
+ * history was EMPTY, backwards, because the two carry different
+ * information (verbatim turns vs. a distilled synthesis) and are not
+ * substitutes for one another.
+ *
+ * Worse here for the reason that amendment already named: `presentWindow`
+ * narrows the raw history under startle, down to a single exchange at the
+ * floor — so S1 could be reduced to one exchange with no fold at all,
+ * exactly when the wider view is the only thing that could keep the
+ * conversation in view.
+ */
+function discourseLineNow() {
+  const s = state.summary;
+  return [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
+}
+
 async function runFastPass(question, model) {
   const node = addMessage("assistant", "");
   node.querySelector(".who").textContent = `model`;
@@ -3163,8 +3226,11 @@ async function runFastPass(question, model) {
   body.textContent = "…";
   const present = presentWindow(state.regime, RECENCY_WINDOW);
   const history = state.history.slice(-present).map((m) => ({ role: m.role, content: m.content }));
+  // Unconditionally, never gated on whether raw history happens to be
+  // present — see discourseLineNow's own header for the measured reason.
+  const discourse = discourseLineNow();
   const messages = [
-    { role: "system", content: S1_SYSTEM_PROMPT },
+    { role: "system", content: discourse ? `${S1_SYSTEM_PROMPT}\n\nThe conversation so far, in one line: ${discourse}` : S1_SYSTEM_PROMPT },
     ...history,
     { role: "user", content: question },
   ];
@@ -3246,6 +3312,82 @@ async function twoPassTurn(question) {
   releaseBusy();
 }
 
+/**
+ * Blank-line-separated prose as real paragraph elements.
+ *
+ * Not `white-space: pre-wrap` over one blob — that is what the run log does,
+ * correctly, because a log IS lines. Reasoning is paragraphs, and a reader
+ * skimming for where a thought turns needs the turns to be visible as
+ * spacing rather than as newlines inside an undifferentiated block.
+ */
+function paragraphsOf(text) {
+  return String(text ?? "")
+    .split(/\n{2,}/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => {
+      const p = document.createElement("p");
+      p.textContent = t;
+      return p;
+    });
+}
+
+/**
+ * The turn's void, declared. One call site's worth of injection, hoisted
+ * here so the three moments a turn declares it — from the question alone,
+ * from the material it is about to read, and from the passages it actually
+ * read — cannot drift into three subtly different declarations. That drift
+ * is the exact failure this repo's own postmortems have caught twice
+ * (P22's `Array.find`, P24's `name === "sql"` ternary); one function is
+ * the fix both times.
+ *
+ * `texts` empty is legitimate and means exactly what it says: declare the
+ * shape from the question alone. `extentFor` finds nothing, SEG stays
+ * undeclared, and `undeclaredOf` reports that honestly — which is the
+ * first thing a reader should see, before any material has been consulted.
+ *
+ * Returns null when the question names no slot ("how does photosynthesis
+ * work?") — not every question has a filler-shaped answer, and a zeroed
+ * space with nine empty operators would read as an under-specified void
+ * rather than an inapplicable one.
+ */
+// "Is this token an adposition (of/in/for/at/…)?" over the received UD
+// POS prior — mechanical, no model call, no hand-typed preposition list.
+// `null` (not `false`) when the prior has not finished its async load yet,
+// so `declaredSlotShape` reads it as "no predicate injected" and simply
+// recovers no anchor by this path — never a wrong guess from an empty
+// prior. A tiny cache: this runs per-token on every void declaration and
+// the prior itself never changes mid-session.
+const adpCache = new Map();
+function isAdposition(word) {
+  if (!posPriorCache) return null;
+  if (adpCache.has(word)) return adpCache.get(word);
+  const r = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: 0.5 })?.upos === "ADP";
+  adpCache.set(word, r);
+  return r;
+}
+
+function voidBriefFor(task, texts, observed = []) {
+  return briefFor(task, texts, {
+    observed,
+    slotShapeOf: (q) =>
+      declaredSlotShape(q, {
+        definiteDeterminers: enginePriors.DEFINITE_DETERMINERS,
+        inflectionalSuffixes: enginePriors.INFLECTIONAL_SUFFIXES,
+        interrogativePronouns: enginePriors.INTERROGATIVE_PRONOUNS,
+        mannerReasonPronouns: enginePriors.MANNER_REASON_PRONOUNS,
+        isAdposition,
+      }),
+    cellOf,
+    // The completeness gate's own confirmed set, re-shaped as real fillers —
+    // see void-brief.js's own header on `fillersFor`. This is what turns an
+    // eternally-empty space into "covered": without it, `fill()` is never
+    // called and the void panel can only ever report the whole constraint
+    // uncovered, however good the extent read is.
+    fillersFor: (anc, txts) => successionFillers(anc, txts),
+  });
+}
+
 // `opts.skipUserMessage`: the S1/S2 pass (below) already rendered the
 // person's own message bubble before running S1; S2 answers the SAME
 // message and must not add a second "you" bubble for it.
@@ -3287,19 +3429,154 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // early — before the named-URL fetch below — because that step narrates
   // through the same `show`.
   const log = [];
-  const logEl = document.createElement("div");
-  logEl.className = "thinking";
+  const reasoning = [];
   const tickEl = document.createElement("div");
   tickEl.className = "thinking";
   const draftEl = document.createElement("div");
   draftEl.className = "prose";
-  body.replaceChildren(logEl, tickEl, draftEl);
+  // ONE TRACE, TWO VOICES, IN THE ORDER THEY HAPPENED.
+  //
+  // The run log is a log — mono, one fact per line, "3 passage(s) retrieved"
+  // — and reads correctly as one. The reasoning is prose about the question,
+  // and sharing the log's element made it read as more log: a grey monospace
+  // wall a reader parses rather than reads (user, 2026-08-27: "our current
+  // affordance is too structured").
+  //
+  // But splitting them into two stacked lanes broke chronology, which is
+  // worse and was visible immediately on the first live run: "The material
+  // puts it at 1861 to 1865" sat ABOVE "found 3 page(s)", the step that went
+  // and got the material. A thought printed before the act that caused it
+  // reads as the instrument having known it all along.
+  //
+  // So: one container, blocks appended in real order, each in its own voice.
+  // A thought closes the current run of log lines and opens prose; the next
+  // log line opens a fresh run. The log lines end up reading as stage
+  // directions between thoughts, which is what they are.
+  const traceEl = document.createElement("div");
+  body.replaceChildren(traceEl, tickEl, draftEl);
 
+  let logBlock = null;
   const show = (line) => {
     log.push(line);
-    logEl.textContent = log.join("\n");
+    if (!logBlock) {
+      logBlock = document.createElement("div");
+      logBlock.className = "thinking";
+      traceEl.append(logBlock);
+    }
+    logBlock.textContent += (logBlock.textContent ? "\n" : "") + line;
     node.scrollIntoView({ block: "end" });
   };
+
+  /** One passage of thinking. Split on blank lines so each paragraph is its
+   * own element — a single pre-wrap blob is exactly the undifferentiated
+   * wall this replaces. */
+  const think = (text) => {
+    reasoning.push(text);
+    logBlock = null; // a thought closes the current run of log lines
+    const w = document.createElement("div");
+    w.className = "reasoning";
+    w.append(...paragraphsOf(text));
+    traceEl.append(w);
+    node.scrollIntoView({ block: "end" });
+  };
+
+  // A FOURTH — no, third-and-separate — voice: the MODEL'S OWN deliberation,
+  // when it has one. A reasoning-capable model (qwen3, deepseek-r1) streams
+  // real thinking through Ollama's own `message.thinking` field; before this
+  // it was silently discarded, every token of it. User direction, verbatim
+  // (2026-08-27): "we dont hate that deliberation, we need to think of how
+  // to use it for [max] benefit in our system" — the answer is disclosure,
+  // not suppression, and NOT the void's own `.reasoning` voice: that prose
+  // is this instrument's own mechanical narration, true by construction; the
+  // model's thinking is the model's own unchecked first-pass reasoning, the
+  // same epistemic footing PAST DISCOURSE already holds elsewhere in this
+  // app ("real, visible, never treated as settled"). Kept visually distinct
+  // (`.model-thinking`, its own label) so the two can never be mistaken for
+  // one another, and kept — not wiped like `draftEl` — because disclosed
+  // deliberation is exactly the kind of thing this trace exists to hold.
+  // Born lazily on the first real delta, so a model with nothing to say
+  // here (gemma2:2b, this app's default) never adds an empty box.
+  let modelThinkBody = null;
+  let modelThinkText = null;
+  const showModelThinking = (text) => {
+    modelThinkText = text;
+    if (!modelThinkBody) {
+      logBlock = null; // this too closes the current run of log lines
+      const w = document.createElement("div");
+      w.className = "model-thinking";
+      const label = document.createElement("div");
+      label.className = "model-thinking-label";
+      label.textContent = "the model, thinking";
+      modelThinkBody = document.createElement("div");
+      modelThinkBody.className = "model-thinking-body";
+      w.append(label, modelThinkBody);
+      traceEl.append(w);
+    }
+    // Split into paragraphs, not one pre-wrap blob — the same lesson the
+    // void's own `.reasoning` redesign already paid for this same day (a
+    // single undifferentiated wall reads as log, not as thought). Cheap
+    // enough to re-run every paint: `renderBlocksInto` already re-splits the
+    // live draft on the same 200ms cadence.
+    modelThinkBody.replaceChildren(...paragraphsOf(text));
+    node.scrollIntoView({ block: "end" });
+  };
+
+  // THE SHAPE OF AN ANSWER THAT WOULD SATISFY, worked out in the open.
+  //
+  // User direction, verbatim (2026-08-27): "i want the 'thinking' reasoning
+  // to show in real time its work figuring out the shape of an answer that
+  // would satisfy." Until now the void was declared ONCE, after the model
+  // had already answered, and rendered as a receipt in the collapsed panel —
+  // so the one thing the apparatus exists to establish (what would COUNT as
+  // a satisfying answer, decided before the answer exists) was the one thing
+  // a reader could never watch happen.
+  //
+  // Three moments, in the order the turn actually learns them, all through
+  // the SAME `voidBriefFor` so they cannot drift:
+  //
+  //   1. HERE — the question by itself, before any model call: what is being
+  //      asked for, what it hangs on, and everything about the shape that is
+  //      still open. No material has been read, so nothing is said about
+  //      extent or fillers — claiming "nothing states a span" before anything
+  //      has been consulted would report a reading that never happened.
+  //   2. Below, once material is in hand and STILL before the model drafts —
+  //      the extent, what is named, what is still empty, and the concession
+  //      where the material contradicts the question's own grammar.
+  //   3. After the run, over everything the turn held. Says nothing unless
+  //      something was genuinely learned: `narrateVoid` compares digests,
+  //      not rendered text, so a pass that repeats itself stays quiet.
+  //
+  // Gated on `state.grounded` for the same reason every other tier is: with
+  // checking off this is a plain chatbot and there is no space to zero.
+  // Never allowed to break a turn — a declaration that throws is disclosed
+  // and the turn continues, exactly as the post-hoc block already did.
+  let voidBrief = null;
+  let voidDigest = null;
+  const narrateTheVoid = (texts, phase, observed = []) => {
+    if (!state.grounded) return;
+    try {
+      const b = voidBriefFor(task, texts, observed);
+      if (!b) {
+        // Said ONCE — a question that opens no slot has nothing further to
+        // report as material arrives, and repeating it would be the
+        // instrument insisting on its own inapplicability.
+        if (voidDigest === null) {
+          voidDigest = "no-slot";
+          think(noSlotLine());
+        }
+        return;
+      }
+      voidBrief = b;
+      const said = narrateVoid(b, { phase, previous: voidDigest });
+      if (!said) return;
+      voidDigest = said.digest;
+      think(said.text);
+    } catch (e) {
+      voidBrief = { error: String(e?.message ?? e) };
+      think(`I could not work out what shape an answer here would need: ${e?.message ?? e}`);
+    }
+  };
+  narrateTheVoid([], "question");
 
   // A message can point at an address as directly as at a build's own
   // bytes (widget.js's own lesson, applied here): an explicit http(s) URL
@@ -3398,6 +3675,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   }, 1000);
 
   let lastDraftPaint = 0;
+  let lastThinkPaint = 0;
 
   // The reach of the present, under the standing regime: calm is fold.js's
   // declared RECENCY_WINDOW untouched; a startled reader's present
@@ -3420,10 +3698,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // preflight search below needs the identical anchor runHolonicTask's
     // own `discourse:` field carries — one line, not two independently
     // drifting copies of "the conversation so far."
-    const discourseLine = [s.topic, s.flow, (s.entities || []).join(", ")]
-      .filter(Boolean)
-      .join(" · ")
-      .slice(0, 300);
+    // The SAME line S1 was given (discourseLineNow) — one reading of "the
+    // conversation so far", never two independently drifting copies.
+    const discourseLine = discourseLineNow();
     // Set below only when the preflight search below actually ran AND came
     // back empty — SEARCHED_VOID_PREFIX (holon.js) says why this is a fact
     // fed forward, not narration left to die in the ticker.
@@ -3479,7 +3756,149 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       }
     }
 
+    // MOMENT 2: the material is in hand and the model has not drafted a
+    // word yet. This is the pass that makes the void predictive rather than
+    // forensic — the extent is measured, what is already named is named,
+    // what is still empty is stated, and a singular reading the material
+    // contradicts is conceded HERE, where it could still change how the
+    // answer is read, rather than in a panel opened afterward.
+    //
+    // `live` is the turn's own chunks (attachments, or the preflight's
+    // fetched pages) — the same array handed to runHolonicTask on the very
+    // next line, so this reads exactly the material the answer will be
+    // built from, never a second set gathered separately.
+    narrateTheVoid(live.map((c) => c.text).filter(Boolean), "material");
+
+    // ── the identity seek (P55) ──────────────────────────────────────────
+    // The void has just declared what the question hangs on (SIG's anchor)
+    // and what kind of thing fills it (the head phrase). Those two strings
+    // are exactly what `/api/entity/seek` needs, so the seek runs HERE:
+    // after the shape is known, before the model drafts.
+    //
+    // What comes back are BINDINGS — referents with qids, real extents, and
+    // a fetchable address each — and they enter through `observed`, the same
+    // door the relation tier's own findings already use. The model is never
+    // told a qid, a coverage ratio, or that a giver was consulted (P54): it
+    // receives the fillers as content, and the custody stays on the record.
+    let seekFillers = [];
+    if (state.grounded && state.webProof && voidBrief?.declaration) {
+      const anchorTerm = voidBrief.declaration.cells?.find((c) => c.op === "SIG")?.declared ?? null;
+      const slotTerm = voidBrief.headPhrase ?? null;
+      if (!anchorTerm || !slotTerm) {
+        // A SKIPPED CHECK SAYS SO. This condition failing silently is the
+        // exact shape P41 names — the walk simply did not happen and the
+        // reader saw a turn that looked identical to one where it had.
+        think(
+          `I did not check the public record here: ` +
+            `${anchorTerm ? "" : "nothing in the question resolved to a thing to hang it on"}` +
+            `${!anchorTerm && !slotTerm ? ", and " : ""}` +
+            `${slotTerm ? "" : "no kind of thing was named to look for"}.`,
+        );
+      }
+      if (anchorTerm && slotTerm) {
+        try {
+          think(`Checking who is on record as ${slotTerm} for ${anchorTerm}.`);
+          const seek = await webApi("/api/entity/seek", { anchor: anchorTerm, slot: slotTerm, question: task });
+          if (seek?.gap) {
+            think(`No one is on record that way — ${seek.gap.detail}.`);
+          } else if (seek?.perTerm?.length) {
+            // Rank by coverage, never by which term came first — the seek
+            // itself refuses to choose, and tiling is what tells the real
+            // answer from a true-but-unmeant one (wikidata.js::coverageOf).
+            const best = [...seek.perTerm].sort((a, b) => (b.coverage?.ratio ?? 0) - (a.coverage?.ratio ?? 0))[0];
+            if (best?.bound?.length && (best.coverage?.ratio ?? 0) > 0) {
+              // Both grains, the same shape succession.js's own reader
+              // produces: NUMERIC years because void-shape.js's coverage
+              // arithmetic requires `Number.isFinite` on both ends, and the
+              // giver's precise dates beside them because a year span alone
+              // states nothing for a six-week vice presidency (seg.js's
+              // `collapsed` finding, on this exact specimen).
+              const yearOf = (t) => Number(String(t ?? "").replace(/^\+/, "").slice(0, 4));
+              seekFillers = best.bound
+                .map((b) => {
+                  const from = yearOf(b.start);
+                  const to = yearOf(b.end);
+                  const dated = Number.isFinite(from) && Number.isFinite(to) && from <= to;
+                  return {
+                    filler: b.label,
+                    span: dated ? { from, to, fromText: String(b.start).slice(1, 11), toText: String(b.end).slice(1, 11) } : null,
+                    source: `${b.giver} ${b.qid}`,
+                    address: b.address,
+                  };
+                })
+                .filter((f) => f.filler);
+              const named = seekFillers.map((f) => f.filler).join(" and ");
+              think(`On record: ${named}. Their terms account for the whole span, end to end.`);
+              logAct("entity-seek", { anchor: anchorTerm, slot: slotTerm, bound: seekFillers.length, coverage: best.coverage?.ratio ?? null });
+
+              // COMPUTED, NOT GENERATED — arithmetic.js's own precedent, and
+              // the same caption, for the same reason. Wiring these bindings
+              // into the prompt as content was built first and measured live
+              // three times: handed the exact closed set with dates, gemma2:2b
+              // still answered "Andrew Johnson became president and served as
+              // vice president", then dropped him twice. A set a model must
+              // not drop from is not protected by telling it so (L5). When
+              // the set is CLOSED — coverage.tiles, every gap accounted for —
+              // the answer is determined, so it is rendered and the model is
+              // not asked. An unclosed set renders nothing and the ordinary
+              // pipeline runs untouched.
+              const rendered = renderHolders({ anchor: anchorTerm, slot: slotTerm, bound: best.bound, coverage: best.coverage });
+              if (rendered) {
+                body.textContent = "";
+                const p = document.createElement("p");
+                p.textContent = rendered;
+                body.appendChild(p);
+                const cap = document.createElement("div");
+                cap.className = "caption";
+                cap.textContent = `on the public record — ${seekFillers.length} holder(s), computed, not generated`;
+                body.appendChild(cap);
+                for (const f of seekFillers) {
+                  const a = document.createElement("a");
+                  a.className = "ref";
+                  a.href = f.address;
+                  a.target = "_blank";
+                  a.rel = "noreferrer";
+                  a.textContent = f.source;
+                  body.appendChild(a);
+                  body.appendChild(document.createTextNode(" "));
+                }
+                // The same turn bookkeeping every other path does — a turn is
+                // not exempt from the fold or the record because no model ran
+                // (FOLD-CONSTITUTION I.5, twoPassTurn's own gate-off path).
+                state.history.push({ role: "user", content: task }, { role: "assistant", content: rendered });
+                const turnN = state.summary.turnCount + 1;
+                logAct("answered-mechanically", { what: "entity-seek", holders: seekFillers.length });
+                observeExchange(turnN, task, rendered);
+                const foldLine = mechanicalFoldLine(task, rendered);
+                state.turnFolds.push(foldLine);
+                state.summary = advanceSummaryFold(state.summary, foldLine);
+                renderFold(node, { fold: foldLine });
+                renderThreads();
+                $("status").textContent = `ready · ${state.model}`;
+                releaseBusy();
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          think(`I could not check the public record for that: ${e?.message ?? e}`);
+        }
+      }
+    }
+    // Re-declare with the bindings in hand so the panel and the fold both
+    // show what was actually established, not the state before the seek.
+    if (seekFillers.length) narrateTheVoid(live.map((c) => c.text).filter(Boolean), "material", seekFillers);
+
     result = await runHolonicTask({
+      // The fillers as CONTENT, never as apparatus talk (P54): a stated
+      // fact the draft must account for, with no mention of where it came
+      // from. Empty unless the seek actually bound something, so a turn
+      // without bindings sends byte-identical bytes to before.
+      answerShape: seekFillers.length
+        ? `Known to be true, and the answer must account for all of them: ${seekFillers
+            .map((f) => (f.span ? `${f.filler} (${f.span.fromText} to ${f.span.toText})` : f.filler))
+            .join("; ")}. There are no others.`
+        : undefined,
       task,
       chunks: live,
       // Wrapped, never holon.js itself (another session's contract, per
@@ -3567,6 +3986,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             renderBlocksInto(d, info.partial, (chunk) => [document.createTextNode(chunk)]);
             draftEl.replaceChildren(...d.childNodes);
             node.scrollIntoView({ block: "end" });
+          }
+        } else if (phase === "thinking") {
+          // The model's OWN deliberation, live — see `showModelThinking`'s
+          // own header for why this is a separate voice from the void's
+          // `.reasoning`. Same paint throttle as the draft (200ms): a
+          // reasoning model emits many small tokens and repainting on every
+          // one is wasted work a reader cannot perceive anyway.
+          const now = performance.now();
+          if (now - lastThinkPaint > 200) {
+            lastThinkPaint = now;
+            showModelThinking(info.partial);
           }
         } else if (phase === "correct") {
           setPhase(`rewriting ${part.label}`, info.promptChars ?? 0);
@@ -3744,29 +4174,48 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
   await refreshSummary(fold, arrivals);
-  // Zero the space for this turn's own question. Computed from the material
-  // the turn actually read, and DISPLAYED rather than fed to the model: the
-  // filler side is not trustworthy yet (measured — the slot query returns
-  // "Though he"/"Congress" at page scale), so this reports the shape and
-  // leaves the fillers visibly open instead of handing a model junk
-  // candidates. Never allowed to break a turn that otherwise succeeded.
-  let brief = null;
-  try {
-    const texts = result.sections.flatMap((s) => (s.passages ?? []).map((p) => p.text)).filter(Boolean);
-    if (state.grounded && texts.length) {
-      brief = briefFor(task, texts, {
-        slotShapeOf: (q) =>
-          declaredSlotShape(q, {
-            definiteDeterminers: enginePriors.DEFINITE_DETERMINERS,
-            inflectionalSuffixes: enginePriors.INFLECTIONAL_SUFFIXES,
-          }),
-        cellOf,
-      });
-    }
-  } catch (e) {
-    brief = { error: String(e?.message ?? e) };
-  }
-  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification, brief });
+  // MOMENT 3: everything the turn held, retrieved passages INCLUDED.
+  //
+  // THE UNION IS LOAD-BEARING AND WAS FOUND LIVE. This pass used to declare
+  // over `result.sections`'s retrieved passages ALONE — correct when it was
+  // the only pass, since the void then described the material the answer was
+  // actually built from. With moment 2 above it, that reading became a
+  // regression: retrieval keeps the top few passages, so the final
+  // declaration was built from LESS material than the one already narrated
+  // and silently replaced it with a weaker one. Measured on the live
+  // specimen: moment 2 read the extent from 1,999 passages and stated it
+  // twice; moment 3 re-read it from 3 and stated it once, and the panel
+  // showed the weaker number.
+  //
+  // The void is a claim about the QUESTION's own space, not about which
+  // passages the model happened to be shown, so it is declared over the most
+  // material the turn ever held. Retrieved passages stay in the union rather
+  // than being dropped for `live`: on a decomposed task a part can retrieve
+  // material this flat `live` array does not contain, and losing that would
+  // be the same mistake in the other direction.
+  //
+  // Still DISPLAYED, never fed to the model: the filler side is not
+  // trustworthy at page scale (measured again this session — the slot query
+  // over these very pages returns "Though he", "Congress", "as" and "After"
+  // as candidate vice presidents), so this reports the shape and leaves the
+  // fillers visibly open rather than handing over junk candidates. Anything
+  // narrated here lands in the resting "how the task ran" log, since the
+  // live element is gone by now — the same one-way handoff `show` already
+  // had.
+  // AND THE MATERIAL'S OWN CARDINALITY FINDING, which only exists now.
+  // `clusterFillers` (hypergraph.js) rides every claim as `claim.fillers`
+  // and has done since 2026-08-19 — holon.js's completeness gate reads it,
+  // and the void, the one organ whose whole subject is "how many does this
+  // slot hold", never asked. So a question with two real answers could be
+  // declared, measured and reported on without the void noticing there were
+  // two. `observedFillers` picks the slot that is actually this void's, by
+  // shared content words, and refuses a tie rather than guessing.
+  narrateTheVoid(
+    [...live.map((c) => c.text), ...result.sections.flatMap((s) => (s.passages ?? []).map((p) => p.text))].filter(Boolean),
+    "material",
+    observedFillers(voidBrief?.declaration?.slot, voidBrief?.declaration?.cells?.find((c) => c.op === "SIG")?.declared, relationClaims),
+  );
+  renderFold(node, { fold, record, ran: log, sent: sentCalls, verification, brief: voidBrief, reasoning, modelThinking: modelThinkText });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
@@ -5718,7 +6167,17 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
       // Wikipedia articles, say) must not chunk under one source name and
       // silently merge their addresses.
       const sourceName = `web:${hostOf(url)}-${i}`;
-      chunks.push(...chunkSource(sourceName, text, { identity: identifyMaterial(url, text) }));
+      // The fetch record's OWN retrieval date, carried onto the chunk so
+      // `buildSourceBlock` can say "en.wikipedia.org, retrieved 2026-08-27"
+      // instead of "MATERIAL". Read off `f.entry` (explore-server stamps it
+      // at fetch time), never computed here — a date this app made up would
+      // be exactly the fabricated provenance the naming exists to avoid, and
+      // an absent one correctly prints no date at all.
+      chunks.push(
+        ...chunkSource(sourceName, text, {
+          identity: { ...identifyMaterial(url, text), retrievedAt: f.entry.retrievedAt ?? null },
+        }),
+      );
       // Kept for audit, not for retrieval: any address cited into this page
       // must re-open for the life of the conversation, or a real mechanical
       // citation reads exactly like a fabricated one the moment the turn ends.
@@ -6628,7 +7087,7 @@ function measure() {
  * — and that question is asked while looking at the turn. So the disclosure
  * carries all of it, and the fold is not a tab.
  */
-function renderFold(node, { fold, record, sent, ran, verification, brief }) {
+function renderFold(node, { fold, record, sent, ran, verification, brief, reasoning, modelThinking }) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -6655,6 +7114,38 @@ function renderFold(node, { fold, record, sent, ran, verification, brief }) {
   }
   const out = box.querySelector("p");
   out.textContent = "";
+
+  // THE REASONING FIRST, and that ordering is the point. It used to survive
+  // the turn only inside "how the task ran" — a mono <pre> in a nested
+  // <details> inside this one, three clicks deep, interleaved with retrieval
+  // counts. User direction, 2026-08-27: make the work of shaping the answer
+  // "way easier to see". So it sits at the top of the disclosure, in prose,
+  // before the fold line and before every nested panel: open "thinking" and
+  // the first thing there is what the turn thought.
+  if (reasoning?.length) {
+    const wrap = document.createElement("div");
+    wrap.className = "reasoning";
+    for (const t of reasoning) wrap.append(...paragraphsOf(t));
+    if (wrap.childElementCount) out.append(wrap);
+  }
+
+  // The MODEL's own deliberation, if it had one — kept, not discarded, and
+  // drawn in its own distinct voice right beside the void's reasoning rather
+  // than merged into it. See `showModelThinking`'s own header (this file) for
+  // why the two must never be mistaken for one another: this is the model's
+  // unchecked first pass, not the instrument's own mechanical narration.
+  if (modelThinking) {
+    const w = document.createElement("div");
+    w.className = "model-thinking";
+    const label = document.createElement("div");
+    label.className = "model-thinking-label";
+    label.textContent = "the model, thinking";
+    const b = document.createElement("div");
+    b.className = "model-thinking-body";
+    b.append(...paragraphsOf(modelThinking));
+    w.append(label, b);
+    out.append(w);
+  }
 
   const line = document.createElement("div");
   line.className = "fold-line";
@@ -7577,9 +8068,9 @@ const MEDIA_EXTS = new Set([
 ]);
 
 function mediaKindFor(ext) {
-  if (["mp4","webm","ogv","mov","m4v"].has(ext)) return "video";
-  if (["mp3","wav","ogg","oga","flac","m4a"].has(ext)) return "audio";
-  if (["png","jpg","jpeg","gif","webp","svg","bmp","ico"].has(ext)) return "image";
+  if (["mp4","webm","ogv","mov","m4v"].includes(ext)) return "video";
+  if (["mp3","wav","ogg","oga","flac","m4a"].includes(ext)) return "audio";
+  if (["png","jpg","jpeg","gif","webp","svg","bmp","ico"].includes(ext)) return "image";
   if (ext === "pdf") return "pdf";
   return "binary";
 }
@@ -7958,10 +8449,6 @@ bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
   $("status").textContent = v ? "web lookups on" : "web lookups off";
 });
 
-// The grounding marks, on or off, for every turn at once — a reading
-// preference, not a measurement, so it lives on the body class and touches no
-// state a turn is built from. Persisted, because someone who turned the
-// apparatus off meant it past this reload.
 // Checking, on or off. This is a MODE, not a paint setting: off, the relation
 // tier is never asked for, nothing is drawn into the prose, no tally is
 // counted, no evidence or grounding panel is built, and no claim is taken to
@@ -7971,11 +8458,30 @@ bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
 // the apparatus: the fold (the running summary IS how the conversation
 // works), and the record (FOLD-CONSTITUTION I.5 — append-only, and not the
 // UI's to switch off). Both are disclosed under the turn either way.
+//
+// THE MODE AND THE DRAWING ARE NOW SEPARATE, and this control owns only the
+// mode. User direction, verbatim (2026-08-27): "hide the 'grounding' badges
+// for now, and i want the 'thinking' reasoning to show in real time its work
+// figuring out the shape of an answer that would satisfy." Those are one
+// request, not two: the apparatus is to keep RUNNING (the void narration
+// below is gated on `state.grounded` and is exactly the reasoning being
+// asked for) while it stops being PAINTED over the answer. This one control
+// had collapsed the two — `state.grounded` and `body.marks-off` moved in
+// lockstep, so `marks-off` could never hide anything on a newly rendered
+// turn (with checking off, nothing was drawn to hide) and there was no way
+// to ask for checked-but-unpainted at all.
+//
+// `marks-off` is therefore a STANDING suppression now, applied once and not
+// toggled: the answer surface stays clean and every finding still lists in
+// the thinking drawer, which the CSS above enforces by scoping every hiding
+// rule to `.msg .body`. "For now" is the user's own word for it — this is a
+// deliberately blunt switch to be handed back to a control when there is one
+// worth designing, not a claim that per-turn painting was wrong.
+document.body.classList.add("marks-off");
 {
   const btn = $("marks-toggle");
   const apply = (on) => {
     state.grounded = on;
-    document.body.classList.toggle("marks-off", !on);
     btn.setAttribute("aria-pressed", String(on));
   };
   apply(localStorage.getItem("fold-marks") !== "off");

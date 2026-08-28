@@ -5391,3 +5391,36 @@ the grep above. This is a pre-existing environment gap, not a property of
 the change — the same gap this file's own recent passes (P56, the sequence
 work above) already navigated around by testing their engine-side modules
 directly rather than through this page.
+
+## Kinship reasoning — complicated mechanical reasoning, not just adjacency (added 2026-08-28) — pointer
+
+POLICIES.md **P63** is the law; this is the short map. User direction:
+*"let's have it do complicated mechanical reasoning that isn't just 'in'
+the text."* P60's succession demo composes one relation with itself
+(real multi-hop, but spottable by eye on two adjacent entries); this
+closes the sharper ask with a domain that composes TWO DIFFERENT
+relations, the second hop consuming the first hop's own derived product:
+`childOf ∘ hasChild ⇒ siblingOf`, then `childOf ∘ siblingOf ⇒
+hasAuntOrUncle`. Neither relation is stated on any one fetched page —
+Wikidata has no aunt/uncle property at all.
+
+Live, never a fixture: four real Wikidata entities (Queen Victoria and
+three of her real descendants) fetched over the network the moment the
+driver runs. The reaction circuit, the-fold's own P57 admission door,
+and `predigest.js`'s projection are all reused completely unmodified
+from `eval/mechanical-reasoning.mjs` — this pass supplies only a new
+domain, a hand-declared cross-relation-type chemistry, and a new
+independent oracle (Wikidata's own `P3373` sibling property, fetched and
+checked ONLY after the derivation, never fed to the substrate — exact
+agreement, 8/8).
+
+Headline, three separate real files, none saying anything about an
+uncle alone: *Wilhelm II's aunt/uncle is Edward VII* — derived depth 2,
+provenance walking to real byte addresses on Wilhelm's, Vicky's, and
+Victoria's own separate pages, mechanically confirmed absent (the literal
+words "aunt"/"uncle") from every byte fetched. A real local model given
+only the three raw facts answered the yes/no question correctly but with
+fabricated reasoning (calling Edward VII "a cousin of... Victoria," his
+own mother, and inventing an unmentioned "King George V") — a verdict-
+only check would have missed that the stated reasoning never actually
+performs the two-hop composition it was asked to do.

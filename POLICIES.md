@@ -7785,3 +7785,107 @@ failures for both `capacity-runner.test.mjs` and `widget.test.mjs` are
 unchanged by name, since the whole file fails at module load regardless
 of which cases it carries — the fix is verified by direct execution of
 the extracted logic instead, per each item above).
+
+## P63 — kinship reasoning: a two-hop, cross-relation-type derivation, live (2026-08-28)
+
+User direction, verbatim: *"let's have it do complicated mechanical
+reasoning that isn't just 'in' the text."* P60's own succession demo
+composes ONE relation with itself (`replaces ∘ replaces ⇒ after`) — real
+multi-hop reach, but a shape a careful reader could still spot by eye on
+two adjacent succession-box entries. This closes the sharper ask: a
+domain where the composition combines TWO DIFFERENT relations into a
+third, and the second hop consumes the first hop's own derived product.
+
+**The domain, and why.** Kinship: `childOf ∘ hasChild ⇒ siblingOf`
+(bridge: the shared parent), then `childOf ∘ siblingOf ⇒ hasAuntOrUncle`
+(bridge: the shared parent-generation person — consuming the FIRST row's
+own derived edges). Neither derived relation is stated on any one
+fetched page: siblinghood requires reading two separate people's own
+pages and noticing they share a mother; Wikidata has no aunt/uncle
+property at all, so there is nothing to even misread as "in the text".
+
+**Material: four real Wikidata entities, fetched live, never a fixture**
+— Queen Victoria (Q9439), her daughter Victoria, Princess Royal ("Vicky",
+Q116728), Vicky's son Wilhelm II (Q2677), Victoria's son Edward VII
+(Q20875). Verified by hand before any code: Vicky's own page states her
+mother is Q9439, Wilhelm's own page states his mother is Q116728, Edward
+VII's own page states his mother is Q9439 too — a real, mutually
+self-consistent family fragment.
+
+**Reused completely unmodified**: the-fold's own P57 hyperlexicon
+admission door, `predigest.js::assertionEdges`'s projection, and
+`eoreader7/native/kernel/reaction.js`'s reaction substrate — the exact
+same circuit `eval/mechanical-reasoning.mjs` already exercises. This pass
+supplies only a new domain, a new hand-declared cross-relation-type
+chemistry (two `giveHyperlexiconAffordance` rows, not `closureAffordances`
+— that helper is specifically the same-relation case), and a new
+independent oracle.
+
+**Result, measured, not assumed.** 11 raw facts (3 cross-page assertions
++ 9 of Victoria's own P40 entries), every one byte-addressed and
+self-verified (P5.2), admitted with zero refusals. Reacted with `cue:
+null` (the disclosed full-closure control — this pass tests the
+chemistry gate, not the physics/cue gate P60's own arm 3 already
+covers): step 1 derives **8 real `siblingOf` facts** (Vicky's real
+siblings — Vicky herself correctly excluded by `relation-composition.js`'s
+own self-loop guard, un-special-cased); step 2 derives **8 real
+`hasAuntOrUncle` facts at depth 2**, each consuming a step-1 product;
+step 3 quiescent. Control arm (no chemistry given): 0 derived, quiescent
+— nothing reasons without a declared, giver-named chemistry, the same
+wall reproduced on a different relation family. Post-settle audit: 0
+self-refuted.
+
+**Headline, full provenance across three separate real files:**
+*Wilhelm II's aunt/uncle is Edward VII* — derived depth 2, provenance
+`wikidata/Q2677.json#21551-21565` (Wilhelm's own P25) +
+`wikidata/Q116728.json#17641-17653` (Vicky's own P25) +
+`wikidata/Q9439.json#37956-37969` (Victoria's own P40 entry for Edward
+VII) — none of which individually says anything about an uncle.
+
+**The independent oracle, checked but never fed in.** Wikidata's own
+`P3373` (sibling) on Vicky's and Edward VII's pages is fetched and read
+ONLY after the derivation, never given to the substrate. Result: exact
+agreement — all 8 derived siblings match `P3373` precisely, nothing
+missed, nothing extra. **A real bug was caught getting there** (P5.5):
+the first comparison reported zero agreement, because
+`assertionEdges`'s own `normalizeEnd` lowercases every derived edge's
+endpoints while Wikidata's raw qids are not lowercased — the oracle
+compared them un-normalized and looked like a serious finding when it
+was a case-mismatch in the driver's own comparison code. Fixed by
+normalizing both sides consistently; recorded rather than smoothed over.
+
+**"Never stated," checked mechanically.** Every raw fetched byte (all
+four entity dumps) was scanned for the literal words "aunt"/"uncle".
+Neither appears anywhere — the concept is absent from the schema of
+everything read, not merely from one sentence.
+
+**The model comparison: right verdict, fabricated reasoning.** A real
+local model (`onnx-community/Qwen2.5-0.5B-Instruct`, the same fallback
+`eval/void-loop-e2e.mjs` already established) was given ONLY the three
+raw facts — never the words sibling/aunt/uncle — and asked directly
+whether Edward VII was Wilhelm II's uncle. It answered "yes" (correct)
+with reasoning that calls Edward VII "a cousin of... Victoria" (his own
+mother) and invents "King George V" (named nowhere in the prompt) — a
+verdict-only check would have scored this a clean pass and missed that
+the stated reasoning does not actually demonstrate the two-hop
+composition it was asked to perform. The raw prompt and raw answer are
+committed verbatim so this reading can be checked, not trusted.
+
+**Disclosed limits, stated rather than glossed.** The chemistry's giver
+is this driver itself, not a received-priors register entry — "a
+parent's sibling is your aunt/uncle" is ordinary, uncontroversial English
+kinship terminology, but no corpus in this repo proved it; the
+declaration names its own risk, matching `eval/mechanical-reasoning.mjs`'s
+own `CHEM_GIVER` posture exactly. Half-siblings are not distinguished —
+the affordance as declared derives a half-sibling relation identically to
+a full one; does not bite on THIS family (Victoria and Albert's children
+are full siblings) but is a real, named, unbuilt gate (the same class of
+honest gap P60's tenure-identity fix already found and named once). Only
+the four entities the demonstration needed were fetched, so seven of the
+eight derived facts render with a bare qid rather than a name in the
+committed JSON — a stated absence, never a silent one.
+
+**Files.** `eval/kinship-reasoning.mjs` (new, re-runnable driver —
+P19/P27's own posture) + `eval/results/kinship-reasoning.json` (committed)
++ `eval/results/kinship-reasoning-RESULTS.md` (the full account). No
+existing file touched.

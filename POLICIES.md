@@ -7667,3 +7667,60 @@ every chunker, and every other consumer of `tokenize`/`foldDiacritics`
 its own algorithm reads only `c.terms`, so a non-Latin corpus goes from
 "the function-word veto never fires" to "it fires for real," a quality
 gain with no ASCII-side behavior change) needed no change to benefit.
+
+**Amended same day — a background consumer sweep found three siblings, two
+worth fixing and one worth pinning.** A general-purpose agent was asked,
+independently of the fix above, to map every consumer of `tokenize`/
+`foldDiacritics`/`retrieve` before this was trusted as done. Its report
+confirmed the fix's own safety analysis (`cite.js`, `hypergraph.js`,
+`grounding.js` all checked as either unaffected or strictly improved) and
+also surfaced three sibling ASCII-only regexes doing the SAME job as
+`tokenize` while never routing through it — none caused by this pass, all
+real, and disclosed here rather than left for the next reader to
+rediscover one at a time.
+
+1. **`skills.js::claimSkill` had a live vacuous-truth bug, now closed as a
+   side effect.** `s.skill.anchors.every((a) => tokenize(a).every((t) =>
+   toks.has(t)))` — before this fix, a non-Latin-only anchor tokenized to
+   `[]`, and `[].every(...)` is vacuously `true`: such a skill claimed
+   EVERY task unconditionally, regardless of content. No code change was
+   needed in `skills.js` itself (the fix lives entirely in `source.js`),
+   but the fixed behavior is now pinned where the bug actually bit
+   (`skills.test.mjs`: a Hebrew-anchored skill correctly refuses an
+   unrelated task and correctly claims one that genuinely contains it).
+
+2. **`fact-block.js` had its own, uncoordinated copy of the same job —
+   fixed the same way.** `rankByQuestion` and `buildFactBlock`'s own
+   `questionTerms` both built term sets with an independent
+   `.split(/[^a-z0-9']+/)`, ranking hypergraph-derived facts for the
+   model-facing notes block by overlap with the question. Widened to
+   `\p{L}\p{N}'` — the character class alone, not a swap to `tokenize()`
+   itself, because this ranking is deliberately lighter (no stopword
+   filter, no length floor) and reusing `tokenize` wholesale would change
+   more than the one thing that was actually broken.
+
+3. **`capacity-runner.js::contentTokens` was the more serious of the
+   two — a CHECK going blind, not just a ranking going blind.**
+   `checkObjectSpecificity`'s own documented rule: `trusted` is `true`
+   "when the claim's object carries no content token to check (nothing to
+   confirm, so nothing to doubt)." On non-Latin content, the old
+   `.split(/[^a-z0-9]+/)` always produced an empty set — so a non-Latin
+   EVA/`landAct` verdict was silently TRUSTED rather than checked, the
+   exact "checks go blind rather than wrong" failure shape this repo's
+   own grounding-ladder section already names as worse than an ordinary
+   miss (P41's own restatement of the same rule, aimed at a different
+   cell). Widened the same surgical way; the fix is real but currently
+   unreachable by any existing test (no non-Latin claim fixture exists
+   for this path) — named here rather than left implicit.
+
+Not touched, and disclosed rather than silently declined: `widget.js`'s
+`forms()`/`clauseForms()` (its own comment already states why they are
+deliberately NOT built on `tokenize` — they need to keep stopwords/short
+words tokenize drops — so a non-English widget-iteration command still
+won't route; a real, separate gap, out of scope for a retrieval fix);
+`seed.js`'s own language/determiner-name splitter (a narrow, inherently
+Latin-script domain); `crown.js`'s `TOKEN_RE` (scoped to witness/source
+names, ASCII by construction in every real fixture today).
+
+Full suite after all three fixes: 1074/945/127 — the same 127 by name,
+confirmed via `git stash` diff a second time.

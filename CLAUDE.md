@@ -5275,3 +5275,15 @@ split-on-boundaries tokenizer to find, and a genuine two-character CJK
 word (`tokenize("北京")`) is STILL `[]`, dropped by the same length floor
 that drops a two-letter English word. Both halves pinned as tests, not
 glossed over.
+
+**Amended same day — a consumer sweep found and closed two sibling
+ASCII-only regexes doing the same job, uncoordinated.** `skills.js`'s
+`claimSkill` had a live vacuous-truth bug (a non-Latin-only anchor
+tokenized to `[]` and claimed every task unconditionally) closed as a
+side effect of the source.js fix alone, now pinned where it bit.
+`fact-block.js`'s own question-ranking regex and `capacity-runner.js`'s
+`contentTokens` (the more serious one — an empty content-token set makes
+`checkObjectSpecificity` TRUST an unchecked non-Latin verdict rather than
+examine it) both got the identical character-class widening. `widget.js`'s
+deliberately-separate `forms()`/`clauseForms()` stays as is — a real,
+disclosed, out-of-scope gap, not silently declined.

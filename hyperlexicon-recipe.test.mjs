@@ -7,7 +7,11 @@
 // is tested in complete isolation here instead.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { recipeId } from "./hyperlexicon.js";
+import { recipeId, makeHyperlexicon } from "./hyperlexicon.js";
+import * as nativeTaskLog from "../eoreader7/native/kernel/task-log.js";
+
+const hl = makeHyperlexicon(nativeTaskLog);
+const sp = (ref) => [{ ref, start: 0, end: 3, text: "abc" }];
 
 test("recipeId: deterministic — the same descriptor always yields the same id", async () => {
   const descriptor = { organs: ["relations", "grammar-lens"], priors: ["en/determiners"] };
@@ -65,4 +69,43 @@ test("recipeId: primitive values (string/number/boolean/null) at the top level a
   const nu = await recipeId(null);
   const ids = new Set([s, n, bo, nu]);
   assert.equal(ids.size, 4, "four distinct primitive descriptors must hash to four distinct ids");
+});
+
+// ── hear()'s own no-op rule (LP2: "a recipe that hears nothing appends
+// nothing") — found live by eot-sidecar.mjs re-running an unchanged recipe
+// against an unchanged source and watching the log double. Tested here,
+// beside recipeId, because both are LP5/LP2's answer to the same question:
+// what does an append-only reading owe a caller that runs it twice?
+
+test("hear: a re-sighting with the SAME witness and the SAME span teaches the log nothing and appends no entry", () => {
+  let log = hl.createHyperlexicon();
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p1" }));
+  assert.equal(log.entries.length, 1, "the birth lands");
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p1" }));
+  assert.equal(log.entries.length, 1, "an identical re-sighting must not grow the log — nothing was learned");
+});
+
+test("hear: a re-sighting with a NEW witness (even carrying the identical span) still lands — a second reader's agreement is real corroboration", () => {
+  let log = hl.createHyperlexicon();
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p1" }));
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p2" }));
+  assert.equal(log.entries.length, 2, "a NEW witness corroborating the same span is a real event, not a no-op");
+  const folded = hl.foldHyperlexicon(log);
+  assert.deepEqual(folded[0].witnesses.sort(), ["p1", "p2"]);
+});
+
+test("hear: a re-sighting with a NEW span (even under the same witness) still lands — new bytes found is real news", () => {
+  let log = hl.createHyperlexicon();
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p1" }));
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w2") }], { witness: "p1" }));
+  assert.equal(log.entries.length, 2, "a genuinely new span must still land even under a repeated witness");
+});
+
+test("hear: repeated no-op re-sightings stay a true no-op across many calls, not merely the second one", () => {
+  let log = hl.createHyperlexicon();
+  ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p1" }));
+  for (let i = 0; i < 5; i++) {
+    ({ log } = hl.admit(log, [{ subject: "A", verb: "replaces", object: "B", spans: sp("w1") }], { witness: "p1" }));
+  }
+  assert.equal(log.entries.length, 1, "five identical re-runs of the same recipe against the same bytes must cost nothing");
 });

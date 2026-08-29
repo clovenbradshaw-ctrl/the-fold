@@ -164,6 +164,21 @@ export function makeHyperlexicon(taskLog) {
    * THE CORROBORATION IS THE POINT, not a side effect. A fact already heard
    * costs nothing to hear again, and the budget that frees is what should go
    * to what is genuinely new — this repo's own P30, applied to reading.
+   *
+   * A RE-SIGHTING THAT TEACHES NOTHING APPENDS NOTHING. live_priors's own
+   * POLICIES.md LP2 states this as law, not as a suggestion: "growth is
+   * bounded by the source's extent × distinct recipes, and is self-limiting,
+   * because a recipe that hears nothing appends nothing." Found live, not
+   * hypothetically: the-fold's own eot-sidecar.mjs re-ran the identical
+   * recipe against an unchanged source and the log DOUBLED — every witness
+   * already on record, every span already merged, and a new SUPERSEDE entry
+   * landed anyway, because this function used to append unconditionally.
+   * The fix compares what the merge ACTUALLY moved, not whether `hear` was
+   * called: if the witness set and the span set come out exactly the length
+   * they already were, the material taught this log nothing and the log is
+   * returned UNCHANGED — no entry, no seq consumed. A witness that adds
+   * itself for the first time, or a span this task has never carried before,
+   * still lands exactly as before.
    */
   function hear(log, { subject, verb, object, spans = [], witness = null, because = null }) {
     const id = assertionId(subject, verb, object);
@@ -175,6 +190,9 @@ export function makeHyperlexicon(taskLog) {
     const at = new Set((prior?.spans ?? []).map((s) => s.at));
     const merged = [...(prior?.spans ?? [])];
     for (const s of spans) if (s?.at && !at.has(s.at)) { at.add(s.at); merged.push(s); }
+    if (prior && witnesses.length === prior.witnesses.length && merged.length === (prior.spans?.length ?? 0)) {
+      return log;
+    }
     return append(log, {
       kind: prior ? ENTRY_KINDS.SUPERSEDE : ENTRY_KINDS.PROPOSE,
       task_id: id,

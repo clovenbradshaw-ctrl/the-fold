@@ -23,6 +23,21 @@ test("EOReader contract records the exact browser engine modules used by app.js"
   assert.deepEqual(actual, expected, "app.js EOReader browser imports changed; update the compatibility contract deliberately");
 });
 
+test("EOReader contract records the exact browser NATIVE (engine-v7) modules used by app.js", () => {
+  // Same mechanism as the /engine test above, aimed at the ratchet's other
+  // side — the migrationLaw's own point: an import path only moves once it
+  // is measured (parity against the frozen provider on real material, not
+  // just export-shape agreement) AND the contract is updated to say so in
+  // the same commit. This test is what makes a future silent re-widening of
+  // app.js's /engine surface (or a silent narrowing of /engine-v7 nobody
+  // recorded) fail loudly instead of drifting unnoticed, the same posture
+  // the /engine test already holds.
+  const source = read("app.js");
+  const actual = [...source.matchAll(/from\s+["'](\/engine-v7\/[^"']+)["']/g)].map((m) => m[1]).sort();
+  const expected = [...contract.runtimeConsumers.browserNativeModules["app.js"]].sort();
+  assert.deepEqual(actual, expected, "app.js EOReader-native browser imports changed; update the compatibility contract deliberately");
+});
+
 test("EOReader contract records host imports used by runtime workers", () => {
   for (const [file, spec] of Object.entries(contract.runtimeConsumers.nodeImports)) {
     if (!spec.module || !spec.exports) continue;

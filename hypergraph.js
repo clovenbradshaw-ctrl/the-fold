@@ -914,7 +914,10 @@ export function makeRelationReader(organs) {
     });
 
     // `organs.blankFurniture`, when provided, is a length-preserving blanker
-    // (eoreader6.1's spans.js::blankLabelRows) run ONLY on the copy of the
+    // (source.js::blankLabelRows, this repo's own — the ratchet pass that
+    // crossed this file's other organs to eoreader7 native found this symbol
+    // never existed on any engine path at all; it is a the-fold concern, not
+    // an engine one) run ONLY on the copy of the
     // material this function hands to discoverRelationVocab/extractRelations
     // — never on `list` itself, so every OTHER reader of a passage's `.text`
     // (referent identity below, and every caller outside this function:

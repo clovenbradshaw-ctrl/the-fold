@@ -5634,3 +5634,65 @@ already-existing `posPriorFor` POS gate in — which live_priors did, the
 same day, at corpus scale; see that repo's own POLICIES.md LP6 for the
 full account of the gate itself, which is entirely that repo's own
 driver-side decision).
+
+## The ratchet, finished for the text tier (added 2026-08-29) — pointer
+
+POLICIES.md **P69** is the law; this is the short map. eoreader7's own
+README states its ratchet: a compatibility subsystem retires only once its
+native replacement passes conformance. Before this pass, nothing had
+actually crossed — `app.js` carried nine separate `/engine/` imports of the
+frozen provider (`segments`, `spans`, `surfaces`, `pronouns`, `relations`,
+`priors`, `wordclass`, `operators`, `holon/task-log`) plus a native
+`/engine-v7/` import of the SAME two things twice over
+(`cube.js`/`operators.js`, `kernel/task-log.js`/`holon/task-log.js`) — the
+double-carriage drift this file's own postmortems (P22, P24, P25) already
+name, caught here across two engine generations rather than two branches
+of one function. All nine now cross to native, gated on measured parity
+(not export-shape agreement) run against real fetched Wikipedia material
+first — `resolvePronouns` proven strictly ADDITIVE field-for-field, the
+operator/task-log algebra checked over all 81 operator pairs. One import,
+`emergence/tiers.js` (and the 1,306-line `nul/index.js` statistics
+subsystem it stands on), stays on `/engine/` — disclosed, not silently
+ported shallow: native's `dynamics.js` is a structurally different
+mechanism from the Bayesian tier-stack the self plane (`reflex.js`/
+`aperture.js`) depends on, and porting it faithfully is its own pass.
+
+**Three real, load-bearing bugs found in the first minutes, before any
+deliberate work began.** `app.js:147` imported `blankLabelRows` as a named
+binding from `/engine/perceiver/text/spans.js` — a symbol that exists on
+NO engine path, legacy or native, anywhere. This was a link-time error:
+the page's whole module graph was unloadable in any real browser. Not
+caught by `node --check` (which only parses); found only by reading what
+the import actually resolved to. The organ it names — a length-preserving
+blanker so a flattened Wikipedia infobox is never read as prose by the
+clause extractor — is a the-fold concern (infobox furniture is not a fact
+about language), so it now lives in `source.js`, declared per this
+file's own P4 discipline (`minRun`/`maxCell`, no defaults), validated
+against the real fetched Hannibal Hamlin page this file's own P50 section
+already used as a specimen. Second: `explore-server.mjs`, which this
+file's own Explore section already documents as needing every mount
+`serve.mjs` has ("without that mount the chat page half-loads"), had no
+`/engine-v7` mount at all — fixed by mirroring `serve.mjs`'s exact
+pattern. Third, found and deliberately NOT fixed: `packages/host/
+assertion-resolution.js`, in the frozen `legacy-eoreader6.1` submodule at
+its pinned commit, has a genuine unbalanced-parens syntax error (12 opens,
+11 closes) that predates this pass and blocks `explore-server.mjs` from
+booting in this environment — Constitution I.2 holds legacy as frozen
+reference, so this is disclosed rather than silently patched.
+
+**Verified, not assumed, at every layer.** A real headless Chromium
+(already vendored, no Playwright package needed — Node 22's native
+`WebSocket` speaks CDP directly) loaded the real page against a real
+`serve.mjs`: zero console errors, zero exceptions, the `#not-served`
+banner correctly hidden (this file's own boot code only removes it once
+module execution genuinely completes). Full suites, failure names diffed
+rather than counted (this file's own standing rule): the-fold's 45-name
+failure set identical before and after; eoreader7 native's own 320 tests
+— including both structural walls, `native-boundary.test.mjs` and
+`text-boundary.test.mjs` — all passing. `eoreader-contract.json`, whose
+own stated purpose is tracking exactly this migration, now records the
+crossing: `runtimeConsumers.browserEngineModules["app.js"]` holds the one
+disclosed holdout, a new `browserNativeModules` entry holds the nine that
+crossed, and a new contract test fails loudly on any future silent drift
+of either surface — the same posture the pre-existing `/engine/` test
+already held.

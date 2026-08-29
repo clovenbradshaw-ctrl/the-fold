@@ -207,6 +207,97 @@ export function stripContainer(text) {
  * model what book this actually is. The fix is not a better check after
  * the fact; it is not making the model guess in the first place.
  */
+/**
+ * Blank a flattened TABLE region, length-preserving, so a clause extractor
+ * never reads its cells as prose.
+ *
+ * WHAT WENT WRONG, and why this is not a Wikipedia parser. `extractRelations`
+ * reads a whitespace connector ACROSS a bare newline on purpose — real
+ * hard-wrapped prose (Gutenberg wraps at ~70-80 chars) puts subject and verb
+ * on different physical lines, and refusing to cross a newline would lose
+ * most of a book. That assumption is simply FALSE inside a table that has
+ * been flattened to one cell per line: there the newline is a cell boundary,
+ * not a wrap, so the extractor glues the end of one row to the start of the
+ * next and manufactures a triple neither row states. Measured on the real
+ * fetched Hannibal Hamlin article, whose infobox flattens to:
+ *
+ *     15th Vice President of the United States
+ *     In office
+ *     March 4, 1861   - March 4, 1865
+ *     President
+ *     Abraham Lincoln
+ *     Preceded by
+ *     John C. Breckinridge
+ *     Succeeded by
+ *     Andrew Johnson
+ *
+ * THE CLASS, NOT THE LABELS. Nothing here knows "Preceded by", "In office" or
+ * "Succeeded by", and adding them would rebuild `succession.js` — the module
+ * this repo condemned precisely because per-site formatting rules cannot
+ * generalise (CLAUDE.md, 2026-08-28). What IS general is the FORM: a run of
+ * consecutive lines that are short and carry no sentence terminator is a
+ * table's cells, whatever language or site produced it, because a sentence
+ * that ends without terminal punctuation and fits in a cell is not a
+ * sentence. Same discipline as `segments.js`'s heading detector one organ
+ * over — a heading is form, not content — and the same discipline
+ * `grounding.js::blankStructure` already holds for fenced code: the point is
+ * never to UNDERSTAND the region, only to keep a prose reader out of a place
+ * where prose is not what is written.
+ *
+ * DECLARED, NEVER DEFAULTED (P4/P9). `minRun` and `maxCell` are the caller's
+ * to state: how many rows make a table, and how long a line can be and still
+ * be a cell, are facts about the material a caller is reading, not constants
+ * this module gets to pick. There is no default.
+ *
+ * LENGTH-PRESERVING, and scoped by the caller. Every blanked character is
+ * replaced by a space, so the returned string indexes identically to the one
+ * handed in and any offset taken against either still names the same place —
+ * the same contract `blankStructure` holds. It is the CALLER's job to run
+ * this only on an extraction copy: the real bytes must keep reaching
+ * citations, retrieval, and the model.
+ *
+ * WHAT THIS DOES NOT CLAIM. It removes a table from the clause extractor's
+ * view; it does not read the table. The facts in that infobox are real and
+ * recoverable — by a table reader, which is a different organ (P59's shape
+ * recognisers are the live direction). Nothing here has been measured to
+ * improve any downstream grounding score, and this docstring is not the
+ * place such a claim would be allowed to appear without one.
+ */
+export function blankLabelRows(text, { minRun, maxCell } = {}) {
+  if (!Number.isInteger(minRun) || minRun < 2)
+    throw new TypeError("blankLabelRows: minRun is declared — how many consecutive cells make a table is the caller's to say, and two is the structural floor (one line is not a run)");
+  if (!Number.isInteger(maxCell) || maxCell < 1)
+    throw new TypeError("blankLabelRows: maxCell is declared — how long a line can be and still be a cell is a fact about the material, never a constant chosen here");
+
+  const src = String(text ?? "");
+  const lines = src.split("\n");
+  // A cell: non-empty, short, and not ending a sentence. Terminal punctuation
+  // is read as a CLASS (Unicode's own terminators plus their closing quotes),
+  // never an enumeration of the marks seen so far — P50's rule, which this
+  // repo has now walked into three times.
+  const isCell = (line) => {
+    const t = line.trim().replace(/[\p{Pf}\p{Pe}"'\u2019\u201d]+$/u, "");
+    return t.length > 0 && t.length <= maxCell && !/[.!?\u2026\u3002\uFF01\uFF1F]$/u.test(t);
+  };
+
+  const out = lines.slice();
+  let i = 0;
+  while (i < lines.length) {
+    if (!isCell(lines[i]) ) { i++; continue; }
+    // A run may be separated by blank lines — a flattened table often is.
+    let j = i, cells = 0, last = i;
+    while (j < lines.length && (lines[j].trim() === "" || isCell(lines[j]))) {
+      if (lines[j].trim() !== "") { cells++; last = j; }
+      j++;
+    }
+    if (cells >= minRun) {
+      for (let k = i; k <= last; k++) out[k] = " ".repeat(lines[k].length);
+    }
+    i = j > i ? j : i + 1;
+  }
+  return out.join("\n");
+}
+
 export function declaredIdentity(name, text) {
   const s = String(text ?? "");
   const start = s.match(GUTENBERG_START_RE);

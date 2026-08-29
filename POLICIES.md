@@ -8448,3 +8448,197 @@ existing to disclose the gate's effect once a caller (live_priors) actually
 wired it in. The gate's own wiring decision, its validation, and its two
 disclosed limits (English-only; bounded by the treebank's own vocabulary
 size) are entirely live_priors' own driver-side work, not this repo's.
+
+## P69 — The ratchet, finished for the text tier: nine legacy imports crossed to native, one disclosed holdout
+
+eoreader7's own README states the condition its ratchet requires: "a
+compatibility subsystem may be retired only when its native replacement
+passes behavioral/conformance tests." Before this pass, that ratchet had
+never actually been pulled anywhere — `native/` was real (43 kernel
+modules, 20 text adapters, its own conformance suite) but nothing in this
+repo's runtime had crossed to it except two bare symbols (`cellOf`,
+`GRAINS` from `kernel/cube.js`) and a namespace import
+(`kernel/task-log.js`) app.js already carried, sitting beside — not
+replacing — ten separate `/engine/` imports of the frozen provider,
+including two genuine duplicates: `operators.js` alongside `cube.js`, and
+`holon/task-log.js` alongside `kernel/task-log.js`. Two implementations of
+the same two things, live in one file — the exact drift class this
+document's own postmortems keep catching (P22's `Array.find`, P24's
+runtime ternary, P25's `sqlSnapshotFields`) caught here across two engine
+generations instead of two branches of one function.
+
+**The gate, run before anything moved.** Parity first, never assumed: both
+implementations of all six shared text organs (`spans`, `surfaces`,
+`pronouns`, `relations`, `priors`, plus the operator/task-log algebra) were
+run over the same real fetched Wikipedia material (War and Peace,
+Battle of Borodino) and diffed. `splitSentences`/`looksLikeMaterial`/
+`stripContainer`/`deriveAbbreviations`/`extractSurfaces`/`diaNorm`/
+`namesCorefer`/`discoverRelationVocab`/`extractRelations` — byte-identical.
+`discoverReferents` differed only in ORDERING (183/183 identical names on
+War and Peace; on Borodino, native correctly REFUSED `"Alexander"` as a
+typed `ambiguous_surface` gap the legacy provider silently admitted — S17's
+fix, working). `resolvePronouns` was proven ADDITIVE, not merely similar:
+stripped of native-only disclosure fields (`p`, `coPresent`, `barApplied`,
+`regime`), every binding and every gap matched legacy exactly, field for
+field, on both fixtures — `legacy-only key paths: []`. The operator/
+task-log algebra (`isProductionOrder`/`isGrainProgression`/
+`checkCubeProgression`) was checked exhaustively over all 81 operator pairs
+plus junk inputs (106/106 agree) and against a hand-built log exercising a
+clean thread, a reversal, and a coarsening — flags byte-identical. This is
+the standard the migrationLaw section of `eoreader-contract.json` now
+states explicitly, added by this pass: "a crossing is only real once
+measured... an export list matching is necessary, never sufficient."
+
+**What crossed.** `app.js`'s `/engine/` surface: `perceiver/text/segments.js`
+(`lineIndex`, `outlineOfIndex`), `spans.js` (`splitSentences`), `surfaces.js`,
+`pronouns.js`, `relations.js`, `priors.js`, `wordclass.js`, `operators.js`,
+`holon/task-log.js` — nine imports, now zero. All now resolve through
+`/engine-v7/`, eoreader7's native kernel. Three genuine gaps were closed,
+not glossed:
+
+1. **`segments.js`/`wordclass.js`** had no native equivalent at all — moved
+   into `native/adapters/text/` byte-for-byte (both organs' whole remit is
+   FORM, and v7's cut changed nothing about form; rewriting an organ with
+   no pending redesign would break parity for nothing).
+2. **`checkCubeProgression`/`isCurrentOperator`/`STRUCTURE_OPERATORS`** did
+   not exist on `native/kernel/task-log.js`/`cube.js` — added there, built
+   from primitives the native module already held (`GRAIN_RANK`,
+   `OPERATOR_ORDER`), not restated. `isProductionOrder`'s native version
+   compares `OPERATOR_ORDER` positions directly rather than reaching for a
+   `validateChain` helper to answer a two-element question — verified, not
+   assumed, by the exhaustive pairwise check above.
+3. **`blankLabelRows`** did not exist ANYWHERE — not on the frozen
+   provider, not on native. `app.js:147` imported it as a named ESM
+   binding from `/engine/perceiver/text/spans.js`, which is a link-time
+   error: the whole module graph was unloadable the moment a browser
+   actually tried to boot this page. Found in the first five minutes of
+   this pass, before any deliberate work began. The organ it names — a
+   length-preserving table blanker so a clause extractor doesn't read a
+   flattened Wikipedia infobox as prose — is a the-fold concern, never an
+   engine one (infobox furniture is not a fact about language), so it now
+   lives in `source.js`, declared per this repo's own P4/P9 discipline
+   (`minRun`/`maxCell`, no defaults). Validated against the REAL fetched
+   Hannibal Hamlin page (the specimen P50 already used): zero
+   sentence-ending lines ever touched, hard-wrapped Gutenberg-style prose
+   spanning multiple short lines left completely untouched (the control
+   that matters — the same newline-crossing assumption P50's own specimen
+   depends on), 44.6%/10.4% of two real Wikipedia pages correctly
+   identified as table furniture.
+
+Two more real, small closed classes were added to native's
+`adapters/text/priors.js` because `web-claim.js`'s `declaredSlotShape`
+already required them and nothing on any engine path had ever supplied
+them: `INTERROGATIVE_PRONOUNS` (a Map, English's seven wh-words each glossed
+to the kind of filler they ask for — "who"→"person", giver `lang/en`) and
+`MANNER_REASON_PRONOUNS` ("how"/"why", which ask for an explanation rather
+than a filler and must refuse a slot outright rather than open one nothing
+can fill). Their absence meant `web-claim.test.mjs` had been failing for a
+real reason this whole time — not one of this repo's disclosed
+environmental gaps.
+
+**What stayed, disclosed rather than silently ported shallow.**
+`emergence/tiers.js` — the self plane's surprise meter (`reflex.js`/
+`aperture.js`) — remains on `/engine/`. It stands on
+`emergence/surprise.js` and, through it, `nul/index.js`: 1,306 lines, the
+engine's entire statistics/perturbation subsystem (the `LICENSED` table,
+~20 typed gap types). Native's own `dynamics.js::deriveSurprise` is not a
+substitute — it is a structurally different mechanism (delta/operation-
+based, keyed to `EOTransformation` records) from the Bayesian
+tier-stack-plus-null-corrected-surprise design the self plane is built on.
+Porting `nul`/`tiers`/`surprise` faithfully, with its own parity gate run
+against real material, is a pass on the scale of this whole one — not a
+rider tucked inside it. This is the one remaining `/engine/` import in
+`app.js`, stated in the code at its own import line, not left for a reader
+to discover by grepping.
+
+**A second server needed the same mount, found by the crossing itself.**
+`explore-server.mjs` — which this repo's own CLAUDE.md already documents
+serving the chat page whole ("without that mount the chat page half-loads")
+— had no `/engine-v7` mount at all. `serve.mjs` had carried both `ENGINE`
+and `ENGINE_V7` since before this pass; `explore-server.mjs` only ever grew
+`ENGINE`/`NUL`/`PRIORS_DATA`. Once app.js's crossing made `/engine-v7`
+load-bearing rather than incidental, this became the identical two-server
+drift class named above, one mount short. Fixed by mirroring `serve.mjs`'s
+exact pattern (`ENGINE_V7 = path.resolve(ROOT, "..", "eoreader7", "native")`,
+checked first in the routing chain since `/engine-v7/` does not collide
+with the `/engine/` prefix test — confirmed, not assumed:
+`"/engine-v7/...".startsWith("/engine/")` is `false`). Verified by
+extracting the routing algorithm into an isolated harness and running it
+against real disk paths (every `/engine-v7/…` and `/engine/…` case
+resolves and exists; path-traversal cases stay contained under `ROOT`,
+unchanged from the pre-existing behavior). A full live boot of
+`explore-server.mjs` could not be completed in this environment — it
+imports `packages/host/index.js` at module top level, which re-exports
+from `packages/host/assertion-resolution.js`, a file in the FROZEN
+`legacy-eoreader6.1` submodule (pinned commit
+`e20e441d3cdfb735d605c75037e6d73892e707c0`) carrying a genuine, pre-existing
+syntax error (12 open parens, 11 close, confirmed by direct count) that
+predates this pass entirely and is unrelated to it — `serve.mjs` never
+imports that path and was unaffected. This is disclosed rather than
+silently patched: Constitution I.2 holds legacy as frozen reference, and a
+bug in the pinned commit is a decision for whoever owns unfreezing it, not
+a side effect of a ratchet pass.
+
+**`app.js`'s own live boot was verified end to end, not just parsed.**
+`node --check` is necessary and was insufficient by itself, so a real
+headless Chromium (already vendored in this environment,
+`PLAYWRIGHT_BROWSERS_PATH`) was driven directly over CDP — no Playwright
+package needed, Node 22's own native `WebSocket` speaks the protocol
+directly — against a real `serve.mjs` instance with every mount live.
+Result: zero console errors, zero uncaught exceptions, and the four
+network failures present were exactly the four pre-existing, unrelated,
+already-documented 404s (`node_modules/katex`, `mathjs`, `monaco-editor` —
+this checkout has no `node_modules`). A second CDP check confirmed the page
+did not merely parse but actually BOOTED — the `#not-served` banner (which
+this repo's own boot code only removes once its module execution
+genuinely completes) was hidden, and the composer existed in the live DOM.
+
+**`eoreader-contract.json` — the file whose own stated purpose is "what
+EOReader 7 must satisfy for The Fold before native v7 migration begins" —
+is updated to say a migration happened, not left to silently describe a
+state that stopped being true.** `runtimeConsumers.browserEngineModules`
+now lists exactly the one holdout (`tiers.js`); a new
+`runtimeConsumers.browserNativeModules` records the nine crossed imports,
+with a new `eoreader-contract.test.mjs` case mirroring the existing
+legacy-side test exactly — so a future silent re-widening of either
+surface fails loudly instead of drifting unnoticed, the same posture the
+pre-existing test already held for `/engine/` alone. `filesystemMounts`
+gained `"native"` for both servers. `migrationLaw` gained the parity-first
+rule stated above.
+
+**Measured, not assumed, that nothing broke.** Full suite, failure names
+diffed rather than counted (this repo's own standing rule, stated for
+every prior pass in this document): the-fold, 1467→1468 tests (one new
+contract case), identical 45-name failure set before and after — every one
+of the 45 a pre-existing, already-documented environmental gap
+(`store.test.mjs`/`store-sql.test.mjs` missing vendored `sql.js`,
+`webllm-rung.test.mjs`/`measure.test.mjs` missing model files,
+`constitution.test.mjs`'s one II.13 case missing vendored `monaco-editor`,
+and one unrelated pre-existing contract case naming `explore-worker.mjs`).
+eoreader7 native's own suite — all 45 test files under `native/`, both
+`.test.mjs` and `.test.js`, `eval/` drivers excluded per this repo's own
+convention that those are re-runnable measurement drivers rather than
+committed regressions — 320/320 passing, zero failures, including
+`native-boundary.test.mjs` (no legacy import anywhere in `native/kernel/`)
+and `text-boundary.test.mjs` (the identical check over
+`native/adapters/text/`) — the ratchet's own two structural walls, both
+holding after two new files landed inside the tree they scan.
+
+**One condition of this pass, stated so it is not silently assumed to
+extend further, and not overstated: the `legacy-eoreader6.1` submodule was
+UNINITIALIZED in THIS session's checkout at this pass's start** (the
+directory held nothing — no `.git`, no files). This is a fact about how
+this particular container was provisioned, not a claim about what any
+prior pass's environment looked like — the "108/113/114/118/119/127
+pre-existing failures" figures this document accumulates across earlier
+sessions name specific, well-understood gaps (`sql.js`, model files,
+vendored `monaco-editor`) that presuppose the submodule WAS present, so
+this checkout's uninitialized state is not offered as their explanation.
+What it does explain: `git submodule update --init --depth 1` is what made
+the parity measurement above possible at all in this session, and it is
+what surfaced the `blankLabelRows` and `assertion-resolution.js` findings —
+both structurally undiscoverable from a checkout where the file they live
+in was never actually on disk. This session's own baseline, measured AFTER
+initializing, is 45 failing (the-fold) / 320 passing, 0 failing
+(eoreader7 native) — the number this pass's own before/after diff is
+anchored to, not a claim about any other session's count.

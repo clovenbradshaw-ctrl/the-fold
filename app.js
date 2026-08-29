@@ -138,15 +138,21 @@ import { exchangeHeldGround, makeApertureMeter, presentWindow, regimeAfter } fro
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
 // Boundaries are found by form there and received here — this app does not
 // know what a chapter is and must not learn.
-import { lineIndex, outlineOfIndex } from "/engine/perceiver/text/segments.js";
+import { lineIndex, outlineOfIndex } from "/engine-v7/adapters/text/segments.js";
 
 // The engine's referent organs, same mount: names in a check resolve against
 // the cast the material itself establishes — a name is a reference to a
 // referent, not a byte sequence, and the engine owns what "the same name"
 // means. cast.js injects these so it stays pure and node-testable.
-import { splitSentences as engineSentences, blankLabelRows } from "/engine/perceiver/text/spans.js";
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine/perceiver/text/surfaces.js";
-import { resolvePronouns } from "/engine/perceiver/text/pronouns.js";
+import { splitSentences as engineSentences } from "/engine-v7/adapters/text/spans.js";
+// blankLabelRows never existed on this path (or anywhere in the frozen
+// provider — it was a link-time error waiting to happen). It is now
+// source.js's own blankLabelRows, a the-fold concern (Wikipedia infobox
+// furniture, never an engine notion) — imported below alongside this
+// file's other source.js symbols and bound with declared numbers at the
+// hypergraph.js injection site.
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine-v7/adapters/text/surfaces.js";
+import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 
 // The relation tier — the answer read against the edges the material itself
@@ -158,7 +164,7 @@ import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js"
 // repo's own folded one (source.js), which is also the fold retrieval and
 // commonTerms already share, so the closed-class measure and the corpus's
 // own term sets stay one alphabet.
-import { discoverRelationVocab, extractRelations } from "/engine/perceiver/text/relations.js";
+import { discoverRelationVocab, extractRelations } from "/engine-v7/adapters/text/relations.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { corroborateAtoms, CLAIM_STOPWORDS } from "./grounding.js";
 
@@ -204,7 +210,7 @@ import { briefFor, observedFillers } from "./void-brief.js";
 // full account of what was wrong with the receipt).
 import { narrateVoid, noSlotLine } from "./void-narration.js";
 import { declaredSlotShape } from "./web-claim.js";
-import { cellOf, GRAINS } from "/engine-v7/kernel/cube.js";
+import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
 // The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
 // relation reading admits, corroborated across turns by the same cell the
 // cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
@@ -222,27 +228,41 @@ import { successionFillers } from "./succession.js";
 
 // The engine's surprise ladder — the measured answer to "what is most
 // surprising", and the only licensed one. Same mount, plus /nul for the
-// null module tiers.js stands on (serve.mjs carries both).
+// null module tiers.js stands on (serve.mjs carries both). Deliberately
+// NOT crossed to /engine-v7 in the ratchet pass that moved everything else
+// below off this mount (2026-08-29): tiers.js stands on emergence/surprise.js
+// stands on nul/index.js — 1,306 lines of the engine's whole statistics/
+// perturbation subsystem (the LICENSED table, ~20 typed gap types) — and
+// native has no equivalent. dynamics.js::deriveSurprise is not a substitute;
+// it is a structurally different mechanism (delta/operation-based, not the
+// Bayesian tier-stack the self plane, reflex.js/aperture.js, is built on).
+// Porting that faithfully is its own measured pass, not a rider on this one.
+// This is the one remaining legacy crossing on this page, disclosed rather
+// than silently ported shallow or silently left unexplained.
 import { createTierStack, foldThrough } from "/engine/emergence/tiers.js";
 
-// The engine's own append-only task log, same mount — anything built here is
-// a thread on it, with EO notation on the constitutive entries. build-log.js
-// injects it (cast.js pattern) so the mapping stays pure and node-testable.
-import * as engineTaskLog from "/engine/holon/task-log.js";
+// The task log — build-log.js, store.js and grid.js (the terminal language,
+// P22) all thread onto ONE log, with EO notation on the constitutive
+// entries. Crossed to eoreader7's native kernel in the same ratchet pass
+// (2026-08-29) that ported checkCubeProgression/isCurrentOperator into
+// kernel/task-log.js and kernel/cube.js — nativeTaskLog (imported above,
+// for hyperlexiconFor) is now the ONE task-log implementation this page
+// carries, where it used to carry two (this file's own CLAUDE.md, "The
+// terminal language" section, already named the drift class this was:
+// P22's Array.find/String.includes, P24's runtime ternary). TERRAIN_BY_DOMAIN
+// and isCurrentOperator (imported above, alongside cellOf/GRAINS) are the
+// two symbols grid.js needs from the operator algebra; both now live on
+// native's own cube.js rather than a second operators.js import.
 import { makeBuildLog } from "./build-log.js";
 // The database fold (P25): store.js's event-sourced row store, the SAME
-// engine task-log injected the SAME way buildLog is above — a database
-// fold's log is not a second kind of log, it is this module's kind, used
-// for a different domain (rows, not code revisions).
+// task log injected the SAME way buildLog is above — a database fold's log
+// is not a second kind of log, it is this module's kind, used for a
+// different domain (rows, not code revisions).
 import { makeStore } from "./store.js";
-// The engine's operator algebra, same injection pattern, for grid.js (the
-// terminal language, P22) — the nine operators and terrain grid it reuses
-// rather than re-derives.
-import * as engineOperators from "/engine/operators.js";
 
-const buildLog = makeBuildLog(engineTaskLog);
-const store = makeStore(engineTaskLog);
-const grid = makeGrid({ operators: engineOperators, taskLog: engineTaskLog });
+const buildLog = makeBuildLog(nativeTaskLog);
+const store = makeStore(nativeTaskLog);
+const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
 
 // The widget router (widget.js): does a code-bearing turn point at a build
@@ -250,13 +270,13 @@ grid.withCapacities({ findCapacity, unresolvedCapacity });
 // own words and the engine's closed classes (perceiver/text/priors.js) —
 // same injection pattern as buildLog above, so this stays node-testable
 // against the real register (widget.test.mjs).
-import * as enginePriors from "/engine/perceiver/text/priors.js";
+import * as enginePriors from "/engine-v7/adapters/text/priors.js";
 // classifyWord/dominantClass over the SAME real UD-treebank POS prior
 // hypergraph.js's own posPriorFor() already loads (posPriorCache, below) —
 // used here for exactly one question, "is this token an adposition"
 // (of/in/for/at/…), so declaredSlotShape's anchor recovery generalizes past
 // a single hardcoded preposition without a second word list.
-import { classifyWord, dominantClass } from "/engine/perceiver/text/wordclass.js";
+import { classifyWord, dominantClass } from "/engine-v7/adapters/text/wordclass.js";
 import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
@@ -381,7 +401,15 @@ const relationsFor = makeRelationReader({
   // Scoped to the extractor alone (hypergraph.js's own header says exactly
   // where) — succession.js's completeness gate, retrieval, and what the
   // model is shown all still read the real bytes.
-  blankFurniture: blankLabelRows,
+  // Declared per blankLabelRows' own contract (P4/P9 — how many
+  // consecutive short lines make a table, and how long a line can be and
+  // still be a cell, are facts about the material, never defaults). These
+  // are the numbers measured against the real fetched Hannibal Hamlin
+  // infobox this pass validated the organ against: minRun=4 is one more
+  // than the smallest real box row-count seen (label/value/label/value);
+  // maxCell=60 clears every real box cell measured and rejects an ordinary
+  // short SENTENCE, which is what the terminator check is actually for.
+  blankFurniture: (text) => blankLabelRows(text, { minRun: 4, maxCell: 60 }),
   // A pronoun subject/object resolved to its referent, per passage, before
   // extraction — resolvePronounSubjects's own header in hypergraph.js has
   // the full reasoning (READING-POLICY P7.2) and the corpus.js-sourced
@@ -442,6 +470,7 @@ const reflexMeter = makeReflexMeter({ createTierStack, foldThrough });
 const apertureMeter = makeApertureMeter({ createTierStack, foldThrough });
 
 import {
+  blankLabelRows,
   buildSourceBlock,
   checkCitations,
   chunkSource,

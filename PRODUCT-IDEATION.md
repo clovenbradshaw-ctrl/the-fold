@@ -24,10 +24,11 @@ done. Right now, "done" probably means "we built something and got tired." That'
 not the same thing, and this is how you tell the difference.
 
 **How to use this.** §3 is eighteen small tasks, in order. Do them in order and
-you've done the whole thing — you don't have to understand the theory first.
-Everything else in here is explaining *why* they're shaped the way they are, for
-whenever you want that. If you're going to read one section, read §3 and the
-one-page recap at the very end.
+you'll get a first answer — but the order isn't a straight line. Parts of it
+loop, on purpose, and more than once: §10 shows exactly where, and what each
+loop costs. Everything else in here is explaining *why* the tasks are shaped
+the way they are, for whenever you want that. If you're going to read one
+section, read §3 and the one-page recap at the very end.
 
 **One idea, followed the whole way through.** Someone building an app for
 birdwatchers gets told to *"add bird ID."* We stay with that from the very first
@@ -37,8 +38,7 @@ only works on birds.
 
 **What this isn't.** Not a scoring system. Not a prioritisation framework. Not
 software. It's a short list of questions, asked in a fixed order, with names for
-the ways you'll get stuck — something one person, or a small group, can get
-through in about ninety minutes.
+the ways you'll get stuck — and for when you'll have to ask some of them again.
 
 ---
 
@@ -116,7 +116,11 @@ that list. If you only take one idea from this document, take that one.
 Eighteen tasks in four phases. Each says what to do, how you know it's finished,
 and the trap that usually swallows it.
 
-Phase A is the one people skip, and it's the one that does the work.
+Phase A is the one people skip, and it's the one that does the work. Two of the
+phases also loop back on themselves — Phase B can send you back to fan out from
+a new source (Task 12), and Phase C can send you all the way back to redraw
+Phase A's gap (Tasks 13–14). That's not a sign something went wrong; §10 walks
+through why it happens and what each loop actually costs.
 
 ### Phase A — describe the gap (Tasks 1–7)
 
@@ -647,24 +651,61 @@ boundary excluded.
 
 ---
 
-## 10. If you've got ninety minutes
+## 10. Why you'll go around more than once
 
-| time | do this | tasks |
-|---|---|---|
-| 0:00 | Describe the gap. Say the parts you can't fill out loud. | 1–7 |
-| 0:10 | **Checkpoint.** Write the list. Tick what you cover. Read the rest out. If you can't write it, stop — that's a real result. | — |
-| 0:15 | Name the fake subject and park it. | 8 |
-| 0:20 | Silent fan-out, one source only. Nothing discussed. | 9 |
-| 0:40 | Judge one at a time against the test. Three outcomes only. | 10 |
-| 1:00 | Count the coverage. Name the hole and its size. | 11 |
-| 1:10 | Still short? Change source, or check the three signs. | 12–14 |
-| 1:20 | Write the questions that would settle it, in order. | 15 |
+Three loops, not one straight line. Each one is triggered by a different kind
+of surprise, and each one costs more than the one before it — which is exactly
+why you check the cheap one first.
 
-**The output of the session is that ordered list of questions — not a feature.**
+**Loop 1 — inside Phase B: change source, try again (Task 12).**
+Fires when: what you've fanned out so far doesn't cover the ground. Costs: one
+more silent fan-out, from the next source down the list. Nothing about the gap
+description changes — you're just drawing from a different well. Here: sound
+ID and photo ID both came from what people already told you (source 1);
+coverage was still two of six, so the room moved to source 2 — how other
+birding apps and field-guide publishers had solved this — before anyone was
+allowed to invent anything.
+
+**Loop 2 — back to Phase A: redraw the gap (Tasks 13–14).**
+Fires when: one of the three signs in Task 13 goes off — something's aimed at
+the wrong people, real answers are being rejected unread, or something
+obviously belongs and there's nowhere to put it. Costs: rewriting the ground
+itself, which reopens every proposal that was rejected only by the old
+boundary. Here: two months after sound ID shipped, the usage data came back
+wrong in an informative way — most people running it already *knew* the bird
+and were using it to confirm, not to identify. That's sign one, word for word.
+The gap wasn't "birdwatchers can't name birds" — it was narrower:
+*birdwatchers who've never seen this species before, in the field, alone.*
+Redrawn, two of the six evidence kinds from Task 4 turned out not to matter at
+that narrower moment — and a proposal parked back in Task 10, "ask the
+community," got un-rejected, because it had only failed the old, wider
+boundary.
+
+**Loop 3 — back to Task 1: the ask itself was wrong (Task 18, and beyond).**
+Fires when: the world moves, not the room. A commitment holds up fine against
+everything you tested it against, and then the ground it was standing on
+shifts anyway. Here, from Task 18: a bird's range moves, and "likely here,
+now" is quietly wrong for a whole region. This loop costs the most, because
+nobody in the room did anything wrong — the commitment simply stopped being
+true. It's why Task 18 makes you write the give-up condition *before* you need
+it: this loop doesn't announce itself as a bug. It shows up as a support
+ticket, eighteen months later, from someone standing in a marsh with a wrong
+answer on their screen.
+
+**The rule that makes this safe rather than exhausting: a loop only ever
+reopens what it actually touched.** Loop 1 never rewrites the gap. Loop 2
+rewrites the gap but keeps every proposal that already passed — Task 14 says
+so directly: *keep what already passed.* Nobody re-does Phase D because Phase
+B found one more source.
+
+**And one more thing worth knowing before you're in it:** if a fix changes an
+answer somewhere in the middle without changing what actually ships, it isn't
+a fix — it means the same mistake is sitting in more than one place, and
+you're not done looking yet.
 
 **Deciding to commit is a different meeting, on a different day, with different
-people in it.** That isn't bureaucracy: it's gate (b) of Task 17, and it's the one
-rule here that people break without noticing.
+people in it.** That isn't bureaucracy: it's gate (b) of Task 17, and it's the
+one rule here that people break without noticing.
 
 ---
 

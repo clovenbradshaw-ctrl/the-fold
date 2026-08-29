@@ -8306,3 +8306,145 @@ different one.
 standing uninitialised-`legacy-eoreader6.1` failures, zero regressions.
 the-fold suite 1039/912/125 before and after, failure names identical
 (117 of the 125 are that same submodule).
+
+## P67 — a reading is Talmud, not a cache: what the priors app may and may not do with one (2026-08-29)
+
+**live_priors' own `POLICIES.md` (LP1–LP5) is the law here; this entry is the
+pointer, and the constraint on THIS repo's code.** The corpus repo now
+carries standing policy on what a corpus owes a reading and what a reading
+owes a corpus. Two of its entries bind files in this repo directly, so they
+are restated here rather than left one repo over where a session working on
+`explore-server.mjs` would never see them.
+
+**The frame.** A reading of a source is not a summary, a cache, or a
+substitute — it is a record of an encounter with it by a named reader, and it
+relates to the source the way commentary relates to a fixed text: anchored to
+a locus, attributed to a reader, accumulating rather than overwriting. A cache
+is regenerated when the code changes; **a record is appended to.** The
+mechanism is already built — `hyperlexicon.js::hear` does PROPOSE on a first
+sighting and SUPERSEDE on a later one, and its own line 128 states the
+invariant: *"Witnesses and spans UNION, never replace."*
+
+**The rules that bind this repo** (LP4 in full):
+
+- A reading may be **offered** beside a source, typed as a reading, its
+  recipe named.
+- A reading may be used as an **index or accelerator** — to rank candidates,
+  narrow a walk, decide where to look — **provided any result reached
+  through it is re-verified against source bytes before it is asserted.** A
+  reading may decide where to look; it may never decide what is true.
+- A reading may **never be served in place of source bytes**.
+  `/api/priors/doc` (`explore-server.mjs:1354`) reads the file and serves
+  it, consulting no reading and no index. That is already correct; LP4 makes
+  it a rule rather than an accident.
+- A reading may **never gate** what the corpus offers. Whether a document is
+  listed, toggleable, attachable or consultable must not depend on whether a
+  reading of it exists or on what it found. **A document with no reading is
+  not a document with nothing in it** — this file's own constitutional
+  statement about checking organs (withhold vs. convict, the grounding-ladder
+  section) applied one level out: absence of a reading is a fact about the
+  reader, never about the document.
+
+**The measured reason the last rule is not theoretical.** Six of fourteen
+sources in `live_priors/digested/` carry little or nothing, and three of
+those are worse than empty — the "content" is English caption debris. The six
+Hebrew surfaces were `School`, `Athens`, `Raffaello`, `Internet`: an image
+caption, never the article. Hardcoded as what the app knows, that reading
+would have advertised those as the subject of a Hebrew philosophy article.
+`scriptCoverage` (eoreader7 S24) now types exactly that as a gap.
+
+**What this unblocks, named because this repo's own code names it as open.**
+`/api/priors/check`'s header (`explore-server.mjs:1408`) records the cost —
+2,047 documents, 183.4MB, a full sentence walk at ~9s per claim, so the check
+consults only a ranked candidate slice — and says a proper index is future
+work *"whose persistence and staleness story this server does not own."*
+**That blocker is staleness, and the Talmudic frame dissolves it:** a reading
+taken under an older recipe is not stale, it is older, and still a true record
+of what that reader heard. Nothing is invalidated when the organs change; a
+layer is added.
+
+**Two prerequisites, in order, before any of this is built here** (LP3, LP5):
+a reading's addresses must resolve in the source's own coordinates — measured
+today, they do not, and resolve only inside the excerpt the digest carries —
+and a reading must carry a content-addressed **recipe identity**, since the
+witness currently names what was read and never who read it. Append-only
+without attribution is strictly worse than an honest overwrite: it looks like
+an accumulating record while being an unreadable one.
+
+**Amended same day — the second prerequisite is built (2026-08-29).** See
+P68 below: `hyperlexicon.js` now has `recipeId`, a real no-op fix on `hear()`
+this recipe-identity work exposed, and a `vocabulary.candidates` disclosure
+LP2's own consumer (live_priors' corpus-wide sweep) needed to tell "genuinely
+nothing to hear" apart from "heard something, none of it cleared a floor."
+
+---
+
+## P68 — Recipe identity, a real double-counting bug it exposed, and nominated-vs-cleared
+
+LP5 (live_priors, above and its own file) named recipe identity as the
+missing primitive append-only depends on: a witness must name WHO read, not
+only WHAT was read, or two passes under different organs land as an
+unattributable pile rather than distinguishable increments on one log.
+
+**`hyperlexicon.js::recipeId(descriptor)`** — SHA-256 over a canonicalized
+JSON encoding of whatever descriptor object a caller declares (which organs
+ran, which priors were injected, which were omitted, and — as of the
+live_priors POS-gate pass this same day (its own POLICIES.md, LP6) — the
+exact git-commit state of every repo whose code shaped the reading). A
+witness is now `slug@recipeId`, never bare `slug`: two independent recipes
+that both heard the same fact land as ONE note with TWO witnesses (LP2's
+own union rule), which is cross-recipe corroboration for free, and a recipe
+change is visible in the log rather than silently indistinguishable from
+the recipe that produced the entries beside it.
+
+**A real bug, found while wiring this, not designed around in advance.**
+Re-running the SAME recipe against UNCHANGED bytes doubled the log on every
+call — `hear()` had no notion of "this witness already said this and taught
+me nothing new." Fixed: `hear()` now no-ops (returns the log unchanged) when
+a re-sighting's own witnesses and spans add nothing the prior admission did
+not already carry — checked structurally (witness count and span count both
+unchanged), never by re-deriving the resulting text and comparing it. This
+is the general form of the append-only discipline LP2 already states
+("a recipe that hears nothing appends nothing") — applied at the granularity
+of one already-admitted note re-heard, not only at the granularity of a
+whole reading.
+
+**`hypergraph.js::relationsFor`'s `vocabulary.candidates`** — found missing
+by task #9's own adversarial audit (the-fold's own CLAUDE.md, "the
+hyperlexicon, the move space, and navigation" section, and the SBLGNT
+Greek New Testament apparatus specimen it names): `vocabulary.verbs: 0`
+reads identically whether `discoverRelationVocab` genuinely found NO
+candidate (an apparatus/table/record-block shape, not prose) or found real
+candidates that simply never cleared the recurrence floor — two different
+facts about the material a caller could not tell apart from `vocabulary`
+alone. `candidates` is `discoverRelationVocab`'s own full nominated count,
+before any floor; under this repo's own default configuration
+(`MIN_SURFACES_PER_VERB=1`), `candidates === vocabulary.verbs` always,
+UNLESS a caller also supplies `posPriorFor` (below), in which case the two
+now genuinely diverge — the field was always going to matter once a real
+gate existed to make it matter, and it was added before that gate was
+wired anywhere, on the strength of the adversarial audit's own finding
+alone.
+
+**Consumed the same day by a sibling repo, not merely built and left.**
+live_priors' `eot-digest.mjs` reads `vocabulary.candidates` directly (its
+own `contentWithoutRelations` disclosure — real content found, the relation
+tier heard nothing, an honest fact distinct from "this document is empty")
+and its full corpus sweep is the first real, at-scale exercise of
+`recipeId`/`hear()`'s no-op fix across 2,208 sources, 38,032 self-verified
+spans, zero collisions or double-counted admissions. Full account,
+including the POS-gate fix this same recipe-identity work made possible to
+disclose honestly (a changed recipe's hash moves, so a reader can tell
+which sweep produced which admission): live_priors' own POLICIES.md, LP6,
+and `POS-VOCABULARY-GATE-VALIDATION.md`/`eot-sidecar-sweep-v2-RESULTS.md`
+there.
+
+**What is NOT claimed.** `hypergraph.js`'s own `posPriorFor` gate
+(`discoverRelationVocab`'s `posPrior` param, gating candidate-verb
+admission at a majority vote over the real UD_English-EWT treebank) already
+existed in this repo before this pass — nothing in `hypergraph.js` itself
+changed to make the gate WORK; what changed here is `vocabulary.candidates`
+existing to disclose the gate's effect once a caller (live_priors) actually
+wired it in. The gate's own wiring decision, its validation, and its two
+disclosed limits (English-only; bounded by the treebank's own vocabulary
+size) are entirely live_priors' own driver-side work, not this repo's.

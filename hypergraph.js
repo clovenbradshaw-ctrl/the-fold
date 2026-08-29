@@ -849,12 +849,12 @@ export function makeRelationReader(organs) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
     const emptyReport = (examined) => ({
       examined,
-      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false },
+      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false, candidates: 0 },
       edges: [],
       claims: [],
     });
     if (!list.length) {
-      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false }, edges: [], read: () => emptyReport(false) };
+      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false, candidates: 0 }, edges: [], read: () => emptyReport(false) };
     }
 
     // The closed class is measured from the POOL (the whole live corpus,
@@ -971,6 +971,16 @@ export function makeRelationReader(organs) {
     // so an edge can disclose that its verb entered the vocabulary on the
     // strength of one surface (itself a single-witness assertion).
     const verbSurfaces = new Map();
+    // How many candidates `discoverRelationVocab` NOMINATED, before any of
+    // them cleared `MIN_SURFACES_PER_VERB` — distinct from `verbs.size`,
+    // which only counts survivors. Found missing by the adversarial audit
+    // of the sblgnt (Greek New Testament apparatus) specimen: `verbs: 0`
+    // reads identically whether the candidate list was genuinely EMPTY (no
+    // token ever followed a recurring surface — an apparatus/table/record-
+    // block shape, not prose) or merely below the recurrence floor (real
+    // candidates, just each seen once) — two different facts about the
+    // material a caller could not tell apart from `vocabulary` alone.
+    let candidateCount = 0;
     if (surfaces.length) {
       try {
         const discovered = discoverRelationVocab(text, {
@@ -981,12 +991,14 @@ export function makeRelationReader(organs) {
           ...(posPrior ? { posPrior, grammarMinShare: GRAMMAR_MIN_SHARE } : {}),
         });
         verbs = discovered.verbs;
+        candidateCount = discovered.candidates?.length ?? 0;
         for (const c of discovered.candidates ?? []) {
           verbSurfaces.set(c.verb, c.surfaces);
           if (posPrior && c.grammar) vocabGrammar.set(c.verb, c.grammar);
         }
       } catch {
         verbs = new Set();
+        candidateCount = 0;
       }
     }
 
@@ -1848,7 +1860,7 @@ export function makeRelationReader(organs) {
 
     return {
       examined: true,
-      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior) },
+      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior), candidates: candidateCount },
       edges: edges.map(edgeFace),
       read,
       queryReferents,

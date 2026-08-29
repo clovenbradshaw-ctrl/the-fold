@@ -92,7 +92,9 @@ birdwatcher has, and we address two" can be counted — and that single change i
 what lets you say *what's missing*, *how much is missing*, and *when you'd be
 done*.
 
-Everything in §3 is in service of getting to a sentence of that shape.
+In practice that means one thing: **you can write the parts down as a list, and
+point at the ones nothing covers.** Everything in Phase A exists to get you to
+that list. If you only take one idea from this document, take that one.
 
 ---
 
@@ -133,7 +135,8 @@ Phase A is the one people skip, and it's the one that does the work.
 > What has to be covered, and in what countable pieces? Here: *the kinds of
 > evidence a birdwatcher actually has* — and the units are **evidence kinds**, of
 > which there are six.
-> **Done when:** you can count the pieces and say the number out loud.
+> **Done when:** you can write the pieces out as a list — an actual list, with
+> lines on it. If you can't, the units are wrong.
 > **Trap:** units you can't count — "a better experience", "user delight". If you
 > can't count it, nothing can ever be missing from it, so nothing can ever be
 > finished.
@@ -166,19 +169,69 @@ Phase A is the one people skip, and it's the one that does the work.
 > can't write this line, don't start — a plan with no way to be wrong will
 > survive any evidence at all.
 
-**Checkpoint.** Before going further, say this sentence out loud: *"We're covering
-___ of ___, and what's uncovered is ___."*
+### Checkpoint — write the list, and read out what isn't ticked
 
-If you can't, **stop here**. A better description of the gap is a genuinely good
-outcome for a session, and much better than a decision made on top of a bad one.
+You now have everything you need to do the one thing this whole method is for.
 
-Three things make this sentence impossible, and each has an obvious fix:
+**Write the parts down as a list. Tick the ones you already cover. Read the
+unticked ones out loud.**
 
-| what's missing | how you know | what to do |
-|---|---|---|
-| **the moment** (Task 2) | "we're doing something about identification" — that's a topic, not a moment | Half the room is talking about the logging screen. Get to one person, one occasion. |
-| **the ground** (Task 4) | nobody can say how much there is | Nothing can be short, so nothing can be enough. Find the countable unit. |
-| **the kill line** (Task 7) | nobody can say what would make you stop | You'll be able to justify anything, forever. |
+```
+what a birdwatcher has, when they can't name the bird
+
+  ✓  what they saw          → photo ID
+  ✓  what they heard        → sound ID
+  ☐  where they were
+  ☐  what time of year
+  ☐  what the bird was doing
+  ☐  how long they had
+```
+
+That's it. That's the checkpoint. Four unticked boxes, each with a name — and
+suddenly the photo-versus-sound argument from §1 looks like what it was: two
+people arguing about which box to tick first, in a room where nobody had written
+the list.
+
+**The list is the finding.** Not a score, not a percentage. If someone needs a
+number you can say "two of six", but the number is the boring part. The useful
+part is that *where they were* and *what the bird was doing* are now written down
+as things, sitting there, waiting for someone to pick them up.
+
+**And it's the test of whether you actually did Task 4.** If you can't write this
+list, you don't have a gap yet — you have a topic. That's not a failure of the
+session; it's the session's result, and it's a much better place to stop than one
+step further on, having chosen something.
+
+The same list in a completely different situation, so the shape is visible:
+
+```
+what we need to know about a candidate, before we can decide
+
+  ✓  can they do the technical work    → the exercise
+  ✓  have they done it at this scale   → the résumé conversation
+  ✓  will they work well with the team → the panel
+  ☐  how do they handle disagreement
+  ☐  can they explain their work to someone outside the team
+```
+
+Two unticked, both named, both obviously addressable — and neither of them was
+going to come up on its own, because the three ticked ones already felt like a
+thorough process.
+
+**Two things people reasonably ask here.**
+
+*"The boxes aren't equally important."* Correct, and the list isn't claiming they
+are. It's an inventory, not a ranking. Which unticked box is worth doing is a
+judgement you still have to make — see §11. What the list prevents is making that
+judgement without ever having seen the options.
+
+*"Our thing doesn't come apart into a list."* It usually does, once you stop
+looking for the parts in the *solution* and look for them in the *situation*. Not
+"how many features" — how many **kinds of moment**, **kinds of evidence**,
+**steps in the process**, **reasons people give**, **stages of the journey**. If
+you genuinely can't find the parts, that is the finding: you don't yet know what
+you're looking at, which is worth far more than a plan built on top of not
+knowing.
 
 ### Phase B — fill it (Tasks 8–12)
 
@@ -223,9 +276,9 @@ Three things make this sentence impossible, and each has an obvious fix:
 > **Task 11 — Mark the coverage and name the hole.**
 > Put what passed onto the ground from Task 4. Count it. Then **name what's left
 > over, with its size**.
-> **Done when:** you have the Checkpoint sentence, filled in — here: *"four of six
-> evidence kinds; what's uncovered is what the bird was doing, and how long they
-> had."*
+> **Done when:** the list from the Checkpoint is ticked, and you can read the
+> unticked lines out loud — here: *what the bird was doing*, and *how long they
+> had*.
 > **Trap:** writing "gaps remain". A hole with a name and a size is a piece of
 > work. "Gaps remain" is a shrug.
 
@@ -453,9 +506,10 @@ The ground: six kinds of evidence. Pieces stack. The test: *narrows down what th
 bird could be, using evidence the person actually has* — and works with no signal.
 The kill line: strip the location and date, and see if the answers change.
 
-**Checkpoint.** *"We cover two of six — photo and sound — and the four uncovered
-are where, when, what it was doing, and how long they had."* First time anyone in
-the room has been able to say that.
+**Checkpoint.** The list goes on the wall: six lines, two ticked, four not — and
+the four unticked ones get read out. *Where they were. What time of year. What the
+bird was doing. How long they had.* First time anyone in the room has seen them
+written down as things.
 
 **Task 8.** "The ID engine" named and parked, in writing.
 
@@ -549,7 +603,7 @@ boundary excluded.
 | time | do this | tasks |
 |---|---|---|
 | 0:00 | Describe the gap. Say the parts you can't fill out loud. | 1–7 |
-| 0:10 | **Checkpoint.** Can you say the sentence? If not, stop — a better description is a real result. | — |
+| 0:10 | **Checkpoint.** Write the list. Tick what you cover. Read the rest out. If you can't write it, stop — that's a real result. | — |
 | 0:15 | Name the fake subject and park it. | 8 |
 | 0:20 | Silent fan-out, one source only. Nothing discussed. | 9 |
 | 0:40 | Judge one at a time against the test. Three outcomes only. | 10 |
@@ -585,8 +639,9 @@ rule here that people break without noticing.
 person, one occasion) · what's out · the ground *and its countable units* · how
 pieces fit · the test, written before anyone has a favourite · and the kill line.
 
-**The sentence you're aiming for:** *"We cover ___ of ___, and what's uncovered is
-___."* If you can't say it, that's the session's finding.
+**What you're aiming for:** a list of the parts, ticked where you cover them —
+and you can read the unticked ones out loud, by name. If you can't write the list,
+that's the session's finding.
 
 **Fill it (8–12).** Park the fake subject. Fan out in silence from what people
 already told you. Judge one at a time against the test. Count. Change source only

@@ -136,6 +136,17 @@ birdwatcher has, and we address two" can be counted — and that single change i
 what lets you say *what's missing*, *how much is missing*, and *when you'd be
 done*.
 
+**This isn't a request to do arithmetic.** Counting to "two of six" is trivial
+— anyone can do it once the six things exist. The actual work is finding the
+six things in the first place: noticing that "can't name a bird" isn't one
+thing, it's several distinct things bundled together, and being able to name
+each one on its own. Counting is just what it looks like from the outside when
+that work has actually been done. Try counting the parts of "bird ID is weak"
+and there's nothing there — not because the arithmetic is hard, but because it
+was never broken into pieces to begin with. **That's the tell**, and it's the
+whole reason "must be counted" is the test: not to make you do math, but to
+catch you before you mistake a feeling for a description.
+
 In practice that means one thing: **you can write the parts down as a list, and
 point at the ones nothing covers.** Everything in Phase A exists to get you to
 that list. If you only take one idea from this document, take that one.

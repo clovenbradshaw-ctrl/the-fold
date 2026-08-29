@@ -772,6 +772,27 @@ export function makeRelationReader(organs) {
     thirdPersonSingular = null,
     determiners = null,
     negationWords: negationClass = null,
+    // `organs.phrasalPredicates`/`organs.nounPhraseSubjects` — OPTIONAL
+    // booleans, live_priors' own DR4/DR5 (goldens/reading/DERIVED-RULES.md):
+    // the native relations.js organs (eoreader7) now accept these flags
+    // directly and carry their OWN received defaults (AUXILIARY_VERBS /
+    // DEFINITE_DETERMINERS / INDEFINITE_DETERMINERS / POSSESSIVE_DETERMINERS
+    // / NP_COORDINATORS, priors.js, giver lang/en) — this file passes the two
+    // booleans through and injects nothing else, so a caller wanting a
+    // different vocabulary supplies it straight to `discoverRelationVocab`/
+    // `extractRelations` itself rather than through a third parameter here.
+    // Both default false: omitted, every existing caller sees byte-identical
+    // extraction (an aux-swallowed verb, a bare 1-2 token subject) — the same
+    // backward-compatible posture `verbForms`/`createLemmatizer` above hold.
+    // Disclosed scope: threaded only into the MATERIAL-side extraction below
+    // (the primary edge loop and its order-arm null test) — `read(answer)`'s
+    // own `discoverRelationVocab`/`extractRelations` calls, which check a
+    // model's drafted answer against these same edges, are NOT touched this
+    // pass. Widening only one side risks a subject-shape mismatch between an
+    // edge and the answer's own claim about it; unattempted, named rather
+    // than silently assumed symmetric.
+    phrasalPredicates = false,
+    nounPhraseSubjects = false,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -992,6 +1013,7 @@ export function makeRelationReader(organs) {
           minSurfaces: MIN_SURFACES_PER_VERB,
           negationWords,
           ...(posPrior ? { posPrior, grammarMinShare: GRAMMAR_MIN_SHARE } : {}),
+          ...(phrasalPredicates ? { phrasalPredicates } : {}),
         });
         verbs = discovered.verbs;
         candidateCount = discovered.candidates?.length ?? 0;
@@ -1305,7 +1327,15 @@ export function makeRelationReader(organs) {
         const sentence = readSentences[si];
         let triples = [];
         try {
-          triples = verbs.size ? extractRelations(sentence.text, { verbs, functionWords, negationWords }) : [];
+          triples = verbs.size
+            ? extractRelations(sentence.text, {
+                verbs,
+                functionWords,
+                negationWords,
+                ...(phrasalPredicates ? { phrasalPredicates } : {}),
+                ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+              })
+            : [];
         } catch {
           triples = [];
         }
@@ -1399,7 +1429,14 @@ export function makeRelationReader(organs) {
       const arm = orderArm({
         passages: extractionList,
         splitSentences,
-        extract: (t) => extractRelations(t, { verbs, functionWords, negationWords }),
+        extract: (t) =>
+          extractRelations(t, {
+            verbs,
+            functionWords,
+            negationWords,
+            ...(phrasalPredicates ? { phrasalPredicates } : {}),
+            ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+          }),
         draws: assert.draws,
         seed: assert.seed ?? 0,
       });

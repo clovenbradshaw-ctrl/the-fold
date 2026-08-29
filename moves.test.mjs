@@ -59,13 +59,18 @@ test("THE SPECIMEN: the list failed at a cell this instrument has never occupied
   assert.equal(link.terrain, "Link");
   assert.deepEqual(link.organs, ["relations"]);
 
+  // The cell WAS empty when the specimen was measured — that emptiness, its
+  // stated-before-the-file prediction, and the zero-edges confirmation are
+  // the historical record this file's own header keeps. P58 then built
+  // network.js in answer, and P64's connection pass registered it, so the
+  // live registry now shows the cell CLOSED — which is this test's current
+  // truth, asserted without erasing how the cell earned its organ.
   const network = c.moves.find((m) => m.cell === "CON·Pattern");
   assert.equal(network.terrain, "Network");
-  assert.deepEqual(network.organs, [], "binding at Pattern grain has no organ");
+  assert.deepEqual(network.organs, ["network"], "the cell the specimen exposed is now occupied by the organ built for it (P58, registered P64)");
 
-  // And the gap is a LEAD, not a shrug: the same act is already performed one
-  // grain finer. That is the signature of a grain mismatch — which predicts a
-  // floor at zero, not a degradation, and zero is what was measured.
+  // The lead-grading machinery still reads: the same act one grain finer
+  // remains covered (CON·Ground stays empty, so it is not listed).
   const n = moves.neighbours("CON·Pattern", c.covered);
   assert.deepEqual(n.sameActOtherGrain, ["CON·Figure"]);
 });
@@ -73,9 +78,13 @@ test("THE SPECIMEN: the list failed at a cell this instrument has never occupied
 test("coverage is honest about how much of the space is empty", () => {
   const c = moves.coverage(CAPACITIES);
   assert.equal(c.covered.length + c.empty.length, 27);
-  // Stated rather than implied: this instrument occupies nine of twenty-seven
-  // moves. A reading that misses something is far more often an unoccupied
-  // cell than a misconfigured organ, and that ratio is why.
-  assert.equal(c.covered.length, 9);
-  assert.equal(c.empty.length, 18);
+  // Nine of twenty-seven when this test was first written; nineteen after
+  // P64's connection pass paid the registry debt (ten organs that already
+  // existed, registered at their own documented cells). The original ratio's
+  // lesson stands — a reading that misses something is far more often an
+  // unoccupied cell than a misconfigured organ — and more than half of the
+  // "unoccupied" turned out to be unregistered, which is P64's own law: an
+  // empty cell is a lead, never a verdict.
+  assert.equal(c.covered.length, 19);
+  assert.equal(c.empty.length, 8);
 });

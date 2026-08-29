@@ -7889,3 +7889,97 @@ committed JSON — a stated absence, never a silent one.
 P19/P27's own posture) + `eval/results/kinship-reasoning.json` (committed)
 + `eval/results/kinship-reasoning-RESULTS.md` (the full account). No
 existing file touched.
+
+## P64 — an empty cell is a lead: the connection pass, and the three policy reassemblies it verified
+
+**User direction, in sequence (2026-08-29):** *"do we have a 'reasoning'
+policy doc like our reading policy?"* → *"write the reasoning policy,
+learn everything from all our attempts. and when done, do a 'generation
+policy'"* → *"think about if we need a policy doc for all 9 stances...
+what the system is ever capable of"* → *"I suspect that we should have
+organs that can do all 9 stances, and that we can use the cube to
+identify where we are missing capabilities"* → *"connect all that already
+exist and make a plan to develop the other capacities."*
+
+### The three reassemblies
+
+`REASONING-POLICIES.md` (19 laws + refuted moves), `GENERATION-POLICIES.md`
+(15 laws + refuted moves, model-agnostic with its scope claim stated
+per-model rather than overclaimed), `CAPABILITY-POLICIES.md` (the 27-cell
+map, its three 9-way faces, and its walls) — each CHAT-POLICIES.md's
+discipline applied to a new slice: summarize and point, never re-derive;
+standing documents, amendments append; POLICIES.md wins on conflict, the
+eval results docs win on numbers. Every Part-I reasoning number was
+re-verified by re-running its offline driver before first commit.
+
+**The verification was real, not ceremonial.** An adversarial workflow
+(three independent checkers — 119 specific figures located in their
+sources — plus a completeness critic) ran against the committed drafts
+and returned 15 corrections (4 wrong, 11 overstated) and six missing
+laws, all folded in the same day: among them, `deriveOp` misattributed to
+widget.js (it is build-log.js:152); a crown.js/wikidata.js sentence swap;
+R4 erasing P60's real no-chemistry control arm (what was missing was the
+DUMB-BASELINE arm — a distinction R4 itself exists to enforce); R12's
+convergence band corrected to the source table's own 17–43%-on-examined;
+and the critic's three homeless laws now seated — "a wall nothing can
+trigger is a comment, not a wall" (four independent measurements, the
+most-measured law in the corpus with no entry), ask-twice-derive-the-
+verdict at temperature 0, and "a reading failure wears the model's face."
+
+### The coverage driver, and what it measured
+
+`eval/capability-coverage.mjs` (new, offline): the REAL `moves.js`
+coverage off the REAL native cube, geometry asserted mechanically first
+(seven checks — operator IS (mode,domain), so the space is 27 = three
+free axes with three 9-way projections, stance = (mode,grain) among
+them). As found: **9/27 registered, one FULL stance (Binding), SEG and
+REC at zero coverage** — and the zeros were false as capability claims:
+nine real, tested, running organs existed unregistered.
+
+### The connection
+
+Ten rows joined `capacities.js`, every one a verified export and
+mechanically domain-legal, each `what` naming whether its cell is
+DOCUMENTED in the organ's own code/header (`network` — CON·Pattern, the
+cell P58 built it for after the emptiness was confirmed; `patch`,
+`extent`, `rezero`, `reshape`, `hear`, `declare`, `standing`) or REASONED
+per the registry's own original hand-check discipline (`compile`,
+`regime`). After: **19/27, no operator at zero, three FULL stances
+(Binding, Making, Composing), no empty stance** — marginals moved from
+Figure 5 / Ground 2 / Pattern 2 to Figure 8 / Pattern 6 / Ground 5.
+
+### The law this pass earned
+
+**An empty cell is a lead, never a verdict — and the holes come in three
+kinds that share one count**: registry debt (an organ exists, nothing
+declared its cell — 10 of the 18 "empty" cells, more than half),
+real incapacity (convictable only via a stated-then-confirmed falsifiable
+prediction — CON·Pattern's zero-edges page remains the only cell that
+ever earned it, and the organ built in answer now fills it), and probe
+error reported as incapacity (P44's four wrong probe versions; "a
+statement about a path" reported as a statement about the system). The
+constitutional line — withhold or convict, never manufacture conviction
+from absence — applied to the capability map itself.
+
+### The plan
+
+`CAPACITY-DEVELOPMENT-PLAN.md` (repo root): per-cell plans for the eight
+still empty. Tier 1 (candidates in this repo with measured specimens):
+NUL·Figure is P22's own named clearance-test integration and the last
+Dissecting cell; SIG·Ground has two live candidates (`searchedVoid`,
+`whatWouldSettle`); SIG·Pattern + NUL·Pattern are the kinds
+induce/null-arm pair, gated on one legacy-engine-path decision. Tier 2
+(design work before nomination is honest): CON·Ground and INS·Ground
+gated on the fold-architecture session's boundary; DEF·Ground lacking
+even a workable specimen; SEG·Pattern the one genuine no-candidate
+frontier (network decomposition), with its specimen named (a two-topic
+document's belief graph separating at the boundary the atmosphere read
+already finds in the stream).
+
+**Files.** `capacities.js` (10 rows + the connection-pass header note);
+`eval/capability-coverage.mjs` (debt ledger with per-organ `paid` flags,
+the three-hole rule, CON·Pattern's closure recorded on its historical
+conviction); `REASONING-POLICIES.md` / `GENERATION-POLICIES.md` /
+`CAPABILITY-POLICIES.md` (all corrections + amendments);
+`CAPACITY-DEVELOPMENT-PLAN.md` (new). Suite: unchanged failure set,
+confirmed by name.

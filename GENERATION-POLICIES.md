@@ -10,12 +10,14 @@ a source disagree, the source is the law.
 
 **The scope claim, stated up front with its evidence.** These laws are
 written to be model-agnostic: none of them names a property of a specific
-model, and the incidents that earned them reproduce across every
-generator this project has driven — gemma2:2b, qwen2.5:14b, and
-Qwen2.5-0.5B-Instruct span a ~30× parameter range and produced the SAME
-failure shapes (address-dropping under instruction, task-description
-echo, apparatus-vocabulary leakage, set-dropping, fabricated reasoning
-around a correct verdict). L5's founding measurement is exactly this:
+model. The generators this project has driven — gemma2:2b, qwen2.5:14b,
+and Qwen2.5-0.5B-Instruct — span a ~30× parameter range, and each of the
+founding failure shapes was measured on at least one of them
+(address-dropping on two models four sizes apart; task-description echo,
+apparatus-vocabulary leakage and set-dropping on gemma2:2b; a wrong
+product from qwen2.5:14b's own arithmetic; fabricated reasoning around a
+correct verdict on Qwen2.5-0.5B) — measured per-model, not reproduced
+across the whole range for every shape. L5's founding measurement is exactly this:
 "two models four times apart in size ignored it on tabular material, zero
 addresses across six turns." The honest limit: everything here was
 measured on text LLMs. The laws are stated so they would apply to any
@@ -24,7 +26,11 @@ property they use), but no non-text generator has been measured — that
 generalization is design intent, not evidence.
 
 **This is a standing document — read before building a generation path,
-appended to after.** Amendments append; they do not rewrite.
+appended to after.** Amendments append; they do not rewrite. An
+adversarial verification pass (23 figures located in sources) plus a
+completeness critic ran the day this file was written; their corrections
+— two source misattributions, four overstatements, three missing laws
+(G6's voidLine specimen, G7b, G14) — are folded in.
 
 ---
 
@@ -57,11 +63,13 @@ descent a typed entry. The same shape at every scale:
   captioned "computed, not generated".
 - **The crown render** (`crown.js`): template-only, and its header states
   the reason as the general law — *"there is no free-text generation step
-  for a wrong word to come FROM."* Every word is a label read verbatim
-  from the giver, a date from a qualifier, the question's own terms, or a
-  member of a closed connective set.
+  for a wrong word to come FROM."* Every word is a claim's own
+  subject/verb/object word read off the reading's `edges`, a witness name
+  printed verbatim, or a member of a closed connective set.
 - **The mechanical answer path** (`wikidata.js::renderHolders`): same, one
-  register up, with the refusal that makes it safe — see G13.
+  register up — every word a label read verbatim from the giver, a date
+  from a qualifier, the question's own terms, or a closed connective —
+  with the refusal that makes it safe: see G13.
 
 ### G3. A directive about the task produces a description of the task — fix the framing, never the wording
 
@@ -92,10 +100,13 @@ remove FIRST, or every arm measures the ceremony.
 ### G4. Apparatus vocabulary is not generator-facing — the firewall is mechanical, not disciplinary
 
 P55. The live app answered "The prompt specifically identifies Hannibal
-Hamlin…" because the system prompt contained the literal phrase "the
-prompt" twice, named "the passages" three times — twice while INSTRUCTING
-the model not to mention them — and carried engineering commentary ("7 of
-97 sentence(s) with an extractable relation…") into a 2B model's context.
+Hamlin…" because `EXECUTE_SYSTEM_PROMPT` contained the literal phrase
+"the prompt" twice, `FLAT_EXECUTE_SYSTEM_PROMPT` named "the passages"
+three times — twice while INSTRUCTING the model not to mention them —
+`CHAT_SYSTEM_PROMPT` reported a retrieval outcome to the model ("matched
+no document to cite"), and `buildFactBlock` carried engineering
+commentary ("7 of 97 sentence(s) with an extractable relation…") into a
+2B model's context.
 Telling a generator not to mention X while naming X three times is G1's
 failure in its purest form. The mechanical fix is to not have the
 vocabulary in the room: counts, coverage, retrieval outcomes, the names
@@ -132,6 +143,13 @@ Three measurements, one direction:
   members of the set. *Handing a small model a set it must not drop from
   does not stop it dropping from the set.* The fix was rendering the set
   mechanically (G2), not a fourth prompt.
+- The strongest specimen — an addition measured to make the answer WORSE
+  (P54): feeding `voidLine` to the model, the thing its own docstring
+  says it exists for, was measured and refused. The void's filler side
+  was blind, so its line ended "Do not fill this gap from memory — say it
+  is open," which would have suppressed the one true filler the model
+  does read. *A void whose filler side is blind turns an incomplete
+  answer into a refusal* — the addition inverts the answer.
 - The vestigial "cite the address in square brackets" clause (P23's
   amendment): addresses had left the model's view, so the surviving
   instruction was a fabrication order — and "[4]" was the model obeying
@@ -140,9 +158,10 @@ Three measurements, one direction:
 
 ### G7. Read the generator's output mechanically; never trust its self-labels
 
-- `widget.js::deriveOp`: the operator typing of a patch is derived OFF THE
-  BYTES, never off the model's label — measured, both small models say
-  "INS" while supplying a replacement.
+- `build-log.js::deriveOp`: the operator typing of a patch is derived OFF
+  THE BYTES, never off the model's label — measured, both small models
+  (gemma2:2b, qwen2.5-coder:1.5b) say "INS" while supplying a
+  replacement.
 - Grammar-held output: `PATCH_SCHEMA` / `SKILL_SCHEMA` — shape enforced by
   decoding grammar, never by instruction; extraction by `extractObject` /
   `pickRevisionSegment`, which tolerates a dropped language tag because
@@ -152,11 +171,28 @@ Three measurements, one direction:
   diverge.
 - The forgeable caption (P51): `arithmeticTurn` pushed its full "computed,
   not generated" caption into `state.history`, which is replayed to the
-  model verbatim as its own past turns — one conversation later the house
-  mark for "code produced this" was free for the model to imitate on
-  prose it generated itself. A mechanical certification that enters the
-  generator's context becomes a generatable string; strip apparatus marks
-  from replayed history (`stripComputedCaption`).
+  model verbatim as its own past turns — a later turn of the same
+  conversation then carried the house mark for "code produced this" on
+  prose the model generated itself (the caption copied verbatim from an
+  earlier turn's own history entry). A mechanical certification that
+  enters the generator's context becomes a generatable string; strip
+  apparatus marks from replayed history (`stripComputedCaption`).
+
+### G7b. When a verdict is needed anyway: ask twice as binary reads, derive the verdict mechanically, at temperature zero
+
+G7 says never read the model's label; this law says how to get a verdict
+out of a generator regardless. P32's founding measurement: three-way
+classification drew the right `because` under the WRONG label from
+gemma2:2b — the small model can read, not label. So the witness tier asks
+a binary question TWICE — the claim, then its sibling-swapped twin — and
+`testimony.js::foldTestimony` DERIVES the verdict mechanically from the
+pair; the model is never asked to classify. P36's squaring is the same
+shape aimed at polarity (a claim and its negation read independently; the
+SAME verdict on both readings is itself the tell that negation detection
+silently failed). And the determinism requirement that makes a mechanical
+read of a generator meaningful at all, found live: with no fixed
+temperature the identical prompt flipped its own answer between runs —
+witness reads pass `temperature: 0` (P32's amendment).
 
 ### G8. Check before generation where material exists; only after where it does not
 
@@ -186,17 +222,22 @@ generator was GIVEN, not only what the material says.
 
 ### G10. Joins between context assemblies are earned by measurement, never assumed
 
-P23's 2026-08-19 amendment. The unconditional discourse fold-in fixed the
-topic-less follow-up and broke every self-contained question after a
-topic change ("research Robert Macnamera" after a greeting fetched a
-greeting-etiquette page). The assemblies (question, conversation,
-material) are typed and joined only on measurement: retrieve on the
-part's own words first, widen with discourse only on zero passages;
-preflight joins only on an anaphoric task or one with no content words.
+P23's 2026-08-19 amendment — corrected and actually landed by P28, which
+opens by retracting the amendment's own claim ("the write-up described
+the right design; the code did not yet do it": `preflightQuery` was still
+unconditionally concatenating task and discourse). The unconditional
+discourse fold-in fixed the topic-less follow-up and broke every
+self-contained question after a topic change ("research Robert Macnamera"
+after a greeting fetched a greeting-etiquette page). The assemblies
+(question, conversation, material) are typed and joined only on
+measurement: retrieve on the part's own words first, widen with discourse
+only on zero passages; preflight joins only on an anaphoric task or one
+with no content words.
 Its sibling for snippet assembly (P38): N separate per-result chunks
 racing for retrieval slots is a coin flip on which FACTS survive —
-measured live when a real draw lost the only snippets naming both
-answers; fold the snippets into ONE chunk.
+measured live when a real draw won two Hamlin-only snippets and a
+Johnson-only one over three snippets that each independently stated both
+names; fold the snippets into ONE chunk.
 
 ### G11. When the generator cannot be trusted to self-correct, correct mechanically — and budget the loop
 
@@ -237,6 +278,18 @@ now compute; the fourth still refuses, on its own narrower reason). The
 mechanical render, the loop, and the fast path all share one posture:
 fall through to the honest slower path, never ship the confident partial.
 
+### G14. A reading failure wears the model's face — confirm the pipeline before blaming the generator
+
+P50's diagnostic law, measured at real cost: a question with two right
+answers returned one FOR A WHOLE DAY while the generator was everyone's
+first suspect; the actual defect was three uncoordinated punctuation
+walls in the extraction pipeline (a parenthetical aside hiding the
+subject at three independent sites). Before blaming the model, the
+prompt, retrieval, or the logic: take one sentence that states the answer
+plainly and confirm the pipeline can extract it. Without this law, a
+reader of this document would run G5's prompt-measurement ladder against
+a pipeline bug.
+
 ---
 
 ## Refuted moves, kept refuted
@@ -253,7 +306,7 @@ fall through to the honest slower path, never ship the confident partial.
 - **Trusting the generator's own operator/type labels** — measured wrong
   on both small models (G7).
 - **Letting mechanical certifications ride replayed history** — forgeable
-  one conversation later (G7/P51).
+  a few turns later in the same conversation (G7/P51).
 - **Instructing the model not to mention what the prompt names** — P55;
   the vocabulary leaves the room instead.
 

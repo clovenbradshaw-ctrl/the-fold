@@ -107,14 +107,30 @@ incapacity would have been false.
 reading the only way it can be earned: a FALSIFIABLE PREDICTION derived
 from the emptiness, stated before the enumeration was written, confirmed
 on real material — a Figure-grain reader on Pattern-grain material
-returns ZERO edges, not few, and it did (P58; the same floor nine
-vocabulary configurations had failed to move, `REASONING-POLICIES.md`
-R12/R13).
+returns ZERO edges, not few, and it did (P58; the same KIND of ceiling no
+vocabulary work touches that `REASONING-POLICIES.md` R12 measured on
+different material — analogy, not identity: the MINE-1 configurations
+never ran against the list page). That reading was earned BEFORE
+`network.js` was built; P58's same pass then occupied the cell
+(`network.js`, tested), so CON·Pattern today is registry debt like SEG
+and REC — the confirmed prediction is the historical proof that the
+strong reading is earnable, not a current claim of emptiness.
 
-The rule, this repo's constitutional line pointed at its own map: **the
-map may report "no organ is registered here" (withhold); it may report
-"this instrument cannot do this" (convict) only where a falsifiable
-prediction derived from the emptiness has been stated and confirmed.**
+**Probe error, the third kind of hole.** P44's battery went through FOUR
+wrong versions of one item, each asking a question a lower-purpose organ
+could not answer and scoring the reading for the probe's own error — and
+its own path-resolution rule exists because "a hardcoded path would
+report 'organ unreachable' as a statement about the system when it is a
+statement about a path." A hole in the map can be the harness's, not the
+instrument's, and nothing in the count distinguishes it.
+
+The rule, this repo's constitutional line pointed at its own map: **three
+kinds of hole share the count — registry debt, real incapacity, and probe
+error reported as incapacity. The map may report "no organ is registered
+here" (withhold); it may report "this instrument cannot do this"
+(convict) only where a falsifiable prediction derived from the emptiness
+has been stated and confirmed — and never before the probe itself has
+been checked.**
 Everything else an empty cell says is a lead — and `moves.js::neighbours`
 grades the leads: an empty cell whose SAME OPERATOR is occupied at a
 neighbouring grain (the same act, never performed at that resolution) is
@@ -127,16 +143,18 @@ In order of cost-to-close, from the driver's own tables:
 
 1. **Pay the registry debt** — nine rows in `capacities.js`, zero new
    code, 9/27 → 13/27, and the map stops lying about SEG and REC.
-2. **The three empty stances are the real frontier**, and after the debt
-   they are still empty: **Unraveling** (Differentiate·Pattern — taking a
-   pattern apart: no organ decomposes a Kind, unpicks a Network, or
-   dissects a Paradigm), **Tracing** (Relate·Pattern — following a
-   pattern: SIG·Pattern, CON·Pattern, EVA·Pattern), and **Cultivating**
-   (Generate·Ground — preparing a ground: INS·Ground, SYN·Ground,
-   REC·Ground). Each is a KIND of act currently performable nowhere.
-   CON·Pattern already has its specimen, its confirmed prediction, and a
-   named consumer (`network.js` occupies the cell per P58 but is not yet
-   in the registry with a runnable capacity — reconcile that first).
+2. **The unregistered-in-any-domain stances were the frontier this
+   section first named** — Unraveling (Differentiate·Pattern), Tracing
+   (Relate·Pattern), Cultivating (Generate·Ground) — with C4's own rule
+   applied to the naming: each was a kind of act with no organ
+   REGISTERED, and (except for the SEG cells and CON·Pattern) no organ
+   hunt had yet been run for its cells, so each was a lead, not a
+   verdict. The amendment below records what the hunt then found:
+   CON·Pattern was `network.js` (P58, tested, unregistered), and the same
+   sweep surfaced registrable organs for DEF·Pattern, EVA·Pattern,
+   SYN·Ground and REC·Ground — so of the nine "empty-stance" cells, five
+   were registry debt and four (NUL·Pattern, SEG·Pattern, SIG·Pattern,
+   INS·Ground) remain leads for the development plan.
 3. Every claimed closure lands with a falsifiable specimen, the way
    CON·Pattern's emptiness was confirmed — a cell filled by a row with no
    organ behind it is worse than an honest hole (a check that did not run
@@ -164,10 +182,12 @@ task/performance separation kept:
   symbols and has no sensor. That is the honest floor of any capability
   claim it ever makes.
 - **The scale held**: zero orders changed their order-hood with the
-  content; the one cross-material difference (order 7) is a PERFORMANCE
-  difference, which is what a stage measurement is for — the corrected
-  three-way reading (violation / performance / no-probe) is itself one of
-  P44's earned findings.
+  content. Two orders differ across materials, kept apart: order 7 is the
+  one PERFORMANCE difference (a well-formed task, completed on one
+  material and not the other — what a stage measurement is for), and
+  order 10's difference is a MISSING PROBE, a fact about the material.
+  The three-way reading (violation / performance / no-probe) is itself
+  one of P44's earned findings.
 
 So a full capability statement is a pair: *which cells have organs*
 (this map) × *what order those organs complete on given material* (the
@@ -212,10 +232,55 @@ holding under load, reported as exactly that.
 
 ## Open, named, unbuilt
 
-- The nine registry-debt rows (C5.1) — cheap, unblocked.
-- `network.js` ↔ registry reconciliation for CON·Pattern (C5.2).
-- Organs for Unraveling, Tracing (beyond CON·Pattern), and Cultivating —
-  each earns its cell with a specimen, per C5.3.
+- ~~The nine registry-debt rows (C5.1)~~ — PAID, see the amendment below.
+- ~~`network.js` ↔ registry reconciliation for CON·Pattern (C5.2)~~ —
+  DONE, same amendment.
+- Organs for the eight still-empty cells — `CAPACITY-DEVELOPMENT-PLAN.md`
+  (repo root) is the per-cell plan, each earning its cell with a
+  specimen, per C5.3.
 - A per-cell MHC probe (C6 pairs the axes globally; pairing them per
   cell — "what order does the Binding organ complete at Entity vs Lens" —
   is real, scoped, unattempted).
+
+---
+
+## Amended 2026-08-29, same day — the verification pass, and the connection
+
+**The adversarial pass this document's first commit declared pending
+ran** (three independent checkers, 119 figures located in sources, plus a
+completeness critic) and its corrections are folded in above: CON·Pattern
+re-read as closed-then-unregistered rather than currently empty (C4);
+C5.2's "performable nowhere" softened to the lead language C4's own rule
+requires; C6's two cross-material differences kept apart (performance vs
+no-probe); the R12 pointer corrected from identity to analogy; and the
+critic's third hole kind (probe error) added to C4's rule.
+
+**The connection (P64): the registry debt is paid, and the hunt was run
+for every empty cell rather than only the zero-coverage operators.** Ten
+rows joined `capacities.js` — every one a verified export, every one
+mechanically domain-legal, each `what` naming whether its cell typing is
+DOCUMENTED in the organ's own code/header (eight rows: `network`,
+`patch`, `extent`, `rezero`, `reshape`, `hear`, `declare`, `standing`) or
+REASONED per the table's own original hand-check discipline (two rows:
+`compile`, `regime`). Measured after (`eval/capability-coverage.mjs`,
+re-run):
+
+| | before | after |
+|---|---|---|
+| cells covered | 9/27 | **19/27** |
+| operators at zero | SEG, REC | **none** |
+| FULL stances | 1 (Binding) | **3 (Binding, Making, Composing)** |
+| empty stances | 3 | **0** — every stance ≥ 1/3 |
+
+Marginals moved from Figure 5 / Ground 2 / Pattern 2 to **Figure 8/9,
+Pattern 6/9, Ground 5/9** — the Figure-heavy diagnosis of C3 stands but
+the Pattern and Ground floors are real now, not near-absent. C3's table
+is kept above as the as-found record (this document's own append rule);
+the live numbers are the driver's to report, and `registryDebt.ledger`
+in its JSON carries a per-organ `paid` flag so the historical debt and
+the current state can never be conflated.
+
+**The eight cells still empty** — NUL·Figure, NUL·Pattern, SEG·Pattern,
+SIG·Ground, SIG·Pattern, CON·Ground, DEF·Ground, INS·Ground — each now
+carries a per-cell plan, candidate organ (where one was found), and
+required specimen in `CAPACITY-DEVELOPMENT-PLAN.md`.

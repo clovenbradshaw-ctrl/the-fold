@@ -5455,3 +5455,23 @@ stage 9 / stage 6 with a real order-7 ceiling), and the wall neither axis
 crosses: coherence is strictly weaker than correspondence — a completed
 27 would mean every kind of act is performable, never that any is
 performed correctly.
+
+## The connection pass — the registry debt paid, the map live (added 2026-08-29) — pointer
+
+POLICIES.md **P64** is the law; this is the short map. The adversarial
+verification the three policy docs' first commit declared pending ran
+(119 figures checked, 15 corrections, six missing laws — all folded in),
+and the user's own hypothesis ("organs for all 9 stances, the cube
+identifies what is missing") was closed in two moves. **Connect:** ten
+rows joined `capacities.js` — every one a verified export, mechanically
+domain-legal, cell typing documented in the organ's own code where it is
+and reasoned per the registry's original discipline where not. 9/27 →
+**19/27, no operator at zero, three FULL stances, no empty stance.** The
+law earned: an empty cell is a lead, never a verdict — three hole kinds
+share one count (registry debt, which was over half the map; real
+incapacity, which only CON·Pattern ever earned and whose answering organ
+now fills it; probe error, P44's four wrong probes). **Plan:**
+`CAPACITY-DEVELOPMENT-PLAN.md` carries the eight remaining cells —
+NUL·Figure first (P22's own named clearance test, the last Dissecting
+cell), SEG·Pattern the one genuine no-candidate frontier, three cells
+gated on the fold-architecture session's boundary rather than guessed at.

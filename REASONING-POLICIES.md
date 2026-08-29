@@ -18,11 +18,16 @@ measurement.
 
 **This is a standing document, not a one-time report — read before
 building reasoning machinery, appended to after.** Amendments append; they
-do not rewrite (POLICIES.md's own discipline). Every number below was
+do not rewrite (POLICIES.md's own discipline). Every Part-I number was
 re-verified by re-running its driver on 2026-08-29 before this file was
-first committed — the drivers are offline and re-runnable, so a future
-reader who doubts a figure can reproduce it in minutes rather than trust
-this page.
+first committed — those drivers are offline and re-runnable, so a future
+reader who doubts a figure can reproduce it in minutes. The MINE-1
+figures (R12) and the kinship run (R8, live-network by design) stand on
+their committed run artifacts rather than a re-run; the 80.0%
+official-rubric figure is a hand-judged, disclosed sample. An adversarial
+verification pass (three independent checkers, 119 specific figures
+located in sources) ran the same day; its corrections are folded in below
+and the pass itself is part of this document's record.
 
 ---
 
@@ -69,9 +74,11 @@ Two corollaries the same probe pinned:
 reports `insufficient` power rather than "unrefuted". The standing loop
 this supports (`eval/pruning-timeline.mjs`): a licence granted by a giver
 is hunted CONTINUOUSLY as the corpus grows, and conceded — with a REC
-carrying the counterexample verbatim, and its products withdrawn with a
-transitive cascade — the moment the material supplies a positive
-counterexample. Measured on the real succession stream: the Senate
+carrying the counterexample verbatim, and its products withdrawn (a
+transitive cascade backs the withdrawal, exercised in the kernel's own
+suite; on the measured stream the one withdrawn product had no
+dependents, so the cascade did no work there) — the moment the material
+supplies a positive counterexample. Measured on the real succession stream: the Senate
 licence survived 10 facts and was refuted at fact 11 (Hamlin began the
 office against multiple predecessors); 1 already-derived product was
 withdrawn; history stayed whole (26 derived across the run, 25 live —
@@ -108,10 +115,12 @@ header is what must be rewritten.
 ### R4. Run the dumb baseline first — a mechanism that runs is not a mechanism that helps
 
 P60 shipped with a measurement that the circuit RUNS (9 never-stated
-facts, provenance to real bytes) and no measurement that it HELPS —
-no truth-scoring, no control arm. The direct challenge "prove it actually
-helped" produced R3's table, which both vindicated the veto and demolished
-the generator framing. The control separating "runs" from "helps" was the
+facts, provenance to real bytes) and no measurement that it HELPS — no
+truth-scoring, and no dumb-baseline arm (its no-chemistry control only
+showed that nothing derives without a licence; the 20-line naive join
+that decides whether the apparatus is load-bearing was never run). The
+direct challenge "prove it actually helped" produced R3's table, which
+both vindicated the veto and demolished the generator framing. The control separating "runs" from "helps" was the
 cheap one (a 20-line join), and it got skipped. Every reasoning mechanism
 after this one runs its dumb baseline in the same driver, before any
 claim ships.
@@ -138,10 +147,12 @@ soundness came from the material being individuated finely enough, not
 from refusing a relation. So a one-to-one relation violated at entity
 grain is evidence the GRAIN is too coarse, not that the relation is
 unsound — which retro-reads R2's veto as having pointed at a fixable
-modelling error all along. The grain signal even says which case you are
-in: a violation that dissolves under refinement was a grain defect; one
-that survives is real (or the material is too partial to bind — the
-driver reports which).
+modelling error all along. The grain signal says which case you are in,
+with one disclosed limit: a violation that dissolves under refinement was
+a grain defect; one that survives is reported as real — and on PARTIAL
+material (the real Wikidata case) survival can also mean ends the adapter
+could not bind to an occurrence, a difference the driver does not
+separate.
 
 Two superseded fixes, kept so they are not retried: "admit term dates as
 material" was one adapter's way of naming occurrences (statement-index
@@ -251,12 +262,13 @@ maps to "unsettled question", never to conviction (`void-hl.js`: CONTESTED
 
 The MINE-1 arc, end to end (`eval/results/mine-1-FINAL-COMPARISON.md`,
 `mine-1-official-methodology-RESULTS.md`). Nine structurally different
-vocabulary/role configurations, spanning a wide precision/recall range,
-all converged in one 22–34% band under the strict structural `bound`
-criterion — `unbound` sat at 35–39% of examined facts in every one,
-untouched by ANY vocabulary change, because `bound` requires exact
-triple-shape convergence between two independent extractions and honest
-paraphrases routinely fail that. The SAME underlying graph, scored under
+vocabulary/role configurations converged in one 17–43% band on examined
+facts under the strict structural `bound` criterion, with every
+UniMorph-era refinement (configurations 3–9) stuck at 22.4–33.7% on all
+facts and nothing beating plain UniMorph's 33.7% — `unbound` sat at
+35–39% of examined facts in every one, untouched by ANY vocabulary
+change, because `bound` requires exact triple-shape convergence between
+two independent extractions and honest paraphrases routinely fail that. The SAME underlying graph, scored under
 the benchmark's own official rubric (embedding retrieval + subgraph
 expansion + entailment-style judging), measured **80.0%** on a disclosed
 hand-judged sample — above every baseline the paper reports. The low
@@ -279,9 +291,10 @@ that it must was stated before the enumeration file was written: a
 Figure-grain reader (one labelled edge between two ends) has nothing to
 return on material whose meaning is carried by the RECURRENCE of an
 arrangement, which is Pattern grain by definition. No connector exists in
-any row, so vocabulary width is irrelevant — which is why the nine MINE-1
-configurations (R12) could not move it. Diagnose the CELL before tuning
-the organ.
+any row, so vocabulary width is irrelevant — the same KIND of ceiling no
+vocabulary work touches that R12 measured on different material (the
+MINE-1 configurations never ran against the list page; the relation is
+analogy, not identity). Diagnose the CELL before tuning the organ.
 
 ### R14. Answering is a DEF/EVA/REC loop over a declared void — and the loop's shape is read off the algebra, not designed
 
@@ -334,7 +347,38 @@ two-hop composition (Lincoln→appointed→Seward ∘ Seward→negotiated→Alas
 runs correctly with ZERO model calls where the edges are real. The
 generator is not where the reasoning lives.
 
-### R17. The reader's coherence is strictly weaker than correspondence — and no internal check can close that gap
+### R17. A wall nothing can trigger is a comment, not a wall — every arm must be shown live
+
+The most independently-measured law in this corpus, with no home until
+this entry — four separate measurements: `measure.js`'s `best_of_n`
+refusal was correct and UNREACHABLE (the only route in supplied the very
+argument whose absence it refused — "a refusal no declaration can trigger
+is a comment, not a wall", the measuring door's own record); the aperture
+refresh gate's strict reading fired ZERO times across eight exchanges
+including near-verbatim repeats (a gate nothing can trigger held nothing);
+the MHC order-13 arbitrary arm fired 20/20 on one material WHILE TESTING
+NOTHING (its perturbation could not change the merge — A10's "a statistic
+insensitive to its perturbation fails invisibly and globally"); and the
+sequence type's pre-registered prediction arm carried the shape a fourth
+time ("the comment-not-a-wall shape, again" — the algebra's own
+`functionalPerPosition` violated with nothing checking, R7). The rule:
+every refusal, gate, and null arm is licensed only by a demonstration
+that it CAN fire — a planted defect it catches, or a live specimen it
+refused. Two lints in one session were comments rather than walls, and
+neither was found by reading; both were found by planting.
+
+### R18. Recall is upstream of every settle, and its clocks are measured elsewhere
+
+A seam pointer, not a restatement: `reaction.js`'s physics gate ("a chain
+reacts only in contact with the present") inherits activation's window,
+and the laws governing that window are P42's — the binding layer forgets
+exponentially at a window the MATERIAL states, the retrieval layer by
+power law (ACT-R, received d = 0.5, the edge vanishing under sentence
+shuffling), refined at audio scale to need-odds matching. A reader of
+this file alone cannot derive why the physics floor is shaped as it is;
+P42 (and eoreader7 PR #22's evidence) is where that lives.
+
+### R19. The reader's coherence is strictly weaker than correspondence — and no internal check can close that gap
 
 The plane-separation law (CLAUDE.md, "Stance on the admission record").
 Cells, stances, and affordances are constrained by coherence,
@@ -364,8 +408,10 @@ the mechanism running, not about it being right (R4).
 - **Reading "unrefuted" as "sound"** — R2; the phrasing "unrefuted by
   THIS material — not a licence earned" is the finding, not decoration.
 - **An office/relation-scoped veto as the fix for bridge conflation** —
-  R5 priced it (the shipped gate destroyed 7.5 true facts per false fact
-  prevented, measured) and the grain fix dissolved the need.
+  R3's driver priced it (the shipped gate destroyed 7.5 true facts per
+  false fact prevented, measured on the original 3-page fixture — a
+  figure the driver's own amendment scopes to that small material) and
+  R5's grain fix dissolved the need.
 
 ## Open, named, unbuilt
 

@@ -5513,3 +5513,22 @@ reading the modules. Suites after the same-day adversarial amendment
 mutation-killing pins, plus the complicated-reading demonstration):
 the-fold 1098/969/127 (all 127 by name, the standing environment set,
 zero regressions); eoreader7 180/176/4 (same 4 by name).
+
+## The 27 cells, explained (added 2026-08-29) — pointer
+
+`THE-27-CELLS.md` (repo root) is the per-cell reference the three policy
+reassemblies point around: how to read an address (27 = operator × grain,
+three derived faces), all twenty-seven cells with their organs and one
+measured usage example each, the three empty Ground-row cells with their
+gates, and the together-section (the act grammar, the void loop's three
+read-off cells, coverage as diagnostic, what the map does not say). The
+cell/organ assignments are generated against the live cube and registry —
+`eval/capability-coverage.mjs` is the regeneration check and wins any
+disagreement; the prose is the document's own. Verified by a three-checker
+adversarial pass (21 findings — one fatal, eight real, all folded in;
+among them: two CAPACITIES execute, touching three cells; the SEG·Figure
+ops story corrected to deriveOp's actual typing; the native surfaces.js
+CELL stamp reconciling the demonstration's "SIG·Ground presence" label;
+the SYN·Pattern reaction-circuit reading flagged as this document's own
+nomination). A designed HTML rendering of the same reference is published
+as an artifact.

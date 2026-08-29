@@ -5424,3 +5424,34 @@ fabricated reasoning (calling Edward VII "a cousin of... Victoria," his
 own mother, and inventing an unmentioned "King George V") — a verdict-
 only check would have missed that the stated reasoning never actually
 performs the two-hop composition it was asked to do.
+
+## Three standing policy reassemblies — reasoning, generation, capability (added 2026-08-29)
+
+`REASONING-POLICIES.md`, `GENERATION-POLICIES.md`, and
+`CAPABILITY-POLICIES.md` (repo root) are CHAT-POLICIES.md's discipline
+applied to three more slices: each is a reassembly of already-measured
+law — summarize and point, never re-derive; standing documents, amendments
+append; POLICIES.md wins on conflict, the eval results docs win on
+numbers. Every number in all three was re-verified by re-running its
+driver before first commit.
+
+The one genuinely new mechanism beside them:
+`eval/capability-coverage.mjs`, which drives the REAL `moves.js` coverage
+off the REAL native cube through all three 9-way projections (operator /
+stance / terrain — each drops one of the cube's three free axes;
+operator=(mode,domain) is verified mechanically, so the space is 27 with
+three faces, not four axes). Its findings, kept where the next pass will
+look: registered coverage is 9/27 with ONE full stance (Binding);
+**an empty cell is a lead, never a verdict** — SEG and REC read zero
+coverage while NINE real, tested organs exist unregistered (registry
+debt; after-debt projection 13/27, Composing becomes the second full
+stance), whereas CON·Pattern earned the incapacity reading the only way
+it can be (a falsifiable prediction stated before the file existed,
+confirmed on real material — P58's zero-edges list page). Three stances
+are genuinely empty after the debt: Unraveling, Tracing, Cultivating —
+each a KIND of act currently performable in no domain, which is the
+build-order the map licenses. Depth is the OTHER axis (P44's MHC battery,
+stage 9 / stage 6 with a real order-7 ceiling), and the wall neither axis
+crosses: coherence is strictly weaker than correspondence — a completed
+27 would mean every kind of act is performable, never that any is
+performed correctly.

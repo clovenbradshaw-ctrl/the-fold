@@ -12,17 +12,25 @@ whose idea is better.
 Don't. Both of you are about to be right, and both of you are about to be
 building a third of the actual thing.
 
-> **Meet the example.** The running example, start to finish: a birding app
-> people already use to log sightings, keep a life list, and see what other
-> birders nearby have found. It's useful, and it has one hole a lot of its
-> users hit constantly — **you're standing in a marsh, looking at a bird, and
-> you don't know what it is.** The app has nothing for that moment.
+> **Meet the example.** **Fieldmark** — three years old, about 40,000 people,
+> a small team. It's a birding app people already use to log sightings, keep a
+> life list, and see what other birders nearby have found. It's useful, and it
+> has one hole a lot of its users hit constantly — **you're standing in a
+> marsh, looking at a bird, and you don't know what it is.** Fieldmark has
+> nothing for that moment.
 >
 > **That's the problem.** What actually lands on the team, though, isn't the
-> problem — it's already a solution, in disguise: *"add bird ID."* We stay
-> with this one app from the very first argument to the final commitment, so
-> you can watch how the pieces connect. §9 runs the identical process on a
-> medical clinic, so you can see it isn't a trick that only works on birds.
+> problem — it's already a solution, in disguise: *"add bird ID,"* pushed by
+> two people for two different reasons. **Priya Osei** runs support. She's the
+> one who reads the "unidentified" backlog every week — hundreds of blurry
+> photos people upload hoping someone can name what they saw. **Marcus Yun**
+> is an engineer, and a birder himself, mostly by ear. He's already built a
+> weekend prototype: a bioacoustic model pointed at the recordings people
+> upload and never do anything with. Each of them is arguing from something
+> real they've personally seen pile up. We stay with the two of them, and
+> Fieldmark, from the very first argument to the final commitment, so you can
+> watch how the pieces connect. §9 runs the identical process on a medical
+> clinic, so you can see it isn't a trick that only works on birds.
 
 **The actual problem — the one this whole document is about.** It isn't "which
 idea is better." That question shows up *after* the real work, and most rooms
@@ -67,11 +75,13 @@ on a real team.
 
 **"We should add bird ID."** Two people answer.
 
-One says: **photo ID** — point your phone at the bird, get a name. She has the
-pile of blurry photos people upload to prove it.
+Priya says: **photo ID** — point your phone at the bird, get a name. She reads
+the unidentified backlog every week; she has the pile of blurry photos people
+upload to prove it.
 
-The other says: **sound ID** — hold your phone up, get a name. He has the
-recordings people make and never do anything with.
+Marcus says: **sound ID** — hold your phone up, get a name. He already has a
+working prototype, built on his own time, trained on the recordings people
+make and never do anything with.
 
 Both are right. Both have evidence. Both would be good. And the argument about
 which to build is the wrong argument — because nobody has described what a
@@ -573,30 +583,38 @@ Task 7 is for — it's the only part of this that reaches outside the room.
 
 The tasks, actually run.
 
-**Tasks 1–7.** The ask, written down. The moment: a birdwatcher at a sighting who
-can't name the bird — not someone logging a bird they already know, not someone
-looking it up at home that evening. Out: a course, a forum, a field-guide upsell.
-The ground: six kinds of evidence. Pieces stack. The test: *narrows down what the
-bird could be, using evidence the person actually has* — and works with no signal.
-The kill line: strip the location and date, and see if the answers change.
+**Tasks 1–7.** The ask, written down: Priya's photo ID and Marcus's sound ID,
+both pushed hard, neither one backed yet by a gap description. The moment: a
+birdwatcher at a sighting who can't name the bird — not someone logging a bird
+they already know, not someone looking it up at home that evening. Out: a
+course, a forum, a field-guide upsell. The ground: six kinds of evidence.
+Pieces stack. The test: *narrows down what the bird could be, using evidence
+the person actually has* — and works with no signal. The kill line: strip the
+location and date, and see if the answers change.
 
-**Checkpoint.** The list goes on the wall: six lines, two ticked, four not — and
-the four unticked ones get read out. *Where they were. What time of year. What the
-bird was doing. How long they had.* First time anyone in the room has seen them
-written down as things.
+**Checkpoint.** The list goes on the wall: six lines, two ticked, four not —
+and the four unticked ones get read out loud, with Priya and Marcus both in
+the room. *Where they were. What time of year. What the bird was doing. How
+long they had.* First time anyone at Fieldmark has seen them written down as
+things.
 
 **Task 8.** "The ID engine" named and parked, in writing.
 
-**Task 9.** Silent fan-out from what people already told you: photo ID, sound ID,
-a step-by-step questionnaire, a "likely here, now" shortlist, a side-by-side
-comparison of two similar species, ask the community. Nothing discussed.
+**Task 9.** Silent fan-out from what people already told you: photo ID, sound
+ID, a step-by-step questionnaire, a "likely here, now" shortlist, a
+side-by-side comparison of two similar species, ask the community. Nothing
+discussed — Priya and Marcus each write proposals alongside everyone else,
+including ones that aren't their own.
 
 **Task 10.** Photo ID **passes** (what they saw, runs on the phone). Sound ID
-**passes** (what they heard). "Likely here, now" **passes** (where and when, using
+**passes, with a catch nobody had checked for**: Marcus's model is trained on
+birdsong, and roughly a third of the real recordings Fieldmark users upload
+are calls and chip-notes — shorter, less distinctive, and the model is far
+less confident on them. "Likely here, now" **passes** (where and when, using
 data already on the device). Ask the community **fails** — it doesn't help the
 person standing there. The questionnaire is **can't tell**. The side-by-side
-comparison **fails on the boundary alone**: it needs a shortlist to compare *from*,
-and nothing produces one yet.
+comparison **fails on the boundary alone**: it needs a shortlist to compare
+*from*, and nothing produces one yet.
 
 **Task 11.** Four of six — up from the two the original argument would have
 shipped. Uncovered: what the bird was doing, and how long they had. Every
@@ -607,29 +625,40 @@ nothing on the board touches either.
 someone who helps with behaviour (real research, now sized) → revisit the
 questionnaire (last).
 
-**Task 13, and this is the good part.** Someone writes in about the sighting they
-most wanted help with: a bird through a telescope at 400 metres in flat light.
-Shape and movement only. No colour, no photo possible.
+**Task 13, and this is the good part.** Someone writes in about the sighting
+they most wanted help with: a bird through a telescope at 400 metres in flat
+light. Shape and movement only. No colour, no photo possible.
 
-*What they saw* is one of the six kinds, so this isn't outside the gap. It's the
-third sign: **it looks full but something won't fit.** A bird at arm's length on a
-feeder and a silhouette at 400 metres are not the same evidence, and photo ID
-handles exactly one of them. **The units were too coarse.**
+*What they saw* is one of the six kinds, so this isn't outside the gap. It's
+the third sign: **it looks full but something won't fit.** A bird at arm's
+length on a feeder and a silhouette at 400 metres are not the same evidence,
+and photo ID handles exactly one of them. **The units were too coarse.**
 
 **Task 14.** Redraw: split "what they saw" into *seen well* and *seen poorly*.
-Coverage honestly drops to four of seven. The side-by-side comparison comes back
-onto the board, because the boundary that rejected it just changed.
+Coverage honestly drops to four of seven. The side-by-side comparison comes
+back onto the board, because the boundary that rejected it just changed.
 
-**Tasks 16–18.** Sound ID is a **candidate**. "Bird ID" as a whole is **not a
-commitment**, and the gate blocking it is (c): nobody has checked that photo ID
-and the shortlist work together.
+**Tasks 16–18.** Sound ID is a **candidate**, and so is photo ID — but "bird
+ID" as a whole is **not a commitment yet**, and gate (c) is doing the
+blocking, twice over. First: nobody has checked that photo ID and the "likely
+here, now" shortlist agree — a Willow Flycatcher and an Alder Flycatcher look
+identical and only reliably separate by song, so a user who photographs one
+gets a photo-ID answer and a shortlist answer that quietly disagree, and
+neither was built to notice. Second, and this is Task 10's catch coming due:
+Marcus's model is strongest on song, and the shortlist's own location data
+shows a third of Fieldmark's users are near the coast, where people report far
+more calls than song. **Sound ID's accuracy claim doesn't hold evenly across
+the userbase it's about to ship to.** Both go down as the condition, not
+shipped past.
 
-**What the session produced.** Not a cleverer idea than anyone had: *one proposal
-rejected for a stated reason*, *one named hole with a size*, *one cheap question
-that moves the number*, *one wrong assumption caught before anything was built*,
-and *one conflict that would otherwise have shipped and become a bug report.* None
-of it was in the one-line ask, and none of it required anyone to be smarter than
-they already were.
+**What the session produced.** Not a cleverer idea than anyone had: *one
+proposal rejected for a stated reason*, *one named hole with a size*, *one
+cheap question that moves the number*, *one wrong assumption caught before
+anything was built*, *one accuracy claim that turned out to depend on where a
+user stood*, and *one conflict that would otherwise have shipped and become a
+bug report.* None of it was in the one-line ask, and none of it required Priya
+or Marcus to be smarter than they already were — it required someone to write
+down what they already knew before either of them got to defend it.
 
 ---
 
@@ -692,9 +721,10 @@ Fires when: one of the three signs in Task 13 goes off — something's aimed at
 the wrong people, real answers are being rejected unread, or something
 obviously belongs and there's nowhere to put it. Costs: rewriting the ground
 itself, which reopens every proposal that was rejected only by the old
-boundary. Here: two months after sound ID shipped, the usage data came back
-wrong in an informative way — most people running it already *knew* the bird
-and were using it to confirm, not to identify. That's sign one, word for word.
+boundary. Here: two months after sound ID shipped, Priya was reading the usage
+data and it came back wrong in an informative way — most people running it
+already *knew* the bird and were using it to confirm, not to identify. That's
+sign one, word for word.
 The gap wasn't "birdwatchers can't name birds" — it was narrower:
 *birdwatchers who've never seen this species before, in the field, alone.*
 Redrawn, two of the six evidence kinds from Task 4 turned out not to matter at

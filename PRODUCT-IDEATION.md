@@ -1,732 +1,643 @@
-# Deciding what to build, run as a void loop
+# Deciding what to build next
 
-**What this is.** A working protocol for deciding what to add to something you
-are building. It replaces "come up with ideas, then pick one" with a different
-order: **declare the space the thing would stand in first**, then run one
-loop against that space and let the answer be what the loop leaves standing.
+*A way to run the "what should we build?" conversation so it ends with something
+you can act on — and so you can tell when you're finished.*
 
-**The one-sentence version.** Do not start from an idea. Start by zeroing the
-space — nine questions, each answered or explicitly left as a named gap — then
-propose candidates, admit or refuse each against a test you wrote *before* you
-had a favourite, and re-zero when the posture that produced the candidates
-runs out. An uncovered stretch of the space is a **finding**, not a blank; an
-idea nobody can say would be wrong is not yet a candidate.
+**The short version.** Most teams start with ideas and then argue about which one
+wins. This starts one step earlier: **describe the gap first**, precisely enough
+to measure, and only then let people propose things to fill it. The winner isn't
+the best-argued idea. It's whatever is still standing after everything has been
+tested against a bar you wrote *before* anyone had a favourite.
 
-**One example, all the way through.** Every section is worked against the same
-ask, on the same product: a team that makes an app for birders has been told
-to **"add bird ID."** That is deliberate. A protocol illustrated with a fresh
-example per section reads as nine unrelated tips; run against one thing from
-the declaration to the commitment, the moves connect and you can see what each
-one buys. §10 is the control — the same protocol in a clinic, so you can check
-that none of it was about birds. It is not about software either.
+The pay-off is a thing most roadmaps never have: **you can tell when you're
+done.** If you never described the gap, "done" is just "we shipped something and
+stopped."
 
-**What this is not.** It is not software. Nothing here runs itself, scores
-anything, or produces a ranking. It is a set of questions in a fixed order,
-with named ways to fail, that a room can run in ninety minutes.
+**How to use this.** §3 is a sequence of eighteen tasks — work through them in
+order and you have run the whole thing. Everything before and after §3 explains
+why the tasks are shaped that way. If you only read one page, read §3 and the
+recap at the end.
+
+**One example throughout.** A team that makes an app for birdwatchers has been
+told to *"add bird ID."* One example, all the way through, so the moves connect.
+§9 runs the same protocol in a medical clinic to show it isn't about birds — or
+about software.
+
+**What this is not.** It's not a scoring system, a prioritisation framework, or
+software. It's a set of questions in a fixed order, with named ways to get stuck,
+that a group can work through in about ninety minutes.
 
 ---
 
-## 1. Why not start from the idea
+## 1. The problem, in one story
 
-**"We should add bird ID."** Two teams answer it. One proposes **photo ID** —
-point the phone, get a species — with the pile of blurry uploads to back it.
-The other proposes **sound ID** — hold up the phone, get a species — with the
-abandoned recordings to back it. Each is a true answer to the ask. Each has
-evidence. Each is a good feature.
+**"We should add bird ID."** Two people answer.
 
-And the argument about which one to build is the wrong argument, because
-neither team has drawn the space. What a birder actually holds at an
-unidentified sighting is **evidence, of six recognisable kinds** — what they
-saw, what they heard, where they were, when, what it was doing, and how long
-they had. Photo ID covers one. Sound ID covers one. Nothing in the room can
-say the answer is *still short*, so nothing in the room can say when it would
-be done.
+One says: **photo ID** — point your phone at the bird, get a name. She has the
+pile of blurry photos people upload to prove it.
+
+The other says: **sound ID** — hold your phone up, get a name. He has the
+recordings people make and never do anything with.
+
+Both are right. Both have evidence. Both would be good. And the argument about
+which to build is the wrong argument — because nobody has described what a
+birdwatcher actually has to work with when they can't name a bird.
+
+Which is: **evidence, of about six kinds.** What they saw. What they heard. Where
+they were. What time of year it was. What the bird was doing. And how long they
+had before it vanished.
+
+Photo ID uses one of those. Sound ID uses one. So whichever one wins the
+argument, the team ships something genuinely good and covers **two of six** — and
+nobody in the room is in a position to notice, because nobody wrote the six down.
 
 ```
-the extent: the evidence a birder holds at an unnamed sighting
-            units: evidence kinds
+what a birdwatcher has, when they can't name the bird:
 
   saw        heard      where      when       doing      how long
   ▓▓▓▓▓▓▓    ▓▓▓▓▓▓▓    ·······    ·······    ·······    ········
   photo ID   sound ID
 
-  covered: 2 of 6 · void: where, when, doing, how long — named, with edges
+  covered: 2 of 6.  The other four have nothing on them.
 ```
 
-Read completeness off *the answer* and both candidates look sufficient,
-because each is genuinely good at the kind of evidence it consumes. That is
-the failure, and it never announces itself as one: the first plausible feature
-anyone can defend closes a space that was never measured, and it closes it
-*with a true sentence*. "Users want faster export" is true. It is not the
-answer, if the space it stands in also holds three other things and nobody
-drew the extent.
+Look at the *ideas* and both are convincing, because each one really is good at
+the thing it does. Look at the *gap* and you learn something neither idea could
+tell you: there are four more kinds of evidence, nothing addresses them, and a
+third idea isn't a nice-to-have — **it's necessary**, or the feature ships
+half-built and nobody planned for that.
 
-So the move is: stop asking the candidate whether it is sufficient, and ask
-**the space**. A slot is not a bag of features; it is an extent with
-dimensions, and a feature covers part of it. What is left over is not an
-absence of evidence — it is a void with a size and edges, and something has to
-be in it. That is what makes a third candidate *necessary* rather than
-hoped-for, and it is the only thing that can tell the room when it is done.
+That's the whole method. **Stop asking whether the idea is good. Ask what the
+gap is, and whether the idea fills it.**
 
-**Greedy search is the failure mode, and it is worth naming.** Propose one
-candidate, test it, propose the next, and you are running a greedy search — and
-a greedy search over two true fillers returns whichever one you happened to
-draw first. In a room, that is photo-versus-sound: two good candidates, one
-argument, and whichever wins ships as if it were the whole answer. The fix is
-structural, not attitudinal: **every candidate is written down before any
-candidate is judged.**
+### Why "just have a good discussion" doesn't do this
+
+Because of how discussions move. Someone proposes, everyone reacts, it gets
+better or it dies, someone proposes the next thing. That feels rigorous and it
+isn't: **whichever good idea gets said first sets the frame**, and the second
+good idea gets judged as a competitor to the first instead of as another piece of
+the same gap.
+
+The fix isn't better discipline in the discussion. It's changing the order:
+**every idea gets written down before any idea gets discussed.**
 
 ---
 
-## 2. Step zero — zero the space, in nine questions
+## 2. The one thing to get right
 
-Zeroing a space is not one declaration, it is nine. Each is a different
-question a space must answer *before anything stands in it*, and **every
-omission is a named gap, never a default**. A space missing one of the nine is
-not an error — it is a silent assumption that shows up later as a confident
-wrong answer.
+If you take nothing else: **describe the gap in a way that can be counted.**
 
-The nine come from a closed algebra of acts: nine operators (**NUL SIG INS SEG
-CON SYN DEF EVA REC**) across three domains (Existence, Structure,
-Interpretation) and three grains (Ground, Figure, Pattern). You do not need the
-algebra to run the protocol — the nine questions stand on their own — but the
-grouping is not arbitrary, and §2's last part shows what falls out of it.
+"Bird ID is weak" cannot be counted. "There are six kinds of evidence a
+birdwatcher has, and we address two" can be counted — and that single change is
+what lets you say *what's missing*, *how much is missing*, and *when you'd be
+done*.
 
-### The declaration, for "add bird ID"
-
-```
-slot        (NUL): a sighting the birder could not name, in the field, at the
-                   moment they had it — NOT a bird they did name and want to
-                   log, NOT one they look up at home from memory that evening
-anchor      (SIG): one birder, one sighting, one place and time
-admits      (INS): something the app can offer AT the sighting — a capture, a
-                   narrowing, a comparison. Never a course, a forum thread, or
-                   a field-guide upsell
-extent      (SEG): the evidence a birder actually holds at an unnamed sighting
-                   units: evidence kinds — what they saw, what they heard,
-                   where they were, when, what it was doing, how long they had
-relation    (CON): "narrows the candidate set using evidence the birder has"
-composition (SYN): evidence kinds COMBINE — each narrows further, and two
-                   together narrow more than either alone. They stack on the
-                   extent; they do not partition it
-cardinality (DEF): unknown — DO NOT read it off the singular in "add bird ID"
-admission   (EVA): a candidate names which evidence kinds it consumes, and
-                   works with no signal — a marsh at dawn has no bars
-reopens on  (REC): a sighting whose evidence is of a kind the extent does not
-                   name, or at a grain it cannot see
-broken:            re-run it on real sightings with location and date STRIPPED.
-                   If the suggestions do not change, the extent names
-                   dimensions the feature never uses, and the coverage we are
-                   about to claim is fiction
-```
-
-**What that declaration already did, before a single candidate existed.** The
-*anchor* stopped "birders" from meaning two incompatible people. The *admits*
-line ruled out three plausible, popular, adjacent things. The *extent* turned
-"bird ID" from a feature into a *measurable* six-kind space. And the admission
-test's offline clause was written before anyone had a favourite — which is the
-only moment it can be written honestly.
-
-### The nine, and what each one's silence costs
-
-| op | field | terrain · grain | stance | the question it asks | what its silence costs, on this ask |
-|---|---|---|---|---|---|
-| **NUL** | slot | Void · Ground | **Clearing** | What space is this, marked off from everything it is not? | "We're doing something about identification" is a topic, not a slot. Half the room is then arguing about the logging flow — a different space — and nobody notices they are answering different questions. |
-| **SIG** | anchor | Entity · Figure | **Binding** | What must resolve for this space to exist at all? | "Birders" admits the lifer-chasing lister and the kitchen-window feeder-watcher at once. They need opposite things, so the candidate that wins the argument serves neither. |
-| **INS** | admits | Kind · Pattern | **Composing** | What *kind* of thing may stand here? | The slot fills with things that fit the sentence: *partner with a field-guide publisher*, *hire an ornithologist*, *run an ID webinar*. All real things to do. None of them can stand at a sighting. |
-| **SEG** | extent | Field · Ground | **Clearing** | The extent to be covered **and its units**. | Nothing can ever be short, so nothing can ever be enough. "Improve ID" becomes a heading that gets added to every quarter and finished in none. |
-| **CON** | relation | Link · Figure | **Binding** | What binds a filler to the anchor? | Candidates get admitted for being *about birds* rather than for narrowing a candidate set. A species-of-the-day card is about birds, co-occurs with identification, and narrows nothing. |
-| **SYN** | composition | Network · Pattern | **Composing** | How do fillers compose across the extent? | Photo ID and a range-filtered shortlist both ship, nobody declared how they combine, and the first screen that runs both shows one birder two different answers. |
-| **DEF** | cardinality | Lens · Figure | **Dissecting** | How many fillers is this space *declared* to hold? | Read off the singular in "add bird ID", one working classifier closes a six-kind space. This is the cell whose silence produced §1. |
-| **EVA** | admission | Lens · Figure | **Binding** | The test a candidate must pass — stated *before* candidates exist. | The test gets written after the favourite, and it fits the favourite: the offline clause quietly disappears the week the cloud model tests better. |
-| **REC** | reopens on | Paradigm · Pattern | **Composing** | What forces this whole declaration to be revised? | The space can never be wrong, only unfinished. A birder reporting a 400-metre silhouette becomes a bug in the classifier instead of evidence the extent was drawn at the wrong grain. |
-
-**Read the stance column.** Three Clearings, three Bindings, three Composings —
-and **exactly one Dissecting: DEF**. Cardinality is the single *cut* in a space
-otherwise made of clearings, bindings and compositions. That is not a
-curiosity; it is the question whose silence produced the photo-versus-sound
-argument, and it is the one nobody asks: *how many things is this space
-supposed to hold?*
-
-**DEF and EVA sit on the same terrain and differ only in stance.** You cut with
-the lens, then you bind with it. That is why they are a **loop** and not two
-unrelated reviews.
-
-**Inspect the declaration itself** before you inspect any candidate. Which of
-the nine did you leave blank? That list is the first output of the session, and
-an under-specified space is the thing that produces confident wrong answers —
-so it should be as visible as the missing filler is.
-
-### The worksheet
-
-```
-slot        (NUL): ______________________________________________
-anchor      (SIG): ______________________________________________
-admits      (INS): ______________________________________________
-extent      (SEG): _______________________ units: _______________
-relation    (CON): ______________________________________________
-composition (SYN): ______________________________________________
-cardinality (DEF): ______________________________________________
-admission   (EVA): ______________________________________________
-reopens on  (REC): ______________________________________________
-broken:            ______________________________________________
-```
-
-`broken:` is not one of the nine. It is the tenth line, and the loop should
-refuse to open without it: **opening a space costs you a statement of what
-would make the whole thing wrong.** That is the wall that keeps a
-fan-out-and-argue session from becoming a spiral that agrees with itself. On
-this ask it is the strip-the-location test above. In general: **no kill
-criterion, no loop.**
+Everything in §3 is in service of getting to a sentence of that shape.
 
 ---
 
-## 3. Four refusals that stop a loop
+## 3. The tasks
 
-Three absences make the loop unrunnable. Everything else undeclared rides
-along, visible but not fatal — which is what makes the protocol usable on a
-Tuesday rather than an ideal nobody reaches.
+Eighteen tasks in four phases. Each says what to do, how you know it's finished,
+and the trap that usually swallows it.
 
-| refusal | means | what it sounds like on this ask |
+Phase A is the one people skip, and it's the one that does the work.
+
+### Phase A — describe the gap (Tasks 1–7)
+
+> **Task 1 — Write down the ask, word for word.**
+> Whatever you were told: "add bird ID", "reduce churn", "make onboarding
+> better." Write it exactly as it arrived, without improving it.
+> **Done when:** everyone agrees that's what was actually said.
+> **Trap:** silently upgrading it to what you wish had been asked. Do that later,
+> in the open, so people can disagree.
+
+> **Task 2 — Name the moment it happens.**
+> One person, one occasion, one place and time. Here: *a birdwatcher, at a
+> sighting, right now, who can't name what they're looking at.*
+> **Done when:** you could point at a single real person having a single real
+> moment.
+> **Trap:** "our users." That's two different people at once — the obsessive
+> lister chasing a rare bird and someone watching a feeder from the kitchen. They
+> want opposite things, so whatever you build for "our users" serves neither.
+
+> **Task 3 — Say what's out.**
+> Name three plausible, adjacent, popular things that do *not* belong in this
+> gap. Here: an ID course, a discussion forum, a field-guide upsell — all real
+> things to do, none of which help someone standing in a marsh right now.
+> **Done when:** you have three, and someone in the room slightly regrets one.
+> **Trap:** ruling out only the silly things. If everything you excluded was
+> obviously bad, you haven't drawn an edge yet.
+
+> **Task 4 — Draw the ground, and give it units.**
+> What has to be covered, and in what countable pieces? Here: *the kinds of
+> evidence a birdwatcher actually has* — and the units are **evidence kinds**, of
+> which there are six.
+> **Done when:** you can count the pieces and say the number out loud.
+> **Trap:** units you can't count — "a better experience", "user delight". If you
+> can't count it, nothing can ever be missing from it, so nothing can ever be
+> finished.
+
+> **Task 5 — Say how pieces fit together.**
+> Do two answers stack up, or does one rule out the other? Here they **stack**:
+> knowing what it sounded like *and* where you were narrows things further than
+> either alone.
+> **Done when:** you can say "stacks", "excludes", or "splits it up" and give one
+> example.
+> **Trap:** skipping this because it's obvious. It's the thing that decides
+> whether two shipped features quietly contradict each other on the same screen.
+
+> **Task 6 — Write the test, before anyone has a favourite.**
+> What must a proposal do to count? Two parts: **what it has to achieve** (here:
+> *narrow down what the bird could be, using evidence the person actually has*)
+> and **the hard constraint** (here: *works with no phone signal — a marsh at
+> dawn has no bars*).
+> **Done when:** it's written down and nobody has proposed anything yet.
+> **Trap:** writing it after the favourite exists. It will fit the favourite. You
+> won't notice, and neither will anyone else.
+
+> **Task 7 — Write the kill line.**
+> One sentence: *what result would tell us this whole picture is wrong?* Here:
+> *re-run it on real sightings with the location and date removed — if the
+> suggestions don't change, then "where" and "when" were never really doing
+> anything, and the coverage we're claiming is fiction.*
+> **Done when:** someone could actually go and run it.
+> **Trap:** "if users don't like it." That's not a result, it's a mood. If you
+> can't write this line, don't start — a plan with no way to be wrong will
+> survive any evidence at all.
+
+**Checkpoint.** Before going further, say this sentence out loud: *"We're covering
+___ of ___, and what's uncovered is ___."*
+
+If you can't, **stop here**. A better description of the gap is a genuinely good
+outcome for a session, and much better than a decision made on top of a bad one.
+
+Three things make this sentence impossible, and each has an obvious fix:
+
+| what's missing | how you know | what to do |
 |---|---|---|
-| **no slot** | NUL undeclared | "We're doing something about identification." That is a topic. There is no space yet, and the logging people and the ID people are both in the room, each believing it is theirs. |
-| **no anchor** | SIG undeclared | Nothing has to resolve, so the feeder-watcher's request and the seawatcher's request are both admissible — and they want opposite products. |
-| **no closing condition** | neither an extent nor a number | Nothing could ever license a commit. "Improve ID" runs forever, one quarter at a time. This is the shape of a discovery track with no end. |
-| **no perturbation** | `broken:` missing | Nobody can say what result would make the team stop. |
+| **the moment** (Task 2) | "we're doing something about identification" — that's a topic, not a moment | Half the room is talking about the logging screen. Get to one person, one occasion. |
+| **the ground** (Task 4) | nobody can say how much there is | Nothing can be short, so nothing can be enough. Find the countable unit. |
+| **the kill line** (Task 7) | nobody can say what would make you stop | You'll be able to justify anything, forever. |
 
-**One trap worth knowing in advance.** The first version of this refusal list
-was a single blanket rule: *refuse any under-specified declaration*. It made
-the protocol unusable, because a real declaration always has gaps — and worse,
-it made the most valuable finding unreachable, since a space you cannot open is
-a space whose cardinality you never test. **A refusal nothing can usefully pass
-is a claim about the refusal, not about the thing being refused.** If your
-process has a gate nobody has ever cleared, the gate is the defect.
+### Phase B — fill it (Tasks 8–12)
+
+> **Task 8 — Name the fake subject, and park it.**
+> There's usually one thing everyone mentions that isn't actually a thing you can
+> build: **"the ID engine."** Also "the model", "the platform", "our data
+> layer". It fits into every sentence, which is exactly why it's useless — it
+> connects to every idea and distinguishes between none of them.
+> **Done when:** it's named on the board with a line through it, and *the fact
+> that you parked it is written down*.
+> **Trap:** quietly dropping it. It comes back next quarter with a new name and
+> another quarter attached to it. **Test:** does it mostly appear in sentences
+> that are describing other things? Then it's how you talk about the work, not
+> the work.
+
+> **Task 9 — Fan out, in silence, from one source only.**
+> Everyone writes proposals for the gap from Task 2–4. Start with the source
+> you already have: **what people have already told you.** Support mail, the
+> "unidentified" entries in people's own lists, the blurry photos, the recordings
+> nobody used, the forum posts that start "small brown thing, marsh, Tuesday."
+> **Done when:** every proposal is written down and **not one has been
+> discussed.**
+> **Trap:** clustering, dot-voting, or "ooh, building on that." All three collapse
+> the options early — which is the same mistake as arguing photo-versus-sound,
+> just with sticky notes.
+
+> **Task 10 — Judge them one at a time, against Task 6.**
+> Each proposal, on its own, against the test — not against the other proposals.
+> Three possible outcomes, and only three:
+>
+> | outcome | means | example |
+> |---|---|---|
+> | **passes** | meets the test; say who or what vouches for it | *sound ID* — uses what they heard, runs on the phone, works with no signal |
+> | **fails** | doesn't meet the test; **say which part it failed** | *ask the community* — doesn't help the person standing there now; it hands the question to someone else, later, with signal |
+> | **can't tell** | you looked, and nothing settled it | *a step-by-step questionnaire* — nobody knows whether someone holding binoculars will tap through six questions, because it's never been offered |
+>
+> **Done when:** every proposal has one of the three, and the failures name the
+> clause they failed.
+> **Trap:** turning "can't tell" into "no". They are completely different, and the
+> difference matters more than almost anything else here — see §5.
+
+> **Task 11 — Mark the coverage and name the hole.**
+> Put what passed onto the ground from Task 4. Count it. Then **name what's left
+> over, with its size**.
+> **Done when:** you have the Checkpoint sentence, filled in — here: *"four of six
+> evidence kinds; what's uncovered is what the bird was doing, and how long they
+> had."*
+> **Trap:** writing "gaps remain". A hole with a name and a size is a piece of
+> work. "Gaps remain" is a shrug.
+
+> **Task 12 — If it's still short, change source and go again.**
+> You've used up what people already told you. Say so out loud — *"this source is
+> spent"* — write it down, and move to the next one:
+> **what someone else already knows** (how other apps solved it, an expert
+> interviewed *for this specific gap*, published work, a standards body). Then, and
+> only then: **what you invent**.
+> **Done when:** the coverage number moved, or you've reached the last source.
+> **Trap:** jumping straight to inventing. It's the most fun and the least
+> reliable, and once someone has invented something they defend it as though it
+> came from evidence. See §4.
+
+### Phase C — check the gap itself (Tasks 13–15)
+
+> **Task 13 — Look for the three signs you drew the gap wrong.**
+> Not errors — findings. Any of these means the *description* is off, not the
+> proposals:
+>
+> | sign | what you'd see |
+> |---|---|
+> | **it's aimed at the wrong people** | something that passed turns out to be used mostly by people outside the moment you described — here, sound ID used mostly by people who *already knew* the bird and wanted confirmation |
+> | **it's throwing away answers unread** | proposals were ruled out by the boundary alone, without anyone considering them — and the gap is *still* not filled. If your rules keep rejecting things while the problem stays open, the rules are doing the deciding |
+> | **it looks full but something won't fit** | you're holding something that clearly belongs and there's nowhere to put it — which means your units are too coarse |
+>
+> **Done when:** you've checked all three and said which, if any, fired.
+> **Trap:** treating these as bad news. The third one, especially, is the most
+> valuable thing a session can produce.
+
+> **Task 14 — If a sign fired, redraw the gap.**
+> Rewrite the description. **Keep what already passed** — it's still true. And
+> **un-reject anything that was rejected only by the boundary you just changed**;
+> those proposals never got a fair hearing.
+> **Done when:** the new description is written, the survivors carry over, and the
+> un-rejected ones are back on the board.
+> **Trap:** quietly widening the boundary to fit whatever you want to build.
+> Redrawing is a decision you announce and record, not a thing that happens by
+> itself while nobody's looking.
+
+> **Task 15 — Write the questions that would settle it, in order.**
+> The gap tells you what to go and find out. The order matters, because rooms
+> reliably reach for the slowest one first:
+>
+> 1. **Place what you already have.** Something passed and you can't say exactly
+>    where it sits. Here: *"'what's likely here, now' passed — does that cover
+>    location only, or location and season?"* One afternoon with data you already
+>    hold, and the coverage number changes.
+> 2. **Fill the hole.** *"Who helps with what the bird was doing?"* This is the
+>    one that genuinely needs new research — and it now arrives with a size on it
+>    instead of as "let's do more discovery."
+> 3. **Re-ask what came back blank.** Weakest and last. Somewhere that already
+>    told you nothing is the least likely place to get an answer.
+>
+> **Done when:** the list exists, in that order.
+> **Trap:** commissioning the expensive research first. It's the most impressive
+> thing to announce and the least efficient thing to do.
+
+### Phase D — commit, and leave a way back (Tasks 16–18)
+
+> **Task 16 — Give each survivor a standing.**
+> Three, and they mean different things — see §6 for the full version:
+> **hunch** (real, unnamed, not yet describable) · **candidate** (passed the test,
+> provisional, has a witness) · **commitment** (it holds on its own, fits the rest
+> of the product, and can be given up).
+> **Done when:** every survivor has one, written down.
+> **Trap:** putting hunches on the roadmap. A hunch with a date on it is a
+> question with a deadline.
+
+> **Task 17 — Check the three gates before calling anything committed.**
+> All three, none implied by the others:
+> **(a)** coverage is stated — either it's covered, or the hole is named with its
+> size; "we didn't check" doesn't count.
+> **(b)** the decision to commit came from somewhere other than where the idea
+> came from — the people who invented it don't get to be the ones who certify it.
+> **(c)** it actually fits with everything else, tested, not assumed.
+> **Done when:** all three are ticked, or you can say which one is blocking.
+> **Trap:** (c). Here it's the live one: photo ID and the "likely here, now"
+> shortlist have never been checked together, and if the shortlist is applied
+> *after* the photo model instead of feeding into it, one screen shows a
+> birdwatcher two different answers.
+
+> **Task 18 — Write the route back.**
+> What would make you stop doing this? Here: *a bird's range shifts, the "likely
+> here now" list becomes wrong for a whole region, sound ID's accuracy falls below
+> the bar it claimed — and it gets pulled, with the reason recorded.*
+> **Done when:** the condition is written down beside the commitment.
+> **Trap:** treating this as pessimism. **A commitment you can't undo isn't a
+> commitment, it's an inheritance** — and a roadmap that can only grow is one
+> nobody can ever fix.
 
 ---
 
-## 4. The stance ladder — where candidates come from
+## 4. Where ideas come from — and why it matters which
 
-The declared **stance** is the loop's one free variable: it decides which
-generator proposes candidates at all. Three rungs, descended only when the one
-above is exhausted.
+Three sources. Use them **in this order**, and only move on when the one above is
+genuinely used up.
 
-| rung | mode · grain | generates | on this ask |
-|---|---|---|---|
-| **extraction** | Differentiate · Figure | what the material itself already states | The "sp." and "unidentified" entries in users' own lists. Support mail describing a bird in words. The blurry photos people upload anyway. The recordings they make and never use. The forum posts that open "small brown thing, marsh, Tuesday". |
-| **cultivation** | Relate · Figure | what binds to the anchor — a reference, a source, a witness | What the other birding apps already solved and how. A county records committee's own ID criteria. A paper on acoustic classification. An ornithologist interviewed *for this slot* rather than in general. |
-| **encounter** | Generate · Figure | a filler nothing named — supplied, not read | "What if the app watched through the binoculars." Nobody asked for it. You are proposing it. |
-
-**`encounter` is last, and it is the only rung that can supply a candidate the
-material never named. That is where invention lives, and naming it as a posture
-is what makes it visible instead of ambient.** An idea reached at `encounter`
-and one reached at `extraction` are both answers, and they are not the same
-kind of answer; the record says which without anyone inferring it from a score.
-
-This is the single highest-value thing the protocol does to an ordinary
-ideation session: it does not ban invention, it *labels* it, and it requires
-the two rungs above to be exhausted first. Most rooms invent at minute three
-because inventing is more fun than reading support mail — and then defend the
-invention as though it had come from the material.
-
-**Two senses of "stance", kept apart.** There is the stance *of a cell* — a
-property of the question being asked, computed from its mode and grain, which
-cannot be wrong. And there is the stance *you declare* — the posture you are
-taking on this act, which is a choice and can be refused. Same word, two
-standings; do not merge them.
-
----
-
-## 5. The loop
-
-### Propose (DEF) — fan out, do not walk
-
-Everyone writes candidates for the *declared slot* at the *declared rung*, and
-**every one of them lands before any one of them is discussed.**
-
-That is structural, not a facilitation preference. Propose-one-test-it-
-propose-the-next is a greedy search, and a greedy search over two true fillers
-returns whichever it drew first. The set of proposed-but-not-yet-judged
-candidates **is** the useful state: it is the only moment where the room holds
-all of its options at once. Clustering, dot-voting and "let's build on that"
-all collapse it early — clustering especially, which is a greedy search wearing
-a friendlier costume.
-
-A candidate stands as a **wish** until an admission clears it.
-
-### Admit (EVA) — bind each to the ground
-
-The admission test was written at step zero, before any candidate existed. Each
-candidate is evaluated against it *individually*, against the same ground, and
-comes out with one of three standings:
-
-| standing | what it means | on this ask |
+| source | what it gives you | on this ask |
 |---|---|---|
-| **testimony** | Cleared admission, with a witness named. | **Sound ID** — consumes *what they heard*, runs on-device, so the offline clause holds. |
-| **refused** | Failed the declared test. Note *which clause* it failed. | **Ask the community** — it does not narrow using evidence the birder has; it defers the question to someone else, later, with signal. |
-| **undetermined** | Read, and nothing settled it either way. | **The stepwise narrowing key** — nobody knows whether a person holding binoculars taps through six questions, and the app has no data because it has never offered one. |
+| **1 · what people already told you** | things already true, that you haven't read yet | The "unidentified" entries. Support mail describing a bird in words. Blurry photos, unused recordings, the "small brown thing, marsh, Tuesday" posts. |
+| **2 · what someone else already knows** | things true elsewhere, that you can go and get | How other apps solved this. A birding records committee's own criteria. Published work on sound recognition. An expert interviewed *for this gap*, not in general. |
+| **3 · what you invent** | things nobody has said yet — supplied by you | "What if the app could watch through the binoculars." Nobody asked for this. You're proposing it. |
 
-Note which candidate got refused there. *Ask the community* is a genuinely good
-thing to build. It was refused by the **declared relation and admission test**,
-written before anyone had a favourite — which is the test doing its job instead
-of the room's enthusiasm doing it.
+**Source 3 is last, and it's the only one that can produce something nobody has
+evidence for. That's not a reason to ban it — it's a reason to label it.**
 
-> **Undetermined is not refused, and folding one into the other is the most
-> common way this goes wrong.** A check may say "I have nothing to compare this
-> against" (withhold), or "I compared it and it failed" (convict). It may never
-> manufacture the second out of the first. Treating absence of evidence as
-> evidence of failure is not rigour; it is an accusation with no evidence,
-> dressed as one.
+An idea from source 1 and an idea from source 3 are both ideas, and they are not
+the same kind of thing. Writing down which source each came from means nobody has
+to guess later, and nobody can quietly promote a hunch into a finding.
 
-### Re-zero (REC) — two triggers, two different acts
+This is the single most useful habit here. Most rooms start inventing about three
+minutes in, because inventing is more enjoyable than reading support mail — and
+then defend the invention as though it came from the evidence.
 
-Not one move. The distinction matters, because the two have different
-consequences for everything already on the board.
+---
 
-1. **The posture is spent.** The rung gave up everything it holds and the space
-   is still short → **concede** it, note the concession, and **descend one
-   rung**. Nothing already admitted is disturbed. On this ask: extraction gave
-   up everything the logs and the support mail hold, so the room descends to
-   cultivation.
-2. **The declaration was wrong.** → **revise, and supersede the act that
-   opened the space.** Reshaping resets the ladder, carries the already-cleared
-   candidates across, and returns candidates that were refused *by the extent
-   alone* to **wish** — because their refusal rested on the extent you just
-   conceded.
+## 5. "We don't know" is not "no"
 
-Three signals tell you the second kind has happened. Read them as product
-findings, not as errors:
+The most common way this goes wrong, and the easiest to fix.
 
-| signal | what it looks like | what it means, on this ask |
+When a proposal comes back **can't tell**, there is enormous pressure to file it
+as a no. It feels tidier. It clears the board. And it's a mistake, because the two
+mean opposite things:
+
+- **fails** = we checked, and it doesn't do the job.
+- **can't tell** = we don't have what we'd need to check.
+
+The first is a fact about the proposal. The second is a fact about *you*. Filing
+the second as the first means you've decided against something on the basis of
+your own ignorance, and written it down as though it were evidence.
+
+Keep them apart. "Can't tell" isn't a failure — it's a question, and Task 15 tells
+you where in the queue it goes. (Last, usually. But last isn't gone.)
+
+---
+
+## 6. Hunch → candidate → commitment
+
+Three standings a thing can have. They are **not** stages on a calendar — they're
+what you currently believe, and belief moves both ways. Something can lose its
+standing when you learn more, and it should: the whole point of writing the
+standing down is that it can change.
+
+### hunch
+
+Something real that you can't describe yet. Here: people keep logging
+"unidentified" and writing in about birds they couldn't name — and nobody can yet
+say what they were actually missing.
+
+**To become a candidate:** the gap is described (Tasks 1–7), the kill line exists,
+and at least one proposal is on the board with its source noted.
+**Not allowed yet:** a spot on the roadmap. A hunch with a date attached is a
+question with a deadline.
+
+### candidate
+
+Something that passed the test, with a witness. Here: **sound ID, behind a flag,
+covering exactly one kind of evidence, with a stated accuracy bar.** Still
+provisional. Still droppable. The record says which source it came from and what
+it covers.
+
+**To become a commitment:** all three gates from Task 17.
+
+### commitment
+
+It stands on its own *and* it's part of the whole: other things can use it, people
+can find it without asking whoever built it, and **there's a stated way to give it
+up** (Task 18).
+
+> **hunch:** people keep logging "unidentified" and we can't say what they needed.
+> **candidate:** sound ID is there provisionally, we know what it covers and who
+> vouched for it.
+> **commitment:** it holds up, it works with the rest, and we know what would make
+> us drop it.
+
+### One more standing to watch for: the fake subject
+
+Before any of the three, check for the thing that isn't a thing at all — "the ID
+engine", "the platform", "the pipeline". It sounds like a candidate. It can't be
+one, because it doesn't do anything specific enough to test. That's Task 8, and
+it comes first for a reason: a fake subject can absorb an entire quarter and leave
+everyone able to describe progress.
+
+---
+
+## 7. A different question: what *kinds of thing* can your product do?
+
+A complementary move, useful when the gap-filling has stalled.
+
+Instead of asking what people want, list the **kinds of action** your product lets
+someone take — not what it's about, but what it lets a person *do*. Distinguish
+one thing from another. Relate two things. Judge whether something holds. Notice
+what's missing. Then look for the kinds it can't do at all.
+
+**When you find one, three very different things could be going on**, and telling
+them apart is the entire value:
+
+| what you found | what it actually is | what to do |
 |---|---|---|
-| **the extent is too small** | an admitted candidate serves people outside the space you drew | Sound ID turns out to be used most by birders who **already named the bird** and want confirmation. **The slot is wrong**, not the feature. |
-| **the extent excludes** | candidates were excluded by the extent alone, *without ever being read*, while the space is still short | Every candidate needing a network was excluded by the offline clause without anyone reading it, and four evidence kinds are still open. *A space that refuses candidates and reports itself unfilled is evidence about the space, not about them* — the marsh-at-dawn assumption is doing the deciding. |
-| **covered but unplaced** | the space reads complete while holding something you cannot place in it | A bird at arm's length on a feeder and a silhouette at 400 metres through a scope are both *what they saw*, and photo ID covers exactly one of them. **The extent's grain is too coarse** — the extent question is "what is to be covered, *and in what units*". |
+| **you already have it** | the capability exists, nobody knows | Here: the app already builds a location-filtered shortlist inside its search screen, and the ID team has never heard of it. **Check this first, every single time** — it's the cheapest possible fix, and it's more common than anyone expects. |
+| **you genuinely can't** | there's no way to do this at all | Here: nothing in the product can take *what the bird was doing* as input — no field, no capture, no vocabulary. **This is the feature idea**, and you got to it by working rather than brainstorming. |
+| **you asked the wrong question** | the gap is in the question | "We can't do sound" was really "we can't do sound *offline*." Suspect your own question before you suspect the product. |
 
-### The loop's own law
+**How to earn the middle row:** say in advance what would be impossible if the gap
+were real — *"if we truly can't do this, then X should be impossible; let's go
+look"* — and then go look. Without that, "we can't do this" is usually the first
+row wearing a disguise.
 
-**The loop may not close from the posture it proposed from.**
-
-> A fan-out from `encounter` closed from `encounter` never tested anything —
-> candidates were generated, a commitment was generated, and the admission
-> between them was ceremony.
-
-In a room: **the posture that invented the idea may not be the posture that
-certifies it cleared.** "What if the app watched through the binoculars" came
-from `encounter`, so the close cannot: it needs an extraction (a prototype's
-own logs now state it) or a cultivation (someone who has built one bound it).
-"We all agreed in the workshop" is closing from the posture that proposed.
+**And the limit worth saying out loud:** even a complete list of what you *can* do
+says nothing about whether you do any of it *well*. Being consistent with yourself
+is much weaker than being right about the world. That's what the kill line in
+Task 7 is for — it's the only part of this that reaches outside the room.
 
 ---
 
-## 6. A gap you can name is a question you can ask
+## 8. The birding run, start to finish
 
-When the loop stalls, its own state tells you what to go and find out — and the
-questions come **ordered by what settles fastest**. The ordering is the lesson,
-because rooms reliably reach for the slowest one first.
+The tasks, actually run.
 
-1. **Place what you already hold.** A candidate that cleared admission and
-   cannot be placed in the extent. Here: *"'likely here, now' cleared — does it
-   cover* where *alone, or* where *and* when*?"* One afternoon against range
-   data already in hand, and it moves the coverage count. **Place the thing you
-   have before you go looking for a new one.**
-2. **Fill the void.** A stretch nothing covers. Here: *"who narrows on
-   behaviour?"* This is the one that genuinely needs new discovery — and it now
-   arrives *sized*, rather than as "do more research".
-3. **Settle the undetermined.** Read, and nothing settled it. Weakest and last:
-   a source that already said nothing is the least promising place to ask again.
+**Tasks 1–7.** The ask, written down. The moment: a birdwatcher at a sighting who
+can't name the bird — not someone logging a bird they already know, not someone
+looking it up at home that evening. Out: a course, a forum, a field-guide upsell.
+The ground: six kinds of evidence. Pieces stack. The test: *narrows down what the
+bird could be, using evidence the person actually has* — and works with no signal.
+The kill line: strip the location and date, and see if the answers change.
 
-When an answer comes back, fold it in — and **refuse an answer the extent
-cannot contain** rather than quietly widening the extent to fit it. Widening an
-extent is a deliberate act with its own re-zero; it is never a side effect of
-answering a question.
+**Checkpoint.** *"We cover two of six — photo and sound — and the four uncovered
+are where, when, what it was doing, and how long they had."* First time anyone in
+the room has been able to say that.
 
-That wall is worth more than it looks. An answer that comes back wrong gets
-refused by the arithmetic, and the wrong answer neither corrupts the space nor
-produces a confident conclusion. **The refusal is worth more than the answer
-being right, because it holds for answers wrong in ways nobody anticipated** —
-the confident stakeholder, the mis-scoped research round, the number that turns
-out to have measured something else.
+**Task 8.** "The ID engine" named and parked, in writing.
 
----
+**Task 9.** Silent fan-out from what people already told you: photo ID, sound ID,
+a step-by-step questionnaire, a "likely here, now" shortlist, a side-by-side
+comparison of two similar species, ask the community. Nothing discussed.
 
-## 7. emanon → protogon → holon: the standing of a feature
+**Task 10.** Photo ID **passes** (what they saw, runs on the phone). Sound ID
+**passes** (what they heard). "Likely here, now" **passes** (where and when, using
+data already on the device). Ask the community **fails** — it doesn't help the
+person standing there. The questionnaire is **can't tell**. The side-by-side
+comparison **fails on the boundary alone**: it needs a shortlist to compare *from*,
+and nothing produces one yet.
 
-The three words are borrowed from an ontology of individuation — how something
-goes from *a difference you notice* to *a thing you can name* to *a whole that
-is also a part*. The ladder is the borrowing; the exit gates below are this
-document's own.
+**Task 11.** Four of six — up from the two the original argument would have
+shipped. Uncovered: what the bird was doing, and how long they had. Every
+birdwatcher knows the hovering-then-diving bird and the two-second flyover, and
+nothing on the board touches either.
 
-**These are standings, not calendar phases.** A standing is a belief about a
-thing, not a milestone it passed, so it is revisable in both directions: the
-gate is re-run as more comes in, and what no longer clears **lapses** — with
-its reason recorded, not reduced to a bare tag. A feature demotes exactly that
-way, and **a roadmap that cannot demote is a roadmap that can only grow.**
+**Task 15.** Place "likely here, now" (an afternoon; changes the number) → find
+someone who helps with behaviour (real research, now sized) → revisit the
+questionnaire (last).
 
-### apparatus — the warning class, checked first
+**Task 13, and this is the good part.** Someone writes in about the sighting they
+most wanted help with: a bird through a telescope at 400 metres in flat light.
+Shape and movement only. No colour, no photo possible.
 
-A thing that appears everywhere in the conversation and is a **naming device
-rather than a being**. On this ask it is **"the ID engine"** — also "the model",
-"our data pipeline", "the platform". It co-occurs with everything by
-construction, so it appears to relate to every candidate and discriminates
-between none.
+*What they saw* is one of the six kinds, so this isn't outside the gap. It's the
+third sign: **it looks full but something won't fit.** A bird at arm's length on a
+feeder and a silhouette at 400 metres are not the same evidence, and photo ID
+handles exactly one of them. **The units were too coarse.**
 
-**Test:** does it appear mostly in sentences that are naming other things? Then
-it is how you talk about the work, not the work. A quarter spent on "the ID
-engine" can end with no evidence kind covered and everyone able to describe
-progress.
-**Action:** name it, withhold it from the candidate set, and *record that you
-withheld it*. The withholding is a finding, not a tidy-up — an apparatus that
-gets silently dropped comes back next quarter with a new name.
+**Task 14.** Redraw: split "what they saw" into *seen well* and *seen poorly*.
+Coverage honestly drops to four of seven. The side-by-side comparison comes back
+onto the board, because the boundary that rejected it just changed.
 
-### emanon — a difference felt, not yet named
+**Tasks 16–18.** Sound ID is a **candidate**. "Bird ID" as a whole is **not a
+commitment**, and the gate blocking it is (c): nobody has checked that photo ID
+and the shortlist work together.
 
-A recurring complaint, drop-off, or workaround that is real and has no name.
-There is a slot and an anchor; **nothing stands in the space.** Here: birders
-keep logging "sp." and writing in about birds they could not name, and nobody
-can yet say what they were missing at the moment they needed it.
-
-**Exit → protogon:** the nine are declared (or their gaps named and visible),
-`broken:` is stated, the loop opens without the three refusals, and at least
-one candidate has been proposed at a **named rung**.
-**What it may not do yet:** appear on a roadmap. An emanon on a roadmap is a
-date attached to a question.
-
-### protogon — a provisional individual
-
-At least one candidate has cleared admission against the declared test, with a
-witness — a **wish that became testimony**. Still revisable: the past is kept,
-the rung it was reached at is on the record, and it can still be conceded.
-Here: **sound ID, behind a flag, scoped to the one evidence kind it names, with
-a stated accuracy bar.**
-
-**Exit → holon:** three things, all of them, none inferable from the others.
-
-1. **Coverage is stated.** The extent reads covered, *or* the remaining void is
-   named with its size and edges. "Four of six evidence kinds, with behaviour
-   and duration open" is admissible; "we didn't check" is not.
-2. **The close is from a different stance than the proposal.**
-3. **Composition is honoured.** The declared composition actually holds against
-   the rest of the product. Here that is the live gate: the declaration says
-   evidence kinds *combine*, and nothing has checked that photo ID and "likely
-   here, now" compose. Apply the shortlist *after* the model rather than folding
-   it in as a prior and the two disagree in public — one screen, two answers,
-   one birder. **A part that composes only in the deck is not composed.**
-
-### holon — a whole that is also a part
-
-Committed. It stands on its own **and** it is a part of the system: other
-things can call it, it is findable by name rather than by whoever built it,
-and — the part teams skip — **a route back exists.** A commitment you cannot
-concede is not a commitment, it is an inheritance.
-
-Here that route is concrete rather than ceremonial: a species' range shifts,
-the "likely here, now" prior is now wrong for a whole region, sound ID's
-accuracy drops below the bar it stated, and the holon **lapses** — with its
-reason recorded — instead of staying shipped and quietly wrong.
-
-**The arc, in one line:**
-
-> **emanon**: birders keep logging "sp." and we cannot say what they needed.
-> **protogon**: sound ID is standing there provisionally and we can say who
-> witnessed it and what it covers.
-> **holon**: it holds on its own, it composes with the range prior, and we know
-> what would make us give it up.
+**What the session produced.** Not a cleverer idea than anyone had: *one proposal
+rejected for a stated reason*, *one named hole with a size*, *one cheap question
+that moves the number*, *one wrong assumption caught before anything was built*,
+and *one conflict that would otherwise have shipped and become a bug report.* None
+of it was in the one-line ask, and none of it required anyone to be smarter than
+they already were.
 
 ---
 
-## 8. Coverage as a source of ideas — an empty cell is a lead, never a verdict
+## 9. The same thing, in a clinic
 
-The complementary move. Stop asking what users want for a moment, and ask
-**what kinds of act your product can perform at all.**
+A check that none of this is about birds — or about software.
 
-Lay what you already have onto the grid of acts — the nine operators across
-three grains, twenty-seven cells — and read the holes. The rule that makes this
-work rather than becoming astrology: **the grid types ACTS, never subject
-matter.** A cell is not a label you compute from what a feature is about. Ask
-*what kind of act does this let a person perform*: "it's a bird thing" is not a
-cell; "it distinguishes one individual from a background" is.
+**The ask:** "the clinic's booking app should reduce missed appointments."
 
-**Three different things produce an empty cell, and telling them apart is the
-entire value:**
+- **The moment (2):** one patient, with one appointment booked, who doesn't turn up
+  and didn't cancel.
+- **Out (3):** a policy change, a staffing change, a poster in reception.
+- **The ground (4):** the time between booking and appointment. **Units: hours
+  before the appointment.**
+- **Fitting (5):** contacts stack — a reminder and a confirmation can both happen.
+  Changes to the appointment itself exclude each other.
+- **The test (6):** it must say which hours-before window it acts in, and the
+  clinic must already be able to do it.
+- **The kill line (7):** don't do it for a random half — if missed appointments
+  fall the same either way, this whole picture is wrong.
 
-| hole | what it is | on this ask |
+**Fan-out (9):** a text at 24 hours, a text at 2 hours, one-tap confirm, one-tap
+reschedule, filling the slot from a waiting list.
+
+**Judging (10):** the waiting list **fails** — it doesn't change whether *this*
+patient turns up, it changes what happens after they don't. A genuinely good idea,
+rejected by the test rather than by anyone's taste. Structurally the same refusal
+*ask the community* got in the birding run, in a completely different world.
+
+**Then two signs fire (13).** *Throwing away answers unread:* help with transport,
+help with childcare, an explanation of what the appointment involves — all excluded
+by the boundary, none of them ever actually considered, and the problem is still
+there. The window between booking and appointment was the wrong ground. *Looks full
+but something won't fit:* the 24-hour reminder appears to "cover" the window, and
+nobody can say which hours it actually works in. The units were too coarse — **the
+same finding the 400-metre bird produced**, in a place with no birds in it.
+
+Both are Task 14: redraw wider and finer, keep what passed, put back what the old
+boundary excluded.
+
+---
+
+## 10. Ninety minutes
+
+| time | do this | tasks |
 |---|---|---|
-| **debt** | the capability exists and nobody has registered it | The app already computes a range-filtered shortlist inside its search screen, and nobody on the ID team knows. Check this first, every time — it is the cheapest to close, and it is more common than anyone expects. |
-| **real incapacity** | the product genuinely cannot perform that kind of act | Nothing in the product can take *behaviour* as an input at all — no field, no capture, no vocabulary. That is the feature idea, and it is *derived* rather than brainstormed. |
-| **probe error** | the question you asked of the cell was the wrong question | "The app can't do sound" was really "we asked whether it can do sound *offline*, and it can't do that specific thing." Suspect the probe before the product. |
+| 0:00 | Describe the gap. Say the parts you can't fill out loud. | 1–7 |
+| 0:10 | **Checkpoint.** Can you say the sentence? If not, stop — a better description is a real result. | — |
+| 0:15 | Name the fake subject and park it. | 8 |
+| 0:20 | Silent fan-out, one source only. Nothing discussed. | 9 |
+| 0:40 | Judge one at a time against the test. Three outcomes only. | 10 |
+| 1:00 | Count the coverage. Name the hole and its size. | 11 |
+| 1:10 | Still short? Change source, or check the three signs. | 12–14 |
+| 1:20 | Write the questions that would settle it, in order. | 15 |
 
-**The rule that makes the middle row earnable:** a cell earns the *incapacity*
-reading only by a **prediction stated before the check is run and then
-confirmed** — "if this is a real gap, then X should be impossible; let's go
-see." Without that, "we can't do this" is a story about the map, not the
-territory, and the story is usually debt.
+**The output of the session is that ordered list of questions — not a feature.**
 
-**Two axes, not one.** Coverage is *breadth*: what kinds of act. The other axis
-is *depth*: how complex an act, how many levels of structure it coordinates. A
-product can be broad and shallow or narrow and deep, and neither shows up on
-the other's chart.
-
-**And the wall both axes hit, stated so nobody sells past it:** a complete map
-means every kind of act is *performable*, never that any is performed
-*correctly*. Coherence is strictly weaker than correspondence. A perfectly
-covered map can still misidentify the bird.
+**Deciding to commit is a different meeting, on a different day, with different
+people in it.** That isn't bureaucracy: it's gate (b) of Task 17, and it's the one
+rule here that people break without noticing.
 
 ---
 
-## 9. The whole loop, run once
+## 11. What this won't do for you
 
-The sections above took one move each. Here is the same ask from the opening
-to the standing, so the moves connect.
-
-**Open.** The nine declared as in §2, `broken:` stated. The slot, the anchor
-and a closing condition are all present, so the loop opens; the two fields
-nobody could fill ride along named rather than blocking.
-
-**Fan out at `extraction`.** Silent writing against the declared slot. All of
-it lands before any of it is discussed: *photo ID*; *sound ID*; *a stepwise
-narrowing key*; *a "likely here, now" shortlist*; *compare two species*; *ask
-the community*.
-
-**Admit, one at a time.** Photo ID → **testimony** (*what they saw*,
-on-device). Sound ID → **testimony** (*what they heard*, same way). "Likely
-here, now" → **testimony** (*where* and *when*, off cached range data). Ask the
-community → **refused**, by the declared relation. Stepwise key →
-**undetermined**. Compare two species → **refused by the extent alone**: it
-needs a candidate set to compare *from*, and nothing in the extent produces one
-yet.
-
-**Coverage.** Four of six evidence kinds — up from the two §1's argument would
-have shipped. The void is *what it was doing* and *how long they had*, named
-with its edges. Every birder knows the hovering-then-plunging bird and the
-two-second flyover; nothing on the board touches either.
-
-**The questions, in their own order.** Place "likely here, now" (one afternoon,
-moves the count) → commission the behaviour question (sized) → then the
-stepwise key. **That ordered list, not a feature, is the session's output.**
-
-**Then it re-zeros, and it is a grain finding rather than a new idea.** A user
-writes in about the sighting they most wanted help with: a bird through a scope
-at 400 metres in flat light — shape and motion only, no colour, no photograph
-possible. *What they saw* is an evidence kind the extent names, so this is not
-outside the space. It is **covered but unplaced**: a feeder bird at arm's
-length and a 400-metre silhouette are not the same evidence, and photo ID
-covers one of them. **The extent's grain is too coarse.** That is *revise and
-supersede* — the declaration was wrong, not the posture spent — splitting *what
-they saw* into *seen well* and *seen poorly*, at which point coverage honestly
-drops to four of seven and *compare two species* returns from refused to
-*wish*, because its refusal rested on the extent just conceded.
-
-**Standings.** Sound ID is a **protogon**. "Bird ID" as a whole is **not** a
-holon, and the gate stopping it is composition.
-
-**What the protocol produced.** Not a cleverer idea than the room had: *one
-candidate refused with a stated reason*, *one named void of two evidence
-kinds*, *one cheap question that moves the count*, *one wrong premise about
-grain caught before anything shipped*, and *one composition risk that would
-otherwise have arrived as a bug report*. None of that was in the one-line ask,
-and none of it required anyone to be cleverer than they already were.
+- **It won't rank things.** It produces standings and named holes. Whether
+  behaviour matters more than duration, given what each costs, is a judgement you
+  still have to make. No method makes it for you.
+- **It won't give you a score.** Passes / fails / can't tell stay separate on
+  purpose. Collapsing them into a number is exactly where the information goes.
+- **It won't tell you if you're right.** Everything here checks whether you're
+  consistent with your own description. A room can be perfectly consistent and
+  completely wrong about the world. Only Task 7's kill line reaches outside the
+  room — which is why you don't start without it.
 
 ---
 
-## 10. The control — the same protocol, in a clinic
+## 12. One page
 
-Everything above has been one product. Here is the check that none of it was
-about birds: nothing in §2–§8 mentions sightings, species, binoculars or
-evidence kinds. **If a step needs the domain's own vocabulary to work, it has
-learned that domain, not anything general** — so run it somewhere unrelated
-rather than trusting it because it was written to sound general.
+**Describe the gap first (Tasks 1–7).** The ask, word for word · the moment (one
+person, one occasion) · what's out · the ground *and its countable units* · how
+pieces fit · the test, written before anyone has a favourite · and the kill line.
 
-**The ask:** "the clinic's scheduling app should reduce no-shows."
+**The sentence you're aiming for:** *"We cover ___ of ___, and what's uncovered is
+___."* If you can't say it, that's the session's finding.
 
-```
-slot        (NUL): appointments booked and not attended, not cancelled
-anchor      (SIG): one patient with one booked appointment at one clinic
-admits      (INS): a contact, a change to the booking, or a change to the slot
-                   itself — NOT a policy, NOT a staffing change
-extent      (SEG): the interval from booking to appointment
-                   units: hours before the appointment
-relation    (CON): "changes whether this patient arrives"
-composition (SYN): contacts stack (a reminder and a confirmation are both
-                   possible); slot changes exclude each other
-cardinality (DEF): unknown
-admission   (EVA): a candidate must name the hours-before window it acts in,
-                   and the clinic must already be able to perform it
-reopens on  (REC): a no-show cause that acts outside the booking→appointment
-                   interval at all (transport, childcare, fear)
-broken:            withhold the intervention from a random arm — if no-shows
-                   move the same, the space is not what we think it is
-```
+**Fill it (8–12).** Park the fake subject. Fan out in silence from what people
+already told you. Judge one at a time against the test. Count. Change source only
+when the one you're on is used up.
 
-**Extraction** yields: reminder SMS at 24h, reminder at 2h, one-tap confirm,
-one-tap reschedule, waitlist backfill. Fanned out, none discussed. **Admission**
-against the declared test: waitlist backfill **refuses** — it does not change
-whether *this* patient arrives, it changes what happens after they do not. A
-true and useful thing, refused *by the declared relation* — structurally the
-same refusal *ask the community* took in the birding run, on a completely
-different continent of subject matter.
+**Three outcomes only:** passes (with a witness) · fails (name which part) ·
+**can't tell — which is not a no**.
 
-**Then two of the three signals fire, and they are the whole point of the
-control.**
+**Three signs you drew the gap wrong (13):** it's aimed at the wrong people · it's
+rejecting answers unread while the problem stays open · it looks full but
+something won't fit.
 
-*The extent excludes* — several candidates (transport help, childcare, an
-explanation of the procedure) were excluded **by the extent alone, without ever
-being read**, while the space is still short. *A space that refuses candidates
-and reports itself unfilled is evidence about the space, not about them.* The
-booking→appointment interval was the wrong extent.
+**Three questions, in order (15):** place what you already have → fill the hole →
+re-ask what came back blank.
 
-*Covered but unplaced* — the 24h reminder reads as "covering" the interval and
-nobody can say which hours it acts in. The extent's **grain** is too coarse —
-the same finding the 400-metre silhouette produced, in a domain with no birds
-in it.
+**Three standings (16):** hunch → candidate → commitment. And a route back (18) —
+a commitment you can't undo isn't a commitment.
 
-Both are **revise and supersede**, not concede: the declaration was wrong, not
-the posture spent. The space is re-zeroed with a wider extent and finer units,
-the cleared candidates carry across, and the extent-refused ones return to
-*wish*.
+**Two rules that carry the rest:** every idea gets written down before any idea
+gets discussed · the people who invented it don't get to be the people who certify
+it.
 
 ---
 
-## 11. If you want a formal record
+## Appendix — the formal names
 
-The loop's moves can be written as acts on an append-only log, one line each:
+This is a plain-language version of a method that has a more formal vocabulary.
+If you meet it in that form, here's the mapping. You don't need any of this to run
+the tasks.
 
-```
-<verb> [<object>] at <terrain> from <stance>
-       [ground <g> broken:<p>] [because <t>] [supersedes <id>] [warrant:<who>]
-```
+| plain | formal |
+|---|---|
+| the moment | the **slot** (NUL) |
+| one person, one occasion | the **anchor** (SIG) |
+| what kind of thing counts | **admits** (INS) |
+| the ground, and its units | the **extent** (SEG) |
+| what it has to achieve | the **relation** (CON) |
+| how pieces fit together | the **composition** (SYN) |
+| how many pieces | the **cardinality** (DEF) |
+| the test | the **admission** (EVA) |
+| what would change our mind | **reopens on** (REC) |
+| the kill line | the **perturbation** — `broken:` |
+| the three sources | the **stance ladder** — extraction, cultivation, encounter |
+| passes / fails / can't tell | **testimony** / **refused** / **undetermined** |
+| hunch → candidate → commitment | **emanon** → **protogon** → **holon** |
+| the fake subject | an **apparatus** |
+| redraw the gap | **re-zero** — concede, or revise and supersede |
 
-Eight verbs cover the nine operators — `distinguish` carries two, because
-signing something and individuating it are one motion at the surface and two
-acts underneath: `void`, `distinguish`, `separate`, `relate`, `synthesize`,
-`define`, `evaluate`, `revise`.
-
-### The birding run, as act lines
-
-The terrain and stance are read off the space's own questions, so the acts are
-not chosen — they fall out of the declaration:
-
-```
-void "unnamed sighting" at Void from differentiate
-     ground app-logs broken:strip-location-and-date
-
-define "photo ID"            at Lens from extraction
-define "sound ID"            at Lens from extraction
-define "likely here now"     at Lens from extraction
-define "stepwise key"        at Lens from extraction
-define "compare two species" at Lens from extraction
-define "ask the community"   at Lens from extraction
-     — the whole fan-out lands before any evaluate runs. That set,
-       with nothing yet cleared, is the room's real state
-
-evaluate "sound ID" at Lens from cultivation
-     ground on-device-benchmark broken:strip-location-and-date
-     verdict:holds
-
-evaluate "ask the community" at Lens from cultivation
-     ground admission-test broken:strip-location-and-date
-     verdict:refused
-     because "defers the question instead of narrowing on evidence held"
-
-revise "the extent" at Paradigm from closure
-     supersedes act-0
-     because "«a 400 m silhouette» and «a feeder bird» are both what they
-              saw — the grain is too coarse"
-```
-
-Three things there are load-bearing rather than decorative. The opening `void`
-**cannot be written without** its `ground … broken:` — the kill criterion is
-grammar, not etiquette. Every `define` names the rung it came from, so the
-record says where the candidates originated without anyone inferring it later.
-And the closing `revise` names both a **trigger** and a **target**: it
-supersedes the act that zeroed the space, because the space was wrong.
-
-A few refusals are worth borrowing verbatim as room discipline: opening a
-space, distinguishing a thing, or evaluating a candidate all require a named
-ground and a named way to be wrong; relating two things not yet established
-needs a warrant, and lands as *offered* rather than established; composing a
-whole from parts that share no established relation is refused; and revising
-needs both a trigger and a target already on the record. **A definition lands
-as a wish until its evaluation clears it.**
-
-Whether you literally write act lines or keep a log in a document, the two
-properties that matter are the ones a log has and a whiteboard does not:
-**supersession keeps the past** — the conceded six-kind extent is still
-readable after the grain fix superseded it, so "we used to think evidence had
-six kinds" is a fact you can look up — and **every commitment names its
-witness.**
-
----
-
-## 12. Ninety minutes, in order
-
-1. **10' — Zero the space.** Nine lines plus `broken:`. Fill what you can,
-   leave the rest as explicit gaps. Read the gaps out loud.
-2. **5' — Open, or refuse.** If the slot, the anchor, a closing condition or
-   `broken:` is missing, the session's output is a *better declaration*, and
-   that is a real output. Stop there without apology.
-3. **5' — Name the apparatus.** What here is a naming device rather than a
-   thing? ("The ID engine.") Withhold it, on the record.
-4. **20' — Fan out at `extraction` only.** Silent writing. Everything lands. No
-   discussion, no clustering, no dot-voting.
-5. **20' — Admit, one candidate at a time,** against the test declared in step
-   1. Three outcomes only: testimony (with a witness), refused (by which
-   clause), undetermined. Do not convert undetermined into refused.
-6. **10' — Coverage.** What does the extent still not cover? Name the void with
-   its size and edges — "behaviour and duration, of six kinds".
-7. **10' — Descend or reshape.** Posture spent → concede, descend to
-   `cultivation`, note the rung. A signal fired → revise, supersede the
-   opening, carry the cleared candidates across, return extent-refused ones to
-   wish.
-8. **10' — What would settle it.** Write the questions in the loop's order:
-   place what you hold, then fill the void, then re-ask the silent sources.
-   **That ordered list, not a feature, is the session's deliverable.**
-
-**Closing is a separate meeting, with a different posture** — and that is not
-bureaucracy, it is the one law this loop has.
-
----
-
-## 13. What this does not do
-
-- **It does not prioritize.** It produces standings and named voids. Deciding
-  that behaviour matters more than duration, against cost and time, is a
-  different act — and pretending a protocol performs it would be exactly the
-  coherence-read-as-correspondence error §8 ends on.
-- **It does not score.** No weighted rubric, no RICE. Verdicts are typed
-  (testimony / refused / undetermined) because a score collapses those three
-  into one number, and the collapse is where the information goes.
-- **It does not classify features by subject.** The grid types acts. Sound ID
-  is not "a Link feature" — it was *admitted under* a cell.
-- **It does not guarantee you are right.** Every refusal it makes is about
-  internal consistency: whether this space, as declared, can hold this
-  candidate. A room can be perfectly consistent and systematically wrong about
-  the world. Only contact with the world settles that — which is what
-  `broken:` is for, and why the protocol refuses to start without it.
-
----
-
-## 14. One page, if you remember nothing else
-
-**Nine questions, before any idea:** what space (slot) · what must resolve
-(anchor) · what kind of thing may stand here (admits) · how much, in what units
-(extent) · what binds a filler to the anchor (relation) · how fillers combine
-(composition) · how many (cardinality) · what test admits one (admission) ·
-what would force a rewrite (reopens on). Plus: **what would make this wrong.**
-
-**Three rungs, in order:** what the material states → what binds to it → what
-you invent. Descend only on exhaustion. Label which one you are on.
-
-**Three standings:** testimony (cleared, with a witness) · refused (by a named
-clause) · undetermined (nothing settled it — *not* a failure).
-
-**Three signals you drew the space wrong:** it serves people outside your slot ·
-it excludes candidates unread while still short · it reads complete while
-holding something you cannot place.
-
-**Three standings for the thing itself:** emanon (felt, unnamed) → protogon
-(standing provisionally, witnessed) → holon (holds alone, composes, and can be
-given up).
-
-**Two laws:** the loop may not close from the posture it proposed from · a gap
-you can name is a question you can ask, and the cheapest question is to place
-what you already hold.
+The nine questions aren't a list someone assembled from experience. They're the
+nine operators of a closed algebra of acts, across three domains (what exists, how
+things are structured, how they're judged) and three grains (the background, a
+single difference against it, a repeating pattern). That's why there are exactly
+nine, and why they group the way they do — but the tasks work whether or not you
+ever look at that.

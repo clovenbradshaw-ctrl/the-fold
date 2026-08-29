@@ -28,25 +28,38 @@ plausible, unbuilt work — named here, not implied done.
 
 ## 1. Why not start from the idea
 
-The specimen that produced this whole line of work was not a product question,
-and it does not matter that it was not. Asked *"who was Lincoln's vice
-president?"*, the instrument answered **"Hannibal Hamlin"** on one draw and
-**"Andrew Johnson"** on the next. Each is a true sentence. Neither is the
-answer, because the slot holds two fillers and the reading had no way to know
-it was still short (`void-shape.js`'s own header).
+**"Make checkout faster."** Two teams answer it. One proposes **guest
+checkout**, with the account-creation drop-off to back it. The other proposes
+**one-tap payment**, with the card-entry drop-off to back it. Each is a true
+answer to the ask. Each has evidence. And the argument about which one to
+build is the wrong argument — because the space between cart and confirmation
+holds five steps, those two candidates cover two of them, and nobody drew the
+extent, so nothing in the room could say the answer was *still short*.
 
-Every mechanism tried first read completeness off the **answer**. That is the
-same failure a roadmap makes: the first plausible feature that anyone can
+```
+extent (SEG): cart → confirmation, in steps        units: checkout steps
+
+  1 account   2 address   3 shipping   4 payment   5 review
+  ▓▓▓▓▓▓▓▓▓   ·········   ··········   ▓▓▓▓▓▓▓▓▓   ········
+  guest                                one-tap
+  checkout                             payment
+
+  covered: 2 of 5 · void: steps 2, 3 and 5 — named, with edges
+```
+
+Read completeness off the **answer** and both candidates look sufficient,
+because each one is genuinely good at the step it covers. That is the failure,
+and it does not announce itself as one: the first plausible feature anyone can
 defend closes a space that was never measured, and it closes it *with a true
 sentence*. "Users want faster export" is true. It is not the answer, if the
 space it stands in also holds three other things and nobody drew the extent.
 
 So the move is: stop asking the candidate whether it is sufficient, and ask
-the **space**. A slot is not a bag of features; it is an extent with
+**the space**. A slot is not a bag of features; it is an extent with
 dimensions, and a feature covers part of it. What is left over is not an
 absence of evidence — it is a void with a size and edges, and something has to
-be in it. That is what makes a second feature *necessary* rather than
-hoped-for.
+be in it. That is what makes a third candidate *necessary* rather than
+hoped-for, and it is the only thing that can tell you when you are done.
 
 **Greedy search is the failure mode with a name.** `void-loop.js` fans DEF out
 over an array and lands every candidate before any admission runs, and its
@@ -72,8 +85,8 @@ typed here: **operator × grain is the whole space, 27 cells; stance =
 | op | field | cell | stance | the product question | what its absence costs |
 |---|---|---|---|---|---|
 | **NUL** | `slot` | Void · Ground | **Clearing** | What space is this, marked off from everything it is not? | You are ideating on a topic, not a slot. Every candidate is "related" and none is *in* or *out*. |
-| **SIG** | `anchor` | Entity · Figure | **Binding** | What must resolve for this space to exist at all — which user, which surface, which job? | The unresolved anchor collects neighbours. (In the live specimen: undeclared, `lincoln` matched Lincoln Motor Company and the reading answered from car brochures.) |
-| **INS** | `admits` | Kind · Pattern | **Composing** | What *kind* of thing may stand here — a feature, a setting, a doc change, a price? | The slot query returns junk that fits grammatically. (Live: "Congress", "the 22nd Amendment", "Though he" as candidate vice presidents.) |
+| **SIG** | `anchor` | Entity · Figure | **Binding** | What must resolve for this space to exist at all — which user, which surface, which job? | The unresolved anchor collects neighbours. Undeclared, "our users" admits the enterprise admin and the free-tier individual at once — and the candidate that wins serves neither. |
+| **INS** | `admits` | Kind · Pattern | **Composing** | What *kind* of thing may stand here — a feature, a setting, a doc change, a price? | The slot query returns junk that fits the sentence. Undeclared, "make checkout faster" admits *hire a payments lead*, *renegotiate the processor contract*, *a Q3 objective* — all real things to do, none of them a thing that can stand in this slot. |
 | **SEG** | `extent` | Field · Ground | **Clearing** | The extent to be covered **and its units** — which sessions, which segment, which weeks, which % of the flow? | Nothing can ever be short, so nothing can ever be *enough*. This is the dimension the hole is measured along. |
 | **CON** | `relation` | Link · Figure | **Binding** | What binds a filler to the anchor — "reduces time-to-first-X for", "removes the step where", "is the thing they open instead"? | Candidates get admitted for *co-occurring* with the anchor instead of *doing something to* it. |
 | **SYN** | `composition` | Network · Pattern | **Composing** | How do fillers compose across the extent — do they partition it, overlap, stack, or exclude each other? | Two features that cannot coexist both get admitted, or two that need each other get shipped apart. |
@@ -226,7 +239,7 @@ product signals:
 |---|---|---|
 | `extent_too_small` | an admitted filler runs past the declared extent | The thing you admitted serves people outside the segment you drew. **The segment is wrong**, not the feature. |
 | `extent_excludes` | candidates excluded by the extent alone, **without ever being read**, while the space is still short | *A space that refuses candidates and reports itself unfilled is evidence about the space, not about them.* Your scope is doing the deciding. |
-| `covered_but_unplaced` | the space reads complete while holding a filler it could not place | Either it does not belong, or **the extent's own grain is too coarse** — SEG's cell is "the extent to be covered, *and its units*". Found live: a year-grain extent cannot see a hole inside one year, and Johnson held the office six weeks inside 1865. |
+| `covered_but_unplaced` | the space reads complete while holding a filler it could not place | Either it does not belong, or **the extent's own grain is too coarse** — SEG's cell is "the extent to be covered, *and its units*". A step-grain extent cannot see a hole inside one step: "3 · shipping" is really three screens, and the drop-off is on the middle one. |
 
 ### The loop's own law
 
@@ -267,11 +280,13 @@ it — **ordered by what settles fastest**, and the ordering is the lesson:
 `placeFiller(loop, {filler, span, source})` folds an answer back in and
 **refuses a span the extent cannot contain** (`span_outside_extent`) rather
 than silently widening the extent. Widening an extent is a deliberate act with
-its own REC on the record — never a side effect of answering a question. This
-wall held live when a small reader answered a placement question with a wrong
-span: the wrong read did not corrupt the space and did not produce a confident
-answer. **That refusal is worth more than the reader being right, because it
-holds for readers wrong in ways nobody anticipated.**
+its own REC on the record — never a side effect of answering a question. This wall
+was measured in the mechanism this borrows from: an answer came back wrong,
+the extent refused it, and the wrong answer neither corrupted the space nor
+produced a confident conclusion. **The refusal is worth more than the answer
+being right, because it holds for answers wrong in ways nobody anticipated** —
+including the confident stakeholder, the mis-scoped research round, and the
+number that turns out to have measured something else.
 
 ---
 
@@ -287,19 +302,23 @@ Newswire" typed `apparatus` at namingSentenceShare 0.525 over 27 mentions).
 This document borrows the **ladder**, not the classifier's tests. The exit
 tests below are this document's own and are stated as such.
 
-**These are standings, not calendar phases.** A standing is revisable: P40's
-`reviewEntities` re-runs the same gate against a grown reading, and a being
-that no longer clears **lapses** — removed, appended to an append-only lapsed
-ledger carrying the full gap object, never reduced to a bare tag. A feature
-demotes the same way. Belief, not verdict.
+**These are standings, not calendar phases.** A standing is a belief about a
+thing, not a milestone it passed, so it is revisable in both directions: the
+same gate is re-run as more comes in, and what no longer clears **lapses** —
+removed, with its full reason appended to an append-only ledger, never reduced
+to a bare tag. A feature demotes exactly that way, and a roadmap that cannot
+demote is a roadmap that can only grow. (The mechanism this mirrors is P40's
+`reviewEntities`.)
 
 ### apparatus — the warning class, checked first
 
 A thing that appears everywhere in the conversation and is a **naming device
 rather than a being**: "the platform", "the dashboard", "AI", "the pipeline",
-"our data layer". It co-occurs with everything by construction, which is
-exactly why `host/terrains.js` **withholds** cast-typed apparatus referents
-from co-arrival binding, *with the withholding itself a named entry*.
+"our data layer". It co-occurs with everything by construction, so it appears
+to relate to every candidate and discriminates between none of them — which is
+why the mechanism this borrows from **withholds** apparatus from its own
+binding step, *with the withholding itself a named entry* rather than a silent
+drop.
 
 **Test:** does it appear mostly in sentences that name other things? Then it is
 how you talk about the work, not the work. Building an apparatus is how a
@@ -403,58 +422,114 @@ oracle settles that, and only on facts.
 
 ---
 
-## 9. Worked example A — this app
+## 9. Worked example A — a new feature on an app for birders
 
-**The ask as it arrived:** "readers should be able to see why an answer changed
-between two runs."
+**The ask as it arrived:** "we should add bird ID."
 
 **Zero the space.**
 
 ```
-slot        (NUL): the reader's question "why is this answer different from the last one"
-anchor      (SIG): one conversation's two adjacent turns over the same question
-admits      (INS): a difference the instrument itself already recorded — an act on a log
-extent      (SEG): every input that can differ between two turns, by kind
-                   units: input kinds (model, material set, retrieval draw, regime, priors)
-relation    (CON): "is an input that differed and moved the answer"
-composition (SYN): kinds partition the extent; two kinds may both differ in one turn
-cardinality (DEF): unknown — DO NOT read it off the question's singular "why"
-admission   (EVA): the difference is on an append-only record with an address,
-                   and the two turns can be projected at a cursor
-reopensOn   (REC): a reader points at a change no declared input kind covers
-broken:            shuffle the two turns' recorded acts — if the same explanation
-                   is produced, the feature is reading the question, not the record
+slot        (NUL): a sighting the birder could not name, in the field, at the
+                   moment they had it — NOT a bird they did name and want to
+                   log, NOT one they look up at home from memory that evening
+anchor      (SIG): one birder, one sighting, one place and time
+                   ("birders" admits the lifer-chasing lister and the kitchen-
+                   window feeder-watcher at once, and serves neither)
+admits      (INS): something the app can offer AT the sighting — a capture, a
+                   narrowing, a comparison. Never a course, a forum thread, or
+                   a field-guide upsell
+extent      (SEG): the evidence a birder actually holds at an unnamed sighting
+                   units: evidence kinds — what they saw, what they heard,
+                   where they were, when, what it was doing, how long they had
+relation    (CON): "narrows the candidate set using evidence the birder has"
+composition (SYN): evidence kinds COMBINE — each narrows further, and two
+                   together narrow more than either alone (they do not
+                   partition the extent; they stack on it)
+cardinality (DEF): unknown — DO NOT read it off the singular in "add bird ID"
+admission   (EVA): a candidate names which evidence kinds it consumes, and
+                   works with no signal — a marsh at dawn has no bars
+reopensOn   (REC): a sighting whose evidence is of a kind the extent does not
+                   name, or at a grain it cannot see
+broken:            re-run it on real sightings with location and date STRIPPED.
+                   If the suggestions do not change, the extent names dimensions
+                   the feature never actually uses, and the coverage we are
+                   about to claim is fiction
 ```
 
-**Rung 1, extraction — what the material already states.** The reflex ledger
-(`reflex.js`) already records asked / planned / retrieved / checked /
-corrected / recorded / folded / surprise / errored per turn; the build log,
-the grid log and `record/explore-record.jsonl` are all append-only with
-addresses; `aperture.js` already records the regime and whether the window
-narrowed. Candidates land as a fan-out, none discussed yet: *diff the two
-turns' ledgers*; *show which sources were live and which were muted*; *show the
-retrieval draw*; *show the regime*; *show the model*.
+Note what the declaration already did, before a single candidate existed. The
+**anchor** stopped "birders" from meaning two incompatible people. The
+**admits** line ruled out three plausible, popular, adjacent things. The
+**extent** turned "bird ID" from a feature into a *measurable* six-kind space.
+And **EVA**'s offline clause was written before anyone had a favourite — which
+is the only moment it can be written honestly.
 
-**EVA.** Each against the declared admission test. Several clear as testimony
-immediately — they are already on a record with an address. One
-(*"show the retrieval draw"*) lands **undetermined**: the draw is not on the
-record today. Undetermined is not refused; it is a `settle_undetermined`
-question, and it is the *weakest* one.
+**Rung 1, extraction — what the material already states.** The "sp." and
+"unidentified" entries in users' own lists. Support mail describing a bird in
+words. The blurry photos people upload anyway. The recordings people make and
+never do anything with. The forum posts that open "small brown thing, marsh,
+Tuesday". Candidates land as a fan-out, none discussed yet: *photo ID from a
+snapshot*; *sound ID from a recording*; *a stepwise narrowing key*; *a "likely
+here, now" shortlist*; *a compare-two-species view*; *ask the community*.
 
-**Coverage.** `voidsOf` reads **incomplete**: nothing covers the priors kind.
-That is the `fill_void` question — the one that warrants new work — and it
-comes with its size and edges rather than as a blank.
+**EVA, one at a time, against the test declared before any of them existed.**
 
-**Where the standings land.** The ledger-diff is a **protogon**: witnessed,
-provisional, behind whatever the cheapest surface is. The whole feature is
-**not** a holon yet — SYN is untested (does a per-kind diff compose with the
-existing `thinking` disclosure, which was *vastly simplified* on purpose to one
-thing, or does it reopen the eight-things-under-one-word problem?). That is a
-real gate, and it is exactly the sort a roadmap normally walks straight past.
+- *Photo ID* — **testimony**. Consumes *what they saw*; runs on-device, so the
+  offline clause holds.
+- *Sound ID* — **testimony**. Consumes *what they heard*, same clause, same way.
+- *"Likely here, now"* — **testimony**. Consumes *where* and *when* off cached
+  range data.
+- *Ask the community* — **refused**. It does not narrow using evidence the
+  birder has; it defers the question to someone else, later, with signal. A
+  genuinely good thing to build, refused by the *declared relation and
+  admission test* rather than by anyone's taste — which is the test doing its
+  job instead of the room's enthusiasm doing it.
+- *Stepwise narrowing key* — **undetermined**. Nobody knows whether a person
+  holding binoculars will tap through six questions, and the app has no data
+  because it has never offered one. Undetermined is not refused.
 
-**Note what the protocol did here:** it did not produce a cleverer idea. It
-produced *one uncovered kind* and *one composition risk*, both of which the
-original one-line ask concealed.
+**Coverage reads incomplete, with edges.** Three cleared candidates cover four
+of the six evidence kinds: what they saw, what they heard, where, when. The
+void is *what it was doing* and *how long they had* — behaviour and duration,
+named rather than left as a blank. Every birder knows the hovering-then-
+plunging bird and the two-second flyover; nothing on the board touches either.
+
+**`whatWouldSettle`, in its own order** — and the order is the point:
+
+1. **place it** — "likely here, now" cleared, and nobody can say whether it
+   covers *where* alone or *where and when*. That is one afternoon against the
+   range data already in hand, and it changes the coverage count.
+2. **fill the void** — who narrows on *behaviour*? That is the question that
+   warrants new discovery, and it now arrives sized rather than as "do more
+   research".
+3. **settle the undetermined** — the stepwise key. Weakest and last.
+
+**Then REC fires, and it is a grain finding, not a new idea.** A user writes in
+about the sighting they most wanted help with: a bird through a scope at 400
+metres in flat light — shape and motion only, no colour, no photograph
+possible. *What they saw* is an evidence kind the extent names, so this is not
+outside the space. It is **`covered_but_unplaced`**: a bird at arm's length on
+a feeder and a silhouette at 400 metres are not the same evidence, and photo ID
+covers exactly one of them. The extent's own **grain is too coarse**. That is
+**revise … supersedes** — the declaration was wrong, not the posture spent —
+splitting *what they saw* into *seen well* and *seen poorly*, at which point
+the coverage honestly drops and the compare-two-species view returns from
+refused to *wish*.
+
+**Where the standings land.** Sound ID is a **protogon**: witnessed,
+provisional, scoped to the one evidence kind it names, with a stated accuracy
+bar. "Bird ID" as a whole is **not** a holon, and the gate stopping it is SYN:
+the declaration says evidence kinds *combine*, and nothing has checked that
+photo ID and "likely here, now" actually compose. If the shortlist is applied
+*after* the model rather than folded in as a prior, the two disagree in public
+and one screen shows a birder two different answers. That is a real gate, and
+exactly the sort a roadmap walks straight past on its way to a launch date.
+
+**Note what the protocol did here.** It did not produce a cleverer idea than
+the room had. It produced *one candidate refused with a stated reason*, *one
+named void of two evidence kinds*, *one cheap question that moves the count*,
+*one wrong premise about grain caught before anything shipped*, and *one
+composition risk that would have surfaced as a bug report*. None of that was in
+the one-line ask, and none of it required anyone to be cleverer.
 
 ---
 
@@ -505,8 +580,10 @@ units, testimony carries across, and the extensionally-refused candidates
 return to *wish* — because their refusal rested on the extent just conceded.
 
 **The point of running it twice, in two domains:** nothing in §2–§6 mentions
-reading, text, clinics or schedules. If a step needs the domain's vocabulary to
-work, it has learned that domain, not anything general.
+checkout, birds, clinics or appointments. If a step needs the domain's own
+vocabulary to work, it has learned that domain, not anything general — so
+running it somewhere unrelated is how you find that out, rather than trusting
+that it generalizes because it was written to sound as if it does.
 
 ---
 

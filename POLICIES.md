@@ -8306,3 +8306,67 @@ different one.
 standing uninitialised-`legacy-eoreader6.1` failures, zero regressions.
 the-fold suite 1039/912/125 before and after, failure names identical
 (117 of the 125 are that same submodule).
+
+## P67 — a reading is Talmud, not a cache: what the priors app may and may not do with one (2026-08-29)
+
+**live_priors' own `POLICIES.md` (LP1–LP5) is the law here; this entry is the
+pointer, and the constraint on THIS repo's code.** The corpus repo now
+carries standing policy on what a corpus owes a reading and what a reading
+owes a corpus. Two of its entries bind files in this repo directly, so they
+are restated here rather than left one repo over where a session working on
+`explore-server.mjs` would never see them.
+
+**The frame.** A reading of a source is not a summary, a cache, or a
+substitute — it is a record of an encounter with it by a named reader, and it
+relates to the source the way commentary relates to a fixed text: anchored to
+a locus, attributed to a reader, accumulating rather than overwriting. A cache
+is regenerated when the code changes; **a record is appended to.** The
+mechanism is already built — `hyperlexicon.js::hear` does PROPOSE on a first
+sighting and SUPERSEDE on a later one, and its own line 128 states the
+invariant: *"Witnesses and spans UNION, never replace."*
+
+**The rules that bind this repo** (LP4 in full):
+
+- A reading may be **offered** beside a source, typed as a reading, its
+  recipe named.
+- A reading may be used as an **index or accelerator** — to rank candidates,
+  narrow a walk, decide where to look — **provided any result reached
+  through it is re-verified against source bytes before it is asserted.** A
+  reading may decide where to look; it may never decide what is true.
+- A reading may **never be served in place of source bytes**.
+  `/api/priors/doc` (`explore-server.mjs:1354`) reads the file and serves
+  it, consulting no reading and no index. That is already correct; LP4 makes
+  it a rule rather than an accident.
+- A reading may **never gate** what the corpus offers. Whether a document is
+  listed, toggleable, attachable or consultable must not depend on whether a
+  reading of it exists or on what it found. **A document with no reading is
+  not a document with nothing in it** — this file's own constitutional
+  statement about checking organs (withhold vs. convict, the grounding-ladder
+  section) applied one level out: absence of a reading is a fact about the
+  reader, never about the document.
+
+**The measured reason the last rule is not theoretical.** Six of fourteen
+sources in `live_priors/digested/` carry little or nothing, and three of
+those are worse than empty — the "content" is English caption debris. The six
+Hebrew surfaces were `School`, `Athens`, `Raffaello`, `Internet`: an image
+caption, never the article. Hardcoded as what the app knows, that reading
+would have advertised those as the subject of a Hebrew philosophy article.
+`scriptCoverage` (eoreader7 S24) now types exactly that as a gap.
+
+**What this unblocks, named because this repo's own code names it as open.**
+`/api/priors/check`'s header (`explore-server.mjs:1408`) records the cost —
+2,047 documents, 183.4MB, a full sentence walk at ~9s per claim, so the check
+consults only a ranked candidate slice — and says a proper index is future
+work *"whose persistence and staleness story this server does not own."*
+**That blocker is staleness, and the Talmudic frame dissolves it:** a reading
+taken under an older recipe is not stale, it is older, and still a true record
+of what that reader heard. Nothing is invalidated when the organs change; a
+layer is added.
+
+**Two prerequisites, in order, before any of this is built here** (LP3, LP5):
+a reading's addresses must resolve in the source's own coordinates — measured
+today, they do not, and resolve only inside the excerpt the digest carries —
+and a reading must carry a content-addressed **recipe identity**, since the
+witness currently names what was read and never who read it. Append-only
+without attribution is strictly worse than an honest overwrite: it looks like
+an accumulating record while being an unreadable one.

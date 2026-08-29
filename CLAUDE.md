@@ -5577,3 +5577,44 @@ its four `live_priors` rows exactly; contested-copresence: none, the article
 fixtures extract ~5x the frames the runs read). A Wikipedia-body extractor
 was refused on this repo's own grounds — per-site formatting rules are the
 trap `succession.js` is condemned for.
+
+## A reading is Talmud, not a cache (added 2026-08-29) — pointer
+
+POLICIES.md **P67** is the constraint on this repo; **live_priors' own
+`POLICIES.md` (LP1–LP5) is the law** — a new standing document in the corpus
+repo governing what a corpus owes a reading and what a reading owes a corpus.
+
+**The frame.** A reading of a source is a record of an encounter with it by a
+named reader — anchored to a locus, attributed to a reader, accumulating
+rather than overwriting. A cache is regenerated when the code changes; **a
+record is appended to.** `hyperlexicon.js::hear` already implements it
+(PROPOSE then SUPERSEDE, witnesses and spans UNION never replace, line 128).
+
+**How much should a reading grow? Not a size question** — a gate: an
+increment lands iff it resolves against real bytes AND names its recipe.
+Growth is bounded by the source's extent × distinct recipes, and is
+self-limiting, because a recipe that hears nothing appends nothing. A refuted
+reading is conceded (REC), never deleted.
+
+**What binds this repo:** a reading may be OFFERED beside a source, and may
+accelerate a walk provided every result is re-verified against source bytes —
+but it may never be **served in place of** source bytes, and may never
+**gate** what the corpus offers. **A document with no reading is not a
+document with nothing in it** — the withhold-vs-convict statement in the
+grounding-ladder section, one level out: absence of a reading is a fact about
+the reader, never about the document. Measured: six of fourteen digested
+sources carry little or nothing and three are English caption debris; the
+Hebrew article's "surfaces" were `School`, `Athens`, `Raffaello`, `Internet`.
+
+**Two prerequisites before building any of it here.** A reading's addresses
+must resolve in the source's own coordinates — measured, today they do not
+(a span addressed `#196-256` sits at 1165 in the file, and the recorded
+`bodyOffset` does not reconcile it, because `normaliseNewlines` is
+length-changing and unrecorded) — and a reading needs a content-addressed
+**recipe identity**, since the witness names what was read and never who read
+it. Append-only without attribution is worse than an honest overwrite.
+
+**What it unblocks:** `/api/priors/check`'s own header names a proper index as
+future work *"whose persistence and staleness story this server does not
+own."* That blocker is staleness, and this frame dissolves it — an older
+reading is not stale, it is older.

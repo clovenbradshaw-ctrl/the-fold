@@ -80,11 +80,18 @@ test("coverage is honest about how much of the space is empty", () => {
   assert.equal(c.covered.length + c.empty.length, 27);
   // Nine of twenty-seven when this test was first written; nineteen after
   // P64's connection pass paid the registry debt (ten organs that already
-  // existed, registered at their own documented cells). The original ratio's
-  // lesson stands — a reading that misses something is far more often an
-  // unoccupied cell than a misconfigured organ — and more than half of the
-  // "unoccupied" turned out to be unregistered, which is P64's own law: an
-  // empty cell is a lead, never a verdict.
-  assert.equal(c.covered.length, 19);
-  assert.equal(c.empty.length, 8);
+  // existed, registered at their own documented cells); twenty-four after
+  // the development pass (P65) built the plan's Tier 1 plus the frontier
+  // cell — clearance.js (NUL·Figure), unravel.js (SEG·Pattern),
+  // whatWouldSettle registered (SIG·Ground), and the native kinds pair
+  // (SIG·Pattern + NUL·Pattern, whose "legacy path" gate turned out already
+  // dissolved). The original ratio's lesson stands — a reading that misses
+  // something is far more often an unoccupied cell than a misconfigured
+  // organ — and P64's law with it: an empty cell is a lead, never a
+  // verdict. The three still empty (CON·Ground, DEF·Ground, INS·Ground —
+  // the whole remaining gap is Ground-grain, one cell per mode) are the
+  // plan's own gated three, waiting on the fold-architecture session's
+  // boundary and on a workable DEF·Ground specimen.
+  assert.equal(c.covered.length, 24);
+  assert.equal(c.empty.length, 3);
 });

@@ -284,3 +284,39 @@ the current state can never be conflated.
 SIG·Ground, SIG·Pattern, CON·Ground, DEF·Ground, INS·Ground — each now
 carries a per-cell plan, candidate organ (where one was found), and
 required specimen in `CAPACITY-DEVELOPMENT-PLAN.md`.
+
+## Amended 2026-08-29 (second, same day) — the development pass: 24/27, six full stances, and the gap is the Ground row
+
+P65 in POLICIES.md is the law; this is the map update. The plan's Tier 1
+plus the frontier cell were BUILT (three new organs — `testKindMembers`
+in eoreader7, `clearance.js` and `unravel.js` here — and two
+registrations), every wall fired in tests, and the coverage driver
+re-run live:
+
+| face | before this amendment | after |
+|---|---|---|
+| cells | 19/27 | **24/27** (0 illegal, 25 entries) |
+| full stances | 3 (Binding, Making, Composing) | **6** (+ Dissecting, Unraveling, Tracing) |
+| empty stances | 0 | 0 |
+| grain marginals | Figure 8, Pattern 6, Ground 5 | **Figure 9/9, Pattern 9/9**, Ground 6/9 |
+| operators at zero | 0 | 0 |
+
+**The finding this table earns:** the three cells still empty —
+CON·Ground, DEF·Ground, INS·Ground — are all Ground-grain, one per mode.
+Figure and Pattern are COMPLETE. The kinds of act this instrument cannot
+yet perform anywhere are exactly the maintaining-the-ground kinds
+(tending the connective field, defining the interpretive ambient,
+generating ground where none exists), and all three were already Tier 2's
+gated cells for reasons independent of this arithmetic (two on another
+session's contract boundary, one on a missing specimen). C4's rule is
+unchanged and these three are LEADS under it — no falsifiable
+emptiness-prediction has been stated for any of them.
+
+**C7 restated for the new number, because inflation risk grows with the
+count:** 24/27 means every non-Ground kind of act is performable
+SOMEWHERE — never that any is performed correctly (coherence <
+correspondence; only an oracle checks facts), and never that each organ
+reaches every ORDER of task (the MHC axis is separate). Five of the 25
+rows are typed pointers not yet wired into capacity-runner's execution
+path — asking runs them nowhere; their own modules and tests are where
+they execute today.

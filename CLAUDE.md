@@ -5475,3 +5475,39 @@ now fills it; probe error, P44's four wrong probes). **Plan:**
 NUL·Figure first (P22's own named clearance test, the last Dissecting
 cell), SEG·Pattern the one genuine no-candidate frontier, three cells
 gated on the fold-architecture session's boundary rather than guessed at.
+
+## The development pass — Tier 1 built, the frontier cell built, 24/27 (added 2026-08-29) — pointer
+
+POLICIES.md **P65** is the law; this is the short map. "Build it" —
+CAPACITY-DEVELOPMENT-PLAN.md executed: three new organs, two
+registrations, **19/27 → 24/27, six FULL stances, Figure and Pattern
+grains complete at 9/9; the whole remaining gap is the Ground row**
+(CON·Ground / DEF·Ground / INS·Ground — the plan's own gated three, one
+per mode).
+
+**`clearance.js`** (NUL·Figure, P22's named "the figure doesn't clear
+it") — the establishment ladder over presence, P38 mechanized: typed
+refusals per rung (`no_presence` / `below_recurrence_floor` /
+`ambiguous_surface`), the floor disclosed by measurement, a pronoun rung
+only under declared numbers with a TYPED skip (P41 — a skip never
+upgrades a standing). The build's own finding: native `extractSurfaces`
+already refuses sentence-initial capitalisation at extraction, so the
+position rung lived in the adapter all along. **`unravel.js`**
+(SEG·Pattern, the no-candidate frontier cell) — parameter-free separation
+at the network's own bridges, `no_seam` typed refusal for 2-edge-connected
+graphs, edge-id Tarjan whose parallel-edge trap was PLANTED and proven
+(the textbook parent-skip ships a false seam; the test discriminates).
+**`testKindMembers`** (eoreader7 native, NUL·Pattern) — a DECLARED kind
+membership against the inducer's own random-subset null; structural
+refusals (`unknown_members` / `under_powered` / `no_boundary`), a failing
+set is a verdict, never a refusal. Plus `settle` (SIG·Ground,
+`whatWouldSettle`) and `kinds` (SIG·Pattern, native `projectKinds`) —
+the registry's first native-module rows, pointers still
+`not_yet_executable` from the terminal.
+
+**The plan's kinds gate was WRONG and is corrected in the plan's own
+dated status section:** the native ports existed with a built-in null —
+the "legacy path" premise dissolved before the plan was written, found by
+reading the modules. Suites: the-fold 1093/964/127 (all 127 by name, the
+standing environment set, zero regressions); eoreader7 178/174/4 (same 4
+by name).

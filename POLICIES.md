@@ -7983,3 +7983,160 @@ conviction); `REASONING-POLICIES.md` / `GENERATION-POLICIES.md` /
 `CAPABILITY-POLICIES.md` (all corrections + amendments);
 `CAPACITY-DEVELOPMENT-PLAN.md` (new). Suite: unchanged failure set,
 confirmed by name.
+
+## P65 — the development pass: Tier 1 built, the frontier cell built, and the map at 24/27 (2026-08-29)
+
+**The ask, verbatim: "build it" — CAPACITY-DEVELOPMENT-PLAN.md's own
+order of work, executed.** Three genuinely new organs and two
+registrations of already-tested code, each landed with conformance tests
+whose walls are shown to FIRE (R17: a wall nothing can trigger is a
+comment), and the whole move measured by re-running
+`eval/capability-coverage.mjs` live rather than hand-tallied.
+
+**The measured move.** 19/27 → **24/27 cells, 0 illegal, 25 registry
+entries. Six FULL stances** (Dissecting, Unraveling, Tracing joined
+Binding, Making, Composing), **Figure and Pattern grains complete at 9/9
+each**, every mode at 8/9, zero operators at zero coverage. The three
+cells still empty — CON·Ground, DEF·Ground, INS·Ground — are EXACTLY the
+plan's gated three (two waiting on the fold-architecture session's
+boundary, one on a workable specimen), and they are all Ground-grain, one
+per mode: the whole remaining gap is the Ground row. That was not
+designed; it fell out of the arithmetic, and it reads cleanly — the acts
+this instrument cannot yet perform anywhere are maintaining-the-ground
+kinds of act (tending the connective field, defining the interpretive
+ambient, generating ground where none exists), while every
+Figure-grain and Pattern-grain kind of act now has at least one organ.
+
+**One premise of the plan was WRONG, found by reading rather than
+assumed, and the build got cheaper because of it.** The plan gated the
+kinds pair (SIG·Pattern + NUL·Pattern) on "the legacy-engine path
+question" — registering a module this checkout cannot even read
+(`eoreader7/legacy-eoreader6.1`, uninitialised submodule). But eoreader7's
+NATIVE kernel already carries full ports: `kind-induction.js`
+(`projectKinds`, the induction surface) and `entity-kind-induction.js`
+(`induceEntityKindCandidates`, with a BUILT-IN seeded random-subset
+binding-energy null per basin — `EONullResult@1`, declared permutations,
+0.95 quantile). The gate had already dissolved when the plan was written;
+the plan is amended in place-of-record (its own dated status section),
+the wrong premise kept visible.
+
+**What was built, and what building it measured:**
+
+1. **`testKindMembers` (eoreader7 `native/kernel/entity-kind-induction.js`)
+   — NUL·Pattern.** A DECLARED kind membership challenged against the
+   SAME random-subset null the inducer runs on its own basins: the caller
+   holds the hypothesis, the field answers. Structural refusals, never
+   tuned floors: `unknown_members` (no measurable profile),
+   `under_powered` (<2 members — no internal pair exists),
+   `no_boundary` (members = whole population — the null cannot perturb;
+   A10's licensing rule applied as a refusal). `cleared` mirrors the
+   inducer's own gate exactly (`bindingEnergy > 0` AND the null passes);
+   a failing declared set is a VERDICT with the measurement attached,
+   never a refusal. 7 conformance cases in
+   `native/tests/entity-kind-membership.test.js`, built through the REAL
+   `createKindInductionIndex`/`indexKindEntries`/`kindEvidence` path (no
+   hand-typed Map): the planted cluster clears, a scattered set fails as
+   a verdict, all three refusal walls fire, the inducer and the declared
+   test AGREE on the same field (cross-organ agreement), and the seeded
+   null is deterministic. eoreader7 suite 171/167/4 → 178/174/4, the same
+   4 failures by name.
+
+2. **`clearance.js` (the-fold) — NUL·Figure, P22's own named next
+   integration** ("the figure doesn't clear it"), built against the
+   NATIVE adapters. The load-bearing discovery, found by reading the
+   adapter before writing: native `extractSurfaces` ALREADY refuses
+   sentence-initial capitalisation at extraction itself
+   (`accumulateSurfaceEvidence` skips the sentence-initial token — "it is
+   capitalised by position and carries no evidence of namehood on its
+   own", L2 closed at the presence rung). So the position scan the plan
+   sketched was never this organ's to build; clearance's real content is
+   the ESTABLISHMENT LADDER over the presence set — P38's
+   presence-vs-establishment distinction, mechanized: presence
+   (`no_presence` for the sentence-initial specimen), the material's own
+   derived recurrence floor (`below_recurrence_floor`, the floor
+   disclosed by MEASUREMENT — bounds observed from the organ's own
+   behaviour, never re-derived), ambiguity carried as a typed withholding
+   with candidates (never a third being), and a pronoun rung that runs
+   ONLY under declared numbers (`minActivation`/`minMargin`, the organ's
+   own wall) with a TYPED SKIP otherwise — `skipped_no_organ` /
+   `skipped_undeclared`, never a pass (P41), and a skip can never
+   upgrade a standing to `bound`. Referent-fence overrides are the
+   adapter's own declared parameter surface, forwarded verbatim and
+   ECHOED on the result (`referentOptions.declared`) — derived-vs-declared
+   always visible. Disclosed absence, stated in the header: no
+   constructed-null clearance exists for referent establishment — the
+   floor is a measured bar, not a perturbation arm; P29's search already
+   found no licensed text perturbation and none is invented here (the
+   kinds pair is where a declared membership DOES get a real null). Two
+   fixture findings measured before pinning: the ambiguity branch is
+   unreachable through DERIVED fences at fixture scale (the adapter's own
+   conformance test declares `{minPartners: 2, minSentences: 1}` for the
+   same reason — adopted, echoed, disclosed), and the pronoun organ binds
+   by CAUSAL THEMATIC RECALL (its own tests' physics), so `bound` is
+   reachable only where the pronoun's sentence carries the referent's
+   thematic company — "He answered every question" after Johnson
+   sentences is correctly `pronoun_no_candidate`, the adapter's own
+   "unrelated pronoun material is refused rather than guessed" case
+   reproduced independently. 9 conformance cases, all against the real
+   adapters.
+
+3. **`unravel.js` (the-fold) — SEG·Pattern, the plan's one no-candidate
+   frontier cell.** Parameter-free network separation at the graph's own
+   bridges: a structural fact, not a score, so there is no
+   community-detection threshold to tune and none is invented — a
+   2-edge-connected network is a typed `no_seam` refusal, never a cut
+   bought with a parameter. Iterative Tarjan over EDGE ids, not parent
+   nodes: the textbook parent-skip calls a PARALLEL crossing a bridge,
+   and the defect was PLANTED to prove the wall — the parent-skip variant
+   ships the false seam `a1-b1#6` on the two-parallel-edges graph, the
+   shipped walk refuses it, and the test discriminates. Deterministic
+   under input order (sorted adjacency, sorted roots, sorted outputs);
+   cut edges addressed by the caller's own indices with the edge object
+   carried verbatim (provenance to whatever the caller's edges carry);
+   already-separate material reports its own parts with `cutEdges: []` —
+   nothing cut, and the result says so. The organ's CODE is scanned by
+   its own test for domain vocabulary (the grain-refinement discipline)
+   — nodes are opaque ids. 10 conformance cases. Named, unmeasured next
+   specimen (the plan's own): a real two-topic document's belief graph
+   separating at the same boundary `atmosphereBoundaries` finds in the
+   stream — the alignment run is future work, not implied done.
+
+4. **Two registrations of already-tested code:** `settle` (SIG·Ground —
+   `void-loop.js::whatWouldSettle`, P53's second amendment, typing
+   reasoned per the registry's hand-check discipline) and `kinds`
+   (SIG·Pattern — native `projectKinds`). These plus `kindnull` are the
+   registry's first rows naming eoreader7 native modules; the `module`
+   column stays what it always was — a resolvable pointer, data — and
+   asking capacity-runner to execute them still returns
+   `not_yet_executable`, never a silent no-op.
+
+**Cell typings, all mechanically domain-legal (verified through the
+native cube — 24 covered / 3 empty / 0 illegal):** `clear` NUL·Entity and
+`unravel` SEG·Network carry CELL exports in the organ's own code (the
+native adapters' own convention — relations.js/spans.js/pronouns.js/
+surfaces.js/activation.js all stamp theirs); `kindnull` NUL·Kind is
+documented in `testKindMembers`' own docstring; `settle` and `kinds` are
+reasoned rows, stated as such.
+
+**Evidence.** the-fold suite after this pass: 1093 tests / 964 pass /
+127 fail / 2 skipped — the 19 new cases (9 clearance + 10 unravel) all
+passing, and all 127 failure NAMES byte-identical to the standing
+environment baseline (`before-names.txt`, diffed name-by-name — the
+uninitialised `legacy-eoreader6.1` submodule set this checkout has always
+carried), zero regressions. eoreader7: 178/174/4, same 4 by
+name. `eval/results/capability-coverage.json` regenerated by the live
+driver. moves.test.mjs's counts updated 19/8 → 24/3 with the history
+kept in its own comment; its exact assertions verified against the live
+registry through the native-cube shim (this checkout cannot run its
+legacy imports), printed `assertions would pass: true`.
+
+**What 24/27 does NOT mean, restated so nobody inflates it (CAPABILITY
+C7, unchanged by this pass):** every KIND of act except the three Ground
+gaps is now performable SOMEWHERE — not that any is performed correctly
+(coherence < correspondence; the oracle rule stands), and not that each
+organ reaches every ORDER of task (the MHC axis is separate). And the
+registry rows are typed pointers: `clear`, `unravel`, `settle`, `kinds`
+and `kindnull` execute from their own modules and tests, not yet from
+the terminal's capacity-runner — wiring them into `runCapacity` is
+real, named, unattempted work, exactly the boundary P22 drew for the
+other reference-only rows.

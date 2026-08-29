@@ -149,10 +149,46 @@ Phase A is the one people skip, and it's the one that does the work.
 > evidence a birdwatcher actually has* — and the units are **evidence kinds**, of
 > which there are six.
 > **Done when:** you can write the pieces out as a list — an actual list, with
-> lines on it. If you can't, the units are wrong.
+> lines on it. If you can't, try a different angle before you decide the units are
+> wrong — see below.
 > **Trap:** units you can't count — "a better experience", "user delight". If you
 > can't count it, nothing can ever be missing from it, so nothing can ever be
 > finished.
+
+### If Task 4 won't come: six angles to try on the same gap
+
+This is where almost everyone gets stuck, and the reason is almost always the
+same: they try *one* way of slicing the moment, it doesn't split cleanly, and
+they conclude "our thing doesn't come apart into pieces." It nearly always does.
+You were just looking at it from one angle.
+
+Below are six different questions you can ask about the same moment. They are
+not steps — you don't do all six. Try two or three, in whatever order interests
+you, and stop at the first one that produces a list where **each piece is
+genuinely different from the others** — different enough that a good answer to
+one wouldn't be a good answer to the next.
+
+| angle | ask | reach for this when… | on the bird app |
+|---|---|---|---|
+| **what they have** | What does the person already possess or already know, right at this moment? | the gap is about someone missing *information* or *a capability* | what they saw, heard, where, when, what it was doing, how long they had — six evidence kinds |
+| **when it happens** | Is "the moment" really several smaller moments back to back? | the moment feels instantaneous but is actually a short process | notice something odd → try for a good look or recording → check it against memory → give up, or log it as unknown |
+| **who's really there** | Is one label ("the birdwatcher", "the customer") hiding several different people with different needs? | your "one person" (Task 2) still feels like it covers two different kinds of person | the casual feeder-watcher · the competitive lister chasing a rare bird · someone filling in a survey for a conservation group |
+| **why it's hard** | What is actually stopping them, today, without your help? | you don't yet know *why* the current situation fails | no signal · doesn't know the local species · looks just like two other species · only had it in view for two seconds |
+| **what goes wrong today** | The different ways the unhelped situation currently plays out. | there's already a workaround people use, and it's failing in visible ways | gives up and logs nothing · guesses and logs a wrong species · posts to a forum and never gets an answer |
+| **where it happens** | Does the setting change what's even possible? | context — location, tools at hand, who's nearby — swings the answer | alone in a marsh at dawn · on a guided walk with an expert three feet away · at the kitchen window with full signal |
+
+Notice that "what they have" and "why it's hard" are **two different, both valid**
+ways of describing the same bird-ID gap. One gives you six evidence kinds; the
+other gives you a shorter list of obstacles. Neither is the "correct" one — pick
+whichever produces the cleaner, more distinct list, because that's the one you
+can actually build against.
+
+**If two angles both click, you don't have one messy gap — you have two real
+ones.** Don't merge them into one giant grid; that's usually how "add bird ID"
+turns into a spreadsheet nobody can act on. Write both down, pick whichever
+matters more right now, and run Tasks 5–18 on that one. The angle you set aside
+isn't lost — it's a written list, so coming back to it later is its own short
+pass through Phase A, not starting over.
 
 > **Task 5 — Say how pieces fit together.**
 > Do two answers stack up, or does one rule out the other? Here they **stack**:

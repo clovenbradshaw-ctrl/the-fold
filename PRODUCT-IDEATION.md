@@ -12,6 +12,18 @@ whose idea is better.
 Don't. Both of you are about to be right, and both of you are about to be
 building a third of the actual thing.
 
+> **Meet the example.** The running example, start to finish: a birding app
+> people already use to log sightings, keep a life list, and see what other
+> birders nearby have found. It's useful, and it has one hole a lot of its
+> users hit constantly — **you're standing in a marsh, looking at a bird, and
+> you don't know what it is.** The app has nothing for that moment.
+>
+> **That's the problem.** What actually lands on the team, though, isn't the
+> problem — it's already a solution, in disguise: *"add bird ID."* We stay
+> with this one app from the very first argument to the final commitment, so
+> you can watch how the pieces connect. §9 runs the identical process on a
+> medical clinic, so you can see it isn't a trick that only works on birds.
+
 **The actual problem — the one this whole document is about.** It isn't "which
 idea is better." That question shows up *after* the real work, and most rooms
 answer it before the real work has even started. **Almost all of the work in
@@ -41,17 +53,6 @@ loop, on purpose, and more than once: §10 shows exactly where, and what each
 loop costs. Everything else in here is explaining *why* the tasks are shaped
 the way they are, for whenever you want that. If you're going to read one
 section, read §3 and the one-page recap at the very end.
-
-**The app, and the problem, stated once.** The running example: a birding app
-people already use to log sightings, keep a life list, and see what other
-birders nearby have found. It's useful, and it has one hole a lot of its users
-hit constantly — you're standing in a marsh, looking at a bird, and you don't
-know what it is. The app has nothing for that moment. **That's the problem.**
-What actually lands on the team, though, isn't the problem — it's already a
-solution, in disguise: *"add bird ID."* We stay with this one example from the
-very first argument to the final commitment, so you can see how the pieces
-connect. §9 runs the identical process on a medical clinic, so you can see it
-isn't a trick that only works on birds.
 
 **What this isn't.** Not a scoring system. Not a prioritisation framework. Not
 software. It's a short list of questions, asked in a fixed order, with names for

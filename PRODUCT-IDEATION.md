@@ -12,12 +12,24 @@ whose idea is better.
 Don't. Both of you are about to be right, and both of you are about to be
 building a third of the actual thing.
 
+**The actual problem — the one this whole document is about.** It isn't "which
+idea is better." That question shows up *after* the real work, and most rooms
+answer it before the real work has even started. **Almost all of the work in
+inventing something is finding out, precisely, what's missing** — not picking
+between solutions for it. Skip that, and you're not choosing badly; you're
+choosing *early*, before there's anything real to choose between.
+
 **The move that fixes it.** Before anyone proposes anything, **describe the hole
 you're trying to fill** — precisely enough that you could point at the parts of
-it and count them. Only then do ideas get to compete. And they don't compete
-against each other; they compete against a test you wrote *before* you had a
-favourite. Whatever survives, survives on its own merits — not because it argued
-best in the room.
+it and count them. Only once that's done does a proposed solution mean anything
+at all: it's not a decision, it's a **hypothesis about the shape of an answer**,
+and a hypothesis doesn't get defended, it gets tested. Ideas compete against a
+test you wrote *before* you had a favourite — and what happens next isn't a
+verdict, it's a loop: something fails, and you revise it; something fails in a
+way that shows the *problem* was drawn wrong, and you go back and redraw the
+problem, not just the idea. **Describe the problem. Hypothesize a shape.
+Correct toward what actually works.** §10 is where the correcting part is
+spelled out.
 
 **What you get that you didn't have before:** a way to tell when you're actually
 done. Right now, "done" probably means "we built something and got tired." That's
@@ -43,6 +55,9 @@ the ways you'll get stuck — and for when you'll have to ask some of them again
 ---
 
 ## 1. The argument you were about to have
+
+Here's what skipping that work actually looks like, the first time it happens
+on a real team.
 
 **"We should add bird ID."** Two people answer.
 

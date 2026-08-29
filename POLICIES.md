@@ -8140,3 +8140,66 @@ and `kindnull` execute from their own modules and tests, not yet from
 the terminal's capacity-runner — wiring them into `runCapacity` is
 real, named, unattempted work, exactly the boundary P22 drew for the
 other reference-only rows.
+
+### Amended same day — the adversarial pass reported, two real findings closed by mutation-killing pins
+
+The verification the entry above declared pending completed: four refuters
+(one per organ, one over every doc claim; 4/4 done, 93 tool calls), and
+the pass EARNED its cost — two REAL findings, each fixed and pinned by
+the exact mutation that had survived:
+
+1. **clearance.js's rung had an untyped third state** — organ injected,
+   numbers declared, presence empty → `pronounRung: null`, neither `ran`
+   nor a typed skip: precisely the P41 hazard shape the entry above
+   invokes as the wall. Fixed: the empty-presence path now RUNS the rung
+   over an empty referent map (the organ's own typed gaps are the honest
+   answer — measured: `{ran: true, bindings: 0, gaps: 2}` on pronoun-rich
+   lowercase material), one shared `runPronounRung` implementation for
+   both paths. And the refuter PROVED by mutation that the
+   ambiguous-exclusion wall was untested (deleting it passed all 9
+   tests); the killing assertion is pinned — under the mutation the suite
+   now fails, restored it passes.
+2. **testKindMembers' disclosed non-positive-binding decision was
+   unpinned** — the "scattered" fixture's binding was accidentally
+   POSITIVE (+0.034, failing only via the null), so an inducer-literal
+   gate (refuse instead of measure) survived all 7 tests. Pinned with a
+   genuinely repelling pair (`["e1","b8"]`, binding −0.172): measured,
+   never refused, cleared false — Mutation B now fails the suite. The
+   `bindingEnergy > 0` conjunct is disclosed in the test as
+   belt-and-braces (the null's own construction makes passed-with-
+   non-positive-binding structurally near-unreachable, so no honest
+   fixture pins that half in isolation). Plus a third disclosed decision
+   added to the docstring: the two doors share the null's PROTOCOL, not
+   its draws (shared draws would make the cross-organ agreement test
+   circular).
+
+Nits taken in the same pass: the floor-refusal detail no longer claims
+"derived" under a caller-declared floor; the pronoun-declaration gate
+mirrors the organ's own walls exactly (non-negative, minMargin ∈ [0,1] —
+a declaration outside them is a typed skip, never a mid-run throw);
+unravel refuses `malformed_edges` by the caller's own indices instead of
+coining a phantom node, `cutEdges` no longer aliases `bridges`, string-id
+comparison is disclosed in the JSDoc, and a bowtie pins
+articulation-reported-on-refusal; the coverage driver's header line about
+SEG/REC reading zero is past-tense (it described the pre-P64 state).
+
+**Final measured state after the amendments:** the-fold 1098 tests / 969
+pass / 127 fail (names byte-identical to baseline); eoreader7 180 / 176 /
+4 (same four by name). Test deltas over the entry above: clearance 9→11,
+unravel 10→13, entity-kind-membership 7→9.
+
+**And the pass's own material demonstration** (user direction: "read
+something highly complicated and show me the reasoning"):
+`eval/complicated-reading.mjs` + `eval/results/
+complicated-reading-RESULTS.md` — the new cells run in sequence over the
+live-fetched Second Schleswig War article (48KB, Palmerston's "only three
+people ever understood it"): 84 established / 258 refused / floor
+observed at 1<2; two real pronoun bindings at the declared numbers, BOTH
+kept as instructive mistakes with the mechanism's own explanation (the
+organ's documented `nonPersonal` parameter, undeclared by this driver);
+578 edges heard with the P56 ceiling shown as heard; the belief graph
+gated by clearance cut at 16 seams; and the kinds pair discovering the
+Danevirke rear-guard's micro-geography (bustrup/selk/stockfleth_company/
+vedelspang, p=0.008) from co-arrival structure alone, with the declared
+door confirming it and the scattered control refused clearance at
+p=0.264.

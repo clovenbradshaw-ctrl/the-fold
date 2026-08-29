@@ -92,7 +92,11 @@ export function makeClearance({ splitSentences, extractSurfaces, discoverReferen
         : { declared: false, detail: "the material's own derived floors (deriveMinSentences / genericTokens' IQR fence)" },
     };
     if (!presence.length) {
-      result.pronounRung = pronounSkip(resolvePronouns, pronouns);
+      // The rung is ALWAYS typed — organ+numbers declared over empty
+      // presence still RUNS (an empty referent map; the organ's own gaps
+      // are the honest answer), never a null a consumer misreads as
+      // not-skipped (the P41 hazard shape, caught by adversarial review).
+      result.pronounRung = runPronounRung(resolvePronouns, pronouns, sentences, new Map()).rung;
       return result;
     }
 
@@ -134,7 +138,9 @@ export function makeClearance({ splitSentences, extractSurfaces, discoverReferen
           type: "below_recurrence_floor",
           sentences: s.sentences,
           mentions: s.mentions,
-          detail: "present in the material but at or below its own derived recurrence floor — a figure that exists is not yet a figure that is established (P38)",
+          detail: referents
+            ? "present in the material but at or below the caller's DECLARED recurrence floor — a figure that exists is not yet a figure that is established (P38)"
+            : "present in the material but at or below its own derived recurrence floor — a figure that exists is not yet a figure that is established (P38)",
         });
       }
     }
@@ -143,19 +149,13 @@ export function makeClearance({ splitSentences, extractSurfaces, discoverReferen
       refusedMaxSentences: Number.isFinite(refusedMax) ? refusedMax : null,
     };
 
-    // Rung 4 — optional, declared, typed skip otherwise.
-    const bindingsByReferent = new Map();
-    result.pronounRung = pronounSkip(resolvePronouns, pronouns);
-    if (result.pronounRung === null) {
-      const referentSurfaces = new Map();
-      for (const e of events) referentSurfaces.set(e.surface, e.referent_id);
-      const { bindings, gaps: pronounGaps } = resolvePronouns(sentences, referentSurfaces, pronouns);
-      for (const b of bindings) {
-        const id = b.referent ?? b.referentId ?? b.referent_id;
-        if (id) bindingsByReferent.set(id, (bindingsByReferent.get(id) ?? 0) + 1);
-      }
-      result.pronounRung = { ran: true, bindings: bindings.length, gaps: pronounGaps.length };
-    }
+    // Rung 4 — optional, declared, typed skip otherwise; ONE implementation
+    // for both the empty-presence and the ordinary path.
+    const referentSurfaces = new Map();
+    for (const e of events) referentSurfaces.set(e.surface, e.referent_id);
+    const rung = runPronounRung(resolvePronouns, pronouns, sentences, referentSurfaces);
+    result.pronounRung = rung.rung;
+    const bindingsByReferent = rung.bindingsByReferent;
 
     for (const [referentId, surfaces] of byReferent) {
       const evidence = surfaces.map((surface) => {
@@ -206,6 +206,18 @@ export function makeClearance({ splitSentences, extractSurfaces, discoverReferen
   return { clearFigures, clearFigure };
 }
 
+function runPronounRung(resolvePronouns, pronouns, sentences, referentSurfaces) {
+  const skip = pronounSkip(resolvePronouns, pronouns);
+  if (skip) return { rung: skip, bindingsByReferent: new Map() };
+  const { bindings, gaps } = resolvePronouns(sentences, referentSurfaces, pronouns);
+  const bindingsByReferent = new Map();
+  for (const b of bindings) {
+    const id = b.referentId ?? b.referent ?? b.referent_id;
+    if (id) bindingsByReferent.set(id, (bindingsByReferent.get(id) ?? 0) + 1);
+  }
+  return { rung: { ran: true, bindings: bindings.length, gaps: gaps.length }, bindingsByReferent };
+}
+
 function pronounSkip(resolvePronouns, pronouns) {
   if (typeof resolvePronouns !== "function") {
     return {
@@ -215,7 +227,9 @@ function pronounSkip(resolvePronouns, pronouns) {
       },
     };
   }
-  if (!pronouns || !Number.isFinite(pronouns.minActivation) || !Number.isFinite(pronouns.minMargin)) {
+  if (!pronouns
+    || !Number.isFinite(pronouns.minActivation) || pronouns.minActivation < 0
+    || !Number.isFinite(pronouns.minMargin) || pronouns.minMargin < 0 || pronouns.minMargin > 1) {
     return {
       skipped: {
         reason: "skipped_undeclared",

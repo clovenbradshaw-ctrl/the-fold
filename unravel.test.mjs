@@ -113,6 +113,33 @@ test("isolated declared nodes join the reading; empty material is refused no_mat
   assert.equal(unravel([]).refused.type, "no_material");
 });
 
+test("a bowtie refuses no_seam yet still reports its articulation point", () => {
+  // Two triangles sharing one node: 2-edge-connected everywhere (no
+  // bridge), yet node m is a real cut VERTEX — the refusal must not
+  // swallow the articulation finding (adversarial-review case).
+  const r = unravel([
+    { a: "a1", b: "a2" }, { a: "a2", b: "m" }, { a: "m", b: "a1" },
+    { a: "b1", b: "b2" }, { a: "b2", b: "m" }, { a: "m", b: "b1" },
+  ]);
+  assert.equal(r.refused.type, "no_seam");
+  assert.deepEqual(r.articulationPoints, ["m"]);
+});
+
+test("an edge missing either end is refused by index — never a phantom node", () => {
+  const r = unravel([{ a: "x", b: "y" }, { a: "x" }, { b: "z" }]);
+  assert.equal(r.refused.type, "malformed_edges");
+  assert.deepEqual(r.refused.indices, [1, 2]);
+});
+
+test("returned lists are the caller's to mutate — cutEdges never aliases bridges", () => {
+  const r = unravel([
+    { a: "a1", b: "a2" }, { a: "a2", b: "a3" }, { a: "a3", b: "a1" },
+    { a: "a1", b: "b1" }, { a: "b1", b: "b2" }, { a: "b2", b: "b3" }, { a: "b3", b: "b1" },
+  ]);
+  r.cutEdges.pop();
+  assert.equal(r.bridges.length, 1, "mutating cutEdges leaves bridges intact");
+});
+
 test("the organ's CODE carries no domain vocabulary — scanned, not eyeballed", () => {
   const src = readFileSync(fileURLToPath(new URL("./unravel.js", import.meta.url)), "utf8");
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");

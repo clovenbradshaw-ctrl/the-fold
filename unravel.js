@@ -38,7 +38,10 @@ const idOf = (v) => String(v);
 /**
  * @param {Array<{a: any, b: any}>} edges — pairs of node ids; extra fields
  *   ride through untouched. `nodes` may add isolated nodes the edges never
- *   mention.
+ *   mention. Ids are compared AS STRINGS (String(v)) — declare them as
+ *   strings; numeric 1 and "1" would collide, and an object id collapses
+ *   to its default stringification. An edge missing either end is refused
+ *   by index (`malformed_edges`) rather than coining a phantom node.
  * @returns {{
  *   components: string[][],
  *   bridges: Array<{index: number, a: string, b: string, edge: object}>,
@@ -49,6 +52,14 @@ const idOf = (v) => String(v);
  * }}
  */
 export function unravel(edges = [], { nodes = [] } = {}) {
+  const malformed = [];
+  (edges ?? []).forEach((e, index) => { if (e?.a === undefined || e?.b === undefined) malformed.push(index); });
+  if (malformed.length) {
+    return {
+      components: [], bridges: [], articulationPoints: [], parts: null, cutEdges: null,
+      refused: { type: "malformed_edges", indices: malformed, detail: "an edge missing either end cannot be read — refused by the caller's own indices rather than coining a phantom node" },
+    };
+  }
   const edgeList = (edges ?? []).map((e, index) => ({ index, a: idOf(e.a), b: idOf(e.b), edge: e }));
   const nodeSet = new Set((nodes ?? []).map(idOf));
   for (const e of edgeList) { nodeSet.add(e.a); nodeSet.add(e.b); }
@@ -131,7 +142,7 @@ export function unravel(edges = [], { nodes = [] } = {}) {
     if (components.length > 1) {
       // Already in parts — reported as the separation the material itself
       // carries; nothing was cut and cutEdges says so honestly.
-      return { components, bridges, articulationPoints: [...articulation].sort(), parts: components, cutEdges: [], refused: null };
+      return { components, bridges, articulationPoints: [...articulation].sort(), parts: [...components], cutEdges: [], refused: null };
     }
     return {
       components, bridges, articulationPoints: [...articulation].sort(), parts: null, cutEdges: null,
@@ -161,7 +172,7 @@ export function unravel(edges = [], { nodes = [] } = {}) {
     }
   }
   const parts = groupSorted(nodeIds, (id) => partOf.get(id));
-  return { components, bridges, articulationPoints: [...articulation].sort(), parts, cutEdges: bridges, refused: null };
+  return { components, bridges, articulationPoints: [...articulation].sort(), parts, cutEdges: [...bridges], refused: null };
 }
 
 function groupSorted(nodeIds, keyOf) {

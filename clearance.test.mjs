@@ -114,6 +114,34 @@ test("an ambiguous bare form is WITHHELD with its candidates — never establish
     "the ambiguous form is never among the established");
   const verdict = clearFigure(text, "Mikhail", declared);
   assert.equal(verdict.refused.type, "ambiguous_surface");
+  // The exclusion wall, pinned by what kills its mutant (adversarial
+  // review proved deleting the ambiguous-exclusion passed every prior
+  // test): a withheld surface must never ALSO land in refused wearing a
+  // false below_recurrence_floor label.
+  assert.ok(!ledger.refused.some((r) => r.surface === "Mikhail"),
+    "an ambiguous surface is withheld ONLY — never double-bucketed into refused");
+});
+
+test("the rung is ALWAYS typed: organ + declared numbers over empty presence still RUNS, never null", () => {
+  // Adversarial review's real finding: the empty-presence early return
+  // left pronounRung null exactly when the organ was injected and the
+  // numbers declared — the P41 hazard shape (a null a consumer misreads
+  // as not-skipped). Pronoun-rich all-lowercase material has no presence
+  // surfaces and still deserves the organ's own honest gaps.
+  const { clearFigures } = makeClearance(WITH_PRONOUNS);
+  const ledger = clearFigures("she walked to the mill. she waited by the gate.", { pronouns: PRONOUN_NUMBERS });
+  assert.deepEqual(ledger.presence, []);
+  assert.deepEqual(ledger.pronounRung, { ran: true, bindings: 0, gaps: 2 },
+    "the organ ran over an empty referent map and typed both pronoun mentions as gaps");
+});
+
+test("a declaration outside the organ's own walls is a typed skip, not a mid-run throw", () => {
+  const { clearFigures } = makeClearance(WITH_PRONOUNS);
+  const ledger = clearFigures(LADDER_TEXT, { pronouns: { minActivation: -1, minMargin: 0.2 } });
+  assert.equal(ledger.pronounRung.skipped.reason, "skipped_undeclared");
+  const over = clearFigures(LADDER_TEXT, { pronouns: { minActivation: 0.05, minMargin: 2 } });
+  assert.equal(over.pronounRung.skipped.reason, "skipped_undeclared",
+    "the organ's own wall is minMargin in [0,1] — mirrored, never a mid-run throw");
 });
 
 test("the pronoun rung binds under DECLARED numbers — standing 'bound' is reachable", () => {

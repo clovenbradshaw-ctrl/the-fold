@@ -5508,6 +5508,8 @@ the registry's first native-module rows, pointers still
 **The plan's kinds gate was WRONG and is corrected in the plan's own
 dated status section:** the native ports existed with a built-in null —
 the "legacy path" premise dissolved before the plan was written, found by
-reading the modules. Suites: the-fold 1093/964/127 (all 127 by name, the
-standing environment set, zero regressions); eoreader7 178/174/4 (same 4
-by name).
+reading the modules. Suites after the same-day adversarial amendment
+(P65's own amendment carries the two real findings and their
+mutation-killing pins, plus the complicated-reading demonstration):
+the-fold 1098/969/127 (all 127 by name, the standing environment set,
+zero regressions); eoreader7 180/176/4 (same 4 by name).

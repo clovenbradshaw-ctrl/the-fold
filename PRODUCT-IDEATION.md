@@ -1,35 +1,48 @@
-# Deciding what to build next
+# So you want to invent something
 
-*A way to run the "what should we build?" conversation so it ends with something
-you can act on — and so you can tell when you're finished.*
+*Good. Here's how to find out what you're actually inventing — before you spend
+a single afternoon building the wrong two-thirds of it.*
 
-**The short version.** Most teams start with ideas and then argue about which one
-wins. This starts one step earlier: **describe the gap first**, precisely enough
-to measure, and only then let people propose things to fill it. The winner isn't
-the best-argued idea. It's whatever is still standing after everything has been
-tested against a bar you wrote *before* anyone had a favourite.
+**The trap you're about to walk into, if you haven't already.** You have an idea.
+It's a good idea. You can already see it working. And somewhere near you, someone
+else has a *different* good idea for the same problem — also real, also
+justified, also convincing. You're about to spend the next hour arguing about
+whose idea is better.
 
-The pay-off is a thing most roadmaps never have: **you can tell when you're
-done.** If you never described the gap, "done" is just "we shipped something and
-stopped."
+Don't. Both of you are about to be right, and both of you are about to be
+building a third of the actual thing.
 
-**How to use this.** §3 is a sequence of eighteen tasks — work through them in
-order and you have run the whole thing. Everything before and after §3 explains
-why the tasks are shaped that way. If you only read one page, read §3 and the
-recap at the end.
+**The move that fixes it.** Before anyone proposes anything, **describe the hole
+you're trying to fill** — precisely enough that you could point at the parts of
+it and count them. Only then do ideas get to compete. And they don't compete
+against each other; they compete against a test you wrote *before* you had a
+favourite. Whatever survives, survives on its own merits — not because it argued
+best in the room.
 
-**One example throughout.** A team that makes an app for birdwatchers has been
-told to *"add bird ID."* One example, all the way through, so the moves connect.
-§9 runs the same protocol in a medical clinic to show it isn't about birds — or
-about software.
+**What you get that you didn't have before:** a way to tell when you're actually
+done. Right now, "done" probably means "we built something and got tired." That's
+not the same thing, and this is how you tell the difference.
 
-**What this is not.** It's not a scoring system, a prioritisation framework, or
-software. It's a set of questions in a fixed order, with named ways to get stuck,
-that a group can work through in about ninety minutes.
+**How to use this.** §3 is eighteen small tasks, in order. Do them in order and
+you've done the whole thing — you don't have to understand the theory first.
+Everything else in here is explaining *why* they're shaped the way they are, for
+whenever you want that. If you're going to read one section, read §3 and the
+one-page recap at the very end.
+
+**One idea, followed the whole way through.** Someone building an app for
+birdwatchers gets told to *"add bird ID."* We stay with that from the very first
+argument to the final commitment, so you can see how the pieces connect. §9 runs
+the identical process on a medical clinic, so you can see it isn't a trick that
+only works on birds.
+
+**What this isn't.** Not a scoring system. Not a prioritisation framework. Not
+software. It's a short list of questions, asked in a fixed order, with names for
+the ways you'll get stuck — something one person, or a small group, can get
+through in about ninety minutes.
 
 ---
 
-## 1. The problem, in one story
+## 1. The argument you were about to have
 
 **"We should add bird ID."** Two people answer.
 
@@ -83,7 +96,7 @@ The fix isn't better discipline in the discussion. It's changing the order:
 
 ---
 
-## 2. The one thing to get right
+## 2. The one thing to get right, if you skim everything else
 
 If you take nothing else: **describe the gap in a way that can be counted.**
 
@@ -98,7 +111,7 @@ that list. If you only take one idea from this document, take that one.
 
 ---
 
-## 3. The tasks
+## 3. The eighteen tasks
 
 Eighteen tasks in four phases. Each says what to do, how you know it's finished,
 and the trap that usually swallows it.
@@ -372,7 +385,7 @@ knowing.
 
 ---
 
-## 4. Where ideas come from — and why it matters which
+## 4. Where your ideas actually come from — and why it matters
 
 Three sources. Use them **in this order**, and only move on when the one above is
 genuinely used up.
@@ -396,7 +409,7 @@ then defend the invention as though it came from the evidence.
 
 ---
 
-## 5. "We don't know" is not "no"
+## 5. "We don't know yet" is not "no"
 
 The most common way this goes wrong, and the easiest to fix.
 
@@ -416,7 +429,7 @@ you where in the queue it goes. (Last, usually. But last isn't gone.)
 
 ---
 
-## 6. Hunch → candidate → commitment
+## 6. From hunch, to something real, to something you'd defend
 
 Three standings a thing can have. They are **not** stages on a calendar — they're
 what you currently believe, and belief moves both ways. Something can lose its
@@ -465,7 +478,7 @@ everyone able to describe progress.
 
 ---
 
-## 7. A different question: what *kinds of thing* can your product do?
+## 7. Or, work backwards: what can your thing *already* do?
 
 A complementary move, useful when the gap-filling has stalled.
 
@@ -495,7 +508,7 @@ Task 7 is for — it's the only part of this that reaches outside the room.
 
 ---
 
-## 8. The birding run, start to finish
+## 8. The bird-ID example, start to finish
 
 The tasks, actually run.
 
@@ -559,7 +572,7 @@ they already were.
 
 ---
 
-## 9. The same thing, in a clinic
+## 9. Proof it isn't about birds: the same thing, in a clinic
 
 A check that none of this is about birds — or about software.
 
@@ -598,7 +611,7 @@ boundary excluded.
 
 ---
 
-## 10. Ninety minutes
+## 10. If you've got ninety minutes
 
 | time | do this | tasks |
 |---|---|---|
@@ -619,7 +632,7 @@ rule here that people break without noticing.
 
 ---
 
-## 11. What this won't do for you
+## 11. What this won't do for you — said plainly
 
 - **It won't rank things.** It produces standings and named holes. Whether
   behaviour matters more than duration, given what each costs, is a judgement you
@@ -633,7 +646,7 @@ rule here that people break without noticing.
 
 ---
 
-## 12. One page
+## 12. If you remember one page of this
 
 **Describe the gap first (Tasks 1–7).** The ask, word for word · the moment (one
 person, one occasion) · what's out · the ground *and its countable units* · how

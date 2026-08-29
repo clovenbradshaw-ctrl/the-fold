@@ -55,6 +55,49 @@ export const assertionId = (subject, verb, object) =>
   `${String(subject ?? "").trim().toLowerCase()}|${String(verb ?? "").trim().toLowerCase()}|${String(object ?? "").trim().toLowerCase()}`;
 
 /**
+ * The one identity for a RECIPE — how this reader was configured — so an
+ * append-only reading can name WHO heard something, not only WHAT was heard.
+ *
+ * live_priors POLICIES.md LP5: "the witness names what was read, never who
+ * read it... append-only without attribution is strictly worse than an
+ * honest overwrite — it looks like an accumulating record while being an
+ * unreadable one." A recipe's descriptor is exactly the `organs` block every
+ * caller of this module already builds for a human to read (which
+ * organs ran, which priors were injected, which were deliberately omitted);
+ * this hashes a MACHINE-MEANINGFUL projection of it, never the prose.
+ * Hashing the prose itself would make recipe identity drift every time a
+ * comment is reworded — the same defect a content address exists to avoid.
+ *
+ * The caller decides what belongs in the descriptor (this function makes no
+ * claim about which fields matter — that is a fact about the reading, not
+ * about identity itself) and passes a plain object of primitives: strings,
+ * booleans, numbers. Two callers with the SAME descriptor get the SAME id,
+ * which is the whole point — it lets `admit`'s witness distinguish "two
+ * different recipes both heard this" from "the same recipe ran twice."
+ *
+ * Web Crypto, matching builds.js::buildHash / skills.js::skillDigest's own
+ * convention — SHA-256 over a canonicalised (key-sorted) JSON string, async
+ * because the digest is Web Crypto (browser and Node alike, no new
+ * dependency). Truncated to 16 hex characters, matching this project's own
+ * short-digest-id convention (builds/skills use the full 64; a recipe id is
+ * for humans to read in a witness string, so it stays short — a collision
+ * at 16 hex chars over the handful of recipes any one project will ever
+ * actually run is not a real risk, and the full digest is never needed back).
+ */
+const canonRecipe = (value) => {
+  if (Array.isArray(value)) return `[${value.map(canonRecipe).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonRecipe(value[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+};
+export async function recipeId(descriptor) {
+  const bytes = new TextEncoder().encode(canonRecipe(descriptor));
+  const buf = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
+/**
  * Why an offered assertion was turned away. A closed class: a refusal this
  * module cannot name is not a refusal it is allowed to make.
  */
@@ -284,5 +327,5 @@ export function makeHyperlexicon(taskLog) {
       .sort((a, b) => b.witnesses.length - a.witnesses.length || a.id.localeCompare(b.id));
   }
 
-  return { createHyperlexicon, hear, admit, foldHyperlexicon, readingFromHyperlexicon, assertionId, REFUSALS };
+  return { createHyperlexicon, hear, admit, foldHyperlexicon, readingFromHyperlexicon, assertionId, recipeId, REFUSALS };
 }

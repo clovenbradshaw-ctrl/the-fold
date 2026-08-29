@@ -5532,3 +5532,48 @@ CELL stamp reconciling the demonstration's "SIG·Ground presence" label;
 the SYN·Pattern reaction-circuit reading flagged as this document's own
 nomination). A designed HTML rendering of the same reference is published
 as an artifact.
+
+## Co-presence is evidence, never an answer (added 2026-08-29) — pointer
+
+POLICIES.md **P66** is the law; this is the short map. `resolvePronouns`
+refused any frame carrying a named surface, which on encyclopedic prose is
+most of the material — so `bindings: 0, gaps: 6` was six gaps standing in for
+a hundred chances, denominator stated nowhere.
+`eoreader7/native/kernel/contest.js` takes the decision into the kernel and
+makes co-presence a STANDING rather than a gate: a contested frame must clear
+a stricter declared bar. **Co-presence raises the BAR, never a SCORE** — an
+unactivated co-present candidate still loses, so nearest-name binding is not
+smuggled back in. Medium-generality is asserted mechanically (the test scans
+the kernel's own body for *sentence*/*pronoun*/*surface*/*token*/*word*/
+*text* and fails if any appears) and exercised on a film shot and a bar of
+music unchanged.
+
+**Both regimes it enables are OFF by default and both were measured.** The
+constant bar (`contestedMargin`) is REFUTED and kept only as the named
+control arm — a constant rewards a sparse field, so scrambled material clears
+it more easily than coherent material, which means `minMargin` measures
+separation, not evidence. The permutation null (`nullTest: {draws, seed,
+alpha}`) fixes exactly that and is still not adopted: novel lift did not rise
+and its survivors are rare-referent self-echo. **The bottleneck is the SIGNAL,
+not the criterion** — the third independent measurement to land on that line,
+confirming `surfaces.js`'s MODEL-tier fence rather than challenging it.
+Absent both parameters, shipped behaviour is byte-identical
+(`pronouns.test.js` 9/9 unchanged).
+
+**Two rules worth carrying.** A gap is a refusal the organ REACHED, never a
+frame it never read — the denominator belongs in the `regime` block every
+return now carries, where it is a count of frames and cannot be mistaken for
+a verdict. And, found on landing when a driver disagreed with its own results
+document: **a ratio that hides its variance misleads exactly the way a count
+that hides its denominator does — a null drawn once is a null drawn zero
+times.** The disputed lift moved 0.92x–3.00x across twelve shuffle seeds with
+its numerator fixed; the driver now draws a declared seed band and has a third
+verdict for a band that straddles 1.
+
+**Disclosed:** two drivers read materials that no longer exist, so their
+counts are records rather than things this repo re-derives — each results
+document now says which rows reproduce (writer-decay: all; null-criterion:
+its four `live_priors` rows exactly; contested-copresence: none, the article
+fixtures extract ~5x the frames the runs read). A Wikipedia-body extractor
+was refused on this repo's own grounds — per-site formatting rules are the
+trap `succession.js` is condemned for.

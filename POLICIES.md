@@ -8203,3 +8203,106 @@ Danevirke rear-guard's micro-geography (bustrup/selk/stockfleth_company/
 vedelspang, p=0.008) from co-arrival structure alone, with the declared
 door confirming it and the scattered control refused clearance at
 p=0.264.
+
+## P66 — co-presence is evidence, never an answer; and a ratio that hides its variance (2026-08-29)
+
+**What landed.** `eoreader7/native/kernel/contest.js` — a medium-general
+adjudicator, plus its 18 conformance tests — and the two DECLARED,
+default-off parameters that wire it into `adapters/text/pronouns.js`.
+Absent both, shipped behaviour is byte-identical and `pronouns.test.js`
+passes 9/9 unchanged, so every prior measurement in either repo keeps its
+denominator. Three re-runnable eval drivers and their results documents
+land beside them in this repo.
+
+**The defect the kernel names.** `resolvePronouns` refused, categorically,
+any frame carrying a named surface (`if (named.size === 0 && ...)`). That
+veto is text-shaped twice — it names "a named surface," and it treats
+co-presence as disqualifying rather than as a difference to be weighed.
+On encyclopedic prose that is most of the material, so a reported
+`bindings: 0, gaps: 6` was a handful of gaps standing in for a hundred
+chances, with the denominator stated nowhere. The fix moves the decision
+into the kernel and makes co-presence a STANDING: a frame carrying
+competitors must clear a stricter declared bar. **Co-presence raises the
+BAR; it never raises a SCORE** — an unactivated co-present candidate still
+loses, so nearest-name binding, which `pronouns.js`'s own header refuses
+by name, is not smuggled back in through the kernel. Medium-generality is
+asserted mechanically, not claimed: the test reads the kernel's own
+executable body and fails if *sentence*, *pronoun*, *surface*, *token*,
+*word* or *text* appears in it, and the same adjudicator is exercised
+unchanged on an unlabelled gaze across two faces and an unattributed motif
+across two instruments.
+
+**Every return now carries a `regime` block** — which criterion ran, and
+how many frames carried a pronoun, carried competitors, and were actually
+adjudicated. A caller can no longer read a binding count without being
+told the denominator that produced it. One development failure is
+load-bearing and recorded: filing a gap for frames the refused regime
+never adjudicated broke `gaps.length === 0`, and that was the design being
+wrong. **A gap is a refusal the organ REACHED** — "I read this and could
+not decide" — never a frame that was never read. The denominator belongs
+in a count of frames, where it cannot be mistaken for a verdict.
+
+**Both regimes it enables were measured, and both are OFF by default.**
+The constant-bar regime (`contestedMargin`) is REFUTED and kept only as
+the named control arm: a margin compared to a constant rewards a sparse
+field, so scrambling a material — which destroys the coherence one-hop
+recall is supposed to read — RAISES the mean margin (0.028 → 0.053;
+0.047 → 0.073). `minMargin` measures separation, not evidence, and cannot
+tell a well-supported winner from a lonely one. The permutation-null
+regime (`nullTest: {draws, seed, alpha}`) is the fix for that and it
+works: the anti-lift pathology is gone, encyclopedic zeros become honest
+zeros, Aristotle separates 3/0. It is still not adopted as the default,
+because it did not raise novel lift (1.31x → 1.24x; Pride 1.03x →
+**0.56x**) and its survivors are rare-referent self-echo, which clears a
+permutation null without being comprehension. **The bottleneck is the
+SIGNAL, not the criterion** — one-hop lexical recall at sentence grain
+carries too little identity information for any verdict rule over it to
+become reading. Third independent measurement to land on that line;
+`surfaces.js`'s MODEL-tier fence is confirmed, not challenged.
+
+**The landing-time finding, which is this policy's second half.** The
+drivers were rewired from the originating session's absolute paths to the
+repos, and re-run. `writer-decay-genre.mjs` reproduces exactly.
+`null-criterion.mjs` reproduces exactly on its four `live_priors`
+materials. `contested-copresence.mjs` disagreed with its own results
+document on one of two texts — a lift of 3.00x where the document reports
+0.82x — and chasing that rather than reporting a reversal found the real
+defect: **the lift is computed against ONE shuffle, and at these counts
+one shuffle decides it.** Real bindings fixed at 12 while the shuffled
+count swings 4 → 13 across twelve seeds; band 0.92x–3.00x, numerator never
+moving. `0.82x` and `3.00x` are two draws from the same noise. The
+refutation is carried by the other text and by the margin measurement, and
+never by that lift.
+
+**The rule.** A count that hides its denominator misleads — that is what
+the `regime` block was added for. **A ratio that hides its variance
+misleads the same way, and a null drawn once is a null drawn zero times.**
+The driver now draws its null over a declared seed set and reports a band,
+with a third verdict for a band that straddles 1, which is the discipline
+`nullAdjudicate` already holds one layer down (draws declared, never one)
+applied to the ratio the driver itself reports. A single-shuffle lift is
+not a measurement and must not be printed as one.
+
+**Disclosed, not smoothed over.** Two of the three drivers read materials
+that no longer exist — plain-text extracts from a session's `/tmp`. The
+only copies this repo commits are the raw article fixtures, read through
+`web.js::extractReadable`, which carries the page's navigation, category
+and reference chrome as well as its body (1,493 frames against 305; 1,077
+against 314). So those runs' counts are records, not things this repo can
+re-derive, and each results document now says which of its rows reproduce
+and which do not. A Wikipedia-body extractor was considered and refused on
+the repo's own standing grounds — per-site formatting rules are the trap
+`succession.js` is condemned for. And one inconsistency inside the bundle
+itself is named rather than edited away: `contest.js`'s header motivates
+itself with Borodino at 113 pronoun-bearing frames, 99 co-present, where
+the results document reports 75 and 69 for the same article. Both are
+measurements on differently-extracted copies that are now gone; a header
+comment recording a measurement is not something to adjust to match a
+different one.
+
+**Enforced.** `eoreader7/native/tests/contest.test.js` 18/18,
+`pronouns.test.js` 9/9 unchanged. eoreader7 native suite 212/202/10 →
+230/220/10, failure names diffed rather than counted: identical set, the
+standing uninitialised-`legacy-eoreader6.1` failures, zero regressions.
+the-fold suite 1039/912/125 before and after, failure names identical
+(117 of the 125 are that same submodule).

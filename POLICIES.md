@@ -7785,3 +7785,421 @@ failures for both `capacity-runner.test.mjs` and `widget.test.mjs` are
 unchanged by name, since the whole file fails at module load regardless
 of which cases it carries — the fix is verified by direct execution of
 the extracted logic instead, per each item above).
+
+## P63 — kinship reasoning: a two-hop, cross-relation-type derivation, live (2026-08-28)
+
+User direction, verbatim: *"let's have it do complicated mechanical
+reasoning that isn't just 'in' the text."* P60's own succession demo
+composes ONE relation with itself (`replaces ∘ replaces ⇒ after`) — real
+multi-hop reach, but a shape a careful reader could still spot by eye on
+two adjacent succession-box entries. This closes the sharper ask: a
+domain where the composition combines TWO DIFFERENT relations into a
+third, and the second hop consumes the first hop's own derived product.
+
+**The domain, and why.** Kinship: `childOf ∘ hasChild ⇒ siblingOf`
+(bridge: the shared parent), then `childOf ∘ siblingOf ⇒ hasAuntOrUncle`
+(bridge: the shared parent-generation person — consuming the FIRST row's
+own derived edges). Neither derived relation is stated on any one
+fetched page: siblinghood requires reading two separate people's own
+pages and noticing they share a mother; Wikidata has no aunt/uncle
+property at all, so there is nothing to even misread as "in the text".
+
+**Material: four real Wikidata entities, fetched live, never a fixture**
+— Queen Victoria (Q9439), her daughter Victoria, Princess Royal ("Vicky",
+Q116728), Vicky's son Wilhelm II (Q2677), Victoria's son Edward VII
+(Q20875). Verified by hand before any code: Vicky's own page states her
+mother is Q9439, Wilhelm's own page states his mother is Q116728, Edward
+VII's own page states his mother is Q9439 too — a real, mutually
+self-consistent family fragment.
+
+**Reused completely unmodified**: the-fold's own P57 hyperlexicon
+admission door, `predigest.js::assertionEdges`'s projection, and
+`eoreader7/native/kernel/reaction.js`'s reaction substrate — the exact
+same circuit `eval/mechanical-reasoning.mjs` already exercises. This pass
+supplies only a new domain, a new hand-declared cross-relation-type
+chemistry (two `giveHyperlexiconAffordance` rows, not `closureAffordances`
+— that helper is specifically the same-relation case), and a new
+independent oracle.
+
+**Result, measured, not assumed.** 11 raw facts (3 cross-page assertions
++ 9 of Victoria's own P40 entries), every one byte-addressed and
+self-verified (P5.2), admitted with zero refusals. Reacted with `cue:
+null` (the disclosed full-closure control — this pass tests the
+chemistry gate, not the physics/cue gate P60's own arm 3 already
+covers): step 1 derives **8 real `siblingOf` facts** (Vicky's real
+siblings — Vicky herself correctly excluded by `relation-composition.js`'s
+own self-loop guard, un-special-cased); step 2 derives **8 real
+`hasAuntOrUncle` facts at depth 2**, each consuming a step-1 product;
+step 3 quiescent. Control arm (no chemistry given): 0 derived, quiescent
+— nothing reasons without a declared, giver-named chemistry, the same
+wall reproduced on a different relation family. Post-settle audit: 0
+self-refuted.
+
+**Headline, full provenance across three separate real files:**
+*Wilhelm II's aunt/uncle is Edward VII* — derived depth 2, provenance
+`wikidata/Q2677.json#21551-21565` (Wilhelm's own P25) +
+`wikidata/Q116728.json#17641-17653` (Vicky's own P25) +
+`wikidata/Q9439.json#37956-37969` (Victoria's own P40 entry for Edward
+VII) — none of which individually says anything about an uncle.
+
+**The independent oracle, checked but never fed in.** Wikidata's own
+`P3373` (sibling) on Vicky's and Edward VII's pages is fetched and read
+ONLY after the derivation, never given to the substrate. Result: exact
+agreement — all 8 derived siblings match `P3373` precisely, nothing
+missed, nothing extra. **A real bug was caught getting there** (P5.5):
+the first comparison reported zero agreement, because
+`assertionEdges`'s own `normalizeEnd` lowercases every derived edge's
+endpoints while Wikidata's raw qids are not lowercased — the oracle
+compared them un-normalized and looked like a serious finding when it
+was a case-mismatch in the driver's own comparison code. Fixed by
+normalizing both sides consistently; recorded rather than smoothed over.
+
+**"Never stated," checked mechanically.** Every raw fetched byte (all
+four entity dumps) was scanned for the literal words "aunt"/"uncle".
+Neither appears anywhere — the concept is absent from the schema of
+everything read, not merely from one sentence.
+
+**The model comparison: right verdict, fabricated reasoning.** A real
+local model (`onnx-community/Qwen2.5-0.5B-Instruct`, the same fallback
+`eval/void-loop-e2e.mjs` already established) was given ONLY the three
+raw facts — never the words sibling/aunt/uncle — and asked directly
+whether Edward VII was Wilhelm II's uncle. It answered "yes" (correct)
+with reasoning that calls Edward VII "a cousin of... Victoria" (his own
+mother) and invents "King George V" (named nowhere in the prompt) — a
+verdict-only check would have scored this a clean pass and missed that
+the stated reasoning does not actually demonstrate the two-hop
+composition it was asked to perform. The raw prompt and raw answer are
+committed verbatim so this reading can be checked, not trusted.
+
+**Disclosed limits, stated rather than glossed.** The chemistry's giver
+is this driver itself, not a received-priors register entry — "a
+parent's sibling is your aunt/uncle" is ordinary, uncontroversial English
+kinship terminology, but no corpus in this repo proved it; the
+declaration names its own risk, matching `eval/mechanical-reasoning.mjs`'s
+own `CHEM_GIVER` posture exactly. Half-siblings are not distinguished —
+the affordance as declared derives a half-sibling relation identically to
+a full one; does not bite on THIS family (Victoria and Albert's children
+are full siblings) but is a real, named, unbuilt gate (the same class of
+honest gap P60's tenure-identity fix already found and named once). Only
+the four entities the demonstration needed were fetched, so seven of the
+eight derived facts render with a bare qid rather than a name in the
+committed JSON — a stated absence, never a silent one.
+
+**Files.** `eval/kinship-reasoning.mjs` (new, re-runnable driver —
+P19/P27's own posture) + `eval/results/kinship-reasoning.json` (committed)
++ `eval/results/kinship-reasoning-RESULTS.md` (the full account). No
+existing file touched.
+
+## P64 — an empty cell is a lead: the connection pass, and the three policy reassemblies it verified
+
+**User direction, in sequence (2026-08-29):** *"do we have a 'reasoning'
+policy doc like our reading policy?"* → *"write the reasoning policy,
+learn everything from all our attempts. and when done, do a 'generation
+policy'"* → *"think about if we need a policy doc for all 9 stances...
+what the system is ever capable of"* → *"I suspect that we should have
+organs that can do all 9 stances, and that we can use the cube to
+identify where we are missing capabilities"* → *"connect all that already
+exist and make a plan to develop the other capacities."*
+
+### The three reassemblies
+
+`REASONING-POLICIES.md` (19 laws + refuted moves), `GENERATION-POLICIES.md`
+(15 laws + refuted moves, model-agnostic with its scope claim stated
+per-model rather than overclaimed), `CAPABILITY-POLICIES.md` (the 27-cell
+map, its three 9-way faces, and its walls) — each CHAT-POLICIES.md's
+discipline applied to a new slice: summarize and point, never re-derive;
+standing documents, amendments append; POLICIES.md wins on conflict, the
+eval results docs win on numbers. Every Part-I reasoning number was
+re-verified by re-running its offline driver before first commit.
+
+**The verification was real, not ceremonial.** An adversarial workflow
+(three independent checkers — 119 specific figures located in their
+sources — plus a completeness critic) ran against the committed drafts
+and returned 15 corrections (4 wrong, 11 overstated) and six missing
+laws, all folded in the same day: among them, `deriveOp` misattributed to
+widget.js (it is build-log.js:152); a crown.js/wikidata.js sentence swap;
+R4 erasing P60's real no-chemistry control arm (what was missing was the
+DUMB-BASELINE arm — a distinction R4 itself exists to enforce); R12's
+convergence band corrected to the source table's own 17–43%-on-examined;
+and the critic's three homeless laws now seated — "a wall nothing can
+trigger is a comment, not a wall" (four independent measurements, the
+most-measured law in the corpus with no entry), ask-twice-derive-the-
+verdict at temperature 0, and "a reading failure wears the model's face."
+
+### The coverage driver, and what it measured
+
+`eval/capability-coverage.mjs` (new, offline): the REAL `moves.js`
+coverage off the REAL native cube, geometry asserted mechanically first
+(seven checks — operator IS (mode,domain), so the space is 27 = three
+free axes with three 9-way projections, stance = (mode,grain) among
+them). As found: **9/27 registered, one FULL stance (Binding), SEG and
+REC at zero coverage** — and the zeros were false as capability claims:
+nine real, tested, running organs existed unregistered.
+
+### The connection
+
+Ten rows joined `capacities.js`, every one a verified export and
+mechanically domain-legal, each `what` naming whether its cell is
+DOCUMENTED in the organ's own code/header (`network` — CON·Pattern, the
+cell P58 built it for after the emptiness was confirmed; `patch`,
+`extent`, `rezero`, `reshape`, `hear`, `declare`, `standing`) or REASONED
+per the registry's own original hand-check discipline (`compile`,
+`regime`). After: **19/27, no operator at zero, three FULL stances
+(Binding, Making, Composing), no empty stance** — marginals moved from
+Figure 5 / Ground 2 / Pattern 2 to Figure 8 / Pattern 6 / Ground 5.
+
+### The law this pass earned
+
+**An empty cell is a lead, never a verdict — and the holes come in three
+kinds that share one count**: registry debt (an organ exists, nothing
+declared its cell — 10 of the 18 "empty" cells, more than half),
+real incapacity (convictable only via a stated-then-confirmed falsifiable
+prediction — CON·Pattern's zero-edges page remains the only cell that
+ever earned it, and the organ built in answer now fills it), and probe
+error reported as incapacity (P44's four wrong probe versions; "a
+statement about a path" reported as a statement about the system). The
+constitutional line — withhold or convict, never manufacture conviction
+from absence — applied to the capability map itself.
+
+### The plan
+
+`CAPACITY-DEVELOPMENT-PLAN.md` (repo root): per-cell plans for the eight
+still empty. Tier 1 (candidates in this repo with measured specimens):
+NUL·Figure is P22's own named clearance-test integration and the last
+Dissecting cell; SIG·Ground has two live candidates (`searchedVoid`,
+`whatWouldSettle`); SIG·Pattern + NUL·Pattern are the kinds
+induce/null-arm pair, gated on one legacy-engine-path decision. Tier 2
+(design work before nomination is honest): CON·Ground and INS·Ground
+gated on the fold-architecture session's boundary; DEF·Ground lacking
+even a workable specimen; SEG·Pattern the one genuine no-candidate
+frontier (network decomposition), with its specimen named (a two-topic
+document's belief graph separating at the boundary the atmosphere read
+already finds in the stream).
+
+**Files.** `capacities.js` (10 rows + the connection-pass header note);
+`eval/capability-coverage.mjs` (debt ledger with per-organ `paid` flags,
+the three-hole rule, CON·Pattern's closure recorded on its historical
+conviction); `REASONING-POLICIES.md` / `GENERATION-POLICIES.md` /
+`CAPABILITY-POLICIES.md` (all corrections + amendments);
+`CAPACITY-DEVELOPMENT-PLAN.md` (new). Suite: unchanged failure set,
+confirmed by name.
+
+## P65 — the development pass: Tier 1 built, the frontier cell built, and the map at 24/27 (2026-08-29)
+
+**The ask, verbatim: "build it" — CAPACITY-DEVELOPMENT-PLAN.md's own
+order of work, executed.** Three genuinely new organs and two
+registrations of already-tested code, each landed with conformance tests
+whose walls are shown to FIRE (R17: a wall nothing can trigger is a
+comment), and the whole move measured by re-running
+`eval/capability-coverage.mjs` live rather than hand-tallied.
+
+**The measured move.** 19/27 → **24/27 cells, 0 illegal, 25 registry
+entries. Six FULL stances** (Dissecting, Unraveling, Tracing joined
+Binding, Making, Composing), **Figure and Pattern grains complete at 9/9
+each**, every mode at 8/9, zero operators at zero coverage. The three
+cells still empty — CON·Ground, DEF·Ground, INS·Ground — are EXACTLY the
+plan's gated three (two waiting on the fold-architecture session's
+boundary, one on a workable specimen), and they are all Ground-grain, one
+per mode: the whole remaining gap is the Ground row. That was not
+designed; it fell out of the arithmetic, and it reads cleanly — the acts
+this instrument cannot yet perform anywhere are maintaining-the-ground
+kinds of act (tending the connective field, defining the interpretive
+ambient, generating ground where none exists), while every
+Figure-grain and Pattern-grain kind of act now has at least one organ.
+
+**One premise of the plan was WRONG, found by reading rather than
+assumed, and the build got cheaper because of it.** The plan gated the
+kinds pair (SIG·Pattern + NUL·Pattern) on "the legacy-engine path
+question" — registering a module this checkout cannot even read
+(`eoreader7/legacy-eoreader6.1`, uninitialised submodule). But eoreader7's
+NATIVE kernel already carries full ports: `kind-induction.js`
+(`projectKinds`, the induction surface) and `entity-kind-induction.js`
+(`induceEntityKindCandidates`, with a BUILT-IN seeded random-subset
+binding-energy null per basin — `EONullResult@1`, declared permutations,
+0.95 quantile). The gate had already dissolved when the plan was written;
+the plan is amended in place-of-record (its own dated status section),
+the wrong premise kept visible.
+
+**What was built, and what building it measured:**
+
+1. **`testKindMembers` (eoreader7 `native/kernel/entity-kind-induction.js`)
+   — NUL·Pattern.** A DECLARED kind membership challenged against the
+   SAME random-subset null the inducer runs on its own basins: the caller
+   holds the hypothesis, the field answers. Structural refusals, never
+   tuned floors: `unknown_members` (no measurable profile),
+   `under_powered` (<2 members — no internal pair exists),
+   `no_boundary` (members = whole population — the null cannot perturb;
+   A10's licensing rule applied as a refusal). `cleared` mirrors the
+   inducer's own gate exactly (`bindingEnergy > 0` AND the null passes);
+   a failing declared set is a VERDICT with the measurement attached,
+   never a refusal. 7 conformance cases in
+   `native/tests/entity-kind-membership.test.js`, built through the REAL
+   `createKindInductionIndex`/`indexKindEntries`/`kindEvidence` path (no
+   hand-typed Map): the planted cluster clears, a scattered set fails as
+   a verdict, all three refusal walls fire, the inducer and the declared
+   test AGREE on the same field (cross-organ agreement), and the seeded
+   null is deterministic. eoreader7 suite 171/167/4 → 178/174/4, the same
+   4 failures by name.
+
+2. **`clearance.js` (the-fold) — NUL·Figure, P22's own named next
+   integration** ("the figure doesn't clear it"), built against the
+   NATIVE adapters. The load-bearing discovery, found by reading the
+   adapter before writing: native `extractSurfaces` ALREADY refuses
+   sentence-initial capitalisation at extraction itself
+   (`accumulateSurfaceEvidence` skips the sentence-initial token — "it is
+   capitalised by position and carries no evidence of namehood on its
+   own", L2 closed at the presence rung). So the position scan the plan
+   sketched was never this organ's to build; clearance's real content is
+   the ESTABLISHMENT LADDER over the presence set — P38's
+   presence-vs-establishment distinction, mechanized: presence
+   (`no_presence` for the sentence-initial specimen), the material's own
+   derived recurrence floor (`below_recurrence_floor`, the floor
+   disclosed by MEASUREMENT — bounds observed from the organ's own
+   behaviour, never re-derived), ambiguity carried as a typed withholding
+   with candidates (never a third being), and a pronoun rung that runs
+   ONLY under declared numbers (`minActivation`/`minMargin`, the organ's
+   own wall) with a TYPED SKIP otherwise — `skipped_no_organ` /
+   `skipped_undeclared`, never a pass (P41), and a skip can never
+   upgrade a standing to `bound`. Referent-fence overrides are the
+   adapter's own declared parameter surface, forwarded verbatim and
+   ECHOED on the result (`referentOptions.declared`) — derived-vs-declared
+   always visible. Disclosed absence, stated in the header: no
+   constructed-null clearance exists for referent establishment — the
+   floor is a measured bar, not a perturbation arm; P29's search already
+   found no licensed text perturbation and none is invented here (the
+   kinds pair is where a declared membership DOES get a real null). Two
+   fixture findings measured before pinning: the ambiguity branch is
+   unreachable through DERIVED fences at fixture scale (the adapter's own
+   conformance test declares `{minPartners: 2, minSentences: 1}` for the
+   same reason — adopted, echoed, disclosed), and the pronoun organ binds
+   by CAUSAL THEMATIC RECALL (its own tests' physics), so `bound` is
+   reachable only where the pronoun's sentence carries the referent's
+   thematic company — "He answered every question" after Johnson
+   sentences is correctly `pronoun_no_candidate`, the adapter's own
+   "unrelated pronoun material is refused rather than guessed" case
+   reproduced independently. 9 conformance cases, all against the real
+   adapters.
+
+3. **`unravel.js` (the-fold) — SEG·Pattern, the plan's one no-candidate
+   frontier cell.** Parameter-free network separation at the graph's own
+   bridges: a structural fact, not a score, so there is no
+   community-detection threshold to tune and none is invented — a
+   2-edge-connected network is a typed `no_seam` refusal, never a cut
+   bought with a parameter. Iterative Tarjan over EDGE ids, not parent
+   nodes: the textbook parent-skip calls a PARALLEL crossing a bridge,
+   and the defect was PLANTED to prove the wall — the parent-skip variant
+   ships the false seam `a1-b1#6` on the two-parallel-edges graph, the
+   shipped walk refuses it, and the test discriminates. Deterministic
+   under input order (sorted adjacency, sorted roots, sorted outputs);
+   cut edges addressed by the caller's own indices with the edge object
+   carried verbatim (provenance to whatever the caller's edges carry);
+   already-separate material reports its own parts with `cutEdges: []` —
+   nothing cut, and the result says so. The organ's CODE is scanned by
+   its own test for domain vocabulary (the grain-refinement discipline)
+   — nodes are opaque ids. 10 conformance cases. Named, unmeasured next
+   specimen (the plan's own): a real two-topic document's belief graph
+   separating at the same boundary `atmosphereBoundaries` finds in the
+   stream — the alignment run is future work, not implied done.
+
+4. **Two registrations of already-tested code:** `settle` (SIG·Ground —
+   `void-loop.js::whatWouldSettle`, P53's second amendment, typing
+   reasoned per the registry's hand-check discipline) and `kinds`
+   (SIG·Pattern — native `projectKinds`). These plus `kindnull` are the
+   registry's first rows naming eoreader7 native modules; the `module`
+   column stays what it always was — a resolvable pointer, data — and
+   asking capacity-runner to execute them still returns
+   `not_yet_executable`, never a silent no-op.
+
+**Cell typings, all mechanically domain-legal (verified through the
+native cube — 24 covered / 3 empty / 0 illegal):** `clear` NUL·Entity and
+`unravel` SEG·Network carry CELL exports in the organ's own code (the
+native adapters' own convention — relations.js/spans.js/pronouns.js/
+surfaces.js/activation.js all stamp theirs); `kindnull` NUL·Kind is
+documented in `testKindMembers`' own docstring; `settle` and `kinds` are
+reasoned rows, stated as such.
+
+**Evidence.** the-fold suite after this pass: 1093 tests / 964 pass /
+127 fail / 2 skipped — the 19 new cases (9 clearance + 10 unravel) all
+passing, and all 127 failure NAMES byte-identical to the standing
+environment baseline (`before-names.txt`, diffed name-by-name — the
+uninitialised `legacy-eoreader6.1` submodule set this checkout has always
+carried), zero regressions. eoreader7: 178/174/4, same 4 by
+name. `eval/results/capability-coverage.json` regenerated by the live
+driver. moves.test.mjs's counts updated 19/8 → 24/3 with the history
+kept in its own comment; its exact assertions verified against the live
+registry through the native-cube shim (this checkout cannot run its
+legacy imports), printed `assertions would pass: true`.
+
+**What 24/27 does NOT mean, restated so nobody inflates it (CAPABILITY
+C7, unchanged by this pass):** every KIND of act except the three Ground
+gaps is now performable SOMEWHERE — not that any is performed correctly
+(coherence < correspondence; the oracle rule stands), and not that each
+organ reaches every ORDER of task (the MHC axis is separate). And the
+registry rows are typed pointers: `clear`, `unravel`, `settle`, `kinds`
+and `kindnull` execute from their own modules and tests, not yet from
+the terminal's capacity-runner — wiring them into `runCapacity` is
+real, named, unattempted work, exactly the boundary P22 drew for the
+other reference-only rows.
+
+### Amended same day — the adversarial pass reported, two real findings closed by mutation-killing pins
+
+The verification the entry above declared pending completed: four refuters
+(one per organ, one over every doc claim; 4/4 done, 93 tool calls), and
+the pass EARNED its cost — two REAL findings, each fixed and pinned by
+the exact mutation that had survived:
+
+1. **clearance.js's rung had an untyped third state** — organ injected,
+   numbers declared, presence empty → `pronounRung: null`, neither `ran`
+   nor a typed skip: precisely the P41 hazard shape the entry above
+   invokes as the wall. Fixed: the empty-presence path now RUNS the rung
+   over an empty referent map (the organ's own typed gaps are the honest
+   answer — measured: `{ran: true, bindings: 0, gaps: 2}` on pronoun-rich
+   lowercase material), one shared `runPronounRung` implementation for
+   both paths. And the refuter PROVED by mutation that the
+   ambiguous-exclusion wall was untested (deleting it passed all 9
+   tests); the killing assertion is pinned — under the mutation the suite
+   now fails, restored it passes.
+2. **testKindMembers' disclosed non-positive-binding decision was
+   unpinned** — the "scattered" fixture's binding was accidentally
+   POSITIVE (+0.034, failing only via the null), so an inducer-literal
+   gate (refuse instead of measure) survived all 7 tests. Pinned with a
+   genuinely repelling pair (`["e1","b8"]`, binding −0.172): measured,
+   never refused, cleared false — Mutation B now fails the suite. The
+   `bindingEnergy > 0` conjunct is disclosed in the test as
+   belt-and-braces (the null's own construction makes passed-with-
+   non-positive-binding structurally near-unreachable, so no honest
+   fixture pins that half in isolation). Plus a third disclosed decision
+   added to the docstring: the two doors share the null's PROTOCOL, not
+   its draws (shared draws would make the cross-organ agreement test
+   circular).
+
+Nits taken in the same pass: the floor-refusal detail no longer claims
+"derived" under a caller-declared floor; the pronoun-declaration gate
+mirrors the organ's own walls exactly (non-negative, minMargin ∈ [0,1] —
+a declaration outside them is a typed skip, never a mid-run throw);
+unravel refuses `malformed_edges` by the caller's own indices instead of
+coining a phantom node, `cutEdges` no longer aliases `bridges`, string-id
+comparison is disclosed in the JSDoc, and a bowtie pins
+articulation-reported-on-refusal; the coverage driver's header line about
+SEG/REC reading zero is past-tense (it described the pre-P64 state).
+
+**Final measured state after the amendments:** the-fold 1098 tests / 969
+pass / 127 fail (names byte-identical to baseline); eoreader7 180 / 176 /
+4 (same four by name). Test deltas over the entry above: clearance 9→11,
+unravel 10→13, entity-kind-membership 7→9.
+
+**And the pass's own material demonstration** (user direction: "read
+something highly complicated and show me the reasoning"):
+`eval/complicated-reading.mjs` + `eval/results/
+complicated-reading-RESULTS.md` — the new cells run in sequence over the
+live-fetched Second Schleswig War article (48KB, Palmerston's "only three
+people ever understood it"): 84 established / 258 refused / floor
+observed at 1<2; two real pronoun bindings at the declared numbers, BOTH
+kept as instructive mistakes with the mechanism's own explanation (the
+organ's documented `nonPersonal` parameter, undeclared by this driver);
+578 edges heard with the P56 ceiling shown as heard; the belief graph
+gated by clearance cut at 16 seams; and the kinds pair discovering the
+Danevirke rear-guard's micro-geography (bustrup/selk/stockfleth_company/
+vedelspang, p=0.008) from co-arrival structure alone, with the declared
+door confirming it and the scattered control refused clearance at
+p=0.264.

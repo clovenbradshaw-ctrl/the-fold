@@ -5391,3 +5391,144 @@ the grep above. This is a pre-existing environment gap, not a property of
 the change — the same gap this file's own recent passes (P56, the sequence
 work above) already navigated around by testing their engine-side modules
 directly rather than through this page.
+
+## Kinship reasoning — complicated mechanical reasoning, not just adjacency (added 2026-08-28) — pointer
+
+POLICIES.md **P63** is the law; this is the short map. User direction:
+*"let's have it do complicated mechanical reasoning that isn't just 'in'
+the text."* P60's succession demo composes one relation with itself
+(real multi-hop, but spottable by eye on two adjacent entries); this
+closes the sharper ask with a domain that composes TWO DIFFERENT
+relations, the second hop consuming the first hop's own derived product:
+`childOf ∘ hasChild ⇒ siblingOf`, then `childOf ∘ siblingOf ⇒
+hasAuntOrUncle`. Neither relation is stated on any one fetched page —
+Wikidata has no aunt/uncle property at all.
+
+Live, never a fixture: four real Wikidata entities (Queen Victoria and
+three of her real descendants) fetched over the network the moment the
+driver runs. The reaction circuit, the-fold's own P57 admission door,
+and `predigest.js`'s projection are all reused completely unmodified
+from `eval/mechanical-reasoning.mjs` — this pass supplies only a new
+domain, a hand-declared cross-relation-type chemistry, and a new
+independent oracle (Wikidata's own `P3373` sibling property, fetched and
+checked ONLY after the derivation, never fed to the substrate — exact
+agreement, 8/8).
+
+Headline, three separate real files, none saying anything about an
+uncle alone: *Wilhelm II's aunt/uncle is Edward VII* — derived depth 2,
+provenance walking to real byte addresses on Wilhelm's, Vicky's, and
+Victoria's own separate pages, mechanically confirmed absent (the literal
+words "aunt"/"uncle") from every byte fetched. A real local model given
+only the three raw facts answered the yes/no question correctly but with
+fabricated reasoning (calling Edward VII "a cousin of... Victoria," his
+own mother, and inventing an unmentioned "King George V") — a verdict-
+only check would have missed that the stated reasoning never actually
+performs the two-hop composition it was asked to do.
+
+## Three standing policy reassemblies — reasoning, generation, capability (added 2026-08-29)
+
+`REASONING-POLICIES.md`, `GENERATION-POLICIES.md`, and
+`CAPABILITY-POLICIES.md` (repo root) are CHAT-POLICIES.md's discipline
+applied to three more slices: each is a reassembly of already-measured
+law — summarize and point, never re-derive; standing documents, amendments
+append; POLICIES.md wins on conflict, the eval results docs win on
+numbers. Every number in all three was re-verified by re-running its
+driver before first commit.
+
+The one genuinely new mechanism beside them:
+`eval/capability-coverage.mjs`, which drives the REAL `moves.js` coverage
+off the REAL native cube through all three 9-way projections (operator /
+stance / terrain — each drops one of the cube's three free axes;
+operator=(mode,domain) is verified mechanically, so the space is 27 with
+three faces, not four axes). Its findings, kept where the next pass will
+look: registered coverage is 9/27 with ONE full stance (Binding);
+**an empty cell is a lead, never a verdict** — SEG and REC read zero
+coverage while NINE real, tested organs exist unregistered (registry
+debt; after-debt projection 13/27, Composing becomes the second full
+stance), whereas CON·Pattern earned the incapacity reading the only way
+it can be (a falsifiable prediction stated before the file existed,
+confirmed on real material — P58's zero-edges list page). Three stances
+are genuinely empty after the debt: Unraveling, Tracing, Cultivating —
+each a KIND of act currently performable in no domain, which is the
+build-order the map licenses. Depth is the OTHER axis (P44's MHC battery,
+stage 9 / stage 6 with a real order-7 ceiling), and the wall neither axis
+crosses: coherence is strictly weaker than correspondence — a completed
+27 would mean every kind of act is performable, never that any is
+performed correctly.
+
+## The connection pass — the registry debt paid, the map live (added 2026-08-29) — pointer
+
+POLICIES.md **P64** is the law; this is the short map. The adversarial
+verification the three policy docs' first commit declared pending ran
+(119 figures checked, 15 corrections, six missing laws — all folded in),
+and the user's own hypothesis ("organs for all 9 stances, the cube
+identifies what is missing") was closed in two moves. **Connect:** ten
+rows joined `capacities.js` — every one a verified export, mechanically
+domain-legal, cell typing documented in the organ's own code where it is
+and reasoned per the registry's original discipline where not. 9/27 →
+**19/27, no operator at zero, three FULL stances, no empty stance.** The
+law earned: an empty cell is a lead, never a verdict — three hole kinds
+share one count (registry debt, which was over half the map; real
+incapacity, which only CON·Pattern ever earned and whose answering organ
+now fills it; probe error, P44's four wrong probes). **Plan:**
+`CAPACITY-DEVELOPMENT-PLAN.md` carries the eight remaining cells —
+NUL·Figure first (P22's own named clearance test, the last Dissecting
+cell), SEG·Pattern the one genuine no-candidate frontier, three cells
+gated on the fold-architecture session's boundary rather than guessed at.
+
+## The development pass — Tier 1 built, the frontier cell built, 24/27 (added 2026-08-29) — pointer
+
+POLICIES.md **P65** is the law; this is the short map. "Build it" —
+CAPACITY-DEVELOPMENT-PLAN.md executed: three new organs, two
+registrations, **19/27 → 24/27, six FULL stances, Figure and Pattern
+grains complete at 9/9; the whole remaining gap is the Ground row**
+(CON·Ground / DEF·Ground / INS·Ground — the plan's own gated three, one
+per mode).
+
+**`clearance.js`** (NUL·Figure, P22's named "the figure doesn't clear
+it") — the establishment ladder over presence, P38 mechanized: typed
+refusals per rung (`no_presence` / `below_recurrence_floor` /
+`ambiguous_surface`), the floor disclosed by measurement, a pronoun rung
+only under declared numbers with a TYPED skip (P41 — a skip never
+upgrades a standing). The build's own finding: native `extractSurfaces`
+already refuses sentence-initial capitalisation at extraction, so the
+position rung lived in the adapter all along. **`unravel.js`**
+(SEG·Pattern, the no-candidate frontier cell) — parameter-free separation
+at the network's own bridges, `no_seam` typed refusal for 2-edge-connected
+graphs, edge-id Tarjan whose parallel-edge trap was PLANTED and proven
+(the textbook parent-skip ships a false seam; the test discriminates).
+**`testKindMembers`** (eoreader7 native, NUL·Pattern) — a DECLARED kind
+membership against the inducer's own random-subset null; structural
+refusals (`unknown_members` / `under_powered` / `no_boundary`), a failing
+set is a verdict, never a refusal. Plus `settle` (SIG·Ground,
+`whatWouldSettle`) and `kinds` (SIG·Pattern, native `projectKinds`) —
+the registry's first native-module rows, pointers still
+`not_yet_executable` from the terminal.
+
+**The plan's kinds gate was WRONG and is corrected in the plan's own
+dated status section:** the native ports existed with a built-in null —
+the "legacy path" premise dissolved before the plan was written, found by
+reading the modules. Suites after the same-day adversarial amendment
+(P65's own amendment carries the two real findings and their
+mutation-killing pins, plus the complicated-reading demonstration):
+the-fold 1098/969/127 (all 127 by name, the standing environment set,
+zero regressions); eoreader7 180/176/4 (same 4 by name).
+
+## The 27 cells, explained (added 2026-08-29) — pointer
+
+`THE-27-CELLS.md` (repo root) is the per-cell reference the three policy
+reassemblies point around: how to read an address (27 = operator × grain,
+three derived faces), all twenty-seven cells with their organs and one
+measured usage example each, the three empty Ground-row cells with their
+gates, and the together-section (the act grammar, the void loop's three
+read-off cells, coverage as diagnostic, what the map does not say). The
+cell/organ assignments are generated against the live cube and registry —
+`eval/capability-coverage.mjs` is the regeneration check and wins any
+disagreement; the prose is the document's own. Verified by a three-checker
+adversarial pass (21 findings — one fatal, eight real, all folded in;
+among them: two CAPACITIES execute, touching three cells; the SEG·Figure
+ops story corrected to deriveOp's actual typing; the native surfaces.js
+CELL stamp reconciling the demonstration's "SIG·Ground presence" label;
+the SYN·Pattern reaction-circuit reading flagged as this document's own
+nomination). A designed HTML rendering of the same reference is published
+as an artifact.

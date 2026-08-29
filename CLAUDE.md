@@ -5618,3 +5618,19 @@ it. Append-only without attribution is worse than an honest overwrite.
 future work *"whose persistence and staleness story this server does not
 own."* That blocker is staleness, and this frame dissolves it — an older
 reading is not stale, it is older.
+
+## Recipe identity, built (added 2026-08-29) — pointer
+
+POLICIES.md **P68** is the law; this is the short map. LP5's own named
+prerequisite for append-only — a witness naming WHO read, not only WHAT —
+is built: `hyperlexicon.js::recipeId` (SHA-256 over a caller-declared
+descriptor, now including every relevant repo's own git-commit state), a
+real double-counting bug caught and fixed in the same pass (`hear()` used
+to append even a re-sighting that taught it nothing new — now a structural
+no-op), and `hypergraph.js::relationsFor`'s `vocabulary.candidates` (task
+#9's own adversarial audit finding: nominated vs. cleared are different
+facts, and the field genuinely diverges once a caller wires the
+already-existing `posPriorFor` POS gate in — which live_priors did, the
+same day, at corpus scale; see that repo's own POLICIES.md LP6 for the
+full account of the gate itself, which is entirely that repo's own
+driver-side decision).

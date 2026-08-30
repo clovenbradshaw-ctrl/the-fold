@@ -5891,3 +5891,37 @@ time. Verified against the real native engine organs (`arrangement.test.mjs`,
 extractor (case-marking, for a language like Latin already in the corpus)
 is named, real, and unstarted — it should build against this neutral
 shape, never against `subject`/`object`.
+
+**Built and measured the same day — the second typology is real, not just
+named.** `eoreader7/native/adapters/text/relations-case-marked.js`
+(READING-SPEC.md S33) reads grammatical role off Latin case morphology,
+not position — a genuinely different mechanism from `relations.js`'s own
+positional slot-finding, proving the neutral arrangement is REQUIRED for
+a language like this, not merely tidy. Built against real UD_Latin-Perseus
+treebank data (fetched live, CC BY-NC-SA 2.5, committed as a fixture),
+measured against 380 held-out gold sentences never used to build its case
+prior: matches a real verb-object-subject specimen ("possedit cetera
+pontus," the sea possessed the rest) exactly, using zero information
+about word position — the actual proof positional extraction cannot give.
+Modest, honestly disclosed precision/recall (end1 vs gold nsubj: 0.26/0.08;
+end2 vs gold obj: 0.33/0.12) — subject detection is genuinely harder than
+object detection because Latin's nominative case is the least
+systematically marked, a real fact about Latin morphology, not a defect
+in the organ. Four real bugs found by measuring against gold rather than
+reasoning about it, all disclosed in S33 and `eval/results/
+latin-case-marking-RESULTS.md`.
+
+**Wired into this repo via `hypergraph.js::makeCaseMarkedRelationReader`**
+(POLICIES.md P73) — a SEPARATE entry point from `makeRelationReader`, not
+a branch inside it, because the English pipeline's referent-index/
+assertion/connector-class machinery all assume the positional extractor's
+own edge shape. What's shared is the actual point: every edge carries
+`end1`/`label`/`end2`, never `subject`/`verb`/`object` — Latin's oblique
+cases have no honest 1:1 mapping onto English argument structure, and
+this reader refuses to force one (a `case`/`number` detail rides each end
+instead). Verified against eoreader7's real organs, byte-accurate spans
+confirmed against source bytes: `case-marked-relations.test.mjs` (5
+cases). Full pipeline parity with the English reader (referent
+resolution, assertion tiers, connector-class) is real, scoped,
+unattempted future work — disclosed, not silently implied done. Full
+suite: 1066/939/125 → 1071/944/125, zero regressions.

@@ -8934,3 +8934,69 @@ two-word name, "Abraham Lincoln," is what the working
 matching it fixed the test rather than weakening the assertion). Full
 suite: 1060/933/125 (pre-existing failures, `git stash`-confirmed
 identical) → 1066/939/125, zero regressions.
+
+## P73 — A genuine second typology, built and measured: case-marking relation extraction, wired through the neutral arrangement
+
+**Generality:** specimen-scoped (disclosed; not claimed further) — see
+eoreader7's `native/READING-SPEC.md` S33 for the full measured account
+(the organ itself lives there); this entry is the the-fold-side wiring
+and its own test evidence.
+
+P72 closed the schema half — the arrangement is two ordered ends and a
+label, additive, never forcing `subject`/`object` on a language those
+categories don't cleanly fit. This entry closes the half P72's own
+"what this is not" section named as real, separate, unstarted work: a
+genuinely SECOND extraction strategy, for a language where position
+carries no grammatical signal at all, proving the neutral shape is
+*required*, not merely tidy.
+
+**Why Latin, and why it had to be measured rather than argued.** S31's
+own gate: a fix scoped to a convenient case proves nothing. Latin's
+grammatical role is signaled by case morphology (a noun's own ending),
+not position — free word order, several real specimens in the corpus
+already (`live_priors`' Ovid, Lucretius). The organ
+(`eoreader7/native/adapters/text/relations-case-marked.js`) is real,
+tested against 380 held-out gold sentences from UD_Latin-Perseus (never
+used to build its case prior), and matches a real VOS (verb-object-
+subject) specimen — *"possedit cetera pontus"*, "the sea possessed the
+rest" — exactly, using zero information about word position. Full
+numbers, every disclosed limit, and four real bugs found by measuring
+against gold rather than reasoning about it (a punctuation-stripping
+regex that never trimmed "manent." to "manent"; mined-vs-received verb
+personal endings; weak-ending collisions with common noun cases; a
+preposition misread as a nominative) are in eoreader7's own S33 and
+`native/eval/results/latin-case-marking-RESULTS.md` — not restated here,
+per this document's own summarize-and-point discipline.
+
+**What's wired here, and what deliberately is not.**
+`hypergraph.js::makeCaseMarkedRelationReader` is a SEPARATE entry point
+from `makeRelationReader`, not a branch inside it — the English
+pipeline's referent-index resolution (`cast.js`), assertion order-arm,
+connector-class checks, and gender evidence all assume a positional
+extractor's own edge shape (`subjectEnd`/`objectEnd` fuzzy matching over
+a referent index) that a case-marked organ does not produce. Retrofitting
+full pipeline parity is real, scoped, unattempted future work — named
+here rather than silently implied done. What IS real: a working reader,
+organ-injected (the cast.js pattern — this file never imports
+`relations-case-marked.js` directly), producing edges in the shared
+`{end1, label, end2}` shape with byte-accurate spans (verified against
+source bytes, P5.2's self-verification discipline) and a `case`/`number`
+detail on each end that the positional English reader has no use for and
+never needed — because Latin's oblique cases (dative, ablative, genitive)
+have no honest 1:1 mapping onto `subject`/`object` and this reader
+refuses to force one. A gap (multi-clause sentences, ambiguous verbs,
+unresolved case endings) is reported on its own list, never silently
+dropped — the same "never attempted" vs "attempted and refused" bucket
+discipline S22/S32 already hold.
+
+**Evidence.** `case-marked-relations.test.mjs` (new, 5 cases, against the
+REAL eoreader7 native organs — `spans.js` + `relations-case-marked.js`,
+the same real-organ-integration-test precedent `arrangement.test.mjs`
+set): the declared-organs guard, the VOS specimen matched with byte-
+accurate spans, the neutral shape checked at the integration boundary
+too (never `subject`/`verb`/`object`), a gap correctly surfaced rather
+than dropped, multiple passages/sentences all read. Full suite:
+1066/939/125 → 1071/944/125, zero regressions (`git stash -u` confirmed
+identical failure set — untracked new files included this time, unlike
+an earlier check in this same session that omitted `-u` and produced a
+misleading result, caught and corrected before being reported here).

@@ -399,7 +399,7 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
   const backing = (edges ?? []).filter((e) => (e.refs ?? []).some((r) => refSet.has(r)));
   if (!backing.length) return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [], inconclusive: "no edge found at the claim's own bound address" };
   for (const e of backing) {
-    const edgeTokens = contentTokens(e.object);
+    const edgeTokens = contentTokens(e.end2);
     if ([...claimTokens].every((t) => edgeTokens.has(t))) {
       return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [...edgeTokens] };
     }
@@ -407,7 +407,7 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
   return {
     trusted: false,
     claimTokens: [...claimTokens],
-    matchedTokens: [...new Set(backing.flatMap((e) => [...contentTokens(e.object)]))],
+    matchedTokens: [...new Set(backing.flatMap((e) => [...contentTokens(e.end2)]))],
   };
 }
 
@@ -497,7 +497,7 @@ function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, m
   // claim's own connector at all). Narrowed to the edge(s) whose OWN verb
   // is the claim's own verb — the same word judge() itself bound.
   const backing = (edges ?? []).filter(
-    (e) => (e.refs ?? []).some((r) => refSet.has(r)) && (e.verb ?? "").toLowerCase() === (judgedVerb ?? "").toLowerCase(),
+    (e) => (e.refs ?? []).some((r) => refSet.has(r)) && (e.label ?? "").toLowerCase() === (judgedVerb ?? "").toLowerCase(),
   );
   if (!backing.length) return { trusted: true, inconclusive: "no edge found at the claim's own bound address with a matching connector" };
   // Checked here, not before `backing` is known — an edge tagged at
@@ -521,7 +521,11 @@ function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, m
       // built from a lens with no posPriorMeta/thraxMeta injected), which
       // JSON-drops cleanly rather than asserting a giver that was never
       // named.
-      return { trusted: false, surface: e.verb, thraxClass: classification.thraxClass, givers: classification.givers };
+      // grammar-lens.js's own classifyConnector reads edge.verb internally
+      // (its own disclosed, deliberately-unrenamed contract — unaffected
+      // either way, since both fields hold the same value); this disclosure
+      // reads the neutral field, since e is hypergraph.js's own edge.
+      return { trusted: false, surface: e.label, thraxClass: classification.thraxClass, givers: classification.givers };
     }
   }
   return { trusted: true };
@@ -635,7 +639,7 @@ export function landAct(grid, log, line, { sources = {}, runCapacity, classifyCo
         // `classifyConnector` organ was injected — every pre-existing
         // caller's behavior is unchanged.
         if (computedVerdict) {
-          connectorCheck = checkConnectorClass(result.edges, judged?.refs, judged?.verb, classifyConnector, minShare);
+          connectorCheck = checkConnectorClass(result.edges, judged?.refs, judged?.label, classifyConnector, minShare);
           if (!connectorCheck.trusted) computedVerdict = null;
         }
         // Squaring confirms POLARITY only — a "holds" that passed squaring
@@ -644,7 +648,7 @@ export function landAct(grid, log, line, { sources = {}, runCapacity, classifyCo
         // for `holds`: a `refused` verdict already means the material
         // explicitly disagrees, which is a different, already-decided case.
         if (computedVerdict === "holds") {
-          objectCheck = checkObjectSpecificity(result.edges, judged?.refs, judged?.object);
+          objectCheck = checkObjectSpecificity(result.edges, judged?.refs, judged?.end2);
           if (!objectCheck.trusted) computedVerdict = null;
         }
       }
@@ -764,7 +768,10 @@ export function perSourceReadings(grid, log, claimId) {
         revision: experiencer.revision ?? null,
         verdict: c.verdict ?? "undetermined",
         polarity: judged?.polarity ?? null,
-        edges: judged?.refs ? [{ subject: judged.subject, verb: judged.verb, object: judged.object, refs: judged.refs }] : [],
+        // Read off judged's neutral arrangement (P72); crown.js's own render
+        // functions still destructure subject/verb/object as THEIR field
+        // contract (crown.js:376), so the destination keys stay as they are.
+        edges: judged?.refs ? [{ subject: judged.end1, verb: judged.label, object: judged.end2, refs: judged.refs }] : [],
         grammar: r.connectorCheck ? [r.connectorCheck] : [],
         // null (not {passages:0,sources:0}) when undetermined — judge()
         // never runs corroboration() for an unbound/beyond-reach verdict,

@@ -2,7 +2,7 @@
   "engine": "eoreader7 (native/adapters/text)",
   "draws": 20,
   "heavyDraws": 5,
-  "workingPassages": 40,
+  "workingPassages": 70,
   "seed": 0,
   "passageChars": 1200,
   "runs": [
@@ -52,7 +52,7 @@
             ],
             "name": "a name denotes a being the material establishes",
             "status": "passed",
-            "detail": "\"Rostovs\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 24/24 pairs its own individuation rule calls one being; kept apart 4/4 it withholds on",
+            "detail": "\"Rostovs\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 34/34 pairs its own individuation rule calls one being; kept apart 5/5 it withholds on",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -133,7 +133,7 @@
             ],
             "name": "a sequence coordinated across sentences: a pronoun bound to what was read before it",
             "status": "passed",
-            "detail": "9 pronoun(s) bound, 38 refused (pronoun_no_candidate, pronoun_no_margin), 0 bound to an unadmitted referent",
+            "detail": "9 pronoun(s) bound, 39 refused (pronoun_no_candidate, pronoun_no_margin), 0 bound to an unadmitted referent",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -183,10 +183,10 @@
               },
               "arbitrary": {
                 "completed": false,
-                "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                "detail": "exact P(a uniform redeal reproduces this triple) = 0.0058 over n=692 edges, K=4 sharing the subject, m=1 sharing the verb+object — below alpha 0.05, so the true match is not explained by chance alone",
                 "unreachable": false,
                 "perturbed": true,
-                "draws": 20,
+                "draws": 1,
                 "fired": 0
               },
               "discrimination": {
@@ -246,14 +246,29 @@
               "typed, directional relation"
             ],
             "name": "a variable quantified over a category: the whole filler set of an open slot",
-            "status": "unmeasured",
-            "reason": "organ_unreachable",
-            "detail": "lowerOrder arm could not run: this material offers no subject+verb slot with two or more distinct fillers",
+            "status": "passed",
+            "detail": "\"Peace at __\" ranges over 2 filler(s); an absent subject ranges over 0",
             "arms": {
               "lowerOrder": {
                 "completed": false,
-                "detail": "this material offers no subject+verb slot with two or more distinct fillers",
-                "unreachable": true,
+                "detail": "the open slot withheld; only instance-level claim checking available",
+                "unreachable": false,
+                "perturbed": true,
+                "draws": 1,
+                "fired": 0
+              },
+              "arbitrary": {
+                "completed": false,
+                "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                "unreachable": false,
+                "perturbed": true,
+                "draws": 20,
+                "fired": 0
+              },
+              "discrimination": {
+                "completed": false,
+                "detail": "the same slot queried against different content (borodino) must not return the same range",
+                "unreachable": false,
                 "perturbed": true,
                 "draws": 1,
                 "fired": 0
@@ -270,7 +285,7 @@
             ],
             "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
             "status": "passed",
-            "detail": "491/491 edges carry a standing — 8 corroborated, 483 single-witness",
+            "detail": "692/692 edges carry a standing — 14 corroborated, 678 single-witness",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -395,7 +410,7 @@
                 ],
                 "name": "a name denotes a being the material establishes",
                 "status": "passed",
-                "detail": "\"Rostovs\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 24/24 pairs its own individuation rule calls one being; kept apart 4/4 it withholds on",
+                "detail": "\"Rostovs\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 34/34 pairs its own individuation rule calls one being; kept apart 5/5 it withholds on",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -496,7 +511,7 @@
                 ],
                 "name": "a sequence coordinated across sentences: a pronoun bound to what was read before it",
                 "status": "passed",
-                "detail": "9 pronoun(s) bound, 38 refused (pronoun_no_candidate, pronoun_no_margin), 0 bound to an unadmitted referent",
+                "detail": "9 pronoun(s) bound, 39 refused (pronoun_no_candidate, pronoun_no_margin), 0 bound to an unadmitted referent",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -556,10 +571,10 @@
                   },
                   "arbitrary": {
                     "completed": false,
-                    "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                    "detail": "exact P(a uniform redeal reproduces this triple) = 0.0058 over n=692 edges, K=4 sharing the subject, m=1 sharing the verb+object — below alpha 0.05, so the true match is not explained by chance alone",
                     "unreachable": false,
                     "perturbed": true,
-                    "draws": 20,
+                    "draws": 1,
                     "fired": 0
                   },
                   "discrimination": {
@@ -628,7 +643,7 @@
           {
             "order": 10,
             "name": "Abstract",
-            "status": "unmeasured",
+            "status": "passed",
             "items": [
               {
                 "id": "o10-abstract",
@@ -639,14 +654,29 @@
                   "typed, directional relation"
                 ],
                 "name": "a variable quantified over a category: the whole filler set of an open slot",
-                "status": "unmeasured",
-                "reason": "organ_unreachable",
-                "detail": "lowerOrder arm could not run: this material offers no subject+verb slot with two or more distinct fillers",
+                "status": "passed",
+                "detail": "\"Peace at __\" ranges over 2 filler(s); an absent subject ranges over 0",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
-                    "detail": "this material offers no subject+verb slot with two or more distinct fillers",
-                    "unreachable": true,
+                    "detail": "the open slot withheld; only instance-level claim checking available",
+                    "unreachable": false,
+                    "perturbed": true,
+                    "draws": 1,
+                    "fired": 0
+                  },
+                  "arbitrary": {
+                    "completed": false,
+                    "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                    "unreachable": false,
+                    "perturbed": true,
+                    "draws": 20,
+                    "fired": 0
+                  },
+                  "discrimination": {
+                    "completed": false,
+                    "detail": "the same slot queried against different content (borodino) must not return the same range",
+                    "unreachable": false,
                     "perturbed": true,
                     "draws": 1,
                     "fired": 0
@@ -656,7 +686,7 @@
             ],
             "failedCount": 0,
             "refusedCount": 0,
-            "unmeasuredCount": 1
+            "unmeasuredCount": 0
           },
           {
             "order": 11,
@@ -673,7 +703,7 @@
                 ],
                 "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
                 "status": "passed",
-                "detail": "491/491 edges carry a standing — 8 corroborated, 483 single-witness",
+                "detail": "692/692 edges carry a standing — 14 corroborated, 678 single-witness",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -807,36 +837,23 @@
         ]
       },
       "stage": {
-        "stage": 9,
-        "stageName": "Concrete",
+        "stage": 13,
+        "stageName": "Metasystematic",
         "cappedBy": {
-          "order": 10,
-          "status": "unmeasured",
-          "detail": "order 10 (Abstract) is UNMEASURED (organ_unreachable) — no stage may be read across it"
+          "order": 14,
+          "status": "no_item_declared",
+          "detail": "the battery declares no item at order 14"
         },
         "ceilingIsReal": false,
-        "isolated": [
-          {
-            "order": 11,
-            "name": "Formal"
-          },
-          {
-            "order": 12,
-            "name": "Systematic"
-          },
-          {
-            "order": 13,
-            "name": "Metasystematic"
-          }
-        ]
+        "isolated": []
       },
       "coref": {
-        "shouldMerge": 24,
-        "didMerge": 24,
+        "shouldMerge": 34,
+        "didMerge": 34,
         "stranded": [],
-        "shouldWithhold": 4,
+        "shouldWithhold": 5,
         "wronglyMerged": [],
-        "abstained": 27
+        "abstained": 44
       },
       "specimen": {
         "subject": "Nikolai",
@@ -890,7 +907,7 @@
             ],
             "name": "a name denotes a being the material establishes",
             "status": "passed",
-            "detail": "\"Kolocha\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 12/12 pairs its own individuation rule calls one being; kept apart 3/3 it withholds on",
+            "detail": "\"Kolocha\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 22/22 pairs its own individuation rule calls one being; kept apart 9/9 it withholds on",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -930,7 +947,7 @@
             ],
             "name": "a directed relation inside one sentence: who did what to whom, in order",
             "status": "passed",
-            "detail": "\"Kutuzov —ordered→ Yermolov\" is stated (1); its reverse is not (0)",
+            "detail": "\"Borodino —panorama→ by Franz Roubaud\" is stated (1); its reverse is not (0)",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -971,7 +988,7 @@
             ],
             "name": "a sequence coordinated across sentences: a pronoun bound to what was read before it",
             "status": "failed",
-            "detail": "0 pronoun(s) bound, 6 refused (pronoun_no_margin), 0 bound to an unadmitted referent",
+            "detail": "0 pronoun(s) bound, 5 refused (pronoun_no_margin), 0 bound to an unadmitted referent",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -1021,10 +1038,10 @@
               },
               "arbitrary": {
                 "completed": false,
-                "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                "detail": "exact P(a uniform redeal reproduces this triple) = 0.0176 over n=854 edges, K=15 sharing the subject, m=1 sharing the verb+object — below alpha 0.05, so the true match is not explained by chance alone",
                 "unreachable": false,
                 "perturbed": true,
-                "draws": 20,
+                "draws": 1,
                 "fired": 0
               },
               "discrimination": {
@@ -1123,7 +1140,7 @@
             ],
             "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
             "status": "passed",
-            "detail": "597/597 edges carry a standing — 10 corroborated, 587 single-witness",
+            "detail": "854/854 edges carry a standing — 18 corroborated, 836 single-witness",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -1201,7 +1218,7 @@
             ],
             "name": "several whole systems compared: a standing no single system carries",
             "status": "passed",
-            "detail": "10 source-systems. \"French invasion of Russia\" bound by 2 -> AGREE/corroborated; \"29 August after Smolensk\" bound by 1 -> SINGLE/single. Below the merge both read identically (a system saying \"holds\"), and no reading carries a standing of its own.",
+            "detail": "10 source-systems. \"French invasion of Russia\" bound by 2 -> AGREE/corroborated; \"Grande Armée fought against\" bound by 1 -> SINGLE/single. Below the merge both read identically (a system saying \"holds\"), and no reading carries a standing of its own.",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -1248,7 +1265,7 @@
                 ],
                 "name": "a name denotes a being the material establishes",
                 "status": "passed",
-                "detail": "\"Kolocha\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 12/12 pairs its own individuation rule calls one being; kept apart 3/3 it withholds on",
+                "detail": "\"Kolocha\" resolves (1); \"Zzyrflax Quenbourne\" does not (0); gathered 22/22 pairs its own individuation rule calls one being; kept apart 9/9 it withholds on",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -1298,7 +1315,7 @@
                 ],
                 "name": "a directed relation inside one sentence: who did what to whom, in order",
                 "status": "passed",
-                "detail": "\"Kutuzov —ordered→ Yermolov\" is stated (1); its reverse is not (0)",
+                "detail": "\"Borodino —panorama→ by Franz Roubaud\" is stated (1); its reverse is not (0)",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -1349,7 +1366,7 @@
                 ],
                 "name": "a sequence coordinated across sentences: a pronoun bound to what was read before it",
                 "status": "failed",
-                "detail": "0 pronoun(s) bound, 6 refused (pronoun_no_margin), 0 bound to an unadmitted referent",
+                "detail": "0 pronoun(s) bound, 5 refused (pronoun_no_margin), 0 bound to an unadmitted referent",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -1409,10 +1426,10 @@
                   },
                   "arbitrary": {
                     "completed": false,
-                    "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                    "detail": "exact P(a uniform redeal reproduces this triple) = 0.0176 over n=854 edges, K=15 sharing the subject, m=1 sharing the verb+object — below alpha 0.05, so the true match is not explained by chance alone",
                     "unreachable": false,
                     "perturbed": true,
-                    "draws": 20,
+                    "draws": 1,
                     "fired": 0
                   },
                   "discrimination": {
@@ -1541,7 +1558,7 @@
                 ],
                 "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
                 "status": "passed",
-                "detail": "597/597 edges carry a standing — 10 corroborated, 587 single-witness",
+                "detail": "854/854 edges carry a standing — 18 corroborated, 836 single-witness",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -1639,7 +1656,7 @@
                 ],
                 "name": "several whole systems compared: a standing no single system carries",
                 "status": "passed",
-                "detail": "10 source-systems. \"French invasion of Russia\" bound by 2 -> AGREE/corroborated; \"29 August after Smolensk\" bound by 1 -> SINGLE/single. Below the merge both read identically (a system saying \"holds\"), and no reading carries a standing of its own.",
+                "detail": "10 source-systems. \"French invasion of Russia\" bound by 2 -> AGREE/corroborated; \"Grande Armée fought against\" bound by 1 -> SINGLE/single. Below the merge both read identically (a system saying \"holds\"), and no reading carries a standing of its own.",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -1711,17 +1728,17 @@
         ]
       },
       "coref": {
-        "shouldMerge": 12,
-        "didMerge": 12,
+        "shouldMerge": 22,
+        "didMerge": 22,
         "stranded": [],
-        "shouldWithhold": 3,
+        "shouldWithhold": 9,
         "wronglyMerged": [],
-        "abstained": 14
+        "abstained": 56
       },
       "specimen": {
-        "subject": "Kutuzov",
-        "verb": "ordered",
-        "object": "Yermolov"
+        "subject": "Borodino",
+        "verb": "panorama",
+        "object": "by Franz Roubaud"
       }
     }
   ],
@@ -1750,23 +1767,7 @@
         ]
       }
     ],
-    "noProbe": [
-      {
-        "order": 10,
-        "cells": [
-          {
-            "material": "war-and-peace",
-            "status": "unmeasured",
-            "validity": "no-probe"
-          },
-          {
-            "material": "borodino",
-            "status": "passed",
-            "validity": "valid"
-          }
-        ]
-      }
-    ],
+    "noProbe": [],
     "agreed": [
       {
         "order": 5,
@@ -1782,6 +1783,10 @@
       },
       {
         "order": 9,
+        "status": "passed"
+      },
+      {
+        "order": 10,
         "status": "passed"
       },
       {

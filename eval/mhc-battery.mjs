@@ -109,12 +109,28 @@ const DRAWS = 20; // seeded re-coordinations per arbitrary arm — A9: one null 
 const HEAVY_DRAWS = 5;
 const SEED = 0; // the fold's standing seed for null arms
 const PASSAGE_CHARS = 1200; // the chunk a passage is cut at for this driver
-// A DECLARED SLICE of the real material, not the whole of it. The arms are
-// nulls and a null is only affordable at a bounded size; the alternative was
-// fewer grounds over more text, and plural grounds (A9) is the property worth
-// keeping. Reported on the result so no number here reads as a whole-document
-// measurement.
-const WORKING_PASSAGES = 40;
+// A DECLARED SLICE of the real material — for these two fixtures (61 and 67
+// passages respectively) this now covers both in full, but it is still a cap,
+// not an assumption of wholeness: `.slice(0, WORKING_PASSAGES)` bounds
+// whatever is actually there, and `totalPassages` is reported alongside
+// `workingPassages` on every run so a longer future fixture reads honestly as
+// a partial slice again rather than silently claiming full coverage.
+//
+// Raised from 40 (2026-08-29/30) once order 10's own missing-probe gap on
+// war-and-peace was traced to its true cause: not a real capability ceiling,
+// but order 8's OWN `arbitrary` arm losing power as the corpus grew — a
+// 20-draw Monte Carlo estimate of a rate near 0.6% is barely distinguishable
+// from a rate near 10% (0/20 and 2/20 are both ordinary outcomes of either).
+// `redealAgainstExactNull` (below) replaced the estimate with the exact
+// hypergeometric probability for this one arm's shape, which has no draw
+// count to be underpowered at. Re-measured at 70 passages afterward, not
+// tuned to it: order 8 passes on both materials at the exact rate 0.0058
+// (war-and-peace) / 0.0176 (borodino) — both comfortably below alpha, and
+// both computed from real counts (K subjects, m matching verb+object edges)
+// this corpus's own full extent actually has, not from a smaller, arbitrarily
+// safer slice. Order 10 now has a real specimen and passes on both. Full
+// run: 26.5s, still well inside what an interactive re-run affords.
+const WORKING_PASSAGES = 70;
 const HEAVY_PASSAGES = 10; // the slice an arm re-reads per draw
 // How many source-systems the order-13 merge reads, and how many candidate
 // claims are scanned against them to find one the sample corroborates and one
@@ -519,6 +535,91 @@ const shuffled = (draws, makeDraw, attempt) => {
     detail: anyChanged
       ? `accomplished the task in ${fired} of ${draws} seeded re-coordinations`
       : "no draw changed the input — the shuffle was a no-op and tested nothing",
+  };
+};
+
+// log-factorial via direct summation — n here is the corpus's own edge
+// count (hundreds to low thousands), so a plain loop is exact and fast
+// enough; no Stirling approximation is needed or wanted for an exact test.
+const logFactorial = (n) => {
+  let s = 0;
+  for (let i = 2; i <= n; i += 1) s += Math.log(i);
+  return s;
+};
+const logChoose = (n, k) => (k < 0 || k > n ? -Infinity : logFactorial(n) - logFactorial(k) - logFactorial(n - k));
+
+/**
+ * hyperAtLeastOne(n, K, m) — the EXACT probability that a uniform random
+ * permutation of n labels (K of them equal to the specimen's own subject)
+ * places at least one of them onto one of m fixed target positions.
+ *
+ * WHY THIS REPLACES A SIMULATED `shuffled()` ARM FOR THIS ONE SHAPE. o8's
+ * `arbitrary` arm redeals subjects across the edge set and asks whether the
+ * specimen's exact triple recurs — a question about where K copies of one
+ * label land among m matching-shaped positions out of n total, under a
+ * uniform permutation. That is a hypergeometric tail with a closed form:
+ * P(>=1 hit) = 1 - C(n-K, m) / C(n, m). Measured live (2026-08-29/30,
+ * widening this driver's own WORKING_PASSAGES from 40 to 100 passages on
+ * war-and-peace): the same specimen's `shuffled()` estimate moved from 0/20
+ * to 2/20 fired, which reads as "the corpus got noisier" but is at least as
+ * likely to be sampling noise on a small-n Monte Carlo estimate of a rate
+ * that may not have moved much at all — `shuffled()` cannot tell the two
+ * apart, and READING-POLICY A10 says a statistic that cannot tell the two
+ * apart is exactly the trap. An exact tail has no seed, no draw count, and
+ * no simulation variance to confound with a real corpus-size effect.
+ *
+ * This is NOT a general replacement for `shuffled()` — most of this file's
+ * arms perturb something with no closed-form null (passage order, source
+ * grouping, …) and a permutation estimate is the correct tool there. This
+ * closed form exists only because THIS arm's question — "does one label
+ * land in a fixed target set under a uniform permutation" — happens to be
+ * exactly what a hypergeometric distribution answers, and computing the
+ * true answer is strictly better than estimating it whenever it is cheap
+ * to compute, which it is here (n is this corpus's own edge count).
+ *
+ * `m` is symmetric with `K` in this formula (a well-known hypergeometric
+ * identity) — which one is called "the sample" and which "the successes"
+ * does not change the probability, only the reading.
+ */
+const hyperAtLeastOne = (n, K, m) => {
+  if (n <= 0 || K <= 0 || m <= 0) return 0;
+  if (m > n - K) return 1; // pigeonhole: the sample cannot avoid every success
+  return 1 - Math.exp(logChoose(n - K, m) - logChoose(n, m));
+};
+
+// The declared significance this repo already uses for exactly this
+// question elsewhere (network-standing.js's LINK_SPEC precedent, draws 199
+// / alpha 0.05; kind-induction.js's own default) — reused rather than
+// picked fresh for this file. "Not small" is a value judgment; 0.05 is not
+// invented here, it is cited.
+const ARBITRARY_ALPHA = 0.05;
+
+/**
+ * A redeal arm with an EXACT null, for the one shape that has one: does the
+ * specimen's own (subject, verb, object) recur under a uniform random
+ * redeal of subjects across `edges`, MORE OFTEN than chance alone predicts
+ * from this corpus's own composition (how many edges share the specimen's
+ * subject, how many share its verb+object) — never "did it ever happen
+ * once." `completed` (axiom 3 fails) only when the exact hit probability
+ * clears ARBITRARY_ALPHA; a rare, structurally-expected hit no longer
+ * convicts the item on 20 noisy draws' worth of bad luck.
+ */
+const redealAgainstExactNull = (edges, e) => {
+  const n = edges.length;
+  const K = edges.filter((x) => x.subject === e.subject).length;
+  const m = edges.filter((x) => x.verb === e.verb && x.object === e.object).length;
+  const perturbed = K < n; // some edge's subject differs — a redeal can move something
+  if (!perturbed) {
+    return { completed: false, perturbed: false, draws: 1, fired: 0, detail: "every edge shares the specimen's own subject — a redeal is a no-op and tested nothing" };
+  }
+  const pHit = hyperAtLeastOne(n, K, m);
+  const completed = pHit >= ARBITRARY_ALPHA;
+  return {
+    completed,
+    perturbed: true,
+    draws: 1,
+    fired: completed ? 1 : 0,
+    detail: `exact P(a uniform redeal reproduces this triple) = ${pHit.toFixed(4)} over n=${n} edges, K=${K} sharing the subject, m=${m} sharing the verb+object — ${completed ? `at or above alpha ${ARBITRARY_ALPHA}, so a random re-coordination is not rare here` : `below alpha ${ARBITRARY_ALPHA}, so the true match is not explained by chance alone`}`,
   };
 };
 
@@ -958,23 +1059,15 @@ function buildItems(ctx) {
               return statedOk && reverseRefused;
             },
           ),
-        arbitrary: async () =>
-          shuffled(
-            DRAWS,
-            (seed) => {
-              // The coordination pairs a claim with the material it is
-              // checked against. Arbitrary version: check the claim against a
-              // re-dealt edge set (the same edges, subjects and objects
-              // redealt among them — marginals preserved, pairing destroyed).
-              const subjects = seededShuffle(edges.map((x) => x.subject), seed);
-              const redealt = edges.map((x, i) => ({ ...x, subject: subjects[i] }));
-              return { changed: redealt.some((x, i) => x.subject !== edges[i].subject), value: redealt };
-            },
-            (redealt) => {
-              const e = spec.specimen;
-              return queryEdges(redealt, { subject: e.subject, verb: e.verb, object: e.object }).length > 0;
-            },
-          ),
+        // The coordination pairs a claim with the material it is checked
+        // against. Arbitrary version: check the claim against a re-dealt
+        // edge set (the same edges, subjects redealt among them — marginals
+        // preserved, pairing destroyed). This question — does one label
+        // land in a fixed target set under a uniform permutation — has an
+        // exact hypergeometric answer, so it is computed rather than
+        // Monte Carlo-estimated; see `redealAgainstExactNull`'s own header
+        // for why a simulated `shuffled()` call is not used here.
+        arbitrary: async () => redealAgainstExactNull(edges, spec.specimen),
         discrimination: async () =>
           against(
             !!control,

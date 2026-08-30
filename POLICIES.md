@@ -8642,3 +8642,72 @@ in was never actually on disk. This session's own baseline, measured AFTER
 initializing, is 45 failing (the-fold) / 320 passing, 0 failing
 (eoreader7 native) — the number this pass's own before/after diff is
 anchored to, not a claim about any other session's count.
+
+## P70 — An arm's own null needs an exact form when one exists, not a noisier estimate of it
+
+The MHC battery's order 8 item (`o8-primary`, `eval/mhc-battery.mjs`) checks
+axiom 3 with an `arbitrary` arm: redeal the corpus's subjects among its
+edges and see whether the specimen's exact `(subject, verb, object)` triple
+still turns up. Widening `WORKING_PASSAGES` from 40 to close order 10's own
+named gap (no subject+verb slot with two distinct fillers in the smaller
+slice) broke order 8 in the same run: the arm's 20-seed Monte Carlo estimate
+moved from 0/20 fired to 2/20 fired on the identical specimen, and the arm's
+existing criterion — `completed: fired > 0` — read that as axiom 3 failing.
+
+**The diagnosis, and why it is not a text-specific patch.** This question —
+does a uniform random permutation of `n` labels (`K` of them equal to the
+specimen's subject) place at least one of them onto any of `m` fixed target
+positions — has a closed-form answer: a hypergeometric tail,
+`P(>=1) = 1 - C(n-K, m) / C(n, m)`. A 20-draw Monte Carlo estimate of a true
+rate near 0.6% is not reliably distinguishable from an estimate of a true
+rate near 10% — 0/20 and 2/20 are both ordinary outcomes under either — so
+"any nonzero count refutes" is exactly the bare-inequality-against-an-
+uncorrected-background-rate mistake this document's own aperture.js and REC-
+calibration sections (`nul/index.js`'s censored comparisons, `MIN_GROUND`/
+`slackRunNull`) already caught and fixed twice elsewhere, found a third time
+here. It is not a frequency threshold invented for MHC: it is the same
+general principle (never gate a null-corrected question on a bare
+inequality) applied to a shape that happens to have an EXACT answer, so
+simulation is not merely improved, it is made unnecessary.
+
+**The fix, derived before it was run — never tuned to the score.**
+`redealAgainstExactNull` (`eval/mhc-battery.mjs`) computes `n`, `K`, `m`
+directly from the real edge set and the exact hit probability via
+`hyperAtLeastOne` (log-space `logChoose`, no simulation, no seed, no draw
+count to be underpowered at). `completed` (axiom 3 fails) only when that
+exact probability clears `ARBITRARY_ALPHA = 0.05` — reused, not invented:
+this repo's own standing significance convention
+(`network-standing.js::LINK_SPEC`'s draws-199/alpha-0.05 precedent,
+`kind-induction.js`'s own default). The construction and the alpha were
+both fixed before the wider run; only afterward was the question asked
+whether the earlier discrepancy was signal or noise.
+
+**Measured, not assumed.** At the original 40-passage window, the exact
+arm reproduces the prior baseline verdict on both fixtures — zero
+regression. At full-document scale (`WORKING_PASSAGES` raised 40 → 70,
+covering war-and-peace's 61 and borodino's 67 available passages in full,
+still a declared cap rather than an assumed wholeness — `totalPassages`
+stays reported alongside it for whatever a longer future fixture would
+show): the specimen's exact hit probability is 0.0058 (war-and-peace: `n`
+=692, `K`=4, `m`=1) and 0.0176 (borodino: `n`=854, `K`=15, `m`=1) — both
+comfortably below alpha, both computed from this corpus's own real counts,
+not from a smaller, artificially safer slice. The earlier "2/20 fired" was
+sampling noise around a true rate under 1%, not a real corpus-size
+confound. Order 8 now passes on both materials at the wider window; order
+10 — genuinely gated on that same window, not on anything about order 8 —
+now has a real specimen and passes on both materials too. Order 7's real
+ceiling on Borodino (pronoun binding, unchanged, unrelated to this fix)
+still reads `failed`, correctly.
+
+Full suite: 1468/1418/45 before and after — failure NAMES diffed via
+`git stash`, byte-identical, zero regressions. Runtime at the wider window:
+26.5s for both fixtures, well inside what an interactive re-run affords.
+
+**Scope, stated rather than implied wider.** This closed-form replacement
+applies to exactly one arm shape — "does one label land in a fixed target
+set under a uniform permutation of a fixed-size population" — because that
+is the one question in this file with an exact hypergeometric answer. Every
+other `shuffled()`-based arm in this battery (passage reordering, source
+grouping, sentence-order word-salad) perturbs something with no comparably
+cheap closed form, and a Monte Carlo estimate stays the correct tool there;
+nothing about those arms was touched.

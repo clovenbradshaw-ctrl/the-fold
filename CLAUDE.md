@@ -5696,3 +5696,20 @@ disclosed holdout, a new `browserNativeModules` entry holds the nine that
 crossed, and a new contract test fails loudly on any future silent drift
 of either surface — the same posture the pre-existing `/engine/` test
 already held.
+
+## The MHC scaffold's own null, fixed: exact where an exact answer exists (added 2026-08-30) — pointer
+
+POLICIES.md **P70** is the law; this is the pointer. Order 10's own missing
+probe (this file's "MHC battery" section, above) turned out not to be a
+capability ceiling: widening the read window to get order 10 a real
+specimen made order 8's `arbitrary` arm flip on a 20-draw Monte Carlo
+estimate that could not tell a true rate near 0.6% from one near 10%.
+Replaced with the exact hypergeometric answer this one arm's shape actually
+has (`redealAgainstExactNull`, `eval/mhc-battery.mjs`) — no draws, no seed,
+nothing to be underpowered at — derived and its alpha fixed (reusing this
+repo's own standing 0.05, `network-standing.js`'s convention) BEFORE the
+wider run, never tuned to make it pass. Both orders now hold on both
+materials at full-document scale (`WORKING_PASSAGES` 40 → 70, still a
+declared cap, not an assumed wholeness); order 7's real ceiling on
+Borodino is untouched. Suite 1468/1418/45, failure names diffed via
+`git stash`: identical, zero regressions.

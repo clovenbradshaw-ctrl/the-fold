@@ -4820,9 +4820,14 @@ async function crownTestimony(node, relationClaims) {
   // twice in one turn never crowns twice.
   const seen = new Set();
   const candidates = relationClaims.filter((c) => {
-    if (!c?.subject || !c?.verb || !c?.object) return false;
+    if (!c?.end1 || !c?.label || !c?.end2) return false;
     if (c.verdict === "bound") return false;
-    const key = `${c.subject} ${c.verb} ${c.object}`.toLowerCase();
+    // A stray pair of literal null bytes here (in place of the two
+    // spaces) predates this edit and is fixed as a byproduct of
+    // rewriting this exact line for the field migration -- see the
+    // migration commit message for how it was found and confirmed
+    // isolated to this one line.
+    const key = `${c.end1} ${c.label} ${c.end2}`.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -4831,13 +4836,15 @@ async function crownTestimony(node, relationClaims) {
   const total = candidates.length * names.length;
   let step = 0;
   for (const claim of candidates) {
-    const claimId = await grid.mintClaimId({ subject: claim.subject, verb: claim.verb, object: claim.object });
+    // mintClaimId's own required parameter names (grid.js); the values
+    // read off the claim's neutral arrangement (P72), the keys stay theirs.
+    const claimId = await grid.mintClaimId({ subject: claim.end1, verb: claim.label, object: claim.end2 });
     // One quoted token: grid's tokenizer keeps a quoted object whole, so a
     // claim containing a bare clause keyword ("from", "ground") cannot
     // shred the act line. An interior double quote would end the token
     // early — swapped for an apostrophe before the line is built, and the
     // round-trip check below compares against the swapped text.
-    const claimText = `${claim.subject} ${claim.verb} ${claim.object}`.replace(/"/g, "'");
+    const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
     for (const name of names) {
       step += 1;
       $("status").textContent = `checking against each source · ${step}/${total}`;
@@ -5108,7 +5115,7 @@ function taggedProse(text, offered, classified = []) {
       // this" on the sentence tars its backed halves too (measured live:
       // the model's gloss "significant battle" flagged a sentence whose
       // 70,000 stood perfectly on the material).
-      const disputed = `${c.verb} ${c.object}`.trim();
+      const disputed = `${c.label} ${c.end2}`.trim();
       const disputedShort = disputed.length > 32 ? `${disputed.slice(0, 29)}…` : disputed;
       badge.textContent =
         c.verdict === "contradicted"
@@ -5119,22 +5126,24 @@ function taggedProse(text, offered, classified = []) {
       // "stated by 2 of 3 web pages" are one epistemic state, not two
       // verdicts that never meet (measured live: the web corroborated the
       // very assertion the badge was still flagging).
-      badge.dataset.proofKey = [c.subject, c.verb, c.object]
+      badge.dataset.proofKey = [c.end1, c.label, c.end2]
         .flatMap((s) => String(s).split(/\s+/))
         .filter((w) => w.length > 2)
         .join(" ")
         .toLowerCase();
+      // c.bound / c.nearest are hypergraph.js's own edgeFace() arrays, so
+      // near carries the same neutral arrangement fields as c does.
       const near = c.verdict === "contradicted" ? c.bound?.[0] : c.nearest?.[0];
       badge.title =
-        `${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}: ` +
+        `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}: ` +
         (c.verdict === "contradicted"
           ? `the material binds this edge with the OPPOSITE polarity.`
           : `every word is in the material, but the text never binds this edge.`) +
-        (near ? ` It binds: ${near.subject} —${near.verb}→ ${near.object}. Press to read that passage.` : " Press to search the material.");
+        (near ? ` It binds: ${near.end1} —${near.label}→ ${near.end2}. Press to read that passage.` : " Press to search the material.");
       badge.onclick = () => {
         const ref = near?.refs?.[0];
         if (ref) reopen(ref);
-        else groundHunt(`${c.subject} ${c.verb} ${c.object}`);
+        else groundHunt(`${c.end1} ${c.label} ${c.end2}`);
       };
       sent.append(badge);
     }
@@ -6946,7 +6955,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
   const claims = reports.flatMap((r) => r.claims ?? []);
   const measured = reports.filter((r) => !r.vocabulary?.gap);
   if (reports.length) {
-    const edgeCount = new Set(measured.flatMap((r) => (r.edges ?? []).map((e) => `${e.subject}|${e.verb}|${e.object}`))).size;
+    const edgeCount = new Set(measured.flatMap((r) => (r.edges ?? []).map((e) => `${e.end1}|${e.label}|${e.end2}`))).size;
     parts.push(
       section(
         measured.length
@@ -6971,7 +6980,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
       "beyond-reach": "couldn't check",
     }[c.verdict] ?? c.verdict;
     const head = document.createElement("span");
-    head.textContent = `${mark} ${plainVerdict}: “${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}”`;
+    head.textContent = `${mark} ${plainVerdict}: “${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}”`;
     row.append(head);
     if (c.verdict === "bound") {
       const cor = document.createElement("em");
@@ -6995,7 +7004,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     for (const n of near ?? []) {
       const nb = document.createElement("button");
       nb.className = "ref attached";
-      nb.textContent = `it says: ${n.subject} —${n.verb}→ ${n.object}`;
+      nb.textContent = `it says: ${n.end1} —${n.label}→ ${n.end2}`;
       nb.title = n.refs?.[0] ? `${n.refs[0]} — read what the material says instead` : "what the material says instead";
       if (n.refs?.[0]) nb.onclick = () => reopen(n.refs[0]);
       row.append(nb);

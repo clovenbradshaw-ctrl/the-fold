@@ -5925,3 +5925,27 @@ cases). Full pipeline parity with the English reader (referent
 resolution, assertion tiers, connector-class) is real, scoped,
 unattempted future work — disclosed, not silently implied done. Full
 suite: 1066/939/125 → 1071/944/125, zero regressions.
+`LatinCasePrior@1` itself moved to `live_priors/derived-priors/
+case-priors/` the same session, matching `act-priors`' own precedent
+exactly ("a received lexicon is content, not app logic") — see
+`live_priors`'s own README there and eoreader7's `READING-SPEC.md` S33
+amendment for the full move.
+
+**The consumer migration named above as remaining is now finished; the
+wipe is blocked on something bigger.** POLICIES.md P72's own amendment
+carries the full account — the short version: every one of the nine
+files named as unmigrated (`term.js`, `capacity-runner.js`, `holon.js`,
+`app.js`, plus `dialogue-graph.js`/`hl-acquire.js`/`hyperlexicon.js`/
+`predigest.js`/`explore/explore.js`, confirmed out of scope) was traced
+to a real conclusion, verified by full-suite diff at every step
+(1071/944/125, zero regressions throughout). A final repo-wide sweep for
+every `makeRelationReader` importer beyond the originally-scoped nine
+found `capacities.js`/`proxy-runner.mjs` (clean) and — the actual
+blocker — `hypergraph.test.mjs` itself: 81 lines across 1,231 directly
+assert `.subject`/`.verb`/`.object` on real engine output, and that file
+cannot load in this checkout (`legacy-eoreader6.1`, an uninitialised
+submodule pointing outside this session's own GitHub access scope), so
+those 81 assertions cannot be migrated and verified by running here. The
+wipe — removing the old fields from hypergraph.js's four construction
+sites — needs a checkout where that submodule resolves; nothing else is
+in its way.

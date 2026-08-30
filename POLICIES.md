@@ -8998,6 +8998,90 @@ after subtracting the four false-positive systems above, are still
 unmigrated, and removing the fields they still read would break them.
 Additive stays additive until that changes.
 
+**Amended same session — the consumer migration finished; the wipe is
+blocked on something bigger than remaining consumers.** All nine files
+named above were traced to a real conclusion, each verified by the same
+discipline (real caller confirmed before touching it; `git stash -u`
+full-suite diff after): `term.js` (one genuine site, the `query`
+command's no-query edge dump — `reader.edges`, real `edgeFace()` output);
+`capacity-runner.js` (confirmed mixed as predicted — `checkObjectSpecificity`/
+`checkConnectorClass` read genuine `judge()` output via `runCapacity`'s
+"relations" claim branch, migrated; `perSourceReadings`' own `edges`
+construction migrated on the READ side only, keeping `subject`/`verb`/
+`object` as the DESTINATION keys since `crown.js:376` still destructures
+that exact shape as ITS OWN established contract; grid.js's own act-event
+fields and `grammar-lens.js`'s `classifyConnector` — which reads
+`edge.verb` internally by its own pre-P72 disclosed, deliberately-
+unrenamed design — both left alone); `holon.js` (six genuine sites,
+`landCompletenessBelief` and both `incompleteClaimsOf`/
+`competingSubjectsOf`, same pattern: migrate the hypergraph read, keep
+`queryReferents`'/`clusterFillers`'s own separate, already-disclosed
+conventions untouched); `app.js` (`crownTestimony`, the edge-badge
+renderer, `renderGrounding`'s claim rows — all genuine judge()/
+`edgeFace()` consumers; `mintClaimId`'s own required parameter names kept
+as the destination shape, same pattern as `perSourceReadings`; found and
+fixed, as a byproduct of rewriting the exact line touched, a pre-existing
+pair of literal null bytes sitting in `crownTestimony`'s dedup key in
+place of two ordinary spaces — harmless in practice, isolated to that
+one line, unrelated to this migration). `dialogue-graph.js` and
+`hl-acquire.js` confirmed a THIRD and FOURTH instance of the hl.js
+pattern above (both explicitly, in their own file headers, hand-author
+post-extraction edges as a deliberate two-tier testing design — not
+fixable the way a fixture merely falling behind the shape is).
+`hyperlexicon.js` and `predigest.js` confirmed to share their OWN
+independent EOT-ledger vocabulary (P57) — `predigest.js` even imports
+`assertionId` directly from `hyperlexicon.js`, matching its exact
+signature, proving the coupling. `explore/explore.js` confirmed to read
+an entirely different organ (eoreader6/7's `sessionRelations`/binding-tie
+output via the standalone Explore app), never hypergraph.js at all.
+`capacities.js` and `proxy-runner.mjs` (found in a final repo-wide sweep
+for every `makeRelationReader` importer, beyond the originally-scoped
+nine) carry zero direct field reads — clean. One real fixture needed
+fixing, not reverting: `capacity-runner.test.mjs`'s Hebrew
+object-specificity test hand-builds a `mockRunCapacity` whose claims/
+edges carried only `.object` — widened to also carry `end2`, the correct
+fix per this same section's own established rule, confirmed by tracing
+the test's full logic and every assertion by hand since this file cannot
+execute in this sandbox (the same `legacy-eoreader6.1` gap named below).
+Full suite after every step: 1071/944/125, identical failure names,
+zero regressions throughout.
+
+**The wipe is still not safe, and the reason has changed.** Every
+originally-scoped consumer is now accounted for. What blocks the actual
+field removal is `hypergraph.js`'s OWN canonical test suite:
+`hypergraph.test.mjs` — the primary correctness contract for the exact
+file the wipe would edit — has 81 lines across 1,231 directly asserting
+`.subject`/`.verb`/`.object` on REAL claims and edges produced by the
+real engine pipeline (`c.subject === "Lincoln"`, `e.verb === "appointed"`,
+and so on, dozens of times over). That file cannot load in this
+checkout — `legacy-eoreader6.1` is an uninitialised submodule pointing
+at a repository (`eoreader6.1`) outside this session's own GitHub
+access scope — so there is no way here to update those 81 lines and
+verify the result by running them. A hand-edited, unexecuted change to
+81 assertions in a 1,231-line file is a real, disclosed risk of
+shipping a silently-wrong test suite, which is worse than leaving a
+correct-but-unmigrated one in place — the same "checks go blind rather
+than wrong" failure class P62 already names. Roughly two dozen `eval/`
+and `experiments/` scripts share the same dependency and the same
+unverifiability, and are named here rather than silently left as an
+undisclosed gap — this repo's own standing posture already treats these
+as re-runnable historical measurement records, not maintained code, so
+they are not migrated, but a future re-run of one after the wipe would
+need updating first or would silently print `undefined` in place of a
+real value.
+
+**What "ready" now requires, stated plainly so the next pass does not
+have to re-discover it:** a checkout with `legacy-eoreader6.1`
+initialised (or an equivalent working `eoreader6.1` engine checkout), so
+`hypergraph.test.mjs`'s 81 dependent assertions can be migrated to
+`end1`/`label`/`end2` AND VERIFIED BY RUNNING, before the four
+construction sites (`edges.push`'s literal, `judge()`'s claim object,
+`edgeFace()`'s return, the `unheard`-verdict `report.claims.push`) drop
+their `subject:`/`verb:`/`object:` lines. `claim.endpoints`'s own
+`{subject, object}` diagnostic (P50) and `clusterFillers`'s narrow
+`{object}` filler shape (P36) are not part of this wipe at all — separate,
+already-disclosed structures, never touched by `arrangementOf`.
+
 ## P73 — A genuine second typology, built and measured: case-marking relation extraction, wired through the neutral arrangement
 
 **Generality:** specimen-scoped (disclosed; not claimed further) — see

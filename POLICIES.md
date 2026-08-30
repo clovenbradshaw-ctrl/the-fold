@@ -8950,3 +8950,33 @@ here or there: a Russian morphological (declension) folder for
 `namesCorefer` is real, unbuilt work, distinct from the English-default
 `createLemmatizer` this document's own MINE-1 sections already carry for
 a different module's VERB-lemma matching.
+
+**Amended 2026-08-30 — all 516 UN UDHR translations, and a real gap in
+`scriptCoverage` this repo's own grounding ladder depends on.** User
+direction: apply the same process to every version of the UDHR this
+corpus already holds, "more than a universal reading, we're looking for
+our blindspots." Pointer only, same reasoning as the entries above: this
+repo's `hypergraph.js::makeRelationReader` and `cast.js`'s referent
+machinery both depend on `surfaces.js`'s capitalisation layer through the
+same native import path P69's ratchet already crossed `app.js` onto, and
+`scriptCoverage` (P12's grounding-ladder organ's own upstream gate) is
+part of that layer.
+
+eoreader7 `native/READING-SPEC.md` S36 is the law for the mechanism; live_priors'
+POLICIES.md LP8 is the corpus-side census (all 516 real translations
+re-read, not a synthetic sample). The one-line version: `scriptCoverage`
+already refused to read a script with no case category at all
+(P72's original entry) — S36 closes a subtler, previously-uncaught form of
+the identical hazard, where a script IS Unicode-cased but the material
+never actually uses the case CONTRAST the extraction mechanism depends
+on. Georgian's everyday alphabet is Unicode-lowercase by category, with
+no working uppercase convention in ordinary use; a Cherokee translation
+using the syllabary's traditional all-uppercase block fails the mirror
+image; and — the finding worth carrying into any future work on this
+layer — most of the 24 languages this closes for are not exotic scripts
+at all but 20th-century Latin-alphabet orthographies (missionary or
+post-colonial linguistic work) that simply never adopted
+capitalisation-marks-a-name as a convention. This repo's whole
+proper-name layer, and everything built on it, assumes that convention;
+it is now honestly absent rather than silently wrong for a measured,
+named set of the world's languages.

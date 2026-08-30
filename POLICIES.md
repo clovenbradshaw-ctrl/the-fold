@@ -8920,3 +8920,33 @@ a new Russian-specific one. And that gate, even loaded, is English-only by
 construction (UD_English-EWT); a Russian equivalent is real, named,
 unbuilt work, the identical footing `verbForms`/`createLemmatizer`/
 `determiners`/`negationWords` already sit on elsewhere in this document.
+
+**Amended 2026-08-30 — a second recipe defect, and the real cause of
+referent fragmentation on morphologically rich languages, both found by
+aligning the three languages to the SAME narrative content rather than
+comparing unequal spans.** Pointer only, same reasoning as above for why
+this belongs here though no file in this repo changed: `hypergraph.js`'s
+relation tier and `namesCorefer`'s own name-variant coreference (which
+`cast.js::makeReferentIndex` — the identity face this repo's own P38/P55
+sections already depend on for referent resolution — is built on) both
+call the exact organs both fixes touch, through the same native import
+path. eoreader7 `native/READING-SPEC.md` S35 is the law for the
+mechanism (a comma glued to a capitalised token's own trailing edge was
+read as a name-run continuation, gluing two adjacent subjects into one
+spurious surface — general, not script-specific, reproduced identically
+on constructed English prose before being trusted); live_priors'
+POLICIES.md LP7 (its own 2026-08-30 amendment) is the corpus-side record,
+including a finding this repo's own `namesCorefer` should know about
+directly: run against real aligned Russian material, one person's own
+name fragments into **six** distinct referents across eight grammatically
+case-declined surface forms, because `namesCorefer`'s exact-token
+containment test has no morphological layer, and — a second,
+INDIRECT effect of the same cause — declension's own proliferation of
+distinct surface strings dilutes `genericTokens`'s derived partner-count
+fence (measured: fence 1 on the Russian excerpt vs. fence 3 on the
+equivalent English one) until it wrongly flags a legitimate,
+unambiguous full-name pairing as generic. Disclosed there, not fixed
+here or there: a Russian morphological (declension) folder for
+`namesCorefer` is real, unbuilt work, distinct from the English-default
+`createLemmatizer` this document's own MINE-1 sections already carry for
+a different module's VERB-lemma matching.

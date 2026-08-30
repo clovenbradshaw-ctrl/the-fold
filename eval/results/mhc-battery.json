@@ -221,10 +221,10 @@
               },
               "arbitrary": {
                 "completed": false,
-                "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                "detail": "exact P(an arbitrary redeal hands this specimen a count clearing the witness floor) = 0.0145 (10 of 692 edges in this reading already clear it) — below alpha 0.05, so clearing it is not explained by chance alone",
                 "unreachable": false,
                 "perturbed": true,
-                "draws": 20,
+                "draws": 1,
                 "fired": 0
               },
               "discrimination": {
@@ -284,8 +284,9 @@
               "typed, directional relation"
             ],
             "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
-            "status": "passed",
-            "detail": "692/692 edges carry a standing — 14 corroborated, 678 single-witness",
+            "status": "unmeasured",
+            "reason": "unlicensed_perturbation",
+            "detail": "the arbitrary arm's perturbation did not reach what the task reads (no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess), so it tested nothing. READING-POLICY A10: a statistic insensitive to its perturbation fails invisibly and globally. UNMEASURED, not passed.",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -297,17 +298,9 @@
               },
               "arbitrary": {
                 "completed": false,
-                "detail": "accomplished the task in 0 of 5 seeded re-coordinations",
+                "detail": "no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess",
                 "unreachable": false,
-                "perturbed": true,
-                "draws": 5,
-                "fired": 0
-              },
-              "discrimination": {
-                "completed": false,
-                "detail": "a word-salad copy must not yield corroborated standings at the real material's rate",
-                "unreachable": false,
-                "perturbed": true,
+                "perturbed": false,
                 "draws": 1,
                 "fired": 0
               }
@@ -619,10 +612,10 @@
                   },
                   "arbitrary": {
                     "completed": false,
-                    "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                    "detail": "exact P(an arbitrary redeal hands this specimen a count clearing the witness floor) = 0.0145 (10 of 692 edges in this reading already clear it) — below alpha 0.05, so clearing it is not explained by chance alone",
                     "unreachable": false,
                     "perturbed": true,
-                    "draws": 20,
+                    "draws": 1,
                     "fired": 0
                   },
                   "discrimination": {
@@ -691,7 +684,7 @@
           {
             "order": 11,
             "name": "Formal",
-            "status": "passed",
+            "status": "unmeasured",
             "items": [
               {
                 "id": "o11-formal",
@@ -702,8 +695,9 @@
                   "typed, directional relation"
                 ],
                 "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
-                "status": "passed",
-                "detail": "692/692 edges carry a standing — 14 corroborated, 678 single-witness",
+                "status": "unmeasured",
+                "reason": "unlicensed_perturbation",
+                "detail": "the arbitrary arm's perturbation did not reach what the task reads (no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess), so it tested nothing. READING-POLICY A10: a statistic insensitive to its perturbation fails invisibly and globally. UNMEASURED, not passed.",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -715,17 +709,9 @@
                   },
                   "arbitrary": {
                     "completed": false,
-                    "detail": "accomplished the task in 0 of 5 seeded re-coordinations",
+                    "detail": "no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess",
                     "unreachable": false,
-                    "perturbed": true,
-                    "draws": 5,
-                    "fired": 0
-                  },
-                  "discrimination": {
-                    "completed": false,
-                    "detail": "a word-salad copy must not yield corroborated standings at the real material's rate",
-                    "unreachable": false,
-                    "perturbed": true,
+                    "perturbed": false,
                     "draws": 1,
                     "fired": 0
                   }
@@ -734,7 +720,7 @@
             ],
             "failedCount": 0,
             "refusedCount": 0,
-            "unmeasuredCount": 0
+            "unmeasuredCount": 1
           },
           {
             "order": 12,
@@ -837,15 +823,24 @@
         ]
       },
       "stage": {
-        "stage": 13,
-        "stageName": "Metasystematic",
+        "stage": 10,
+        "stageName": "Abstract",
         "cappedBy": {
-          "order": 14,
-          "status": "no_item_declared",
-          "detail": "the battery declares no item at order 14"
+          "order": 11,
+          "status": "unmeasured",
+          "detail": "order 11 (Formal) is UNMEASURED (unlicensed_perturbation) — no stage may be read across it"
         },
         "ceilingIsReal": false,
-        "isolated": []
+        "isolated": [
+          {
+            "order": 12,
+            "name": "Systematic"
+          },
+          {
+            "order": 13,
+            "name": "Metasystematic"
+          }
+        ]
       },
       "coref": {
         "shouldMerge": 34,
@@ -1076,10 +1071,10 @@
               },
               "arbitrary": {
                 "completed": false,
-                "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                "detail": "exact P(an arbitrary redeal hands this specimen a count clearing the witness floor) = 0.0187 (16 of 854 edges in this reading already clear it) — below alpha 0.05, so clearing it is not explained by chance alone",
                 "unreachable": false,
                 "perturbed": true,
-                "draws": 20,
+                "draws": 1,
                 "fired": 0
               },
               "discrimination": {
@@ -1139,8 +1134,9 @@
               "typed, directional relation"
             ],
             "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
-            "status": "passed",
-            "detail": "854/854 edges carry a standing — 18 corroborated, 836 single-witness",
+            "status": "unmeasured",
+            "reason": "unlicensed_perturbation",
+            "detail": "the arbitrary arm's perturbation did not reach what the task reads (no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess), so it tested nothing. READING-POLICY A10: a statistic insensitive to its perturbation fails invisibly and globally. UNMEASURED, not passed.",
             "arms": {
               "lowerOrder": {
                 "completed": false,
@@ -1152,17 +1148,9 @@
               },
               "arbitrary": {
                 "completed": false,
-                "detail": "accomplished the task in 0 of 5 seeded re-coordinations",
+                "detail": "no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess",
                 "unreachable": false,
-                "perturbed": true,
-                "draws": 5,
-                "fired": 0
-              },
-              "discrimination": {
-                "completed": false,
-                "detail": "a word-salad copy must not yield corroborated standings at the real material's rate",
-                "unreachable": false,
-                "perturbed": true,
+                "perturbed": false,
                 "draws": 1,
                 "fired": 0
               }
@@ -1474,10 +1462,10 @@
                   },
                   "arbitrary": {
                     "completed": false,
-                    "detail": "accomplished the task in 0 of 20 seeded re-coordinations",
+                    "detail": "exact P(an arbitrary redeal hands this specimen a count clearing the witness floor) = 0.0187 (16 of 854 edges in this reading already clear it) — below alpha 0.05, so clearing it is not explained by chance alone",
                     "unreachable": false,
                     "perturbed": true,
-                    "draws": 20,
+                    "draws": 1,
                     "fired": 0
                   },
                   "discrimination": {
@@ -1546,7 +1534,7 @@
           {
             "order": 11,
             "name": "Formal",
-            "status": "passed",
+            "status": "unmeasured",
             "items": [
               {
                 "id": "o11-formal",
@@ -1557,8 +1545,9 @@
                   "typed, directional relation"
                 ],
                 "name": "one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact",
-                "status": "passed",
-                "detail": "854/854 edges carry a standing — 18 corroborated, 836 single-witness",
+                "status": "unmeasured",
+                "reason": "unlicensed_perturbation",
+                "detail": "the arbitrary arm's perturbation did not reach what the task reads (no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess), so it tested nothing. READING-POLICY A10: a statistic insensitive to its perturbation fails invisibly and globally. UNMEASURED, not passed.",
                 "arms": {
                   "lowerOrder": {
                     "completed": false,
@@ -1570,17 +1559,9 @@
                   },
                   "arbitrary": {
                     "completed": false,
-                    "detail": "accomplished the task in 0 of 5 seeded re-coordinations",
+                    "detail": "no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess",
                     "unreachable": false,
-                    "perturbed": true,
-                    "draws": 5,
-                    "fired": 0
-                  },
-                  "discrimination": {
-                    "completed": false,
-                    "detail": "a word-salad copy must not yield corroborated standings at the real material's rate",
-                    "unreachable": false,
-                    "perturbed": true,
+                    "perturbed": false,
                     "draws": 1,
                     "fired": 0
                   }
@@ -1589,7 +1570,7 @@
             ],
             "failedCount": 0,
             "refusedCount": 0,
-            "unmeasuredCount": 0
+            "unmeasuredCount": 1
           },
           {
             "order": 12,
@@ -1714,10 +1695,6 @@
             "name": "Abstract"
           },
           {
-            "order": 11,
-            "name": "Formal"
-          },
-          {
             "order": 12,
             "name": "Systematic"
           },
@@ -1767,7 +1744,23 @@
         ]
       }
     ],
-    "noProbe": [],
+    "noProbe": [
+      {
+        "order": 11,
+        "cells": [
+          {
+            "material": "war-and-peace",
+            "status": "unmeasured",
+            "validity": "no-probe"
+          },
+          {
+            "material": "borodino",
+            "status": "unmeasured",
+            "validity": "no-probe"
+          }
+        ]
+      }
+    ],
     "agreed": [
       {
         "order": 5,
@@ -1787,10 +1780,6 @@
       },
       {
         "order": 10,
-        "status": "passed"
-      },
-      {
-        "order": 11,
         "status": "passed"
       },
       {

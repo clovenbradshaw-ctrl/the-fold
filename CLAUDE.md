@@ -5713,3 +5713,28 @@ materials at full-document scale (`WORKING_PASSAGES` 40 → 70, still a
 declared cap, not an assumed wholeness); order 7's real ceiling on
 Borodino is untouched. Suite 1468/1418/45, failure names diffed via
 `git stash`: identical, zero regressions.
+
+**Amended same day — audited, not assumed, and the reported stage moved
+down as a result.** Told *"we must be solid on all levels earlier,"* the
+whole ladder's own `arbitrary` arms were read one by one rather than
+trusted from their "passed" verdicts. Order 9's arm had the identical
+defect P70 had just fixed, worse: it shuffled the ORDER of an array and
+then took a `Set()` of it — order-insensitive by construction, so the
+check never varied across any of its 20 draws — and separately, this
+driver's own material-loading tags every passage with one source key, so
+the "two passages of one source vs. two sources" distinction order 9
+claims to test has never once been exercisable here. Rebuilt on the same
+exact-proportion pattern as P70 (`redealCountAgainstExactNull`) and
+caught hitting the SAME bare-Monte-Carlo trap a second time mid-fix (2/20
+fired read as signal, the exact math showed 0.0145/0.0187 — real noise
+around a true rate under 2%) before being trusted. Order 11's arm was
+ALSO vacuous — three identical unshuffled text copies, a completion check
+hardcoded `&& false`, `perturbed` falsely hardcoded true — and this one is
+NOT patched with a guess: every real construction considered reduces to
+testing a pure function against itself. It now honestly reports
+`unlicensed_perturbation`. **Consequence:** war-and-peace's reported STAGE
+drops from 13 back to 10 — order 11 sitting unmeasured caps it exactly
+where `stageFrom` must, and the earlier "13" was standing on an arm that
+was never really evidence. Full account, including which orders (5–8,
+12–13) were re-read and found genuinely sound: POLICIES.md P70's
+same-day amendment.

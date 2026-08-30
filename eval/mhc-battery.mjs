@@ -595,6 +595,40 @@ const hyperAtLeastOne = (n, K, m) => {
 const ARBITRARY_ALPHA = 0.05;
 
 /**
+ * Order 9's own exact null: a specimen's ref-count is arbitrarily redealt
+ * among this corpus's real edges (marginals preserved — the same counts,
+ * reassigned to different identities). Under a uniform random permutation,
+ * the chance any ONE position draws a count clearing `floor` is exactly
+ * the corpus's own base rate — no simulation needed, for the identical
+ * reason `hyperAtLeastOne` needed none: the question has a closed form.
+ * A first cut at this arm used `shuffled()`'s 20-draw estimate and hit the
+ * SAME bare-inequality trap `redealAgainstExactNull` was built to close —
+ * 2/20 fired on real material, indistinguishable from either a rare or a
+ * common true rate at that draw count.
+ */
+const redealCountAgainstExactNull = (edges, specimen, floor) => {
+  const idx = edges.indexOf(specimen);
+  if (idx < 0) return { completed: false, perturbed: false, draws: 1, fired: 0, detail: "the specimen is not among this reading's own edges" };
+  const counts = edges.map((x) => x.refs?.length ?? 0);
+  const distinctCounts = new Set(counts);
+  const perturbed = distinctCounts.size > 1; // no real variation to redeal otherwise
+  if (!perturbed) {
+    return { completed: false, perturbed: false, draws: 1, fired: 0, detail: "every edge in this reading carries the same ref-count — a redeal is a no-op and tested nothing" };
+  }
+  const n = counts.length;
+  const clearing = counts.filter((c) => c >= floor).length;
+  const pHit = clearing / n;
+  const completed = pHit >= ARBITRARY_ALPHA;
+  return {
+    completed,
+    perturbed: true,
+    draws: 1,
+    fired: completed ? 1 : 0,
+    detail: `exact P(an arbitrary redeal hands this specimen a count clearing the witness floor) = ${pHit.toFixed(4)} (${clearing} of ${n} edges in this reading already clear it) — ${completed ? `at or above alpha ${ARBITRARY_ALPHA}, so the floor is not rare here` : `below alpha ${ARBITRARY_ALPHA}, so clearing it is not explained by chance alone`}`,
+  };
+};
+
+/**
  * A redeal arm with an EXACT null, for the one shape that has one: does the
  * specimen's own (subject, verb, object) recur under a uniform random
  * redeal of subjects across `edges`, MORE OFTEN than chance alone predicts
@@ -1119,24 +1153,32 @@ function buildItems(ctx) {
               return !!claim && false;
             },
           ),
-        arbitrary: async () =>
-          shuffled(
-            DRAWS,
-            (seed) => {
-              // Marginals preserved: the same passages, the same number per
-              // source. Destroyed: which source each passage belongs to.
-              const refs = spec.recurring?.refs ?? [];
-              const permuted = seededShuffle(refs, seed);
-              return { changed: permuted.join("|") !== refs.join("|"), value: permuted };
-            },
-            (permuted) => {
-              // Re-labelling which source a passage came from must change the
-              // distinct-source count for the coordination to be doing work.
-              const distinct = new Set(permuted.map((r) => String(r).split("#")[0]));
-              const real = new Set((spec.recurring?.refs ?? []).map((r) => String(r).split("#")[0]));
-              return distinct.size === real.size && distinct.size > 1;
-            },
-          ),
+        // The original arm shuffled the ORDER of the specimen's own refs
+        // array, then took a Set() over the shuffled copy — a Set is
+        // insensitive to order, so that computation was byte-identical to
+        // the unshuffled Set on every single draw. It reported "0 of 20
+        // fired" on both fixtures, which happened to be the axiom-3-holds
+        // answer, but for no real reason: the check was a tautology, not a
+        // draw. Worse: this driver tags every passage with the SAME source
+        // key (one Wikipedia page per material), so "distinct sources" can
+        // never exceed 1 here regardless of what the arm computes — the
+        // distinction this item's own `organizes` field names (two
+        // passages of one source vs. two sources) has never actually been
+        // exercised by this battery, and no tuning of this arm's math can
+        // fix that; it traces to the driver's own material-loading, not to
+        // a wrong threshold. Disclosed, not silently patched around: real
+        // multi-source corroboration is order 13's own apparatus
+        // (`spec.sourceReaders`), unbuilt here.
+        //
+        // What axiom 3 actually needs of THIS specimen: does the corpus's
+        // own real distribution of ref-counts-per-edge, arbitrarily
+        // reassigned to a different edge identity (marginals preserved —
+        // the same counts, relabelled), still hand the SPECIMEN a count
+        // that clears the witness floor by pure chance? If most edges in
+        // this corpus recur at the floor anyway, the specimen's own count
+        // is not doing real work; if the floor is rare, an arbitrary
+        // redeal should almost never hand it to this specimen by luck.
+        arbitrary: async () => redealCountAgainstExactNull(edges, spec.recurring, WITNESS_FLOOR),
         discrimination: async () =>
           against(
             !!spec.specimen,
@@ -1249,27 +1291,40 @@ function buildItems(ctx) {
               return edges.length > 0 && distinct.size <= 1 && false;
             },
           ),
-        arbitrary: async () =>
-          shuffled(
-            HEAVY_DRAWS,
-            (seed) => {
-              // The coordination is "compare against material perturbed the
-              // one way the hypothesis is sensitive to". The arbitrary
-              // version compares against UNperturbed copies — a null that is
-              // not one. If the standing still separates, it was not the null
-              // producing it.
-              const copies = Array.from({ length: 3 }, () => heavyText);
-              return { changed: seed >= 0, value: copies };
-            },
-            (copies) => {
-              const r = makeRelationReader(organs)([{ ref: "copy#0", text: copies[0] }], { pool: material.passages });
-              const standings = new Set((r.edges ?? []).map((e) => e.assertion?.standing).filter(Boolean));
-              // Against an identical "null", every edge fires every time, so
-              // no edge can be separated from an artefact. The arm
-              // accomplishes the task only if a standing still discriminates.
-              return standings.size > 1 && false;
-            },
-          ),
+        // DISCLOSED, NOT FIXED — an honest downgrade over a false pass.
+        // This arm's original construction built three IDENTICAL,
+        // unshuffled copies of `heavyText` (only `copies[0]` was ever
+        // read; the other two were built and discarded) and reported
+        // `perturbed: seed >= 0` — always true, regardless of seed,
+        // because nothing about the input ever varied. Its completion
+        // check ended `&& false`, so it could never report success
+        // either way. Net effect: this arm was a rubber stamp, licensed
+        // and always-refused by construction, contributing zero real
+        // evidence to order 11's "passed" verdict — the same class of
+        // vacuous arm found and fixed in orders 9 and (differently) 8.
+        //
+        // Unlike those two, this one is not fixed here. What axiom 3
+        // wants — does an arbitrary re-coordination of these edges STILL
+        // separate a corroborated connector from an artefact — needs a
+        // construction that genuinely varies something the assertion
+        // tier reads, and every candidate considered has the same trap
+        // orders 9/13 already hit once each: `standingOf` (asserted.js)
+        // is a pure function of ref-count, so any redeal fed through it
+        // trivially reproduces a self-consistent label, proving nothing.
+        // A real test needs to probe whether the REAL assertion tier's
+        // output is actually DERIVED from ref-count (not independently
+        // arbitrary) — most plausibly by perturbing a specific edge's
+        // own ref-count via real material (adding/removing a mention)
+        // and re-reading, which this file does not yet build. Reported
+        // honestly as unmeasured rather than shipped as a guess.
+        arbitrary: async () => ({
+          completed: false,
+          perturbed: false,
+          draws: 1,
+          fired: 0,
+          detail:
+            "no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess",
+        }),
         discrimination: async () =>
           against(
             true,

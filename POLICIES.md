@@ -8860,3 +8860,63 @@ is honest, the same limit this document's own VI.1 already states for any
 policy whose violation no test can catch. What closes is the silent case: a
 fix that never says which kind of claim it is making cannot pass unremarked
 because the reader's own confidence carried it.
+
+## P72 — War and Peace, read omnilingually: a real script-blindness bug, found by using the gate on the flagship specimen
+
+**Generality:** universal (evidence: eoreader7 READING-SPEC.md S34 — the
+identical, unmodified fix closes the defect on three independent,
+unrelated scripts, Cyrillic/Greek/Hebrew, via a Unicode word-character
+class the fixed file already had; two competing hypotheses, case
+declension and code-switch dominance, were tested and refuted first)
+
+The ask, directly: run this repo's own flagship specimen — War and Peace,
+the text CLAUDE.md's own P5.2/P5.3/P50 already verify 11,132/11,132
+passages against — through the full reading process in English, Russian,
+and a third language, and use the resultant EOT files to measure whether
+reading is actually omnilingual. This repo has no book-length,
+multi-language reading pipeline of its own (`eval/crosslingual-eval.mjs`
+asks an adjacent, narrower question — does the assertion tier honestly
+DISCLOSE its own reach limit — and cannot run in every checkout, since it
+targets the legacy `eoreader7/legacy-eoreader6.1` submodule path); the
+actual EOT-producing pipeline (`hyperlexicon.js::admit`/`hear`,
+end-to-end, over real fetched sources) lives in **live_priors**, as
+`scripts/eot-sidecar.mjs` — this repo's own hyperlexicon.js and
+eoreader7's own native organs, injected exactly the way this document's
+Explore/priors sections already describe, just called from the sibling
+repo that owns the corpus rather than from `app.js`.
+
+**The measurement, the root cause, and the fix are all live_priors' and
+eoreader7's own record — POLICIES.md LP7 (live_priors) is the corpus-side
+account (the real fetched texts, the before/after edge counts, the
+disclosed residual gap); READING-SPEC.md S34 (eoreader7) is the mechanism
+fix itself. The one-line version: `discoverRelationVocab`'s surface-
+relocation regex used `\b`, and JavaScript's `\b` is ASCII-`\w`-only with
+no Unicode mode — so a name written entirely in a non-Latin script could
+never be located, at all, regardless of recurrence. Measured live: every
+edge this repo's own relation reader found in a real Russian excerpt of
+War and Peace was from the novel's own embedded French dialogue, none
+from its Cyrillic narration; after the fix, in the same append-only log,
+under a new witness, 55 new genuine Russian triples landed alongside the
+8 that were already there.**
+
+**Why this belongs here even though nothing in this repo's own files
+changed.** `hypergraph.js::makeRelationReader` (P12's own grounding-ladder
+organ) and `holon.js`'s relation tier both call the SAME `extractRelations`/
+`discoverRelationVocab` this fix touched, via the identical native import
+path P69's ratchet already crossed `app.js` onto. The live chat's own
+relation-tier grounding (bound/contradicted/unbound/beyond-reach/unheard,
+per the grounding-ladder section above) was carrying this exact defect on
+any non-Latin-script material, unmeasured until now — not a new
+capability, a correctness fix to one this repo already depends on.
+
+**Disclosed, not overclaimed.** The fix closes REACHABILITY — a real edge
+can now be found — never precision. `grammarPrior: false` on every one of
+the three live_priors sidecars (no local `POSPrior@1` build in that
+checkout) means the vocabulary-quality gate (P29/live_priors' own LP6) sat
+unloaded for English too, so both the pre-fix and post-fix Russian edges
+sit at the same "no POS gate" precision floor English's own raw edges
+already show in this exact run — a uniform, already-named limitation, not
+a new Russian-specific one. And that gate, even loaded, is English-only by
+construction (UD_English-EWT); a Russian equivalent is real, named,
+unbuilt work, the identical footing `verbForms`/`createLemmatizer`/
+`determiners`/`negationWords` already sit on elsewhere in this document.

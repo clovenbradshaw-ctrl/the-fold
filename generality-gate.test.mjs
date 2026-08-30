@@ -1,8 +1,8 @@
-// generality-gate.test.mjs — the mechanical half of POLICIES.md's P70.
+// generality-gate.test.mjs — the mechanical half of POLICIES.md's P71.
 // A policy entry may claim `universal`, `specimen-scoped`, or
-// `not-applicable`; this test only checks that every entry from P70
+// `not-applicable`; this test only checks that every entry from P71
 // onward makes ONE of those three claims out loud. It cannot check that
-// the claim is true — see P70's own "Enforced" paragraph.
+// the claim is true — see P71's own "Enforced" paragraph.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -31,36 +31,36 @@ function lawSections(markdown, prefix) {
 
 const GENERALITY_TAG = /\*\*Generality:\*\*\s*(universal|specimen-scoped|not-applicable)\b/;
 
-test("P70: this entry exists and declares its own generality", () => {
+test("P71: this entry exists and declares its own generality", () => {
   const policies = read("POLICIES.md");
-  const p70 = lawSections(policies, "P").find((e) => e.n === 70);
-  assert.ok(p70, "P70 must exist in POLICIES.md");
-  assert.match(p70.text, GENERALITY_TAG, "P70 must tag its own claim");
+  const p71 = lawSections(policies, "P").find((e) => e.n === 71);
+  assert.ok(p71, "P71 must exist in POLICIES.md");
+  assert.match(p71.text, GENERALITY_TAG, "P71 must tag its own claim");
 });
 
-test("P70+: every policy entry from here on discloses whether its finding generalizes beyond the specimen that found it", () => {
+test("P71+: every policy entry from here on discloses whether its finding generalizes beyond the specimen that found it", () => {
   const policies = read("POLICIES.md");
-  const entries = lawSections(policies, "P").filter((e) => e.n >= 70);
-  assert.ok(entries.length > 0, "at least P70 itself must be scanned");
+  const entries = lawSections(policies, "P").filter((e) => e.n >= 71);
+  assert.ok(entries.length > 0, "at least P71 itself must be scanned");
   for (const e of entries) {
     assert.match(
       e.text,
       GENERALITY_TAG,
-      `P${e.n} must declare Generality: universal | specimen-scoped | not-applicable (P70)`,
+      `P${e.n} must declare Generality: universal | specimen-scoped | not-applicable (P71)`,
     );
   }
 });
 
-test("P70: the three-part gate is named where the policy states it, not only implied", () => {
+test("P71: the three-part gate is named where the policy states it, not only implied", () => {
   const policies = read("POLICIES.md");
-  const p70 = lawSections(policies, "P").find((e) => e.n === 70);
-  assert.match(p70.text, /[Cc]ross-domain replay/, "leg 1: replay over an unrelated corpus");
-  assert.match(p70.text, /named giver/, "leg 2: a giver or a derived floor, never a fit");
-  assert.match(p70.text, /[Dd]emonstrated necessity/, "leg 3: a case the discovery never saw");
+  const p71 = lawSections(policies, "P").find((e) => e.n === 71);
+  assert.match(p71.text, /[Cc]ross-domain replay/, "leg 1: replay over an unrelated corpus");
+  assert.match(p71.text, /named giver/, "leg 2: a giver or a derived floor, never a fit");
+  assert.match(p71.text, /[Dd]emonstrated necessity/, "leg 3: a case the discovery never saw");
 });
 
-test("P70: the gate names its own failure mode — a performance difference is not a violation", () => {
+test("P71: the gate names its own failure mode — a performance difference is not a violation", () => {
   const policies = read("POLICIES.md");
-  const p70 = lawSections(policies, "P").find((e) => e.n === 70);
-  assert.match(p70.text, /performance difference/, "the anti-overcorrection clause is present");
+  const p71 = lawSections(policies, "P").find((e) => e.n === 71);
+  assert.match(p71.text, /performance difference/, "the anti-overcorrection clause is present");
 });

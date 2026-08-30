@@ -5738,3 +5738,40 @@ where `stageFrom` must, and the earlier "13" was standing on an arm that
 was never really evidence. Full account, including which orders (5–8,
 12–13) were re-read and found genuinely sound: POLICIES.md P70's
 same-day amendment.
+
+**Amended same day (second) — order 11 fixed for real.** The dead end named
+above (every naive redeal reproduces `standingOf`'s own pure-function input)
+is escaped by redealing a different variable: not the ref-count, the
+CORROBORATED LABEL. If that label were assigned to k edges by chance, the
+exact probability a same-size arbitrary draw lands entirely inside the K
+edges that genuinely clear the witness floor is the hypergeometric point
+mass at the maximum — closed-form, no simulation. A first attempt measured
+K off the wrong field (`refs.length`, order 9's distinct-passage grain) and
+manufactured false mismatches that looked like a real engine bug; caught by
+inspecting the raw edge data directly before shipping, and fixed to read
+`assertion.statements` — the field `hypergraph.js` itself keys `standingOf`
+off. War-and-peace: 692/692 typed, `P(chance) ≈ 1.7e-29`. Borodino:
+854/854, `P(chance) ≈ 1.3e-37`. **Stage returns to 13**, standing on real
+evidence this time. Full account: POLICIES.md P70's second same-day
+amendment.
+
+**Amended same day (third) — tested omnilingually.** A genuine Russian
+Wikipedia fixture (`ru.wikipedia.org`'s own Battle of Borodino article,
+fetched live, not translated) joined the two English fixtures, with no
+English-tagged prior (determiners/negation/verb-forms) opted in. **Zero
+scale violations across three materials, one non-Latin.** Two real,
+disclosed performance gaps, not scale failures: order 5 (Nominal)
+reproduces the already-known greedy-non-transitive coreference stranding
+on Cyrillic AND surfaces a genuinely new failure mode English cannot
+produce — a proper name wrongly merged with its own grammatically
+inflected case-form (`Евгений`/`Евгения`); order 7 (pronoun binding)
+fails with 0 pronouns even ATTEMPTED, because `resolvePronouns` runs on
+an English-only closed class (`priors.js`'s `ANAPHORIC_PRONOUNS`,
+`lang/en`) — not a weak mechanism, an absent one for this language, named
+as real unbuilt work rather than fixed here. "Omnimodally" was scoped
+honestly rather than forced: no organ in either repo does semantic or
+relational extraction from a non-text modality — `measure.js` (this
+file's own "measuring door" section) reads audio only as numeric series,
+with no path to a claim or referent, so no MHC order has anything to run
+against a non-text file. Full account, every number, the two disclosed
+limits: POLICIES.md P70's third same-day amendment.

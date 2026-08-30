@@ -145,6 +145,16 @@ const ABSENT_NAME = "Zzyrflax Quenbourne"; // checked to be absent, never assume
 const FIXTURES = {
   "war-and-peace": "wikipedia-war-and-peace.html",
   borodino: "wikipedia-battle-of-borodino.html",
+  // Omnilingual probe (2026-08-30): the SAME topic, in Russian, fetched live
+  // from ru.wikipedia.org — not a translation, not a fixture engineered to
+  // pass. Every organ this driver injects (surfaces/relations/pronouns) is
+  // the base engine's, with NO English closed-class priors (determiners,
+  // negation words, verb-form lexicons) opted in — those are English-tagged
+  // (`lang/en`) everywhere else in this repo and are deliberately NOT wired
+  // here, so a pass on this material is evidence the CAPITALIZATION- and
+  // STRUCTURE-based machinery generalizes, never that an English prior
+  // quietly did the work.
+  "borodino-ru": "wikipedia-borodino-ru.html",
 };
 
 function loadMaterial(key) {

@@ -5806,3 +5806,53 @@ there. Neither test can verify the claim is TRUE — only that it was made.
 The measurement underneath it is still real work, done the way
 `grain-refinement.mjs` and `falsification-probe.mjs` already did it, not a
 label applied for free.
+
+## Pronoun/anaphora as an omnimodal function — the medium axis was already right; the language axis is now declared (added 2026-08-30) — pointer, nothing here changed
+
+Asked directly whether the recent pronoun/anaphora work (P38, P66) actually
+conforms to how this project wants a capability built as an omnimodal
+function. It splits into two different axes, and only one had been
+addressed.
+
+**The medium axis was already correct, verified by reading the code rather
+than the changelog.** `eoreader7/native/kernel/contest.js` (P66) genuinely
+extracted the decision procedure — co-presence raises the bar, never the
+score; test the lead against the material's own permutation null — into a
+kernel module with zero text vocabulary, exactly the eoreader7
+`READING-SPEC.md` S6/S16 law ("the kernel never speaks a medium's
+grammar... the kernel is omnimodal"). This is enforced MECHANICALLY
+(`contest.test.js` reads the module's own source and fails if `sentence`,
+`pronoun`, `surface`, `token`, `word` or `text` appears in it) and exercised
+on two real non-text synthetic cases in the same file (an unlabelled gaze
+across two faces in a film shot; an unattributed motif across two
+instruments in a bar of music). It is a live production dependency
+(`native/assemblies.js`, `adapters/text/pronouns.js`), not an orphaned
+module, and both new regimes it unlocks are honestly measured and shipped
+default-off because they do not yet improve the actual reading — a
+disclosed negative result, not a silent no-op.
+
+**The language axis had not been.** Both pronoun mechanisms
+(`resolvePronouns`, `resolvePronounsByActivation`) ran a hardcoded English
+pronoun regex and gender table against whatever text arrived, with no
+`language` parameter anywhere. Non-Latin material happened to degrade
+safely (P70's omnilingual MHC test: Russian correctly gets zero pronoun
+attempts) but that safety was an ACCIDENT of script mismatch, not a
+declared decision — this codebase already has the correct template for
+exactly this class of gap (`createLemmatizer({ language })`, defaulting to
+English only when unspecified, the fix "it needs to work for Ancient
+Greek" section above), and pronouns.js had not been brought into it.
+
+**Closed in eoreader7, not here.** `native/READING-SPEC.md` **S32** is the
+law and carries the full account: a small per-language registry
+(`PRONOUN_PRIORS`, one entry today) replaces the bare constant, all three
+functions take a `language` parameter defaulting to `"en"`, and a declared
+language with no registered prior returns one typed gap
+(`no_pronoun_prior_for_language`) for the whole call rather than a silent
+English attempt or a pile of per-sentence non-matches. Byte-identical for
+every existing caller (none of which pass `language`); 255 native tests
+passing both before and after (same pre-existing failures), 13/13 in
+`pronouns.test.js` (9 pre-existing plus 4 new). **Nothing in this repo
+changed** — `app.js`/`hypergraph.js` import `resolvePronouns` from
+`/engine-v7/adapters/text/pronouns.js` and omit `language`, so they get the
+unchanged default. No second language's pronoun table exists yet; this
+closes the honesty gap, not the coverage gap.

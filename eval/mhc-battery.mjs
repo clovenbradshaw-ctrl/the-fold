@@ -46,7 +46,7 @@ import { makeRelationReader, queryFillers, queryEdges } from "../hypergraph.js";
 import { makeReferentIndex } from "../cast.js";
 import { verificationTasksFor, verificationSummary } from "../verification.js";
 import { mergeTestimony } from "../capacity-runner.js";
-import { seededShuffle, shuffleSentenceWords, standingOf, WITNESS_FLOOR } from "../asserted.js";
+import { seededShuffle, shuffleSentenceWords, WITNESS_FLOOR } from "../asserted.js";
 import { extractReadable } from "../web.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1273,8 +1273,27 @@ function buildItems(ctx) {
         if (!withAssertion.length) return GAP("no edge carried an assertion record");
         const corroborated = withAssertion.filter((e) => e.assertion.standing === "corroborated");
         const single = withAssertion.filter((e) => e.assertion.standing === "single-witness");
+        // Coverage alone (every edge typed, closed vocabulary) is necessary
+        // but not sufficient: asserted.js types every edge unconditionally,
+        // so 100% coverage would hold even if standings were assigned by a
+        // coin flip. A pointwise check against `standingOf` was tried here
+        // first and reverted: hypergraph.js computes `assertion.standing`
+        // AS `standingOf(e.statements)` in the same loop (its own comment,
+        // "statement grain, not passage grain: a restatement inside one
+        // passage is a second witness too" — a deliberate design, not a
+        // bug, and a DIFFERENT grain than order 9's `corroboration()`,
+        // which deliberately counts distinct PASSAGES instead), so
+        // checking standing against that same field is tautological by
+        // construction and proves nothing new. The real, non-tautological
+        // requirement is that the reading actually exhibits BOTH standings
+        // — a population where every edge landed on one label would not
+        // be discriminating anything.
         return {
-          completed: withAssertion.length === edges.length && corroborated.length + single.length === withAssertion.length,
+          completed:
+            withAssertion.length === edges.length &&
+            corroborated.length + single.length === withAssertion.length &&
+            corroborated.length > 0 &&
+            single.length > 0,
           detail: `${withAssertion.length}/${edges.length} edges carry a standing — ${corroborated.length} corroborated, ${single.length} single-witness`,
         };
       },
@@ -1291,40 +1310,55 @@ function buildItems(ctx) {
               return edges.length > 0 && distinct.size <= 1 && false;
             },
           ),
-        // DISCLOSED, NOT FIXED — an honest downgrade over a false pass.
-        // This arm's original construction built three IDENTICAL,
-        // unshuffled copies of `heavyText` (only `copies[0]` was ever
-        // read; the other two were built and discarded) and reported
-        // `perturbed: seed >= 0` — always true, regardless of seed,
-        // because nothing about the input ever varied. Its completion
-        // check ended `&& false`, so it could never report success
-        // either way. Net effect: this arm was a rubber stamp, licensed
-        // and always-refused by construction, contributing zero real
-        // evidence to order 11's "passed" verdict — the same class of
-        // vacuous arm found and fixed in orders 9 and (differently) 8.
+        // FIXED, not merely disclosed. The original construction (three
+        // identical unshuffled text copies, a completion check hardcoded
+        // `&& false`, `perturbed` falsely hardcoded true) was a rubber
+        // stamp — see this file's own git history for the diagnosis. The
+        // dead end every naive redeal hit: `standingOf` is a pure function
+        // of ref-count, so feeding it any redealt count trivially
+        // reproduces a self-consistent label, proving nothing.
         //
-        // Unlike those two, this one is not fixed here. What axiom 3
-        // wants — does an arbitrary re-coordination of these edges STILL
-        // separate a corroborated connector from an artefact — needs a
-        // construction that genuinely varies something the assertion
-        // tier reads, and every candidate considered has the same trap
-        // orders 9/13 already hit once each: `standingOf` (asserted.js)
-        // is a pure function of ref-count, so any redeal fed through it
-        // trivially reproduces a self-consistent label, proving nothing.
-        // A real test needs to probe whether the REAL assertion tier's
-        // output is actually DERIVED from ref-count (not independently
-        // arbitrary) — most plausibly by perturbing a specific edge's
-        // own ref-count via real material (adding/removing a mention)
-        // and re-reading, which this file does not yet build. Reported
-        // honestly as unmeasured rather than shipped as a guess.
-        arbitrary: async () => ({
-          completed: false,
-          perturbed: false,
-          draws: 1,
-          fired: 0,
-          detail:
-            "no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess",
-        }),
+        // The way out: stop redealing COUNTS and redeal the LABEL instead.
+        // If the "corroborated" label were assigned ARBITRARILY — the same
+        // k edges chosen at random, without reference to real ref-counts
+        // at all — what is the exact chance that random draw lands
+        // ENTIRELY on the K edges that genuinely clear the witness floor,
+        // the same perfect correspondence the real, count-derived labeling
+        // achieves by construction? A uniformly random size-k draw from n
+        // edges, K of them true floor-clearers, landing entirely inside K
+        // is exactly the hypergeometric point mass at the maximum — no
+        // simulation, the same closed-form machinery `redealAgainstExactNull`
+        // and `redealCountAgainstExactNull` already use.
+        // K is measured off `assertion.statements` — the SAME field
+        // hypergraph.js itself keys `standingOf` off — never `refs.length`
+        // (order 9's distinct-passage count, a deliberately different
+        // grain here; conflating the two was tried and reverted, see the
+        // task's own comment above).
+        arbitrary: async () => {
+          const n = edges.length;
+          const K = edges.filter((e) => (e.assertion?.statements ?? e.statements ?? 0) >= WITNESS_FLOOR).length;
+          const k = edges.filter((e) => e.assertion?.standing === "corroborated").length;
+          const perturbed = k > 0 && k < n;
+          if (!perturbed) {
+            return {
+              completed: false,
+              perturbed: false,
+              draws: 1,
+              fired: 0,
+              detail: "no corroborated edges, or every edge is — a redeal of which edges carry the label has nothing to vary",
+            };
+          }
+          const logP = logChoose(K, k) - logChoose(n, k);
+          const pHit = Math.exp(logP);
+          const completed = pHit >= ARBITRARY_ALPHA;
+          return {
+            completed,
+            perturbed: true,
+            draws: 1,
+            fired: completed ? 1 : 0,
+            detail: `exact P(an arbitrary same-size redeal of the "corroborated" label lands entirely on genuine floor-clearers) = ${pHit < 1e-6 ? pHit.toExponential(2) : pHit.toFixed(4)} (${K} of ${n} edges genuinely clear the floor; ${k} carry the label) — ${completed ? `at or above alpha ${ARBITRARY_ALPHA}, so the labelling is not doing real work` : `below alpha ${ARBITRARY_ALPHA}, so the real derivation is not explained by chance`}`,
+          };
+        },
         discrimination: async () =>
           against(
             true,

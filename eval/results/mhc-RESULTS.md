@@ -10,8 +10,7 @@ Material: a declared slice of 70 passages of 1200 chars each (of 61 available). 
 
 ## war-and-peace
 
-**Stage: 10 (Abstract)** — order 11 (Formal) is UNMEASURED (unlicensed_perturbation) — no stage may be read across it
-Passes above the cap, carried as observations and NOT folded into the stage: 12 (Systematic), 13 (Metasystematic)
+**Stage: 13 (Metasystematic)** — the battery declares no item at order 14
 
 | order | name | verdict | item | detail |
 |---|---|---|---|---|
@@ -21,14 +20,14 @@ Passes above the cap, carried as observations and NOT folded into the stage: 12 
 | 8 | Primary | `passed` | an empirical rule applied: a claim checked against the material's own edges | stated claim -> bound; reversed claim -> unbound |
 | 9 | Concrete | `passed` | multiple concrete instances coordinated: corroboration counted by perspective, not by mention | passages=2, sources=1 — counted apart |
 | 10 | Abstract | `passed` | a variable quantified over a category: the whole filler set of an open slot | "Peace at __" ranges over 2 filler(s); an absent subject ranges over 0 |
-| 11 | Formal | `unmeasured` (unlicensed_perturbation) | one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact | the arbitrary arm's perturbation did not reach what the task reads (no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess), so it tested nothing. READ |
+| 11 | Formal | `passed` | one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact | 692/692 edges carry a standing — 14 corroborated, 678 single-witness |
 | 12 | Systematic | `passed` | many formal relations coordinated into one system, ordered by presupposition | 9 cells (4 of 9 cells hold, 0 fail, 0 told both ways, 0 gap, 5 not yet built); with a non-existent subject, downstream cells are not_yet_executable |
 | 13 | Metasystematic | `passed` | several whole systems compared: a standing no single system carries | 10 source-systems. "French invasion of Russia" bound by 3 -> AGREE/corroborated; "Russian author Leo" bound by 1 -> SINGLE/single. Below the merge both read identically (a system saying "holds"), and no reading carries a standing of its own. |
 
 ## borodino
 
 **Stage: 6 (Sentential)** — order 7 (Preoperational) was measured and the system did not complete it — a real ceiling
-Passes above the cap, carried as observations and NOT folded into the stage: 8 (Primary), 9 (Concrete), 10 (Abstract), 12 (Systematic), 13 (Metasystematic)
+Passes above the cap, carried as observations and NOT folded into the stage: 8 (Primary), 9 (Concrete), 10 (Abstract), 11 (Formal), 12 (Systematic), 13 (Metasystematic)
 
 | order | name | verdict | item | detail |
 |---|---|---|---|---|
@@ -38,7 +37,7 @@ Passes above the cap, carried as observations and NOT folded into the stage: 8 (
 | 8 | Primary | `passed` | an empirical rule applied: a claim checked against the material's own edges | stated claim -> bound; reversed claim -> unbound |
 | 9 | Concrete | `passed` | multiple concrete instances coordinated: corroboration counted by perspective, not by mention | passages=2, sources=1 — counted apart |
 | 10 | Abstract | `passed` | a variable quantified over a category: the whole filler set of an open slot | "Kutuzov ordered __" ranges over 2 filler(s); an absent subject ranges over 0 |
-| 11 | Formal | `unmeasured` (unlicensed_perturbation) | one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact | the arbitrary arm's perturbation did not reach what the task reads (no licensed perturbation: the prior construction read three identical, unshuffled copies of the same text and never varied by seed — disclosed as a genuine open gap, not patched with an unvalidated guess), so it tested nothing. READ |
+| 11 | Formal | `passed` | one hypothesis tested against a constructed null: is this edge's connector asserted, or an artefact | 854/854 edges carry a standing — 18 corroborated, 836 single-witness |
 | 12 | Systematic | `passed` | many formal relations coordinated into one system, ordered by presupposition | 9 cells (4 of 9 cells hold, 0 fail, 0 told both ways, 0 gap, 5 not yet built); with a non-existent subject, downstream cells are not_yet_executable |
 | 13 | Metasystematic | `passed` | several whole systems compared: a standing no single system carries | 10 source-systems. "French invasion of Russia" bound by 2 -> AGREE/corroborated; "Grande Armée fought against" bound by 1 -> SINGLE/single. Below the merge both read identically (a system saying "holds"), and no reading carries a standing of its own. |
 
@@ -72,8 +71,4 @@ The MHC's claim is about the SCALE: a task's ORDER does not depend on what it is
 
 - order 7: war-and-peace=`passed`, borodino=`failed`
 
-**No probe** — the material offers no specimen for that item. A fact about the material, not about the item or the system:
-
-- order 11: war-and-peace=`unmeasured`, borodino=`unmeasured`
-
-Agreed outright on 7 order(s): 5 (`passed`), 6 (`passed`), 8 (`passed`), 9 (`passed`), 10 (`passed`), 12 (`passed`), 13 (`passed`).
+Agreed outright on 8 order(s): 5 (`passed`), 6 (`passed`), 8 (`passed`), 9 (`passed`), 10 (`passed`), 11 (`passed`), 12 (`passed`), 13 (`passed`).

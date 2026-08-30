@@ -5696,3 +5696,82 @@ disclosed holdout, a new `browserNativeModules` entry holds the nine that
 crossed, and a new contract test fails loudly on any future silent drift
 of either surface — the same posture the pre-existing `/engine/` test
 already held.
+
+## The MHC scaffold's own null, fixed: exact where an exact answer exists (added 2026-08-30) — pointer
+
+POLICIES.md **P70** is the law; this is the pointer. Order 10's own missing
+probe (this file's "MHC battery" section, above) turned out not to be a
+capability ceiling: widening the read window to get order 10 a real
+specimen made order 8's `arbitrary` arm flip on a 20-draw Monte Carlo
+estimate that could not tell a true rate near 0.6% from one near 10%.
+Replaced with the exact hypergeometric answer this one arm's shape actually
+has (`redealAgainstExactNull`, `eval/mhc-battery.mjs`) — no draws, no seed,
+nothing to be underpowered at — derived and its alpha fixed (reusing this
+repo's own standing 0.05, `network-standing.js`'s convention) BEFORE the
+wider run, never tuned to make it pass. Both orders now hold on both
+materials at full-document scale (`WORKING_PASSAGES` 40 → 70, still a
+declared cap, not an assumed wholeness); order 7's real ceiling on
+Borodino is untouched. Suite 1468/1418/45, failure names diffed via
+`git stash`: identical, zero regressions.
+
+**Amended same day — audited, not assumed, and the reported stage moved
+down as a result.** Told *"we must be solid on all levels earlier,"* the
+whole ladder's own `arbitrary` arms were read one by one rather than
+trusted from their "passed" verdicts. Order 9's arm had the identical
+defect P70 had just fixed, worse: it shuffled the ORDER of an array and
+then took a `Set()` of it — order-insensitive by construction, so the
+check never varied across any of its 20 draws — and separately, this
+driver's own material-loading tags every passage with one source key, so
+the "two passages of one source vs. two sources" distinction order 9
+claims to test has never once been exercisable here. Rebuilt on the same
+exact-proportion pattern as P70 (`redealCountAgainstExactNull`) and
+caught hitting the SAME bare-Monte-Carlo trap a second time mid-fix (2/20
+fired read as signal, the exact math showed 0.0145/0.0187 — real noise
+around a true rate under 2%) before being trusted. Order 11's arm was
+ALSO vacuous — three identical unshuffled text copies, a completion check
+hardcoded `&& false`, `perturbed` falsely hardcoded true — and this one is
+NOT patched with a guess: every real construction considered reduces to
+testing a pure function against itself. It now honestly reports
+`unlicensed_perturbation`. **Consequence:** war-and-peace's reported STAGE
+drops from 13 back to 10 — order 11 sitting unmeasured caps it exactly
+where `stageFrom` must, and the earlier "13" was standing on an arm that
+was never really evidence. Full account, including which orders (5–8,
+12–13) were re-read and found genuinely sound: POLICIES.md P70's
+same-day amendment.
+
+**Amended same day (second) — order 11 fixed for real.** The dead end named
+above (every naive redeal reproduces `standingOf`'s own pure-function input)
+is escaped by redealing a different variable: not the ref-count, the
+CORROBORATED LABEL. If that label were assigned to k edges by chance, the
+exact probability a same-size arbitrary draw lands entirely inside the K
+edges that genuinely clear the witness floor is the hypergeometric point
+mass at the maximum — closed-form, no simulation. A first attempt measured
+K off the wrong field (`refs.length`, order 9's distinct-passage grain) and
+manufactured false mismatches that looked like a real engine bug; caught by
+inspecting the raw edge data directly before shipping, and fixed to read
+`assertion.statements` — the field `hypergraph.js` itself keys `standingOf`
+off. War-and-peace: 692/692 typed, `P(chance) ≈ 1.7e-29`. Borodino:
+854/854, `P(chance) ≈ 1.3e-37`. **Stage returns to 13**, standing on real
+evidence this time. Full account: POLICIES.md P70's second same-day
+amendment.
+
+**Amended same day (third) — tested omnilingually.** A genuine Russian
+Wikipedia fixture (`ru.wikipedia.org`'s own Battle of Borodino article,
+fetched live, not translated) joined the two English fixtures, with no
+English-tagged prior (determiners/negation/verb-forms) opted in. **Zero
+scale violations across three materials, one non-Latin.** Two real,
+disclosed performance gaps, not scale failures: order 5 (Nominal)
+reproduces the already-known greedy-non-transitive coreference stranding
+on Cyrillic AND surfaces a genuinely new failure mode English cannot
+produce — a proper name wrongly merged with its own grammatically
+inflected case-form (`Евгений`/`Евгения`); order 7 (pronoun binding)
+fails with 0 pronouns even ATTEMPTED, because `resolvePronouns` runs on
+an English-only closed class (`priors.js`'s `ANAPHORIC_PRONOUNS`,
+`lang/en`) — not a weak mechanism, an absent one for this language, named
+as real unbuilt work rather than fixed here. "Omnimodally" was scoped
+honestly rather than forced: no organ in either repo does semantic or
+relational extraction from a non-text modality — `measure.js` (this
+file's own "measuring door" section) reads audio only as numeric series,
+with no path to a claim or referent, so no MHC order has anything to run
+against a non-text file. Full account, every number, the two disclosed
+limits: POLICIES.md P70's third same-day amendment.

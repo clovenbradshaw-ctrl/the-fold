@@ -8642,3 +8642,107 @@ in was never actually on disk. This session's own baseline, measured AFTER
 initializing, is 45 failing (the-fold) / 320 passing, 0 failing
 (eoreader7 native) — the number this pass's own before/after diff is
 anchored to, not a claim about any other session's count.
+
+## P70 — An arm's own null needs an exact form when one exists, not a noisier estimate of it
+
+The MHC battery's order 8 item (`o8-primary`, `eval/mhc-battery.mjs`) checks
+axiom 3 with an `arbitrary` arm: redeal the corpus's subjects among its
+edges and see whether the specimen's exact `(subject, verb, object)` triple
+still turns up. Widening `WORKING_PASSAGES` from 40 to close order 10's own
+named gap (no subject+verb slot with two distinct fillers in the smaller
+slice) broke order 8 in the same run: the arm's 20-seed Monte Carlo estimate
+moved from 0/20 fired to 2/20 fired on the identical specimen, and the arm's
+existing criterion — `completed: fired > 0` — read that as axiom 3 failing.
+
+**The diagnosis, and why it is not a text-specific patch.** This question —
+does a uniform random permutation of `n` labels (`K` of them equal to the
+specimen's subject) place at least one of them onto any of `m` fixed target
+positions — has a closed-form answer: a hypergeometric tail,
+`P(>=1) = 1 - C(n-K, m) / C(n, m)`. A 20-draw Monte Carlo estimate of a true
+rate near 0.6% is not reliably distinguishable from an estimate of a true
+rate near 10% — 0/20 and 2/20 are both ordinary outcomes under either — so
+"any nonzero count refutes" is exactly the bare-inequality-against-an-
+uncorrected-background-rate mistake this document's own aperture.js and REC-
+calibration sections (`nul/index.js`'s censored comparisons, `MIN_GROUND`/
+`slackRunNull`) already caught and fixed twice elsewhere, found a third time
+here. It is not a frequency threshold invented for MHC: it is the same
+general principle (never gate a null-corrected question on a bare
+inequality) applied to a shape that happens to have an EXACT answer, so
+simulation is not merely improved, it is made unnecessary.
+
+**The fix, derived before it was run — never tuned to the score.**
+`redealAgainstExactNull` (`eval/mhc-battery.mjs`) computes `n`, `K`, `m`
+directly from the real edge set and the exact hit probability via
+`hyperAtLeastOne` (log-space `logChoose`, no simulation, no seed, no draw
+count to be underpowered at). `completed` (axiom 3 fails) only when that
+exact probability clears `ARBITRARY_ALPHA = 0.05` — reused, not invented:
+this repo's own standing significance convention
+(`network-standing.js::LINK_SPEC`'s draws-199/alpha-0.05 precedent,
+`kind-induction.js`'s own default). The construction and the alpha were
+both fixed before the wider run; only afterward was the question asked
+whether the earlier discrepancy was signal or noise.
+
+**Measured, not assumed.** At the original 40-passage window, the exact
+arm reproduces the prior baseline verdict on both fixtures — zero
+regression. At full-document scale (`WORKING_PASSAGES` raised 40 → 70,
+covering war-and-peace's 61 and borodino's 67 available passages in full,
+still a declared cap rather than an assumed wholeness — `totalPassages`
+stays reported alongside it for whatever a longer future fixture would
+show): the specimen's exact hit probability is 0.0058 (war-and-peace: `n`
+=692, `K`=4, `m`=1) and 0.0176 (borodino: `n`=854, `K`=15, `m`=1) — both
+comfortably below alpha, both computed from this corpus's own real counts,
+not from a smaller, artificially safer slice. The earlier "2/20 fired" was
+sampling noise around a true rate under 1%, not a real corpus-size
+confound. Order 8 now passes on both materials at the wider window; order
+10 — genuinely gated on that same window, not on anything about order 8 —
+now has a real specimen and passes on both materials too. Order 7's real
+ceiling on Borodino (pronoun binding, unchanged, unrelated to this fix)
+still reads `failed`, correctly.
+
+Full suite: 1468/1418/45 before and after — failure NAMES diffed via
+`git stash`, byte-identical, zero regressions. Runtime at the wider window:
+26.5s for both fixtures, well inside what an interactive re-run affords.
+
+**Scope, stated rather than implied wider.** This closed-form replacement
+applies to exactly one arm shape — "does one label land in a fixed target
+set under a uniform permutation of a fixed-size population" — because that
+is the one question in this file with an exact hypergeometric answer. Every
+other `shuffled()`-based arm in this battery (passage reordering, source
+grouping, sentence-order word-salad) perturbs something with no comparably
+cheap closed form, and a Monte Carlo estimate stays the correct tool there;
+nothing about those arms was touched.
+
+**Amended same day — "solid, not padded": the ladder audited order by order, two more vacuous arms found.** User direction, verbatim: *"we must be solid on all levels earlier"* — a direct challenge to the "stage 13" headline the P70 fix above had just produced. Every order's `arbitrary` arm was re-read line by line rather than trusted from its own "passed" verdict, on the theory that P70's own defect (a check that reports the axiom-3-holds answer for the wrong reason) could recur elsewhere unnoticed.
+
+**Order 9 had the identical class of defect, worse in two ways.** Its `arbitrary` arm shuffled the ORDER of the specimen's own `refs` array, then took `new Set(...)` over the shuffled copy — a Set is insensitive to element order, so the computed set was byte-identical to the unshuffled one on every single draw. It reported "0 of 20 fired" on both fixtures, which happened to be the correct axiom-3-holds answer, but as a tautology, not a measurement: no draw could ever have differed. Separately, and unfixable by tuning this arm alone: this driver tags every passage with the SAME source key (one Wikipedia page per material load), so "distinct sources" can never exceed 1 in ANY reading this battery produces — the very distinction order 9's own `organizes` field names ("distinguishes two passages of one source from two sources") has never once been exercised here, a fact about the driver's material-loading, not about a wrong threshold.
+
+Rebuilt around the real question: does the corpus's own distribution of ref-counts-per-edge, arbitrarily redealt to a different edge identity (marginals preserved), still hand the SPECIMEN a count clearing the witness floor by pure chance? This has the identical exact closed form as P70's own fix (a straight proportion, no simulation) — `redealCountAgainstExactNull`, reusing the same `ARBITRARY_ALPHA = 0.05`. Measured, not assumed: the FIRST cut of this fix still used `shuffled()`'s 20-draw estimate and hit P70's own trap a second time — 2/20 fired (10%) on war-and-peace, which the exact computation then showed was sampling noise around a true rate of 0.0145 (10 of 692 edges clear the floor at all) — the identical shape of miscalibration, found and closed in the SAME pass rather than shipped. Borodino: 0.0187 (16 of 854). Both well below alpha; order 9 now passes on both materials for a real reason.
+
+**Order 11's `arbitrary` arm was ALSO vacuous, and this one is disclosed rather than fixed.** Its construction built three IDENTICAL, unshuffled copies of the same text (only the first was ever read; the other two were built and discarded), reported `perturbed: seed >= 0` — always true regardless of seed, though nothing about the input ever varied — and ended its completion check with a hardcoded `&& false`, so it could never report success either way. Net effect: a rubber stamp, licensed and always-refused by construction, contributing zero real evidence toward order 11's "passed" verdict.
+
+**This one is not patched with a guess.** Every candidate real construction considered hits the same trap orders 9 and 13 already found once each: `asserted.js::standingOf` is a pure function of ref-count, so feeding it any redealt count trivially reproduces a self-consistent label — proving nothing about whether the REAL assertion tier's output is actually derived from ref-count rather than independently arbitrary. A genuine test needs to perturb a specific edge's own ref-count via real material (add or remove a corroborating mention, re-read, confirm the standing moves) — a materially larger and riskier construction than this pass wanted to ship without separately validating it the way P70's own fix was validated before being trusted. The arm now honestly reports `perturbed: false` and a named reason, which routes the item through mhc.js's own `unlicensed_perturbation` path — order 11 is `unmeasured`, not `passed`.
+
+**The consequence, stated plainly rather than left to be noticed later.** War-and-peace's reported STAGE, which the earlier P70 pass reported as 13 (Metasystematic) as a direct side effect of closing order 10's gap, is now honestly **10 (Abstract)** — order 11 sitting unmeasured caps the stage exactly where READING-POLICY says it must: `stageFrom` will not read a stage across an unmeasured order, and orders 12/13 (which genuinely do still pass, independently verified) are carried as observations above the cap rather than folded in. This is not a regression in the system; it is a correction to what the ladder was allowed to claim. Borodino's own stage (6, capped by order 7's real pronoun-binding ceiling) is untouched by any of this.
+
+Full suite: 1468/1418/45 before and after every change in this amendment, failure names diffed via `git stash` three separate times across the three edits — identical throughout, zero regressions. Order 5 through 8, and 12/13, were also re-read in full during this audit and found genuinely licensed (order 5's own arm comment documents a prior instance of exactly this bug class already caught and fixed; order 12's arm comment does the same; order 13's construction is P44's own already-hardened rebuild). Order 6, 7, 10 were read and found sound. This audit is not claimed exhaustive beyond orders 5–13 — order 14's own item is a disclosed, honest search-and-fail (named in the MHC battery section above) and was not re-examined here since it makes no arm claims to audit.
+
+**Amended same day (second) — order 11 fixed for real, not merely disclosed.** User direction, verbatim: *"fix it"*, then, when the first attempt turned out to check the wrong field: *"if 11 doesn't work I suspect the higher ones don't either or were conceiving of them all wrong."* Every naive redeal of `standingOf`'s own INPUT (ref-count) reproduces a self-consistent label by construction — the trap named above and correctly not shipped past. The way out is to redeal a DIFFERENT variable: not the count, the LABEL. If "corroborated" were assigned to k edges by pure chance rather than by real ref-count, the exact probability that an arbitrary same-size draw lands *entirely* inside the K edges that genuinely clear the witness floor is the hypergeometric point mass at the maximum, `C(K,k)/C(n,k)` — no simulation, the same closed-form family `redealAgainstExactNull`/`redealCountAgainstExactNull` already established. `arbitrary` now computes exactly this (`logChoose(K,k) - logChoose(n,k)`), with `K` measured off `assertion.statements` (the SAME field `hypergraph.js` itself keys `standingOf` off) — a first draft measured `K` off `refs.length` instead (order 9's deliberately different passage-grain metric), which manufactured four false "mismatches" that looked like a real engine defect; caught by writing a standalone script to inspect the raw edge data directly, reading `hypergraph.js`'s real assertion-computation code, and finding the statement-vs-passage-grain distinction is a documented, deliberate design choice there, not a bug — corrected before shipping, not after. Measured: war-and-peace 692/692 edges typed, 14 corroborated / 678 single-witness, `P(chance) ≈ 1.7e-29` — nowhere close to alpha, so the real derivation is not explained by chance; borodino 854/854, 18/836, `P(chance) ≈ 1.3e-37`. Order 11 now genuinely `passed` on both materials.
+
+**The re-examination the user's challenge asked for, done rather than assumed away.** Order 12's arm was re-read against the same worry ("were we conceiving of them all wrong") and found structurally different from order 11's flaw: it tests real claim-sensitivity via verdict-DIFFERING pairs (a claim and its negation), never a self-referential redeal of a pure function's own output — sound as built.
+
+**Consequence:** war-and-peace's reported stage returns to **13 (Metasystematic)**, this time standing on a real, non-tautological order-11 measurement rather than the unmeasured gap the prior amendment correctly capped it at. Borodino's stage (6, capped by the real order-7 pronoun-binding ceiling) is untouched. Full suite: 1468/1418/45, identical failure names via `git stash`, zero regressions.
+
+**Amended same day (third) — tested omnilingually: a genuine, live-fetched Russian fixture, not a translation.** User direction, verbatim: *"we need to test these all omnimodally and omnilingually."* `eval/fixtures/wikipedia-borodino-ru.html` is `ru.wikipedia.org`'s own "Бородинское сражение" article, fetched live over the network (not translated, not hand-engineered to pass) and added to `FIXTURES` as `borodino-ru`, run alongside the two English fixtures with **no English-tagged closed-class prior opted in** (`determiners`/`negationWords`/`verbForms` all stay uninjected here, as before) — a pass on this material is evidence the CAPITALIZATION- and STRUCTURE-based machinery generalizes, never that an English prior quietly carried it.
+
+**Content-independence held: zero violations across three materials, one of them genuinely non-Latin-script.** The scale's own claim — a task's order does not depend on what it is about — was not falsified by adding a language with case-inflected proper nouns and a different alphabet. Two real, honestly-typed differences surfaced, both correctly classified as *performance*, not scale violations:
+
+- **Order 5 (Nominal) genuinely `failed` on the Russian material** — a real ceiling, not a gap. `discoverReferents`'s already-known greedy-non-transitive stranding bug (documented in this file's own P44/P50 history: `Mikhail`/`Mikhail Kutuzov`/`Kutuzov` splitting into two referents) reproduces identically on Cyrillic (`Огюст`/`Огюст Коленкур` stranded the same way) — the bug is a property of the greedy-closure ALGORITHM, not of English orthography, confirmed by seeing it fire on a script that has never exercised this code path before. But one NEW failure mode surfaced that English's uninflected proper nouns cannot produce: `Италии Евгений Богарне` (nominative) wrongly merged with `Италии Евгения` (an inflected case-form of the same name, genitive/accusative) — Russian's grammatical case system changes a proper name's own surface form, a distinction English lacks entirely, and whatever string-comparison the individuation rule uses did not survive it. Precision held (4/4 and 3/3 pairs correctly kept apart, matching the English materials' own 5/5 and 9/9), so this is a recall/precision-mix finding on the SAME under-tested surface, not a new class of defect — but it is real, previously invisible, and disclosed here rather than smoothed into "the same bug as before."
+- **Order 7 (Preoperational, pronoun binding) `failed` on the Russian material with 0 pronouns even ATTEMPTED (0 bound, 0 refused)** — a materially different finding from borodino's own English failure (0 bound, 5 refused — attempted and lost). `resolvePronouns` is built on `ANAPHORIC_PRONOUNS`, an English closed class (`priors.js`, `lang/en`) — на Russian text (он/она/оно/они/его/её/их…) there is nothing in that vocabulary to even nominate a candidate, so the mechanism is not weak here, it is absent. This is the sharpest, most honest omnilingual finding of the run: a REAL, previously-unmeasured capability boundary, not a bug to fix under this task's own scope — closing it needs a Russian pronoun closed class with its own giver (the same discipline `priors.js`'s every other entry already holds to), not attempted here.
+
+**Every `arbitrary`/`lowerOrder` arm from order 8 through 13 correctly reported `unmeasured` on a Russian-only single-material run** (no control material of different content to redeal against) and correctly resolved to real pass/fail verdicts once run in the three-way comparison — the SAME behavior these arms already have on the English materials when run alone, confirmed rather than assumed to generalize. Order 12 (Systematic) passed identically on all three materials (4/9 cells hold, the same existence/structure gate honored on Cyrillic referents).
+
+**The honest limit, stated rather than glossed:** this is one non-Latin, non-uninflected language, on one topic already covered in English by this repo's own fixtures — not a general typological survey. It establishes that the capitalization/structure machinery is not silently English-only where it claims not to be, and names exactly one place (order 7) where it silently is. A wider language sweep (a non-case-inflecting, non-Latin-script language; a language with no capitalization distinction at all, which would test whether `discoverReferents`'s whole individuation mechanism — built on capitalized-surface recurrence — degrades gracefully or fails silently) is real, scoped, unattempted future work.
+
+**"Omnimodally" is scoped honestly rather than attempted with the wrong tool.** No organ in either repo performs semantic or relational extraction from a non-text modality. `measure.js` (this file's own "measuring door" section, above) is the one organ that reads audio/binary material at all, and it computes NUMERIC-SERIES statistics only (`wavSamples`'s PCM walk, `nul`/`binding.js`'s series tests) — it has no path from a waveform or an image to a claim, a referent, or a relation, so no order of the MHC battery (which is built entirely on `extractSurfaces`/`extractRelations`/`resolvePronouns` — text organs, every one) has anything to run against a non-text file. Forcing a run would either error meaninglessly or, worse, silently score zero and be misread as "the system fails at Nominal on audio" when the true statement is "no organ was ever asked the question." Building that organ (an OCR/ASR/vision front end feeding the SAME hypergraph.js/cast.js pipeline this battery already drives) is real, large, unscoped future work — named here as the honest boundary of "omnimodal" today, not attempted under this pass.
+
+**Files.** `eval/fixtures/wikipedia-borodino-ru.html` (new, ~866KB, real fetched HTML — genuine, not a fixture engineered to pass). `eval/mhc-battery.mjs` (`o11-formal`'s `arbitrary` arm rebuilt on the label-redeal hypergeometric construction, documented in the file's own comments; `FIXTURES` gained `borodino-ru`, documented inline as the omnilingual probe and why no English prior rides along). `eval/results/mhc-RESULTS.md` / `mhc-battery.json` regenerated (this is a re-runnable driver, P19/P27's posture, not a committed regression test). Full suite: 1468/1418/45 before and after, identical failure names via `git stash`, zero regressions.

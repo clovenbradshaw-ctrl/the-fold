@@ -8935,6 +8935,69 @@ matching it fixed the test rather than weakening the assertion). Full
 suite: 1060/933/125 (pre-existing failures, `git stash`-confirmed
 identical) → 1066/939/125, zero regressions.
 
+**Amended same day — the first real migration pass, and the finding that
+reframes the whole count.** The 221-call-site figure conflates SEVERAL
+independent, unrelated systems that happen to share the English words
+"subject"/"verb"/"object" for genuinely different reasons — found by
+reading each file's actual usage before editing it, not by trusting the
+grep. **`grid.js`'s 26 sites (and everything downstream of it —
+`web-hunt.js`'s `priorAct.object`, parts of `capacity-runner.js`) are the
+terminal-language ACT grammar** (`act relate <subject> to <object>`,
+`VERBS[raw.verb]`) — a completely different, independently-justified
+naming for an act's own arguments, never hypergraph.js's arrangement, and
+out of P72's scope entirely. `succession.js`'s `box.subject` is a parsed
+Wikipedia succession-box field. `relations-chain.js`'s `rel.subject`/
+`.verb`/`.object` read the ENGINE's raw `extractRelations()` triples
+directly, bypassing hypergraph.js and `arrangementOf` altogether — its
+own test confirms this (`extractRelations` imported straight from the
+engine, never through `makeRelationReader`). `templates.js`'s
+`edgeChips()` uses its own independent shape (`.from`/`.to`, not
+`.subject`/`.object`) and has no production caller anywhere in this repo.
+None of these four are hypergraph.js's arrangement wearing English
+clothes — they are four separate things that never needed migrating.
+
+**Two real regressions, caught by running tests, not by inspection.**
+`hl.js::stageFromEdges` takes an `edges` parameter from ANY caller, not
+exclusively hypergraph.js's own pipeline — `hl.test.mjs` hand-builds
+minimal `{subject, verb, object}` fixtures with no `end1`/`label`/`end2`,
+and migrating the read broke 2 of 4 cases silently (`git stash` comparison
+caught it: 3 passing before, 1 passing after). Reverted — a function whose
+contract is "any edge-shaped object" cannot assume an internal
+implementation detail of one particular producer. The same class of risk
+was found and fixed forward, not reverted, everywhere the caller WAS
+confirmed to be hypergraph.js's own pipeline: `provenance.test.mjs`,
+`proof.test.mjs`, `verification.test.mjs` (3 cases), and `firewall.test.mjs`
+(2 cases, found only by the FULL suite diff — `fact-block.test.mjs` itself
+cannot load in this checkout, so its own fixtures were fixed proactively
+and unverifiably here, but `firewall.test.mjs` exercises the same
+`fact-block.js` code path from a file that CAN load, and caught a real
+`"undefined — undefined→ undefined"` break) all needed their hand-built
+claim fixtures widened to carry `end1`/`label`/`end2` alongside the
+originals — the correct fix, not a reason to revert the production code,
+since a hand-built fixture omitting a field `arrangementOf` would have
+supplied is the fixture falling behind the shape, not the migration being
+wrong.
+
+**What actually migrated, confirmed safe by real callers and real
+tests:** `provenance.js`, `fact-block.js`, `proof.js`, `verification.js`
+— each confirmed to read exclusively from hypergraph.js's own
+`report.claims`/`relations.read()` output before being touched. Full
+suite 1066/939/125 → 1071/944/125, zero regressions (`git stash -u`
+diffed against the pre-migration baseline, not merely counted).
+
+**What remains, named rather than claimed done:** `dialogue-graph.js`,
+`hl-acquire.js`, `hyperlexicon.js`, `predigest.js`, `explore/explore.js`,
+`term.js`, and the hypergraph-related portions of `capacity-runner.js`,
+`holon.js`, `app.js` (each confirmed, by sampling, to MIX grid.js acts
+and hypergraph edges in the same file — the highest-risk shape, since a
+wrong call halfway through silently corrupts one system while looking
+like progress on the other). **The wipe itself — removing `subject`/
+`verb`/`object` from hypergraph.js's own edge/claim construction — is not
+attempted and is not yet safe**: the majority of real consumers, even
+after subtracting the four false-positive systems above, are still
+unmigrated, and removing the fields they still read would break them.
+Additive stays additive until that changes.
+
 ## P73 — A genuine second typology, built and measured: case-marking relation extraction, wired through the neutral arrangement
 
 **Generality:** specimen-scoped (disclosed; not claimed further) — see

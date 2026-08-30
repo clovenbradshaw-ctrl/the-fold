@@ -231,8 +231,8 @@ function entityReason(hgClaim) {
   if (ep.subject === "referent" && ep.object === "referent") {
     return "subject and object both resolve to referents this material establishes";
   }
-  const subject = `subject ${hgClaim.subject ? `“${hgClaim.subject}” ` : ""}${ENDPOINT_PHRASE[ep.subject] ?? "resolved in an unrecognized way"}`;
-  const object = `object ${hgClaim.object ? `“${hgClaim.object}” ` : ""}${ENDPOINT_PHRASE[ep.object] ?? "resolved in an unrecognized way"}`;
+  const subject = `subject ${hgClaim.end1 ? `“${hgClaim.end1}” ` : ""}${ENDPOINT_PHRASE[ep.subject] ?? "resolved in an unrecognized way"}`;
+  const object = `object ${hgClaim.end2 ? `“${hgClaim.end2}” ` : ""}${ENDPOINT_PHRASE[ep.object] ?? "resolved in an unrecognized way"}`;
   return `${subject}; ${object}`;
 }
 
@@ -279,7 +279,7 @@ export function verificationTasksFor({ hgReport = null, hgClaim = null, testimon
           reason: hgReport.examined ? "material is present to check against" : "no material was loaded for this turn",
           ...(hgReport.examined && hgClaim?.fillers?.length > 1
             ? {
-                reason: `material is present, but the space this claim names is not fully bounded — ${hgClaim.fillers.length} distinct fillers exist for "${hgClaim.subject} ${hgClaim.verb}", not one`,
+                reason: `material is present, but the space this claim names is not fully bounded — ${hgClaim.fillers.length} distinct fillers exist for "${hgClaim.end1} ${hgClaim.label}", not one`,
                 fillers: hgClaim.fillers,
               }
             : {}),
@@ -350,7 +350,7 @@ export function verificationTasksFor({ hgReport = null, hgClaim = null, testimon
               : hgClaim.verdict === "contradicted"
                 ? "the material binds this edge with the opposite polarity"
                 : hgClaim.verdict === "unheard"
-                  ? `the material never uses the verb "${hgClaim.verb}" — a limit of this check, not a mark against the claim`
+                  ? `the material never uses the verb "${hgClaim.label}" — a limit of this check, not a mark against the claim`
                   : "no edge binds this exact subject, verb, and object",
         // hypergraph.js's own claim carries far more evidence than one
         // sentence — the addresses that state it, corroboration counted as
@@ -378,7 +378,7 @@ export function verificationTasksFor({ hgReport = null, hgClaim = null, testimon
     tasks.push(
       hgClaim?.competing
         ? cell("Network", "fails", {
-            reason: `the material binds this exact verb+object to a different subject: ${hgClaim.competing.subject}`,
+            reason: `the material binds this exact verb+object to a different subject: ${hgClaim.competing.end1}`,
             disclosed: "covers one measured case (same verb+object, different subject) — not general network-exclusivity",
             competing: hgClaim.competing,
           })

@@ -5775,3 +5775,34 @@ file's own "measuring door" section) reads audio only as numeric series,
 with no path to a claim or referent, so no MHC order has anything to run
 against a non-text file. Full account, every number, the two disclosed
 limits: POLICIES.md P70's third same-day amendment.
+## The generality gate — specimen-scoped or universal, said out loud (added 2026-08-29) — pointer
+
+POLICIES.md **P71** is the law; eoreader7's **`native/READING-SPEC.md` S31**
+is its paired entry there — the same discipline stated once in each repo's
+own register rather than duplicated text, because a fix crossing the
+fold/native boundary (most of them do, per the ratchet) should not need
+translating between two different disclosure languages.
+
+The gate closes a question this document has answered by feel for seventy
+entries: whether a fix that made one specimen pass is a corpus-specific
+patch or a universal improvement to reading. Three checks, all already
+exercised somewhere in this project's own history and now made mandatory
+together — cross-domain replay on a structurally-similar but unrelated
+corpus (`eval/grain-refinement.mjs`'s politics/hospital-beds pairing is the
+reference), a named giver or a derived structural floor rather than a
+number fitted to the specimen, and a demonstrated-necessity case built from
+material the discovery never saw (`eval/falsification-probe.mjs`'s
+six-corpora design is the reference). The gate runs both directions on
+purpose: P44's own corrected content-independence check is the standing
+reminder that a mechanism performing differently across materials is not
+automatically a violation, and reading it as one is the overcorrection this
+same gate would otherwise invite.
+
+Every POLICIES.md entry from P71 on, and every READING-SPEC.md entry from
+S31 on, states `**Generality:** universal / specimen-scoped /
+not-applicable`, enforced going forward by `generality-gate.test.mjs` here
+and the matching case added to `native/conformance/reading-spec.test.mjs`
+there. Neither test can verify the claim is TRUE — only that it was made.
+The measurement underneath it is still real work, done the way
+`grain-refinement.mjs` and `falsification-probe.mjs` already did it, not a
+label applied for free.

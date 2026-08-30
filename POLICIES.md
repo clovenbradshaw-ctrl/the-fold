@@ -8746,3 +8746,117 @@ Full suite: 1468/1418/45 before and after every change in this amendment, failur
 **"Omnimodally" is scoped honestly rather than attempted with the wrong tool.** No organ in either repo performs semantic or relational extraction from a non-text modality. `measure.js` (this file's own "measuring door" section, above) is the one organ that reads audio/binary material at all, and it computes NUMERIC-SERIES statistics only (`wavSamples`'s PCM walk, `nul`/`binding.js`'s series tests) — it has no path from a waveform or an image to a claim, a referent, or a relation, so no order of the MHC battery (which is built entirely on `extractSurfaces`/`extractRelations`/`resolvePronouns` — text organs, every one) has anything to run against a non-text file. Forcing a run would either error meaninglessly or, worse, silently score zero and be misread as "the system fails at Nominal on audio" when the true statement is "no organ was ever asked the question." Building that organ (an OCR/ASR/vision front end feeding the SAME hypergraph.js/cast.js pipeline this battery already drives) is real, large, unscoped future work — named here as the honest boundary of "omnimodal" today, not attempted under this pass.
 
 **Files.** `eval/fixtures/wikipedia-borodino-ru.html` (new, ~866KB, real fetched HTML — genuine, not a fixture engineered to pass). `eval/mhc-battery.mjs` (`o11-formal`'s `arbitrary` arm rebuilt on the label-redeal hypergeometric construction, documented in the file's own comments; `FIXTURES` gained `borodino-ru`, documented inline as the omnilingual probe and why no English prior rides along). `eval/results/mhc-RESULTS.md` / `mhc-battery.json` regenerated (this is a re-runnable driver, P19/P27's posture, not a committed regression test). Full suite: 1468/1418/45 before and after, identical failure names via `git stash`, zero regressions.
+## P71 — The generality gate: a specimen-shaped fix and a universal capability read identically until measured apart
+
+**Generality:** not-applicable — this entry is the discipline itself, not a
+claim about a reading mechanism's reach.
+
+The user's own diagnosis, put directly: this repo has no standing way to
+tell "we over-designed for our corpus" from "we found something that makes
+omnimodal cognition better everywhere." Both look identical at the moment a
+fix lands — a bug surfaces on one specimen, a change makes that specimen
+pass, the change gets written up in this document's own confident,
+evidence-heavy voice. What that voice has never been forced to state is
+which of the two things it is claiming.
+
+**This repo has already paid for both directions of the failure, more than
+once, before this policy existed to name either.** Overclaiming:
+`succession.js` generalized one Wikipedia infobox layout into what read,
+for a long time, as a reading capability, and was later condemned outright
+— "it should never have been made" (P57/P58). The MINE-1 vocabulary chase
+ran nine configurations, each converging on the same 22–34%/17–43% band,
+before the session stopped mistaking specimen-fitting for approach to a
+universal ceiling and named the plateau honestly: "90% is not reachable by
+further layering under the current verdict criterion... a
+paraphrase-tolerance gap... not a tenth vocabulary layer." Underclaiming —
+the mirror error, caught later and just as costly — is just as real: P60's
+own chemistry organ was believed to add reasoning power because it ran
+cleanly on real Wikidata, until `derivation-precision.mjs` showed a
+twenty-line unlicensed join finds every fact the licensed chemistry finds,
+plus fourteen more: "a mechanism that runs is not a mechanism that helps,
+and the control separating them is the cheap one that got skipped. Run the
+dumb baseline first." And P44's own content-independence check first read
+an ordinary performance difference between two real materials as a scale
+violation, before being corrected to keep "violation," "performance
+difference," and "no probe" apart as three separate findings — the
+apparatus meant to catch overfitting had itself overfit its own verdict to
+whichever second claim happened to be at hand.
+
+**The gate.** A finding earns the word `universal` in this document only
+once it clears three checks — none of them new; each has already been run,
+once, somewhere in this project's history. What is new is that all three
+are now mandatory together, and disclosed, rather than each showing up in
+isolation in whichever pass happened to need it that day:
+
+1. **Cross-domain replay.** The mechanism, unmodified, is re-run over a
+   second corpus that shares the fix's structural shape and nothing else —
+   different subject, different vocabulary, no specimen overlap. The
+   reference case is `eval/grain-refinement.mjs`: one 68-line core with
+   zero domain words reached 1.000 precision at occurrence grain on both
+   real Wikidata succession and an invented, unrelated hospital-bed corpus,
+   with no veto anywhere, and the fixture's own trap — declared before the
+   run — fired exactly as predicted at the coarser grain. A fix exercised
+   only on the specimen that found it stays `specimen-scoped` until this
+   runs, no matter how obviously general it looks from the inside.
+2. **A named giver, or a derived floor — never a fit.** Every threshold,
+   list, or constant a fix introduces either cites an external giver
+   (UniMorph, the UD treebank, Wikidata, a genre prior per eoreader7's own
+   `meta-parameters-INVENTORY.md`) or is a structural floor derived from
+   the mechanism's own shape (binding's `arrivals >= 2` — "one arrival has
+   no co-arrival to test" — or the assertion tier's `WITNESS_FLOOR = 2`). A
+   number chosen because it makes THIS specimen's score move is neither,
+   and P4's own "hand-picked constants... Open debt" finally has a place
+   that is checked rather than merely confessed.
+3. **A demonstrated necessity, on material the discovery never saw.** A
+   case — found, or deliberately constructed — where the fix's absence
+   genuinely fails and its presence genuinely succeeds, built from material
+   that played no part in surfacing the original bug. The reference case is
+   `eval/falsification-probe.mjs`: six corpora with ground truth declared
+   in advance, because a five-fact succession chain and a five-fact
+   dominance chain are structurally identical by construction and opposite
+   in truth — "the scan cannot tell them apart" is exactly the finding that
+   stopped five modules from shipping plausible, unearned reasoning power.
+   P19's own line applies here without edit: "a refusal no declaration can
+   trigger is a comment, not a wall."
+
+**The direction this gate must not run: distrust dressed as rigor.** A
+mechanism that performs differently on two materials has not necessarily
+failed to generalize. P44's corrected reading keeps three outcomes apart
+for exactly this reason — a **violation** (valid here, mis-declared there,
+the actual thing the gate exists to catch), a **performance difference**
+(valid both times, only completed on one), and **no probe** (the material
+offers no specimen at all) — and collapsing the second into the first is
+the overcorrection this policy would otherwise invite. The `moves.js`
+coverage driver draws the identical line a third way, keeping registry
+debt, real incapacity, and probe error apart rather than reading an empty
+cell as one verdict (P64). eoreader7's own S24 states the rule cleanest: a
+mechanism that is structurally inert on a caseless script is a disclosed
+gap, never a lower score — "a silent claim of cross-script generality is a
+more severe failure than a disclosed narrow scope," which cuts both ways:
+false confidence and false suspicion are the same failure, aimed at
+opposite conclusions.
+
+**The tag.** Every POLICIES.md entry from P71 onward, and every
+`native/READING-SPEC.md` entry from eoreader7's paired S31 onward, carries
+one line, in whichever of three registers is actually true:
+
+    **Generality:** universal (evidence: <eval driver or file, one line on what it showed>)
+    **Generality:** specimen-scoped (disclosed; not claimed further)
+    **Generality:** not-applicable (names why — a process or architecture decision, no claim about material)
+
+`specimen-scoped` is not a lesser result. Most of this document's own
+entries would have honestly carried it — P50's "filler selection at page
+scale still returns garbage," P56's disclosed absences, P41's "silence,
+unfixed" — and saying so plainly is this whole document's own habit,
+applied consistently rather than left for a reader several hundred lines
+later to infer from tone.
+
+**Enforced.** `generality-gate.test.mjs` scans POLICIES.md's own `## P<N>`
+headers for N ≥ 71 and fails if any entry lacks the tag; the matching case
+in eoreader7's `native/conformance/reading-spec.test.mjs` does the same for
+`## S<N>` at N ≥ 31. Both check DISCLOSURE only, never TRUTH — no test can
+confirm that a cross-domain replay actually happened or that a cited giver
+is honest, the same limit this document's own VI.1 already states for any
+policy whose violation no test can catch. What closes is the silent case: a
+fix that never says which kind of claim it is making cannot pass unremarked
+because the reader's own confidence carried it.

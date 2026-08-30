@@ -750,6 +750,26 @@ function withConfirmedLeadingReferents(
   return buildIndexFromEvents(events, { namesCorefer, diaNorm });
 }
 
+// The arrangement, named the way it is actually earned: two ordered ends
+// and a label (CLAUDE.md's grammar-lens section — "an ordered first end, a
+// label, an ordered second end"). `subject`/`verb`/`object` are the
+// SAE-grammar reading of that arrangement — already named as a declared
+// overlay, not yet stored as one. `end1`/`label`/`end2` are the identical
+// three values under their earned names, ADDED, never substituted: every
+// existing reader of `.subject`/`.verb`/`.object` is unaffected, and
+// nothing yet reads the new fields. One implementation, used at every site
+// that builds an edge/claim shape, so the two names cannot drift the way
+// four separate `{subject: t.subject, verb: t.verb, object: t.object}`
+// literals eventually would have — the same drift class this file's own
+// history (DEF/EVA's `Array.find`, `synthesize`'s `String.includes`)
+// already found twice, closed here before a third. Exported (rather than a
+// closure-local of `makeRelationReader`) because it closes over nothing —
+// a pure mapping deserves to be directly testable without the whole
+// organ-injected reader behind it. Migrating a consumer off `subject`/
+// `verb`/`object` onto `end1`/`label`/`end2` happens file by file, in a
+// later pass — not here.
+export const arrangementOf = (t) => ({ end1: t.subject, label: t.verb, end2: t.object });
+
 export function makeRelationReader(organs) {
   const {
     splitSentences,
@@ -1372,6 +1392,7 @@ export function makeRelationReader(organs) {
             subject: t.subject,
             verb: t.verb,
             object: t.object,
+            ...arrangementOf(t),
             polarity: t.polarity,
             subjectEnd,
             objectEnd,
@@ -1501,6 +1522,7 @@ export function makeRelationReader(organs) {
         subject: t.subject,
         verb: t.verb,
         object: t.object,
+        ...arrangementOf(t),
         polarity: t.polarity,
         // Same disclosure edgeFace carries, at claim scale: whether the
         // connector position the answer used is grammatically plausible as
@@ -1732,6 +1754,7 @@ export function makeRelationReader(organs) {
         subject: e.subject,
         verb: e.verb,
         object: e.object,
+        ...arrangementOf(e),
         polarity: e.polarity,
         refs: e.refs,
         // The exact bytes this edge was read from, carried THROUGH the
@@ -1830,6 +1853,7 @@ export function makeRelationReader(organs) {
                 subject: t.subject,
                 verb: t.verb,
                 object: t.object,
+                ...arrangementOf(t),
                 polarity: t.polarity,
                 verdict: "unheard",
                 reason: `the material never uses the verb “${t.verb}”, so there is nothing to compare this against — a limit of this check, not a mark against the answer`,

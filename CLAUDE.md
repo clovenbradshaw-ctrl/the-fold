@@ -5856,3 +5856,38 @@ changed** — `app.js`/`hypergraph.js` import `resolvePronouns` from
 `/engine-v7/adapters/text/pronouns.js` and omit `language`, so they get the
 unchanged default. No second language's pronoun table exists yet; this
 closes the honesty gap, not the coverage gap.
+
+**Corrected the same day — "add a second language" was the wrong target;
+the arrangement itself was still English-shaped.** User's own redirect,
+twice: first, don't add French next — it shares English's SVO typology and
+would pass by accident, never testing the real gap (`relations.js`'s own
+header: slot-finding is POSITIONAL, "the token immediately FOLLOWING a
+candidate referent surface" — a fact about word order, not vocabulary, and
+it fails outright on case-marked languages like Latin, Russian, Finnish,
+several of which are already in `live_priors`). Second, correcting the
+proposed fix itself: a case-marking STRATEGY that still recovers "subject"
+and "object" by a different signal is the same borrowed grammatical
+category surviving through a new mechanism, not removed. **POLICIES.md
+P72** is the law: `hypergraph.js`'s edges and claims are keyed literally
+`.subject`/`.verb`/`.object` at four construction sites — the grammar-lens
+section's own stated principle ("the arrangement is earned, the SAE
+reading is a declared overlay") was never true of the STORED shape. Two
+ordered ends and a label is already typologically neutral; what a language
+signals is only WHERE to look for them, never which one is the agent.
+
+**Shipped additively, by explicit choice over a full rename.** `arrangementOf(t)`
+maps `{subject, verb, object}` onto `{end1, label, end2}` under their
+earned names, wired at all four sites so the mapping cannot drift the way
+four independent literals eventually would. `subject`/`verb`/`object` are
+untouched everywhere; the neutral fields sit beside them, read by nothing
+yet. The full rename this closes part of (P56's own grammar-lens section:
+"~120 call sites... not attempted without confirmation") is now 221 across
+22 files — larger than last measured, and still not attempted: migrating a
+consumer off the SAE names is real, scoped, future work, one file at a
+time. Verified against the real native engine organs (`arrangement.test.mjs`,
+6 cases, the `hyperlexicon-stance.test.mjs` separate-file precedent since
+`hypergraph.test.mjs` cannot load in this checkout): full suite
+1060/933/125 → 1066/939/125, zero regressions. A real second-typology
+extractor (case-marking, for a language like Latin already in the corpus)
+is named, real, and unstarted — it should build against this neutral
+shape, never against `subject`/`object`.

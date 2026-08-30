@@ -8860,3 +8860,77 @@ is honest, the same limit this document's own VI.1 already states for any
 policy whose violation no test can catch. What closes is the silent case: a
 fix that never says which kind of claim it is making cannot pass unremarked
 because the reader's own confidence carried it.
+
+## P72 — The arrangement is two ends and a label; subject/verb/object is a reading of it, not its shape
+
+**Generality:** not-applicable (names why — a schema/naming decision about
+this repo's own stored data shape, no claim about a reading mechanism's
+reach over any material).
+
+The grammar-lens work (P29-adjacent, CLAUDE.md) already stated the
+principle: *"the ARRANGEMENT (an ordered first end, a label, an ordered
+second end) is earned... the READING of that arrangement as subject/
+verb/object is a declared, giver-named OVERLAY, switchable, never baked
+into the record."* It was never true of the stored shape. Every edge and
+claim `hypergraph.js` builds is keyed literally `.subject`/`.verb`/
+`.object`, at four separate construction sites (the primary edge loop,
+`judge()`, `edgeFace()`'s projection, and the `unheard`-verdict claim) —
+the SAE-grammar reading, baked in as the record rather than laid over it.
+
+**Why now.** Raised while scoping a genuinely non-English relation
+extractor: `relations.js`'s own header says its slot-finding is
+POSITIONAL ("the token immediately FOLLOWING a candidate referent
+surface... the slot SVO order puts a verb in") — not merely English
+VOCABULARY, an assumption that fails outright on case-marked, freer-order
+languages (Latin, Russian, Finnish, Japanese, Korean), several of which
+are already in `live_priors`. The user's own correction closed a wrong
+next step: building a SECOND, case-marking strategy that still recovers
+"subject" and "object" by a different signal is the same borrowed
+category surviving through a different mechanism, not removed. The
+arrangement itself never needed grammatical names — two ordered ends and
+a label is already typologically neutral, true of every clause in every
+language regardless of how that language locates its two ends. What
+varies per language is only WHERE to look (position, case ending,
+particle, agreement) — never which one is the agent.
+
+**What shipped — additive, not a rename.** `arrangementOf(t)` (hypergraph.js,
+exported — it closes over nothing, so it is directly unit-testable without
+the organ-injected reader behind it) maps `{subject, verb, object}` onto
+`{end1, label, end2}` under their earned names. Wired at all four
+construction sites via `...arrangementOf(t)`, so the mapping cannot drift
+the way four independent `{subject: t.subject, verb: t.verb, object:
+t.object}` literals eventually would — this file's own history (DEF/EVA's
+`Array.find`, `synthesize`'s `String.includes`) has already found that
+drift class twice. `subject`/`verb`/`object` are untouched at every site;
+`end1`/`label`/`end2` sit beside them. No existing caller changes
+behavior; nothing existing reads the new fields yet.
+
+**What this is not.** Not the full rename P56's own grammar-lens section
+already scoped and deferred ("touches ~120 call sites across this repo...
+not attempted without [scope] confirmation") — that count is now 221
+across 22 files in this repo alone (not counting eoreader7's own `hl.js`
+kernel), larger than when it was first measured. Not a second (case-
+marking) extraction strategy — that is real, separate, unstarted work,
+and it should be built AGAINST the neutral shape, not against
+`subject`/`object`, so it never has to answer "which one is the agent" in
+the first place. Migrating a consumer off `subject`/`verb`/`object` onto
+`end1`/`label`/`end2` happens file by file, verified at each step — the
+user's own explicit choice over a single big-bang rename, given the size.
+
+**Evidence.** `arrangement.test.mjs` (new, 6 cases) — a separate file on
+purpose, the same precedent `hyperlexicon-stance.test.mjs` and
+`hypergraph-vocabulary-candidates.test.mjs` already established:
+`hypergraph.test.mjs` reaches the engine through
+`../eoreader7/legacy-eoreader6.1`, an uninitialised submodule in this
+checkout, so a case appended there would silently never execute. Two
+pure-function cases on `arrangementOf` itself, and four against the REAL
+native engine organs, one per construction site, including the `nearest`/
+`competing` projection (found needing a fixture fix live: a bare
+sentence-initial single-word capitalized subject, "Lincoln appointed...",
+produced zero candidates at all — `extractSurfaces` correctly refuses that
+as indistinguishable from ordinary sentence-initial capitalization; a
+two-word name, "Abraham Lincoln," is what the working
+`hypergraph-vocabulary-candidates.test.mjs` fixture already used, and
+matching it fixed the test rather than weakening the assertion). Full
+suite: 1060/933/125 (pre-existing failures, `git stash`-confirmed
+identical) → 1066/939/125, zero regressions.

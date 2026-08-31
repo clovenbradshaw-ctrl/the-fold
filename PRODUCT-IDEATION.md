@@ -713,11 +713,35 @@ boundary excluded.
 
 ## 10. Why you'll go around more than once
 
-Three loops, not one straight line. Each one is triggered by a different kind
-of surprise, and each one costs more than the one before it, which is exactly
-why you check the cheap one first.
+Three loops, not one straight line, and they are not three alternatives sitting
+side by side. **Each loop sits *inside* the next one out.** That is what makes
+this recursive rather than merely repetitive: the same describe / fill / check
+motion runs at every depth, and firing an outer loop restarts every loop
+contained in it.
 
-**Loop 1: inside Phase B: change source, try again (Task 12).**
+```
++-- L3 - the ask itself was wrong ------------- re-enters at task 1 --+
+|   The world moved, not the room. Restarts everything below it.      |
+|                                                                     |
+|   +-- L2 - redraw the gap ---------------- re-enters at task 4 --+  |
+|   |   A sign fired at task 13. Keeps what already passed,        |  |
+|   |   and restarts every L1 inside it.                           |  |
+|   |                                                              |  |
+|   |   +-- L1 - change source ---------- re-enters at task 9 --+  |  |
+|   |   |   Coverage is still short.                            |  |  |
+|   |   |   The gap description never changes.                  |  |  |
+|   |   +-------------------------------------------------------+  |  |
+|   +--------------------------------------------------------------+  |
++---------------------------------------------------------------------+
+```
+
+You check inward first, because the innermost loop is the cheapest one and it
+is the one most likely to be the actual problem. You only move a ring out when
+the loop you are in is *spent*, and each loop has its own spent condition. That
+escalation, rather than a schedule, is what tells you where you are.
+
+**Loop 1 (innermost): inside Phase B, change source and try again.**
+*Fires at task 12, re-enters at task 9.*
 Fires when: what you've fanned out so far doesn't cover the ground. Costs: one
 more silent fan-out, from the next source down the list. Nothing about the gap
 description changes: you're just drawing from a different well. Here: sound
@@ -726,7 +750,8 @@ coverage was still two of six, so the room moved to source 2 (how other
 birding apps and field-guide publishers had solved this) before anyone was
 allowed to invent anything.
 
-**Loop 2: back to Phase A: redraw the gap (Tasks 13–14).**
+**Loop 2 (inside L3): back to Phase A, redraw the gap.**
+*Fires at task 13, re-enters at task 4.*
 Fires when: one of the three signs in Task 13 goes off: something's aimed at
 the wrong people, real answers are being rejected unread, or something
 obviously belongs and there's nowhere to put it. Costs: rewriting the ground
@@ -742,7 +767,8 @@ that narrower moment, and a proposal parked back in Task 10, "ask the
 community," got un-rejected, because it had only failed the old, wider
 boundary.
 
-**Loop 3: back to Task 1: the ask itself was wrong (Task 18, and beyond).**
+**Loop 3 (outermost): back to Task 1, the ask itself was wrong.**
+*Fires after task 18, re-enters at task 1.*
 Fires when: the world moves, not the room. A commitment holds up fine against
 everything you tested it against, and then the ground it was standing on
 shifts anyway. Here, from Task 18: a bird's range moves, and "likely here,
@@ -753,11 +779,19 @@ it: this loop doesn't announce itself as a bug. It shows up as a support
 ticket, eighteen months later, from someone standing in a marsh with a wrong
 answer on their screen.
 
-**The rule that makes this safe rather than exhausting: a loop only ever
-reopens what it actually touched.** Loop 1 never rewrites the gap. Loop 2
+**The rule that keeps the nesting finite rather than exhausting: a loop only
+ever reopens what it actually touched.** Loop 1 never rewrites the gap. Loop 2
 rewrites the gap but keeps every proposal that already passed, Task 14 says
 so directly: *keep what already passed.* Nobody re-does Phase D because Phase
-B found one more source.
+B found one more source. Without that rule, every L2 would trigger an unbounded
+cascade downward, and you would never finish.
+
+**What actually recurses is the judgement, not just the walk.** A redrawn gap
+is a new gap, so every proposal already on the table has to be re-judged
+against it, by the same three outcomes, using the same test. That is why an
+outer loop firing does not simply resume the inner one where it stopped: it
+restarts it, against a boundary that has moved. The work is not wasted, because
+the passes survive. But the count does not.
 
 **And one more thing worth knowing before you're in it:** if a fix changes an
 answer somewhere in the middle without changing what actually ships, it isn't

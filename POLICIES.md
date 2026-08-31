@@ -8980,3 +8980,31 @@ capitalisation-marks-a-name as a convention. This repo's whole
 proper-name layer, and everything built on it, assumes that convention;
 it is now honestly absent rather than silently wrong for a measured,
 named set of the world's languages.
+
+**Amended 2026-08-31 — the three blind spots the UDHR census found,
+closed.** User direction, verbatim: *"fix the issues."* Pointer only,
+same reasoning as both entries above: this repo consumes `surfaces.js`
+and `hypergraph.js::makeRelationReader` through the same native import
+path P69's ratchet crossed `app.js` onto, so a fix to either lands here
+by the same route, whether or not this repo's own code is touched.
+
+eoreader7 `native/READING-SPEC.md` S37/S38 are the law for the two
+mechanism fixes; live_priors' POLICIES.md LP9 is the corpus-side wiring
+and the full 516-file re-sweep. The one-line versions: (1)
+`capitalisationIsSignificant`'s normal-approximation significance test —
+found under-powered on a Czech specimen, but the real defect (an
+exhaustive sweep, not that one specimen) was a systematic bias at small
+sample sizes, 24 false positives out of 1,711 checked pairs, all in the
+same direction — replaced with an exact one-sided binomial tail; (2) a
+highly-inflected language's own name declension (Russian's "Кутузов"/
+"Кутузова"/"Кутузову", "Анна"/"Анне"/"Анны") fragmenting one referent
+into several strangers, closed by `declension.js`'s new pairwise
+case-fold organ, verified at 38 correct merges and zero false ones
+against real fetched Russian War and Peace; (3) live_priors' own
+POS-vocabulary gate, described in that repo's `loadOrgans` as measured
+and working while its actual import path pointed at an empty submodule —
+never loaded, for English or any other language, until this pass. None
+of the three required a code change in this repo; P12's grounding
+ladder and the relation tier it stands on inherit all three the moment
+either sibling repo's fix lands, the same way P69's ratchet was designed
+to work.

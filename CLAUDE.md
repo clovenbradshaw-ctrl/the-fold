@@ -5806,3 +5806,58 @@ there. Neither test can verify the claim is TRUE — only that it was made.
 The measurement underneath it is still real work, done the way
 `grain-refinement.mjs` and `falsification-probe.mjs` already did it, not a
 label applied for free.
+
+## Metacognition: watching the gap between S1 and S2 (added 2026-08-31) — pointer
+
+POLICIES.md **P72** is the law; this is the short map. The ask: watch the
+surprise between what S1 (`runFastPass`) and S2 (`holonicTurn`) generate,
+and feed it into the surf and the fold as something learnable, repeatable,
+revisable — pursued "as Friston but visited by the Ramakrishna."
+
+**The one-line version.** `metacognition.js` is the watcher P34's own
+two-pass turn never had: `assessAgreement` classifies each of S1's
+checkable atoms against S2's material into CONFIRMED / CORRECTED /
+EXTENDED / UNRESOLVED — CORRECTED only ever fires on a real
+`contradicted` relation verdict, never on a bare containment miss, which
+is this repo's own "may never manufacture conviction from absence" rule
+applied a second time — and `makeMetacognition`'s ledger (the native
+`kernel/task-log.js` bundle injected, `hyperlexicon.js`'s own append-only
+shape) accumulates the classification per caller-declared cell into a
+`standingOf` reading: `unproven` / `established` / `contested`, never
+phrased finer than `WITNESS_FLOOR` (reused from `asserted.js`) supports.
+
+**Friston's contribution is precision-weighting an S1/S2 gap this repo
+already produces and never watched;** the dark-room failure that produces
+by itself is closed structurally — `observe` is a no-op on an all-zero
+delta, reusing `hyperlexicon.js::hear`'s own rule, so silence can never
+move a standing. **Ramakrishna's contribution is refusing to collapse
+UNRESOLVED into CORRECTED** — a claim S2 can neither confirm nor refute is
+its own outcome, never smoothed into either bucket, the same discipline
+this file's own grounding-ladder section already states in the opposite
+direction. `concede` (mirroring `grid.js::concedeEvaluation` exactly) is
+how a standing is explicitly revised, never left to drift — bhavamukha's
+own shape, read onto an append-only ledger.
+
+**Measured, not asserted.** `metacognition.test.mjs`, 25/25, both guards
+pinned as named regressions; full suite 1085/1085, the same 125
+pre-existing environment failures by name, zero regressions.
+`eval/metacognition-eval.mjs` clears two of POLICIES.md P71's three legs
+live: cross-domain replay (the SAME code, unmodified, reads an
+error-prone cell `contested` and a reliable one `established` on both
+real, byte-verbatim Wikipedia text — reused from `experiments/
+mechanical-first-hamlin-johnson.mjs` — and a declared-invented,
+zero-shared-vocabulary lab-instrument chronicle) and demonstrated
+necessity (on eight atoms from one real error and three real gaps, the
+shipped classifier reports 2 corrected / 6 unresolved; the naive
+Friston-alone collapse this policy's own header names reports all 8 as
+corrections).
+
+**Not wired into a live turn, and named rather than implied.**
+`metacognition-integration-note.md` names the exact call site
+(`twoPassTurn`'s `needsSystem2` gate, `holonicTurn`'s already-threaded
+`gridLog`/`hyperlexiconLog` return) and the real judgment calls left open
+— which axis a "cell" should be, whether S2's passages need threading
+onto the return for `assessAgreement` to read them directly, whether the
+pure `surfWeight`/`forcesFoldRefresh` signals actually move an outcome
+once tried. `app.js` is untouched, the same boundary P39/P53/P56/P60/P63
+have each independently held.

@@ -158,11 +158,14 @@ that list. If you only take one idea from this document, take that one.
 Eighteen tasks in four phases. Each says what to do, how you know it's finished,
 and the trap that usually swallows it.
 
-Phase A is the one people skip, and it's the one that does the work. Two of the
-phases also loop back on themselves: Phase B can send you back to fan out from
-a new source (Task 12), and Phase C can send you all the way back to redraw
-Phase A's gap (Tasks 13–14). That's not a sign something went wrong; §10 walks
-through why it happens and what each loop actually costs.
+Phase A is the one people skip, and it's the one that does the work.
+
+**The phases are not a straight line, and the numbering hides that.** Three
+points send you backwards, and each sits inside the next: Task 12 sends you
+back to Task 9 (fan out from a new source), Task 13 can send you back to Task 4
+(redraw the gap), and Task 18 can send you back to Task 1 (the ask itself was
+wrong). Going backwards is not a sign something went wrong. §10 draws the three
+loops the way they actually nest, and says what each one costs.
 
 ### Phase A: describe the gap (Tasks 1–7)
 
@@ -194,6 +197,11 @@ through why it happens and what each loop actually costs.
 > What has to be covered, and in what countable pieces? Here: *the kinds of
 > evidence a birdwatcher actually has*, and the units are **evidence kinds**, of
 > which there are six.
+> **Two words that are not the same word.** The **gap** is the whole description
+> you are building across Tasks 1–7. The **ground** is one part of it: the field
+> this task draws, the thing that has to be covered, cut into countable pieces.
+> When §10 says a loop rewrites the ground, it means this task's answer changed,
+> which is what makes the rest of the description move.
 > **Done when:** you can write the pieces out as a list: an actual list, with
 > lines on it. If you can't, try a different angle before you decide the units are
 > wrong. See below.
@@ -237,10 +245,14 @@ isn't lost: it's a written list, so coming back to it later is its own short
 pass through Phase A, not starting over.
 
 > **Task 5: Say how pieces fit together.**
-> Do two answers stack up, or does one rule out the other? Here they **stack**:
-> knowing what it sounded like *and* where you were narrows things further than
-> either alone.
-> **Done when:** you can say "stacks", "excludes", or "splits it up" and give one
+> Three possible answers. **Stacks:** two pieces both apply and together they
+> narrow things further than either alone. Here, knowing what it sounded like
+> *and* where you were. **Excludes:** covering one rules the other out, so you
+> are choosing, not accumulating. **Splits it up:** covering one piece reveals it
+> was really two, and the units you wrote in Task 4 were too coarse. That is
+> exactly what happens to *what they saw* in §8, when a bird at 400 metres won't
+> sit beside a bird on a feeder.
+> **Done when:** you can say "stacks", "excludes", or "splits it up", and give one
 > example.
 > **Trap:** skipping this because it's obvious. It's the thing that decides
 > whether two shipped features quietly contradict each other on the same screen.
@@ -578,8 +590,8 @@ them apart is the entire value:
 | **you genuinely can't** | there's no way to do this at all | Here: nothing in the product can take *what the bird was doing* as input: no field, no capture, no vocabulary. **This is the feature idea**, and you got to it by working rather than brainstorming. |
 | **you asked the wrong question** | the gap is in the question | "We can't do sound" was really "we can't do sound *offline*." Suspect your own question before you suspect the product. |
 
-**How to earn the middle row:** say in advance what would be impossible if the gap
-were real: *"if we truly can't do this, then X should be impossible; let's go
+**How to earn the second row** (*you genuinely can't*)**:** say in advance what
+would be impossible if the gap were real: *"if we truly can't do this, then X should be impossible; let's go
 look"*, and then go look. Without that, "we can't do this" is usually the first
 row wearing a disguise.
 
@@ -592,7 +604,10 @@ Task 7 is for: it's the only part of this that reaches outside the room.
 
 ## 8. The bird-ID example, start to finish
 
-The tasks, actually run.
+The tasks, actually run, including the two loops that fire while they're
+running. Watch for Task 12 (the innermost loop, same gap, new source) and
+Tasks 13–14 (the middle loop, the gap itself gets redrawn). Neither is a
+detour. They're most of what the session produces.
 
 **Tasks 1–7.** The ask, written down: Priya's photo ID and Marcus's sound ID,
 both pushed hard, neither one backed yet by a gap description. The moment: a
@@ -610,9 +625,8 @@ things.
 
 **Task 8.** "The ID engine" named and parked, in writing.
 
-**Task 9.** Silent fan-out from what people already told you: photo ID, sound
-ID, a step-by-step questionnaire, a "likely here, now" shortlist, a
-side-by-side comparison of two similar species, ask the community. Nothing
+**Task 9.** Silent fan-out from **source 1, what people already told you**:
+photo ID, sound ID, a step-by-step questionnaire, ask the community. Nothing
 discussed: Priya and Marcus each write proposals alongside everyone else,
 including ones that aren't their own.
 
@@ -620,20 +634,29 @@ including ones that aren't their own.
 **passes, with a catch nobody had checked for**: Marcus's model is trained on
 birdsong, and roughly a third of the real recordings Fieldmark users upload
 are calls and chip-notes: shorter, less distinctive, and the model is far
-less confident on them. "Likely here, now" **passes** (where and when, using
-data already on the device). Ask the community **fails**: it doesn't help the
-person standing there. The questionnaire is **can't tell**. The side-by-side
-comparison **fails on the boundary alone**: it needs a shortlist to compare
-*from*, and nothing produces one yet.
+less confident on them. Ask the community **fails**: it doesn't help the person
+standing there. The questionnaire is **can't tell**.
 
-**Task 11.** Four of six, up from the two the original argument would have
-shipped. Uncovered: what the bird was doing, and how long they had. Every
-birdwatcher knows the hovering-then-diving bird and the two-second flyover, and
-nothing on the board touches either.
+**Task 11.** Two of six. Uncovered: where they were, what time of year, what
+the bird was doing, how long they had.
 
-**Task 15.** Place "likely here, now" (an afternoon; changes the number) → find
-someone who helps with behaviour (real research, now sized) → revisit the
-questionnaire (last).
+**Task 12, and this is the innermost loop firing.** Source 1 is spent:
+everything people have already told Fieldmark has been read, and the count did
+not move past the two the original argument was already about. That gets said
+out loud and written down, and the room moves to **source 2, what someone else
+already knows**: how other birding apps and field-guide publishers handle this.
+The gap description is not touched. This is L1, and it sends the room back to
+Task 9 with the same gap and a different well.
+
+**Task 9, 10 and 11 again, on source 2.** Two more proposals: a "likely here,
+now" shortlist, and a side-by-side comparison of two similar species. "Likely
+here, now" **passes** (where and when, using data already on the device). The
+side-by-side comparison **fails on the boundary alone**: it needs a shortlist
+to compare *from*, and nothing produces one yet. Coverage: **four of six**, up
+from the two the original argument would have shipped. Still uncovered: what
+the bird was doing, and how long they had. Every birdwatcher knows the
+hovering-then-diving bird and the two-second flyover, and nothing on the board
+touches either.
 
 **Task 13, and this is the good part.** Someone writes in about the sighting
 they most wanted help with: a bird through a telescope at 400 metres in flat
@@ -645,8 +668,18 @@ length on a feeder and a silhouette at 400 metres are not the same evidence,
 and photo ID handles exactly one of them. **The units were too coarse.**
 
 **Task 14.** Redraw: split "what they saw" into *seen well* and *seen poorly*.
-Coverage honestly drops to four of seven. The side-by-side comparison comes
-back onto the board, because the boundary that rejected it just changed.
+Nothing that passed stops passing, so the count of covered kinds stays at four;
+the ground now has seven pieces instead of six, so **coverage honestly drops
+from four of six to four of seven.** Nobody built anything worse. The
+description got more accurate, and the number followed it down. The side-by-side
+comparison comes back onto the board, because the boundary that rejected it just
+changed.
+
+**Task 15**, written last, because the redraw changed what's worth asking.
+Place "likely here, now" (an afternoon; changes the number) → find someone who
+helps with behaviour (real research, now sized) → find out whether *seen poorly*
+is one thing or several, which nobody would have thought to ask an hour ago →
+revisit the questionnaire (last).
 
 **Tasks 16–18.** Sound ID is a **candidate**, and so is photo ID, but "bird
 ID" as a whole is **not a commitment yet**, and gate (c) is doing the
@@ -669,6 +702,12 @@ user stood*, and *one conflict that would otherwise have shipped and become a
 bug report.* None of it was in the one-line ask, and none of it required Priya
 or Marcus to be smarter than they already were: it required someone to write
 down what they already knew before either of them got to defend it.
+
+**Two of the three loops fired inside a single session.** L1 at Task 12, when
+source 1 ran out at two of six. L2 at Task 13, when the 400-metre bird wouldn't
+fit and the ground had to be recut. The third one can't fire here, because L3
+needs the world to move, and that takes months: the range shift written down at
+Task 18 is what it will look like when it does.
 
 ---
 
@@ -873,8 +912,8 @@ the tasks.
 | the fake subject | an **apparatus** |
 | redraw the gap | **re-zero**: concede, or revise and supersede |
 
-The nine questions aren't a list someone assembled from experience. They're the
-nine operators of a closed algebra of acts, across three domains (what exists, how
+The nine formal names in the right-hand column above aren't a list someone
+assembled from experience. They're the nine operators of a closed algebra of acts, across three domains (what exists, how
 things are structured, how they're judged) and three grains (the background, a
 single difference against it, a repeating pattern). That's why there are exactly
 nine, and why they group the way they do, but the tasks work whether or not you

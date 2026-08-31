@@ -5852,12 +5852,21 @@ shipped classifier reports 2 corrected / 6 unresolved; the naive
 Friston-alone collapse this policy's own header names reports all 8 as
 corrections).
 
-**Not wired into a live turn, and named rather than implied.**
-`metacognition-integration-note.md` names the exact call site
-(`twoPassTurn`'s `needsSystem2` gate, `holonicTurn`'s already-threaded
-`gridLog`/`hyperlexiconLog` return) and the real judgment calls left open
-— which axis a "cell" should be, whether S2's passages need threading
-onto the return for `assessAgreement` to read them directly, whether the
-pure `surfWeight`/`forcesFoldRefresh` signals actually move an outcome
-once tried. `app.js` is untouched, the same boundary P39/P53/P56/P60/P63
-have each independently held.
+**Amended same day — wired in, by direct instruction.** Reading
+`holonicTurn`'s own turn-ending sequence closely found both of the
+integration note's harder open questions already answered on the
+existing return shape (`result.sections[].passages` and
+`.relations.claims` were already being read a few lines above, for
+`state.lastMaterialChars`/`relationClaims`) — so `holonicTurn` now calls
+`assessAgreement`/`observe` directly, gated on `opts.priorPass`, onto one
+disclosed starting cell (`"s1-draft"`), reusing the exact `nativeTaskLog`
+instance `buildLog`/`store`/`grid` already share. `node --check app.js`
+passes, the full suite's 125 pre-existing failures are unchanged by name.
+A real browser load could not be verified — this checkout's
+`/engine/emergence/tiers.js` 404s regardless of this change (P69's own
+disclosed holdout), breaking the WHOLE module graph's link step, with no
+way here to isolate the new import chain from that pre-existing gap; every
+new line was instead verified against already-live, adjacent code in the
+same function. Two open decisions remain: a finer cell taxonomy, and
+whether `surfWeight`/`forcesFoldRefresh` are worth wiring —
+`metacognition-integration-note.md` carries the full, corrected account.

@@ -8981,3 +8981,47 @@ to `app.js`, which CLAUDE.md's Explore section already names as the
 fold-architecture session's own contract, the same boundary P39/P53/P56/
 P60/P63 have each independently held before landing their own new organs
 unwired.
+
+**Amended same day — wired in, by direct user instruction ("wire it in if
+you believe it works").** Reading `holonicTurn`'s own turn-ending sequence
+in `app.js` closely (rather than trusting this entry's own first-draft
+guess above) found that both of the integration note's harder open
+questions were already answered by the existing return shape:
+`result.sections[].passages` and `result.sections[].relations.claims` are
+BOTH already computed by the point `crownTestimony` fires — the same
+fields `state.lastMaterialChars`/`relationClaims` were already reading a
+few lines above — so nothing needed threading through `holon.js` at all.
+`holonicTurn` now calls `assessAgreement`/`observe` directly, gated on
+`opts.priorPass` (the identical "a caller with no S1 pass simply never
+calls it" convention `priorPassFor` already established), onto one
+disclosed starting cell, `"s1-draft"` — a global running estimate, never
+claimed as a finer taxonomy this pass did not measure a basis for.
+`metaLedger = makeMetacognition(nativeTaskLog)` reuses the EXACT same
+native task-log instance `buildLog`/`store`/`grid` already share, no
+second import; `state.metaLedger` holds it, app-wide and unpersisted, the
+identical posture `gridLog`/`hyperlexiconLog` already state.
+
+**What was verified, and the one thing that honestly could not be.**
+`node --check app.js` passes; the full suite still reports the identical
+125 pre-existing failures by name, zero regressions. `serve.mjs`
+(`THE_FOLD_NO_OPEN=1`) served `/app.js` and `/metacognition.js` both 200,
+confirming the new import resolves on disk. A real browser loading the
+full page could NOT be verified: this checkout's `/engine/
+emergence/tiers.js` (the legacy statistics subsystem `reflexMeter`/
+`apertureMeter` still depend on, P69's own disclosed holdout) 404s —
+confirmed unrelated to this change and pre-existing either way — which
+breaks the WHOLE module graph's link step in a real browser regardless of
+anything this pass added, and there is no way in this environment to
+isolate the new import chain from that pre-existing gap. Every new line
+was instead verified by direct inspection against already-live, adjacent
+code in the identical function (not assumed) and by the fact that
+`assessAgreement`/`makeMetacognition(nativeTaskLog).observe` are the SAME
+calls `metacognition.test.mjs` already exercises against the real native
+module. Two of the note's four open decisions are now resolved
+(where S2's material comes from; that checking-mode-off degrades
+honestly rather than manufacturing a wrong finding); two remain open
+(a finer cell taxonomy; whether `surfWeight`/`forcesFoldRefresh` are
+worth wiring — `forcesFoldRefresh` turned out to need `refreshSummary`
+threaded from a different point in the turn-ending sequence than this
+pass traced closely enough to risk). `metacognition-integration-note.md`
+carries the full, corrected account.

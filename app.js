@@ -83,7 +83,7 @@ import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
 import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT } from "./holon.js";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
@@ -530,6 +530,8 @@ const state = {
   model: null,
   /** The picker rungs Ollama actually has, fastest first — what routing may name. */
   offeredModels: [],
+  /** Every model name Ollama actually reports (not just MODEL_PICKER's four rungs) — what resolveNamedModel checks S1_MODEL/S2_MODEL against. */
+  availableModels: new Set(),
   ready: false,
   busy: false,
   queue: [],
@@ -864,6 +866,10 @@ async function fillModels() {
     const res = await fetch(`${OLLAMA}/api/tags`);
     const { models } = await res.json();
     const byName = new Map(models.map((m) => [m.name, m]));
+    // The full raw set, unfiltered — S1_MODEL/S2_MODEL are specialists,
+    // never picker rungs, so they would never survive the MODEL_PICKER
+    // filter below.
+    state.availableModels = new Set(byName.keys());
     const offered = MODEL_PICKER.map((name) => byName.get(name)).filter(Boolean);
     state.offeredModels = offered.map((m) => m.name);
     for (const m of offered) {
@@ -3338,12 +3344,16 @@ function needsSystem2(question, s1Text) {
   return dodgedASubstantiveQuestion(question);
 }
 
-// `model` is the SAME rung for both passes (user direction, 2026-08-19:
-// "let's use the same model for each, what's different is behind the
-// scenes, the surf and fold and stuff") — isolates the ONE variable this
-// experience is actually testing (does the apparatus — retrieval,
-// checking, correction — earn its cost) from a confound (a bigger model
-// would also improve the answer on its own, with or without any of that).
+// `model` was originally the SAME rung for both passes (user direction,
+// 2026-08-19: "let's use the same model for each, what's different is
+// behind the scenes, the surf and fold and stuff") — isolating the ONE
+// variable that experience was actually testing (does the apparatus —
+// retrieval, checking, correction — earn its cost) from a confound (a
+// bigger model would also improve the answer on its own, with or without
+// any of that). Amended 2026-09-01, user direction: that question is
+// settled by now; S1 and S2 each spend the model-routing.js constant
+// suited to their own job (S1_MODEL/S2_MODEL — see that file's header
+// for why), not the picker's single choice.
 /**
  * The conversation so far, distilled to one line — topic, flow, entities.
  *
@@ -3400,17 +3410,17 @@ async function runFastPass(question, model) {
 
 // The orchestrator: S1 renders first and fast; S2 (the FULL existing
 // holonicTurn pipeline — retrieval, verification, correction, all of it,
-// unchanged) runs only when the gate fires, on the SAME model as S1, and
-// is handed S1's own words so it can confirm, extend, or correct them
-// rather than starting cold.
+// unchanged) runs only when the gate fires, and is handed S1's own words
+// so it can confirm, extend, or correct them rather than starting cold.
 async function twoPassTurn(question) {
   addMessage("user", question);
   logAct("asked", { text: question });
-  // The picker's own choice, held constant across both passes — not
-  // routeModel's ordinary FLAT/DEEP split, which would silently downgrade
-  // S1 to the fastest rung regardless of what's selected and make the
-  // picker meaningless for this experience specifically.
-  const model = state.model;
+  // Fixed, task-fit models (model-routing.js), each falling back to the
+  // fastest offered picker rung if not actually pulled — never routeModel's
+  // ordinary FLAT/DEEP split, which routes on TURN KIND (plain vs. deep
+  // work) and has no notion of "which pass" at all.
+  const s1Model = resolveNamedModel(S1_MODEL, { available: state.availableModels, offered: state.offeredModels });
+  const s2Model = resolveNamedModel(S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
 
   // SEARCH BEFORE ANSWERING (user direction 2026-08-26: "let's have it do
   // the searching before it answers, and only respond to truly trivial
@@ -3428,12 +3438,12 @@ async function twoPassTurn(question) {
   if (!triviallyChatty(question)) {
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,
-      forceModel: model,
+      forceModel: s2Model,
       label: `model`,
     });
   }
 
-  const { node, text: s1Text, sent } = await runFastPass(question, model);
+  const { node, text: s1Text, sent } = await runFastPass(question, s1Model);
   // Even on the trivial path, S1 is never trusted to be unfalsifiable: if
   // it volunteers something checkable while answering "hi", the grounded
   // pass still runs. The gate only ever adds a pass here.
@@ -3441,7 +3451,7 @@ async function twoPassTurn(question) {
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,
       priorPass: s1Text,
-      forceModel: model,
+      forceModel: s2Model,
       label: `model`,
     });
   }

@@ -1059,6 +1059,12 @@ export async function runPart({
   // touches nothing downstream — byte-identical to before this existed,
   // the same discipline `grid`/`gridLog` already hold above.
   let beliefNotes = hyperlexiconLog;
+  // Every refusal the door types comes back out (P57: `turnedAway` is not
+  // optional) — accumulated here and returned beside the log, never read
+  // and discarded. With no classifyConnector this stays empty for the
+  // connector reason but still carries the door's own structural refusals
+  // (incomplete edges, unaddressed spans), exactly as admit types them.
+  const hyperlexiconTurnedAway = [];
   if (hyperlexicon && relations) {
     for (const p of passages) {
       const text = String(p?.text ?? "");
@@ -1068,14 +1074,21 @@ export async function runPart({
         .filter((c) => c.verdict === "bound")
         .map((c) => ({ subject: c.subject, verb: c.verb, object: c.object, spans: c.spans ?? [] }));
       if (!edges.length) continue;
-      beliefNotes = hyperlexicon.admit(
+      const admitted = hyperlexicon.admit(
         beliefNotes ?? hyperlexicon.createHyperlexicon(),
         edges,
         // minShare stays the door's own declared default — no second number
         // is introduced here; classifyConnector null = the gate does not
         // run, admit's own disclosed behaviour.
         { witness: p.ref ?? null, classifyConnector },
-      ).log;
+      );
+      beliefNotes = admitted.log;
+      // Refusals are returned, never read-and-discarded (P57: turnedAway
+      // is not optional) — accumulated per part and threaded out through
+      // runHolonicTask as hyperlexiconTurnedAway (P74).
+      for (const t of admitted.turnedAway) {
+        hyperlexiconTurnedAway.push({ witness: p.ref ?? null, reason: t.reason, detail: t.detail, verb: t.edge?.verb ?? null });
+      }
     }
   }
 
@@ -2265,6 +2278,9 @@ export async function runPart({
     // The updated hyperlexicon, same threading discipline: unchanged when
     // no organ was injected or nothing bound this part.
     hyperlexiconLog: beliefNotes,
+    // The door's typed refusals for this part (P57: not optional at any
+    // boundary). Empty when nothing was refused or no ledger was injected.
+    hyperlexiconTurnedAway,
   };
 }
 
@@ -2388,6 +2404,10 @@ export async function runHolonicTask({
   // divergent forks of what should be one shared record.
   let sharedGridLog = gridLog;
   let sharedHyperlexiconLog = hyperlexiconLog;
+  // The door's typed refusals, accumulated across parts the same way
+  // seenRefs accumulates — returned whole so no boundary reads them and
+  // discards them (P57).
+  const sharedHyperlexiconTurnedAway = [];
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -2433,6 +2453,7 @@ export async function runHolonicTask({
     seenRefs.push(...result.refs);
     sharedGridLog = result.gridLog;
     sharedHyperlexiconLog = result.hyperlexiconLog;
+    sharedHyperlexiconTurnedAway.push(...(result.hyperlexiconTurnedAway ?? []));
     sectionsById.set(t.part_id, result);
     return {
       refs: result.refs,
@@ -2479,5 +2500,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

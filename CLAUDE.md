@@ -5993,3 +5993,45 @@ built here. Disclosed cost: the prior rides every `relationsFor`
 consumer — bound 36 → 15, `unheard` 2 → 31 on the probe — the
 closes-a-false-binding class (P41/P43), shipped on. Suite 1587/1538/44 →
 1593/1544/44, same 44 names, zero regressions.
+
+## The admission door closed by its ground (added 2026-09-01) — pointer
+
+POLICIES.md **P74** is the law (renumbered from P72 on merge — a
+concurrent PR landed its own P72/P73 first; the number moved, nothing
+about the policy itself did); `eval/results/admission-gate-RESULTS.md`
+the measurement; live_priors' POLICIES.md **LP10/LP11** the Ground-repo
+side. The one-line version: the hypergraph door's 18-of-29-junk admissions
+and its unrunnable quality gate were **a 404 masquerading as three missing
+features** — the POS prior's mount pointed at a gitignored dir inside an
+uninitialized submodule, so `hypergraph.js`'s own already-wired
+vocabulary-level POS gate (P68) had never once run. Shipping the ground
+(the `/priors-data/` mounts now fall back to live_priors' committed
+POSPrior@1, one declared eng→en alias at the seam) takes junk 18/32 → 0/19
+with the door still ungated; the door's lens (classifyConnector, now
+threaded app.js → runHolonicTask → runPart → admit, refusals returned as
+`hyperlexiconTurnedAway`, never read-and-discarded) is defense-in-depth —
+alone it catches 18/32 with zero real verbs lost, but `to`/PART slips its
+declared Thrax scope.
+
+**The corroboration half was refuted before it was built:** folding note
+identity by referent face + lemma yields 0 joins on the real pages, and
+the flagship pair fails by name — `sameLemma("withdraws","retreated") =
+false`. Withdraw≠retreat is synonymy: the ledgerBlock's emptiness is the
+semantic tier's problem (the witness machinery, P32), not identity
+folding's — measured under live_priors LP11's own law, earned the same
+day: a loosened key is judged on its marginal admits (there: 0-56%
+accurate, 0/8 in English), never aggregate coverage.
+
+Named absences: turnedAway reaches no UI yet; explore-server.mjs's mount
+edit is syntax-checked only (that server cannot boot here — P69's
+disclosed submodule error); subject-span hygiene (the handoff's lever 3)
+is untouched upstream extractor work.
+
+**Amended 2026-09-01 — the two committed priors reconciled.** P73 (this
+repo, train-only, 16,654 forms) and P74's companion (live_priors,
+train+dev+test with sha256 provenance, 19,341 forms) had shipped two
+DIFFERENT builds of the same POSPrior@1, and the serving chain's
+availability tier preferred the smaller. `priors-data/pos-prior-eng.json`
+is now live_priors' artifact byte-for-byte (drift = one hash comparison),
+every consumer reads `forms` alone, and the probe's numbers are identical
+after the swap. Full account: POLICIES.md P74's 2026-09-01 amendment.

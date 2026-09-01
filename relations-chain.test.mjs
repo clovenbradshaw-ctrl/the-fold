@@ -14,17 +14,17 @@ import assert from "node:assert/strict";
 import { chainRelations } from "./relations-chain.js";
 
 const organs = async () => {
-  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, diaNorm } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
   const { tokenize, buildFrequencyTable, functionWordSet } = await import(
-    "../eoreader6.1/packages/engine/perceiver/text/material.js"
+    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js"
   );
-  const { projectReferents } = await import("../eoreader6.1/packages/engine/referents/index.js");
+  const { projectReferents } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/referents/index.js");
   return { splitSentences, extractSurfaces, discoverReferents, diaNorm, discoverRelationVocab, extractRelations, tokenize, buildFrequencyTable, functionWordSet, projectReferents };
 };
 

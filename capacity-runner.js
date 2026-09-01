@@ -362,10 +362,19 @@ function squarePolarity(runCapacity, groundText, groundName, claimText, primaryV
 const STOPWORDS = new Set(["a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or", "was", "is", "are", "were", "be", "been", "am"]);
 
 function contentTokens(text) {
+  // Unicode letters/numbers, not `[a-z0-9]` (P62, source.js::tokenize's own
+  // widening, applied here directly rather than by importing tokenize — see
+  // that function's own comment for why a lighter, separate split survives).
+  // This one matters more than most siblings: an empty content-token set on
+  // non-Latin text does not merely rank badly, it flips `trusted` to `true`
+  // by this function's own documented "nothing to confirm, so nothing to
+  // doubt" rule — a verification mechanism going BLIND reads as a claim
+  // PASSING, exactly the "checks go blind rather than wrong" failure class
+  // this repo's grounding ladder already names as worse than an ordinary miss.
   return new Set(
     String(text ?? "")
       .toLowerCase()
-      .split(/[^a-z0-9]+/)
+      .split(/[^\p{L}\p{N}]+/u)
       .filter((t) => t && !STOPWORDS.has(t)),
   );
 }
@@ -390,7 +399,7 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
   const backing = (edges ?? []).filter((e) => (e.refs ?? []).some((r) => refSet.has(r)));
   if (!backing.length) return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [], inconclusive: "no edge found at the claim's own bound address" };
   for (const e of backing) {
-    const edgeTokens = contentTokens(e.object);
+    const edgeTokens = contentTokens(e.end2);
     if ([...claimTokens].every((t) => edgeTokens.has(t))) {
       return { trusted: true, claimTokens: [...claimTokens], matchedTokens: [...edgeTokens] };
     }
@@ -398,7 +407,7 @@ function checkObjectSpecificity(edges, judgedRefs, claimObjectText) {
   return {
     trusted: false,
     claimTokens: [...claimTokens],
-    matchedTokens: [...new Set(backing.flatMap((e) => [...contentTokens(e.object)]))],
+    matchedTokens: [...new Set(backing.flatMap((e) => [...contentTokens(e.end2)]))],
   };
 }
 
@@ -488,7 +497,7 @@ function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, m
   // claim's own connector at all). Narrowed to the edge(s) whose OWN verb
   // is the claim's own verb — the same word judge() itself bound.
   const backing = (edges ?? []).filter(
-    (e) => (e.refs ?? []).some((r) => refSet.has(r)) && (e.verb ?? "").toLowerCase() === (judgedVerb ?? "").toLowerCase(),
+    (e) => (e.refs ?? []).some((r) => refSet.has(r)) && (e.label ?? "").toLowerCase() === (judgedVerb ?? "").toLowerCase(),
   );
   if (!backing.length) return { trusted: true, inconclusive: "no edge found at the claim's own bound address with a matching connector" };
   // Checked here, not before `backing` is known — an edge tagged at
@@ -512,7 +521,11 @@ function checkConnectorClass(edges, judgedRefs, judgedVerb, classifyConnector, m
       // built from a lens with no posPriorMeta/thraxMeta injected), which
       // JSON-drops cleanly rather than asserting a giver that was never
       // named.
-      return { trusted: false, surface: e.verb, thraxClass: classification.thraxClass, givers: classification.givers };
+      // grammar-lens.js's own classifyConnector reads edge.verb internally
+      // (its own disclosed, deliberately-unrenamed contract — unaffected
+      // either way, since both fields hold the same value); this disclosure
+      // reads the neutral field, since e is hypergraph.js's own edge.
+      return { trusted: false, surface: e.label, thraxClass: classification.thraxClass, givers: classification.givers };
     }
   }
   return { trusted: true };
@@ -626,7 +639,7 @@ export function landAct(grid, log, line, { sources = {}, runCapacity, classifyCo
         // `classifyConnector` organ was injected — every pre-existing
         // caller's behavior is unchanged.
         if (computedVerdict) {
-          connectorCheck = checkConnectorClass(result.edges, judged?.refs, judged?.verb, classifyConnector, minShare);
+          connectorCheck = checkConnectorClass(result.edges, judged?.refs, judged?.label, classifyConnector, minShare);
           if (!connectorCheck.trusted) computedVerdict = null;
         }
         // Squaring confirms POLARITY only — a "holds" that passed squaring
@@ -635,7 +648,7 @@ export function landAct(grid, log, line, { sources = {}, runCapacity, classifyCo
         // for `holds`: a `refused` verdict already means the material
         // explicitly disagrees, which is a different, already-decided case.
         if (computedVerdict === "holds") {
-          objectCheck = checkObjectSpecificity(result.edges, judged?.refs, judged?.object);
+          objectCheck = checkObjectSpecificity(result.edges, judged?.refs, judged?.end2);
           if (!objectCheck.trusted) computedVerdict = null;
         }
       }
@@ -755,7 +768,10 @@ export function perSourceReadings(grid, log, claimId) {
         revision: experiencer.revision ?? null,
         verdict: c.verdict ?? "undetermined",
         polarity: judged?.polarity ?? null,
-        edges: judged?.refs ? [{ subject: judged.subject, verb: judged.verb, object: judged.object, refs: judged.refs }] : [],
+        // Read off judged's neutral arrangement (P72); crown.js's own render
+        // functions still destructure subject/verb/object as THEIR field
+        // contract (crown.js:376), so the destination keys stay as they are.
+        edges: judged?.refs ? [{ subject: judged.end1, verb: judged.label, object: judged.end2, refs: judged.refs }] : [],
         grammar: r.connectorCheck ? [r.connectorCheck] : [],
         // null (not {passages:0,sources:0}) when undetermined — judge()
         // never runs corroboration() for an unbound/beyond-reach verdict,
@@ -932,7 +948,14 @@ export function landSelfAssertion(grid, log, { subject, verb, object, verdict, c
   const judged =
     verdict === "undetermined"
       ? null
-      : { subject, verb, object, refs: [], polarity: verdict === "holds" ? "+" : "-", corroboration: { passages: 0, sources: 0 } };
+      : {
+          subject, verb, object,
+          // The neutral arrangement (P76), stamped by this producer exactly
+          // as hypergraph.js's own claims carry it — perSourceReadings reads
+          // end1/label/end2 off `judged` since the arrangement migration,
+          // and this is the one judged-payload producer outside that reader.
+          end1: subject, label: verb, end2: object,
+          refs: [], polarity: verdict === "holds" ? "+" : "-", corroboration: { passages: 0, sources: 0 } };
   const attached = grid.attachResult(
     landedLog,
     defId,

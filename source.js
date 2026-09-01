@@ -38,11 +38,23 @@ const STOPWORDS = new Set(
  * accented name in them was flagged "not in the material"). The engine had
  * the same bug in the opposite state (CLAUDE.md); one shared fold is the fix
  * for the class, not the instance.
+ *
+ * Widened for the same reason a second time (2026-08-28): a vocalized Hebrew
+ * corpus (nikud — real material, fetched live from the Talmud) and an
+ * unvocalized question are the identical Bezúkhov/Bezukhov shape one script
+ * over — measured, `foldDiacritics("שָׁלוֹם") !== "שלום"` before this. Hebrew
+ * nikud (U+0591–U+05C7) and Arabic tashkil (U+064B–U+065F, plus U+0670's
+ * superscript alef) sit outside the Latin/Greek/Cyrillic combining-marks
+ * block this fold already stripped, so they survived untouched. Folding a
+ * vowel mark away can only WIDEN what matches — it never narrows a real
+ * distinction into a false one, the same "safe by construction" class as
+ * P41/P43's determiner/negation priors — so this is not gated behind an
+ * opt-in the way `verbForms`/`createLemmatizer` are.
  */
 export function foldDiacritics(s) {
   return String(s || "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f\u0591-\u05c7\u064b-\u065f\u0670]/g, "");
 }
 
 /**
@@ -103,7 +115,34 @@ export function foldTypography(s) {
 export function tokenize(text) {
   return foldDiacritics(text)
     .toLowerCase()
-    .split(/[^a-z0-9%.\-]+/)
+    // Unicode word/number classes, not `[a-z0-9]` — the same boundary
+    // `foldTypography` already splits on, two functions up in this file, and
+    // for the same reason (its own header: "a Cyrillic or CJK corpus must
+    // fold to its words and not to nothing"). This function had not been
+    // brought into line with that precedent: measured live, a real fetched
+    // page of Hebrew Talmud (`tokenize("שלום")`) returned `[]`, so `retrieve`
+    // — which scores by term overlap on `tokenize`'s own output, on BOTH the
+    // question and every chunk's `.terms` — was blind on it in both
+    // directions, not merely unranked. `%`/`.`/`-` stay listed: they are
+    // this function's own extra allowance (a percent sign, and dots/dashes
+    // kept INSIDE a token, below), never `foldTypography`'s job.
+    //
+    // Disclosed, not silently claimed: this fixes every WHITESPACE-DELIMITED
+    // script (Hebrew, Arabic, Cyrillic, Greek, Devanagari, …) — it does not
+    // give CJK real word segmentation, because there is no boundary
+    // character between adjacent ideographs for a split-on-boundaries
+    // tokenizer to find, regardless of which characters count as "word"
+    // characters. Checked, not assumed, and it is WORSE than "unsegmented":
+    // `tokenize("北京")` — Beijing, a real two-character word — is still
+    // `[]`, because the length floor below (`t.length > 2`) drops it the
+    // same way it drops a two-letter English word; only a LONGER run of
+    // several ideographs (`tokenize("北京大学")`, four characters, "Peking
+    // University") survives, as one oversized amalgam token, never a real
+    // word boundary. Both facts are pinned in fold.test.mjs rather than
+    // implied — real CJK reading needs a dictionary- or model-based word
+    // breaker AND a length floor that is not tuned to English, neither
+    // attempted here.
+    .split(/[^\p{L}\p{N}%.\-]+/u)
     // Dots and dashes are kept inside a token so "12.5" and "hit-and-run"
     // survive, which means the last word of a sentence arrives as "bolo." and
     // matches nothing. Trim them at the edges only.
@@ -136,14 +175,143 @@ function isNumeral(t) {
  * the book. The offset is carried forward, because a strip that forgot to
  * move it would silently shift every address in the reader (P5.2).
  */
+const GUTENBERG_START_RE = /\*\*\*\s*START OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i;
+
 export function stripContainer(text) {
   const s = String(text ?? "");
-  const start = s.match(/\*\*\*\s*START OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i);
+  const start = s.match(GUTENBERG_START_RE);
   const offset = start ? start.index + start[0].length : 0;
   let body = s.slice(offset);
   const end = body.match(/\*\*\*\s*END OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i);
   if (end) body = body.slice(0, end.index);
   return { text: body, offset };
+}
+
+/**
+ * What the container itself says it is — never a guess, never fetched.
+ * Gutenberg's own front matter states its Title/Author before the same
+ * START marker stripContainer already finds (one regex, not two: the
+ * boundary between "header" and "body" is the same question both
+ * functions ask). Provenance is the file's own bytes: `ref` addresses
+ * exactly the header span this was read from, and `giver` says plainly
+ * that this is the SOURCE's declaration, not this instrument's. Scoped to
+ * Gutenberg's own convention on purpose — a real, disclosed absence for
+ * every other container shape, not a guess dressed as one (identifyMaterial's
+ * own `guess: null` discipline, applied to bibliographic identity instead
+ * of structural kind).
+ *
+ * Built 2026-08-26, live-diagnosed cause: S1 named the wrong book and
+ * author for Pierre Bezukhov (Dostoevsky's The Brothers Karamazov —
+ * this corpus is Tolstoy's War and Peace), and a correction pass that
+ * still failed shipped uncorrected because nothing had ever told the
+ * model what book this actually is. The fix is not a better check after
+ * the fact; it is not making the model guess in the first place.
+ */
+/**
+ * Blank a flattened TABLE region, length-preserving, so a clause extractor
+ * never reads its cells as prose.
+ *
+ * WHAT WENT WRONG, and why this is not a Wikipedia parser. `extractRelations`
+ * reads a whitespace connector ACROSS a bare newline on purpose — real
+ * hard-wrapped prose (Gutenberg wraps at ~70-80 chars) puts subject and verb
+ * on different physical lines, and refusing to cross a newline would lose
+ * most of a book. That assumption is simply FALSE inside a table that has
+ * been flattened to one cell per line: there the newline is a cell boundary,
+ * not a wrap, so the extractor glues the end of one row to the start of the
+ * next and manufactures a triple neither row states. Measured on the real
+ * fetched Hannibal Hamlin article, whose infobox flattens to:
+ *
+ *     15th Vice President of the United States
+ *     In office
+ *     March 4, 1861   - March 4, 1865
+ *     President
+ *     Abraham Lincoln
+ *     Preceded by
+ *     John C. Breckinridge
+ *     Succeeded by
+ *     Andrew Johnson
+ *
+ * THE CLASS, NOT THE LABELS. Nothing here knows "Preceded by", "In office" or
+ * "Succeeded by", and adding them would rebuild `succession.js` — the module
+ * this repo condemned precisely because per-site formatting rules cannot
+ * generalise (CLAUDE.md, 2026-08-28). What IS general is the FORM: a run of
+ * consecutive lines that are short and carry no sentence terminator is a
+ * table's cells, whatever language or site produced it, because a sentence
+ * that ends without terminal punctuation and fits in a cell is not a
+ * sentence. Same discipline as `segments.js`'s heading detector one organ
+ * over — a heading is form, not content — and the same discipline
+ * `grounding.js::blankStructure` already holds for fenced code: the point is
+ * never to UNDERSTAND the region, only to keep a prose reader out of a place
+ * where prose is not what is written.
+ *
+ * DECLARED, NEVER DEFAULTED (P4/P9). `minRun` and `maxCell` are the caller's
+ * to state: how many rows make a table, and how long a line can be and still
+ * be a cell, are facts about the material a caller is reading, not constants
+ * this module gets to pick. There is no default.
+ *
+ * LENGTH-PRESERVING, and scoped by the caller. Every blanked character is
+ * replaced by a space, so the returned string indexes identically to the one
+ * handed in and any offset taken against either still names the same place —
+ * the same contract `blankStructure` holds. It is the CALLER's job to run
+ * this only on an extraction copy: the real bytes must keep reaching
+ * citations, retrieval, and the model.
+ *
+ * WHAT THIS DOES NOT CLAIM. It removes a table from the clause extractor's
+ * view; it does not read the table. The facts in that infobox are real and
+ * recoverable — by a table reader, which is a different organ (P59's shape
+ * recognisers are the live direction). Nothing here has been measured to
+ * improve any downstream grounding score, and this docstring is not the
+ * place such a claim would be allowed to appear without one.
+ */
+export function blankLabelRows(text, { minRun, maxCell } = {}) {
+  if (!Number.isInteger(minRun) || minRun < 2)
+    throw new TypeError("blankLabelRows: minRun is declared — how many consecutive cells make a table is the caller's to say, and two is the structural floor (one line is not a run)");
+  if (!Number.isInteger(maxCell) || maxCell < 1)
+    throw new TypeError("blankLabelRows: maxCell is declared — how long a line can be and still be a cell is a fact about the material, never a constant chosen here");
+
+  const src = String(text ?? "");
+  const lines = src.split("\n");
+  // A cell: non-empty, short, and not ending a sentence. Terminal punctuation
+  // is read as a CLASS (Unicode's own terminators plus their closing quotes),
+  // never an enumeration of the marks seen so far — P50's rule, which this
+  // repo has now walked into three times.
+  const isCell = (line) => {
+    const t = line.trim().replace(/[\p{Pf}\p{Pe}"'\u2019\u201d]+$/u, "");
+    return t.length > 0 && t.length <= maxCell && !/[.!?\u2026\u3002\uFF01\uFF1F]$/u.test(t);
+  };
+
+  const out = lines.slice();
+  let i = 0;
+  while (i < lines.length) {
+    if (!isCell(lines[i]) ) { i++; continue; }
+    // A run may be separated by blank lines — a flattened table often is.
+    let j = i, cells = 0, last = i;
+    while (j < lines.length && (lines[j].trim() === "" || isCell(lines[j]))) {
+      if (lines[j].trim() !== "") { cells++; last = j; }
+      j++;
+    }
+    if (cells >= minRun) {
+      for (let k = i; k <= last; k++) out[k] = " ".repeat(lines[k].length);
+    }
+    i = j > i ? j : i + 1;
+  }
+  return out.join("\n");
+}
+
+export function declaredIdentity(name, text) {
+  const s = String(text ?? "");
+  const start = s.match(GUTENBERG_START_RE);
+  if (!start) return null;
+  const header = s.slice(0, start.index);
+  const title = header.match(/^Title:\s*(.+)$/m)?.[1]?.trim() || null;
+  const author = header.match(/^Author:\s*(.+)$/m)?.[1]?.trim() || null;
+  if (!title && !author) return null;
+  return {
+    title,
+    author,
+    giver: "the source file's own declared header",
+    ref: `${name}#0-${start.index}`,
+  };
 }
 
 /**
@@ -313,7 +481,8 @@ export function identifyMaterial(name, text, { bytes } = {}) {
   };
   if (CODE_EXT[ext]) return { kind: `code:${ext}`, guess: `${CODE_EXT[ext]} source code`, certainty: "extension" };
   if (ext === "md" || ext === "markdown") return { kind: "markdown", guess: "a Markdown document", certainty: "extension" };
-  return { kind: "prose", guess: null, certainty: "default" };
+  const declared = declaredIdentity(name, s);
+  return declared ? { kind: "prose", guess: null, certainty: "default", declared } : { kind: "prose", guess: null, certainty: "default" };
 }
 
 function isParseableJson(s) {
@@ -658,14 +827,60 @@ export function retrieve(chunks, question, limit = 3, foldedRefs = []) {
  * closes is a model treating a fetched feed's 8 separate posts as one
  * essay because nothing anywhere said what the material actually was.
  */
+/**
+ * A source's own name, as a person would say it — never "the material".
+ *
+ * USER DIRECTION, 2026-08-27: 'i dont like where it says "material offers,
+ * material states" — just have it be like "Wikipedia, Retrieved..."'. The
+ * reason is measured, not stylistic: a generic scaffolding word is a term
+ * of art the model must first decide how to talk about, and tonight a
+ * reasoning model was caught doing exactly that out loud, spending real
+ * tokens working out that a phrase in its own prompt was not one it was
+ * allowed to echo. A real host and a real date are FACTS it can simply
+ * relay. Nothing here is invented: the host comes from the chunk's own
+ * source name (assigned at fetch, `web:<host>-<i>`) and the date from the
+ * fetch record's own `retrievedAt`, so an absent date prints nothing
+ * rather than a guessed one.
+ */
+function sourceFace(chunk) {
+  const name = String(chunk?.source ?? "");
+  const when = chunk?.identity?.retrievedAt ? String(chunk.identity.retrievedAt).slice(0, 10) : null;
+  let who;
+  if (name === "web:search-results") who = "Web search results";
+  else if (name.startsWith("web:")) who = name.slice(4).replace(/-\d+$/, "");
+  else who = name;
+  return when ? `${who}, retrieved ${when}` : who;
+}
+
 export function buildSourceBlock(chunks) {
   if (!chunks.length) return null;
-  const parts = [
-    "MATERIAL — passages retrieved for this turn. Answer from these when they cover the question; if they do not, say so rather than filling the gap.",
-  ];
+  // GROUPED BY SOURCE, each named once. Previously every passage sat under
+  // one generic "MATERIAL —" banner that also restated what to do with them
+  // ("answer from these when they cover the question") — a duty the execute
+  // system prompt already states, in the same call, in almost the same
+  // words. Saying it twice is not twice as clear; it is one more rule to
+  // comply with. Provenance here, duty there, each said once.
+  const parts = [];
+  const bySource = new Map();
   for (const c of chunks) {
-    const body = c.header ? `columns: ${c.header}\n${c.text}` : c.text;
-    parts.push(c.identity?.guess ? `(this looks like: ${c.identity.guess})\n${body}` : body);
+    const key = c.source ?? "";
+    if (!bySource.has(key)) bySource.set(key, []);
+    bySource.get(key).push(c);
+  }
+  for (const group of bySource.values()) {
+    const bodies = [];
+    for (const c of group) {
+      const body = c.header ? `columns: ${c.header}\n${c.text}` : c.text;
+      const lines = [];
+      const d = c.identity?.declared;
+      if (d) {
+        const fields = [d.title && `Title: ${d.title}`, d.author && `Author: ${d.author}`].filter(Boolean).join(", ");
+        lines.push(`(${d.giver} — ${fields} — ${d.ref})`);
+      }
+      if (c.identity?.guess) lines.push(`(this looks like: ${c.identity.guess})`);
+      bodies.push(lines.length ? `${lines.join("\n")}\n${body}` : body);
+    }
+    parts.push(`${sourceFace(group[0])}:\n${bodies.join("\n\n")}`);
   }
   return parts.join("\n\n");
 }

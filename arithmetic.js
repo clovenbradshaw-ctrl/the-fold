@@ -25,8 +25,10 @@
 /** English operator words this module will normalize, ordered longest-
  * phrase-first so "multiplied by" matches before a bare "by" ever could.
  * Order-reversing phrasing ("N subtracted from M" means M − N, not N − M)
- * is deliberately ABSENT: a wrong mechanical answer is worse than no
- * mechanical answer, so an ambiguous phrasing bails rather than guesses. */
+ * is deliberately ABSENT here — a same-shape one-token swap would read it
+ * backwards — and handled instead by its own two-number regexes below,
+ * each reconstructing the expression with the operands in the order the
+ * phrase actually means. */
 const WORD_OPS = [
   [/\bmultiplied\s+by\b/gi, "*"],
   [/\btimes\b/gi, "*"],
@@ -41,9 +43,26 @@ const PERCENT_OF_RE = /(-?\d[\d,]*(?:\.\d+)?)\s*(?:%|percent)\s+of\s+(-?\d[\d,]*
 const SQUARE_ROOT_RE = /square\s+root\s+of\s+(-?\d[\d,]*(?:\.\d+)?)/gi;
 const SQUARED_RE = /(-?\d[\d,]*(?:\.\d+)?)\s+squared\b/gi;
 const CUBED_RE = /(-?\d[\d,]*(?:\.\d+)?)\s+cubed\b/gi;
-/** Phrasing this module refuses rather than risk reading backwards. A
- * question carrying it never reaches evaluation. */
-const ORDER_REVERSING_RE = /\bsubtracted\s+from\b|\bless\s+than\b|\bfewer\s+than\b|\bdivided\s+into\b/i;
+/** "N subtracted from M" / "N less than M" / "N fewer than M" all read as
+ * M − N, and each has exactly one standard reading — unlike "divided
+ * into" below, nobody means anything else by "5 subtracted from 12".
+ * Checked, not assumed: a genuine yes/no comparison ("Is 3 less than
+ * 10?") is never at risk of being mis-read as this arithmetic reading,
+ * because "Is" sits outside WRAPPER_RE's stripped set — it survives
+ * normalization as a stray, non-numeric word and fails PURE_EXPRESSION_RE
+ * downstream regardless of what this reversal computes (pinned in
+ * arithmetic.test.mjs). */
+const reverseSubtract = (_, n, m) => `((${m})-(${n}))`;
+const SUBTRACTED_FROM_RE = /(-?\d[\d,]*(?:\.\d+)?)\s+subtracted\s+from\s+(-?\d[\d,]*(?:\.\d+)?)/gi;
+const LESS_THAN_RE = /(-?\d[\d,]*(?:\.\d+)?)\s+less\s+than\s+(-?\d[\d,]*(?:\.\d+)?)/gi;
+const FEWER_THAN_RE = /(-?\d[\d,]*(?:\.\d+)?)\s+fewer\s+than\s+(-?\d[\d,]*(?:\.\d+)?)/gi;
+/** "N divided into M" is left refused: real usage splits between the
+ * classic long-division idiom (M/N — "5 divided into 20" is 4, the way
+ * the phrase is taught) and a common colloquial one (N/M — "20 divided
+ * into 5 groups" said loosely for plain division), with no structural way
+ * to tell which one a bare question means. A wrong mechanical answer is
+ * worse than none, so this one phrase still bails rather than guesses. */
+const ORDER_REVERSING_RE = /\bdivided\s+into\b/i;
 
 /** Strip thousands separators only where a digit sits on both sides, so a
  * range like "1,000-2,000" is not silently welded into one number. */
@@ -63,6 +82,9 @@ export function normalizeArithmeticPhrase(question) {
   s = s.replace(SQUARE_ROOT_RE, (_, n) => `sqrt(${n})`);
   s = s.replace(SQUARED_RE, (_, n) => `(${n})^2`);
   s = s.replace(CUBED_RE, (_, n) => `(${n})^3`);
+  s = s.replace(SUBTRACTED_FROM_RE, reverseSubtract);
+  s = s.replace(LESS_THAN_RE, reverseSubtract);
+  s = s.replace(FEWER_THAN_RE, reverseSubtract);
   for (const [re, op] of WORD_OPS) s = s.replace(re, op);
   return s;
 }

@@ -160,13 +160,57 @@ export function shouldPreflight({ live = [], grounded = false, webProof = false,
  */
 export const PREFLIGHT_FEW_WORDS = 2; // a task at or below this many content words is treated as under-specified, same as zero
 
+// A TWO-LETTER WORD IS CONTENT unless the stopword set says otherwise. The
+// floor here used to be `length > 2`, and it silently dropped the only word
+// that said what a question was ASKING — measured live 2026-08-26 on the
+// real app, the whole chain visible end to end: "who was lincoln's VP?"
+// built the search query `"lincoln"` (VP is two characters), DuckDuckGo
+// answered with eight Lincoln Motor Company pages, the preflight fetched
+// three, and the model was handed luxury-SUV marketing copy to answer a
+// question about a vice president. The instrument caught its own failure
+// correctly downstream ("not supported by that material") — but the defect
+// was upstream of every check, in what was searched for. Two worse cases
+// from the same floor: "what did the US do" reduced to the EMPTY string
+// (nothing survives), and "explain AI safety" searched "explain safety".
+//
+// The floor is now `length > 1`, not a special case for capitals, because
+// the first fix WAS capitals-only and the very next real report was the
+// same question typed lowercase ("who was lincoln's vp?") — still reduced
+// to "lincoln", still fetched car pages. A rule that depends on the user
+// shift-keying an abbreviation is not a rule. What actually separates
+// content from noise at this length is already built and already tuned:
+// CLAIM_STOPWORDS carries 24 words of two letters or fewer (a, am, an, as,
+// at, be, by, do, he, i, if, in, is, it, me, my, no, of, on, or, so, to,
+// us, we), and it catches the noise on its own — verified against the
+// controls below, which are unchanged by the lower floor ("the cat is on
+// the mat" still reduces to "cat mat", "how are you?" still to nothing).
+//
+// The rule is structural, never a typed list of known acronyms (this repo's
+// standing discipline — a hand-typed closed class is the thing to reach for
+// last): a token the writer capitalised THROUGHOUT is carrying meaning the
+// length floor cannot see, so casing decides, read off the source's own
+// bytes.
+//
+// An acronym also bypasses CLAIM_STOPWORDS, and that is the point rather
+// than an oversight: the stopword set is checked lowercased, so it cannot
+// tell the COUNTRY "US" from the pronoun "us", the agency "WHO" from the
+// interrogative "who", or the field "IT" from the pronoun "it" — and it
+// wrongly refused all three. Casing is the only evidence in the text that
+// separates them, so the caps branch is checked FIRST and stands alone.
+// Disclosed cost, accepted: a question typed entirely in capitals has no
+// stopwords at all and searches on every word. That is bounded by
+// PREFLIGHT_QUERY_MAX_TERMS, it is rare, and it fails toward searching too
+// broadly — the same side of the asymmetry this function's own comment
+// above already argues for ("a false positive costs one wasted search").
+const ACRONYM = /^\p{Lu}{2,}$/u;
+
 export function preflightQuery(task, discourse = "", { anaphors = null } = {}) {
   const content = (s) => [
     ...new Set(
       String(s ?? "")
         .split(/[^\p{L}\p{N}'’]+/u)
         .map((w) => w.replace(/['’]s$/, ""))
-        .filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase())),
+        .filter((w) => ACRONYM.test(w) || (w.length > 1 && !CLAIM_STOPWORDS.has(w.toLowerCase()))),
     ),
   ];
   const taskWords = content(task);
@@ -352,8 +396,8 @@ export function proofTargets({ findings = [], relationReport = null } = {}) {
     if (c.verdict === "contradicted") {
       targets.push({
         kind: "edge",
-        text: `${c.subject} ${c.verb} ${c.object}`,
-        tokens: [c.subject, c.verb, c.object].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
+        text: `${c.end1} ${c.label} ${c.end2}`,
+        tokens: [c.end1, c.label, c.end2].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
         sentence: c.sentence,
         why: "contradicted",
       });
@@ -373,8 +417,8 @@ export function proofTargets({ findings = [], relationReport = null } = {}) {
     if (c.verdict === "unbound") {
       targets.push({
         kind: "edge",
-        text: `${c.subject} ${c.verb} ${c.object}`,
-        tokens: [c.subject, c.verb, c.object].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
+        text: `${c.end1} ${c.label} ${c.end2}`,
+        tokens: [c.end1, c.label, c.end2].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
         sentence: c.sentence,
         why: "unbound",
       });

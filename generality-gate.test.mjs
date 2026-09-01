@@ -1,0 +1,66 @@
+// generality-gate.test.mjs — the mechanical half of POLICIES.md's P71.
+// A policy entry may claim `universal`, `specimen-scoped`, or
+// `not-applicable`; this test only checks that every entry from P71
+// onward makes ONE of those three claims out loud. It cannot check that
+// the claim is true — see P71's own "Enforced" paragraph.
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const read = (p) => fs.readFileSync(path.resolve(here, p), "utf8");
+
+function lawSections(markdown, prefix) {
+  const lines = markdown.split("\n");
+  const headRe = new RegExp(`^## ${prefix}(\\d+)\\b`);
+  const heads = [];
+  lines.forEach((line, i) => {
+    const m = line.match(headRe);
+    if (m) heads.push({ n: Number(m[1]), line: i });
+  });
+  return heads.map((h, idx) => ({
+    n: h.n,
+    text: lines
+      .slice(h.line, idx + 1 < heads.length ? heads[idx + 1].line : lines.length)
+      .join("\n"),
+  }));
+}
+
+const GENERALITY_TAG = /\*\*Generality:\*\*\s*(universal|specimen-scoped|not-applicable)\b/;
+
+test("P71: this entry exists and declares its own generality", () => {
+  const policies = read("POLICIES.md");
+  const p71 = lawSections(policies, "P").find((e) => e.n === 71);
+  assert.ok(p71, "P71 must exist in POLICIES.md");
+  assert.match(p71.text, GENERALITY_TAG, "P71 must tag its own claim");
+});
+
+test("P71+: every policy entry from here on discloses whether its finding generalizes beyond the specimen that found it", () => {
+  const policies = read("POLICIES.md");
+  const entries = lawSections(policies, "P").filter((e) => e.n >= 71);
+  assert.ok(entries.length > 0, "at least P71 itself must be scanned");
+  for (const e of entries) {
+    assert.match(
+      e.text,
+      GENERALITY_TAG,
+      `P${e.n} must declare Generality: universal | specimen-scoped | not-applicable (P71)`,
+    );
+  }
+});
+
+test("P71: the three-part gate is named where the policy states it, not only implied", () => {
+  const policies = read("POLICIES.md");
+  const p71 = lawSections(policies, "P").find((e) => e.n === 71);
+  assert.match(p71.text, /[Cc]ross-domain replay/, "leg 1: replay over an unrelated corpus");
+  assert.match(p71.text, /named giver/, "leg 2: a giver or a derived floor, never a fit");
+  assert.match(p71.text, /[Dd]emonstrated necessity/, "leg 3: a case the discovery never saw");
+});
+
+test("P71: the gate names its own failure mode — a performance difference is not a violation", () => {
+  const policies = read("POLICIES.md");
+  const p71 = lawSections(policies, "P").find((e) => e.n === 71);
+  assert.match(p71.text, /performance difference/, "the anti-overcorrection clause is present");
+});

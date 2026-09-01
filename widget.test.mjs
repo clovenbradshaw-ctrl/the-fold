@@ -20,11 +20,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as taskLog from "../eoreader6.1/packages/engine/holon/task-log.js";
-import { checkCubeProgression } from "../eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import { checkCubeProgression } from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
-import * as enginePriors from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import { tokenize } from "./source.js";
+import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 import { makeWidgetRouter } from "./widget.js";
 
 // The router bound to the engine's REAL prior register — the same closed
@@ -331,6 +332,27 @@ test("iterationTell: the html document's own wrapper tags never count as a conte
   const builds = [{ n: 1, type: "code", lang: "html", text: "html\n" + drawingApp }];
   assert.equal(routeMessage("make me a spreadsheet grid in html, each cell editable", builds), null);
   assert.equal(routeMessage("the clear button is broken", builds).n, 1);
+});
+
+test("iterationTell: a non-Latin message is no longer short-circuited to null before resolvesInto runs (P62)", () => {
+  // Before `forms`/`clauseForms` were widened past ASCII, a message written
+  // wholly in a non-Latin script tokenized to [], and iterationTell's own
+  // `if (!toks.length) return null` returned before `resolvesInto` — built
+  // on `terms`/`tokenize`, already script-agnostic — ever got a chance to
+  // run. A shared bare content word now resolves; no shared word still
+  // correctly returns null; English is unchanged.
+  const build = "הכפתור צבוע כחול"; // "the button is colored blue" — the build's own caption/code text
+  assert.equal(iterationTell("שנה את צבע הכפתור", build), "resolved"); // "change the color of button"
+  assert.equal(iterationTell("שנה את המסך", build), null); // "change the screen" — shares no content word
+  assert.equal(iterationTell("change the button", "a button widget"), "resolved"); // unchanged
+
+  // Disclosed, not fixed here: Hebrew's definite article is a bound PREFIX
+  // ("the button" is one word, ha-button), not a separate word the way
+  // English's "the" is — so a build's BARE noun and a message's
+  // article-PREFIXED form of the same noun do not share a surface form.
+  // That is a morphological gap (a received Hebrew-prefix-stripping prior
+  // would close it), not the character-class one this pass closes.
+  assert.deepEqual(tokenize("\u05e9\u05e0\u05d4 \u05d0\u05ea \u05d4\u05dc\u05d7\u05e6\u05df"), ["\u05e9\u05e0\u05d4", "\u05d4\u05dc\u05d7\u05e6\u05df"]); // "\u05d4\u05dc\u05d7\u05e6\u05df" (ha-button), never bare "\u05dc\u05d7\u05e6\u05df" (button)
 });
 
 test("routeMessage/routeSegment: a resolved/judgment tell always discloses which words it matched on", () => {

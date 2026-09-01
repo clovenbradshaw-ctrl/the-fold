@@ -40,6 +40,7 @@ import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
+import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
@@ -425,7 +426,7 @@ export function buildPlanPrompt(task, maxParts = MAX_PARTS) {
 // claims. An instruction referencing a thing the pipeline mechanically
 // removed is not a harmless leftover; it is a fabrication order.
 export const EXECUTE_SYSTEM_PROMPT =
-  "You are writing one part of a larger piece. Write plain prose for the part you are given, and only that part, in your own words. Say what the material establishes about the prompt — do not copy sentences from it, and do not just restate the prompt back. Where the material does not cover the part, say so plainly instead of filling the gap.";
+  "You are writing one part of a larger piece. Write plain prose for that part, and only that part, in your own words. Say what is established below — do not copy sentences out of it, and do not restate the question back. Where the answer is not there, say so plainly instead of filling the gap.";
 
 // The no-material reply's other face. A prompt that matched no material is
 // not necessarily a research gap — a greeting, a question of taste, a joke —
@@ -433,7 +434,7 @@ export const EXECUTE_SYSTEM_PROMPT =
 // question is: hi". This prompt is the one place chat is allowed to be chat:
 // no material framing, no citation grammar, just a reply to a person.
 export const CHAT_SYSTEM_PROMPT =
-  "A friendly conversation with no source material. The user's message matched no document to cite, so reply to it directly, briefly, and naturally, as a person would. Do not restate the message back; say something new in response.";
+  "A friendly conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new.";
 
 // S1's own face: think out loud, give a first take, not a finished answer.
 // The hedge IS the character — it makes S2's arrival feel natural ("I
@@ -456,7 +457,12 @@ export const S1_SYSTEM_PROMPT =
 // steering on top) — CHAT_SYSTEM_PROMPT's existing honesty framing already
 // covers what to DO with an empty search; this only supplies the FACT that
 // one happened.
-export const SEARCHED_VOID_PREFIX = "A web search ran for this and found nothing usable — the search came back empty, it was not skipped.";
+// The void keeps its FORCE and loses its MACHINERY (firewall, 2026-08-27).
+// P32's point stands — a confirmed absence must not read to the model like
+// an absence nobody checked — but "a web search ran… it was not skipped"
+// tells the model how this instrument is built in order to say so. What
+// the model needs is that the emptiness is real and is not its to fill.
+export const SEARCHED_VOID_PREFIX = "Nothing could be found on this. The emptiness is real and confirmed — say so plainly; it is not yours to fill in.";
 
 // The System 1 / System 2 pass: first-person framing so S2 understands it's
 // following up on its OWN initial reaction, not investigating someone else's.
@@ -487,8 +493,15 @@ const S2_FRAME_PREFIX = "";
 // turn — never a directive about it. Decomposed parts keep the directive
 // shape: there a part label genuinely exists and the meta level is the
 // true level.
+// FIREWALL (2026-08-27, firewall.js): this string used to say "Passages
+// retrieved for this turn follow… do not describe the message or the
+// passages" — naming our own parts three times while instructing the model
+// not to name them. Measured live, it complied with the vocabulary and not
+// the instruction: "The prompt specifically identifies Hannibal Hamlin…".
+// Nothing here names a part of this instrument now, so there is no word to
+// borrow. `firewall.test.mjs` fails if one comes back.
 export const FLAT_EXECUTE_SYSTEM_PROMPT =
-  "You are answering the latest message in a conversation. Passages retrieved for this turn follow. Answer the message in your own words — do not describe the message or the passages, and do not restate the message back. Write from the passages when they cover the question; where they do not cover it, say so plainly instead of filling the gap.";
+  "You are talking with someone. Answer what they asked, in your own words, the way a person would — not a summary of the question and not a description of what you were given. Everything below is yours to answer from. If the answer is not there, say plainly that it is not, rather than filling the gap.";
 
 export function buildExecutePrompt(part, sourceBlock, discourse = "") {
   const head = `Write this part: ${part.label}. ${part.description}`;
@@ -535,9 +548,20 @@ export function buildExecutePrompt(part, sourceBlock, discourse = "") {
  */
 export function buildRedefinedPart(part, findings) {
   if (!findings?.length) return part;
+  // "The record confirms exactly this" was the wording here until
+  // 2026-08-27, and it was measured leaking — not inferred, READ, in a
+  // reasoning model's own visible thinking on a live turn: "the prompt says
+  // 'the record confirms exactly this, and nothing beyond it'. So I should
+  // emphasize... But must not say 'the record' since that's from the
+  // prompt." The model spent real tokens working out that a phrase in its
+  // own instructions was not a phrase it was allowed to use. That is the
+  // whole cost of scaffolding vocabulary: it becomes a thing to comply
+  // with rather than a fact to use. Named plainly instead — the findings
+  // are what several sources establish, and "several sources establish" is
+  // a fact about the world, not a term of art from a rulebook.
   return {
     ...part,
-    description: `${part.description} The record confirms exactly this, and nothing beyond it, even if other names or claims sit nearby in the material below: ${findings.join("; ")}.`,
+    description: `${part.description} These are established, and are the complete set, even if other names or claims sit nearby: ${findings.join("; ")}.`,
   };
 }
 
@@ -583,9 +607,9 @@ export function buildRedefinedPart(part, findings) {
 function landCompletenessBelief(grid, gridLog, runCapacity, landAct, { claim, sourceKey, sourceText, experiencer }) {
   if (!grid || !gridLog || !runCapacity || !landAct) return gridLog;
   const safe = (s) => String(s ?? "").replace(/[^\w\s-]/g, " ").replace(/\s+/g, " ").trim();
-  const subject = safe(claim.subject);
-  const verb = safe(claim.verb);
-  const object = safe(claim.object);
+  const subject = safe(claim.end1);
+  const verb = safe(claim.label);
+  const object = safe(claim.end2);
   if (!subject || !verb || !object) return gridLog;
   const line = `evaluate ${subject} ${verb} ${object} at Link from differentiate ground ${sourceKey} broken:rotation because ${safe(experiencer)}`;
   let out;
@@ -733,11 +757,24 @@ export function mechanicalAnswer(question, passages) {
     if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
   }
   if (!lines.length) return "";
-  return [
-    "The model's drafts did not answer, so this is assembled mechanically — the material's own sentences that bear on the question, each with its address:",
-    ...lines,
-    "Nothing further was retrieved for the question's own words.",
-  ].join("\n\n");
+  // NO FRAMING SENTENCES. This used to open "Here's what the material itself
+  // says about this:" and close "That's everything the material offers on
+  // the question's own words." — user direction, 2026-08-27, shown this
+  // exact output for the third time: "i never want to see output 'talking'
+  // content like this."
+  //
+  // Both sentences were meta-commentary ABOUT the material rather than an
+  // answer, and both used the generic scaffolding word the same session had
+  // already had removed from `buildSourceBlock` and `buildRedefinedPart`
+  // ("just have it be like 'Wikipedia, Retrieved...'"). A reader asking what
+  // the capital of France is does not want to be told what a corpus offers;
+  // the quoted sentences already say it, verbatim and addressed, and they
+  // say it better without a narrator introducing them.
+  //
+  // What ships is now exactly what this function was always honest about
+  // being: the material's own sentences, each with its address, and nothing
+  // in this instrument's voice wrapped around them.
+  return lines.join("\n\n");
 }
 
 /**
@@ -858,6 +895,27 @@ export async function runPart({
   // only reaches the chat branch below (a part that HAS passages already
   // knows the surf turned something up; this is specifically the void).
   searchedVoid = null,
+  // HOW BIG THE ANSWER SHOULD BE, measured before the model drafts — never
+  // a length the model guesses at (2026-08-27, user direction: "the vast
+  // majority of 'reasoning' [should] be mechanical, and the result of the
+  // reasoning is a very simple prompt to the model, with the smallest
+  // context possible").
+  //
+  // The measured failure this closes: "What is the capital of France?" —
+  // one city, one word — came back as five sentences of hedged
+  // meta-commentary ("The passages consistently establish that Paris
+  // functions as France's capital city, with multiple sources explicitly
+  // identifying it as such...") after two correction rounds and 214
+  // seconds. The model was not being evasive; it had no idea how much
+  // answer was wanted, so it padded to the size of its own uncertainty and
+  // the checker then punished the padding as unsupported claims. AN
+  // UNMEASURED SLOT GETS FILLED WITH HEDGING.
+  //
+  // The size is not a new measurement — it is `void-brief.js`'s already-
+  // declared cardinality, which app.js computes BEFORE this call (moments 1
+  // and 2, both ahead of any drafting). A caller with no void passes null
+  // and every branch below is byte-identical to before this existed.
+  answerShape = null,
   // S1's own answer text, or null when there was no fast pass (or the S2
   // gate never fired). Flat only, reaching both the chat branches and the
   // flat material branch (unlike searchedVoid, S1's answer stays relevant
@@ -881,6 +939,25 @@ export async function runPart({
   gridLog = null,
   runCapacity = null,
   landAct = null,
+  // The typed-note ledger (hyperlexicon.js, P57) — same shape and same
+  // backward-compatibility discipline as grid/gridLog just above: `hyperlexicon`
+  // is the organ bundle (makeHyperlexicon's own {admit, foldHyperlexicon, ...}),
+  // `hyperlexiconLog` is the mutable, app-wide, cross-turn state threaded in and
+  // threaded back out. Both null (the default) is byte-identical to before this
+  // existed — no existing caller's behavior changes.
+  hyperlexicon = null,
+  hyperlexiconLog = null,
+  // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
+  // — asymmetric, P56: a settled non-verb connector is refused with its
+  // giver, an out-of-vocabulary word admits). Threaded, never built here:
+  // the lens is app.js's to construct from the POS prior it already
+  // fetches, and `null` (the default for every existing caller) leaves the
+  // admit call byte-identical to before this existed — a check that did
+  // not run never reports a pass (P41), and the door's own header says the
+  // same. Measured need (eval/hyperlexicon-door-probe.mjs): unthreaded,
+  // 18 of 29 notes admitted from real prose carried a closed-class label
+  // (—and→, —of→, —to→…) into the belief ledger.
+  classifyConnector = null,
 }) {
   // Stable sub-assemblies (2026-08-19, user direction). The part's own words
   // and the fold's discourse line are two DIFFERENT assemblies, and the old
@@ -922,6 +999,34 @@ export async function runPart({
     passages = retrieve(live, question, passagesPerPart, foldedRefs);
     widened = passages.length > 0;
   }
+  // THE SEARCH DIGEST IS PINNED, never left to win a retrieval slot.
+  //
+  // gatherPreflightMaterial already combines every search result's snippet
+  // into ONE chunk (`web:search-results`) precisely because the snippets
+  // are pre-snipped, high-relevance, already-paid-for material — its own
+  // comment says so. But it was then dropped into `live` alongside the
+  // fetched full pages and had to out-score them: measured live 2026-08-26,
+  // one Lincoln turn had 1,449 passages competing for 3 slots, the digest
+  // lost, and the model answered from three Johnson-heavy page passages
+  // while the digest sentence sitting unused read "Hannibal Hamlin and
+  // Andrew Johnson, the two vice presidents of Abraham Lincoln". Same
+  // question on another draw won the digest and answered correctly — the
+  // variance was never about the model, it was a retrieval lottery.
+  //
+  // Why pinning rather than re-ranking: the digest is not competing on
+  // relevance, it is a different KIND of material — a whole results page
+  // condensed, ~2.7KB, complete by construction, where a full page is
+  // 50-160K of prose with one relevant paragraph. Scoring them against each
+  // other on keyword overlap is the category error; every snippet repeats
+  // the query's own words, which is exactly why they tie and why the
+  // tie-break decides the answer. Cost is one extra passage per part,
+  // bounded and cheap, and it is additive: retrieval's own picks are
+  // untouched, so nothing that used to reach the model stops reaching it.
+  const digestChunk = live.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
+  if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
+    passages = [digestChunk, ...passages];
+  }
+
   const sourceBlock = buildSourceBlock(passages);
   onProgress?.("research", part, { passages: passages.map((p) => p.ref), widened });
 
@@ -946,6 +1051,98 @@ export async function runPart({
   // live corpus. Injected — this module stays pure and the page supplies
   // the engine's organs.
   const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
+
+  // hyperlexicon.js (P57): admit this part's own bound claims into the
+  // shared, cross-turn ledger — accumulation, not re-derivation on every
+  // part. `hyperlexicon`/`hyperlexiconLog` absent (the default for every
+  // existing caller) leaves `beliefNotes` at `hyperlexiconLog` (null) and
+  // touches nothing downstream — byte-identical to before this existed,
+  // the same discipline `grid`/`gridLog` already hold above.
+  let beliefNotes = hyperlexiconLog;
+  // Every refusal the door types comes back out (P57: `turnedAway` is not
+  // optional) — accumulated here and returned beside the log, never read
+  // and discarded. With no classifyConnector this stays empty for the
+  // connector reason but still carries the door's own structural refusals
+  // (incomplete edges, unaddressed spans), exactly as admit types them.
+  const hyperlexiconTurnedAway = [];
+  if (hyperlexicon && relations) {
+    for (const p of passages) {
+      const text = String(p?.text ?? "");
+      if (!text.trim()) continue;
+      const claims = relations.read(text)?.claims ?? [];
+      const edges = claims
+        .filter((c) => c.verdict === "bound")
+        // Read off the claim's neutral arrangement (P72); hyperlexicon.js's
+        // own admit() still requires subject/verb/object as ITS OWN field
+        // contract (P57's independent ledger vocabulary, not this claim's),
+        // so the destination keys stay as they are — only the source read
+        // moved off the legacy names.
+        .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
+      if (!edges.length) continue;
+      const admitted = hyperlexicon.admit(
+        beliefNotes ?? hyperlexicon.createHyperlexicon(),
+        edges,
+        // minShare stays the door's own declared default — no second number
+        // is introduced here; classifyConnector null = the gate does not
+        // run, admit's own disclosed behaviour.
+        { witness: p.ref ?? null, classifyConnector },
+      );
+      beliefNotes = admitted.log;
+      // Refusals are returned, never read-and-discarded (P57: turnedAway
+      // is not optional) — accumulated per part and threaded out through
+      // runHolonicTask as hyperlexiconTurnedAway (P74).
+      for (const t of admitted.turnedAway) {
+        hyperlexiconTurnedAway.push({ witness: p.ref ?? null, reason: t.reason, detail: t.detail, verb: t.edge?.verb ?? null });
+      }
+    }
+  }
+
+  // HYPERGRAPH-FIRST-GENERATION.md, Phase 2: the material's own extracted
+  // facts, read BEFORE the model drafts — reusing the SAME `relations`
+  // reader `inspect` (below) uses to check a draft, called here on the
+  // passages themselves instead. Real, disclosed partial coverage
+  // (fact-block.js's own header); supplements `sourceBlock`, never
+  // replaces it. `null` on a decomposed part with no `relations` organ
+  // injected, or on any part where nothing bound — every existing caller
+  // that never reaches this line is unaffected.
+  const factBlock = relations ? buildFactBlock(relations, passages, question) : null;
+
+  // The ledger's own standing beyond what this part just read — notes
+  // corroborated across MORE THAN ONE witness (`foldHyperlexicon` sorts
+  // most-witnessed first), from earlier parts or earlier turns this part's
+  // own reading did not happen to touch again. Deduped against `factBlock`'s
+  // own fresh lines so nothing doubles. Firewall-clean (firewall.js's
+  // `APPARATUS_TERMS`): no "passage"/"retrieved"/"this turn" — "read in N
+  // places" is the same natural-corroboration phrasing this repo's own
+  // proof-seeking tier already uses ("stated by N of M pages").
+  const HYPERLEXICON_LEDGER_LINES = 5;
+  const ledgerBlock = (() => {
+    if (!hyperlexicon || !beliefNotes) return null;
+    const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
+    const standing = hyperlexicon
+      .foldHyperlexicon(beliefNotes)
+      .filter((n) => n.witnesses.length >= 2)
+      .filter((n) => !shown.has(`${n.subject} — ${n.verb}→ ${n.object}`.toLowerCase()))
+      .slice(0, HYPERLEXICON_LEDGER_LINES);
+    if (!standing.length) return null;
+    return (
+      `From earlier reading, confirmed independently in more than one place:\n` +
+      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${n.witnesses.length} places)`).join("\n")
+    );
+  })();
+
+  // The salience gate's other half (fact-block.js's own header): the raw
+  // MATERIAL block, deduplicated of near-identical restatements BEFORE it
+  // reaches the model — real, measured need, same live pass: a
+  // `web:search-results` chunk's own ordinary shape (several pages'
+  // short bios concatenated) restated "Hannibal Hamlin, 15th vice
+  // president, 1861-65" in six differently-worded snippets in one real
+  // captured prompt. `dedupedSourceBlock` is PROMPT-ONLY — `sourceBlock`
+  // itself (untouched, above) still backs succession-box parsing, the
+  // correction prompts, and everything else this function's own
+  // `sourceBlock` comment already disclosed staying out of this dedup's
+  // reach.
+  const dedupedSourceBlock = passages.length ? buildSourceBlock(dedupeSourceText(passages, relations)) : sourceBlock;
 
   const inspect = (text) => {
     // The label is model-authored output that ships as a heading, so it is
@@ -1025,7 +1222,16 @@ export async function runPart({
     // A part's label is never itself a sentence worth relation-checking
     // (flat mode's is a constant with no content at all; a decomposed
     // part's is a short phrase), so nothing is lost dropping it here.
-    const relationReport = relations ? relations.read(text) : null;
+    // `stripFraming(text)`, NOT bare `text` (2026-08-20): this `inspect`
+    // runs mid-loop, on a retry's raw completion, before the ship-time cut
+    // (below, now just a call to the same stripFraming) has ever run — and
+    // a correction retry echoing the question back as its opening line is
+    // exactly the shape the ship-time cut exists to clean. Left unstripped,
+    // that echoed line reaches relations.read() as content and the
+    // extractor reads the QUESTION's own words as claims about the world.
+    // stripFraming's own header has the measured incident (turn 23,
+    // material-dialogue-stress-703.jsonl) and the direct reproduction.
+    const relationReport = relations ? relations.read(stripFraming(text)) : null;
     // Every quotation followed to the bytes (quotes.js): a fabricated
     // quotation joins the unsupported list — the strongest claim an answer
     // makes gets the same bounded correction as an invented figure. That
@@ -1226,6 +1432,58 @@ export async function runPart({
       .map((s) => s.replace(ADDRESS_RE, " ").trim())
       .filter(Boolean)
       .filter((s) => !isFraming(s));
+  // `t` with its leading and trailing framing sentences cut, byte-exact
+  // except for the cut itself — the ship-time text below is defined as a
+  // call to this function; nothing after this point recomputes the cut a
+  // second, divergent way. Factored out 2026-08-20 so inspect()'s relation
+  // tier (below) can read the SAME text the page, the fold, and the record
+  // eventually see, instead of the model's raw, still-framed completion.
+  // Measured live: eval/results/material-dialogue-stress-703.jsonl turn 23,
+  // question "Where is Saturn in the order of planets from the Sun?" — the
+  // logged `shippedText` is clean ("The passage confirms that Saturn is the
+  // sixth planet from the Sun.", no echo, no question), but the logged
+  // `relationClaims` carries THREE entries, not one: the real bound claim
+  // (subject "that Saturn", verb "is", object "the sixth planet from the
+  // Sun") riding beside two claims extracted from the QUESTION itself
+  // (subject "Where" / verb "is" / object "Saturn in the order of planets
+  // from the Sun?", verdict beyond-reach; subject "is Saturn" / verb "in" /
+  // object "the order of planets from the Sun?", verdict unheard) — neither
+  // string appears in `shippedText` OR the logged first `draftText`, so the
+  // only place they could have come from is a correction retry's raw
+  // completion, read before this cut had ever run (it previously lived
+  // only here, AFTER the correction loop settles). hypergraph.js's SVO
+  // extractor doesn't know "framing" is not part of the answer — it read
+  // the question's own words as claims. Downstream cost is not cosmetic:
+  // capacity-runner.js's `candidates = claims.filter(c => c.verdict !==
+  // "bound")` (the per-source triangulation gate) spends real model calls
+  // chasing claims that were never part of the answer.
+  const stripFraming = (t) => {
+    const raw = String(t ?? "").trim();
+    const sentences = splitSentences(raw.replace(ADDRESS_RE, " "))
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const firstContent = passages.length ? sentences.findIndex((s) => !isFraming(s)) : sentences.length ? 0 : -1;
+    if (firstContent < 0) return "";
+    let lastContent = -1;
+    for (let i = sentences.length - 1; i >= 0; i--) {
+      if (!isFraming(sentences[i])) {
+        lastContent = i;
+        break;
+      }
+    }
+    const from = firstContent === 0 ? 0 : raw.indexOf(sentences[firstContent]);
+    if (from < 0) return raw;
+    let to = raw.length;
+    if (passages.length && lastContent < sentences.length - 1) {
+      const lastAt = raw.lastIndexOf(sentences[lastContent]);
+      if (lastAt >= 0) {
+        const end = lastAt + sentences[lastContent].length;
+        const tail = raw.slice(end).match(/^[.!?…)\]"'”’]*/);
+        to = end + (tail ? tail[0].length : 0);
+      }
+    }
+    return raw.slice(from, to).trim();
+  };
   /** A folded sentence is the material's own if some passage contains it. */
   const isVerbatimSentence = (sf) => sf.length > 0 && passagesFolded.some((pf) => pf.includes(sf));
   /**
@@ -1306,6 +1564,18 @@ export async function runPart({
       const content = finished.map((s) => s.trim()).filter((s) => s && !isFraming(s));
       return reproducedFromContent(content);
     },
+    // A reasoning-capable model (qwen3, deepseek-r1) streams its own
+    // deliberation through Ollama's own separate `message.thinking` field —
+    // app.js's completeOnce now captures it and fires this the SAME way
+    // onDelta already fires, so it reaches the page through the SAME
+    // onProgress channel every other phase already uses, one new phase name
+    // rather than a second callback surface. Never read by anything in this
+    // file: the draft that gets checked, corrected and recorded is still
+    // built from `onDelta`'s own accumulation alone. A model that has
+    // nothing to call `.thinking` (gemma2:2b, this app's default) simply
+    // never fires this — completeOnce only calls it when Ollama actually
+    // sends the field.
+    onThinking: (partial) => onProgress?.("thinking", part, { partial }),
   };
 
   // A part with no material is plain chat, not a research gap. The
@@ -1352,19 +1622,63 @@ export async function runPart({
   const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
   const s2Frame = priorPass ? S2_FRAME_PREFIX : "";
   const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
+  // Stated as a FACT about the answer's shape, in the positive, never as a
+  // prohibition ("do not write more than…"). Tonight's own measurement is
+  // why: a reasoning model spent visible tokens working out how to comply
+  // with a phrase in its prompt rather than using it. A size it can simply
+  // aim at is information; a length limit is one more rule to satisfy.
+  const shapeSuffix = answerShape ? ` ${answerShape}` : "";
+  // Phase 2's own material, for the INITIAL draft prompt only — `sourceBlock`
+  // itself stays untouched everywhere else in this function (succession-box
+  // parsing at parseSuccessionBoxes below reads raw material text and must
+  // never see this block's synthetic lines; the correction prompts below
+  // stay exactly as they were, Phase 3's own "measure before touching the
+  // correction loop" scope). Facts first, raw passages after — orient with
+  // the pre-digested read, then let the fuller text supply what the
+  // extractor's own disclosed limits couldn't reach — the fuller text
+  // being `dedupedSourceBlock` (above), not raw `sourceBlock`: the
+  // salience gate's other half, cutting near-identical restatements
+  // rather than adding a structured list ON TOP of an unfiltered raw one.
+  // TWO REGISTERS, AND THE SPANS ARE ONLY THE ONES THE NOTES REST ON.
+  // User direction, 2026-08-28: "never give it the raw text alone, we
+  // always feed it the hyperlexicon's surf and fold with the minimal raw
+  // spans from the original"; then "use only the spans linked to the
+  // precise hyperlexicon elements."
+  //
+  // So the notes go first, saying plainly that they are notes and that a
+  // source beats them; then the sentences that actually bound those notes,
+  // each under its own address. The whole retrieved chunk no longer goes:
+  // measured live, it carried page furniture ("'President Lincoln' and
+  // 'Mr. Lincoln' redirect here") into a prompt as though it were evidence.
+  //
+  // THE ONE FALLBACK, disclosed rather than silent: when nothing bound,
+  // there are no notes AND no spans, and sending neither would leave a
+  // model with nothing at all on a question the raw text may well answer —
+  // this repo's own extraction gap is large enough that this is the common
+  // case, not the corner. So a no-note turn still gets the deduplicated
+  // raw block, with the notes block already stating that nothing could be
+  // read out of it.
+  const spanBlock =
+    factBlock?.spans?.length
+      ? factBlock.spans.map((sp) => `${sp.ref}:
+"${sp.text}"`).join("\n\n")
+      : null;
+  const draftMaterial = factBlock
+    ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + priorPassSuffix, sourceBlock].join("\n\n") + chatContext,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : [
           { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-          { role: "user", content: buildExecutePrompt(part, sourceBlock, discourse) },
+          { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse) },
         ]
     : chatHistory.length
       ? [
@@ -1494,12 +1808,23 @@ export async function runPart({
     const seenSlots = new Set();
     const result = [];
     for (const claim of claims) {
-      if (claim.verdict !== "bound" || !(claim.fillers?.length > 1)) continue;
-      const slot = `${claim.subject}|${claim.verb}`;
+      // Bound gate loosened 2026-08-26 (user direction: "let's loosen the
+      // bound gates for now and just see how accurate the local model can
+      // be"), the same change and the same reason as competingSubjectsOf
+      // below. `fillers` is attached by hypergraph.js to every verdict that
+      // reaches its cardinality point, UNBOUND ONES INCLUDED — so what the
+      // material states for a slot was already computed and was being
+      // thrown away whenever the draft's own sentence failed to bind, which
+      // is precisely when the draft most needs correcting.
+      if (!(claim.fillers?.length > 1)) continue;
+      const slot = `${claim.end1}|${claim.label}`;
       if (seenSlots.has(slot)) continue;
       const named = claims
-        .filter((c2) => c2.verdict === "bound" && `${c2.subject}|${c2.verb}` === slot)
-        .map((c2) => foldTypography(c2.object).toLowerCase());
+        .filter((c2) => c2.verdict === "bound" && `${c2.end1}|${c2.label}` === slot)
+        .map((c2) => foldTypography(c2.end2).toLowerCase());
+      // f.object: clusterFillers' own narrow shape (P36) — a filler answers
+      // "which OBJECT" for an already-fixed subject+verb slot, never an
+      // arrangement with its own end1/label — out of scope for the rename.
       const uncovered = claim.fillers.filter((f) => {
         const ft = foldTypography(f.object).toLowerCase();
         return !named.some((t) => t.includes(ft) || ft.includes(t));
@@ -1552,10 +1877,30 @@ export async function runPart({
     const seenSlots = new Set();
     const result = [];
     for (const claim of claims) {
-      if (claim.verdict !== "bound") continue;
+      // NOT gated on `verdict === "bound"`, and this is the whole point of
+      // querying the slot rather than reading the draft's own field. What
+      // the MATERIAL confirms for a slot does not depend on whether the
+      // draft's sentence happened to bind — and the case that most needs
+      // this correction is exactly the one where it did not: measured live
+      // 2026-08-26, "who was lincoln's vp?" drafted "Lincoln's VP was
+      // Andrew Johnson", failed to bind (the answer carried its own "∅ not
+      // in the material" mark), and so skipped this gate entirely — even
+      // though the fetched material stated BOTH Hamlin and Johnson and
+      // this function would have found them. An unbound claim still
+      // carries the verb and object the draft asserted, which is all
+      // queryReferents needs; a garbled one simply returns fewer than two
+      // subjects and is skipped by the guard below, exactly as before.
+      // This comment's own paragraph above already argued for it —
+      // "querying the slot directly finds it regardless of which (or
+      // whether any) subject the draft picked" — the gate just never
+      // matched the argument.
+      if (!claim?.label || !claim?.end2) continue;
       let subjects;
       try {
-        subjects = relations.queryReferents({ verb: claim.verb, object: claim.object });
+        // queryReferents' own parameter names (verb:/object:) are its own
+        // API, unrelated to this claim's arrangement fields — only the
+        // source read moved off the legacy names.
+        subjects = relations.queryReferents({ verb: claim.label, object: claim.end2 });
       } catch {
         subjects = null;
       }
@@ -1574,9 +1919,12 @@ export async function runPart({
       // widening: any bound claim sharing this VERB is a candidate for
       // "already covers one of the confirmed subjects," not only a claim
       // whose own object string happens to match exactly.
-      const slot = `${claim.verb}|${subjects.map((s) => foldTypography(s.subject).toLowerCase()).sort().join(",")}`;
+      // s.subject: queryReferents' own open-subject cluster shape, out of
+      // scope for the arrangement rename (its own API, not this claim's).
+      const slot = `${claim.label}|${subjects.map((s) => foldTypography(s.subject).toLowerCase()).sort().join(",")}`;
       if (seenSlots.has(slot)) continue;
-      const named = claims.filter((c2) => c2.verdict === "bound" && c2.verb === claim.verb).map((c2) => foldTypography(c2.subject).toLowerCase());
+      const named = claims.filter((c2) => c2.verdict === "bound" && c2.label === claim.label).map((c2) => foldTypography(c2.end1).toLowerCase());
+      // f.subject: the SAME queryReferents cluster shape as s.subject above.
       const uncovered = subjects.filter((f) => {
         const ft = foldTypography(f.subject).toLowerCase();
         return !named.some((t) => t.includes(ft) || ft.includes(t));
@@ -1618,11 +1966,11 @@ export async function runPart({
   const incompleteFindings = (t, c) => [
     ...incompleteClaimsOf(c).map(
       (claim) =>
-        `"${claim.subject} ${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.fillers.map((f) => f.object).join(", ")} (nothing else)`,
+        `"${claim.end1} ${claim.label} ${claim.end2}" — the material confirms exactly: ${claim.fillers.map((f) => f.object).join(", ")} (nothing else)`,
     ),
     ...competingSubjectsOf(c).map(
       (claim) =>
-        `"${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.competingSubjects.map((f) => f.subject).join(", ")} (nothing else)`,
+        `"${claim.label} ${claim.end2}" — the material confirms exactly: ${claim.competingSubjects.map((f) => f.subject).join(", ")} (nothing else)`,
     ),
     ...successionIncompleteFindings(t),
   ];
@@ -1734,7 +2082,12 @@ export async function runPart({
       for (const claim of competingSubjectsOf(check)) {
         for (const filler of claim.competingSubjects) {
           beliefLog = landCompletenessBelief(grid, beliefLog, runCapacity, landAct, {
-            claim: { subject: filler.subject, verb: claim.verb, object: claim.object },
+            // filler.subject: queryReferents' own open-subject cluster shape
+            // (out of scope for the arrangement rename — its own API, not
+            // hypergraph.js's edge/claim schema). claim.label/claim.end2:
+            // the ORIGINAL judge() claim's fields, spread through unchanged
+            // by competingSubjectsOf.
+            claim: { end1: filler.subject, label: claim.label, end2: claim.end2 },
             sourceKey,
             sourceText: sourceBlock ?? "",
             experiencer,
@@ -1867,11 +2220,6 @@ export async function runPart({
   // as "😄": the opening made of the greeting's own words, the question
   // back convicted by the question-mark rule). In plain chat what the
   // person gets is what the model said.
-  const raw = String(draft ?? "").trim();
-  const sentences = splitSentences(raw.replace(ADDRESS_RE, " "))
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const firstContent = passages.length ? sentences.findIndex((s) => !isFraming(s)) : sentences.length ? 0 : -1;
   // Dropping the framing prefix is a CUT, never a rejoin. Rejoining trimmed
   // sentence pieces with spaces destroyed every newline and indent the
   // draft had — measured live on a fenced Python block, which arrived at
@@ -1887,34 +2235,10 @@ export async function runPart({
   // dumb as it sounds. Both cuts stay slices of raw (never a rejoin), both
   // bail to the whole draft when a sentence cannot be located, and the gap
   // the trailing echo gestured at is already `open`'s job to report.
-  let lastContent = -1;
-  for (let i = sentences.length - 1; i >= 0; i--) {
-    if (!isFraming(sentences[i])) {
-      lastContent = i;
-      break;
-    }
-  }
-  const text =
-    firstContent < 0
-      ? ""
-      : (() => {
-          const from = firstContent === 0 ? 0 : raw.indexOf(sentences[firstContent]);
-          if (from < 0) return raw;
-          let to = raw.length;
-          // Material path only: in plain chat a trailing question is
-          // conversation ("How can I help you today?"), not a dodge —
-          // measured immediately by this file's own chat test.
-          if (passages.length && lastContent < sentences.length - 1) {
-            const lastAt = raw.lastIndexOf(sentences[lastContent]);
-            if (lastAt >= 0) {
-              // Keep the sentence and whatever closing punctuation follows it.
-              const end = lastAt + sentences[lastContent].length;
-              const tail = raw.slice(end).match(/^[.!?…)\]"'”’]*/);
-              to = end + (tail ? tail[0].length : 0);
-            }
-          }
-          return raw.slice(from, to).trim();
-        })();
+  // Now just a call to stripFraming (2026-08-20, defined above alongside
+  // contentSentencesOf/isFraming): same cut, same result, but no longer the
+  // only place it runs — see stripFraming's own header for why.
+  const text = stripFraming(draft);
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.
@@ -1970,6 +2294,12 @@ export async function runPart({
     // nothing was landed; a real, new log state when a belief was
     // recorded. landCompletenessBelief's own header, and this parameter's.
     gridLog: beliefLog,
+    // The updated hyperlexicon, same threading discipline: unchanged when
+    // no organ was injected or nothing bound this part.
+    hyperlexiconLog: beliefNotes,
+    // The door's typed refusals for this part (P57: not optional at any
+    // boundary). Empty when nothing was refused or no ledger was injected.
+    hyperlexiconTurnedAway,
   };
 }
 
@@ -1996,6 +2326,10 @@ export async function runHolonicTask({
   // says why) — a task-wide fact, since a preflight search runs once,
   // before the plan, never per-part.
   searchedVoid = null,
+  // The measured answer size (void-narration.js::answerShapeLine), task-wide
+  // for the identical reason searchedVoid is: the void is declared once per
+  // TURN, before any part runs. null → byte-identical to before.
+  answerShape = null,
   // S1's own answer, task-wide for the identical reason searchedVoid is —
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
@@ -2010,6 +2344,13 @@ export async function runHolonicTask({
   gridLog = null,
   runCapacity = null,
   landAct = null,
+  // Same shape, same threading, same default-null backward compatibility
+  // as grid/gridLog just above — see runPart's own header for the full
+  // reasoning (P57's own hyperlexicon.js; classifyConnector: the door's
+  // grammar gate, P73).
+  hyperlexicon = null,
+  hyperlexiconLog = null,
+  classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
@@ -2081,6 +2422,11 @@ export async function runHolonicTask({
   // updated, so two parts of one turn never race each other into two
   // divergent forks of what should be one shared record.
   let sharedGridLog = gridLog;
+  let sharedHyperlexiconLog = hyperlexiconLog;
+  // The door's typed refusals, accumulated across parts the same way
+  // seenRefs accumulates — returned whole so no boundary reads them and
+  // discards them (P57).
+  const sharedHyperlexiconTurnedAway = [];
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -2112,15 +2458,21 @@ export async function runHolonicTask({
       // when planMode is "flat".
       flat: planMode === "flat",
       searchedVoid,
+      answerShape,
       priorPass,
       onProgress,
       grid,
       gridLog: sharedGridLog,
       runCapacity,
       landAct,
+      hyperlexicon,
+      hyperlexiconLog: sharedHyperlexiconLog,
+      classifyConnector,
     });
     seenRefs.push(...result.refs);
     sharedGridLog = result.gridLog;
+    sharedHyperlexiconLog = result.hyperlexiconLog;
+    sharedHyperlexiconTurnedAway.push(...(result.hyperlexiconTurnedAway ?? []));
     sectionsById.set(t.part_id, result);
     return {
       refs: result.refs,
@@ -2167,5 +2519,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

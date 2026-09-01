@@ -25,7 +25,7 @@ import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
 // The real engine closed class, not a stub — the same received register
 // widget.js already injects (Amendment IV: a closed class lives in the
 // engine's prior register, never as a private list in this repo).
-import { ANAPHORIC_PRONOUNS } from "../eoreader6.1/packages/engine/perceiver/text/priors.js";
+import { ANAPHORIC_PRONOUNS } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({
@@ -127,9 +127,9 @@ test("proof targets come from the turn's own checks, ordered by need, deduplicat
   );
   const relationReport = {
     claims: [
-      { sentence: "Pierre married Dolokhov.", subject: "Pierre", verb: "married", object: "Dolokhov", verdict: "unbound" },
-      { sentence: "Pierre loved Helene.", subject: "Pierre", verb: "loved", object: "Helene", verdict: "contradicted" },
-      { sentence: "He spoke.", subject: "He", verb: "spoke", object: "x", verdict: "beyond-reach" },
+      { sentence: "Pierre married Dolokhov.", subject: "Pierre", verb: "married", object: "Dolokhov", end1: "Pierre", label: "married", end2: "Dolokhov", verdict: "unbound" },
+      { sentence: "Pierre loved Helene.", subject: "Pierre", verb: "loved", object: "Helene", end1: "Pierre", label: "loved", end2: "Helene", verdict: "contradicted" },
+      { sentence: "He spoke.", subject: "He", verb: "spoke", object: "x", end1: "He", label: "spoke", end2: "x", verdict: "beyond-reach" },
     ],
   };
   const targets = proofTargets({ findings: grounding.findings, relationReport });
@@ -226,6 +226,43 @@ test("preflightQuery anchors on the turn's own words; the discourse joins when t
   assert.ok(/springfield/i.test(long), long);
   assert.ok(long.split(/\s+/).length <= PREFLIGHT_QUERY_MAX_TERMS);
   // No question, no discourse, no query — never a bare empty-string search.
+  assert.equal(preflightQuery("", ""), "");
+});
+
+test("preflightQuery keeps an acronym: the length floor dropped the only word saying what was ASKED", () => {
+  // Measured live on the real app, 2026-08-26, whole chain visible: this
+  // question built the query "lincoln" (VP is two characters, under the
+  // length floor), DuckDuckGo answered with eight Lincoln Motor Company
+  // pages, the preflight fetched three, and a question about a vice
+  // president was answered from luxury-SUV marketing copy.
+  const vp = preflightQuery("who was lincoln's VP?", "");
+  assert.match(vp, /VP/, `the acronym carrying the question's whole point was dropped: ${vp}`);
+  assert.match(vp, /lincoln/i, vp);
+
+  // LOWERCASE, and this is the case that matters most: the first version of
+  // this fix keyed on capitals, and the very next real report was the same
+  // question typed "vp" — still reduced to "lincoln", still fetched Lincoln
+  // Motor Company. A rule that depends on the user shift-keying an
+  // abbreviation is not a rule.
+  const vpLower = preflightQuery("who was lincoln's vp?", "");
+  assert.match(vpLower, /vp/, `lowercase abbreviation dropped — the capitals-only fix's own blind spot: ${vpLower}`);
+  assert.match(vpLower, /lincoln/i, vpLower);
+
+  // Written out, this always worked — which is why the bug hid: the same
+  // question in longhand is fine, so only the abbreviated form fails.
+  assert.match(preflightQuery("who was lincoln's vice president?", ""), /vice president/i);
+
+  // An acronym bypasses CLAIM_STOPWORDS deliberately: lowercased, the set
+  // cannot tell the COUNTRY "US" from the pronoun "us", or the agency "WHO"
+  // from the interrogative "who". Casing is the only evidence in the text.
+  // Before this fix "what did the US do" searched the EMPTY string.
+  assert.equal(preflightQuery("what did the US do", ""), "US");
+  assert.match(preflightQuery("what does the WHO recommend", ""), /WHO/);
+  assert.match(preflightQuery("explain AI safety", ""), /AI/);
+
+  // Lowercase behaviour is untouched — the floor and the stopword set both
+  // still apply exactly as before to ordinary words.
+  assert.equal(preflightQuery("the cat is on the mat", ""), "cat mat");
   assert.equal(preflightQuery("", ""), "");
 });
 

@@ -176,7 +176,7 @@ test("opsFromCsvTable carries a null cell through as a real null column value, n
 
 test("end to end: real sql.js batch → deriveStoreOps → store.js insertRow/updateRow/deleteRow round-trips through foldStore", async () => {
   const SQLns = await getSQL();
-  const taskLog = await import("../eoreader6.1/packages/engine/holon/task-log.js");
+  const taskLog = await import("../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js");
   const { makeStore } = await import("./store.js");
   const store = makeStore(taskLog);
 

@@ -32,14 +32,14 @@ import { readFileSync } from "node:fs";
 import { makeRelationReader } from "../hypergraph.js";
 
 const organs = async () => {
-  const { splitSentences } = await import("../../eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../../eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../../eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
   );
-  const { tokenize } = await import("../../eoreader6.1/packages/engine/perceiver/text/material.js");
+  const { tokenize } = await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js");
   return {
     splitSentences,
     extractSurfaces,

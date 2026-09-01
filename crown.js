@@ -71,9 +71,10 @@ import { SELF_WITNESS } from "./capacity-runner.js";
 // renderer and this firewall's veto must agree on, or trace coverage would
 // be an artifact of two tokenizers disagreeing"). A token is a maximal run
 // of word characters (letters, digits, internal apostrophes/hyphens/colons,
-// so "Bezukhov's", "17th", and — load-bearing — "self:model" itself all
-// stay ONE token) or exactly one punctuation mark from the small set this
-// file's own templates actually produce.
+// and internal periods — see below — so "Bezukhov's", "17th",
+// "self:model", and "lincoln.txt" all stay ONE token) or exactly one
+// punctuation mark from the small set this file's own templates actually
+// produce.
 //
 // COLON IS DELIBERATELY IN BOTH the word-continuation class AND the
 // standalone-punctuation alternative — found live, this file's own first
@@ -91,13 +92,69 @@ import { SELF_WITNESS } from "./capacity-runner.js";
 // token changes nothing: `connectiveWords` re-tokenizes that SAME declared
 // string with this SAME function, so construction and the independent
 // verification re-scan can never disagree about where the token boundary
-// falls. Disclosed scope boundary, not a general-purpose identifier
-// tokenizer: a witness/source name containing a period, "@", or other
-// character outside this class would still fragment the same way "self:
-// model" just did — real, narrower than ideal, not hit by any real
-// specimen this pass exercised (every real ground name in this repo's own
-// fixtures is plain alnum, e.g. "lincoln", "lincoln2", "lincolnNeg").
-const TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9':-]*|[.,:;—]/g;
+// falls.
+//
+// PERIOD IS ALSO IN BOTH NOW (2026-08-20) — widened for the identical
+// reason, but not the identical way; see below. This section used to end
+// by DISCLOSING the gap rather than closing it: "a witness/source name
+// containing a period... would still fragment the same way 'self:model'
+// just did... not hit by any real specimen this pass exercised." It has
+// since been hit. `eval/material-dialogue-stress.mjs` drove renderCrown
+// against a source literally named "titanic-a.txt" — an ordinary filename,
+// not a contrived one — and `witnessWords("titanic-a.txt")` split into
+// THREE tokens ("titanic-a", ".", "txt"), rendering "According to
+// titanic-a. txt, ...". Reproduced again here with this file's own
+// "lincoln.txt" (already a real ground name throughout
+// capacity-runner.test.mjs, just never previously pushed through THIS
+// file's own render — see mergeTestimony's own doc comment for that
+// history): "According to lincoln. txt, Lincoln appointed Hamlin." — both
+// pinned as regressions in crown.test.mjs, the SINGLE shape and the
+// harder DISAGREE shape described next.
+//
+// A bare widening of the continuation class — adding "." exactly the way
+// colon was added, with no further condition — is UNSAFE here in a way it
+// was never unsafe for colon. `KNOWN_CONNECTIVES.period` (".") is used, in
+// EVERY render function in this file, as a standalone token deliberately
+// glued flush against whatever claim or witness word ends a sentence —
+// that flush gluing is joinTypographically's whole job (NO_SPACE_BEFORE,
+// below): it is how "Lincoln appointed Hamlin." renders instead of
+// "Lincoln appointed Hamlin .". Colon's connective usage never does this —
+// see the paragraph above, colon only ever appears inside a self-contained
+// phrase token like "Holding:", never flush against a foreign preceding
+// word. A bare widening would make the continuation class greedily eat
+// that trailing connective period straight into whatever word precedes it
+// ("Hamlin." as ONE token) on every rendered sentence, and
+// checkTraceCoverage's independent re-tokenization of the flat text would
+// then find one token where construction's own trace recorded TWO separate
+// entries (a claim/witness token and a connective token) — every existing
+// render would start failing its own wall, not just the new case this fix
+// targets.
+//
+// The fix is a lookahead: a period counts as a word-continuation character
+// only when the VERY NEXT character continues a word
+// (`\.(?=[A-Za-z0-9])`). "titanic-a.txt" — the period is followed by "t",
+// an alnum, so it glues into the word. "Hamlin." at a sentence's end — the
+// period is followed by a space, the end of the string, or another
+// connective's own leading character, never an alnum — so it stays its own
+// standalone token, exactly as it always has. This also correctly resolves
+// the harder adjacency this fix was specifically checked against: a
+// witness name ending in a period-joined suffix sitting DIRECTLY before
+// the connective period with no comma in between (DISAGREE's own
+// witness-list-then-period shape, when a side has exactly one witness) —
+// "lincoln.txt" followed immediately by the sentence's own closing "."
+// renders "lincoln.txt." and still re-tokenizes as TWO tokens
+// ("lincoln.txt", "."), never swallowed into one, because that SECOND
+// period (the real sentence-final one) is followed by a space or the end
+// of the string, never by "t".
+//
+// Disclosed scope boundary, not a general-purpose identifier tokenizer: a
+// witness/source name containing "@" or another character outside this
+// class would still fragment, the same way "self:model" and
+// "titanic-a.txt" once did — real, narrower than ideal, not hit by any
+// real specimen this pass exercised (every real ground name in this
+// repo's own fixtures is plain alnum, hyphen, underscore, or period, e.g.
+// "lincoln", "lincoln2", "lincolnNeg", "lincoln.txt", "titanic-a.txt").
+const TOKEN_RE = /[A-Za-z0-9](?:[A-Za-z0-9':-]|\.(?=[A-Za-z0-9]))*|[.,:;—]/g;
 export function tokenize(text) {
   return String(text ?? "").match(TOKEN_RE) ?? [];
 }

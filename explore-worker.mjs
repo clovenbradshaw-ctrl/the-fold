@@ -23,7 +23,7 @@ import {
   sessionTerrains,
   sessionKinds,
   kindsNullArm,
-} from "../eoreader6.1/packages/host/index.js";
+} from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { buildRecords } from "../terrain-explorer/lib/segment.mjs";
 
 // Admission cap — a bound on what one interactive read admits, not on what

@@ -26,7 +26,7 @@ import assert from "node:assert/strict";
 
 import { chunkSource, atmosphereBoundaries } from "./source.js";
 
-const ENGINE = new URL("../eoreader6.1/packages/engine/", import.meta.url);
+const ENGINE = new URL("../eoreader7/legacy-eoreader6.1/packages/engine/", import.meta.url);
 
 async function organs() {
   const { causalSurprisalSeries } = await import(new URL("perceiver/text/material.js", ENGINE));

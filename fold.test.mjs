@@ -16,13 +16,31 @@ import {
   advanceSummaryFold,
   buildRecordSystemMessage,
   buildSummarySystemMessage,
+  buildSummaryUpdatePrompt,
   buildTurnMessages,
   buildWarrantRecord,
   charCount,
+  deriveRecordWindow,
   emptySummary,
+  extractSummaryFindings,
   mechanicalFoldLine,
+  projectFolds,
+  projectRecords,
   updateSummaryWithFold,
 } from "./fold.js";
+
+// The one sibling-repo import in this file: eoreader7's real, tested
+// dmdWindow — checked out at ../eoreader7 in this session, same relative-
+// import convention every cast.js-pattern test in this repo already uses
+// for eoreader6.1 (ground-ledger.test.mjs, build-log.test.mjs, …). Kept in
+// its own try/import so a checkout without eoreader7 as a sibling degrades
+// to a typed skip rather than failing the whole file to load.
+let dmdWindow = null;
+try {
+  ({ dmdWindow } = await import("../eoreader7/native/kernel/activation.js"));
+} catch {
+  dmdWindow = null;
+}
 
 import {
   buildSourceBlock,
@@ -32,6 +50,7 @@ import {
   openQuestions,
   readRange,
   retrieve,
+  tokenize,
 } from "./source.js";
 
 test("a fold line is bounded no matter how long the turn was", () => {
@@ -39,12 +58,24 @@ test("a fold line is bounded no matter how long the turn was", () => {
   assert.ok(line.length <= FOLD_MAX_CHARS);
 });
 
-test("the fold list stays bounded across many turns", () => {
+test("the fold STORE never truncates — only what a prompt projects out of it does (increment A)", () => {
+  // Supersedes "the fold list stays bounded across many turns", which
+  // asserted the OLD, incorrect behavior: the store itself sliced at
+  // MAX_FOLDS_IN_PROMPT, so fold #13 landing destroyed fold #1 permanently.
+  // P1: "a turn that falls out of [the window] is not forgotten."
   let s = emptySummary();
   for (let i = 0; i < 200; i++) s = advanceSummaryFold(s, `fold ${i}`);
-  assert.equal(s.folds.length, MAX_FOLDS_IN_PROMPT);
+  assert.equal(s.folds.length, 200, "the store keeps every fold, not just the last window");
   assert.equal(s.turnCount, 200);
+  assert.equal(s.folds[0], "fold 0", "the first fold is still there — nothing was destroyed");
   assert.equal(s.folds.at(-1), "fold 199");
+  // The PROJECTION is exactly as bounded as before this split — a refresh
+  // prompt built from the whole store still only shows the recent window.
+  assert.deepEqual(projectFolds(s), s.folds.slice(-MAX_FOLDS_IN_PROMPT));
+  assert.equal(projectFolds(s).length, MAX_FOLDS_IN_PROMPT);
+  const prompt = buildSummaryUpdatePrompt(s, s.folds);
+  assert.ok(!prompt.includes("fold 0"), "the whole store was never resent");
+  assert.ok(prompt.includes("fold 199"));
 });
 
 test("the context window does not grow with the conversation", () => {
@@ -163,12 +194,143 @@ test("the summary refresh cannot rewrite the records", () => {
   assert.equal(s.records[0].gist, "the real one");
 });
 
-test("records stay bounded", () => {
+test("the record STORE never truncates — only what a prompt projects out of it does (increment A)", () => {
+  // Supersedes "records stay bounded", which asserted the OLD, incorrect
+  // behavior — and the worse of the two bugs the spec names: this is the
+  // addressed-evidence tier (System 2), the one P1 says does not decay.
   let s = emptySummary();
   for (let i = 0; i < 40; i++)
     s = addWarrantRecord(s, buildWarrantRecord({ turn: i, gist: `g${i}`, channels: [], refs: [], unsupported: [], open: [] }));
-  assert.equal(s.records.length, RECORDS_IN_PROMPT);
+  assert.equal(s.records.length, 40, "the store keeps every record, not just the last window");
+  assert.equal(s.records[0].turn, 0, "turn 0's record is still addressed and re-openable");
   assert.equal(s.records.at(-1).turn, 39);
+  // The PROJECTION is exactly as bounded as before this split.
+  assert.deepEqual(projectRecords(s), s.records.slice(-RECORDS_IN_PROMPT));
+  assert.equal(projectRecords(s).length, RECORDS_IN_PROMPT);
+  const record = buildRecordSystemMessage(s);
+  assert.ok(!record.includes("g0"), "the whole store was never resent");
+  assert.ok(record.includes("g39"));
+});
+
+test("buildRecordSystemMessage/buildSummaryUpdatePrompt accept an explicit window, overriding the declared default", () => {
+  let s = emptySummary();
+  for (let i = 0; i < 10; i++)
+    s = addWarrantRecord(s, buildWarrantRecord({ turn: i, gist: `g${i}`, channels: [], refs: [], unsupported: [], open: [] }));
+  const wide = buildRecordSystemMessage(s, { window: 10 });
+  assert.ok(wide.includes("g0"), "an explicit wider window reaches further back");
+  const narrow = buildRecordSystemMessage(s, { window: 1 });
+  assert.ok(!narrow.includes("g8") && narrow.includes("g9"));
+
+  let s2 = emptySummary();
+  for (let i = 0; i < 5; i++) s2 = advanceSummaryFold(s2, `fold ${i}`);
+  const p = buildSummaryUpdatePrompt(s2, s2.folds, { window: 2 });
+  assert.ok(!p.includes("fold 2") && p.includes("fold 3") && p.includes("fold 4"));
+});
+
+test("buildTurnMessages forwards recordWindow to the record projection", () => {
+  let s = emptySummary();
+  for (let i = 0; i < 10; i++)
+    s = addWarrantRecord(s, buildWarrantRecord({ turn: i, gist: `g${i}`, channels: [], refs: [], unsupported: [], open: [] }));
+  const msgs = buildTurnMessages({ basePrompt: "base", summary: s, history: [], question: "q", recordWindow: 10 });
+  assert.ok(JSON.stringify(msgs).includes("g0"), "an explicit recordWindow reaches past the declared default");
+});
+
+// ── deriveRecordWindow: measured, not declared, when an organ is injected ──
+
+test("deriveRecordWindow: no organ injected returns the declared fallback, and says so", () => {
+  const records = Array.from({ length: 20 }, (_, i) => ({ refs: [`t${i}.txt#0-10`] }));
+  const r = deriveRecordWindow(records, {});
+  assert.equal(r.window, RECORDS_IN_PROMPT);
+  assert.match(r.basis, /declared/);
+  assert.equal(r.gap, null);
+});
+
+test("deriveRecordWindow: too little material to try any candidate also declines to the declared fallback", () => {
+  if (!dmdWindow) return; // no eoreader7 sibling checked out — see the header try/import
+  const records = [{ refs: ["a.txt#0-10"] }];
+  const r = deriveRecordWindow(records, { dmdWindow, candidates: [2, 4, 8] });
+  assert.equal(r.window, RECORDS_IN_PROMPT);
+  assert.match(r.basis, /fewer records/);
+});
+
+test("deriveRecordWindow: a live-identity set that has already stabilized measures the shallowest candidate", () => {
+  if (!dmdWindow) return;
+  // Every record cites the same address throughout — the whole-store
+  // conclusion and every candidate-depth conclusion agree trivially, so
+  // the shallowest one wins (dmdWindow's own "difference that makes a
+  // difference": once forgetting more changes nothing, stop there).
+  const records = Array.from({ length: 20 }, () => ({ refs: ["stable.txt#0-10"] }));
+  const r = deriveRecordWindow(records, { dmdWindow, candidates: [2, 4, 8, 16] });
+  assert.equal(r.window, 2);
+  assert.match(r.basis, /difference-that-makes-a-difference/);
+});
+
+test("deriveRecordWindow: a genuinely singleton old address is an honest reach_exceeds_candidates gap, never a silent guess", () => {
+  if (!dmdWindow) return;
+  // Records 0-9 cite an address that is never cited again; forgetting it
+  // really does change what "currently live" means, at every candidate
+  // depth that stays inside the current-topic tail — the honest answer is
+  // that this material's reach exceeds what was tried, not the widest
+  // candidate. (Candidates are all < 10, the current-topic block's own
+  // size, so none of them can accidentally reach back into the old block —
+  // a candidate of 16 would, and correctly measure 16, which is a
+  // different, equally honest finding this test does not exercise.)
+  const records = [
+    ...Array.from({ length: 10 }, () => ({ refs: ["old.txt#0-10"] })),
+    ...Array.from({ length: 10 }, () => ({ refs: ["current.txt#0-10"] })),
+  ];
+  const r = deriveRecordWindow(records, { dmdWindow, candidates: [2, 4, 8] });
+  assert.equal(r.window, RECORDS_IN_PROMPT, "falls back to the declared default on a gap");
+  assert.equal(r.gap, "reach_exceeds_candidates");
+});
+
+// ── extractSummaryFindings: the consolidation witness ───────────────────────
+
+test("extractSummaryFindings: a live-supported entity silently dropped is lost_live_entity", () => {
+  const records = [{ gist: "Alice reported the Koniag contract's status." }];
+  const check = extractSummaryFindings(["Alice"], [], { records });
+  assert.equal(check.ok, false);
+  assert.equal(check.findings.length, 1);
+  assert.equal(check.findings[0].kind, "lost_live_entity");
+  assert.equal(check.findings[0].id, "Alice");
+});
+
+test("extractSummaryFindings: an entity with no live record or fold behind it is unsupported_addition", () => {
+  const check = extractSummaryFindings([], ["Fabricated Corp"], { records: [{ gist: "nothing about that here" }], folds: ["Q: hi A: hello"] });
+  assert.equal(check.ok, false);
+  assert.deepEqual(check.findings, [{
+    kind: "unsupported_addition",
+    id: "Fabricated Corp",
+    detail: '"Fabricated Corp" is new in the refreshed summary, and no live record or fold names it',
+  }]);
+});
+
+test("extractSummaryFindings: a name a fold (not a record) supports is not flagged", () => {
+  const check = extractSummaryFindings([], ["Bob"], { records: [], folds: ["Q: who reported it? A: Bob did."] });
+  assert.equal(check.ok, true);
+});
+
+test("extractSummaryFindings: carrying forward an already-unsupported name is not a NEW finding", () => {
+  // Matches witnessRegressed's own subset rule: an issue already present
+  // does not re-fire just for persisting across one more refresh.
+  const check = extractSummaryFindings(["AlreadyBad"], ["AlreadyBad"], { records: [], folds: [] });
+  assert.equal(check.ok, true);
+});
+
+test("extractSummaryFindings: dropping an entity nothing live supports is not lost_live_entity", () => {
+  // The entity was never live in the first place (nothing cites it) — S1's
+  // gist is allowed to let genuinely stale topics fade; only a name the
+  // CURRENT live records/folds still back counts as a regression to lose.
+  const check = extractSummaryFindings(["StaleTopic"], [], { records: [{ gist: "unrelated content" }] });
+  assert.equal(check.ok, true);
+});
+
+test("extractSummaryFindings composes with witnessRegressed exactly as a code witness does", async () => {
+  const { witnessRegressed } = await import("./witness.js");
+  const clean = extractSummaryFindings(["Alice"], ["Alice"], { records: [{ gist: "Alice again" }] });
+  assert.equal(witnessRegressed({ ok: true, findings: [] }, clean), false);
+  const regressed = extractSummaryFindings(["Alice"], [], { records: [{ gist: "Alice again" }] });
+  assert.equal(witnessRegressed({ ok: true, findings: [] }, regressed), true);
 });
 
 test("the summary call cannot revise the turn count", () => {
@@ -222,6 +384,41 @@ test("an accented corpus answers an unaccented question", () => {
   // And in the other direction: an unaccented corpus, an accented question.
   const plain = chunkSource("q.txt", "Natasha danced with Andrew until the small hours.");
   assert.equal(retrieve(plain, "Natásha").length, 1);
+});
+
+test("a vocalized Hebrew corpus answers an unvocalized question — and the reverse", () => {
+  // Measured live before this fix, against a real fetched Talmud folio:
+  // tokenize("שלום") === []. A pointed (vocalized) corpus and an unpointed
+  // question are the identical Bezúkhov/Bezukhov shape one script over.
+  const talmud = "מֵאֵימָתַי קוֹרִין אֶת שְׁמַע בָּעֲרָבִין מִשָּׁעָה שֶׁהַכֹּהֲנִים נִכְנָסִים לֶאֱכוֹל בִּתְרוּמָתָן";
+  const chunks = chunkSource("berakhot.txt", talmud);
+  assert.equal(retrieve(chunks, "מאימתי קורין שמע").length, 1);
+  // And unpointed corpus, pointed question.
+  const plain = chunkSource("q.txt", "מאימתי קורין את שמע בערבין");
+  assert.equal(retrieve(plain, "מֵאֵימָתַי קוֹרִין").length, 1);
+});
+
+test("tokenize is not ASCII-only — every whitespace-delimited script survives", () => {
+  // The bug this closes: tokenize's split class was `[a-z0-9%.-]`, so any
+  // string outside that alphabet was ONE giant boundary run and tokenize
+  // returned []. retrieve() calls tokenize() on both the question and every
+  // chunk's own .terms (chunkSource -> chunkProse/makeChunk/chunkRows, all
+  // three via tokenize alone), so the failure was blind on both sides, not
+  // merely unranked.
+  assert.deepEqual(tokenize("שלום עולם"), ["שלום", "עולם"]);
+  assert.deepEqual(tokenize("Наташа Ростова"), ["наташа", "ростова"]);
+  assert.deepEqual(tokenize("مرحبا بالعالم"), ["مرحبا", "بالعالم"]);
+});
+
+test("CJK is a disclosed, narrower fix — not real word segmentation", () => {
+  // Checked live, not assumed: a boundary-based tokenizer cannot introduce a
+  // split where the text itself has none — there is no character between
+  // adjacent CJK ideographs for `\p{L}`-class splitting to find. A bare
+  // two-character real word ("Beijing") is STILL [] here, because the same
+  // length floor that drops a two-letter English word drops it too; only a
+  // longer run survives, as one oversized merged token, never a real word.
+  assert.deepEqual(tokenize("北京"), []);
+  assert.deepEqual(tokenize("北京大学"), ["北京大学"]);
 });
 
 const CSV = `org_id,organization_name,reason,case_number

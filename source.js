@@ -177,6 +177,33 @@ function isNumeral(t) {
  */
 const GUTENBERG_START_RE = /\*\*\*\s*START OF TH(?:E|IS) PROJECT GUTENBERG EBOOK[^*]*\*\*\*/i;
 
+
+/**
+ * Gutenberg plain-text italics markup (`_word_`), stripped so the marker
+ * itself never reads as part of a name or a clause boundary.
+ *
+ * Found live reading the whole of Dracula end to end: 308 occurrences in
+ * the raw file, and every one of them was leaking straight into the
+ * Entity terrain — `_ Hell`, `_Czarina Catherine_`, `_He_`, `_must_ know`
+ * — because CAP_TOKEN and the clause extractor both read the underscore
+ * as an ordinary token character, no different from a stray comma before
+ * the P50 fix made THAT a declared category instead of an enumeration.
+ * Same principle here: strip the MARKUP CONVENTION, name the category
+ * (a matched pair of underscores bounding a short run with no underscore
+ * or paragraph break inside it), never chase individual italicized words.
+ *
+ * Length-changing on purpose, like stripContainer's own offset — this
+ * runs once, immediately after container-stripping and before ANY
+ * sentence-splitting or span-tracking begins, so every downstream offset
+ * (splitSentences, extractSurfaces, hypergraph edge spans) is already
+ * relative to the stripped text and nothing drifts out of sync with it.
+ * An unmatched underscore (no closing partner on the same run) is left
+ * alone rather than guessed at — a real, disclosed residue, not chased.
+ */
+export function stripItalicsMarkup(text) {
+  return String(text ?? "").replace(/_([^_\n]{1,200}?)_/g, "$1");
+}
+
 export function stripContainer(text) {
   const s = String(text ?? "");
   const start = s.match(GUTENBERG_START_RE);

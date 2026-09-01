@@ -79,11 +79,11 @@
 // (a grid cell via the engine's own `cellOf`, a relation's own verb, a
 // question's declared shape — the caller's domain decides, the same
 // "caller decides what belongs" rule `hyperlexicon.js::recipeId` already
-// states). And `surfWeight`/`forcesFoldRefresh` are pure, unwired signals —
-// see `metacognition-integration-note.md` for exactly where a live call
-// site would read them; this pass does not reach into `app.js`, which
-// CLAUDE.md's Explore section already names as the fold-architecture
-// session's own contract, repeated across P39/P53/P56/P60/P63.
+// states). `surfWeight` is consumed live through `escalationFor` (flow #2 —
+// app.js widens the preflight and the correction budget on a contested
+// standing, gated to the same S1/S2 channel the evidence came from);
+// `forcesFoldRefresh` remains a pure, unwired signal — see
+// `metacognition-integration-note.md` for what its call site would need.
 //
 // Generality (P71): the four-way classification composes existing
 // medium-general primitives (`checkGrounding`'s containment check, and this
@@ -382,6 +382,47 @@ export function makeMetacognition(taskLog) {
  */
 export function surfWeight(standing) {
   return standing?.standing === "contested" ? 1.5 : 1;
+}
+
+/**
+ * escalationFor(standing, budgets) — flow #2, "suspicion widens the
+ * search": the one consumer of `surfWeight` a live turn actually calls.
+ * Takes the caller's DECLARED budget constants (never a prior turn's
+ * already-escalated values — the call site passes the imported constants
+ * every time, so the factor applies once per turn from the same base and
+ * can never compound) and returns them either untouched or ceil-widened.
+ *
+ * Three laws, each load-bearing:
+ *
+ *   ASYMMETRY. Budgets only ever RISE. `surfWeight` returns 1 for
+ *   `established` and `unproven` alike, so a good record never quietly
+ *   removes checking and an unmeasured one never earns a discount — the
+ *   dark-room refusal, applied to the spend side.
+ *
+ *   CEIL, NOT ROUND. A widening must never round back to its own
+ *   baseline: for any integer budget >= 1 and any factor > 1,
+ *   Math.ceil(v * factor) > v (v * 1.5 >= v + 0.5), so `contested`
+ *   ALWAYS buys at least one more unit of effort. Round would no-op a
+ *   budget of 1 under a factor below 1.5 and turn the flow into a
+ *   comment; ceil makes it a wall.
+ *
+ *   CHANNEL ALIGNMENT. The caller applies this only to turns of the same
+ *   class the cell's evidence came from (app.js gates on
+ *   `opts.priorPass`, the identical gate `observe`'s own call site uses)
+ *   — a standing measured on S1/S2 turns adjusts S1/S2 turns, never a
+ *   channel nothing ever measured.
+ *
+ * Non-numeric or absent budget fields pass through untouched — this
+ * function widens what it was handed, it never invents a budget.
+ */
+export function escalationFor(standing, budgets = {}) {
+  const factor = surfWeight(standing);
+  const escalated = factor > 1;
+  const out = { escalated, factor };
+  for (const [key, value] of Object.entries(budgets)) {
+    out[key] = escalated && Number.isFinite(value) ? Math.ceil(value * factor) : value;
+  }
+  return out;
 }
 
 /**

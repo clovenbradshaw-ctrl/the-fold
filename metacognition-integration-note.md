@@ -135,20 +135,22 @@ now sits.
    CORRECTED (no edges to contradict against) — a graceful, honest
    degradation, never a wrong finding manufactured from a check that did
    not run.
-4. **Whether `surfWeight`/`forcesFoldRefresh` are worth wiring at all
-   yet.** STILL OPEN. Both are pure, real, tested — but neither has been
-   validated against a real turn where widening retrieval, or forcing a
-   fold refresh, actually changed an outcome (POLICIES.md's own
-   generality gate, P71, names exactly this as the unrun leg). Wiring
-   `forcesFoldRefresh` into `refreshSummary`'s own gate turned out LESS
-   trivial than first guessed: `refreshSummary` is called from a
-   DIFFERENT point in the turn-ending sequence than where
-   `assessAgreement` now runs, inside code this pass did not trace
-   closely enough to be confident threading a signal across that gap
-   would not risk the refresh gate itself — left alone rather than risked.
-   Wiring `surfWeight` into `gatherPreflightMaterial`/`needsSystem2`
-   remains the larger, real design question (widen WHAT) this note
-   already named.
+4. **`surfWeight` — WIRED (flow #2, second amendment, "do it").**
+   `escalationFor` (metacognition.js) is its one live consumer:
+   `holonicTurn` reads the `"s1-draft"` standing once per S1/S2 turn
+   (gated on `opts.priorPass`, the same gate `observe` uses) and, on
+   `contested`, ceil-widens the three declared budgets — preflight pages
+   3 → 5 (`gatherPreflightMaterial`'s new optional `pagesConsulted`),
+   passages per part 3 → 5, correction passes 1 → 2 — always computed
+   from the exported constants so it cannot compound, always landing an
+   `escalated` act on the reflex ledger. "Widen WHAT" is thereby
+   answered: the three budgets that were already parameters. What is
+   STILL not proven: that the widening helps — the correction rate's
+   response to escalation is the measured leg that needs live turns.
+   **`forcesFoldRefresh` — STILL OPEN**, for the reason already stated:
+   `refreshSummary` fires from a different point in the turn-ending
+   sequence than the assessment, and threading a signal across that gap
+   was not traced closely enough to risk.
 
 ## Residues, so you can say them rather than rediscover them
 

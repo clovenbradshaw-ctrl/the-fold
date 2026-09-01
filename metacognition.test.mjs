@@ -25,6 +25,7 @@ import {
   assessAgreement,
   makeMetacognition,
   surfWeight,
+  escalationFor,
   forcesFoldRefresh,
 } from "./metacognition.js";
 
@@ -253,6 +254,48 @@ test("forcesFoldRefresh: true only on a real correction, never on a bare gap", (
   assert.equal(forcesFoldRefresh({ counts: { corrected: 1 } }), true);
   assert.equal(forcesFoldRefresh({ counts: { corrected: 0, unresolved: 9 } }), false);
   assert.equal(forcesFoldRefresh({}), false);
+});
+
+test("escalationFor: contested ceil-widens every numeric budget — the exact live numbers pinned", () => {
+  const r = escalationFor(
+    { standing: "contested" },
+    { maxCorrections: 1, passagesPerPart: 3, pagesConsulted: 3 },
+  );
+  assert.equal(r.escalated, true);
+  assert.equal(r.factor, 1.5);
+  assert.equal(r.maxCorrections, 2); // ceil(1 * 1.5)
+  assert.equal(r.passagesPerPart, 5); // ceil(3 * 1.5) = ceil(4.5)
+  assert.equal(r.pagesConsulted, 5);
+});
+
+for (const standing of [{ standing: "established" }, { standing: "unproven" }, null]) {
+  test(`escalationFor: ${standing?.standing ?? "no standing"} leaves every budget untouched — trust never removes checking, and unmeasured never earns a discount`, () => {
+    const r = escalationFor(standing, { maxCorrections: 1, passagesPerPart: 3 });
+    assert.equal(r.escalated, false);
+    assert.equal(r.maxCorrections, 1);
+    assert.equal(r.passagesPerPart, 3);
+  });
+}
+
+test("escalationFor: a widening never rounds back to its own baseline — strict increase for every integer budget", () => {
+  for (let v = 1; v <= 8; v++) {
+    const r = escalationFor({ standing: "contested" }, { b: v });
+    assert.ok(r.b > v, `budget ${v} must strictly increase under contested (got ${r.b})`);
+  }
+});
+
+test("escalationFor: non-numeric and absent fields pass through untouched — it widens, it never invents", () => {
+  const r = escalationFor({ standing: "contested" }, { label: "s1-draft", missing: null });
+  assert.equal(r.label, "s1-draft");
+  assert.equal(r.missing, null);
+});
+
+test("escalationFor: pure over its inputs — the same declared constants give the same numbers every time, so the factor cannot compound across turns", () => {
+  const base = { maxCorrections: 1, passagesPerPart: 3 };
+  assert.deepEqual(
+    escalationFor({ standing: "contested" }, base),
+    escalationFor({ standing: "contested" }, base),
+  );
 });
 
 // ── end-to-end: a turn's assessment folded straight into the ledger ───────

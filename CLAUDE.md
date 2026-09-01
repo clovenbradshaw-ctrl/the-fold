@@ -5870,3 +5870,20 @@ new line was instead verified against already-live, adjacent code in the
 same function. Two open decisions remain: a finer cell taxonomy, and
 whether `surfWeight`/`forcesFoldRefresh` are worth wiring —
 `metacognition-integration-note.md` carries the full, corrected account.
+
+**Amended again — flow #2 wired ("do it"): suspicion widens the search.**
+P72's second amendment is the law; the one-line map:
+`metacognition.js::escalationFor` is now `surfWeight`'s one live consumer
+— on a `contested` `"s1-draft"` standing, an S1/S2 turn's preflight
+consults 5 pages instead of 3, each part retrieves 5 passages instead of
+3, and the correction loop gets 2 passes instead of 1 (ceil × the
+declared 1.5, always from holon.js/proof.js's own exported constants,
+never a prior escalated value — so it cannot compound). Asymmetric by
+construction (`established`/`unproven` come back byte-identical — trust
+never removes checking), channel-aligned (gated on `opts.priorPass`, the
+same gate `observe` uses — measured on S1/S2 turns, adjusts S1/S2 turns),
+and never silent (an `escalated` act lands on the reflex ledger). Whether
+the flow HELPS — does the correction rate fall once it engages — remains
+the named, unrun measured leg; the counts to answer it now accumulate on
+the ledger itself. `forcesFoldRefresh` and the gate flow (#1, which would
+widen the thin S1/S2 channel) stay deliberately unbuilt.

@@ -9025,3 +9025,51 @@ worth wiring — `forcesFoldRefresh` turned out to need `refreshSummary`
 threaded from a different point in the turn-ending sequence than this
 pass traced closely enough to risk). `metacognition-integration-note.md`
 carries the full, corrected account.
+
+**Second amendment — flow #2 wired: suspicion widens the search ("do
+it", user direction after the flows were laid out).** The ledger was a
+thermostat reading the room with no furnace connected; this connects
+exactly one duct. `metacognition.js` gained `escalationFor(standing,
+budgets)` — the one live consumer of `surfWeight`: on a `contested`
+standing every numeric budget handed in is ceil-widened by the declared
+1.5 factor; on `established`/`unproven`/none they come back
+byte-identical. Three laws, each pinned as its own regression
+(`metacognition.test.mjs`, 25 → 32): ASYMMETRY (budgets only ever rise —
+a good record never quietly removes checking, an unmeasured one never
+earns a discount; the dark-room refusal applied to the spend side);
+CEIL, NOT ROUND (for any integer budget ≥ 1 and factor > 1,
+`ceil(v·1.5) > v`, so `contested` always buys at least one more unit —
+round would no-op a budget of 1 and turn the flow into a comment);
+NON-COMPOUNDING BY CONSTRUCTION (the call site always passes the
+DECLARED constants — holon.js's own exported `MAX_CORRECTIONS = 1` and
+`PASSAGES_PER_PART = 3`, proof.js's own `PREFLIGHT_PAGES_CONSULTED = 3` —
+never a prior escalated value, so the factor applies once per turn from
+the same base).
+
+**The concrete flow, in numbers.** On an S1/S2 turn whose `"s1-draft"`
+standing reads `contested`: the preflight consults 5 pages instead of 3
+(`gatherPreflightMaterial` gained an optional `pagesConsulted`,
+defaulting to the same constant its slice always used — its one other
+behavior byte-identical), each part retrieves 5 passages instead of 3,
+and the correction loop gets 2 passes instead of 1. CHANNEL ALIGNMENT is
+the scoping law: the escalation is gated on `opts.priorPass`, the
+identical gate `observe`'s own call site uses — a standing measured on
+S1/S2 turns adjusts S1/S2 turns, never a channel nothing measured. That
+channel is thin today (S1 only runs on trivially-chatty questions that
+volunteer something checkable, per the SEARCH-BEFORE-ANSWERING
+amendment), and that thinness is stated rather than papered over: flow
+#1 (the gate itself reading the standing) is what would widen the
+channel, and it is deliberately not built here. Every engagement lands
+on the reflex ledger as an `escalated` act (reflex.js's designed
+unknown-act fallback, the same door `measured`/`carried`/`narrowed`
+entered through) — a decision the instrument made is never silent.
+
+**Still honest about what is not proven.** This wires the flow; it does
+not prove the flow HELPS — whether the correction rate for the cell
+actually falls once escalation engages is the same unrun measured leg
+the first amendment already named (P60's own line stands: a mechanism
+that runs is not a mechanism that helps). The observability for that
+measurement now exists on the ledger itself (corrected counts per cell,
+`escalated` acts on the reflex ledger); running it needs live turns this
+environment cannot drive. Suite: 1085 → 1092, pass 958 → 965, the same
+125 pre-existing environment failures by name, zero regressions.

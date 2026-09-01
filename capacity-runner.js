@@ -948,7 +948,14 @@ export function landSelfAssertion(grid, log, { subject, verb, object, verdict, c
   const judged =
     verdict === "undetermined"
       ? null
-      : { subject, verb, object, refs: [], polarity: verdict === "holds" ? "+" : "-", corroboration: { passages: 0, sources: 0 } };
+      : {
+          subject, verb, object,
+          // The neutral arrangement (P76), stamped by this producer exactly
+          // as hypergraph.js's own claims carry it — perSourceReadings reads
+          // end1/label/end2 off `judged` since the arrangement migration,
+          // and this is the one judged-payload producer outside that reader.
+          end1: subject, label: verb, end2: object,
+          refs: [], polarity: verdict === "holds" ? "+" : "-", corroboration: { passages: 0, sources: 0 } };
   const attached = grid.attachResult(
     landedLog,
     defId,

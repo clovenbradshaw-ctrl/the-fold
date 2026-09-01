@@ -50,8 +50,8 @@ const span = { ref: "t:page", start: 0, end: 40, text: "The battle of Borodino w
 const stubRelations = () => ({
   read: (text) => text.includes("Borodino")
     ? { claims: [
-        { verdict: "bound", subject: "The Battle", verb: "of", object: "Borodino", spans: [span] },
-        { verdict: "bound", subject: "the army", verb: "fought", object: "near Moscow", spans: [span] },
+        { verdict: "bound", subject: "The Battle", verb: "of", object: "Borodino", end1: "The Battle", label: "of", end2: "Borodino", spans: [span] },
+        { verdict: "bound", subject: "the army", verb: "fought", object: "near Moscow", end1: "the army", label: "fought", end2: "near Moscow", spans: [span] },
       ] }
     : { claims: [] },
 });
@@ -91,7 +91,7 @@ test("without the lens (every existing caller): the door is byte-identical to be
 test("out-of-vocabulary connector admits — the gate is asymmetric, absence convicts nothing", async () => {
   const oov = () => ({
     read: (text) => text.includes("Borodino")
-      ? { claims: [{ verdict: "bound", subject: "x", verb: "zzyqx", object: "y", spans: [span] }] }
+      ? { claims: [{ verdict: "bound", subject: "x", verb: "zzyqx", object: "y", end1: "x", label: "zzyqx", end2: "y", spans: [span] }] }
       : { claims: [] },
   });
   const r = await runWith({ classifyConnector, makeRelationReader: oov });

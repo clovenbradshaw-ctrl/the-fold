@@ -6391,3 +6391,23 @@ referent fold lands; (3) label identity stays `sameLemma` only — synonymy
 is open, disclosed, and not approximated by company; (4) `kind-standing.js`
 as the fold gate. Corroboration held at ~2.3% before and after the gate —
 the identity work only pays once the ends are real.
+
+
+## The corroboration bottleneck, third revision (added 2026-09-01) — pointer
+
+`reading-recall-finding.md` carries the measurements. The "bottlenecks in
+order" section above is superseded on one point: **identity is refuted as
+the corroboration lever.** The P73 `noteIdentity` seam was filled with the
+earned referent organ and measured FLAT — within-book (Dracula, three arms
+byte-identical at 0.4%) and cross-document (the Borodino pair: two pages
+about one battle, 727 notes, ZERO exact restatements, one near-verbatim
+join that the deranged-alias control also found, so attributable lift
+zero). Fiction re-mentions referents, not propositions; encyclopedic prose
+restates propositions in different words. The remainder is PARAPHRASE —
+the same wall MINE-1's `unbound` plateau and P74's withdraw/retreat
+verdict already named — and the licensed tool is the witness tier (P32)
+pointed at the door's >=2-witness gate: "does this page state this note?",
+asked of a small model, verdict derived mechanically. Also recorded there:
+the sidecars measured stale and regenerated `--fresh` (41.4% -> 27.9% junk,
+excerpt-scale by design), and a retrieval-loop probe DISCARDED by its own
+broken control before its numbers became claims.

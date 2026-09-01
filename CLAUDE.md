@@ -4398,8 +4398,10 @@ surfaces it labeled as the source's own claim. The model no longer has to
 guess what book this is. Verified against the real pipeline twice, two
 different random S1 hallucinations, both times fixed by S2. A first reach
 for "load a hyperlexicon for Wikipedia" was checked and refused on the
-merits — `hyperlexicon.js` is the HL relation-composition ledger (P37), not
-a lexical source — and the user's own redirect is the standing rule for
+merits — `hyperlexicon.js` is the P57 ASSERTION ledger, not a lexical
+source. (Corrected 2026-09-01: this sentence used to call it "the HL
+relation-composition ledger (P37)", conflating three different modules
+that share the name. See the hyperlexicon-names note below.) — and the user's own redirect is the standing rule for
 whatever reaches for Wikipedia next: **the model should never have anything
 without provenance.** A live Wikipedia fetch would need the SAME real
 provenance chain the web organ (P13) and witness/proof-seeking tiers
@@ -4964,8 +4966,11 @@ collapsed character-class signature; lag-2 similarity 0.926 vs 0.579 inside a
 record block, flat in prose) is MEASURED and unbuilt. `tiles=false, gaps=18`
 because real handovers carry day-level gaps, so the coverage gate refuses to
 call the set closed — a real decision, not a threshold to tune. And nothing
-here is wired into `app.js`: `hyperlexicon.js` has no caller and the
-hyperlexicon-as-`seek`-source adapter is a driver, not a module.
+here is wired into `app.js`: the `seek`-source adapter is a driver, not a
+module. (Corrected 2026-09-01: this used to say `hyperlexicon.js` has no
+caller. It HAS one — `app.js` builds it and threads the log through
+`runHolonicTask`, landed by P73/P74. What remains unwired is `network.js`
+and the seek adapter.)
 
 **`succession.js` is condemned but still in the tree** (user, 2026-08-28: *"it
 should never have been made"*). It is not a delete: it reads a different
@@ -6264,3 +6269,145 @@ of declared order beside it. The web organ, the database fold and the
 GitHub organ all satisfy the contract and have no adapter yet; each is one
 `open()` away, and naming them is not the same as having written them.
 Orders 12 and above carry no capacity: `interact.js` stops at 11.
+
+## Kinds, and the resolution test (added 2026-09-01) — pointer
+
+eo-constitution **II.23** (19th amendment, sealed, enforced by
+`conformance/resolution.test.mjs`) is the law; **P79** here and **S41** in
+eoreader7 are the two registers; `kind-induction-finding.md` and
+`run-splitting-finding.md` carry the measurements.
+
+**The one-line version.** II.10 governs the NULL (does it differ in exactly
+one axis); **II.23 governs the STATISTIC** (does it move when that axis
+moves). They fail independently. A statistic earns its use by a control
+**built to fail**, named as one — a run reporting only successes has not
+demonstrated anything, because a statistic returning "significant" for every
+input returns it for the true ones too.
+
+**Three failures in one session, all on one specimen**, and the law existed
+for the first one already: a basin chosen for cohesion placed against random
+subsets of its own population (II.10's *selection is an axis*, broken anyway
+— which is why II.23 ships with a test rather than as prose); a direction
+assumed rather than derived (redealing makes entities MORE alike, so
+"observed beats the null" was the wrong inequality); and a commensurable
+null whose statistic could not resolve the claim (one foreign member added
+to a cohesive ten-set moves a set statistic by less than its noise, so every
+candidate passed). **The enforcement test caught itself**: version one keyed
+on assertion shapes, and a mutation run left it passing with every real
+control stripped.
+
+**`kind-standing.js`** is the reference null-spender and the registered
+seam: what KIND of thing a referent is, from company alone (the token before
+and after each mention — Firth, P31), counts not sets, with the POPULATION
+as the null and nothing redealt. `foldPermitted` refuses a fold only on
+positive evidence of different standing; **`unknown` allows**, because a thin
+profile is a fact about the reader, not about the referents — the
+withhold-vs-convict rule the grounding-ladder section already states, one
+register over.
+
+**Two findings worth not re-deriving.** Places are a MARKED kind; "person"
+is the unmarked default and is therefore undetectable against its own
+background (p≈0.163) — that is a fact about the material, not a weak
+mechanism. And the cast/Entity relation: **cast members are referents**,
+while the Entity terrain types the ACT of first assertion (INS is
+Existence-domain, SYN is Structure-domain) — P58's cube-classifies-moves
+law. Cast members are what an arrangement's ENDS resolve to.
+
+**Not closed, named:** `kind-standing.js` has no caller — the live cast
+still folds Castle Dracula into Count Dracula. East/West Cliff is out of
+reach (too few mentions; absence of evidence, pinned as a test of the
+limit). And the SVO wipe stays open: `arrangementOf` (P76) gives
+`end1/label/end2`, the live table now uses it, and 221 call sites do not.
+
+
+## Three modules share the name "hyperlexicon" (added 2026-09-01) — pointer
+
+They are not the same thing and two entries above had conflated them:
+
+| module | what it is | law |
+|---|---|---|
+| `the-fold/hyperlexicon.js` | the **assertion ledger** — what the material was heard to say, INS first sighting / SYN re-sighting, witnesses and spans unioned, append-only | P57 |
+| `the-fold/hl.js` | the **adapter** to HL, whose logic moved into the engine | P37 |
+| `eoreader7/native/kernel/hyperlexicon.js` | the **chemistry table** — which affordances license composition, giver required | HL amendment |
+
+**Where the assertion ledger actually stands, measured.** It is live:
+`app.js` builds it, `state.hyperlexiconLog` persists it across turns, and
+`holon.js` threads it per part. Its ONE path to the model is `ledgerBlock`,
+gated at `witnesses.length >= 2`.
+
+That gate is nearly always empty, and it is a structural starvation, not a
+bug in the gate. On a whole real book (Dracula, end to end): **11,624 notes
+at one witness, 260 at two or more — 2.2%.** P73's own probe measured
+**0 of 29** on Wikipedia pages. So the ledger accumulates real, correctly
+typed, append-only knowledge that almost never reaches a prompt.
+
+**The cause is identity, and the seam for it already exists.** A note's
+identity is the exact `(subject, verb, object)` triple, so *"The Russian
+army withdraws"* and *"Imperial Russian forces retreated"* are two notes
+forever. P73 built the injectable `noteIdentity` organ for exactly this;
+P74 then measured that referent-face + lemma folding gives **0 joins** on
+real pages, because `sameLemma("withdraws","retreated")` is false — this is
+**synonymy, not morphology**. The seam is built and the organ that would
+fill it is not.
+
+**A hypothesis worth testing, not a claim.** `kind-standing.js` (P79)
+measures what a referent IS from its distributional company alone. Two
+labels with near-identical company are plausibly the same act — which is
+the same shape as the missing `noteIdentity` organ, one slot over
+(labels instead of ends). Untested, and it must be tested the way P79 was:
+with a control built to fail, per II.23.
+
+**One measure disagrees between two callers, deliberately noted.**
+`holon.js` counts `witnesses.length` (cross-SOURCE corroboration — two
+chunks of one file are one perspective, `corroborateAtoms`' own rule).
+The Dracula driver counts `max(witnesses, spans)`, so a fact heard twice
+in ONE book counts. Neither is wrong; they answer different questions, and
+the 260-vs-0 gap between them is entirely that difference.
+
+## The hyperlexicon's real bottlenecks, in order (added 2026-09-01, second pass) — pointer
+
+The "three modules" section above named exact-triple identity as the
+starvation cause. **Measured same day: identity is the SECOND cause.** The
+first was that the door's diet was garbage — the POS grammar gate had run
+dark in `live_priors/scripts/eot-digest.mjs` for its whole life (one wrong
+word in a filename: `pos-eng.json` for `pos-prior-eng.json`), so 12,696
+Dracula edges arrived with `the`/`and`/`of`/`he` as labels and a quotation
+mark as a subject, and the door turned away zero. Gate lit: 6,503 edges,
+labels real verbs. eo-constitution **III.5** (20th amendment, sealed: a
+typed gap no test reads is a report, not an enforcement) and live_priors'
+`scripts/eot-digest.test.mjs` are the law and the assertion.
+
+**One refutation worth not retrying:** act identity by distributional
+company is DEAD — `saw/wrote` cosine 0.744 beats the genuine synonym pair
+`looked/gazed` at 0.585; company at ±1 token measures syntactic frame, not
+act. The control (II.23) is what caught it before it shipped.
+
+**The order of remaining levers, each gated on a measurement:** (1) subject
+-span hygiene, upstream in the extractor — ends like `"a dark"`/`"'e
+never"` make any identity organ pointless (P74's lever 3, still the
+biggest); (2) then `noteIdentity` ends through the earned referent standing,
+with `segmentation.js`'s cursor-honest `correct()` re-keying notes when a
+referent fold lands; (3) label identity stays `sameLemma` only — synonymy
+is open, disclosed, and not approximated by company; (4) `kind-standing.js`
+as the fold gate. Corroboration held at ~2.3% before and after the gate —
+the identity work only pays once the ends are real.
+
+
+## The corroboration bottleneck, third revision (added 2026-09-01) — pointer
+
+`reading-recall-finding.md` carries the measurements. The "bottlenecks in
+order" section above is superseded on one point: **identity is refuted as
+the corroboration lever.** The P73 `noteIdentity` seam was filled with the
+earned referent organ and measured FLAT — within-book (Dracula, three arms
+byte-identical at 0.4%) and cross-document (the Borodino pair: two pages
+about one battle, 727 notes, ZERO exact restatements, one near-verbatim
+join that the deranged-alias control also found, so attributable lift
+zero). Fiction re-mentions referents, not propositions; encyclopedic prose
+restates propositions in different words. The remainder is PARAPHRASE —
+the same wall MINE-1's `unbound` plateau and P74's withdraw/retreat
+verdict already named — and the licensed tool is the witness tier (P32)
+pointed at the door's >=2-witness gate: "does this page state this note?",
+asked of a small model, verdict derived mechanically. Also recorded there:
+the sidecars measured stale and regenerated `--fresh` (41.4% -> 27.9% junk,
+excerpt-scale by design), and a retrieval-loop probe DISCARDED by its own
+broken control before its numbers became claims.

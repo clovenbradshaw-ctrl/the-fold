@@ -48,19 +48,34 @@ export function routeModel(kind, { offered = [], selected = null } = {}) {
 
 // S1/S2 (app.js's twoPassTurn) each want ONE fixed model chosen for the
 // pass's actual job — a separate axis from the speed/headroom ladder
-// above, not a fifth rung on it. S1 drafts before any material exists
-// (no retrieval, nothing to cite): a general instruction-following
-// model. S2 IS holonicTurn — reading retrieved passages and checking or
-// citing claims against them — exactly Pleias-RAG-1B's own trained
-// specialty (RAG, source summarization with citation), and far smaller
-// than a general model would need to be for that one narrow job. User
-// direction, 2026-09-01: fit the model to the pass, not the ladder. This
-// supersedes twoPassTurn's original 2026-08-19 design (one model held
-// constant across both passes, to isolate whether the apparatus itself
-// earns its cost from a model-size confound) — that question is settled
-// by now; this fits the model to the work instead.
-export const S1_MODEL = "olmo-3:7b";
-export const S2_MODEL = "hf.co/PleIAs/Pleias-RAG-1B-gguf:latest";
+// above, not a fifth rung on it. User direction, 2026-09-01: fit the
+// model to the pass, not the ladder. This supersedes twoPassTurn's
+// original 2026-08-19 design (one model held constant across both
+// passes, to isolate whether the apparatus itself earns its cost from a
+// model-size confound) — that question is settled by now; this fits the
+// model to the work instead.
+//
+// First assignment (same day): S1 = olmo-3:7b, S2 = Pleias-RAG-1B — a
+// RAG-specialist model for the pass that reads and cites retrieved
+// passages. REVERTED after live testing (both against the real app and
+// direct API calls, before any of this was wired into production code):
+// Pleias-RAG-1B has no chat template at all (`ollama show ... --template`
+// returns bare `{{ .Prompt }}` — it was never trained on chat turns,
+// only a bespoke 19-special-token query/source/answer protocol), and
+// even fed that protocol correctly it fabricated details absent from its
+// source and wandered completely off-topic. The theoretical fit
+// (RAG-trained) did not survive contact with the model actually running
+// — S2 is the pass that catches hallucination, not one that should risk
+// adding it, so raw reliability wins over topical training match.
+//
+// Current assignment: S1 (the easier job — a quick honest draft, no
+// material yet to get wrong) gets the SMALLER model; S2 (the harder job
+// — checking claims against retrieved material) gets the one already
+// watched behaving well twice, at 7x the parameter count. Both are Ai2
+// (Allen Institute for AI): full training data, process, and checkpoints
+// published, never an undisclosed mix.
+export const S1_MODEL = "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest";
+export const S2_MODEL = "olmo-3:7b";
 
 /**
  * The named model if Ollama actually has it pulled (`available`, the

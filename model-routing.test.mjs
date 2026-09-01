@@ -43,11 +43,14 @@ test("deep work with no selection falls back to the fastest rung, never throws",
   assert.equal(routeModel(ROUTE_KINDS.DEEP, { offered: OFFERED }), MODEL_PICKER[0]);
 });
 
-test("S1 and S2 are distinct, fixed models — not picker rungs", () => {
-  assert.equal(S1_MODEL, "olmo-3:7b");
-  assert.equal(S2_MODEL, "hf.co/PleIAs/Pleias-RAG-1B-gguf:latest");
+test("S1 and S2 are distinct, fixed models", () => {
+  assert.equal(S1_MODEL, "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest");
+  assert.equal(S2_MODEL, "olmo-3:7b");
   assert.notEqual(S1_MODEL, S2_MODEL);
-  assert.ok(!MODEL_PICKER.includes(S2_MODEL), "S2's model is a specialist, never offered as a picker rung");
+  // S1 is a genuine specialist pick, never a picker rung. S2 currently
+  // coincides with MODEL_PICKER[0] (both "olmo-3:7b") -- an accident of
+  // this assignment, not a structural requirement of the abstraction.
+  assert.ok(!MODEL_PICKER.includes(S1_MODEL), "S1's model is a specialist, never offered as a picker rung");
 });
 
 test("resolveNamedModel returns the named model when Ollama actually has it", () => {
@@ -57,10 +60,10 @@ test("resolveNamedModel returns the named model when Ollama actually has it", ()
 });
 
 test("resolveNamedModel degrades to the fastest offered rung when the named model isn't pulled, never to an unloaded name", () => {
-  const available = new Set(MODEL_PICKER); // S2_MODEL never pulled on this machine
-  assert.equal(resolveNamedModel(S2_MODEL, { available, offered: OFFERED }), OFFERED[0]);
+  const available = new Set(); // S1_MODEL never pulled on this machine
+  assert.equal(resolveNamedModel(S1_MODEL, { available, offered: OFFERED }), OFFERED[0]);
 });
 
 test("resolveNamedModel with nothing offered either falls back to MODEL_PICKER's own fastest rung, never throws", () => {
-  assert.equal(resolveNamedModel(S2_MODEL, { available: new Set(), offered: [] }), MODEL_PICKER[0]);
+  assert.equal(resolveNamedModel(S1_MODEL, { available: new Set(), offered: [] }), MODEL_PICKER[0]);
 });

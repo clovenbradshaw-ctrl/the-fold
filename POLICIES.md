@@ -10084,3 +10084,53 @@ fold and the GitHub organ all satisfy the contract and have no adapter yet
 — each is one `open()` away, and naming them is not the same as having
 written them. Orders 12 and above carry no capacity here: `interact.js`
 stops at 11, and `stageFrom` caps accordingly rather than implying more.
+
+## P79 — The resolution test: a statistic must move (2026-09-01)
+
+**Generality:** universal.
+
+**Law:** eo-constitution **II.23** (19th amendment, sealed). This is the
+pointer; read the article for the binding text.
+
+**The one-line version.** P70 and A10 already say a null must be licensed.
+II.23 splits the claim in two, because the halves fail independently:
+**II.10 governs the null** (does it differ in exactly one axis), **II.23
+governs the statistic** (does it move when that axis moves). A perfectly
+commensurable null carried by a statistic that cannot resolve the question
+fails exactly the way an unconditional null does — real ground, real rank,
+no trace that nothing was measured.
+
+**Found by breaking it three times in one session** (`kind-induction-finding.md`
+carries the measurements):
+
+1. A basin chosen for cohesion, placed against random subsets of its own
+   population — already forbidden by II.10's *selection is an axis*, and
+   broken anyway. The law existing was not enough; that is why II.23 ships
+   with a conformance test.
+2. Direction assumed rather than derived. Redealing hands every entity the
+   corpus-average profile, so redealt entities are **more** alike than real
+   ones. "Observed beats the null" was the wrong inequality, and it reports
+   an absent effect as a present one.
+3. A commensurable null whose statistic could not resolve the claim. Adding
+   one foreign member to a cohesive ten-set moves a set-level statistic by
+   less than its own noise, so every candidate passed — including the ones
+   that had to fail.
+
+**What binds here.** A module in this repo that spends a null ships a
+control **constructed to fail**, named as one; carries the null's own spread
+beside the verdict, never the verdict alone; scopes the perturbation to the
+grain of the claim; and types absence of evidence apart from evidence of
+difference. `kind-standing.js` is the reference implementation and the
+registered seam.
+
+**Enforced:** `eo-constitution/conformance/resolution.test.mjs`, derived
+from source in III.4's shape. It is mutation-checked: stripping the named
+controls from a registered seam fails it. Its own first version was
+toothless (it keyed on assertion shapes, so ordinary `assert.equal(x,
+false)` lines counted as controls) — II.23 caught the file written to
+enforce II.23, which is the strongest evidence available that the article
+is doing work.
+
+**Honest boundary.** The test verifies a control was BUILT, never that it
+is a good one — the same boundary P71's generality gate draws. The
+measurement is still real work.

@@ -105,22 +105,44 @@ function bumpTally(map, key, hit) {
 function needOdds(index, citations, now) {
   const { key, r } = cellOf(citations, now);
   const cell = index.cellTallies.get(key);
-  if (cell && cell.trials > 0) return { odds: cell.arrivals / cell.trials, trials: cell.trials, basis: `this conversation's own cell ${key}` };
+  if (cell && cell.trials > 0) return { odds: cell.arrivals / cell.trials, trials: cell.trials, basis: `this conversation's own cell ${key}`, own: true };
   const marg = index.recencyTallies.get(r);
-  if (marg && marg.trials > 0) return { odds: marg.arrivals / marg.trials, trials: marg.trials, basis: `this conversation's own recency margin ${r}` };
-  return { odds: null, trials: 0, basis: null };
+  if (marg && marg.trials > 0) return { odds: marg.arrivals / marg.trials, trials: marg.trials, basis: `this conversation's own recency margin ${r}`, own: true };
+  // THE CORPUS RUNG (2026-09-01, user direction: odds come "from both this
+  // document itself, and the structure of similar documents its read in the
+  // past"). A received NeedPrior@1 — the IDENTICAL dyadic-cell shape,
+  // harvested by live_priors/scripts/build-need-prior.mjs with the same
+  // prequential construction forgetting-falsification.mjs validated, and
+  // EARNED before shipping: frozen, it beat cold ACT-R on a held-out work
+  // it never pooled (Dracula: 0.1924 vs 0.1725 mean precision, paired
+  // 316-260). Sits BELOW the material's own measurement (S17: the received
+  // prior stands only until the material holds more evidence) and ABOVE
+  // ACT-R (which is the same idea with no corpus behind it — a universal
+  // exponent instead of measured cells). Never blended: precedence only.
+  // Disclosed approximation: the prior's step is the SENTENCE and this
+  // index's clock is the TURN — dyadic cells absorb scale, but the basis
+  // string names the giver so a reader can weigh it.
+  const rp = index.receivedNeedPrior;
+  if (rp) {
+    const pc = rp.cells?.[key];
+    if (pc && pc.trials > 0) return { odds: pc.arrivals / pc.trials, trials: pc.trials, basis: `received corpus cell ${key} (${rp.giver ?? "NeedPrior@1"})`, own: false };
+    const pm = rp.recencyMargins?.[String(r)];
+    if (pm && pm.trials > 0) return { odds: pm.arrivals / pm.trials, trials: pm.trials, basis: `received corpus recency margin ${r} (${rp.giver ?? "NeedPrior@1"})`, own: false };
+  }
+  return { odds: null, trials: 0, basis: null, own: false };
 }
 
 /** A fresh retrieval index — the memory/activation.js-shaped state
  * (`df`/`gramDf`/`posting`/`edges`/`read`) plus this file's own citation
  * history and need-odds tallies. One per conversation, held beside
  * `state.summary` (app.js), never rebuilt per turn. */
-export function createRetrievalIndex() {
+export function createRetrievalIndex({ receivedNeedPrior = null } = {}) {
   return {
     memory: { df: new Map(), gramDf: new Map(), posting: new Map(), edges: new Map(), read: 0 },
     citedAt: new Map(),
     cellTallies: new Map(),
     recencyTallies: new Map(),
+    receivedNeedPrior,
   };
 }
 
@@ -209,7 +231,15 @@ export function recallCandidates(index, questionText, organs, {
   const scored = [...activation.entries()]
     .map(([order, cueWeight]) => {
       const citations = (index.citedAt.get(order) ?? []).filter((t) => t < turnIndex);
-      const need = needOdds(index, citations, turnIndex);
+      let need = needOdds(index, citations, turnIndex);
+      // An OWN tally under the evidence floor does not merely fail — it
+      // yields to the received corpus prior if one is loaded (S17), and
+      // only then to ACT-R. Rebuilt without the thin own-tallies so the
+      // prior rung is reachable.
+      if (need.own && need.trials < needOddsFloor && index.receivedNeedPrior) {
+        const bare = { cellTallies: new Map(), recencyTallies: new Map(), receivedNeedPrior: index.receivedNeedPrior };
+        need = needOdds(bare, citations, turnIndex);
+      }
       const useNeedOdds = need.odds != null && need.trials >= needOddsFloor;
       return {
         order,

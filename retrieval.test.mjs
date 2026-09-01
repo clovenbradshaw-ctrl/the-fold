@@ -7,6 +7,7 @@
 // eoreader7 as a sibling, matching fold.test.mjs's own guard.
 
 import { test } from "node:test";
+import fs from "node:fs";
 import assert from "node:assert/strict";
 
 import {
@@ -164,4 +165,80 @@ test("encode-then-recall never retrieves a record from itself (causality, inheri
   const { candidates } = recallCandidates(index, "koniag contract renewal status", organs, { turnIndex: n + 5, minMargin: 0 });
   assert.ok(candidates.length > 0);
   assert.ok(candidates.every((c) => c.order === n || c.order === n + 1), "only real prior records are ever eligible, never a sentinel");
+});
+
+// ── the corpus rung (NeedPrior@1) ────────────────────────────────────────
+// Odds come "from both this document itself, and the structure of similar
+// documents its read in the past" (user direction, 2026-09-01). The ladder:
+// own cell/margin at the evidence floor -> received corpus prior -> ACT-R.
+// Never blended — precedence only, and the II.23 control below is BUILT TO
+// FAIL: a poisoned prior must never override the material's own measurement.
+
+const PRIOR_PATH = "/Users/mlacy/Documents/3.0/live_priors/derived-priors/need-priors/need-prior-eng-narrative.json";
+const realPrior = fs.existsSync(PRIOR_PATH) ? JSON.parse(fs.readFileSync(PRIOR_PATH, "utf8")) : null;
+
+test("with no own tallies, the corpus rung engages and its basis NAMES the giver", { skip: !organs }, () => {
+  // One citation at n+2, queried at n+3: gap = 2, count = 1 -> cell "2|1".
+  const prior = { giver: "test corpus", cells: { "2|1": { trials: 100, arrivals: 90 } }, recencyMargins: { "2": { trials: 200, arrivals: 100 } } };
+  const index = createRetrievalIndex({ receivedNeedPrior: prior });
+  const n = warmUp(index, 16);
+  encodeRecord(index, n, { gist: "koniag contract renewal status remains pending" }, organs);
+  encodeRecord(index, n + 1, { gist: "koniag contract renewal status was confirmed" }, organs);
+  recordCitation(index, n, n + 2); // one citation, own tallies EMPTY
+  const out = recallCandidates(index, "koniag contract renewal status", organs, { turnIndex: n + 3, minMargin: 0 });
+  const top = out.candidates?.[0];
+  assert.ok(top, `expected a candidate, got gap ${out.gap}`);
+  assert.match(top.basis, /received corpus (cell|recency margin)/, top.basis);
+  assert.match(top.basis, /test corpus/, "the giver rides the basis string — a reader can weigh the source");
+});
+
+test("II.23 CONTROL, built to fail: a poisoned prior must NOT override own evidence at the floor", { skip: !organs }, () => {
+  // Own tallies say this cell arrives 100% of the time; the poisoned prior
+  // says 0%. If the prior ever wins here, precedence is broken.
+  const prior = { giver: "poison", cells: {}, recencyMargins: {} };
+  const index = createRetrievalIndex({ receivedNeedPrior: prior });
+  const n = warmUp(index, 16);
+  encodeRecord(index, n, { gist: "koniag contract renewal status remains pending" }, organs);
+  encodeRecord(index, n + 1, { gist: "koniag contract renewal status was confirmed" }, organs);
+  // Build own evidence past the floor (5) IN THE CELL THE QUERY WILL ASK —
+  // the floor is per-cell, and this fixture's first draft learned that the
+  // hard way: 8 citations left the queried cell "2|8" with ONE trial, the
+  // fall-through correctly yielded to the poisoned prior, and the control
+  // caught its own author (S17 working as written). 16 citations put the
+  // count in the f=8 dyadic band for 8 consecutive trials.
+  for (let t = n + 2; t <= n + 16; t++) recordCitation(index, n, t); // 15 citations: count 15 stays in the f=8 dyadic band the trials accrued in
+  for (const key of index.cellTallies.keys()) prior.cells[key] = { trials: 1000, arrivals: 0 };
+  for (const r of index.recencyTallies.keys()) prior.recencyMargins[String(r)] = { trials: 1000, arrivals: 0 };
+  const out = recallCandidates(index, "koniag contract renewal status", organs, { turnIndex: n + 17, minMargin: 0 });
+  const top = out.candidates?.[0];
+  assert.ok(top, `expected a candidate, got gap ${out.gap}`);
+  assert.match(top.basis, /this conversation's own/, `own measurement must win: ${top.basis}`);
+  assert.ok(top.score > 0.5, `poisoned prior leaked into the score: ${top.score}`);
+});
+
+test("no prior loaded: byte-identical ladder — ACT-R basis, exactly as before this rung existed", { skip: !organs }, () => {
+  const index = createRetrievalIndex();
+  const n = warmUp(index, 16);
+  encodeRecord(index, n, { gist: "koniag contract renewal status remains pending" }, organs);
+  encodeRecord(index, n + 1, { gist: "koniag contract renewal status was confirmed" }, organs);
+  recordCitation(index, n, n + 2);
+  const out = recallCandidates(index, "koniag contract renewal status", organs, { turnIndex: n + 3, minMargin: 0 });
+  const top = out.candidates?.[0];
+  assert.ok(top, `expected a candidate, got gap ${out.gap}`);
+  assert.match(top.basis, /ACT-R base-level/, top.basis);
+});
+
+test("the REAL committed NeedPrior@1 loads, is held-out-validated, and engages (III.5: lit, not just present)", { skip: !organs || !realPrior }, () => {
+  assert.equal(realPrior.schema, "NeedPrior@1");
+  assert.ok(realPrior.heldOut.meanPrecisionPrior > realPrior.heldOut.meanPrecisionActr,
+    "the committed artifact's own held-out record must show it EARNED the rung — an unvalidated prior is not received, it is guessed");
+  const index = createRetrievalIndex({ receivedNeedPrior: realPrior });
+  const n = warmUp(index, 16);
+  encodeRecord(index, n, { gist: "koniag contract renewal status remains pending" }, organs);
+  encodeRecord(index, n + 1, { gist: "koniag contract renewal status was confirmed" }, organs);
+  recordCitation(index, n, n + 2);
+  const out = recallCandidates(index, "koniag contract renewal status", organs, { turnIndex: n + 3, minMargin: 0 });
+  const top = out.candidates?.[0];
+  assert.ok(top, `expected a candidate, got gap ${out.gap}`);
+  assert.match(top.basis, /received corpus/, `real prior did not engage: ${top.basis}`);
 });

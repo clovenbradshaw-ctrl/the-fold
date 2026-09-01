@@ -364,6 +364,52 @@ const handlesFor = makeCastHandles({
 // relationsFor/skillLibrary/callModel below, because the value is not
 // stable at construction time the way a synchronous organ is.
 let posPriorCache = null;
+
+// UniMorph verb surface forms (UniMorph/eng, a RECEIVED lexicon with its own
+// giver — eval/fixtures/unimorph-eng-verb-forms.json, 103,318 forms). Wired
+// live 2026-09-01; the open question CLAUDE.md left standing for this organ
+// ("whether the live app should load either prior by default remains a real,
+// undecided question") is answered here for verbForms ALONE, on a live
+// measurement rather than on MINE-1's corpus result:
+//
+//   Asked "what are the two methods of curing the mischiefs of faction"
+//   against the real Federalist Papers, through this page's OWN organ bundle
+//   (POS prior included), the relation reader bound exactly ONE edge — "the
+//   American —constitutions→ on the popular models", junk — so the notes
+//   block the model is shown carried one useless line and the hypergraph
+//   contributed nothing to the answer at all. With this Set injected and
+//   nothing else changed: 40 edges, including "are two —methods→ of curing
+//   the mischiefs of faction" and "by —removing→ its causes" — the
+//   enumeration that actually answers the question.
+//
+// WHY IT IS THE ORGAN THAT MATTERS HERE, stated so the next pass does not
+// re-derive it: `discoverRelationVocab` nominates candidate verbs anchored on
+// capitalised surfaces, and a concept essay has almost none — the same
+// "concept documents starve the cast ladder" failure host/terrains.js already
+// records for SEED-SPEAKER.md, one tier over. A received lexicon needs no
+// anchor: it answers a direct per-word question instead of nominating
+// candidates near one.
+//
+// THE DISCLOSED COST, not smoothed over: MINE-1's own hand spot-check found
+// roughly half of recovered triples carry a subject/verb boundary error
+// (English noun-verb conversion means "feed"/"play"/"serve" are tagged both),
+// and this specimen shows the same ("a factious —spirit→ has tainted our").
+// Shipped anyway because the alternative measured here is not "cleaner
+// edges", it is ONE junk edge — a boundary-imperfect reading of the right
+// sentence beats a clean reading of nothing.
+//
+// A MUTATED Set, not a re-assigned one: `makeRelationReader` destructures
+// `verbForms` at factory time (hypergraph.js:783) but only ever reads it
+// through `.has()` at extraction time (hypergraph.js:1088), so filling this
+// same object after the fetch resolves is picked up with no re-construction.
+// Empty until then — and an empty Set adds no words, which is byte-identical
+// to today's behaviour, so nothing here may delay boot either.
+const unimorphVerbForms = new Set();
+fetch("/eval/fixtures/unimorph-eng-verb-forms.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((forms) => { if (Array.isArray(forms)) for (const f of forms) unimorphVerbForms.add(f); })
+  .catch(() => {});
+
 // The door's grammar gate is DATA-GATED, never code-gated (P73): the lens
 // exists only once the POS prior actually loads, so a checkout without
 // priors-data/ runs byte-identically to before the gate existed — a check
@@ -393,7 +439,42 @@ const relationsFor = makeRelationReader({
   discoverRelationVocab,
   extractRelations,
   tokenize,
+  // TWO POS MECHANISMS, ONE FIXTURE — KEPT APART DELIBERATELY. This one is
+  // the TYPE-level vocabulary gate (hypergraph.js:1010/:1035 →
+  // `discoverRelationVocab`'s own `posPrior`): a majority vote over the real
+  // UD treebank on whether a word FORM is ever a verb, with unattested forms
+  // explicitly not refused ("a witness cannot refuse what it never saw").
+  // The per-OCCURRENCE mechanism is `classifyConnector` (passed in where the
+  // reader is built per turn), which stays disclosure-only and convicts
+  // nothing — P56's asymmetric rule governs THAT one, not this one. Same
+  // distinction live_priors' own `scripts/eot-digest.mjs::loadOrgans` draws
+  // at length, in the sidecar pipeline that reads the whole corpus.
+  //
+  // THIS WAS REMOVED AND PUT BACK THE SAME DAY, so the next pass does not
+  // remove it again on the same reasoning. It was dropped on the measurement
+  // that the live reader bound ONE edge on a real Federalist question — but
+  // that collapse was VOCABULARY STARVATION, not the gate: a concept essay
+  // has almost no capitalised surfaces, so `discoverRelationVocab` nominates
+  // almost nothing and the gate then removes the prepositions that were all
+  // that remained. `unimorphVerbForms` above fixes the starvation at its
+  // source, and with it in place the gate is purely beneficial. Measured on
+  // the same three retrieved passages, both arms carrying UniMorph:
+  //
+  //   gate OFF — 118 edges, 103 of them (87%) with a pure function-word
+  //              connector (of/the/to/and), 15 real
+  //   gate ON  —  40 edges,   0 (0%) function-word connectors, 40 real,
+  //              and still carrying the two the answer needs
+  //              ("are two —methods→ of curing the mischiefs of faction",
+  //               "by —removing→ its causes")
+  //
+  // Removing it re-admits exactly the junk this session started by
+  // complaining about. P5.5, in this repo's own words: when a result
+  // surprises you, check the driver before the theory.
   posPriorFor: () => posPriorCache,
+  // See `unimorphVerbForms`' own block above for the live measurement that
+  // decided this (1 edge → 40 on the specimen), and for the disclosed
+  // boundary-quality cost it is shipped in spite of.
+  verbForms: unimorphVerbForms,
   // Two RECEIVED closed classes, both from the engine's own prior register
   // (perceiver/text/priors.js, giver "lang/en" — the same `enginePriors`
   // namespace this file already imports), turned ON here rather than left
@@ -4194,7 +4275,36 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             if (readSeek && !readSeek.gap) {
               seek = readSeek;
             } else if (readSeek?.gap) {
-              think(`Nothing in what we have read answers it either — ${readSeek.gap.detail}.`);
+              // WITHHOLD, NEVER CONVICT. This line used to read "Nothing in
+              // what we have read answers it either" — a claim about the
+              // MATERIAL, manufactured out of a fact about this instrument's
+              // own REPRESENTATION of it. `seekWhatWeRead`'s gaps are all of
+              // the second kind: `no_arrangement` is literally "nothing we
+              // have read is laid out as a list with extents", which is a
+              // statement about what the relation extractor could build, not
+              // about what the source says.
+              //
+              // The distinction is this repo's own constitutional rule, in
+              // its own words: "a checking organ may say 'I have nothing to
+              // compare this against' (withhold), or 'I compared it and it
+              // failed' (convict). It may never manufacture the second out
+              // of the first — treating absence-of-material as presence-of-
+              // fabrication is not a check, it is an accusation with no
+              // evidence, dressed as one."
+              //
+              // Measured live, the specimen that closes this: asked "what are
+              // the two methods of curing the mischiefs of faction" against
+              // the real Federalist Papers, this line printed "Nothing in what
+              // we have read answers it" — and the very next thing the turn
+              // did was answer it correctly ("by removing its causes; by
+              // controlling its effects") from a sentence sitting at retrieval
+              // rank 1. The material answered it outright; only the
+              // arrangement-reader came up empty, because the answering
+              // sentence enumerates after a colon and the extractor keeps the
+              // subject fragment and drops the list. A reader watching that
+              // sequence is told the source is silent about the thing it is
+              // about to be told, which is worse than saying nothing.
+              think(`I could not read it as an arrangement — ${readSeek.gap.detail}. That is a limit of this reading, not a finding about the source; the answer may still be in the material.`);
             }
           }
           if (seek?.gap) {

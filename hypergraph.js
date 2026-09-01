@@ -394,17 +394,36 @@ const PRONOUN_MIN_MARGIN = 0.2;
  * because the two callers are asking genuinely different questions of the
  * identical material.
  */
-function resolvePronounSubjects(text, resolvePronouns, { splitSentences, extractSurfaces, discoverReferents }) {
-  if (!resolvePronouns || !text?.trim()) return text;
-  let sentences, discovery;
+/**
+ * The bindings a pronoun-resolution pass would apply to `text`, WITHOUT
+ * applying them — the mechanism this function used to be built around
+ * (splice the string, then let the caller re-split it) is exactly what
+ * `resolve-pronouns-sentence-drift.claim.json` (eo-constitution, found
+ * reading Dracula in full, 2026-09-01) convicts: a resolved referent's own
+ * surface can carry punctuation the author never wrote at that position
+ * (a title abbreviation — "Dr.", "Mrs." — inserted where "he" stood), and
+ * re-splitting the mutated document then disagrees with the ORIGINAL split
+ * by a document-wide COUNT that has no sentence-local meaning at all. One
+ * mismatch anywhere in a long document used to zero every span in it.
+ *
+ * The fix is not a smarter pairing check. It is not pairing anything: this
+ * function now returns bindings, addressed against the PASSAGE'S OWN
+ * offsets, and the caller (below) applies each one WITHIN the single
+ * already-fixed original sentence it falls inside — never re-splitting
+ * anything, ever. A sentence's address is `sentences[i]`, computed exactly
+ * once, from the author's own bytes, for the whole life of this call.
+ */
+function pronounBindingsFor(sentences, resolvePronouns, { extractSurfaces, discoverReferents }) {
+  const empty = { bindings: [], bestSurface: new Map() };
+  if (!resolvePronouns || !sentences?.length) return empty;
+  let discovery;
   try {
-    sentences = splitSentences(text);
     const surfaces = extractSurfaces(sentences, {});
     discovery = discoverReferents(surfaces, {});
   } catch {
-    return text;
+    return empty;
   }
-  if (!sentences.length || !discovery?.events?.length) return text;
+  if (!discovery?.events?.length) return empty;
   const surfaceToReferent = new Map(discovery.events.map((e) => [e.surface, e.referent_id]));
   // Same "most-individuated established surface represents" rule cast.js's
   // own `represent` uses (most glyphs wins) — re-derived here because this
@@ -421,21 +440,62 @@ function resolvePronounSubjects(text, resolvePronouns, { splitSentences, extract
       minMargin: PRONOUN_MIN_MARGIN,
     });
   } catch {
-    return text;
+    return empty;
   }
-  if (!resolved?.bindings?.length) return text;
-  // Applied in REVERSE offset order so an earlier substitution's length
-  // change never shifts a later one's recorded offset out from under it.
-  const ordered = [...resolved.bindings].sort((a, b) => b.offset - a.offset);
-  let out = text;
+  return { bindings: resolved?.bindings ?? [], bestSurface };
+}
+
+/**
+ * ONE original sentence, with any pronoun bindings that fall INSIDE its own
+ * [offset, offset+len) span applied to a local copy of ITS OWN text alone.
+ * Every other sentence in the document is untouched by this call — there is
+ * no whole-document string to re-split, so there is nothing for a sentence
+ * count to disagree about. Sibling of `blankedSentence` below; identical
+ * discipline, different transform.
+ *
+ * Offsets are checked against the sentence's OWN text before substituting
+ * (the same staleness guard `resolvePronounSubjects` always had) — a
+ * binding whose recorded span no longer matches what is actually there is
+ * refused, never corrupted in.
+ */
+function sentenceWithPronouns(sentence, bindings, bestSurface) {
+  if (!bindings.length) return sentence.text;
+  const start = sentence.offset;
+  const end = start + sentence.text.length;
+  const local = bindings.filter((b) => b.offset >= start && b.offset < end);
+  if (!local.length) return sentence.text;
+  const ordered = [...local].sort((a, b) => b.offset - a.offset); // reverse: later splices never shift earlier ones
+  let out = sentence.text;
   for (const b of ordered) {
     const name = bestSurface.get(b.referentId);
     if (!name) continue;
-    const end = b.offset + b.pronoun.length;
-    if (out.slice(b.offset, end).toLowerCase() !== b.pronoun.toLowerCase()) continue; // stale offset, refuse rather than corrupt
-    out = out.slice(0, b.offset) + name + out.slice(end);
+    const relStart = b.offset - start;
+    const relEnd = relStart + b.pronoun.length;
+    if (out.slice(relStart, relEnd).toLowerCase() !== b.pronoun.toLowerCase()) continue; // stale offset, refuse rather than corrupt
+    out = out.slice(0, relStart) + name + out.slice(relEnd);
   }
   return out;
+}
+
+/**
+ * The same per-sentence-local discipline for `blankFurniture` —
+ * length-preserving furniture-blanking applied to ONE sentence's own text,
+ * never to the whole joined document. `blankLabelRows` needs no wider
+ * context than the substring it is handed (its own cell/run detection is
+ * purely line-local within whatever text it receives), so scoping it to a
+ * single already-addressed sentence costs nothing and removes the same
+ * failure class `blank-furniture-sentence-drift.claim.json` names: a table
+ * row's terminal-punctuation-erasure changing how many "sentences" a
+ * SEPARATE re-split finds, because there is no longer a separate re-split.
+ */
+function sentenceWithBlanking(sentence, blankFurniture) {
+  if (!blankFurniture) return sentence.text;
+  try {
+    const blanked = blankFurniture(sentence.text);
+    return typeof blanked === "string" && blanked.length === sentence.text.length ? blanked : sentence.text;
+  } catch {
+    return sentence.text; // a transform that throws leaves this sentence exactly as written
+  }
 }
 
 // ── the referent bar: a sentence-initial-only name, confirmed by a real
@@ -978,13 +1038,37 @@ export function makeRelationReader(organs) {
     // offset is never at risk. Omitted, either or both, this is
     // byte-identical to before they existed — optional and backward-
     // compatible exactly like `verbForms` above.
-    const forExtraction = (s) => {
-      const withReferents = resolvePronounSubjects(s, resolvePronouns, { splitSentences, extractSurfaces, discoverReferents });
-      return blankFurniture ? blankFurniture(withReferents) : withReferents;
-    };
-    const extractionList = blankFurniture || resolvePronouns ? list.map((p) => ({ ...p, text: forExtraction(p.text) })) : list;
+    // ORIGINAL SENTENCES, COMPUTED EXACTLY ONCE PER PASSAGE — the authoritative
+    // segmentation, off the untouched bytes `list[pi].text` actually carries.
+    // Nothing below this line ever re-splits a rewritten copy of anything
+    // (eo-constitution claims blank-furniture-sentence-drift /
+    // resolve-pronouns-sentence-drift, both closed by this restructuring,
+    // 2026-09-01): a pronoun binding or a furniture-blank is applied WITHIN
+    // one already-fixed sentence's own span, never to the whole passage, so
+    // there is no second sentence count to disagree with the first.
+    const passageSentences = list.map((p) => splitSentences(p.text) ?? []);
+    const passageBindings = list.map((p, pi) =>
+      resolvePronouns ? pronounBindingsFor(passageSentences[pi], resolvePronouns, { extractSurfaces, discoverReferents }) : { bindings: [], bestSurface: new Map() });
 
-    const text = extractionList.map((p) => p.text).join("\n\n");
+    /** This passage's sentence i, rewritten locally for extraction only. */
+    const readSentenceText = (pi, si) => {
+      const sentence = passageSentences[pi][si];
+      const { bindings, bestSurface } = passageBindings[pi];
+      const withReferents = resolvePronouns ? sentenceWithPronouns(sentence, bindings, bestSurface) : sentence.text;
+      return blankFurniture ? sentenceWithBlanking({ text: withReferents }, blankFurniture) : withReferents;
+    };
+
+    // Rewritten passages, whole-text — the SAME per-sentence-safe rewrites
+    // `readSentenceText` computes, rejoined per passage. Two consumers need
+    // a whole-passage blob rather than an address (vocabulary discovery, and
+    // the assertion tier's own order-shuffle null below); neither needs
+    // spans, so rejoining costs nothing and stays exactly as useful as the
+    // old passage-wide rewrite was, without ever re-splitting anything.
+    const rewrittenPassages = list.map((p, pi) => ({
+      ...p,
+      text: passageSentences[pi].map((_, si) => readSentenceText(pi, si)).join(" "),
+    }));
+    const text = rewrittenPassages.map((p) => p.text).join("\n\n");
 
     // The vocabulary is measured from THE MATERIAL — the answer is read with
     // the material's own verbs, because "supported" means the material could
@@ -1214,6 +1298,33 @@ export function makeRelationReader(organs) {
     const resolutionOf = (end) =>
       end.formOnly ? "form" : end.referents.size ? "referent" : end.tokens.size ? "tokens" : "none";
 
+    // The canonical face of an end that resolved to exactly one real
+    // referent — the Station-3 identity handed to Station-4 consumers.
+    const faceOf = (end) => {
+      const real = [...end.referents].filter((id) => !String(id).startsWith("form:"));
+      if (!real.length) return null;
+      const faces = [...new Set(real.map((id) => index.represent?.(id)).filter(Boolean))];
+      if (faces.length === 1) return faces[0];
+      if (!faces.length) return null;
+      // FRAGMENTS OF ONE BEING, told apart from GENUINE AMBIGUITY by the
+      // same address-containment rule the cast's own folds earned
+      // (referent-fold.js): at passage scale, "Van Helsing" resolves to
+      // van_helsing AND the fragment referents van / helsing — three ids,
+      // one being — and the first cut of this function returned null for
+      // exactly that reason on EVERY named subject (measured: 0.0% faces
+      // on 7,050 edges, the wire dark the hour it was built). Every face
+      // word-contained in the longest = one fragmented being, and the
+      // longest face is its fullest name. Faces that do NOT nest ("Jonathan
+      // and Mina" hitting two unrelated beings) stay null — a disclosed
+      // ambiguity, never a coin flip.
+      const longest = [...faces].sort((a, b) => b.length - a.length)[0];
+      const fl = diaNorm(longest);
+      const nested = faces.every(
+        (f) => f === longest || new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRe(diaNorm(f))}(?:$|[^\\p{L}\\p{N}])`, "iu").test(fl),
+      );
+      return nested ? longest : null;
+    };
+
     // A span whose FIRST token is a received negation word is a span whose
     // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P43).
     //
@@ -1327,28 +1438,25 @@ export function makeRelationReader(organs) {
     // tennessee").
     //
     // THE ADDRESS IS INTO THE ORIGINAL MATERIAL, NEVER THE REWRITTEN COPY.
-    // `extractionList` has been through `forExtraction` — blankFurniture is
-    // length-preserving but `resolvePronounSubjects` is NOT (it substitutes a
-    // name for a pronoun), so an offset into that text would name bytes the
-    // reader never had. So the extractor reads the REWRITTEN sentence (a
-    // pronoun subject still resolves) while the span addresses the ORIGINAL
-    // one, paired by sentence index. Pairing is CHECKED, not assumed —
-    // measured 3/3 on those same pages under a length-changing rewrite — and
-    // when the counts disagree the edge honestly falls back to passage grain
-    // with no span at all, rather than carrying an address that would be off
-    // by a sentence. A wrong address is worse than a coarse one.
-    for (let pi = 0; pi < extractionList.length; pi++) {
-      const p = extractionList[pi];
-      const originalText = String(list[pi]?.text ?? p.text);
-      const readSentences = splitSentences(p.text) ?? [];
-      const originalSentences = splitSentences(originalText) ?? [];
-      const paired = readSentences.length === originalSentences.length;
-      for (let si = 0; si < readSentences.length; si++) {
-        const sentence = readSentences[si];
+    // `origin` below is `passageSentences[pi][si]` — the ONE, ONLY split of
+    // this passage's text this whole function ever computes, off the
+    // author's own bytes, before any rewrite. It always exists, for every
+    // sentence, unconditionally (no `paired` boolean, no null-span fallback
+    // — the count-pairing wall this section used to carry is gone because
+    // there is no second split of anything for it to disagree with; see
+    // `readSentenceText` above). The extractor reads the LOCALLY-rewritten
+    // sentence (a pronoun subject still resolves, table furniture still
+    // blanks); the span addresses the untouched original sentence it came
+    // from, exactly, every time.
+    for (let pi = 0; pi < list.length; pi++) {
+      const p = list[pi];
+      const originalSentences = passageSentences[pi];
+      for (let si = 0; si < originalSentences.length; si++) {
+        const sentenceText = readSentenceText(pi, si);
         let triples = [];
         try {
           triples = verbs.size
-            ? extractRelations(sentence.text, {
+            ? extractRelations(sentenceText, {
                 verbs,
                 functionWords,
                 negationWords,
@@ -1360,7 +1468,7 @@ export function makeRelationReader(organs) {
           triples = [];
         }
         if (!triples.length) continue;
-        const origin = paired ? originalSentences[si] : null;
+        const origin = originalSentences[si];
         const span =
           origin && p.ref
             ? { ref: p.ref, start: origin.offset, end: origin.offset + origin.text.length, text: origin.text }
@@ -1396,6 +1504,22 @@ export function makeRelationReader(organs) {
             polarity: t.polarity,
             subjectEnd,
             objectEnd,
+            // THE STATION-3->4 WIRE (2026-09-01, "What Is Being Born" §VI:
+            // the single highest-leverage unbuilt wire). endpoint() already
+            // resolves an end against the material's own earned referent
+            // index — by exact resolution AND by surface CONTAINMENT inside
+            // the end span (the same address-containment rule the cast's
+            // own folds earned) — but the public edge never carried what it
+            // found, so every downstream identity (the hyperlexicon door
+            // above all) re-keyed on raw strings. `end1Face`/`end2Face` is
+            // the canonical face when the end resolved to EXACTLY ONE real
+            // referent; two referents is a disclosed ambiguity and a form
+            // is not a being, so both stay null — never a coin flip.
+            // Measured headroom on the whole of Dracula before building:
+            // subjects that ARE a known surface 7.5%; subjects CONTAINING
+            // one, 18.5%.
+            end1Face: faceOf(subjectEnd),
+            end2Face: faceOf(objectEnd),
             refs: [p.ref].filter(Boolean),
             // The bytes this edge was read from. Empty only when the
             // sentence pairing above refused — never a guessed address.
@@ -1448,7 +1572,7 @@ export function makeRelationReader(organs) {
       // edge"), on shape only — polarity under shuffle is noise by
       // construction (the negation window is an order fact).
       const arm = orderArm({
-        passages: extractionList,
+        passages: rewrittenPassages,
         splitSentences,
         extract: (t) =>
           extractRelations(t, {
@@ -1776,6 +1900,14 @@ export function makeRelationReader(organs) {
         // holds, so a caller checking `"connectorClass" in edge` sees the
         // organ's own presence honestly.
         ...(e.connectorClass ? { connectorClass: e.connectorClass } : {}),
+        // The Station-3->4 wire's public face (same no-key-when-absent
+        // posture as assertion/connectorClass above). The first cut set
+        // these on the INTERNAL edge only and this projection stripped
+        // them — the wire dark for a second reason within one hour, found
+        // only because the measurement was re-run after the fix (III.5:
+        // a lit-assertion, not a loaded one).
+        ...(e.end1Face ? { end1Face: e.end1Face } : {}),
+        ...(e.end2Face ? { end2Face: e.end2Face } : {}),
       };
     }
 

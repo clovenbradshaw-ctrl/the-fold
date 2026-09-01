@@ -9141,3 +9141,52 @@ windowMean/shuffle pair over the hunt's series — the null-of-nulls
 `opened` reading stays unbuilt, named, not absorbed. Suite after this
 amendment: 1585 tests / 1538 pass / the same 42 environment failures by
 name, zero regressions.
+
+**Live-run evidence (2026-09-01) — flow #2 proven END TO END on the real
+page, not only in test files.** The user's own bar ("did you test it? did
+it actually do those things?") was answered with the harness shape this
+repo's own precedents supply whole: a scripted stand-in Ollama (P27's
+disclosed posture — this sandbox has no real install), the real
+`serve.mjs`, real headless Chromium driven over raw CDP (P69's method,
+Node's native WebSocket, no Playwright), material attached through the
+page's own real drop handler, turns typed through the real composer. The
+scenario: attached material contradicting one fixed claim ("Renn Kessler
+never founded the Ostrel Works"); the stub answers every text-mode call
+with that claim verbatim, so every S2 relation read lands `contradicted`
+against the material. Measured, from the stub's own request log with
+marks between turns and from the page's own `/self acts` door: **turn 1
+spent 3 text-mode model calls** (S1, S2 execute, ONE correction pass —
+`rewrote the question` once on the ledger); its observation landed 3
+CORRECTED atoms, standing `contested`; **turns 2 and 3 spent 4 text-mode
+calls each** — `rewrote the question` TWICE on the ledger, the correction
+budget's 1 → 2 visible in both currencies — and each landed
+`escalated: cell s1-draft · corrections 2 · pages 5 · passages 5` on the
+reflex ledger, read back through the page's own computed table. Zero page
+exceptions across boot, attach, three S1/S2 turns and the mechanical
+door. A side-confirmation rode along free: turn 2's summary refresh was
+CARRIED by the aperture gate (zero json-mode calls in its window,
+`carried: streak 1` on the same ledger) — the two meters coexisting on
+one live turn.
+
+Two harness findings kept (P5.5's discipline — both were the driver, not
+the theory). (1) The first driver's turns said "hi" — and no escalation
+could ever fire, because a turn text sharing NO token with the material
+gives `retrieve()`'s zero-relevance-floor nothing to return: zero
+passages → no relation vocabulary → no verdicts → no CORRECTED → never
+`contested`. Diagnosed OFFLINE against the real organs first (the
+material+claim pair does yield `contradicted` when passages reach the
+reader), then fixed in the driver alone: turn texts that speak the
+material's own words while staying inside the S1 gate. The lesson is
+about the channel, not the harness: the metacognition loop only ever
+learns from turns that actually reach the material — a turn that
+retrieves nothing is measured as nothing. (2) The `/self acts` readback:
+`mechanicalTurn` appends only `publishBuild`'s chip to the chat body and
+the TABLE lives in the Folds pane, which at headless width (< 900px)
+stays unshown — `innerText` excludes non-rendered nodes, `textContent`
+does not; the build cards are the read. **The boundary, restated so this
+addendum cannot be over-cited:** this proves the flow ENGAGES and SPENDS
+— standing moves, budgets widen, the extra pass runs, every act lands —
+not that it HELPS. "Does the correction rate fall once escalation
+engages" remains the second amendment's named, unrun measured leg. The
+harness files stay uncommitted per their own headers; this paragraph and
+the ledger vocabulary above are the record.

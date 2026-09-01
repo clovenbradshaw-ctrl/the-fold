@@ -5913,3 +5913,19 @@ Disclosed: a calm turn may stop below the old fixed 3 pages, but only on
 a MEASURED settle — never on a gap, never on silence; and this is the
 per-arrival gate, not `nul.pattern()`'s licensed pair over the series,
 which stays open exactly as aperture.js's own header already names.
+
+**Amended 2026-09-01 — flow #2 proven live, end to end, on the real
+page.** P72's live-run addendum carries the numbers; the one-line map: a
+scripted stand-in Ollama answering every call with a claim the attached
+material contradicts drove the whole chain through the real browser —
+turn 1 spent 3 text-mode calls and observed 3 corrected atoms
+(`contested`), turns 2 and 3 spent 4 calls each with the correction pass
+visibly run twice, and `escalated: cell s1-draft · corrections 2 ·
+pages 5 · passages 5` landed on the reflex ledger, read back through the
+page's own `/self acts` door. Zero page exceptions; the aperture gate
+carried turn 2's summary in the same run. Two harness lessons kept in
+P72: a turn sharing no token with the material can never teach the loop
+anything (`retrieve()`'s zero-relevance-floor starves the whole channel),
+and the `/self acts` table lives in the Folds pane, so a DOM readback
+needs `textContent` on the build cards, not `innerText`. Proves the flow
+engages and spends — whether it HELPS stays the named, unrun leg.

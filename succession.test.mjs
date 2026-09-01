@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
+import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects, successionFillers } from "./succession.js";
 
 const SPECIMEN = `15th Vice President of the United States
 In office
@@ -158,4 +158,42 @@ test("a text with no succession-box shape at all parses to zero usable groups", 
   const resolved = resolveBoxSubjects(boxes, plainProse);
   const groups = officeHolderGroups(resolved);
   assert.equal(groups.length, 0);
+});
+
+// ── successionFillers: the void's own fillers, spans included ───────────
+
+test("successionFillers reads real {from,to} spans off the real specimen's own en-dash date lines — not the bare-year regex void-shape.js's yearSpansIn is scoped to", () => {
+  const fillers = successionFillers("Abraham Lincoln", [SPECIMEN]);
+  assert.equal(fillers.length, 2);
+  const hamlin = fillers.find((f) => f.filler === "Hannibal Hamlin");
+  const johnson = fillers.find((f) => f.filler === "Andrew Johnson");
+  // Years AND the line's own precise dates (2026-08-27). The years are what
+  // void-shape.js can order and subtract; the dates are what a reader can
+  // actually be told. Johnson is the case that argues for carrying both:
+  // his year span is the degenerate "1865 to 1865", which states nothing —
+  // the real extent (March 4 to April 15, 1865) lives only in the dates.
+  assert.deepEqual(hamlin.span, { from: 1861, to: 1865, fromText: "March 4, 1861", toText: "March 4, 1865" });
+  assert.deepEqual(johnson.span, { from: 1865, to: 1865, fromText: "March 4, 1865", toText: "April 15, 1865" });
+  // `source` is chains.js's own real closure phrase now — the ACTUAL
+  // chain bounds (Breckinridge before, Colfax after, both the boxes' own
+  // pointers), not a hand-typed office/president label. Both fillers share
+  // one giver: one confirmed set, one closure, same as chains.test.mjs's
+  // own "one confirmed set, one giver" case.
+  assert.match(hamlin.source, /Breckinridge/);
+  assert.match(hamlin.source, /Colfax/);
+  assert.equal(hamlin.source, johnson.source, "one confirmed set, one giver, shared by every member");
+});
+
+test("successionFillers is anchor-scoped: a different anchor on the same material finds nothing", () => {
+  assert.deepEqual(successionFillers("Someone Else", [SPECIMEN]), []);
+});
+
+test("successionFillers: distractor boxes (a different office, a different president) never contribute a filler", () => {
+  const fillers = successionFillers("Abraham Lincoln", [SPECIMEN]);
+  for (const f of fillers) assert.ok(["Hannibal Hamlin", "Andrew Johnson"].includes(f.filler));
+});
+
+test("successionFillers: a text with no succession-box shape at all yields zero fillers, never a guess", () => {
+  const plainProse = "Hamlin was Lincoln's vice president. Johnson later held the office too.";
+  assert.deepEqual(successionFillers("Abraham Lincoln", [plainProse]), []);
 });

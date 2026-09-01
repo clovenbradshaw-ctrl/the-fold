@@ -16,6 +16,7 @@ import { chartFrom, tableFrom } from "./artifact.js";
 import { delimitedTable } from "./source.js";
 import { foldPace } from "./pace.js";
 import { actsTable, paceTable, surpriseTable } from "./reflex.js";
+import { projectFolds } from "./fold.js";
 
 /** Words that ask for an enumeration, in any order with the subject. */
 const ASKS = /\b(table|tabulate|tabular|list|enumerate|show|display|what)\b/i;
@@ -127,7 +128,11 @@ const BUILDERS = {
   },
 
   folds({ summary }) {
-    const folds = summary?.folds ?? [];
+    // The STORE (summary.folds) is unbounded now — P1, "a turn that falls
+    // out of the window is not forgotten." What this table shows is what
+    // the gist mechanism actually keeps present: the same projected window
+    // buildSummaryUpdatePrompt sends on a refresh, read the same way.
+    const folds = projectFolds(summary);
     if (!folds.length) return null;
     // The fold list is bounded, so the first row is not always turn 1.
     const first = (summary.turnCount ?? folds.length) - folds.length + 1;

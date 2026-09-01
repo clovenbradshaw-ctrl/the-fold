@@ -77,11 +77,24 @@ test("the folds table numbers turns correctly once the list is bounded", () => {
   let s = emptySummary();
   for (let i = 0; i < 20; i++) s = advanceSummaryFold(s, `fold ${i + 1}`);
   const { table, caption } = buildTable("folds", stateWith({ summary: s }));
-  // 12 kept of 20 turns: the first row shown is turn 9, not turn 1.
+  // 12 kept of 20 turns: the first row shown is turn 9, not turn 1. The
+  // fold STORE holds all 20 now (increment A); this table still shows the
+  // same projected window it always has — projectFolds, not the raw store.
+  assert.equal(s.folds.length, 20, "the store itself is unbounded");
   assert.equal(table.rows.length, 12);
   assert.deepEqual(table.rows[0], ["9", "fold 9"]);
   assert.deepEqual(table.rows.at(-1), ["20", "fold 20"]);
   assert.match(caption, /12 folds kept of 20 turns/);
+});
+
+test("the records table shows the full store, unlike folds — a record is addressed and re-openable, never decayed (P1)", () => {
+  let s = emptySummary();
+  for (let i = 0; i < 20; i++)
+    s = addWarrantRecord(s, buildWarrantRecord({ turn: i, gist: `g${i}`, channels: [], refs: [], unsupported: [], open: [] }));
+  const { table } = buildTable("records", stateWith({ summary: s }));
+  assert.equal(table.rows.length, 20, "every record a person explicitly asks to see is shown, not just the last window");
+  assert.equal(table.rows[0][0], "0");
+  assert.equal(table.rows.at(-1)[0], "19");
 });
 
 test("empty state yields null, and a sentence to say instead", () => {

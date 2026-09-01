@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A conversation whose context window does not grow.",
+  "description": "A reading that runs for months without degrading.",
   "scripts": {
     "test": "node --test *.test.mjs"
   },

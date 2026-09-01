@@ -62,8 +62,8 @@ test("orderArm refuses an undeclared resolution and an uninjected organ, by type
 });
 
 test("orderArm is deterministic under its seed, against the real engine extraction", async () => {
-  const { splitSentences } = await import("../eoreader6.1/packages/engine/perceiver/text/spans.js");
-  const { extractRelations } = await import("../eoreader6.1/packages/engine/perceiver/text/relations.js");
+  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { extractRelations } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js");
   const passages = [
     { ref: "a#0-1", text: "Pierre Bezukhov married Helene that winter. Pierre Bezukhov trusted Dolokhov entirely." },
     { ref: "a#1-2", text: "Pierre Bezukhov married Helene before the spring, people said." },

@@ -234,6 +234,22 @@ const sourceOf = (ref) => String(ref ?? "").split("#")[0] || null;
  * live corpus the closed-class measure runs over; omitted, the passages
  * stand in and the measure usually refuses itself (CORPUS_MINIMUM).
  *
+ * EVERY claim `read()` returns also carries `endpoints`
+ * (`{subject, object}`, each `"referent"` / `"form"` / `"tokens"` /
+ * `"none"`): HOW each end actually resolved, so no downstream reader has
+ * to infer an upstream finding from the shape of a refusal. `beyond-reach`
+ * gates on the SUBJECT, so its ABSENCE says nothing at all about the
+ * object — see `judge()`'s own comment for the measured specimen this
+ * closes (POLICIES.md P41).
+ *
+ * `organs.determiners` — OPTIONAL, a received closed class (the engine's
+ * own priors register: DEFINITE_DETERMINERS + INDEFINITE_DETERMINERS,
+ * giver "lang/en"), excluded from an endpoint's comparable tokens. Exists
+ * because `commonTerms`'s declared CORPUS_MINIMUM floor leaves the
+ * function-word filter off entirely on small material, where a shared
+ * definite article alone is enough for `tokensShare` to bind an object the
+ * material never states. Omitted: byte-identical to every prior caller.
+ *
  * `organs.posPriorFor` — OPTIONAL, a zero-arg accessor (app.js's own lazy-
  * accessor pattern, the same shape as its `relationsFor`/`skillLibrary`/
  * `callModel` entries) returning a POSPrior@1 object or null. When it
@@ -734,6 +750,26 @@ function withConfirmedLeadingReferents(
   return buildIndexFromEvents(events, { namesCorefer, diaNorm });
 }
 
+// The arrangement, named the way it is actually earned: two ordered ends
+// and a label (CLAUDE.md's grammar-lens section — "an ordered first end, a
+// label, an ordered second end"). `subject`/`verb`/`object` are the
+// SAE-grammar reading of that arrangement — already named as a declared
+// overlay, not yet stored as one. `end1`/`label`/`end2` are the identical
+// three values under their earned names, ADDED, never substituted: every
+// existing reader of `.subject`/`.verb`/`.object` is unaffected, and
+// nothing yet reads the new fields. One implementation, used at every site
+// that builds an edge/claim shape, so the two names cannot drift the way
+// four separate `{subject: t.subject, verb: t.verb, object: t.object}`
+// literals eventually would have — the same drift class this file's own
+// history (DEF/EVA's `Array.find`, `synthesize`'s `String.includes`)
+// already found twice, closed here before a third. Exported (rather than a
+// closure-local of `makeRelationReader`) because it closes over nothing —
+// a pure mapping deserves to be directly testable without the whole
+// organ-injected reader behind it. Migrating a consumer off `subject`/
+// `verb`/`object` onto `end1`/`label`/`end2` happens file by file, in a
+// later pass — not here.
+export const arrangementOf = (t) => ({ end1: t.subject, label: t.verb, end2: t.object });
+
 export function makeRelationReader(organs) {
   const {
     splitSentences,
@@ -754,6 +790,29 @@ export function makeRelationReader(organs) {
     minShare = undefined,
     extractLeadingSurfaces = null,
     thirdPersonSingular = null,
+    determiners = null,
+    negationWords: negationClass = null,
+    // `organs.phrasalPredicates`/`organs.nounPhraseSubjects` — OPTIONAL
+    // booleans, live_priors' own DR4/DR5 (goldens/reading/DERIVED-RULES.md):
+    // the native relations.js organs (eoreader7) now accept these flags
+    // directly and carry their OWN received defaults (AUXILIARY_VERBS /
+    // DEFINITE_DETERMINERS / INDEFINITE_DETERMINERS / POSSESSIVE_DETERMINERS
+    // / NP_COORDINATORS, priors.js, giver lang/en) — this file passes the two
+    // booleans through and injects nothing else, so a caller wanting a
+    // different vocabulary supplies it straight to `discoverRelationVocab`/
+    // `extractRelations` itself rather than through a third parameter here.
+    // Both default false: omitted, every existing caller sees byte-identical
+    // extraction (an aux-swallowed verb, a bare 1-2 token subject) — the same
+    // backward-compatible posture `verbForms`/`createLemmatizer` above hold.
+    // Disclosed scope: threaded only into the MATERIAL-side extraction below
+    // (the primary edge loop and its order-arm null test) — `read(answer)`'s
+    // own `discoverRelationVocab`/`extractRelations` calls, which check a
+    // model's drafted answer against these same edges, are NOT touched this
+    // pass. Widening only one side risks a subject-shape mismatch between an
+    // edge and the answer's own claim about it; unattempted, named rather
+    // than silently assumed symmetric.
+    phrasalPredicates = false,
+    nounPhraseSubjects = false,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -831,12 +890,12 @@ export function makeRelationReader(organs) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
     const emptyReport = (examined) => ({
       examined,
-      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false },
+      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false, candidates: 0 },
       edges: [],
       claims: [],
     });
     if (!list.length) {
-      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false }, edges: [], read: () => emptyReport(false) };
+      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false, candidates: 0 }, edges: [], read: () => emptyReport(false) };
     }
 
     // The closed class is measured from the POOL (the whole live corpus,
@@ -896,7 +955,10 @@ export function makeRelationReader(organs) {
     });
 
     // `organs.blankFurniture`, when provided, is a length-preserving blanker
-    // (eoreader6.1's spans.js::blankLabelRows) run ONLY on the copy of the
+    // (source.js::blankLabelRows, this repo's own — the ratchet pass that
+    // crossed this file's other organs to eoreader7 native found this symbol
+    // never existed on any engine path at all; it is a the-fold concern, not
+    // an engine one) run ONLY on the copy of the
     // material this function hands to discoverRelationVocab/extractRelations
     // — never on `list` itself, so every OTHER reader of a passage's `.text`
     // (referent identity below, and every caller outside this function:
@@ -953,6 +1015,16 @@ export function makeRelationReader(organs) {
     // so an edge can disclose that its verb entered the vocabulary on the
     // strength of one surface (itself a single-witness assertion).
     const verbSurfaces = new Map();
+    // How many candidates `discoverRelationVocab` NOMINATED, before any of
+    // them cleared `MIN_SURFACES_PER_VERB` — distinct from `verbs.size`,
+    // which only counts survivors. Found missing by the adversarial audit
+    // of the sblgnt (Greek New Testament apparatus) specimen: `verbs: 0`
+    // reads identically whether the candidate list was genuinely EMPTY (no
+    // token ever followed a recurring surface — an apparatus/table/record-
+    // block shape, not prose) or merely below the recurrence floor (real
+    // candidates, just each seen once) — two different facts about the
+    // material a caller could not tell apart from `vocabulary` alone.
+    let candidateCount = 0;
     if (surfaces.length) {
       try {
         const discovered = discoverRelationVocab(text, {
@@ -961,14 +1033,17 @@ export function makeRelationReader(organs) {
           minSurfaces: MIN_SURFACES_PER_VERB,
           negationWords,
           ...(posPrior ? { posPrior, grammarMinShare: GRAMMAR_MIN_SHARE } : {}),
+          ...(phrasalPredicates ? { phrasalPredicates } : {}),
         });
         verbs = discovered.verbs;
+        candidateCount = discovered.candidates?.length ?? 0;
         for (const c of discovered.candidates ?? []) {
           verbSurfaces.set(c.verb, c.surfaces);
           if (posPrior && c.grammar) vocabGrammar.set(c.verb, c.grammar);
         }
       } catch {
         verbs = new Set();
+        candidateCount = 0;
       }
     }
 
@@ -1090,6 +1165,33 @@ export function makeRelationReader(organs) {
       for (const t of folded.toLowerCase().split(/[^\p{L}\p{N}'’]+/u)) {
         if (t.length < 3) continue;
         if (functionWords?.has(t)) continue;
+        // `organs.determiners` — OPTIONAL, a RECEIVED closed class with its
+        // own named giver (the engine's own perceiver/text/priors.js
+        // register: DEFINITE_DETERMINERS + INDEFINITE_DETERMINERS, giver
+        // "lang/en"), never a word list typed here — the same discipline
+        // widget.js's own router already holds, and the same reason
+        // relations.js's header gives for having deleted its hand-listed
+        // verb string. Omitted: byte-identical to every caller before this
+        // pass, exactly like `verbForms`/`createLemmatizer` above.
+        //
+        // Why it exists at all, measured rather than reasoned about
+        // (eval/reasoning-e2e-no-llm.mjs, second pass): the corpus-scale
+        // filter above is `commonTerms`, which declares its own floor —
+        // below CORPUS_MINIMUM chunks it returns nothing and simply does
+        // not run (cite.js:122). That floor's disclosed residue is
+        // "auxiliary noise in the vocabulary", which can only widen what
+        // the reader HEARS. On the OBJECT side it does something the
+        // disclosure never covered: `endpointsMatch` falls through to
+        // `tokensShare`, one shared token is enough, and on sub-floor
+        // material the shared token can be the determiner itself. Live,
+        // against four sentences of real prose stating only "Seward
+        // negotiated the Alaska purchase": "Seward negotiated the Suez
+        // canal" came back BOUND, while "Seward negotiated Suez canal"
+        // (same claim, no article) came back unbound — the definite
+        // article was the entire binding. That is a fabricated edge, not
+        // widened hearing, and the floor's own disclosure does not reach
+        // it.
+        if (determiners?.has(t)) continue;
         tokens.add(t);
       }
       // A form only ever ADDS a way to resolve — it never overrides a real
@@ -1100,6 +1202,65 @@ export function makeRelationReader(organs) {
       const formOnly = !named && referents.size > 0;
       return { text: String(str ?? ""), referents, tokens, formOnly };
     }
+
+    // The four ways an endpoint can come back from `endpoint()`, named once
+    // so no caller has to re-derive them from the shape of the returned
+    // object: "referent" — it resolved to a referent this material itself
+    // established (index.resolve, or a real surface mention); "form" — it
+    // resolved only through a recurring-form id (the `form:` namespace,
+    // never a cast referent); "tokens" — it resolved to nothing, and the
+    // only thing available to compare it with is its own content words;
+    // "none" — not even that.
+    const resolutionOf = (end) =>
+      end.formOnly ? "form" : end.referents.size ? "referent" : end.tokens.size ? "tokens" : "none";
+
+    // A span whose FIRST token is a received negation word is a span whose
+    // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P43).
+    //
+    // `extractRelations`'s own polarity gate is `negationBeforeVerbFor`: the
+    // negation word must sit BEFORE the verb it negates. When it does not,
+    // the extractor does not fail loudly — it silently reads a DIFFERENT
+    // clause, and the negation ends up leading the object span while the
+    // triple's own `polarity` stays "+". Two shapes produce this, both
+    // measured live on real prose:
+    //
+    //   "Seward did not negotiate X"   -> Seward —did[+]→ not negotiate X
+    //   "Seward negotiated not X"      -> Seward —negotiated[+]→ not X
+    //
+    // Left alone, that is not a missed contradiction — it is an INVERTED
+    // one wearing a real address. Measured, against material whose only
+    // relevant sentence is "Lincoln did not dismiss Seward":
+    // `"Lincoln did dismiss Seward"` came back BOUND, cited to that very
+    // passage. Both ends had mis-parsed identically, so they matched, and
+    // neither end's polarity had been read at all.
+    //
+    // The rule is therefore symmetric — claim side AND material-edge side —
+    // and it WITHHOLDS rather than flips: this file does not know what the
+    // polarity should have been, only that nothing measured it. Flipping
+    // would assert a reading no organ earned; `beyond-reach` says exactly
+    // what happened, and (per relationFindings's own standing rule) never
+    // counts against the answer. Over-firing is safe by construction for
+    // the same reason; the FIRST-token gate keeps it narrow anyway, since
+    // that is precisely the position the mis-parse puts the word in — a
+    // negation deeper inside an object ("the treaty but not the purchase")
+    // is a different, real, still-unaddressed construction, not this one.
+    //
+    // Gated on `organs.negationWords` — a RECEIVED closed class with its own
+    // named giver (the engine's own perceiver/text/priors.js NEGATION_WORDS,
+    // giver "lang/en"), never a word list typed here. Omitted: byte-identical
+    // to every caller before this pass.
+    const firstToken = (str) => {
+      const folded = diaNorm(String(str ?? "")).toLowerCase();
+      for (const t of folded.split(/[^\p{L}\p{N}'’]+/u)) if (t) return t;
+      return "";
+    };
+    //
+    // Reads the caller's own per-call `negationWords` when one was declared
+    // (it is the class `extractRelations` itself was handed for THIS read),
+    // and the injected organ otherwise — one class, never two that could
+    // disagree about what a negation is on opposite sides of the same read.
+    const negationInUse = negationWords ?? negationClass;
+    const negationLed = (str) => Boolean(negationInUse?.has(firstToken(str)));
 
     const stemEq = (a, b) =>
       a === b || (Math.min(a.length, b.length) >= MIN_STEM && (a.startsWith(b) || b.startsWith(a)));
@@ -1143,14 +1304,68 @@ export function makeRelationReader(organs) {
     const edges = [];
     const bucketOf = (verb, polarity) => `${verb}|${polarity}`;
     const buckets = new Map();
-    for (const p of extractionList) {
-      let triples = [];
-      try {
-        triples = verbs.size ? extractRelations(p.text, { verbs, functionWords, negationWords }) : [];
-      } catch {
-        triples = [];
-      }
-      for (const t of triples) {
+    // EXTRACTION IS PER SENTENCE, AND EVERY EDGE CARRIES THE BYTES THAT MADE
+    // IT (2026-08-27, user direction: "they should carry the exact bytes that
+    // produced them if we're doing the hypergraph right").
+    //
+    // This file used to call `extractRelations` on a whole passage and keep
+    // only `p.ref` — passage grain. Every other addressed thing in this repo
+    // is byte-exact and self-verifying (P5.2, mandatory: 11,132/11,132 on War
+    // and Peace), so the one tier that makes CLAIMS about the material was
+    // also the one tier that could not say which bytes it read them from.
+    //
+    // Measured before adopting, on the three real pages the live app fetched
+    // (161k/182k/56k chars): sentence offsets self-verify 1,606/1,606 against
+    // the passage's own bytes; per-passage extraction found 2,314 edges,
+    // per-sentence 2,289 — 48 lost, 23 gained. Every sampled LOST edge is
+    // cross-boundary garbage ("content —from→ wikipedia", "free encyclopedia
+    // —president→ of", and several carrying a literal newline inside the
+    // subject: "1869\n\n17th —president→ of", "tailor\n\nsignature —military→
+    // service\nbranch"), i.e. the P38 infobox-gluing class, now excluded
+    // STRUCTURALLY rather than by widening blankFurniture again. The gained
+    // ones are real ("16th vice —president→ of", "15th governor —of→
+    // tennessee").
+    //
+    // THE ADDRESS IS INTO THE ORIGINAL MATERIAL, NEVER THE REWRITTEN COPY.
+    // `extractionList` has been through `forExtraction` — blankFurniture is
+    // length-preserving but `resolvePronounSubjects` is NOT (it substitutes a
+    // name for a pronoun), so an offset into that text would name bytes the
+    // reader never had. So the extractor reads the REWRITTEN sentence (a
+    // pronoun subject still resolves) while the span addresses the ORIGINAL
+    // one, paired by sentence index. Pairing is CHECKED, not assumed —
+    // measured 3/3 on those same pages under a length-changing rewrite — and
+    // when the counts disagree the edge honestly falls back to passage grain
+    // with no span at all, rather than carrying an address that would be off
+    // by a sentence. A wrong address is worse than a coarse one.
+    for (let pi = 0; pi < extractionList.length; pi++) {
+      const p = extractionList[pi];
+      const originalText = String(list[pi]?.text ?? p.text);
+      const readSentences = splitSentences(p.text) ?? [];
+      const originalSentences = splitSentences(originalText) ?? [];
+      const paired = readSentences.length === originalSentences.length;
+      for (let si = 0; si < readSentences.length; si++) {
+        const sentence = readSentences[si];
+        let triples = [];
+        try {
+          triples = verbs.size
+            ? extractRelations(sentence.text, {
+                verbs,
+                functionWords,
+                negationWords,
+                ...(phrasalPredicates ? { phrasalPredicates } : {}),
+                ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+              })
+            : [];
+        } catch {
+          triples = [];
+        }
+        if (!triples.length) continue;
+        const origin = paired ? originalSentences[si] : null;
+        const span =
+          origin && p.ref
+            ? { ref: p.ref, start: origin.offset, end: origin.offset + origin.text.length, text: origin.text }
+            : null;
+        for (const t of triples) {
         const subjectEnd = endpoint(t.subject, true);
         const objectEnd = endpoint(t.object, Boolean(createLemmatizer));
         const bucketKey = bucketOf(t.verb, t.polarity);
@@ -1166,19 +1381,30 @@ export function makeRelationReader(organs) {
           // passage dedupe inside extractRelations itself — that residue
           // is the extractor's, disclosed here rather than papered over.)
           existing.statements += 1;
+          // Every sentence that states this edge, not just the first: an
+          // edge stated three times has three addresses, and which one a
+          // reader is shown should be their choice, not extraction order's.
+          if (span && !existing.spans.some((x) => x.ref === span.ref && x.start === span.start)) {
+            existing.spans.push(span);
+          }
         } else {
           const fresh = {
             subject: t.subject,
             verb: t.verb,
             object: t.object,
+            ...arrangementOf(t),
             polarity: t.polarity,
             subjectEnd,
             objectEnd,
             refs: [p.ref].filter(Boolean),
+            // The bytes this edge was read from. Empty only when the
+            // sentence pairing above refused — never a guessed address.
+            spans: span ? [span] : [],
             statements: 1,
           };
           edges.push(fresh);
           bucket.push(fresh);
+        }
         }
       }
     }
@@ -1224,7 +1450,14 @@ export function makeRelationReader(organs) {
       const arm = orderArm({
         passages: extractionList,
         splitSentences,
-        extract: (t) => extractRelations(t, { verbs, functionWords, negationWords }),
+        extract: (t) =>
+          extractRelations(t, {
+            verbs,
+            functionWords,
+            negationWords,
+            ...(phrasalPredicates ? { phrasalPredicates } : {}),
+            ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+          }),
         draws: assert.draws,
         seed: assert.seed ?? 0,
       });
@@ -1289,6 +1522,7 @@ export function makeRelationReader(organs) {
         subject: t.subject,
         verb: t.verb,
         object: t.object,
+        ...arrangementOf(t),
         polarity: t.polarity,
         // Same disclosure edgeFace carries, at claim scale: whether the
         // connector position the answer used is grammatically plausible as
@@ -1329,11 +1563,51 @@ export function makeRelationReader(organs) {
       // `obj` is never built with forms (see endpoint()'s own comment), so
       // `obj.formOnly` is always false and is not read here.
       claim.formBased = Boolean(subj.formOnly);
+      // HOW each endpoint resolved, disclosed on EVERY claim that gets far
+      // enough to have endpoints at all — additive, never a gate, and never
+      // read by anything in this function's own verdict arithmetic.
+      //
+      // Why it has to be carried rather than inferred: `beyond-reach` is the
+      // only signal a downstream reader had for "an endpoint did not
+      // resolve," and `beyond-reach` gates on the SUBJECT (one line below)
+      // plus the narrow case of an object carrying neither referent nor
+      // content word. An object that resolves to NO referent but does carry
+      // a content word never touches that gate — it falls through to
+      // `endpointsMatch`'s own `tokensShare` branch, which is a deliberate
+      // and correct design (an object is very often a description, "the
+      // Alaska purchase", not a name) but which means the ABSENCE of
+      // beyond-reach licenses nothing at all about the object. Inferring
+      // "both endpoints resolved" from it is reading a check that never ran
+      // — measured live 2026-08-19 by eval/reasoning-e2e-no-llm.mjs, where
+      // "Lincoln appointed Napoleon" (Napoleon nowhere in the material) came
+      // back `unbound`, and verification.js's Existence/Entity cell reported
+      // `holds — subject and object both resolve to referents this material
+      // establishes` about a name the material has never heard of.
+      //
+      // Also supersedes the paragraph directly above on one point of fact:
+      // it says `obj.formOnly` "is always false", which was true only before
+      // object-side form identity was enabled under a lemmatizer (this
+      // file's own 2026-08-19 amendment, `endpoint(t.object,
+      // Boolean(createLemmatizer))` two lines up). `claim.formBased` stays
+      // subject-only, exactly as documented and tested; the object's own
+      // mode is carried here instead of quietly widening that field.
+      claim.endpoints = { subject: resolutionOf(subj), object: resolutionOf(obj) };
       if (!subj.referents.size) {
         return {
           ...claim,
           verdict: "beyond-reach",
           reason: `“${t.subject}” doesn't resolve to anyone or anything this material establishes — a limit of this check, not a mark against the answer`,
+        };
+      }
+      // Claim side of the polarity-never-measured rule (see `negationLed`).
+      // Checked here rather than before endpoint resolution because the
+      // `endpoints` disclosure above is still true and still worth carrying
+      // on a claim this tier is about to decline.
+      if (negationLed(t.object)) {
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `the negation in “${t.object}” landed inside the object, not before the verb — this claim's polarity was never measured, so it is not one this tier can check; a limit of this extraction, not a mark against the answer`,
         };
       }
       const sameSubjVerb = edges.filter(
@@ -1345,7 +1619,20 @@ export function makeRelationReader(organs) {
       // fillers) is the ordinary, unremarked case and carries nothing extra.
       const fillers = clusterFillers(sameSubjVerb);
       const cardinality = fillers.length > 1 ? { fillers } : {};
-      const matching = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
+      const matched = sameSubjVerb.filter((e) => endpointsMatch(e.objectEnd, obj));
+      // Material side of the same rule. An edge whose own object span is
+      // negation-led carries a polarity nothing measured, so it may not
+      // decide this claim either way — `every`, not `some`: a clean edge
+      // sitting beside an unmeasured one still binds on its own merits.
+      const matching = matched.filter((e) => !negationLed(e.object));
+      if (matched.length && !matching.length) {
+        return {
+          ...claim,
+          verdict: "beyond-reach",
+          reason: `the only passage the material offers here states this with the negation inside its own object span, so its polarity was never measured — this tier cannot say whether it agrees or disagrees; a limit of this extraction, not a mark against the answer`,
+          nearest: matched.slice(0, NEAREST_EDGES_MAX).map(edgeFace),
+        };
+      }
       if (matching.length) {
         const agree = matching.filter((e) => e.polarity === t.polarity);
         const oppose = matching.filter((e) => e.polarity !== t.polarity);
@@ -1355,6 +1642,26 @@ export function makeRelationReader(organs) {
             ...claim,
             verdict: "bound",
             refs,
+            // THE EXACT BYTES THAT BOUND IT, carried onto the claim and not
+            // left on the edge. `refs` names the passage; `spans` names the
+            // sentence, byte-addressed and self-verifying. Without this a
+            // caller wanting to show a reader (or a model) what a claim
+            // actually rests on has only a whole chunk to offer, which is
+            // how page furniture — "'President Lincoln' and 'Mr. Lincoln'
+            // redirect here" — reached a prompt as though it were evidence.
+            spans: (() => {
+              const seen = new Set();
+              const out = [];
+              for (const e of agree) {
+                for (const sp of e.spans ?? []) {
+                  const k = `${sp.ref}#${sp.start}-${sp.end}`;
+                  if (seen.has(k)) continue;
+                  seen.add(k);
+                  out.push(sp);
+                }
+              }
+              return out;
+            })(),
             corroboration: corroboration(refs),
             // The material stating BOTH polarities is a fact worth carrying,
             // never averaged away: divergence between perspectives is a
@@ -1447,8 +1754,14 @@ export function makeRelationReader(organs) {
         subject: e.subject,
         verb: e.verb,
         object: e.object,
+        ...arrangementOf(e),
         polarity: e.polarity,
         refs: e.refs,
+        // The exact bytes this edge was read from, carried THROUGH the
+        // projection. Without this line `edges` is the one face of this
+        // tier that cannot say where it read anything — measured 0/2,298
+        // when the field was added at construction and dropped here.
+        spans: e.spans ?? [],
         // null when no posPrior was available — a disclosed absence of the
         // check, never a false "plausible". Never used to drop or downrank
         // an edge here; a caller (verification.js) reads it as it chooses.
@@ -1540,6 +1853,7 @@ export function makeRelationReader(organs) {
                 subject: t.subject,
                 verb: t.verb,
                 object: t.object,
+                ...arrangementOf(t),
                 polarity: t.polarity,
                 verdict: "unheard",
                 reason: `the material never uses the verb “${t.verb}”, so there is nothing to compare this against — a limit of this check, not a mark against the answer`,
@@ -1585,12 +1899,32 @@ export function makeRelationReader(organs) {
         if (found) found.refs.push(...e.refs);
         else clusters.push({ [faceField]: e[faceField], end: e[openField], refs: [...e.refs] });
       }
-      return clusters.map(({ end, ...rest }) => ({ ...rest, refs: [...new Set(rest.refs)] }));
+      // EVERY CLUSTER CARRIES HOW ITS OPEN END RESOLVED. This function is
+      // named queryReferents and returned whatever sat in the open slot,
+      // referent or not — so at page scale it answered "who was vice
+      // president of the United States" with "Though he", "Congress",
+      // "000", "why it" and "impeachment trial" alongside Andrew Johnson,
+      // and a caller had no way to tell them apart (measured live
+      // 2026-08-26 over 3,841 edges from four real pages).
+      //
+      // `resolutionOf` already draws exactly this line and its answer was
+      // being thrown away with `end`: "referent" — it resolved to a being
+      // this material itself established; "form" — only through a
+      // recurring-form id; "tokens" — to nothing but its own content
+      // words; "none" — not even that. Disclosed rather than filtered
+      // here, because which of those a caller may stand on is the caller's
+      // declaration to make, not this organ's to assume — the same posture
+      // every other typed gap in this file already holds.
+      return clusters.map(({ end, ...rest }) => ({
+        ...rest,
+        resolution: resolutionOf(end),
+        refs: [...new Set(rest.refs)],
+      }));
     }
 
     return {
       examined: true,
-      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior) },
+      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior), candidates: candidateCount },
       edges: edges.map(edgeFace),
       read,
       queryReferents,
@@ -1715,4 +2049,70 @@ export function queryFillers(edges, { subject = null, verb = null, object = null
     clusters.get(key).refs.push(...e.refs);
   }
   return [...clusters.values()].map((c) => ({ [openField]: c.value, refs: [...new Set(c.refs)] }));
+}
+
+// ── a relation reader for case-marked languages (P72 / eoreader7
+// READING-SPEC.md S33) ───────────────────────────────────────────────────
+//
+// A SEPARATE entry point from makeRelationReader, deliberately, not a
+// branch inside it. The English pipeline's referent-index resolution
+// (cast.js), assertion order-arm, connector-class checks, and gender
+// evidence all assume a POSITIONAL extractor's own edge shape
+// (subjectEnd/objectEnd fuzzy matching over a referent index) — a
+// case-marked organ produces a genuinely different shape (a word, its
+// case, its number; no referent resolution, no fuzzy endpoint matching)
+// and retrofitting it through machinery built for the other shape is
+// real, scoped, unattempted future work, disclosed here rather than
+// silently implied. What IS shared, and is the actual point: the
+// arrangement's earned names. Every edge below carries `end1`/`label`/
+// `end2` — nothing here ever populates `subject`/`verb`/`object`,
+// because Latin's oblique cases have no honest 1:1 mapping onto English
+// argument structure (this reader's own `end1Detail`/`end2Detail` carry
+// the grammatical case instead — a fact English's positional reader has
+// no use for and never needed).
+//
+/**
+ * @param {object} organs
+ * @param {function} organs.splitSentences spans.js's own sentence
+ *   splitter (cast.js pattern — injected, never imported directly).
+ * @param {function} organs.extractCaseMarkedRelation the case-marking
+ *   organ itself (eoreader7/native/adapters/text/relations-case-marked.js).
+ * @param {object} [organs.casePrior] passed through to the organ; the
+ *   organ's own default (Latin) applies when omitted.
+ * @returns {function(Array<{ref:string,text:string}>): {edges: Array, gaps: Array, examined: true}}
+ */
+export function makeCaseMarkedRelationReader({ splitSentences, extractCaseMarkedRelation, casePrior } = {}) {
+  if (typeof splitSentences !== "function")
+    throw new TypeError("makeCaseMarkedRelationReader: splitSentences is injected — spans.js's own organ, never a private reimplementation");
+  if (typeof extractCaseMarkedRelation !== "function")
+    throw new TypeError("makeCaseMarkedRelationReader: extractCaseMarkedRelation is injected — the engine's own organ, never a private reimplementation");
+
+  return function relationsFor(passages) {
+    const edges = [];
+    const gaps = [];
+    for (const p of passages ?? []) {
+      for (const sentence of splitSentences(String(p.text ?? ""))) {
+        const result = extractCaseMarkedRelation(sentence.text, { casePrior });
+        const span = { ref: p.ref, start: sentence.offset, end: sentence.offset + sentence.text.length, text: sentence.text };
+        if (result.gap || !result.end1 || !result.end2) {
+          // A gap is a real result, not a discarded one — reported on its
+          // own list rather than silently dropped, the same denominator
+          // discipline S22/S32 already hold: "never attempted" and
+          // "attempted and refused" must not share a bucket with silence.
+          gaps.push({ ref: p.ref, sentence: sentence.text, gap: result.gap });
+          continue;
+        }
+        edges.push({
+          end1: result.end1.word,
+          label: result.label.word,
+          end2: result.end2.word,
+          end1Detail: { case: result.end1.case, number: result.end1.number },
+          end2Detail: { case: result.end2.case, number: result.end2.number },
+          refs: [p.ref].filter(Boolean),
+          spans: [span],
+        });
+      }
+    }
+    return { edges, gaps, examined: true };
+  };
 }

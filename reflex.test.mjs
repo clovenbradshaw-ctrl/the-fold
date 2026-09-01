@@ -54,7 +54,7 @@ import {
   createTierStack,
   foldThrough,
   gammaFor,
-} from "../eoreader6.1/packages/engine/emergence/tiers.js";
+} from "../eoreader7/legacy-eoreader6.1/packages/engine/emergence/tiers.js";
 
 const meterOrgans = makeReflexMeter({ createTierStack, foldThrough });
 

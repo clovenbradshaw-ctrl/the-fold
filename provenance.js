@@ -155,9 +155,14 @@ export function stripScaffoldNarration(text) {
 // these nouns behind modifiers ("The locked user waits…") is now inside
 // the pattern's reach — the verb list stays the narrow guard.
 const NARRATION_SUBJECT =
-  "(?:the|this|that|your)\\s+(?:[\\p{L}\\p{N}'’-]+\\s+){0,4}?(?:passage|prompt|question|material|text|excerpt|conversation|dialogue|discussion|user|file|document|notes?|input)";
+  "(?:the|this|that|your)\\s+(?:[\\p{L}\\p{N}'’-]+\\s+){0,4}?(?:passage|prompt|question|material|text|excerpt|conversation|dialogue|discussion|user|file|document|notes?|input|record)";
+// establishes measured live 2026-08-20 (gemma2:2b, real pasted two-VP
+// material, "who was Abe Lincoln's VP?"): "This passage establishes that
+// Hannibal Hamlin served as vice president..." shipped as a second,
+// redundant answer bubble alongside a fine direct one — the exact register
+// this file exists to strip, one verb lemma the list had not yet seen.
 const DEFLATE_RE = new RegExp(
-  `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:indicates|demonstrates|shows|states|suggests|confirms|reveals|says|notes|mentions|highlights|implies)\\s+that\\s+`,
+  `^\\s*${NARRATION_SUBJECT}\\s+(?:\\w+\\s+){0,2}?(?:indicates|demonstrates|shows|states|suggests|confirms|reveals|says|notes|mentions|highlights|implies|establishes)\\s+that\\s+`,
   "iu", // u: NARRATION_SUBJECT's modifier gap uses \p{L} — without the flag the class silently matches literal braces
 );
 const CUT_RES = [
@@ -199,6 +204,26 @@ const CUT_RES = [
   // missing from, not a new guess.
   /^\s*it\s+(?:then\s+)?(?:asks?|aims?|transitions?|shifts?|moves|focuse[sd]|discusse[sd]|goes\s+on|details?|describe[sd]|provides?|provided|highlights?|outlines?)\b/i,
   /conversation\s+so\s+far(?:,)?\s+in\s+one\s+line/i,
+  // Measured live 2026-08-20 (gemma2:2b, eval/material-dialogue-stress.mjs,
+  // real short pasted material — the Great Barrier Reef topic, two
+  // consecutive turns): holon.js's OWN "incomplete"-mode correction prompt
+  // (`buildRedefinedPart`) hands the model a literal instructional sentence
+  // — "The record confirms exactly this, and nothing beyond it, even if
+  // other names or claims sit nearby in the material below: <findings>." —
+  // and the model, rather than following the instruction, COPIED it into
+  // the shipped answer nearly verbatim, twice in a row: "The material
+  // confirms exactly this, and nothing beyond it." and "The record confirms
+  // exactly this, and nothing beyond it, even if other names or claims sit
+  // nearby in the material below." A different register from DEFLATE_RE's
+  // "confirms THAT X" shape (there X is real content worth keeping) — here
+  // the "complement" is the instruction's own meta-commentary, or (the same
+  // turns' second occurrence) a colon introducing a restatement already
+  // present elsewhere in the sentence, so this is a CUT, never a DEFLATE.
+  // "record" — the template's own exact word, one NARRATION_SUBJECT's noun
+  // list had not yet seen — was added there in the same pass. Narrowed to
+  // "exactly this/it/:" specifically (never bare "confirms exactly \w+")
+  // so a genuine figure ("confirms exactly 79 percent") is never at risk.
+  new RegExp(`^\\s*${NARRATION_SUBJECT}\\s+confirms\\s+exactly\\s*(?:this\\b|it\\b|:)`, "iu"),
 ];
 const FALSE_REFUSAL_RE =
   /\b(?:as\s+an\s+ai\b|i'?m\s+(?:just\s+)?an?\s+(?:ai|language\s+model|model)\b|it'?s\s+a\s+model\b|i\s+(?:can'?t|cannot|don'?t\s+have)\s+(?:direct\s+)?access)\b/i;
@@ -304,7 +329,7 @@ export function classifySentences(answer, attributions = [], findings = [], rela
   const norm = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ");
   const carries = (text, c) => {
     const t = norm(text);
-    return t.includes(norm(c.subject)) && t.includes(norm(c.verb));
+    return t.includes(norm(c.end1)) && t.includes(norm(c.label));
   };
   return splitSentences(answer).map((text) => {
     const a = byText.get(text);

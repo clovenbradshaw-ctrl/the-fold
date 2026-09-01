@@ -62,7 +62,7 @@
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import * as taskLog from "../../eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { checkGrounding, corroborateAtoms, buildUnionIndex, tokenSupported } from "../grounding.js";
 import { PASSAGES as LINCOLN_PASSAGES, extractFacts, factsRelevantTo, checkAnswer as lincolnCorrect } from "./facts-before-draft.mjs";
 import { FIXTURES } from "./system1-cpu-system2-gpu.mjs";

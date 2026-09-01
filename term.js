@@ -1107,7 +1107,11 @@ export function initTerminal(bridge) {
       mirrorTerm("term-capacity-run", { id: "relations", source, query: hasQuery ? fields : null, count: result.count });
       if (!hasQuery) {
         if (!result.count) return line(`relations · 0 edges bound in "${source}"`, "term-mute");
-        for (const e of result.edges) line(`  ${e.subject} —${e.verb}${e.polarity === "-" ? " (negated)" : ""}→ ${e.object}  [${e.refs.join("; ")}]`, "term-mute");
+        // result.edges here is reader.edges — hypergraph.js's own edgeFace()
+        // output (P72's neutral arrangement); the query branch below reads
+        // queryReferents' own {subject,verb,object} convention instead,
+        // deliberately left alone (a separate, unrenamed API surface).
+        for (const e of result.edges) line(`  ${e.end1} —${e.label}${e.polarity === "-" ? " (negated)" : ""}→ ${e.end2}  [${e.refs.join("; ")}]`, "term-mute");
         return;
       }
       const openField = fields.subject == null ? "subject" : "object";

@@ -26,9 +26,9 @@ import { runHolonicTask, needsDecomposition } from "./holon.js";
 import { makeCastResolver } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { tokenize } from "./source.js";
-import { splitSentences as engineSentences } from "../eoreader6.1/packages/engine/perceiver/text/spans.js";
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader6.1/packages/engine/perceiver/text/surfaces.js";
-import { discoverRelationVocab, extractRelations } from "../eoreader6.1/packages/engine/perceiver/text/relations.js";
+import { splitSentences as engineSentences } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js";
+import { discoverRelationVocab, extractRelations } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js";
 
 // Overridable so a Node test or a non-default Ollama install is not stuck
 // on localhost:11434 — every other Ollama call site in this repo (app.js,

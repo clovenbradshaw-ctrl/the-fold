@@ -33,12 +33,12 @@ import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync,
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { foldExtract } from "../eoreader6.1/packages/host/index.js";
+import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file
 // owns only the crossings
-import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, papersOf } from "./priors-toggles.js";
+import { foldPriorToggles, effectivePrior, declarationRows, normalizePriorPath, papersOf, withinPriorScope } from "./priors-toggles.js";
 import { gradeLicense, admissibleFiles, pickSeedFile, seedProvenance, INGEST_MAX_BYTES } from "./seed.js";
 import {
   extractReadable,
@@ -104,16 +104,38 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
-const ENGINE = path.resolve(ROOT, "..", "eoreader6.1", "packages", "engine");
+const ENGINE = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
+// serve.mjs's engine-v7 mount, carried here for the same reason: the chat
+// page's own ratchet pass (2026-08-29 — CLAUDE.md's "The connection pass" /
+// "finish the ratchet" section) moved app.js's text organs off /engine and
+// onto eoreader7's native kernel at /engine-v7/…, and this server serves
+// the chat page whole exactly as serve.mjs does. Missing this mount would
+// be the identical failure CLAUDE.md's Explore section already names for
+// /engine — "without that mount the chat page half-loads" — one mount
+// short of drift, the same class this repo's own postmortems (P22's
+// Array.find, P24's runtime ternary) keep catching between two copies of
+// one thing.
+const ENGINE_V7 = path.resolve(ROOT, "..", "eoreader7", "native");
 // serve.mjs's nul mount, carried here for the same reason as /engine:
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
-const NUL = path.resolve(ROOT, "..", "eoreader6.1", "nul");
+const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // serve.mjs's priors-data mount, carried here for the same reason as
 // /engine and /nul: real, giver-cited data (POSPrior@1) read live off
 // eoreader6.1's own gitignored, locally-reproducible build directory —
 // never a stale copy vendored into this repo.
-const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader6.1", "scripts", "corpus");
+const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
+// Shipped fallbacks for the same mount — serve.mjs carries the full
+// reasoning (P73 + P74): the primary is a gitignored dir in a usually-absent
+// submodule, so without the chain the prior 404'd on every fresh checkout
+// and every organ gated on it silently degraded to off. Chain: sibling
+// live build dir -> this repo's own committed artifact (priors-data/) ->
+// live_priors' committed artifact. The alias is the declared eng->en
+// naming translation between eoreader6.1's ISO-3 file names and
+// live_priors' LANG_OF codes.
+const PRIORS_DATA_OWN = path.resolve(ROOT, "priors-data");
+const PRIORS_DATA_SHIPPED = path.resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
+const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -834,18 +856,29 @@ function readJsonBody(req) {
 
 function serveStatic(req, res, pathname) {
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  const file = rel.startsWith("/engine/") || rel.startsWith("engine/")
-    ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
-    : rel.startsWith("/nul/") || rel.startsWith("nul/")
-      ? path.join(NUL, rel.replace(/^\/?nul\//, ""))
-      : rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")
-        ? path.join(PRIORS_DATA, rel.replace(/^\/?priors-data\//, ""))
-        : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+  let file = rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
+    ? path.join(ENGINE_V7, rel.replace(/^\/?engine-v7\//, ""))
+    : rel.startsWith("/engine/") || rel.startsWith("engine/")
+      ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
+      : rel.startsWith("/nul/") || rel.startsWith("nul/")
+        ? path.join(NUL, rel.replace(/^\/?nul\//, ""))
+        : rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")
+          ? path.join(PRIORS_DATA, rel.replace(/^\/?priors-data\//, ""))
+          : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+  if ((rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")) && !existsSync(file)) {
+    const name = rel.replace(/^\/?priors-data\//, "");
+    const own = path.join(PRIORS_DATA_OWN, name);
+    const shipped = path.join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
+    if (own.startsWith(PRIORS_DATA_OWN) && existsSync(own)) file = own;
+    else if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
+  }
   const withinRoot = file === ROOT || file.startsWith(ROOT + path.sep);
   const withinEngine = file === ENGINE || file.startsWith(ENGINE + path.sep);
+  const withinEngineV7 = file === ENGINE_V7 || file.startsWith(ENGINE_V7 + path.sep);
   const withinNul = file === NUL || file.startsWith(NUL + path.sep);
-  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep);
-  if (!withinRoot && !withinEngine && !withinNul && !withinPriorsData) {
+  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep)
+    || file === PRIORS_DATA_SHIPPED || file.startsWith(PRIORS_DATA_SHIPPED + path.sep);
+  if (!withinRoot && !withinEngine && !withinEngineV7 && !withinNul && !withinPriorsData) {
     res.writeHead(403);
     return res.end("forbidden");
   }
@@ -1442,6 +1475,11 @@ const server = http.createServer(async (req, res) => {
         sentence: String(c.sentence ?? ""),
       };
       if (!claim.tokens.length) return send(res, 400, { error: "claim needs tokens or text — the check judges the claim's own words, never a paraphrase" });
+      // An explicit, request-scoped slice — "check against exactly this
+      // (geography, period) universe" — never persisted, never a substitute
+      // for the toggle ledger below (withinPriorScope's own header has the
+      // full reasoning). Absent or blank scope changes nothing.
+      const scope = typeof body.scope === "string" && body.scope.trim() ? body.scope.trim() : null;
       const listing = listPriorDocuments();
       if (!listing) {
         record("priors-check", { claim: claim.text || claim.tokens.join(" "), consulted: 0, stating: 0, gap: "not-present" });
@@ -1458,7 +1496,7 @@ const server = http.createServer(async (req, res) => {
       // toggle now changes what the surf actually consults, not just what
       // the tab offers to attach.
       const { byPath } = readPriorToggles();
-      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on && withinPriorScope(e.path, scope));
       const ranked = rankPriorCandidates(claim, gated);
       const documents = [];
       for (const cand of ranked.slice(0, PRIORS_DOCS_CONSULTED)) {
@@ -1478,14 +1516,15 @@ const server = http.createServer(async (req, res) => {
         documents.push(checkPrior(claim, readPriorDocument(cand.path, raw)));
       }
       const folded = foldPriors(claim, { candidates: ranked.length, documents });
-      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      record("priors-check", { claim: claim.text || claim.tokens.join(" "), kind: claim.kind, candidates: ranked.length, consulted: folded.consulted, stating: folded.stating, corpusEnabled: gated.length, corpusTotal: listing.entries.length, ...(scope ? { scope } : {}) });
       return send(res, 200, {
         ...folded,
         // Stated plainly rather than left implicit: how many of the corpus's
         // documents were even eligible to be a candidate this time, per the
-        // toggle ledger — the number a reader needs to tell "the shelf said
-        // nothing" apart from "the shelf was switched off".
-        gate: { enabled: gated.length, total: listing.entries.length },
+        // toggle ledger (and the scope, when one was asked for) — the number
+        // a reader needs to tell "the shelf said nothing" apart from "the
+        // shelf was switched off" apart from "that universe has nothing".
+        gate: { enabled: gated.length, total: listing.entries.length, ...(scope ? { scope } : {}) },
         ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
       });
     }
@@ -1504,8 +1543,15 @@ const server = http.createServer(async (req, res) => {
         record("priors-surfaces", { surfaces: surfaces.length, consulted: 0, matches: 0, gap: "not-present" });
         return send(res, 200, { matches: [], gate: { enabled: 0, total: 0 }, gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` } });
       }
+      // Same request-scoped slice /api/priors/check takes — named here
+      // because DOCS_MAX otherwise means a universe sorting late in the
+      // corpus's own alphabetical walk (a single new category behind 15
+      // established ones) can lose the race for one of the 60 consulted
+      // slots to sheer document COUNT elsewhere, never reached regardless
+      // of how well it'd answer the surface asked for.
+      const scope = typeof body.scope === "string" && body.scope.trim() ? body.scope.trim() : null;
       const { byPath } = readPriorToggles();
-      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on);
+      const gated = listing.entries.filter((e) => effectivePrior(byPath, e.path).on && withinPriorScope(e.path, scope));
       const surfaceLower = surfaces.map((s) => ({ original: s, folded: s.toLowerCase() }));
       const matches = new Map();
       let consulted = 0;
@@ -1536,10 +1582,10 @@ const server = http.createServer(async (req, res) => {
         }
       }
       const result = [...matches.entries()].map(([surface, passages]) => ({ surface, passages: passages.slice(0, 5) }));
-      record("priors-surfaces", { surfaces: surfaces.length, consulted, matches: result.length, corpusEnabled: gated.length, corpusTotal: listing.entries.length });
+      record("priors-surfaces", { surfaces: surfaces.length, consulted, matches: result.length, corpusEnabled: gated.length, corpusTotal: listing.entries.length, ...(scope ? { scope } : {}) });
       return send(res, 200, {
         matches: result,
-        gate: { enabled: gated.length, total: listing.entries.length },
+        gate: { enabled: gated.length, total: listing.entries.length, ...(scope ? { scope } : {}) },
         ...(listing.truncated ? { walkTruncated: true, walkCap: PRIORS_WALK_MAX } : {}),
       });
     }
@@ -1739,6 +1785,237 @@ const server = http.createServer(async (req, res) => {
     // This stands on P13's proof-seeking amendment — pages chosen by the
     // article's own ranked citations instead of ranked search results, same
     // bound, same record, same typed gaps.
+// ── the relating-property ledger ───────────────────────────────────────────
+// Append-only, one nomination per line, the same discipline every other
+// record in this instrument keeps. This is the first thing here that writes
+// to a hyperlexicon from LIVE EXPERIENCE rather than a fixture: a walk that
+// observed a property relating members to a slot nominates it, witnesses
+// accumulate across runs, and `standing` never leaves "candidate" — only a
+// named giver promotes one, which no code path here does or should.
+const HL_LEDGER = path.join(ROOT, "record", "hyperlexicon.jsonl");
+function mergeRelatingLedger(left, nominations) {
+  try {
+    mkdirSync(path.dirname(HL_LEDGER), { recursive: true });
+    for (const n of nominations ?? []) {
+      appendFileSync(
+        HL_LEDGER,
+        JSON.stringify({
+          at: new Date().toISOString(),
+          schema: "EORelatingNomination@1",
+          left: n.left,
+          right: n.right,
+          witnesses: n.witnesses,
+          standing: "candidate",
+          giver: null,
+          basis: n.basis ?? "observed back-pointer adjacency nominated for consideration; nomination is not reasoning permission",
+        }) + "\n",
+      );
+    }
+  } catch {}
+  // Read every past nomination for this slot and union the witnesses, so a
+  // property seen once in each of two runs clears the floor the same way one
+  // seen twice in a single run does — the evidence is the distinct witness,
+  // never how many times a walk happened to run.
+  const byProp = new Map();
+  for (const n of nominations ?? []) byProp.set(n.right, new Set(n.witnesses));
+  try {
+    for (const line of readFileSync(HL_LEDGER, "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      let e;
+      try { e = JSON.parse(line); } catch { continue; }
+      if (e?.left !== left || !e?.right) continue;
+      if (!byProp.has(e.right)) byProp.set(e.right, new Set());
+      for (const w of e.witnesses ?? []) byProp.get(e.right).add(w);
+    }
+  } catch {}
+  return [...byProp.entries()]
+    .map(([right, ws]) => ({ left, right, witnesses: [...ws], count: ws.size }))
+    .sort((a, b) => b.count - a.count || a.right.localeCompare(b.right));
+}
+
+    // ── /api/entity/seek ──────────────────────────────────────────────────
+    // The identity walk (wikidata.js's own header states it step by step):
+    // two surface strings in, the bindings out, with every referent carrying
+    // its giver and a fetchable address. This route owns the CROSSING only;
+    // every shape it handles is wikidata.js's, and it invents no ids.
+    //
+    // Paced, never a burst — the same posture proof.js holds for web egress,
+    // and learned here the hard way: an unpaced first run was refused by the
+    // giver mid-walk ("You are making too many requests to the API").
+    if (req.method === "POST" && p === "/api/entity/seek") {
+      const body = await readJsonBody(req);
+      const anchorTerm = String(body.anchor ?? "").trim();
+      const slotTerm = String(body.slot ?? "").trim();
+      if (!anchorTerm || !slotTerm) return send(res, 400, { error: "seek needs both an anchor and a slot term" });
+
+      const wd = await import("./wikidata.js");
+      const { seekBindings, learnRelation } = await import("./seek.js");
+      // A DISK CACHE, because a cold walk asks the giver a dozen questions
+      // and asking the same ones again on every turn is both slow and rude.
+      // Keyed by the request URL, so a search, an entity read and an inverse
+      // index each cache independently. Entities are the stable part; a
+      // repeat walk over the same slot becomes nearly free, which is what
+      // makes the rate limit stop being the binding constraint.
+      const CACHE_DIR = path.join(ROOT, "web", "entity-cache");
+      const cacheKey = (url) => crypto.createHash("sha256").update(url).digest("hex").slice(0, 32);
+      const cacheRead = (url) => {
+        try { return JSON.parse(readFileSync(path.join(CACHE_DIR, cacheKey(url) + ".json"), "utf8")); } catch { return null; }
+      };
+      const cacheWrite = (url, value) => {
+        try {
+          mkdirSync(CACHE_DIR, { recursive: true });
+          writeFileSync(path.join(CACHE_DIR, cacheKey(url) + ".json"), JSON.stringify(value));
+        } catch {}
+      };
+      // ── priors: what is worth keeping if the cache were deleted ─────────
+      // The cache is keyed by REQUEST and is always refetchable — raw bytes,
+      // no judgment. A prior is keyed by MEANING: it is what this walk
+      // LEARNED, and re-deriving it costs the giver a dozen questions again.
+      // Three things from this walk qualify; everything else is cache.
+      //
+      //   relation     which relation expresses membership in a slot
+      //                (Q11699 --P39--> members) — learned by back-pointer
+      //   specialize   which specific slot a generic one means in a context
+      //                (generic role + country → the actual office)
+      //   referent     which id a surface resolved to, WITH its rivals kept
+      //
+      // Each carries a giver and a standing, and nothing here promotes past
+      // `candidate` — the hyperlexicon's rule, that nomination is not
+      // reasoning permission, governs use.
+      const PRIORS = path.join(ROOT, "record", "learned-priors.jsonl");
+      const priorSeen = new Set();
+      const learnPrior = (kind, key, value, extra = {}) => {
+        const id = `${kind}|${key}|${JSON.stringify(value)}`;
+        if (priorSeen.has(id)) return;
+        priorSeen.add(id);
+        try {
+          const existing = readFileSync(PRIORS, "utf8");
+          if (existing.includes(id.slice(0, 120))) return; // already learned in an earlier run
+        } catch {}
+        try {
+          mkdirSync(path.dirname(PRIORS), { recursive: true });
+          appendFileSync(
+            PRIORS,
+            JSON.stringify({
+              at: new Date().toISOString(),
+              schema: "EOLearnedPrior@1",
+              kind,
+              key,
+              value,
+              giver: "wikidata.org",
+              standing: "candidate",
+              ...extra,
+            }) + "\n",
+          );
+        } catch {}
+      };
+      let last = 0;
+      // The one crossing this route owns: paced, and `null` on a refusal so
+      // the reasoner can tell a decline from an exhausted source.
+      const paced = async (url, tries = 3) => {
+        const hit = cacheRead(url);
+        if (hit) return hit;
+        for (let i = 0; i < tries; i++) {
+          const wait = Math.max(0, 1100 - (Date.now() - last));
+          if (wait) await new Promise((r) => setTimeout(r, wait));
+          last = Date.now();
+          const r = await fetch(url, { headers: { "User-Agent": "the-fold/0.1 (local, single-user research)" } });
+          const text = await r.text();
+          try {
+            const parsed = JSON.parse(text);
+            cacheWrite(url, parsed);
+            return parsed;
+          } catch { await new Promise((r2) => setTimeout(r2, 1800 * (i + 1))); }
+        }
+        return null;
+      };
+      const steps = [];
+      try {
+        // THE REASONING IS seek.js's; this file supplies only a source.
+        // Everything Wikidata-specific — qids, property ids, qualifier ids,
+        // the URL shapes — lives behind `makeWikidataSource`, and the walk
+        // below would run identically over an org chart or a release history
+        // (seek.test.mjs proves that against exactly such a source).
+        const source = wd.makeWikidataSource({ get: paced });
+        const wantKind = wd.kindQidFor(body.expect ?? (/^who\b/i.test(String(body.question ?? "")) ? "person" : ""));
+
+        // Learn the relating relation FIRST, so the nomination can be
+        // recorded and accumulated across runs before it is used. The
+        // hyperlexicon's rule governs the use: below the witness floor this
+        // route reports a gap rather than proceeding on a coincidence.
+        const anchors = await source.resolve(anchorTerm);
+        const slots = await source.resolve(slotTerm);
+        steps.push({ step: "resolve", anchor: anchors?.slice(0, 5) ?? [], slot: slots?.slice(0, 5) ?? [] });
+        if (!anchors?.length || !slots?.length) return send(res, 200, { gap: { type: "unbound_surface", detail: "a surface named nothing this source knows" }, steps });
+
+        // seek.js's own chooser, not a second copy: it tries each reading
+        // until one can support the question. A local re-implementation here
+        // took candidates[0] and bailed, so the shared fix never ran.
+        const { chooseAnchor } = await import("./seek.js");
+        const chosen = await chooseAnchor(anchors, source);
+        if (chosen.refused) return send(res, 200, { gap: { type: "giver_refused", detail: "the anchor could not be read" }, steps });
+        const anchorEntity = chosen.entity;
+        const scopes = chosen.scopes;
+        steps.push({ step: "choose-anchor", chose: anchorEntity?.id ?? null, passedOver: chosen.passedOver });
+        if (!anchorEntity) return send(res, 200, { gap: { type: "no_scoped_relations", detail: `no reading of "${anchorTerm}" holds anything with a bounded extent (tried ${anchors.length})` }, steps });
+
+        let slotId = slots[0].id;
+        const special = await source.specialize(slotId, { entity: anchorEntity, scopes });
+        if (special?.length) slotId = special[0];
+        steps.push({ step: "specialize", to: slotId });
+        learnPrior("referent", anchorTerm, anchors[0].id, { rivals: anchors.slice(1, 4).map((a) => a.id) });
+        learnPrior("referent", slotTerm, slots[0].id, { rivals: slots.slice(1, 4).map((a) => a.id) });
+        if (special?.length) learnPrior("specialize", `${slots[0].id}|in-context-of|${anchors[0].id}`, slotId);
+
+        const learned = await learnRelation(slotId, source, { kind: wantKind });
+        const ledger = mergeRelatingLedger(
+          slotId,
+          learned.candidates.map((c) => ({ left: slotId, right: c.relation, witnesses: c.witnesses, count: c.count })),
+        );
+        steps.push({
+          step: "learn-relating-property",
+          kindRequired: wantKind,
+          examined: learned.examined,
+          refused: learned.refused,
+          settled: learned.settled,
+          afterLedger: ledger.map((c) => ({ property: c.right, witnesses: c.count, clears: wd.clearsFloor(c) })),
+        });
+        for (const c of ledger) if (wd.clearsFloor(c)) learnPrior("relation", c.left, c.right, { witnesses: c.witnesses });
+        const relating = ledger.find((c) => wd.clearsFloor(c));
+        if (!relating) {
+          return send(res, 200, { gap: { type: "no_relating_property", detail: `nothing yet relates members to ${slotId} on more than one witness — nominated, not licensed` }, steps });
+        }
+
+        const walked = await seekBindings(
+          { anchor: anchorTerm, slot: slotTerm, kind: wantKind },
+          source,
+          { span: wd.wikidataSpan, relation: relating.right },
+        );
+        if (walked.gap) return send(res, 200, { gap: walked.gap, steps: [...steps, ...(walked.steps ?? [])] });
+
+        // Back into the shape the caller already reads. seek.js speaks
+        // `perScope`; this route's consumers speak `perTerm`.
+        const perTerm = (walked.perScope ?? []).map((p) => ({
+          term: { office: p.scope.value, start: p.scope.scope.from, end: p.scope.scope.to },
+          bound: p.bound.map((b) => ({
+            qid: b.id,
+            label: b.label,
+            start: b.scope.from,
+            end: b.scope.to,
+            replaces: b.prev,
+            replacedBy: b.next,
+            giver: wd.GIVER,
+            address: `https://www.wikidata.org/wiki/${b.id}`,
+          })),
+          coverage: p.coverage,
+        }));
+        record("entity-seek", { anchor: anchorTerm, slot: slotTerm, anchorQid: anchors[0].id, office: slotId, relation: relating.right, bound: perTerm.reduce((n, t) => n + t.bound.length, 0) });
+        return send(res, 200, { anchor: anchors[0], slot: slots[0], office: slotId, relation: relating.right, perTerm, steps: [...steps, ...(walked.steps ?? [])], giver: wd.GIVER });
+      } catch (e) {
+        return send(res, 200, { gap: { type: "giver_refused", detail: String(e?.message ?? e) }, steps });
+      }
+    }
+
     if (req.method === "POST" && p === "/api/web/primary") {
       const body = await readJsonBody(req);
       const c = body.claim ?? {};

@@ -108,6 +108,9 @@ test("relation verdicts ride the sentence that carries subject and verb, read of
       subject: "Pierre Bezukhov",
       verb: "married",
       object: "Dolokhov",
+      end1: "Pierre Bezukhov",
+      label: "married",
+      end2: "Dolokhov",
       polarity: "+",
       verdict: "unbound",
       nearest: [],
@@ -216,4 +219,40 @@ test("a bare-\"it\" continuation carries the SAME narration verb its determiner+
   const { text, removed } = stripNarrationSentences(specimen, { hasMaterial: true });
   assert.equal(removed.length, 2, "both narration sentences must be caught, not just the one with a determiner+noun subject");
   assert.equal(text, "");
+});
+
+test("holon.js's own 'incomplete'-mode instruction, copied verbatim into a shipped answer, is cut — the live Great Barrier Reef specimen", () => {
+  // Measured live 2026-08-20 (gemma2:2b, eval/material-dialogue-stress.mjs,
+  // real short pasted material, two consecutive turns): holon.js's
+  // buildRedefinedPart hands the model the literal sentence "The record
+  // confirms exactly this, and nothing beyond it, even if other names or
+  // claims sit nearby in the material below: <findings>." as an INSTRUCTION.
+  // The model copied it into what shipped instead of following it — twice,
+  // once per word the template actually used ("material" and "record").
+  // Neither survived the pre-existing register: no "that"-complement for
+  // DEFLATE_RE to keep, and "confirms" was on neither CUT_RES verb list.
+  const turn47 =
+    'The material confirms exactly this, and nothing beyond it. ' +
+    'The Great Barrier Reef is home to thousands of species, including sea turtles, sharks, and over 1,500 species of fish.';
+  const r47 = stripNarrationSentences(turn47, { hasMaterial: true });
+  assert.ok(r47.removed.some((s) => /confirms exactly this/i.test(s)));
+  assert.equal(r47.text, "The Great Barrier Reef is home to thousands of species, including sea turtles, sharks, and over 1,500 species of fish.");
+
+  const turn48 =
+    'The record confirms exactly this, and nothing beyond it, even if other names or claims sit nearby in the material below. ' +
+    'The Great Barrier Reef is home to green and loggerhead sea turtles.';
+  const r48 = stripNarrationSentences(turn48, { hasMaterial: true });
+  assert.ok(r48.removed.some((s) => /^The record confirms exactly this/i.test(s)));
+  assert.equal(r48.text, "The Great Barrier Reef is home to green and loggerhead sea turtles.");
+
+  // The colon form (the same two turns' second occurrence, real specimen)
+  // is caught the same way, and a genuine figure after "confirms exactly"
+  // is deliberately NOT swept up — the guard this pass was narrowed for.
+  const colonForm = stripNarrationSentences(
+    'The material confirms exactly: the world\'s largest coral reef system, home to thousands of species. The reef spans 2,300 kilometers.',
+    { hasMaterial: true },
+  );
+  assert.ok(colonForm.removed.some((s) => /confirms exactly:/i.test(s)));
+  const realFigure = stripNarrationSentences("The material confirms exactly 79 percent of respondents agreed.", { hasMaterial: true });
+  assert.equal(realFigure.removed.length, 0, 'a real figure after "confirms exactly" must never be swept up');
 });

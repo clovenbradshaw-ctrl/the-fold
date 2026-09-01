@@ -12,7 +12,7 @@ const SELECTED = MODEL_PICKER[MODEL_PICKER.length - 1];
 
 test("the picker is four rungs, fastest first", () => {
   assert.equal(MODEL_PICKER.length, 4);
-  assert.equal(MODEL_PICKER[0], "gemma2:2b");
+  assert.equal(MODEL_PICKER[0], "olmo-3:7b");
   assert.equal(MODEL_PICKER[MODEL_PICKER.length - 1], "qwen2.5:14b-instruct-q4_K_M");
 });
 

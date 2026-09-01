@@ -11,8 +11,16 @@
 // missing fast rung degrades to the next one loaded instead of naming a
 // model that would fail on first use.
 
+// Amended 2026-09-01: the fastest rung is what FLAT/SUMMARY route to
+// regardless of what the user picks (below), so it is what most turns
+// actually run on — gemma2:2b swapped for olmo-3:7b, an instruction-tuned
+// model whose training data (Dolma 3) and process are fully published by
+// its maker (Ai2), rather than an undisclosed mix. The DEEP-tier rung
+// (qwen2.5:14b) is untouched: no ethically-sourced model at that headroom
+// is pulled on this machine, so replacing it would be a downgrade dressed
+// as a swap, not a real one.
 export const MODEL_PICKER = [
-  "gemma2:2b",
+  "olmo-3:7b",
   "qwen3:4b",
   "qwen3:8b",
   "qwen2.5:14b-instruct-q4_K_M",

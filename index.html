@@ -200,7 +200,6 @@
         scrollbar-width: thin;
         padding-bottom: 2px;
       }
-      #attach-strip .pill { flex: 0 0 auto; }
       #attach-strip .pill {
         display: inline-flex;
         align-items: center;
@@ -209,22 +208,32 @@
         background: var(--accent-soft);
         border-radius: 999px;
         overflow: hidden;
-        max-width: 260px;
+        max-width: 150px;
+        flex: 0 0 auto;
       }
       #attach-strip .pill > button {
-        font-size: 12px;
+        font-size: 11.5px;
         border: 0;
         border-radius: 0;
         background: transparent;
         color: var(--accent);
       }
+      /* Truncation lives on a plain span, not the button itself: a <button>'s
+         text box does not reliably honor text-overflow, so the ellipsis
+         silently never painted and a long title just hard-clipped mid-word
+         at the pill's own edge. */
       #attach-strip .pill .name {
+        display: block;
+        min-width: 0;
         padding: 3px 4px 3px 10px;
+      }
+      #attach-strip .pill .name .txt {
+        display: block;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      #attach-strip .pill .drop { padding: 3px 9px 3px 4px; opacity: 0.55; }
+      #attach-strip .pill .drop { padding: 3px 9px 3px 4px; opacity: 0.55; flex: 0 0 auto; }
       #attach-strip .pill .drop:hover { opacity: 1; color: var(--warn); }
       #attach-strip .pill.off { border-color: var(--line); background: transparent; }
       #attach-strip .pill.off > button { color: var(--muted); }

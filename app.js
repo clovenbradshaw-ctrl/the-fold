@@ -7821,7 +7821,10 @@ function renderAttachStrip() {
     const label = document.createElement("button");
     label.type = "button";
     label.className = "name";
-    label.textContent = `${name} · ${countFor(name).toLocaleString()}`;
+    const labelText = document.createElement("span");
+    labelText.className = "txt";
+    labelText.textContent = `${name} · ${countFor(name).toLocaleString()}`;
+    label.append(labelText);
     // The pill opens the sheet (user, 2026-08-17) — choosing what the chat
     // reads is a considered act over the whole set, and a click that
     // silently silenced one file was a state change wearing a label's

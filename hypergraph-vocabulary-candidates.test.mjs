@@ -74,7 +74,18 @@ test("vocabulary.candidates: present and equal to verbs on ordinary prose (real 
   assert.ok(report.edges.length > 0);
 });
 
-test("vocabulary.candidates: zero on genuinely candidate-less material (real SBLGNT apparatus excerpt, the specimen this field was built for)", async () => {
+// RE-PINNED 2026-09-01 — a moved number from a real fix, not a regression.
+// This case originally pinned edges:0 / candidates:0 on the SBLGNT Greek
+// excerpt as "genuinely candidate-less." That zero was itself a SYMPTOM of
+// the script-blindness bug eoreader7 S34 later closed (JS's \b is
+// ASCII-only, so a surface written in Greek could never be located at
+// all). With Greek reachable, the same bytes nominate real candidates and
+// extract real edges (12 measured on merge day) — so the specimen this
+// field was "built for" turns out to have been mis-diagnosed by the very
+// blindness it exposed. The case now pins S34's effect from THIS repo's
+// consumer side; the zero-candidates meaning is pinned on a fixture that
+// is candidate-less by construction, below, rather than by a bug.
+test("vocabulary.candidates: the SBLGNT Greek excerpt NOMINATES candidates now — the old zero was S34's script-blindness, re-pinned as the fix's consumer-side witness", async () => {
   const { relationsFor } = await loadOrgans();
   const fs = await import("node:fs");
   const sblgntPath = path.join(HERE, "..", "live_priors", "14-holy-texts", "sblgnt", "John.txt");
@@ -85,9 +96,22 @@ test("vocabulary.candidates: zero on genuinely candidate-less material (real SBL
   const p = { ref: "sblgnt", text: excerpt };
   const report = relationsFor([p], { pool: [p] });
   assert.equal(report.examined, true);
-  assert.equal(report.edges.length, 0, "the apparatus format extracts no edges — this is the anomaly being disclosed");
+  assert.ok(report.vocabulary.candidates > 0, "Greek surfaces are locatable now (S34) — candidates are nominated");
+  assert.ok(report.edges.length > 0, "and real edges extract from the once-blind script");
+});
+
+test("vocabulary.candidates: zero on material candidate-less BY CONSTRUCTION — no token ever recurs after a surface", async () => {
+  const { relationsFor } = await loadOrgans();
+  // A record-block shape: surfaces exist (capitalised, recurring) but every
+  // following token is unique punctuation-adjacent data — nothing for
+  // discoverRelationVocab to nominate as a connector candidate.
+  const text = "Alpha 17:04. Alpha 18:22. Alpha 19:56. Alpha 20:11. Alpha 21:47.";
+  const p = { ref: "records", text };
+  const report = relationsFor([p], { pool: [p] });
+  assert.equal(report.examined, true);
   assert.equal(report.vocabulary.candidates, 0, "genuinely zero candidates were nominated — not merely zero that cleared a floor");
   assert.equal(report.vocabulary.verbs, 0);
+  assert.equal(report.edges.length, 0);
 });
 
 test("vocabulary.candidates: the empty/no-passages shape carries candidates:0 too — additive, not a hole in the early-return", async () => {

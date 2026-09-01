@@ -9498,3 +9498,153 @@ real lens. Measured after the swap: the three-arm probe's numbers are
 IDENTICAL on the committed fixtures (15 bound / 10 notes / 0 junk labels
 — the 2,687 extra forms flip no decision there, they widen coverage
 elsewhere); full suite 1596/1547/44, the same 44 names, zero regressions.
+
+## P75 — War and Peace, read omnilingually: a real script-blindness bug, found by using the gate on the flagship specimen
+
+*(Renumbered from P72 on merge — concurrent PRs landed P72–P74 first; its live_priors companions renumbered LP7–LP9 → LP12–LP14 the same way. The numbers moved, nothing about the policy itself did.)*
+
+**Generality:** universal (evidence: eoreader7 READING-SPEC.md S34 — the
+identical, unmodified fix closes the defect on three independent,
+unrelated scripts, Cyrillic/Greek/Hebrew, via a Unicode word-character
+class the fixed file already had; two competing hypotheses, case
+declension and code-switch dominance, were tested and refuted first)
+
+The ask, directly: run this repo's own flagship specimen — War and Peace,
+the text CLAUDE.md's own P5.2/P5.3/P50 already verify 11,132/11,132
+passages against — through the full reading process in English, Russian,
+and a third language, and use the resultant EOT files to measure whether
+reading is actually omnilingual. This repo has no book-length,
+multi-language reading pipeline of its own (`eval/crosslingual-eval.mjs`
+asks an adjacent, narrower question — does the assertion tier honestly
+DISCLOSE its own reach limit — and cannot run in every checkout, since it
+targets the legacy `eoreader7/legacy-eoreader6.1` submodule path); the
+actual EOT-producing pipeline (`hyperlexicon.js::admit`/`hear`,
+end-to-end, over real fetched sources) lives in **live_priors**, as
+`scripts/eot-sidecar.mjs` — this repo's own hyperlexicon.js and
+eoreader7's own native organs, injected exactly the way this document's
+Explore/priors sections already describe, just called from the sibling
+repo that owns the corpus rather than from `app.js`.
+
+**The measurement, the root cause, and the fix are all live_priors' and
+eoreader7's own record — POLICIES.md LP12 (live_priors) is the corpus-side
+account (the real fetched texts, the before/after edge counts, the
+disclosed residual gap); READING-SPEC.md S34 (eoreader7) is the mechanism
+fix itself. The one-line version: `discoverRelationVocab`'s surface-
+relocation regex used `\b`, and JavaScript's `\b` is ASCII-`\w`-only with
+no Unicode mode — so a name written entirely in a non-Latin script could
+never be located, at all, regardless of recurrence. Measured live: every
+edge this repo's own relation reader found in a real Russian excerpt of
+War and Peace was from the novel's own embedded French dialogue, none
+from its Cyrillic narration; after the fix, in the same append-only log,
+under a new witness, 55 new genuine Russian triples landed alongside the
+8 that were already there.**
+
+**Why this belongs here even though nothing in this repo's own files
+changed.** `hypergraph.js::makeRelationReader` (P12's own grounding-ladder
+organ) and `holon.js`'s relation tier both call the SAME `extractRelations`/
+`discoverRelationVocab` this fix touched, via the identical native import
+path P69's ratchet already crossed `app.js` onto. The live chat's own
+relation-tier grounding (bound/contradicted/unbound/beyond-reach/unheard,
+per the grounding-ladder section above) was carrying this exact defect on
+any non-Latin-script material, unmeasured until now — not a new
+capability, a correctness fix to one this repo already depends on.
+
+**Disclosed, not overclaimed.** The fix closes REACHABILITY — a real edge
+can now be found — never precision. `grammarPrior: false` on every one of
+the three live_priors sidecars (no local `POSPrior@1` build in that
+checkout) means the vocabulary-quality gate (P29/live_priors' own LP6) sat
+unloaded for English too, so both the pre-fix and post-fix Russian edges
+sit at the same "no POS gate" precision floor English's own raw edges
+already show in this exact run — a uniform, already-named limitation, not
+a new Russian-specific one. And that gate, even loaded, is English-only by
+construction (UD_English-EWT); a Russian equivalent is real, named,
+unbuilt work, the identical footing `verbForms`/`createLemmatizer`/
+`determiners`/`negationWords` already sit on elsewhere in this document.
+
+**Amended 2026-08-30 — a second recipe defect, and the real cause of
+referent fragmentation on morphologically rich languages, both found by
+aligning the three languages to the SAME narrative content rather than
+comparing unequal spans.** Pointer only, same reasoning as above for why
+this belongs here though no file in this repo changed: `hypergraph.js`'s
+relation tier and `namesCorefer`'s own name-variant coreference (which
+`cast.js::makeReferentIndex` — the identity face this repo's own P38/P55
+sections already depend on for referent resolution — is built on) both
+call the exact organs both fixes touch, through the same native import
+path. eoreader7 `native/READING-SPEC.md` S35 is the law for the
+mechanism (a comma glued to a capitalised token's own trailing edge was
+read as a name-run continuation, gluing two adjacent subjects into one
+spurious surface — general, not script-specific, reproduced identically
+on constructed English prose before being trusted); live_priors'
+POLICIES.md LP12 (its own 2026-08-30 amendment) is the corpus-side record,
+including a finding this repo's own `namesCorefer` should know about
+directly: run against real aligned Russian material, one person's own
+name fragments into **six** distinct referents across eight grammatically
+case-declined surface forms, because `namesCorefer`'s exact-token
+containment test has no morphological layer, and — a second,
+INDIRECT effect of the same cause — declension's own proliferation of
+distinct surface strings dilutes `genericTokens`'s derived partner-count
+fence (measured: fence 1 on the Russian excerpt vs. fence 3 on the
+equivalent English one) until it wrongly flags a legitimate,
+unambiguous full-name pairing as generic. Disclosed there, not fixed
+here or there: a Russian morphological (declension) folder for
+`namesCorefer` is real, unbuilt work, distinct from the English-default
+`createLemmatizer` this document's own MINE-1 sections already carry for
+a different module's VERB-lemma matching.
+
+**Amended 2026-08-30 — all 516 UN UDHR translations, and a real gap in
+`scriptCoverage` this repo's own grounding ladder depends on.** User
+direction: apply the same process to every version of the UDHR this
+corpus already holds, "more than a universal reading, we're looking for
+our blindspots." Pointer only, same reasoning as the entries above: this
+repo's `hypergraph.js::makeRelationReader` and `cast.js`'s referent
+machinery both depend on `surfaces.js`'s capitalisation layer through the
+same native import path P69's ratchet already crossed `app.js` onto, and
+`scriptCoverage` (P12's grounding-ladder organ's own upstream gate) is
+part of that layer.
+
+eoreader7 `native/READING-SPEC.md` S36 is the law for the mechanism; live_priors'
+POLICIES.md LP13 is the corpus-side census (all 516 real translations
+re-read, not a synthetic sample). The one-line version: `scriptCoverage`
+already refused to read a script with no case category at all
+(P75's original entry) — S36 closes a subtler, previously-uncaught form of
+the identical hazard, where a script IS Unicode-cased but the material
+never actually uses the case CONTRAST the extraction mechanism depends
+on. Georgian's everyday alphabet is Unicode-lowercase by category, with
+no working uppercase convention in ordinary use; a Cherokee translation
+using the syllabary's traditional all-uppercase block fails the mirror
+image; and — the finding worth carrying into any future work on this
+layer — most of the 24 languages this closes for are not exotic scripts
+at all but 20th-century Latin-alphabet orthographies (missionary or
+post-colonial linguistic work) that simply never adopted
+capitalisation-marks-a-name as a convention. This repo's whole
+proper-name layer, and everything built on it, assumes that convention;
+it is now honestly absent rather than silently wrong for a measured,
+named set of the world's languages.
+
+**Amended 2026-08-31 — the three blind spots the UDHR census found,
+closed.** User direction, verbatim: *"fix the issues."* Pointer only,
+same reasoning as both entries above: this repo consumes `surfaces.js`
+and `hypergraph.js::makeRelationReader` through the same native import
+path P69's ratchet crossed `app.js` onto, so a fix to either lands here
+by the same route, whether or not this repo's own code is touched.
+
+eoreader7 `native/READING-SPEC.md` S37/S38 are the law for the two
+mechanism fixes; live_priors' POLICIES.md LP14 is the corpus-side wiring
+and the full 516-file re-sweep. The one-line versions: (1)
+`capitalisationIsSignificant`'s normal-approximation significance test —
+found under-powered on a Czech specimen, but the real defect (an
+exhaustive sweep, not that one specimen) was a systematic bias at small
+sample sizes, 24 false positives out of 1,711 checked pairs, all in the
+same direction — replaced with an exact one-sided binomial tail; (2) a
+highly-inflected language's own name declension (Russian's "Кутузов"/
+"Кутузова"/"Кутузову", "Анна"/"Анне"/"Анны") fragmenting one referent
+into several strangers, closed by `declension.js`'s new pairwise
+case-fold organ, verified at 38 correct merges and zero false ones
+against real fetched Russian War and Peace; (3) live_priors' own
+POS-vocabulary gate, described in that repo's `loadOrgans` as measured
+and working while its actual import path pointed at an empty submodule —
+never loaded, for English or any other language, until this pass. None
+of the three required a code change in this repo; P12's grounding
+ladder and the relation tier it stands on inherit all three the moment
+either sibling repo's fix lands, the same way P69's ratchet was designed
+to work.

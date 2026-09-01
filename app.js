@@ -281,7 +281,11 @@ import * as enginePriors from "/engine-v7/adapters/text/priors.js";
 // used here for exactly one question, "is this token an adposition"
 // (of/in/for/at/…), so declaredSlotShape's anchor recovery generalizes past
 // a single hardcoded preposition without a second word list.
-import { classifyWord, dominantClass } from "/engine-v7/adapters/text/wordclass.js";
+import { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } from "/engine-v7/adapters/text/wordclass.js";
+// The connector lens (grammar-lens.js) the hyperlexicon door's own
+// classifyConnector gate consumes — built below, data-gated on the same
+// posPriorCache fetch, threaded through runHolonicTask (P73).
+import { makeGrammarLens } from "./grammar-lens.js";
 import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
@@ -360,9 +364,21 @@ const handlesFor = makeCastHandles({
 // relationsFor/skillLibrary/callModel below, because the value is not
 // stable at construction time the way a synchronous organ is.
 let posPriorCache = null;
+// The door's grammar gate is DATA-GATED, never code-gated (P73): the lens
+// exists only once the POS prior actually loads, so a checkout without
+// priors-data/ runs byte-identically to before the gate existed — a check
+// whose data layer is absent never runs, and never reports a pass (P41).
+// The prior itself ships in the repo now (priors-data/pos-prior-eng.json —
+// UD_English-EWT, CC BY-SA 4.0, built by the engine's own
+// scripts/build-pos-prior.mjs; givers ride every classification via
+// POS_PRIOR_META/THRAX_META).
+let connectorLens = null;
 fetch("/priors-data/pos-prior-eng.json")
   .then((r) => (r.ok ? r.json() : null))
-  .then((j) => { posPriorCache = j; })
+  .then((j) => {
+    posPriorCache = j;
+    if (j) connectorLens = makeGrammarLens({ classifyWord, dominantClass, posPrior: j, posPriorMeta: POS_PRIOR_META, thraxMeta: THRAX_META });
+  })
   .catch(() => {});
 
 // The relation reader's factory — one per passage set, pool = the live
@@ -4381,6 +4397,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // reading, which is itself null with checking off — see two lines up.
       hyperlexicon: state.grounded ? hyperlexiconFor : null,
       hyperlexiconLog: state.grounded ? state.hyperlexiconLog : null,
+      // The door's grammar gate, data-gated (null until the POS prior
+      // loads — see connectorLens's own construction comment) and mode-
+      // gated with the ledger it guards.
+      classifyConnector: state.grounded ? connectorLens : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.

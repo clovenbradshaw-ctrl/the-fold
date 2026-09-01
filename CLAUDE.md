@@ -5929,3 +5929,34 @@ anything (`retrieve()`'s zero-relevance-floor starves the whole channel),
 and the `/self acts` table lives in the Folds pane, so a DOM readback
 needs `textContent` on the build cards, not `innerText`. Proves the flow
 engages and spends — whether it HELPS stays the named, unrun leg.
+
+## The hyperlexicon door made ready (added 2026-09-01) — pointer
+
+POLICIES.md **P73** is the law; this is the short map. The question,
+verbatim: *"are you reading eot well enough to have a meaningful
+hypergraph?"* Measured against the live door's exact configuration
+(`eval/hyperlexicon-door-probe.mjs`, two real committed Wikipedia
+fixtures): no — 18 of 29 admitted notes carried a closed-class label
+(`—and→`, `—of→`, `—to→`…), and 0 of 29 ever reached two witnesses, so
+the ≥2-witness ledger block (the one place the accumulated hypergraph
+reaches the model) rendered EMPTY on real prose. Then, on the user's
+*"assuming that's coming, merge us to gh but ready to leverage those
+improvements"*: **half one closed by data** — `priors-data/
+pos-prior-eng.json` built by the engine's own `build-pos-prior.mjs`
+(UD_English-EWT, 16,654 forms, the documented figure exactly) lights up
+`hypergraph.js`'s already-built `posPriorFor` vocabulary gate, which
+removes ALL 18 junk labels at extraction (notes 29 → 10, every surviving
+connector a real verb); the door's own asymmetric `classifyConnector`
+gate is threaded through holon.js and app.js (data-gated on the same
+fetch, null-default byte-identical) as the wall behind that wall.
+**Half two built as a socket:** `makeHyperlexicon` takes an injectable
+`noteIdentity` organ — ID-only canonicalization, first reading's face
+wins the display, gaps fall back to surface forms — with the mechanism
+proven in `hyperlexicon-identity.test.mjs` (a toy canonicalizer folds two
+restatements into one note with two witnesses). The production organ
+(referent faces + `sameAct`, both proven in the MINE-1 work) and the
+subject-span-debris extractor gap are the two named next levers, not
+built here. Disclosed cost: the prior rides every `relationsFor`
+consumer — bound 36 → 15, `unheard` 2 → 31 on the probe — the
+closes-a-false-binding class (P41/P43), shipped on. Suite 1587/1538/44 →
+1593/1544/44, same 44 names, zero regressions.

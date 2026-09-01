@@ -8861,7 +8861,438 @@ policy whose violation no test can catch. What closes is the silent case: a
 fix that never says which kind of claim it is making cannot pass unremarked
 because the reader's own confidence carried it.
 
-## P72 — A gate is closed by shipping its ground: the hypergraph admission door, measured at every seam
+## P72 — Metacognition: watching the gap between S1 and S2, as a learnable, revisable standing
+
+**Generality:** specimen-scoped — the four-way classifier composes
+medium-general primitives and clears P71's leg 2 (a reused, not
+re-derived, floor) and, via `eval/metacognition-eval.mjs`, legs 1 and 3
+(cross-domain replay and a demonstrated-necessity case). What is NOT
+cleared: whether the LEDGER'S learned precision reading moves a real
+turn's outcome — that needs a live call site this pass does not build (see
+`metacognition-integration-note.md`), so the organ ships real and tested,
+the claim that it HELPS a live turn stays open, named rather than assumed.
+
+The ask, as put to this session: watch the surprise between what S1 and S2
+generate, and feed that watching into the surf and the fold in ways that
+are learnable, repeatable, revisable — pursued, at the asker's own
+direction, "as Friston but visited by the Ramakrishna." Both halves of
+that framing earn a place in the design, not as ornament.
+
+**Friston's half is the one this repo's own P34 already half-built and
+never watched.** `twoPassTurn` (app.js) already runs a fast, unchecked
+generative pass (S1) and a checked one (S2, carrying S1's own words so it
+can "confirm, extend, or correct" them — `priorPassFor`, holon.js) — this
+is precisely active inference's own two-level shape, a prediction and a
+check against it. What active inference adds beyond a bare check is that
+the CONFIDENCE placed in a channel — its precision — is itself learned
+from repeated exposure, never fixed once. Nothing before this policy
+watched the S1/S2 gap as a standing fact at all: every turn started the
+question "how much should I trust S1 here" from zero. `metacognition.js`
+is the watcher: `assessAgreement` classifies one turn's gap, and
+`makeMetacognition`'s ledger accumulates it, per caller-declared "cell,"
+into exactly this precision reading — `standingOf` returning `unproven` /
+`established` / `contested`, phrased natural-frequency, never finer than
+the counts support.
+
+**The failure Friston alone invites, guarded against explicitly.** A pure
+surprise-minimizer is the textbook dark-room problem: an agent scored only
+on "was I surprised" is incentivized toward silence, because nothing
+unsaid can ever be corrected. `assessAgreement` returns an honest all-zero
+profile when `extractCheckableAtoms` finds nothing in S1's draft, and
+`observe` is a STRUCTURAL NO-OP on an all-zero delta — reusing
+`hyperlexicon.js::hear`'s own rule verbatim ("a re-sighting that teaches
+nothing appends nothing"). A run of nothing-but-silent turns cannot move a
+cell's standing in either direction; `metacognition.test.mjs` pins this as
+its own named regression, not an incidental property of the arithmetic.
+
+**Ramakrishna's half corrects the OTHER failure Friston alone invites —
+collapsing every disagreement into one error signal.** Ramakrishna's own
+practice (Vedantic, Tantric, Islamic and Christian sadhanas pursued in
+turn, each found genuine) and his doctrine that more than one real path
+can stand are read here not as decoration but as the argument against
+forcing every S1≠S2 delta toward a single verdict: a claim S2 can neither
+confirm nor refute is not thereby an error, and punishing it as one would
+be indistinguishable from punishing S1 for guessing right. `classifyAtom`
+keeps this case — this repo's own `unbound`/`beyond-reach`/`unheard`
+relation verdicts, or a plain containment miss with no relation edge
+either way — in its own bucket, UNRESOLVED, which `standingOf` never
+folds into either `confirmed` or `corrected`. This is the SAME
+constitutional line CLAUDE.md's grounding-ladder section already draws
+("a checking organ may say 'I have nothing to compare this against', or
+'I compared it and it failed'. It may never manufacture the second out of
+the first"), applied a second time in the same direction it was first
+written: absence must not become conviction, and — the new half — absence
+must not become acquittal either. `eval/metacognition-eval.mjs`'s own
+"leg 3" demonstration makes the cost of skipping this concrete: on eight
+atoms read from one real error and three real, honest gaps, the shipped
+four-way classifier reports 2 corrected and holds 6 apart as unresolved;
+the naive two-way collapse this policy's own header names — everything
+non-`bound` counts as corrected, because it has nowhere else to put a gap
+— reports all 8 as corrections, on the identical extraction.
+
+**bhavamukha, and what `concede` is for.** The tradition's own name for
+the sill a realized witness returns to — neither dissolved into
+undifferentiated absorption (never checking, S1 forever) nor lost in
+unexamined multiplicity (never trusting anything, S2's own cost paid every
+turn) — is the shape given to the ledger's own standing. CLAUDE.md's
+"Stance on the admission record, sedimented" section already states the
+governing rule for exactly this kind of record: "these are always
+defeasible assertions of the reader, the structure of their cognition,
+not anything allegedly in the world." A cell's standing is never a claim
+about the material; it is this instrument's own belief about its own
+reliability on a kind of claim, and `concede(log, cell, {trigger})` —
+mirroring `grid.js::concedeEvaluation` field for field, EVIDENCE·REC,
+`trigger` required and never defaulted — is how that belief is revised
+OUT LOUD, on the record, rather than left to drift silently as
+observations accumulate. Learnable, repeatable, revisable, in order:
+`observe` is how a standing is learned; the same delta into the same cell
+always sums the same way, which is what makes it repeatable; `concede` is
+how it is revised.
+
+**What is real and tested, and what is disclosed as not yet done.**
+`metacognition.js` (pure, the native `kernel/task-log.js` bundle
+injected — the cast.js pattern every append-only substrate in this repo
+already uses) + `metacognition.test.mjs` (25 cases: the classifier against
+the real, pure `grounding.js` primitives; the ledger against eoreader7's
+real native task-log; the dark-room and Ramakrishna guards each pinned as
+their own named regression; `concede`'s two refusals and its
+non-destructive landing). Full suite 1085/1085 (the pre-existing 125
+failures, confirmed identical by name via `git stash`, zero regressions).
+`eval/metacognition-eval.mjs` + `eval/results/metacognition-eval-
+RESULTS.md`: Domain A is real, byte-verbatim Wikipedia text (reused,
+not re-typed, from `experiments/mechanical-first-hamlin-johnson.mjs`'s
+own `MATERIAL_TEXT` — this repo's own repeatedly-used Hamlin/Johnson/
+Lincoln specimen); Domain B is a DECLARED INVENTED lab-instrument
+chronicle, the same posture `eval/grain-refinement.mjs`'s own
+hospital-bed corpus and `hl-acquire.test.mjs`'s own invented chronicle
+already established for a cross-domain replay with no second real
+fixture on hand. The SAME code, unmodified, reads an error-prone cell as
+`contested` and a reliable one as `established` on both domains, sharing
+no vocabulary — the cross-domain replay P71's leg 1 asks for.
+`metacognition-integration-note.md` names exactly where a live call site
+(`twoPassTurn`'s own `needsSystem2` gate, and `holonicTurn`'s already-
+threaded `gridLog`/`hyperlexiconLog` return fields) would read the
+ledger, and what it would need to decide that this pass does not: which
+axis a "cell" should really be, whether S2's retrieved passages need
+threading onto `holonicTurn`'s return for `assessAgreement` to use them
+directly, and whether `surfWeight`/`forcesFoldRefresh` — both real, pure,
+unwired — actually move an outcome once tried. Not attempted: any change
+to `app.js`, which CLAUDE.md's Explore section already names as the
+fold-architecture session's own contract, the same boundary P39/P53/P56/
+P60/P63 have each independently held before landing their own new organs
+unwired.
+
+**Amended same day — wired in, by direct user instruction ("wire it in if
+you believe it works").** Reading `holonicTurn`'s own turn-ending sequence
+in `app.js` closely (rather than trusting this entry's own first-draft
+guess above) found that both of the integration note's harder open
+questions were already answered by the existing return shape:
+`result.sections[].passages` and `result.sections[].relations.claims` are
+BOTH already computed by the point `crownTestimony` fires — the same
+fields `state.lastMaterialChars`/`relationClaims` were already reading a
+few lines above — so nothing needed threading through `holon.js` at all.
+`holonicTurn` now calls `assessAgreement`/`observe` directly, gated on
+`opts.priorPass` (the identical "a caller with no S1 pass simply never
+calls it" convention `priorPassFor` already established), onto one
+disclosed starting cell, `"s1-draft"` — a global running estimate, never
+claimed as a finer taxonomy this pass did not measure a basis for.
+`metaLedger = makeMetacognition(nativeTaskLog)` reuses the EXACT same
+native task-log instance `buildLog`/`store`/`grid` already share, no
+second import; `state.metaLedger` holds it, app-wide and unpersisted, the
+identical posture `gridLog`/`hyperlexiconLog` already state.
+
+**What was verified, and the one thing that honestly could not be.**
+`node --check app.js` passes; the full suite still reports the identical
+125 pre-existing failures by name, zero regressions. `serve.mjs`
+(`THE_FOLD_NO_OPEN=1`) served `/app.js` and `/metacognition.js` both 200,
+confirming the new import resolves on disk. A real browser loading the
+full page could NOT be verified: this checkout's `/engine/
+emergence/tiers.js` (the legacy statistics subsystem `reflexMeter`/
+`apertureMeter` still depend on, P69's own disclosed holdout) 404s —
+confirmed unrelated to this change and pre-existing either way — which
+breaks the WHOLE module graph's link step in a real browser regardless of
+anything this pass added, and there is no way in this environment to
+isolate the new import chain from that pre-existing gap. Every new line
+was instead verified by direct inspection against already-live, adjacent
+code in the identical function (not assumed) and by the fact that
+`assessAgreement`/`makeMetacognition(nativeTaskLog).observe` are the SAME
+calls `metacognition.test.mjs` already exercises against the real native
+module. Two of the note's four open decisions are now resolved
+(where S2's material comes from; that checking-mode-off degrades
+honestly rather than manufacturing a wrong finding); two remain open
+(a finer cell taxonomy; whether `surfWeight`/`forcesFoldRefresh` are
+worth wiring — `forcesFoldRefresh` turned out to need `refreshSummary`
+threaded from a different point in the turn-ending sequence than this
+pass traced closely enough to risk). `metacognition-integration-note.md`
+carries the full, corrected account.
+
+**Second amendment — flow #2 wired: suspicion widens the search ("do
+it", user direction after the flows were laid out).** The ledger was a
+thermostat reading the room with no furnace connected; this connects
+exactly one duct. `metacognition.js` gained `escalationFor(standing,
+budgets)` — the one live consumer of `surfWeight`: on a `contested`
+standing every numeric budget handed in is ceil-widened by the declared
+1.5 factor; on `established`/`unproven`/none they come back
+byte-identical. Three laws, each pinned as its own regression
+(`metacognition.test.mjs`, 25 → 32): ASYMMETRY (budgets only ever rise —
+a good record never quietly removes checking, an unmeasured one never
+earns a discount; the dark-room refusal applied to the spend side);
+CEIL, NOT ROUND (for any integer budget ≥ 1 and factor > 1,
+`ceil(v·1.5) > v`, so `contested` always buys at least one more unit —
+round would no-op a budget of 1 and turn the flow into a comment);
+NON-COMPOUNDING BY CONSTRUCTION (the call site always passes the
+DECLARED constants — holon.js's own exported `MAX_CORRECTIONS = 1` and
+`PASSAGES_PER_PART = 3`, proof.js's own `PREFLIGHT_PAGES_CONSULTED = 3` —
+never a prior escalated value, so the factor applies once per turn from
+the same base).
+
+**The concrete flow, in numbers.** On an S1/S2 turn whose `"s1-draft"`
+standing reads `contested`: the preflight consults 5 pages instead of 3
+(`gatherPreflightMaterial` gained an optional `pagesConsulted`,
+defaulting to the same constant its slice always used — its one other
+behavior byte-identical), each part retrieves 5 passages instead of 3,
+and the correction loop gets 2 passes instead of 1. CHANNEL ALIGNMENT is
+the scoping law: the escalation is gated on `opts.priorPass`, the
+identical gate `observe`'s own call site uses — a standing measured on
+S1/S2 turns adjusts S1/S2 turns, never a channel nothing measured. That
+channel is thin today (S1 only runs on trivially-chatty questions that
+volunteer something checkable, per the SEARCH-BEFORE-ANSWERING
+amendment), and that thinness is stated rather than papered over: flow
+#1 (the gate itself reading the standing) is what would widen the
+channel, and it is deliberately not built here. Every engagement lands
+on the reflex ledger as an `escalated` act (reflex.js's designed
+unknown-act fallback, the same door `measured`/`carried`/`narrowed`
+entered through) — a decision the instrument made is never silent.
+
+**Still honest about what is not proven.** This wires the flow; it does
+not prove the flow HELPS — whether the correction rate for the cell
+actually falls once escalation engages is the same unrun measured leg
+the first amendment already named (P60's own line stands: a mechanism
+that runs is not a mechanism that helps). The observability for that
+measurement now exists on the ledger itself (corrected counts per cell,
+`escalated` acts on the reflex ledger); running it needs live turns this
+environment cannot drive. Suite: 1085 → 1092, pass 958 → 965, the same
+125 pre-existing environment failures by name, zero regressions.
+
+**Third amendment — the hunt stops on surprise, not on a count (user
+direction, near-verbatim: "we should hunt until we have enough
+information such that what we experienced would not be surprising to a
+degree that is a distinction that makes a difference").** The question
+this answers, put back plainly first: flow #2 as first wired was a
+fixed quantum — 3 pages (5 contested), decided before the hunt started,
+spent blind. Nothing about what the pages actually SAID could stop the
+hunt early or say "this is still moving, keep going." The user's clause
+is this repo's own standing vocabulary — Bateson's
+difference-that-makes-a-difference, `nul.pattern()`'s documented sign —
+and P31 had already sketched exactly this stopping rule for a different
+loop ("hop until widening stops moving the answer beyond what reseeding
+noise would move it anyway; the noise can't beat the NUL"). This builds
+it for the hunt.
+
+**The mechanism.** `metacognition.js::makeHuntMeter` — the SAME
+tier-stack physiology reflex.js and aperture.js already wire
+(`emergence/tiers.js`, bayesianSurprise placed against
+priorContinuationNull), injected the same cast.js way, on the SAME
+declared numbers (SURPRISE_WINDOW/DRAWS/ALPHA/SEED, imported from
+reflex.js where their givers are named), one tier. The meter is seeded
+with what the hunt STARTS from — the question, the discourse line, the
+search-results digest — so the first page is measured against a real
+ground; each kept page then arrives as one observation, placed against
+the material's own continuation null. `huntSettled` is aperture.js's own
+live-measured cut applied per arrival (censored above → still
+surprising; censored below → held; placed → held iff rank > 0.5, the
+null's OWN median — the cut aperture earned through two measured
+corrections, cited rather than re-derived). `gatherPreflightMaterial`'s
+fetch loop stops EARLY on a settled arrival and runs to the declared
+ceiling while pages keep genuinely moving belief; the escalation's
+`pagesConsulted` is thereby reframed from "the count" into "the leash" —
+`contested` buys a LONGER leash (5), and the settling decides where the
+hunt actually stops inside it. Every hunt's outcome lands on the reflex
+ledger as a `hunted` act (pages read, ceiling, and WHY it stopped —
+`settled` or `ceiling`), and the return's own `hunt` record carries each
+page's placement, so the decision is inspectable per turn.
+
+**Measured against the REAL organ before a line of wiring** — probe run
+kept in `metacognition-hunt.test.mjs`'s own header, fixtures declared
+invented so nothing tests recalled world knowledge: a convergent stream
+settles (page A rank 0.97 against a seed it overlaps, near-paraphrase B
+0.98); an alien-topic page lands censored ABOVE and keeps the hunt alive;
+an empty page is a typed gap and can NEVER stop the hunt (withheld is
+not "nothing moved" — the grounding ladder's own line, applied to
+stopping); a first page against a thin seed is unplaceable and continues
+the hunt (the safe side); and the whole stream is byte-deterministic on
+the declared null seed. 7/7 against the real engine module — runnable in
+this checkout for the first time, because this same session initialized
+the `legacy-eoreader6.1` submodule (which also swelled the honest suite:
+1578 tests now execute where 1092 did, the old 125-name environment
+failure set collapsing to 42, identical before/after every change here).
+
+**The disclosed behavior change, named rather than smoothed.** A calm
+turn may now stop BELOW the old fixed 3 pages — but only ever on a
+MEASURED settle (a page placed past the null's own median), never on a
+gap, an unreadable page, or an unplaceable first arrival, all of which
+continue the hunt. The asymmetry law's spirit holds in the new register:
+effort is only ever cut by the material itself converging this turn,
+measured against its own null — never by a learned standing, never by
+silence, never by default. And the sharper sign remains open, stated
+here as aperture.js already states it for its own series: this is the
+per-arrival continuation-null gate, NOT `nul.pattern()`'s licensed
+windowMean/shuffle pair over the hunt's series — the null-of-nulls
+`opened` reading stays unbuilt, named, not absorbed. Suite after this
+amendment: 1585 tests / 1538 pass / the same 42 environment failures by
+name, zero regressions.
+
+**Live-run evidence (2026-09-01) — flow #2 proven END TO END on the real
+page, not only in test files.** The user's own bar ("did you test it? did
+it actually do those things?") was answered with the harness shape this
+repo's own precedents supply whole: a scripted stand-in Ollama (P27's
+disclosed posture — this sandbox has no real install), the real
+`serve.mjs`, real headless Chromium driven over raw CDP (P69's method,
+Node's native WebSocket, no Playwright), material attached through the
+page's own real drop handler, turns typed through the real composer. The
+scenario: attached material contradicting one fixed claim ("Renn Kessler
+never founded the Ostrel Works"); the stub answers every text-mode call
+with that claim verbatim, so every S2 relation read lands `contradicted`
+against the material. Measured, from the stub's own request log with
+marks between turns and from the page's own `/self acts` door: **turn 1
+spent 3 text-mode model calls** (S1, S2 execute, ONE correction pass —
+`rewrote the question` once on the ledger); its observation landed 3
+CORRECTED atoms, standing `contested`; **turns 2 and 3 spent 4 text-mode
+calls each** — `rewrote the question` TWICE on the ledger, the correction
+budget's 1 → 2 visible in both currencies — and each landed
+`escalated: cell s1-draft · corrections 2 · pages 5 · passages 5` on the
+reflex ledger, read back through the page's own computed table. Zero page
+exceptions across boot, attach, three S1/S2 turns and the mechanical
+door. A side-confirmation rode along free: turn 2's summary refresh was
+CARRIED by the aperture gate (zero json-mode calls in its window,
+`carried: streak 1` on the same ledger) — the two meters coexisting on
+one live turn.
+
+Two harness findings kept (P5.5's discipline — both were the driver, not
+the theory). (1) The first driver's turns said "hi" — and no escalation
+could ever fire, because a turn text sharing NO token with the material
+gives `retrieve()`'s zero-relevance-floor nothing to return: zero
+passages → no relation vocabulary → no verdicts → no CORRECTED → never
+`contested`. Diagnosed OFFLINE against the real organs first (the
+material+claim pair does yield `contradicted` when passages reach the
+reader), then fixed in the driver alone: turn texts that speak the
+material's own words while staying inside the S1 gate. The lesson is
+about the channel, not the harness: the metacognition loop only ever
+learns from turns that actually reach the material — a turn that
+retrieves nothing is measured as nothing. (2) The `/self acts` readback:
+`mechanicalTurn` appends only `publishBuild`'s chip to the chat body and
+the TABLE lives in the Folds pane, which at headless width (< 900px)
+stays unshown — `innerText` excludes non-rendered nodes, `textContent`
+does not; the build cards are the read. **The boundary, restated so this
+addendum cannot be over-cited:** this proves the flow ENGAGES and SPENDS
+— standing moves, budgets widen, the extra pass runs, every act lands —
+not that it HELPS. "Does the correction rate fall once escalation
+engages" remains the second amendment's named, unrun measured leg. The
+harness files stay uncommitted per their own headers; this paragraph and
+the ledger vocabulary above are the record.
+
+## P73 — The hyperlexicon door made ready: the label data was one curl away, the identity question is now a socket
+
+**Generality:** universal for the two seams (an injectable note identity,
+a threaded door gate — neither knows any language or domain);
+specimen-scoped for the shipped data layer (`priors-data/
+pos-prior-eng.json` is `lang/en`, giver Universal Dependencies
+UD_English-EWT, CC BY-SA 4.0 — riding every classification via
+`POS_PRIOR_META`, exactly as P41/P43's received English classes already
+ship).
+
+**The question that opened it, verbatim: "are you reading eot well enough
+to have a meaningful hypergraph?"** Measured rather than recalled
+(`eval/hyperlexicon-door-probe.mjs`, mirroring the live turn exactly —
+app.js's relation-reader configuration, holon.js's per-passage admission,
+holon.js's own ≥2-witness ledger block — over the two committed real
+Wikipedia fixtures): **no.** Of 29 notes the live door admitted, 18
+carried a closed-class label (`—and→` ×7, `—of→` ×4, `—to→`, `—in→`,
+`—on→`, `—or→`, `—himself→`…) and 0 ever reached two witnesses — the
+same battle described by both pages, the same fact stated in both
+("The Russian army withdraws the next day" / "Imperial Russian forces
+retreated southwards"), and the ≥2-witness ledger block — the ONE place
+the accumulated hypergraph reaches the model — rendered empty,
+structurally, because note identity is the exact triple and prose never
+restates a fact in extractable-identical form. Meanwhile the algebra
+ABOVE admission was already measured strong (P60/P61/P63: multi-hop at
+precision 1.000, oracle-checked). The bottleneck was admission from
+prose, in two named halves. The user's direction: "assuming that's
+coming, merge us to gh but ready to leverage those improvements."
+
+**Half one — label quality — closed by data that already had its consumer
+built.** Three organs were sitting complete and dark: `hypergraph.js`'s
+`posPriorFor` vocabulary gate (P68), `hyperlexicon.js::admit`'s own
+asymmetric `classifyConnector` gate (P56's rule, implemented, never
+threaded), and app.js's fetch of `/priors-data/pos-prior-eng.json` into
+the cache `posPriorFor` reads — against a file that did not exist. The
+engine's own `scripts/build-pos-prior.mjs` header says exactly how to
+make it (one curl of UD_English-EWT, one node run); built, it lands
+16,654 forms — the documented figure exactly — and the probe's arm B
+shows the vocabulary gate ALONE removing all 18 closed-class labels AT
+EXTRACTION: bound 36 → 15, notes 29 → 10, closed-class labels 18 → 0,
+every surviving connector a real verb (`fought`, `loses`, `suffers`,
+`resorted`, `managed`, `translated`, `remained`, `set`, `took`,
+`discusses`). Arm C threads the door gate on top and turns away zero —
+a wall behind a wall, kept because it guards any future reader path that
+lacks the vocabulary gate, at zero cost when there is nothing left to
+refuse. The honest cost, disclosed as P41/P43's own distinguishing test
+requires: the prior rides EVERY consumer of `relationsFor`, and `unheard`
+rises 2 → 31 — claims whose connector was a function word no longer bind.
+Those were never real relations (a conjunction heard as a verb fabricates
+an edge — the closes-a-false-binding class, which ships on), but the
+`bound` count is honestly lower everywhere, not only at this door.
+
+**Half two — corroboration identity — built as a socket, not guessed at.**
+`makeHyperlexicon` gains an injectable `noteIdentity(subject, verb,
+object) → canonical forms`, used for the note's ID ALONE: the display
+keeps the FIRST reading's own words (bytes read, never a normalised
+paraphrase — evidence accumulates, the words do not drift),
+witnesses/spans union exactly as before, a gapping organ falls back to
+the surface form per field (an identity gap never blocks admission — the
+withhold-vs-convict rule aimed at identity), and absent the organ the
+door is byte-identical to before. `hyperlexicon-identity.test.mjs` (5
+cases, native kernel only — the stance-test file's own
+checkout-independence reasoning) proves the mechanism reachable: an
+injected toy canonicalizer folds two differently-worded sightings into
+ONE note with TWO witnesses, which is the exact event the live ledger
+block has been waiting for. The PRODUCTION organ — referent faces for
+the ends, `sameAct` lemma equivalence for the connector, both already
+proven in the MINE-1 work — is the named next wiring, deliberately not
+invented in the same pass as the seam (the same discipline the
+referent-bar and `classifyConnector`/`minShare` postures already hold:
+new enough that turning it on for real traffic is its own deliberate
+decision).
+
+**The wiring, all default-null, all byte-identical when absent.**
+`holon.js`: `runPart`/`runHolonicTask` gain `classifyConnector = null`,
+passed at the one admit call (minShare stays the door's own declared
+default — no second number introduced); pinned in `holon.test.mjs` by a
+threading test that asserts the lens arrives at `admit` BY IDENTITY, and
+that the default path arrives null (a check that did not run never
+reports a pass). `app.js`: the lens is DATA-GATED, never code-gated —
+built in the same `.then` as `posPriorCache`, from `makeGrammarLens` with
+`POS_PRIOR_META`/`THRAX_META` so givers ride every classification, and
+passed `state.grounded ? connectorLens : null` beside the ledger it
+guards; a checkout without `priors-data/` runs byte-identically to
+before this policy existed.
+
+**The third lever, named and untouched:** subject-span debris
+(`and Andrei`, `that Napoleon`, `which Tolstoy` as subjects — clause
+openers leading the span) is the extractor's own gap, eoreader7 native
+`relations.js` territory, real unbuilt work.
+
+**Evidence.** `eval/hyperlexicon-door-probe.mjs` +
+`eval/results/hyperlexicon-door-probe-RESULTS.md` (the three-arm table,
+every note printed for eyeball meaningfulness). Full suite 1587/1538/44
+→ 1593/1544/44, the same 44 failure names via sorted-name diff (TAP
+ordinals shift with 6 new tests; names are the authority), zero
+regressions.
+
+## P74 — A gate is closed by shipping its ground: the hypergraph admission door, measured at every seam
+
+*(Renumbered from P72 on merge — a concurrent PR landed its own P72/P73
+first; the number moved, nothing about the policy itself did.)*
 
 Closes the 2026-09-01 admission findings, handed in from another
 session's live measurement: (1) 18 of 29 notes the door admitted from

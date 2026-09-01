@@ -21,7 +21,7 @@
 // decoration):
 //   A  before — INS with no EVA in front of it: admit() with no
 //      classifyConnector, the live app's condition when its POS-prior fetch
-//      404s (which it did, on every checkout — see POLICIES.md P72).
+//      404s (which it did, on every checkout — see POLICIES.md P74).
 //   B  the gate — EVA before INS: the SAME door, classifyConnector wired
 //      (grammar-lens.js over live_priors' committed POSPrior@1 — the
 //      Ground repo's artifact, read directly). Asymmetric per the grain

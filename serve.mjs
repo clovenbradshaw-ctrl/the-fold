@@ -71,7 +71,7 @@ const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 // absence honestly when the file has never been built locally, rather than
 // assuming every checkout has run the builder.
 const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
-// The SHIPPED fallback for the same mount (P72): the primary above is a
+// The SHIPPED fallback for the same mount (P74): the primary above is a
 // gitignored build directory inside a submodule most checkouts never
 // initialize, so on a fresh machine the fetch 404'd and every organ gated
 // on this prior silently degraded to off — hypergraph.js's vocabulary-level
@@ -85,6 +85,16 @@ const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scri
 // codes, "en") — THRAX_MAP's own precedent: named at the seam, once.
 const PRIORS_DATA_SHIPPED = resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
 const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
+// A second shipped tier, found at merge (P73 + P74 landing together): P73
+// committed the SAME POSPrior@1 into THIS repo's own priors-data/ — but the
+// mount above shadowed it, so on a checkout without the sibling build dir
+// the fetch STILL 404'd, the exact masquerade P74 measured. The chain is
+// now honest and ordered by freshness-then-availability: the sibling's
+// live build dir (rebuilt priors picked up with no copy to go stale) →
+// this repo's own committed artifact (present on every checkout of this
+// repo, no sibling needed) → live_priors' committed artifact (for names
+// this repo does not vendor).
+const PRIORS_DATA_OWN = resolve(ROOT, "priors-data");
 const PORT = Number(process.argv[2] ?? 8811);
 
 // The one package environment. Both the build runner and the terminal get
@@ -573,9 +583,13 @@ createServer((req, res) => {
       return;
     }
     if (!existsSync(file)) {
-      // Fall back to the shipped artifact (see PRIORS_DATA_SHIPPED above).
+      // Fall back through the shipped tiers (see PRIORS_DATA_OWN /
+      // PRIORS_DATA_SHIPPED above): this repo's own committed artifact
+      // first, then live_priors' (aliased at the naming seam).
+      const own = join(PRIORS_DATA_OWN, name);
       const shipped = join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
-      if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
+      if (own.startsWith(PRIORS_DATA_OWN) && existsSync(own)) file = own;
+      else if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
     }
   }
 

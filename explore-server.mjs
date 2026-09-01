@@ -125,12 +125,15 @@ const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // eoreader6.1's own gitignored, locally-reproducible build directory —
 // never a stale copy vendored into this repo.
 const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
-// Shipped fallback for the same mount — serve.mjs carries the full
-// reasoning (P72): the primary is a gitignored dir in a usually-absent
-// submodule, so without this the prior 404'd on every fresh checkout and
-// every organ gated on it silently degraded to off. The alias is the
-// declared eng->en naming translation between eoreader6.1's ISO-3 file
-// names and live_priors' LANG_OF codes.
+// Shipped fallbacks for the same mount — serve.mjs carries the full
+// reasoning (P73 + P74): the primary is a gitignored dir in a usually-absent
+// submodule, so without the chain the prior 404'd on every fresh checkout
+// and every organ gated on it silently degraded to off. Chain: sibling
+// live build dir -> this repo's own committed artifact (priors-data/) ->
+// live_priors' committed artifact. The alias is the declared eng->en
+// naming translation between eoreader6.1's ISO-3 file names and
+// live_priors' LANG_OF codes.
+const PRIORS_DATA_OWN = path.resolve(ROOT, "priors-data");
 const PRIORS_DATA_SHIPPED = path.resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
 const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 const PORT = Number(process.argv[2] ?? 8812);
@@ -864,8 +867,10 @@ function serveStatic(req, res, pathname) {
           : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
   if ((rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")) && !existsSync(file)) {
     const name = rel.replace(/^\/?priors-data\//, "");
+    const own = path.join(PRIORS_DATA_OWN, name);
     const shipped = path.join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
-    if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
+    if (own.startsWith(PRIORS_DATA_OWN) && existsSync(own)) file = own;
+    else if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
   }
   const withinRoot = file === ROOT || file.startsWith(ROOT + path.sep);
   const withinEngine = file === ENGINE || file.startsWith(ENGINE + path.sep);

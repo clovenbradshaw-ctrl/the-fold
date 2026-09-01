@@ -3,12 +3,12 @@
 *Re-runnable: `node eval/admission-gate.mjs` (offline, no model call —
 real relation reader in app.js's live configuration, real hyperlexicon
 door, real grammar lens, over the two committed Wikipedia fixture pages).
-POLICIES.md P72 is the law; this is the measurement record.*
+POLICIES.md P74 is the law (renumbered from P72 on merge); this is the measurement record.*
 
 ## The four arms, one variable each
 
 Three declared questions, 8 retrieved passages, holon.js:1050's exact
-admission shape. The arms differ ONLY at the two seams P72 closes:
+admission shape. The arms differ ONLY at the two seams P74 closes:
 
 | arm | reader's POS prior | door lens | admitted | junk among admitted | corroboration |
 |---|---|---|---|---|---|

@@ -1,5 +1,5 @@
 // admission-gate.test.mjs — the EVA station at the hyperlexicon door,
-// threaded through the REAL runPart (P72). hyperlexicon.test.mjs already
+// threaded through the REAL runPart (P74). hyperlexicon.test.mjs already
 // proves the door itself (admit + classifyConnector, asymmetric); nothing
 // anywhere invoked runPart with a hyperlexicon before this file, so the
 // wiring holon.js gained — classifyConnector accepted, forwarded to admit,

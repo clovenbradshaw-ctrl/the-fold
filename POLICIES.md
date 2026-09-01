@@ -9288,3 +9288,118 @@ every note printed for eyeball meaningfulness). Full suite 1587/1538/44
 → 1593/1544/44, the same 44 failure names via sorted-name diff (TAP
 ordinals shift with 6 new tests; names are the authority), zero
 regressions.
+
+## P74 — A gate is closed by shipping its ground: the hypergraph admission door, measured at every seam
+
+*(Renumbered from P72 on merge — a concurrent PR landed its own P72/P73
+first; the number moved, nothing about the policy itself did.)*
+
+Closes the 2026-09-01 admission findings, handed in from another
+session's live measurement: (1) 18 of 29 notes the door admitted from
+real prose carried non-verb labels (`—and→`, `—of→`, `—army→` — P56's
+slot/class finding reproduced at the door); (2) corroboration fired 0/29,
+so the ledgerBlock ("confirmed independently in more than one place")
+rendered empty on real material; (3) the door's quality gate existed and
+could not run — `admit` accepts a `classifyConnector`, holon.js never
+passed one, and the grammar lens's own data layer 404'd on every
+checkout. Full measurement record: `eval/results/
+admission-gate-RESULTS.md` (re-runnable, offline). User direction:
+*"let's do this well, close this for good... think of how to use the
+full insight of the EO cube in the structure of the solution."*
+
+**The EO shape of the defect, which dictated the fix order.** The
+pipeline was performing INS without EVA, and SYN at the wrong grain, on
+a Ground that shipped nowhere. Ground first: `serve.mjs`'s
+`/priors-data/` mount pointed EXCLUSIVELY at
+`../eoreader7/legacy-eoreader6.1/scripts/corpus/` — a **gitignored build
+directory inside a submodule most checkouts never initialize** — so
+`app.js`'s fetch of `pos-prior-eng.json` failed silently everywhere, and
+every organ gated on that prior degraded to off. Not only the door's
+lens: `hypergraph.js`'s own vocabulary-level POS gate (P68's
+`posPriorFor` wiring) — fully built, tested, and dormant. A gate whose
+ground cannot ship is a wish, not a wall (the DEF/EVA law: a define
+lands only when its evaluate can run).
+
+**The measured surprise, which reframed the handoff.** The four-arm
+driver (`eval/admission-gate.mjs`: app.js's live reader config, organ
+for organ, over the two committed Wikipedia fixtures) found the door's
+gate is NOT the fix — the ground is. Arm A0 (reader blind, the live
+404 condition): **18/32 junk**, reproducing the reported finding. Arm A1
+(ground shipped, door still ungated): **0/19 junk** — the entire junk
+class dies upstream at the vocabulary gate the moment its ground exists.
+Arm B2 (door alone, reader blind): 18/32 refused, every refusal
+verbatim-correct, zero real verbs lost — but `to` (settles as PART, out
+of Thrax's declared scope, admits by the lens's own OUT_OF_SCOPE design)
+and `right` slip through, so the door is strictly weaker than the
+grounded reader. The door's real value: defense-in-depth when the fetch
+fails, plus the TYPED refusal record.
+
+**What shipped.**
+1. **The ground** — `serve.mjs` + `explore-server.mjs`'s `/priors-data/`
+   mounts fall back to **live_priors' committed
+   `derived-priors/pos-priors/`** (still read live off a sibling repo,
+   never a copy vendored here — /engine's own discipline), with one
+   declared alias at the seam (`pos-prior-eng.json` →
+   `pos-prior-en.json`: eoreader6.1 names files by ISO-3, live_priors by
+   its LANG_OF codes — THRAX_MAP's own declared-translation precedent).
+   live_priors is the Ground repo by construction: the artifact there is
+   committed with giver, license, and per-file sha256 (its own
+   POLICIES.md LP10/LP11 carry that side). Verified live: serve.mjs
+   answers 200/699,764 bytes at the exact URL app.js fetches; the
+   traversal guard holds. explore-server.mjs carries the identical edit,
+   syntax-checked but NOT boot-verified here — it cannot boot in this
+   checkout at all (P69's disclosed pre-existing submodule syntax error),
+   disclosed rather than implied tested.
+2. **The EVA station** — app.js builds `classifyConnector`
+   (grammar-lens.js over the same prior, wrapped per call so a lens is
+   never captured over a still-null cache; when the cache is null it
+   degrades to exactly the ungated door — a check that cannot run must
+   not refuse and must not block boot) and passes it through
+   `runHolonicTask` → `runPart` → `hyperlexicon.admit`. Asymmetric per
+   the grain theorem: a SETTLED non-verb refuses with its giver named;
+   out-of-vocabulary admits.
+3. **The refusals, visible at every boundary** — the admit loop no
+   longer reads `turnedAway` and discards it (P57: not optional):
+   runPart returns `hyperlexiconTurnedAway`, runHolonicTask accumulates
+   across parts and returns it. app.js does not yet SURFACE it in any
+   UI — a named absence, not an implied feature; the eval driver and the
+   record are its living consumers today.
+
+**The corroboration finding — the proposed lever refuted before it was
+built.** The handoff's lever 1 (fold note identity by referent face +
+`sameAct` lemma so cross-source restatements share a note) was measured
+as arm C over the gated arm's 19 notes: **0 joins**, and the flagship
+motivating pair fails by name — `sameLemma("withdraws", "retreated") =
+false`. Withdraw≠retreat is SYNONYMY, not morphology: the corroboration
+grain problem is real (P60's fourth amendment, inverted — a fold that
+can never fire is a grain signal) but its closure lives in the semantic
+tier this repo already has (the witness machinery, P32), not in identity
+folding. This measurement sits under live_priors' LP11, earned the same
+day from the same investigation's other half: **a loosened key is judged
+on its MARGINAL admits, never aggregate coverage** — there, the loosest
+key's marginal admits ran 0-56% accurate (in English, 0/8) on exactly
+the rows where it would have been the only voice.
+
+**The meta-finding, worth the policy line on its own:** nothing here
+needed a new mechanism. The lens was built (P56-era), `admit`'s
+parameter was declared (P57), the vocabulary gate was wired (P68), and
+the prior was committed one repo over (live_priors, same day) — **three
+unwired seams and a 404 masquerading as three missing features.**
+Search-for-the-organ, applied to seams: before building anything, walk
+the existing pieces end to end and find where the thread actually
+breaks.
+
+**Enforced.** `admission-gate.test.mjs` (3 cases, the REAL lens over the
+REAL shipped prior through the REAL runPart): the junk-labeled edge
+refused at the door with the lens's finding and the passage named on the
+returned refusal; `classifyConnector: null` byte-identical to the old
+door (both edges admit, nothing refused); out-of-vocabulary admits.
+hyperlexicon.test.mjs's own door-level lens cases were already standing.
+
+**Generality:** universal (evidence: `eval/admission-gate.mjs` — the
+junk class and its elimination measured on real encyclopedic prose with
+app.js's own live organ config; the gate's asymmetry is closed-class
+membership against a received treebank, nothing fitted to these pages;
+the arm-C refutation is per-specimen honest — 0 joins ON THIS MATERIAL —
+and the synonymy-not-morphology reading of the flagship pair is checked
+by name, not induced from the corpus).

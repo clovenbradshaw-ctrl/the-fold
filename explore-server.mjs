@@ -125,6 +125,17 @@ const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // eoreader6.1's own gitignored, locally-reproducible build directory —
 // never a stale copy vendored into this repo.
 const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
+// Shipped fallbacks for the same mount — serve.mjs carries the full
+// reasoning (P73 + P74): the primary is a gitignored dir in a usually-absent
+// submodule, so without the chain the prior 404'd on every fresh checkout
+// and every organ gated on it silently degraded to off. Chain: sibling
+// live build dir -> this repo's own committed artifact (priors-data/) ->
+// live_priors' committed artifact. The alias is the declared eng->en
+// naming translation between eoreader6.1's ISO-3 file names and
+// live_priors' LANG_OF codes.
+const PRIORS_DATA_OWN = path.resolve(ROOT, "priors-data");
+const PRIORS_DATA_SHIPPED = path.resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
+const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -845,7 +856,7 @@ function readJsonBody(req) {
 
 function serveStatic(req, res, pathname) {
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  const file = rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
+  let file = rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
     ? path.join(ENGINE_V7, rel.replace(/^\/?engine-v7\//, ""))
     : rel.startsWith("/engine/") || rel.startsWith("engine/")
       ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
@@ -854,11 +865,19 @@ function serveStatic(req, res, pathname) {
         : rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")
           ? path.join(PRIORS_DATA, rel.replace(/^\/?priors-data\//, ""))
           : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+  if ((rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")) && !existsSync(file)) {
+    const name = rel.replace(/^\/?priors-data\//, "");
+    const own = path.join(PRIORS_DATA_OWN, name);
+    const shipped = path.join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
+    if (own.startsWith(PRIORS_DATA_OWN) && existsSync(own)) file = own;
+    else if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
+  }
   const withinRoot = file === ROOT || file.startsWith(ROOT + path.sep);
   const withinEngine = file === ENGINE || file.startsWith(ENGINE + path.sep);
   const withinEngineV7 = file === ENGINE_V7 || file.startsWith(ENGINE_V7 + path.sep);
   const withinNul = file === NUL || file.startsWith(NUL + path.sep);
-  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep);
+  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep)
+    || file === PRIORS_DATA_SHIPPED || file.startsWith(PRIORS_DATA_SHIPPED + path.sep);
   if (!withinRoot && !withinEngine && !withinEngineV7 && !withinNul && !withinPriorsData) {
     res.writeHead(403);
     return res.end("forbidden");

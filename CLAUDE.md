@@ -6411,3 +6411,24 @@ asked of a small model, verdict derived mechanically. Also recorded there:
 the sidecars measured stale and regenerated `--fresh` (41.4% -> 27.9% junk,
 excerpt-scale by design), and a retrieval-loop probe DISCARDED by its own
 broken control before its numbers became claims.
+
+## The three mathematics (added 2026-09-01) — pointer
+
+`THE-THREE-MATHEMATICS.md` (repo root) is the document; standing:
+**nomination**, THE-27-CELLS' own sense — checkable against the cube's
+tables, which win any disagreement. The one-table version: the DOMAINS
+are arithmetic (NUL=0, SIG=mark, INS=successor), geometry (SEG=cut,
+CON=incidence, SYN=construction), and calculus (DEF=bound,
+EVA=compare-to-bound, REC=re-zero/discontinuity); GRAIN overlays all
+three as constant/value/rate (Bateson's pattern is literally a
+difference equation); the MODES are the same triad again as every
+mathematics' internal −/=/+ (differentiate/relate/generate), which is
+why 9 = 3 maths × 3 shared operations; and on the STANCE face the triad
+runs THROUGH the page — every stance cell is a three-story stack, so a
+"FULL stance" (P64's own vocabulary) is a proven isomorphism and the
+depth axis is ANALOGY. Crossing rule, measured all week without the
+name: arithmetic before geometry before calculus, per claim — the
+production order and Commons's no-skipping axiom in a third vocabulary.
+§VIII keeps it falsifiable: full stances must transfer, empty stances
+must be derivable from their depth-siblings, and crossing-rule
+violations must always present as measured nonsense, never clean error.

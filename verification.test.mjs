@@ -162,7 +162,7 @@ test("beyond-reach composes as Existence/Entity gapping, and Link never runs on 
 
 test("an unheard verb composes as Structure/Link gapping (claim-specific), distinct from Structure/Field gapping (material-wide)", () => {
   const hgReport = { examined: true, vocabulary: { verbs: 5 } }; // the material DOES have a measurable vocabulary
-  const hgClaim = { verdict: "unheard", subject: "Pierre Bezukhov", verb: "betrayed", object: "Helene" };
+  const hgClaim = { verdict: "unheard", subject: "Pierre Bezukhov", verb: "betrayed", object: "Helene", end1: "Pierre Bezukhov", label: "betrayed", end2: "Helene" };
   const tasks = verificationTasksFor({ hgReport, hgClaim });
   const byTerrain = Object.fromEntries(tasks.map((t) => [t.terrain, t]));
   assert.equal(byTerrain.Field.verdict, "holds", "the material's vocabulary is measurable — only THIS verb is outside it");
@@ -185,7 +185,10 @@ test("P32's slot-competition finding composes as Structure/Network failing, disc
     subject: "Dolokhov",
     verb: "married",
     object: "Helene",
-    competing: { subject: "Pierre Bezukhov", verb: "married", object: "Helene", refs: ["wp.txt#0-100"] },
+    end1: "Dolokhov",
+    label: "married",
+    end2: "Helene",
+    competing: { subject: "Pierre Bezukhov", verb: "married", object: "Helene", end1: "Pierre Bezukhov", label: "married", end2: "Helene", refs: ["wp.txt#0-100"] },
   };
   const tasks = verificationTasksFor({ hgReport, hgClaim });
   const byTerrain = Object.fromEntries(tasks.map((t) => [t.terrain, t]));
@@ -337,6 +340,9 @@ test("Entity never asserts the object resolved when the claim's own disclosure s
     subject: "Lincoln",
     verb: "appointed",
     object: "Napoleon",
+    end1: "Lincoln",
+    label: "appointed",
+    end2: "Napoleon",
     endpoints: { subject: "referent", object: "tokens" },
   };
   const entity = verificationTasksFor({ hgReport, hgClaim }).find((t) => t.terrain === "Entity");

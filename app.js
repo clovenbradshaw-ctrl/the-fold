@@ -81,7 +81,7 @@ import { checkGrounding, unsupportedClaims, extractCheckableAtoms } from "./grou
 
 import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
-import { needsDecomposition, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT } from "./holon.js";
+import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT } from "./holon.js";
 
 import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 
@@ -220,6 +220,10 @@ import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
+// The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
+// metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
+// same "one implementation, injected everywhere" posture.
+import { assessAgreement, escalationFor, forcesFoldRefresh, makeHuntMeter, makeMetacognition } from "./metacognition.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
 // the `briefFor` call site below. One confirmed set, two consumers: this is
@@ -264,6 +268,7 @@ const buildLog = makeBuildLog(nativeTaskLog);
 const store = makeStore(nativeTaskLog);
 const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
+const metaLedger = makeMetacognition(nativeTaskLog);
 
 // The widget router (widget.js): does a code-bearing turn point at a build
 // that already exists, or introduce a new one? Decided from the operator's
@@ -276,7 +281,11 @@ import * as enginePriors from "/engine-v7/adapters/text/priors.js";
 // used here for exactly one question, "is this token an adposition"
 // (of/in/for/at/…), so declaredSlotShape's anchor recovery generalizes past
 // a single hardcoded preposition without a second word list.
-import { classifyWord, dominantClass } from "/engine-v7/adapters/text/wordclass.js";
+import { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } from "/engine-v7/adapters/text/wordclass.js";
+// The connector lens (grammar-lens.js) the hyperlexicon door's own
+// classifyConnector gate consumes — built below, data-gated on the same
+// posPriorCache fetch, threaded through runHolonicTask (P73).
+import { makeGrammarLens } from "./grammar-lens.js";
 import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
@@ -355,9 +364,21 @@ const handlesFor = makeCastHandles({
 // relationsFor/skillLibrary/callModel below, because the value is not
 // stable at construction time the way a synchronous organ is.
 let posPriorCache = null;
+// The door's grammar gate is DATA-GATED, never code-gated (P73): the lens
+// exists only once the POS prior actually loads, so a checkout without
+// priors-data/ runs byte-identically to before the gate existed — a check
+// whose data layer is absent never runs, and never reports a pass (P41).
+// The prior itself ships in the repo now (priors-data/pos-prior-eng.json —
+// UD_English-EWT, CC BY-SA 4.0, built by the engine's own
+// scripts/build-pos-prior.mjs; givers ride every classification via
+// POS_PRIOR_META/THRAX_META).
+let connectorLens = null;
 fetch("/priors-data/pos-prior-eng.json")
   .then((r) => (r.ok ? r.json() : null))
-  .then((j) => { posPriorCache = j; })
+  .then((j) => {
+    posPriorCache = j;
+    if (j) connectorLens = makeGrammarLens({ classifyWord, dominantClass, posPrior: j, posPriorMeta: POS_PRIOR_META, thraxMeta: THRAX_META });
+  })
   .catch(() => {});
 
 // The relation reader's factory — one per passage set, pool = the live
@@ -468,6 +489,13 @@ const reflexMeter = makeReflexMeter({ createTierStack, foldThrough });
 // separate instance so the world plane's belief never shares state with
 // the self plane's.
 const apertureMeter = makeApertureMeter({ createTierStack, foldThrough });
+// The hunt gate (metacognition.js, P72's third amendment): the SAME
+// tier-stack physiology as the two meters above, pointed at the
+// preflight's own page stream — surprise deciding when the hunt stops,
+// instead of a fixed page count spent blind. Per-hunt instances are
+// created inside gatherPreflightMaterial; this is the factory, built once
+// on the same injected organs.
+const huntMeter = makeHuntMeter({ createTierStack, foldThrough });
 
 import {
   blankLabelRows,
@@ -625,6 +653,15 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+
+  /**
+   * The metacognition ledger (metacognition.js, P72) — same app-wide,
+   * never-per-conversation, never-persisted posture as `gridLog`/
+   * `hyperlexiconLog` immediately above: what this instrument has learned
+   * about trusting S1's own draft is a fact about the instrument, not
+   * about one conversation, and a fresh page load is a fresh reading.
+   */
+  metaLedger: metaLedger.createLedger(),
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -3108,19 +3145,32 @@ async function reflectTurn(question, typed) {
  * number picked here), or a held line would fall out of the window
  * unseen by any refresh. The skip is on the ledger as a `carried` act —
  * a decision the instrument made is never silent.
+ *
+ * `forceRefresh` (metacognition.js::forcesFoldRefresh, P72) ORs onto this
+ * gate rather than replacing it — the module's own stated design ("a
+ * natural OR onto refreshSummary's existing gate, not a replacement for
+ * it"). A real, positive S1/S2 contradiction on THIS turn means the
+ * running summary may itself carry the error S2 just found, which is
+ * grounds to refresh regardless of what the discourse-drift meter alone
+ * decided: `exchangeHeldGround` watches whether the GROUND moved, this
+ * watches whether S1's OWN account of it was found wrong — different
+ * axes, so one holding still is never evidence the other should too.
  */
 // `sentCalls`: the caller's own capture of every messages array sent to the
 // model this turn (renderFold's whole content, now) — this refresh is one
 // more call in that same turn when it fires, so it is appended to the same
 // array rather than left to vanish as a call the turn's own disclosure never
 // knew happened.
-async function refreshSummary(fold, arrivals = null, sentCalls = null) {
+async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false } = {}) {
   state.turnFolds.push(fold);
-  if (
-    arrivals &&
-    exchangeHeldGround(arrivals) &&
-    state.heldFolds < MAX_FOLDS_IN_PROMPT - 1
-  ) {
+  const heldGround = Boolean(arrivals) && exchangeHeldGround(arrivals);
+  if (heldGround && forceRefresh) {
+    // The override is itself an act, never silent — the same discipline
+    // the ordinary `carried` skip below already holds for the opposite
+    // decision.
+    logAct("forcedRefresh", { because: "S1/S2 disagreement (metacognition.js)" });
+  }
+  if (heldGround && !forceRefresh && state.heldFolds < MAX_FOLDS_IN_PROMPT - 1) {
     logAct("carried", { streak: state.heldFolds + 1 });
     state.heldFolds += 1;
     state.summary = advanceSummaryFold(state.summary, fold);
@@ -3906,6 +3956,33 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // "need" it. Turn-scoped: these chunks join `live` for this call only
     // and are never written to state.sources, so no attachment pill
     // appears and nothing persists.
+    // Flow #2 — suspicion widens the search (metacognition.js, P72's own
+    // second amendment). Read ONCE per turn, from the same cell `observe`
+    // writes and on the same channel it measures (opts.priorPass — an
+    // S1/S2 turn; every other turn passes null and gets the plain
+    // constants back untouched). The budgets handed in are ALWAYS the
+    // declared constants — holon.js's own MAX_CORRECTIONS/
+    // PASSAGES_PER_PART, proof.js's own PREFLIGHT_PAGES_CONSULTED — never
+    // a prior escalated value, so the factor can never compound across
+    // turns. Asymmetric by construction: escalationFor only ever raises
+    // budgets on `contested`; `established` and `unproven` alike come
+    // back byte-identical to the constants, so a good record never
+    // quietly removes checking. The engagement lands on the reflex
+    // ledger (reflex.js's designed unknown-act fallback, the same door
+    // `measured`/`carried`/`narrowed` already entered through) — a
+    // decision the instrument made is never silent.
+    const escalation = escalationFor(
+      opts.priorPass ? metaLedger.standingOf(state.metaLedger, "s1-draft") : null,
+      { maxCorrections: MAX_CORRECTIONS, passagesPerPart: PASSAGES_PER_PART, pagesConsulted: PREFLIGHT_PAGES_CONSULTED },
+    );
+    if (escalation.escalated) {
+      logAct("escalated", {
+        cell: "s1-draft",
+        corrections: escalation.maxCorrections,
+        passages: escalation.passagesPerPart,
+        pages: escalation.pagesConsulted,
+      });
+    }
     if (shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
       setPhase("checking for material");
       show("nothing attached — checking the web before answering…");
@@ -3916,7 +3993,19 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // search plus up to three page fetches is seconds of real waiting,
       // and a reader watching "checking for material · 9s" with no motion
       // reads it as hung, not working.
-      const preflight = await gatherPreflightMaterial(task, discourseLine, (step) => setPhase(step));
+      const preflight = await gatherPreflightMaterial(task, discourseLine, (step) => setPhase(step), {
+        pagesConsulted: escalation.pagesConsulted,
+      });
+      // The hunt's outcome on the ledger, whichever way it ended — a
+      // reading the instrument cut short (or ran to its leash's end) is a
+      // decision, and a decision the instrument made is never silent.
+      if (preflight.hunt?.pages) {
+        logAct("hunted", {
+          pages: preflight.hunt.pages,
+          ceiling: preflight.hunt.ceiling,
+          stop: preflight.hunt.stop,
+        });
+      }
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -4321,6 +4410,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // reading, which is itself null with checking off — see two lines up.
       hyperlexicon: state.grounded ? hyperlexiconFor : null,
       hyperlexiconLog: state.grounded ? state.hyperlexiconLog : null,
+      // The door's grammar gate, data-gated (null until the POS prior
+      // loads — see connectorLens's own construction comment) and mode-
+      // gated with the ledger it guards.
+      classifyConnector: state.grounded ? connectorLens : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.
@@ -4331,6 +4424,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       discourse: discourseLine,
       searchedVoid,
       priorPass: opts.priorPass ?? null,
+      // Flow #2's other two knobs (escalation, computed above): identical
+      // to holon.js's own defaults whenever the standing did not read
+      // `contested`, so passing them unconditionally changes nothing on
+      // an ordinary turn — and one more correction pass plus two more
+      // passages per part exactly when S1's record says the fast layer
+      // has been getting corrected.
+      maxCorrections: escalation.maxCorrections,
+      passagesPerPart: escalation.passagesPerPart,
       onProgress: (phase, part, info) => {
         if (phase === "plan") {
           setPhase("planning");
@@ -4534,7 +4635,28 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   } else {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
-  await refreshSummary(fold, arrivals, sentCalls);
+  // The metacognition watcher (metacognition.js, P72) — moved here, ahead
+  // of `refreshSummary`'s own call, so `forcesFoldRefresh` can actually OR
+  // onto its gate (metacognition-integration-note.md's own disclosed open
+  // question — this pass traced it: every input this needs, `result.
+  // sections`, `relationClaims`, `opts.priorPass`, is already computed by
+  // this point, so nothing needed threading through holon.js). Also ahead
+  // of the `!state.grounded` early return a few lines down: the watcher is
+  // bookkeeping, not drawing — the same "the fold and the record stay ON
+  // either way" rule the checking-mode section (CLAUDE.md) already states
+  // for exactly this kind of state, applied here so a plain-mode S1/S2
+  // disagreement is still heard rather than silently skipped because
+  // nothing about it is painted. Fires only on an S1/S2 turn (`opts.
+  // priorPass` is set only by twoPassTurn's own gated call, `priorPassFor`'s
+  // own "a caller with no S1 pass simply never calls it" convention).
+  let forceRefresh = false;
+  if (opts.priorPass) {
+    const s2Passages = result.sections.flatMap((s) => s.passages ?? []);
+    const agreement = assessAgreement(opts.priorPass, { question: task, s2Passages, relationEdges: relationClaims });
+    state.metaLedger = metaLedger.observe(state.metaLedger, { cell: "s1-draft", delta: agreement.counts });
+    forceRefresh = forcesFoldRefresh(agreement);
+  }
+  await refreshSummary(fold, arrivals, sentCalls, { forceRefresh });
   // MOMENT 3: everything the turn held, retrieved passages INCLUDED.
   //
   // THE UNION IS LOAD-BEARING AND WAS FOUND LIVE. This pass used to declare
@@ -4820,9 +4942,14 @@ async function crownTestimony(node, relationClaims) {
   // twice in one turn never crowns twice.
   const seen = new Set();
   const candidates = relationClaims.filter((c) => {
-    if (!c?.subject || !c?.verb || !c?.object) return false;
+    if (!c?.end1 || !c?.label || !c?.end2) return false;
     if (c.verdict === "bound") return false;
-    const key = `${c.subject} ${c.verb} ${c.object}`.toLowerCase();
+    // A stray pair of literal null bytes here (in place of the two
+    // spaces) predates this edit and is fixed as a byproduct of
+    // rewriting this exact line for the field migration -- see the
+    // migration commit message for how it was found and confirmed
+    // isolated to this one line.
+    const key = `${c.end1} ${c.label} ${c.end2}`.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -4831,13 +4958,15 @@ async function crownTestimony(node, relationClaims) {
   const total = candidates.length * names.length;
   let step = 0;
   for (const claim of candidates) {
-    const claimId = await grid.mintClaimId({ subject: claim.subject, verb: claim.verb, object: claim.object });
+    // mintClaimId's own required parameter names (grid.js); the values
+    // read off the claim's neutral arrangement (P72), the keys stay theirs.
+    const claimId = await grid.mintClaimId({ subject: claim.end1, verb: claim.label, object: claim.end2 });
     // One quoted token: grid's tokenizer keeps a quoted object whole, so a
     // claim containing a bare clause keyword ("from", "ground") cannot
     // shred the act line. An interior double quote would end the token
     // early — swapped for an apostrophe before the line is built, and the
     // round-trip check below compares against the swapped text.
-    const claimText = `${claim.subject} ${claim.verb} ${claim.object}`.replace(/"/g, "'");
+    const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
     for (const name of names) {
       step += 1;
       $("status").textContent = `checking against each source · ${step}/${total}`;
@@ -5108,7 +5237,7 @@ function taggedProse(text, offered, classified = []) {
       // this" on the sentence tars its backed halves too (measured live:
       // the model's gloss "significant battle" flagged a sentence whose
       // 70,000 stood perfectly on the material).
-      const disputed = `${c.verb} ${c.object}`.trim();
+      const disputed = `${c.label} ${c.end2}`.trim();
       const disputedShort = disputed.length > 32 ? `${disputed.slice(0, 29)}…` : disputed;
       badge.textContent =
         c.verdict === "contradicted"
@@ -5119,22 +5248,24 @@ function taggedProse(text, offered, classified = []) {
       // "stated by 2 of 3 web pages" are one epistemic state, not two
       // verdicts that never meet (measured live: the web corroborated the
       // very assertion the badge was still flagging).
-      badge.dataset.proofKey = [c.subject, c.verb, c.object]
+      badge.dataset.proofKey = [c.end1, c.label, c.end2]
         .flatMap((s) => String(s).split(/\s+/))
         .filter((w) => w.length > 2)
         .join(" ")
         .toLowerCase();
+      // c.bound / c.nearest are hypergraph.js's own edgeFace() arrays, so
+      // near carries the same neutral arrangement fields as c does.
       const near = c.verdict === "contradicted" ? c.bound?.[0] : c.nearest?.[0];
       badge.title =
-        `${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}: ` +
+        `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}: ` +
         (c.verdict === "contradicted"
           ? `the material binds this edge with the OPPOSITE polarity.`
           : `every word is in the material, but the text never binds this edge.`) +
-        (near ? ` It binds: ${near.subject} —${near.verb}→ ${near.object}. Press to read that passage.` : " Press to search the material.");
+        (near ? ` It binds: ${near.end1} —${near.label}→ ${near.end2}. Press to read that passage.` : " Press to search the material.");
       badge.onclick = () => {
         const ref = near?.refs?.[0];
         if (ref) reopen(ref);
-        else groundHunt(`${c.subject} ${c.verb} ${c.object}`);
+        else groundHunt(`${c.end1} ${c.label} ${c.end2}`);
       };
       sent.append(badge);
     }
@@ -6354,7 +6485,11 @@ async function checkLinkCitation(url) {
  * page was never deposited as a library source — reopen() hides that
  * door for archived material instead of offering a dead one.
  */
-async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
+// `pagesConsulted` (flow #2, metacognition.js's escalationFor): how many of
+// the search's results get their full page fetched. Defaults to the same
+// declared constant the slice below always used, so every caller that
+// passes nothing is byte-identical to before this parameter existed.
+async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pagesConsulted = PREFLIGHT_PAGES_CONSULTED } = {}) {
   // The anaphor door is the engine's own received closed class (Amendment
   // IV register), injected here the same way widget.js takes it — never a
   // hand-typed intent list.
@@ -6376,7 +6511,7 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
     };
   }
   if (search.gap) return { chunks: [], pages: [], gap: search.gap };
-  const picks = (search.results ?? []).slice(0, PREFLIGHT_PAGES_CONSULTED);
+  const picks = (search.results ?? []).slice(0, pagesConsulted);
   if (!picks.length) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } };
   onStep?.(`${picks.length} result(s) for “${query}” — reading ${picks.map((r) => hostOf(r.url)).join(", ")}`);
   const chunks = [];
@@ -6438,6 +6573,24 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
     .filter(Boolean)
     .join("\n");
   if (digest) chunks.push(...chunkSource("web:search-results", digest));
+  // The hunt's own stopping rule (P72's third amendment, user direction:
+  // "hunt until what we experienced would not be surprising to a degree
+  // that is a distinction that makes a difference"). The meter is seeded
+  // with what is ALREADY held before any page is fetched — the question,
+  // the discourse line, the snippets digest — so the first page is
+  // measured against a real ground. After each KEPT page, the arrival is
+  // placed against the material's own continuation null: a page that
+  // landed where noise alone would put it (aperture.js's own measured
+  // cut) means the material has stopped moving belief, and the hunt stops
+  // EARLY rather than spending the remaining fetches restating it. A page
+  // that genuinely moved belief (censored above, or inside the surprising
+  // half) keeps the hunt alive to the declared ceiling. The floor is
+  // structural: the first kept page always lands before the rule can
+  // speak, so a hunt never returns page-less because its own seed was
+  // already rich. A gap (unreadable, empty, unplaceable) NEVER stops the
+  // hunt — withheld is not "nothing moved".
+  const hunt = huntMeter.create([task, discourse, digest]);
+  let huntStop = null;
   for (const [i, r] of picks.entries()) {
     try {
       onStep?.(`reading ${hostOf(r.url)} (${i + 1} of ${picks.length})`);
@@ -6477,6 +6630,15 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
       state.citedMaterial[sourceName] = text;
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
       onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+      const arrived = huntMeter.arrive(hunt, text);
+      if (arrived.settled) {
+        huntStop = "settled";
+        onStep?.(
+          `settled after ${pages.length} page(s) — the last one moved nothing the material's own noise wouldn't` +
+            (i + 1 < picks.length ? `; ${picks.length - i - 1} fetch(es) not spent` : ""),
+        );
+        break;
+      }
     } catch (e) {
       // One page failing to fetch is not the search failing — the other
       // picks still get their chance, the same posture seekProof takes.
@@ -6484,9 +6646,23 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
       continue;
     }
   }
+  if (!huntStop && pages.length) huntStop = "ceiling";
   return {
     chunks,
     pages,
+    // The hunt's own record, for the caller's ledger: how many pages were
+    // actually read, against what ceiling, and WHY the reading stopped —
+    // "settled" (the material converged and said so) or "ceiling" (belief
+    // was still moving when the declared budget ran out; a longer leash —
+    // escalation's own knob — is what would have let it continue).
+    hunt: {
+      pages: pages.length,
+      ceiling: pagesConsulted,
+      stop: huntStop,
+      arrivals: hunt.arrivals
+        .filter((a) => a.role === "page")
+        .map(({ bits, rank, censored, settled, gap }) => ({ bits, rank, censored, settled, ...(gap ? { gap } : {}) })),
+    },
     gap: chunks.length ? null : { silence: "not-present", detail: "pages were found but none had readable text" },
   };
 }
@@ -6946,7 +7122,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
   const claims = reports.flatMap((r) => r.claims ?? []);
   const measured = reports.filter((r) => !r.vocabulary?.gap);
   if (reports.length) {
-    const edgeCount = new Set(measured.flatMap((r) => (r.edges ?? []).map((e) => `${e.subject}|${e.verb}|${e.object}`))).size;
+    const edgeCount = new Set(measured.flatMap((r) => (r.edges ?? []).map((e) => `${e.end1}|${e.label}|${e.end2}`))).size;
     parts.push(
       section(
         measured.length
@@ -6971,7 +7147,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
       "beyond-reach": "couldn't check",
     }[c.verdict] ?? c.verdict;
     const head = document.createElement("span");
-    head.textContent = `${mark} ${plainVerdict}: “${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}”`;
+    head.textContent = `${mark} ${plainVerdict}: “${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}”`;
     row.append(head);
     if (c.verdict === "bound") {
       const cor = document.createElement("em");
@@ -6995,7 +7171,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     for (const n of near ?? []) {
       const nb = document.createElement("button");
       nb.className = "ref attached";
-      nb.textContent = `it says: ${n.subject} —${n.verb}→ ${n.object}`;
+      nb.textContent = `it says: ${n.end1} —${n.label}→ ${n.end2}`;
       nb.title = n.refs?.[0] ? `${n.refs[0]} — read what the material says instead` : "what the material says instead";
       if (n.refs?.[0]) nb.onclick = () => reopen(n.refs[0]);
       row.append(nb);

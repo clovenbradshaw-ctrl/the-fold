@@ -613,8 +613,11 @@ test("checkObjectSpecificity (via a mocked runCapacity): a Hebrew claim object s
     }
     return {
       id,
-      claims: [{ verdict: "bound", refs: ["hebrew.txt#0-20"], object: claim }],
-      edges: [{ refs: ["hebrew.txt#0-20"], object: realEdgeObject }],
+      // end2 alongside object: the real judge()/edgeFace() shape (P72)
+      // carries both — checkObjectSpecificity reads end2 now, so a mock
+      // standing in for that real shape must carry it too.
+      claims: [{ verdict: "bound", refs: ["hebrew.txt#0-20"], object: claim, end2: claim }],
+      edges: [{ refs: ["hebrew.txt#0-20"], object: realEdgeObject, end2: realEdgeObject }],
     };
   };
   const out = landAct(

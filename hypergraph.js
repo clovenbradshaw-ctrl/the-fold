@@ -750,6 +750,26 @@ function withConfirmedLeadingReferents(
   return buildIndexFromEvents(events, { namesCorefer, diaNorm });
 }
 
+// The arrangement, named the way it is actually earned: two ordered ends
+// and a label (CLAUDE.md's grammar-lens section — "an ordered first end, a
+// label, an ordered second end"). `subject`/`verb`/`object` are the
+// SAE-grammar reading of that arrangement — already named as a declared
+// overlay, not yet stored as one. `end1`/`label`/`end2` are the identical
+// three values under their earned names, ADDED, never substituted: every
+// existing reader of `.subject`/`.verb`/`.object` is unaffected, and
+// nothing yet reads the new fields. One implementation, used at every site
+// that builds an edge/claim shape, so the two names cannot drift the way
+// four separate `{subject: t.subject, verb: t.verb, object: t.object}`
+// literals eventually would have — the same drift class this file's own
+// history (DEF/EVA's `Array.find`, `synthesize`'s `String.includes`)
+// already found twice, closed here before a third. Exported (rather than a
+// closure-local of `makeRelationReader`) because it closes over nothing —
+// a pure mapping deserves to be directly testable without the whole
+// organ-injected reader behind it. Migrating a consumer off `subject`/
+// `verb`/`object` onto `end1`/`label`/`end2` happens file by file, in a
+// later pass — not here.
+export const arrangementOf = (t) => ({ end1: t.subject, label: t.verb, end2: t.object });
+
 export function makeRelationReader(organs) {
   const {
     splitSentences,
@@ -1372,6 +1392,7 @@ export function makeRelationReader(organs) {
             subject: t.subject,
             verb: t.verb,
             object: t.object,
+            ...arrangementOf(t),
             polarity: t.polarity,
             subjectEnd,
             objectEnd,
@@ -1501,6 +1522,7 @@ export function makeRelationReader(organs) {
         subject: t.subject,
         verb: t.verb,
         object: t.object,
+        ...arrangementOf(t),
         polarity: t.polarity,
         // Same disclosure edgeFace carries, at claim scale: whether the
         // connector position the answer used is grammatically plausible as
@@ -1732,6 +1754,7 @@ export function makeRelationReader(organs) {
         subject: e.subject,
         verb: e.verb,
         object: e.object,
+        ...arrangementOf(e),
         polarity: e.polarity,
         refs: e.refs,
         // The exact bytes this edge was read from, carried THROUGH the
@@ -1830,6 +1853,7 @@ export function makeRelationReader(organs) {
                 subject: t.subject,
                 verb: t.verb,
                 object: t.object,
+                ...arrangementOf(t),
                 polarity: t.polarity,
                 verdict: "unheard",
                 reason: `the material never uses the verb “${t.verb}”, so there is nothing to compare this against — a limit of this check, not a mark against the answer`,
@@ -2025,4 +2049,70 @@ export function queryFillers(edges, { subject = null, verb = null, object = null
     clusters.get(key).refs.push(...e.refs);
   }
   return [...clusters.values()].map((c) => ({ [openField]: c.value, refs: [...new Set(c.refs)] }));
+}
+
+// ── a relation reader for case-marked languages (P72 / eoreader7
+// READING-SPEC.md S33) ───────────────────────────────────────────────────
+//
+// A SEPARATE entry point from makeRelationReader, deliberately, not a
+// branch inside it. The English pipeline's referent-index resolution
+// (cast.js), assertion order-arm, connector-class checks, and gender
+// evidence all assume a POSITIONAL extractor's own edge shape
+// (subjectEnd/objectEnd fuzzy matching over a referent index) — a
+// case-marked organ produces a genuinely different shape (a word, its
+// case, its number; no referent resolution, no fuzzy endpoint matching)
+// and retrofitting it through machinery built for the other shape is
+// real, scoped, unattempted future work, disclosed here rather than
+// silently implied. What IS shared, and is the actual point: the
+// arrangement's earned names. Every edge below carries `end1`/`label`/
+// `end2` — nothing here ever populates `subject`/`verb`/`object`,
+// because Latin's oblique cases have no honest 1:1 mapping onto English
+// argument structure (this reader's own `end1Detail`/`end2Detail` carry
+// the grammatical case instead — a fact English's positional reader has
+// no use for and never needed).
+//
+/**
+ * @param {object} organs
+ * @param {function} organs.splitSentences spans.js's own sentence
+ *   splitter (cast.js pattern — injected, never imported directly).
+ * @param {function} organs.extractCaseMarkedRelation the case-marking
+ *   organ itself (eoreader7/native/adapters/text/relations-case-marked.js).
+ * @param {object} [organs.casePrior] passed through to the organ; the
+ *   organ's own default (Latin) applies when omitted.
+ * @returns {function(Array<{ref:string,text:string}>): {edges: Array, gaps: Array, examined: true}}
+ */
+export function makeCaseMarkedRelationReader({ splitSentences, extractCaseMarkedRelation, casePrior } = {}) {
+  if (typeof splitSentences !== "function")
+    throw new TypeError("makeCaseMarkedRelationReader: splitSentences is injected — spans.js's own organ, never a private reimplementation");
+  if (typeof extractCaseMarkedRelation !== "function")
+    throw new TypeError("makeCaseMarkedRelationReader: extractCaseMarkedRelation is injected — the engine's own organ, never a private reimplementation");
+
+  return function relationsFor(passages) {
+    const edges = [];
+    const gaps = [];
+    for (const p of passages ?? []) {
+      for (const sentence of splitSentences(String(p.text ?? ""))) {
+        const result = extractCaseMarkedRelation(sentence.text, { casePrior });
+        const span = { ref: p.ref, start: sentence.offset, end: sentence.offset + sentence.text.length, text: sentence.text };
+        if (result.gap || !result.end1 || !result.end2) {
+          // A gap is a real result, not a discarded one — reported on its
+          // own list rather than silently dropped, the same denominator
+          // discipline S22/S32 already hold: "never attempted" and
+          // "attempted and refused" must not share a bucket with silence.
+          gaps.push({ ref: p.ref, sentence: sentence.text, gap: result.gap });
+          continue;
+        }
+        edges.push({
+          end1: result.end1.word,
+          label: result.label.word,
+          end2: result.end2.word,
+          end1Detail: { case: result.end1.case, number: result.end1.number },
+          end2Detail: { case: result.end2.case, number: result.end2.number },
+          refs: [p.ref].filter(Boolean),
+          spans: [span],
+        });
+      }
+    }
+    return { edges, gaps, examined: true };
+  };
 }

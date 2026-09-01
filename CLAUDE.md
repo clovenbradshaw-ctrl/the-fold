@@ -4398,8 +4398,10 @@ surfaces it labeled as the source's own claim. The model no longer has to
 guess what book this is. Verified against the real pipeline twice, two
 different random S1 hallucinations, both times fixed by S2. A first reach
 for "load a hyperlexicon for Wikipedia" was checked and refused on the
-merits — `hyperlexicon.js` is the HL relation-composition ledger (P37), not
-a lexical source — and the user's own redirect is the standing rule for
+merits — `hyperlexicon.js` is the P57 ASSERTION ledger, not a lexical
+source. (Corrected 2026-09-01: this sentence used to call it "the HL
+relation-composition ledger (P37)", conflating three different modules
+that share the name. See the hyperlexicon-names note below.) — and the user's own redirect is the standing rule for
 whatever reaches for Wikipedia next: **the model should never have anything
 without provenance.** A live Wikipedia fetch would need the SAME real
 provenance chain the web organ (P13) and witness/proof-seeking tiers
@@ -4964,8 +4966,11 @@ collapsed character-class signature; lag-2 similarity 0.926 vs 0.579 inside a
 record block, flat in prose) is MEASURED and unbuilt. `tiles=false, gaps=18`
 because real handovers carry day-level gaps, so the coverage gate refuses to
 call the set closed — a real decision, not a threshold to tune. And nothing
-here is wired into `app.js`: `hyperlexicon.js` has no caller and the
-hyperlexicon-as-`seek`-source adapter is a driver, not a module.
+here is wired into `app.js`: the `seek`-source adapter is a driver, not a
+module. (Corrected 2026-09-01: this used to say `hyperlexicon.js` has no
+caller. It HAS one — `app.js` builds it and threads the log through
+`runHolonicTask`, landed by P73/P74. What remains unwired is `network.js`
+and the seek adapter.)
 
 **`succession.js` is condemned but still in the tree** (user, 2026-08-28: *"it
 should never have been made"*). It is not a delete: it reads a different
@@ -6313,3 +6318,48 @@ still folds Castle Dracula into Count Dracula. East/West Cliff is out of
 reach (too few mentions; absence of evidence, pinned as a test of the
 limit). And the SVO wipe stays open: `arrangementOf` (P76) gives
 `end1/label/end2`, the live table now uses it, and 221 call sites do not.
+
+
+## Three modules share the name "hyperlexicon" (added 2026-09-01) — pointer
+
+They are not the same thing and two entries above had conflated them:
+
+| module | what it is | law |
+|---|---|---|
+| `the-fold/hyperlexicon.js` | the **assertion ledger** — what the material was heard to say, INS first sighting / SYN re-sighting, witnesses and spans unioned, append-only | P57 |
+| `the-fold/hl.js` | the **adapter** to HL, whose logic moved into the engine | P37 |
+| `eoreader7/native/kernel/hyperlexicon.js` | the **chemistry table** — which affordances license composition, giver required | HL amendment |
+
+**Where the assertion ledger actually stands, measured.** It is live:
+`app.js` builds it, `state.hyperlexiconLog` persists it across turns, and
+`holon.js` threads it per part. Its ONE path to the model is `ledgerBlock`,
+gated at `witnesses.length >= 2`.
+
+That gate is nearly always empty, and it is a structural starvation, not a
+bug in the gate. On a whole real book (Dracula, end to end): **11,624 notes
+at one witness, 260 at two or more — 2.2%.** P73's own probe measured
+**0 of 29** on Wikipedia pages. So the ledger accumulates real, correctly
+typed, append-only knowledge that almost never reaches a prompt.
+
+**The cause is identity, and the seam for it already exists.** A note's
+identity is the exact `(subject, verb, object)` triple, so *"The Russian
+army withdraws"* and *"Imperial Russian forces retreated"* are two notes
+forever. P73 built the injectable `noteIdentity` organ for exactly this;
+P74 then measured that referent-face + lemma folding gives **0 joins** on
+real pages, because `sameLemma("withdraws","retreated")` is false — this is
+**synonymy, not morphology**. The seam is built and the organ that would
+fill it is not.
+
+**A hypothesis worth testing, not a claim.** `kind-standing.js` (P79)
+measures what a referent IS from its distributional company alone. Two
+labels with near-identical company are plausibly the same act — which is
+the same shape as the missing `noteIdentity` organ, one slot over
+(labels instead of ends). Untested, and it must be tested the way P79 was:
+with a control built to fail, per II.23.
+
+**One measure disagrees between two callers, deliberately noted.**
+`holon.js` counts `witnesses.length` (cross-SOURCE corroboration — two
+chunks of one file are one perspective, `corroborateAtoms`' own rule).
+The Dracula driver counts `max(witnesses, spans)`, so a fact heard twice
+in ONE book counts. Neither is wrong; they answer different questions, and
+the 260-vs-0 gap between them is entirely that difference.

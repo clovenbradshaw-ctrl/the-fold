@@ -6264,3 +6264,52 @@ of declared order beside it. The web organ, the database fold and the
 GitHub organ all satisfy the contract and have no adapter yet; each is one
 `open()` away, and naming them is not the same as having written them.
 Orders 12 and above carry no capacity: `interact.js` stops at 11.
+
+## Kinds, and the resolution test (added 2026-09-01) — pointer
+
+eo-constitution **II.23** (19th amendment, sealed, enforced by
+`conformance/resolution.test.mjs`) is the law; **P79** here and **S41** in
+eoreader7 are the two registers; `kind-induction-finding.md` and
+`run-splitting-finding.md` carry the measurements.
+
+**The one-line version.** II.10 governs the NULL (does it differ in exactly
+one axis); **II.23 governs the STATISTIC** (does it move when that axis
+moves). They fail independently. A statistic earns its use by a control
+**built to fail**, named as one — a run reporting only successes has not
+demonstrated anything, because a statistic returning "significant" for every
+input returns it for the true ones too.
+
+**Three failures in one session, all on one specimen**, and the law existed
+for the first one already: a basin chosen for cohesion placed against random
+subsets of its own population (II.10's *selection is an axis*, broken anyway
+— which is why II.23 ships with a test rather than as prose); a direction
+assumed rather than derived (redealing makes entities MORE alike, so
+"observed beats the null" was the wrong inequality); and a commensurable
+null whose statistic could not resolve the claim (one foreign member added
+to a cohesive ten-set moves a set statistic by less than its noise, so every
+candidate passed). **The enforcement test caught itself**: version one keyed
+on assertion shapes, and a mutation run left it passing with every real
+control stripped.
+
+**`kind-standing.js`** is the reference null-spender and the registered
+seam: what KIND of thing a referent is, from company alone (the token before
+and after each mention — Firth, P31), counts not sets, with the POPULATION
+as the null and nothing redealt. `foldPermitted` refuses a fold only on
+positive evidence of different standing; **`unknown` allows**, because a thin
+profile is a fact about the reader, not about the referents — the
+withhold-vs-convict rule the grounding-ladder section already states, one
+register over.
+
+**Two findings worth not re-deriving.** Places are a MARKED kind; "person"
+is the unmarked default and is therefore undetectable against its own
+background (p≈0.163) — that is a fact about the material, not a weak
+mechanism. And the cast/Entity relation: **cast members are referents**,
+while the Entity terrain types the ACT of first assertion (INS is
+Existence-domain, SYN is Structure-domain) — P58's cube-classifies-moves
+law. Cast members are what an arrangement's ENDS resolve to.
+
+**Not closed, named:** `kind-standing.js` has no caller — the live cast
+still folds Castle Dracula into Count Dracula. East/West Cliff is out of
+reach (too few mentions; absence of evidence, pinned as a test of the
+limit). And the SVO wipe stays open: `arrangementOf` (P76) gives
+`end1/label/end2`, the live table now uses it, and 221 call sites do not.

@@ -220,6 +220,10 @@ import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
+// The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
+// metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
+// same "one implementation, injected everywhere" posture.
+import { assessAgreement, makeMetacognition } from "./metacognition.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
 // the `briefFor` call site below. One confirmed set, two consumers: this is
@@ -264,6 +268,7 @@ const buildLog = makeBuildLog(nativeTaskLog);
 const store = makeStore(nativeTaskLog);
 const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
+const metaLedger = makeMetacognition(nativeTaskLog);
 
 // The widget router (widget.js): does a code-bearing turn point at a build
 // that already exists, or introduce a new one? Decided from the operator's
@@ -625,6 +630,15 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+
+  /**
+   * The metacognition ledger (metacognition.js, P72) — same app-wide,
+   * never-per-conversation, never-persisted posture as `gridLog`/
+   * `hyperlexiconLog` immediately above: what this instrument has learned
+   * about trusting S1's own draft is a fact about the instrument, not
+   * about one conversation, and a fresh page load is a fresh reading.
+   */
+  metaLedger: metaLedger.createLedger(),
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -4605,6 +4619,22 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   crownTestimony(node, relationClaims).catch((e) => {
     $("status").textContent = `testimony pass failed: ${e?.message ?? e}`;
   });
+  // The metacognition watcher (metacognition.js, P72) — only ever fires on
+  // an S1/S2 turn (`opts.priorPass` is set only by twoPassTurn's own gated
+  // call, priorPassFor's own "a caller with no S1 pass simply never calls
+  // it" convention, reused here rather than re-derived). Pure and
+  // synchronous — no network, no model call, nothing to await or catch —
+  // so it runs plainly, using data this function already computed:
+  // `result.sections` (real retrieved passages, real relation edges S2
+  // itself read) and `opts.priorPass` (S1's own drafted text). One cell,
+  // `"s1-draft"`, disclosed as the deliberate starting choice —
+  // metacognition-integration-note.md names the finer, per-verb taxonomy
+  // as real, unmeasured future work, not attempted here.
+  if (opts.priorPass) {
+    const s2Passages = result.sections.flatMap((s) => s.passages ?? []);
+    const agreement = assessAgreement(opts.priorPass, { question: task, s2Passages, relationEdges: relationClaims });
+    state.metaLedger = metaLedger.observe(state.metaLedger, { cell: "s1-draft", delta: agreement.counts });
+  }
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
 }

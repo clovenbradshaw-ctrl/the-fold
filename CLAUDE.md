@@ -5806,3 +5806,67 @@ there. Neither test can verify the claim is TRUE — only that it was made.
 The measurement underneath it is still real work, done the way
 `grain-refinement.mjs` and `falsification-probe.mjs` already did it, not a
 label applied for free.
+
+## Metacognition: watching the gap between S1 and S2 (added 2026-08-31) — pointer
+
+POLICIES.md **P72** is the law; this is the short map. The ask: watch the
+surprise between what S1 (`runFastPass`) and S2 (`holonicTurn`) generate,
+and feed it into the surf and the fold as something learnable, repeatable,
+revisable — pursued "as Friston but visited by the Ramakrishna."
+
+**The one-line version.** `metacognition.js` is the watcher P34's own
+two-pass turn never had: `assessAgreement` classifies each of S1's
+checkable atoms against S2's material into CONFIRMED / CORRECTED /
+EXTENDED / UNRESOLVED — CORRECTED only ever fires on a real
+`contradicted` relation verdict, never on a bare containment miss, which
+is this repo's own "may never manufacture conviction from absence" rule
+applied a second time — and `makeMetacognition`'s ledger (the native
+`kernel/task-log.js` bundle injected, `hyperlexicon.js`'s own append-only
+shape) accumulates the classification per caller-declared cell into a
+`standingOf` reading: `unproven` / `established` / `contested`, never
+phrased finer than `WITNESS_FLOOR` (reused from `asserted.js`) supports.
+
+**Friston's contribution is precision-weighting an S1/S2 gap this repo
+already produces and never watched;** the dark-room failure that produces
+by itself is closed structurally — `observe` is a no-op on an all-zero
+delta, reusing `hyperlexicon.js::hear`'s own rule, so silence can never
+move a standing. **Ramakrishna's contribution is refusing to collapse
+UNRESOLVED into CORRECTED** — a claim S2 can neither confirm nor refute is
+its own outcome, never smoothed into either bucket, the same discipline
+this file's own grounding-ladder section already states in the opposite
+direction. `concede` (mirroring `grid.js::concedeEvaluation` exactly) is
+how a standing is explicitly revised, never left to drift — bhavamukha's
+own shape, read onto an append-only ledger.
+
+**Measured, not asserted.** `metacognition.test.mjs`, 25/25, both guards
+pinned as named regressions; full suite 1085/1085, the same 125
+pre-existing environment failures by name, zero regressions.
+`eval/metacognition-eval.mjs` clears two of POLICIES.md P71's three legs
+live: cross-domain replay (the SAME code, unmodified, reads an
+error-prone cell `contested` and a reliable one `established` on both
+real, byte-verbatim Wikipedia text — reused from `experiments/
+mechanical-first-hamlin-johnson.mjs` — and a declared-invented,
+zero-shared-vocabulary lab-instrument chronicle) and demonstrated
+necessity (on eight atoms from one real error and three real gaps, the
+shipped classifier reports 2 corrected / 6 unresolved; the naive
+Friston-alone collapse this policy's own header names reports all 8 as
+corrections).
+
+**Amended same day — wired in, by direct instruction.** Reading
+`holonicTurn`'s own turn-ending sequence closely found both of the
+integration note's harder open questions already answered on the
+existing return shape (`result.sections[].passages` and
+`.relations.claims` were already being read a few lines above, for
+`state.lastMaterialChars`/`relationClaims`) — so `holonicTurn` now calls
+`assessAgreement`/`observe` directly, gated on `opts.priorPass`, onto one
+disclosed starting cell (`"s1-draft"`), reusing the exact `nativeTaskLog`
+instance `buildLog`/`store`/`grid` already share. `node --check app.js`
+passes, the full suite's 125 pre-existing failures are unchanged by name.
+A real browser load could not be verified — this checkout's
+`/engine/emergence/tiers.js` 404s regardless of this change (P69's own
+disclosed holdout), breaking the WHOLE module graph's link step, with no
+way here to isolate the new import chain from that pre-existing gap; every
+new line was instead verified against already-live, adjacent code in the
+same function. Two open decisions remain: a finer cell taxonomy, and
+whether `surfWeight`/`forcesFoldRefresh` are worth wiring —
+`metacognition-integration-note.md` carries the full, corrected account.

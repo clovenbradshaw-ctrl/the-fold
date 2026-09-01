@@ -8860,3 +8860,168 @@ is honest, the same limit this document's own VI.1 already states for any
 policy whose violation no test can catch. What closes is the silent case: a
 fix that never says which kind of claim it is making cannot pass unremarked
 because the reader's own confidence carried it.
+
+## P72 — Metacognition: watching the gap between S1 and S2, as a learnable, revisable standing
+
+**Generality:** specimen-scoped — the four-way classifier composes
+medium-general primitives and clears P71's leg 2 (a reused, not
+re-derived, floor) and, via `eval/metacognition-eval.mjs`, legs 1 and 3
+(cross-domain replay and a demonstrated-necessity case). What is NOT
+cleared: whether the LEDGER'S learned precision reading moves a real
+turn's outcome — that needs a live call site this pass does not build (see
+`metacognition-integration-note.md`), so the organ ships real and tested,
+the claim that it HELPS a live turn stays open, named rather than assumed.
+
+The ask, as put to this session: watch the surprise between what S1 and S2
+generate, and feed that watching into the surf and the fold in ways that
+are learnable, repeatable, revisable — pursued, at the asker's own
+direction, "as Friston but visited by the Ramakrishna." Both halves of
+that framing earn a place in the design, not as ornament.
+
+**Friston's half is the one this repo's own P34 already half-built and
+never watched.** `twoPassTurn` (app.js) already runs a fast, unchecked
+generative pass (S1) and a checked one (S2, carrying S1's own words so it
+can "confirm, extend, or correct" them — `priorPassFor`, holon.js) — this
+is precisely active inference's own two-level shape, a prediction and a
+check against it. What active inference adds beyond a bare check is that
+the CONFIDENCE placed in a channel — its precision — is itself learned
+from repeated exposure, never fixed once. Nothing before this policy
+watched the S1/S2 gap as a standing fact at all: every turn started the
+question "how much should I trust S1 here" from zero. `metacognition.js`
+is the watcher: `assessAgreement` classifies one turn's gap, and
+`makeMetacognition`'s ledger accumulates it, per caller-declared "cell,"
+into exactly this precision reading — `standingOf` returning `unproven` /
+`established` / `contested`, phrased natural-frequency, never finer than
+the counts support.
+
+**The failure Friston alone invites, guarded against explicitly.** A pure
+surprise-minimizer is the textbook dark-room problem: an agent scored only
+on "was I surprised" is incentivized toward silence, because nothing
+unsaid can ever be corrected. `assessAgreement` returns an honest all-zero
+profile when `extractCheckableAtoms` finds nothing in S1's draft, and
+`observe` is a STRUCTURAL NO-OP on an all-zero delta — reusing
+`hyperlexicon.js::hear`'s own rule verbatim ("a re-sighting that teaches
+nothing appends nothing"). A run of nothing-but-silent turns cannot move a
+cell's standing in either direction; `metacognition.test.mjs` pins this as
+its own named regression, not an incidental property of the arithmetic.
+
+**Ramakrishna's half corrects the OTHER failure Friston alone invites —
+collapsing every disagreement into one error signal.** Ramakrishna's own
+practice (Vedantic, Tantric, Islamic and Christian sadhanas pursued in
+turn, each found genuine) and his doctrine that more than one real path
+can stand are read here not as decoration but as the argument against
+forcing every S1≠S2 delta toward a single verdict: a claim S2 can neither
+confirm nor refute is not thereby an error, and punishing it as one would
+be indistinguishable from punishing S1 for guessing right. `classifyAtom`
+keeps this case — this repo's own `unbound`/`beyond-reach`/`unheard`
+relation verdicts, or a plain containment miss with no relation edge
+either way — in its own bucket, UNRESOLVED, which `standingOf` never
+folds into either `confirmed` or `corrected`. This is the SAME
+constitutional line CLAUDE.md's grounding-ladder section already draws
+("a checking organ may say 'I have nothing to compare this against', or
+'I compared it and it failed'. It may never manufacture the second out of
+the first"), applied a second time in the same direction it was first
+written: absence must not become conviction, and — the new half — absence
+must not become acquittal either. `eval/metacognition-eval.mjs`'s own
+"leg 3" demonstration makes the cost of skipping this concrete: on eight
+atoms read from one real error and three real, honest gaps, the shipped
+four-way classifier reports 2 corrected and holds 6 apart as unresolved;
+the naive two-way collapse this policy's own header names — everything
+non-`bound` counts as corrected, because it has nowhere else to put a gap
+— reports all 8 as corrections, on the identical extraction.
+
+**bhavamukha, and what `concede` is for.** The tradition's own name for
+the sill a realized witness returns to — neither dissolved into
+undifferentiated absorption (never checking, S1 forever) nor lost in
+unexamined multiplicity (never trusting anything, S2's own cost paid every
+turn) — is the shape given to the ledger's own standing. CLAUDE.md's
+"Stance on the admission record, sedimented" section already states the
+governing rule for exactly this kind of record: "these are always
+defeasible assertions of the reader, the structure of their cognition,
+not anything allegedly in the world." A cell's standing is never a claim
+about the material; it is this instrument's own belief about its own
+reliability on a kind of claim, and `concede(log, cell, {trigger})` —
+mirroring `grid.js::concedeEvaluation` field for field, EVIDENCE·REC,
+`trigger` required and never defaulted — is how that belief is revised
+OUT LOUD, on the record, rather than left to drift silently as
+observations accumulate. Learnable, repeatable, revisable, in order:
+`observe` is how a standing is learned; the same delta into the same cell
+always sums the same way, which is what makes it repeatable; `concede` is
+how it is revised.
+
+**What is real and tested, and what is disclosed as not yet done.**
+`metacognition.js` (pure, the native `kernel/task-log.js` bundle
+injected — the cast.js pattern every append-only substrate in this repo
+already uses) + `metacognition.test.mjs` (25 cases: the classifier against
+the real, pure `grounding.js` primitives; the ledger against eoreader7's
+real native task-log; the dark-room and Ramakrishna guards each pinned as
+their own named regression; `concede`'s two refusals and its
+non-destructive landing). Full suite 1085/1085 (the pre-existing 125
+failures, confirmed identical by name via `git stash`, zero regressions).
+`eval/metacognition-eval.mjs` + `eval/results/metacognition-eval-
+RESULTS.md`: Domain A is real, byte-verbatim Wikipedia text (reused,
+not re-typed, from `experiments/mechanical-first-hamlin-johnson.mjs`'s
+own `MATERIAL_TEXT` — this repo's own repeatedly-used Hamlin/Johnson/
+Lincoln specimen); Domain B is a DECLARED INVENTED lab-instrument
+chronicle, the same posture `eval/grain-refinement.mjs`'s own
+hospital-bed corpus and `hl-acquire.test.mjs`'s own invented chronicle
+already established for a cross-domain replay with no second real
+fixture on hand. The SAME code, unmodified, reads an error-prone cell as
+`contested` and a reliable one as `established` on both domains, sharing
+no vocabulary — the cross-domain replay P71's leg 1 asks for.
+`metacognition-integration-note.md` names exactly where a live call site
+(`twoPassTurn`'s own `needsSystem2` gate, and `holonicTurn`'s already-
+threaded `gridLog`/`hyperlexiconLog` return fields) would read the
+ledger, and what it would need to decide that this pass does not: which
+axis a "cell" should really be, whether S2's retrieved passages need
+threading onto `holonicTurn`'s return for `assessAgreement` to use them
+directly, and whether `surfWeight`/`forcesFoldRefresh` — both real, pure,
+unwired — actually move an outcome once tried. Not attempted: any change
+to `app.js`, which CLAUDE.md's Explore section already names as the
+fold-architecture session's own contract, the same boundary P39/P53/P56/
+P60/P63 have each independently held before landing their own new organs
+unwired.
+
+**Amended same day — wired in, by direct user instruction ("wire it in if
+you believe it works").** Reading `holonicTurn`'s own turn-ending sequence
+in `app.js` closely (rather than trusting this entry's own first-draft
+guess above) found that both of the integration note's harder open
+questions were already answered by the existing return shape:
+`result.sections[].passages` and `result.sections[].relations.claims` are
+BOTH already computed by the point `crownTestimony` fires — the same
+fields `state.lastMaterialChars`/`relationClaims` were already reading a
+few lines above — so nothing needed threading through `holon.js` at all.
+`holonicTurn` now calls `assessAgreement`/`observe` directly, gated on
+`opts.priorPass` (the identical "a caller with no S1 pass simply never
+calls it" convention `priorPassFor` already established), onto one
+disclosed starting cell, `"s1-draft"` — a global running estimate, never
+claimed as a finer taxonomy this pass did not measure a basis for.
+`metaLedger = makeMetacognition(nativeTaskLog)` reuses the EXACT same
+native task-log instance `buildLog`/`store`/`grid` already share, no
+second import; `state.metaLedger` holds it, app-wide and unpersisted, the
+identical posture `gridLog`/`hyperlexiconLog` already state.
+
+**What was verified, and the one thing that honestly could not be.**
+`node --check app.js` passes; the full suite still reports the identical
+125 pre-existing failures by name, zero regressions. `serve.mjs`
+(`THE_FOLD_NO_OPEN=1`) served `/app.js` and `/metacognition.js` both 200,
+confirming the new import resolves on disk. A real browser loading the
+full page could NOT be verified: this checkout's `/engine/
+emergence/tiers.js` (the legacy statistics subsystem `reflexMeter`/
+`apertureMeter` still depend on, P69's own disclosed holdout) 404s —
+confirmed unrelated to this change and pre-existing either way — which
+breaks the WHOLE module graph's link step in a real browser regardless of
+anything this pass added, and there is no way in this environment to
+isolate the new import chain from that pre-existing gap. Every new line
+was instead verified by direct inspection against already-live, adjacent
+code in the identical function (not assumed) and by the fact that
+`assessAgreement`/`makeMetacognition(nativeTaskLog).observe` are the SAME
+calls `metacognition.test.mjs` already exercises against the real native
+module. Two of the note's four open decisions are now resolved
+(where S2's material comes from; that checking-mode-off degrades
+honestly rather than manufacturing a wrong finding); two remain open
+(a finer cell taxonomy; whether `surfWeight`/`forcesFoldRefresh` are
+worth wiring — `forcesFoldRefresh` turned out to need `refreshSummary`
+threaded from a different point in the turn-ending sequence than this
+pass traced closely enough to risk). `metacognition-integration-note.md`
+carries the full, corrected account.

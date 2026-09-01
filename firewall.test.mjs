@@ -48,7 +48,7 @@ test("the fact block states its facts and none of its own bookkeeping", () => {
         ? {
             examined: true,
             claims: [
-              { verdict: "bound", subject: "Hannibal Hamlin", verb: "was", object: "the 15th vice president", sentence: text },
+              { verdict: "bound", subject: "Hannibal Hamlin", verb: "was", object: "the 15th vice president", end1: "Hannibal Hamlin", label: "was", end2: "the 15th vice president", sentence: text },
             ],
           }
         : { examined: true, claims: [] },
@@ -66,7 +66,7 @@ test("the counts left the prompt but did NOT leave the instrument", () => {
   const relations = {
     read: () => ({
       examined: true,
-      claims: [{ verdict: "bound", subject: "A", verb: "is", object: "B", sentence: "A is B." }],
+      claims: [{ verdict: "bound", subject: "A", verb: "is", object: "B", end1: "A", label: "is", end2: "B", sentence: "A is B." }],
     }),
   };
   const block = buildFactBlock(relations, [{ ref: "x#0-9", text: "A is B." }], "");

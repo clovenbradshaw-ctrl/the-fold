@@ -750,6 +750,26 @@ function withConfirmedLeadingReferents(
   return buildIndexFromEvents(events, { namesCorefer, diaNorm });
 }
 
+// The arrangement, named the way it is actually earned: two ordered ends
+// and a label (CLAUDE.md's grammar-lens section — "an ordered first end, a
+// label, an ordered second end"). `subject`/`verb`/`object` are the
+// SAE-grammar reading of that arrangement — already named as a declared
+// overlay, not yet stored as one. `end1`/`label`/`end2` are the identical
+// three values under their earned names, ADDED, never substituted: every
+// existing reader of `.subject`/`.verb`/`.object` is unaffected, and
+// nothing yet reads the new fields. One implementation, used at every site
+// that builds an edge/claim shape, so the two names cannot drift the way
+// four separate `{subject: t.subject, verb: t.verb, object: t.object}`
+// literals eventually would have — the same drift class this file's own
+// history (DEF/EVA's `Array.find`, `synthesize`'s `String.includes`)
+// already found twice, closed here before a third. Exported (rather than a
+// closure-local of `makeRelationReader`) because it closes over nothing —
+// a pure mapping deserves to be directly testable without the whole
+// organ-injected reader behind it. Migrating a consumer off `subject`/
+// `verb`/`object` onto `end1`/`label`/`end2` happens file by file, in a
+// later pass — not here.
+export const arrangementOf = (t) => ({ end1: t.subject, label: t.verb, end2: t.object });
+
 export function makeRelationReader(organs) {
   const {
     splitSentences,
@@ -772,6 +792,27 @@ export function makeRelationReader(organs) {
     thirdPersonSingular = null,
     determiners = null,
     negationWords: negationClass = null,
+    // `organs.phrasalPredicates`/`organs.nounPhraseSubjects` — OPTIONAL
+    // booleans, live_priors' own DR4/DR5 (goldens/reading/DERIVED-RULES.md):
+    // the native relations.js organs (eoreader7) now accept these flags
+    // directly and carry their OWN received defaults (AUXILIARY_VERBS /
+    // DEFINITE_DETERMINERS / INDEFINITE_DETERMINERS / POSSESSIVE_DETERMINERS
+    // / NP_COORDINATORS, priors.js, giver lang/en) — this file passes the two
+    // booleans through and injects nothing else, so a caller wanting a
+    // different vocabulary supplies it straight to `discoverRelationVocab`/
+    // `extractRelations` itself rather than through a third parameter here.
+    // Both default false: omitted, every existing caller sees byte-identical
+    // extraction (an aux-swallowed verb, a bare 1-2 token subject) — the same
+    // backward-compatible posture `verbForms`/`createLemmatizer` above hold.
+    // Disclosed scope: threaded only into the MATERIAL-side extraction below
+    // (the primary edge loop and its order-arm null test) — `read(answer)`'s
+    // own `discoverRelationVocab`/`extractRelations` calls, which check a
+    // model's drafted answer against these same edges, are NOT touched this
+    // pass. Widening only one side risks a subject-shape mismatch between an
+    // edge and the answer's own claim about it; unattempted, named rather
+    // than silently assumed symmetric.
+    phrasalPredicates = false,
+    nounPhraseSubjects = false,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -849,12 +890,12 @@ export function makeRelationReader(organs) {
     const list = (passages ?? []).filter((p) => p && typeof p.text === "string" && p.text.trim());
     const emptyReport = (examined) => ({
       examined,
-      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false },
+      vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false, candidates: 0 },
       edges: [],
       claims: [],
     });
     if (!list.length) {
-      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false }, edges: [], read: () => emptyReport(false) };
+      return { examined: false, vocabulary: { verbs: 0, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: false, candidates: 0 }, edges: [], read: () => emptyReport(false) };
     }
 
     // The closed class is measured from the POOL (the whole live corpus,
@@ -914,7 +955,10 @@ export function makeRelationReader(organs) {
     });
 
     // `organs.blankFurniture`, when provided, is a length-preserving blanker
-    // (eoreader6.1's spans.js::blankLabelRows) run ONLY on the copy of the
+    // (source.js::blankLabelRows, this repo's own — the ratchet pass that
+    // crossed this file's other organs to eoreader7 native found this symbol
+    // never existed on any engine path at all; it is a the-fold concern, not
+    // an engine one) run ONLY on the copy of the
     // material this function hands to discoverRelationVocab/extractRelations
     // — never on `list` itself, so every OTHER reader of a passage's `.text`
     // (referent identity below, and every caller outside this function:
@@ -971,6 +1015,16 @@ export function makeRelationReader(organs) {
     // so an edge can disclose that its verb entered the vocabulary on the
     // strength of one surface (itself a single-witness assertion).
     const verbSurfaces = new Map();
+    // How many candidates `discoverRelationVocab` NOMINATED, before any of
+    // them cleared `MIN_SURFACES_PER_VERB` — distinct from `verbs.size`,
+    // which only counts survivors. Found missing by the adversarial audit
+    // of the sblgnt (Greek New Testament apparatus) specimen: `verbs: 0`
+    // reads identically whether the candidate list was genuinely EMPTY (no
+    // token ever followed a recurring surface — an apparatus/table/record-
+    // block shape, not prose) or merely below the recurrence floor (real
+    // candidates, just each seen once) — two different facts about the
+    // material a caller could not tell apart from `vocabulary` alone.
+    let candidateCount = 0;
     if (surfaces.length) {
       try {
         const discovered = discoverRelationVocab(text, {
@@ -979,14 +1033,17 @@ export function makeRelationReader(organs) {
           minSurfaces: MIN_SURFACES_PER_VERB,
           negationWords,
           ...(posPrior ? { posPrior, grammarMinShare: GRAMMAR_MIN_SHARE } : {}),
+          ...(phrasalPredicates ? { phrasalPredicates } : {}),
         });
         verbs = discovered.verbs;
+        candidateCount = discovered.candidates?.length ?? 0;
         for (const c of discovered.candidates ?? []) {
           verbSurfaces.set(c.verb, c.surfaces);
           if (posPrior && c.grammar) vocabGrammar.set(c.verb, c.grammar);
         }
       } catch {
         verbs = new Set();
+        candidateCount = 0;
       }
     }
 
@@ -1290,7 +1347,15 @@ export function makeRelationReader(organs) {
         const sentence = readSentences[si];
         let triples = [];
         try {
-          triples = verbs.size ? extractRelations(sentence.text, { verbs, functionWords, negationWords }) : [];
+          triples = verbs.size
+            ? extractRelations(sentence.text, {
+                verbs,
+                functionWords,
+                negationWords,
+                ...(phrasalPredicates ? { phrasalPredicates } : {}),
+                ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+              })
+            : [];
         } catch {
           triples = [];
         }
@@ -1327,6 +1392,7 @@ export function makeRelationReader(organs) {
             subject: t.subject,
             verb: t.verb,
             object: t.object,
+            ...arrangementOf(t),
             polarity: t.polarity,
             subjectEnd,
             objectEnd,
@@ -1384,7 +1450,14 @@ export function makeRelationReader(organs) {
       const arm = orderArm({
         passages: extractionList,
         splitSentences,
-        extract: (t) => extractRelations(t, { verbs, functionWords, negationWords }),
+        extract: (t) =>
+          extractRelations(t, {
+            verbs,
+            functionWords,
+            negationWords,
+            ...(phrasalPredicates ? { phrasalPredicates } : {}),
+            ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+          }),
         draws: assert.draws,
         seed: assert.seed ?? 0,
       });
@@ -1449,6 +1522,7 @@ export function makeRelationReader(organs) {
         subject: t.subject,
         verb: t.verb,
         object: t.object,
+        ...arrangementOf(t),
         polarity: t.polarity,
         // Same disclosure edgeFace carries, at claim scale: whether the
         // connector position the answer used is grammatically plausible as
@@ -1680,6 +1754,7 @@ export function makeRelationReader(organs) {
         subject: e.subject,
         verb: e.verb,
         object: e.object,
+        ...arrangementOf(e),
         polarity: e.polarity,
         refs: e.refs,
         // The exact bytes this edge was read from, carried THROUGH the
@@ -1778,6 +1853,7 @@ export function makeRelationReader(organs) {
                 subject: t.subject,
                 verb: t.verb,
                 object: t.object,
+                ...arrangementOf(t),
                 polarity: t.polarity,
                 verdict: "unheard",
                 reason: `the material never uses the verb “${t.verb}”, so there is nothing to compare this against — a limit of this check, not a mark against the answer`,
@@ -1848,7 +1924,7 @@ export function makeRelationReader(organs) {
 
     return {
       examined: true,
-      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior) },
+      vocabulary: { verbs: verbs.size, minSurfaces: MIN_SURFACES_PER_VERB, grammarPrior: Boolean(posPrior), candidates: candidateCount },
       edges: edges.map(edgeFace),
       read,
       queryReferents,
@@ -1973,4 +2049,70 @@ export function queryFillers(edges, { subject = null, verb = null, object = null
     clusters.get(key).refs.push(...e.refs);
   }
   return [...clusters.values()].map((c) => ({ [openField]: c.value, refs: [...new Set(c.refs)] }));
+}
+
+// ── a relation reader for case-marked languages (P72 / eoreader7
+// READING-SPEC.md S33) ───────────────────────────────────────────────────
+//
+// A SEPARATE entry point from makeRelationReader, deliberately, not a
+// branch inside it. The English pipeline's referent-index resolution
+// (cast.js), assertion order-arm, connector-class checks, and gender
+// evidence all assume a POSITIONAL extractor's own edge shape
+// (subjectEnd/objectEnd fuzzy matching over a referent index) — a
+// case-marked organ produces a genuinely different shape (a word, its
+// case, its number; no referent resolution, no fuzzy endpoint matching)
+// and retrofitting it through machinery built for the other shape is
+// real, scoped, unattempted future work, disclosed here rather than
+// silently implied. What IS shared, and is the actual point: the
+// arrangement's earned names. Every edge below carries `end1`/`label`/
+// `end2` — nothing here ever populates `subject`/`verb`/`object`,
+// because Latin's oblique cases have no honest 1:1 mapping onto English
+// argument structure (this reader's own `end1Detail`/`end2Detail` carry
+// the grammatical case instead — a fact English's positional reader has
+// no use for and never needed).
+//
+/**
+ * @param {object} organs
+ * @param {function} organs.splitSentences spans.js's own sentence
+ *   splitter (cast.js pattern — injected, never imported directly).
+ * @param {function} organs.extractCaseMarkedRelation the case-marking
+ *   organ itself (eoreader7/native/adapters/text/relations-case-marked.js).
+ * @param {object} [organs.casePrior] passed through to the organ; the
+ *   organ's own default (Latin) applies when omitted.
+ * @returns {function(Array<{ref:string,text:string}>): {edges: Array, gaps: Array, examined: true}}
+ */
+export function makeCaseMarkedRelationReader({ splitSentences, extractCaseMarkedRelation, casePrior } = {}) {
+  if (typeof splitSentences !== "function")
+    throw new TypeError("makeCaseMarkedRelationReader: splitSentences is injected — spans.js's own organ, never a private reimplementation");
+  if (typeof extractCaseMarkedRelation !== "function")
+    throw new TypeError("makeCaseMarkedRelationReader: extractCaseMarkedRelation is injected — the engine's own organ, never a private reimplementation");
+
+  return function relationsFor(passages) {
+    const edges = [];
+    const gaps = [];
+    for (const p of passages ?? []) {
+      for (const sentence of splitSentences(String(p.text ?? ""))) {
+        const result = extractCaseMarkedRelation(sentence.text, { casePrior });
+        const span = { ref: p.ref, start: sentence.offset, end: sentence.offset + sentence.text.length, text: sentence.text };
+        if (result.gap || !result.end1 || !result.end2) {
+          // A gap is a real result, not a discarded one — reported on its
+          // own list rather than silently dropped, the same denominator
+          // discipline S22/S32 already hold: "never attempted" and
+          // "attempted and refused" must not share a bucket with silence.
+          gaps.push({ ref: p.ref, sentence: sentence.text, gap: result.gap });
+          continue;
+        }
+        edges.push({
+          end1: result.end1.word,
+          label: result.label.word,
+          end2: result.end2.word,
+          end1Detail: { case: result.end1.case, number: result.end1.number },
+          end2Detail: { case: result.end2.case, number: result.end2.number },
+          refs: [p.ref].filter(Boolean),
+          spans: [span],
+        });
+      }
+    }
+    return { edges, gaps, examined: true };
+  };
 }

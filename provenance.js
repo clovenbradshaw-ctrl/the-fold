@@ -329,7 +329,7 @@ export function classifySentences(answer, attributions = [], findings = [], rela
   const norm = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ");
   const carries = (text, c) => {
     const t = norm(text);
-    return t.includes(norm(c.subject)) && t.includes(norm(c.verb));
+    return t.includes(norm(c.end1)) && t.includes(norm(c.label));
   };
   return splitSentences(answer).map((text) => {
     const a = byText.get(text);

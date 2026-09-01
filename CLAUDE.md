@@ -5577,3 +5577,604 @@ its four `live_priors` rows exactly; contested-copresence: none, the article
 fixtures extract ~5x the frames the runs read). A Wikipedia-body extractor
 was refused on this repo's own grounds — per-site formatting rules are the
 trap `succession.js` is condemned for.
+
+## A reading is Talmud, not a cache (added 2026-08-29) — pointer
+
+POLICIES.md **P67** is the constraint on this repo; **live_priors' own
+`POLICIES.md` (LP1–LP5) is the law** — a new standing document in the corpus
+repo governing what a corpus owes a reading and what a reading owes a corpus.
+
+**The frame.** A reading of a source is a record of an encounter with it by a
+named reader — anchored to a locus, attributed to a reader, accumulating
+rather than overwriting. A cache is regenerated when the code changes; **a
+record is appended to.** `hyperlexicon.js::hear` already implements it
+(PROPOSE then SUPERSEDE, witnesses and spans UNION never replace, line 128).
+
+**How much should a reading grow? Not a size question** — a gate: an
+increment lands iff it resolves against real bytes AND names its recipe.
+Growth is bounded by the source's extent × distinct recipes, and is
+self-limiting, because a recipe that hears nothing appends nothing. A refuted
+reading is conceded (REC), never deleted.
+
+**What binds this repo:** a reading may be OFFERED beside a source, and may
+accelerate a walk provided every result is re-verified against source bytes —
+but it may never be **served in place of** source bytes, and may never
+**gate** what the corpus offers. **A document with no reading is not a
+document with nothing in it** — the withhold-vs-convict statement in the
+grounding-ladder section, one level out: absence of a reading is a fact about
+the reader, never about the document. Measured: six of fourteen digested
+sources carry little or nothing and three are English caption debris; the
+Hebrew article's "surfaces" were `School`, `Athens`, `Raffaello`, `Internet`.
+
+**Two prerequisites before building any of it here.** A reading's addresses
+must resolve in the source's own coordinates — measured, today they do not
+(a span addressed `#196-256` sits at 1165 in the file, and the recorded
+`bodyOffset` does not reconcile it, because `normaliseNewlines` is
+length-changing and unrecorded) — and a reading needs a content-addressed
+**recipe identity**, since the witness names what was read and never who read
+it. Append-only without attribution is worse than an honest overwrite.
+
+**What it unblocks:** `/api/priors/check`'s own header names a proper index as
+future work *"whose persistence and staleness story this server does not
+own."* That blocker is staleness, and this frame dissolves it — an older
+reading is not stale, it is older.
+
+## Recipe identity, built (added 2026-08-29) — pointer
+
+POLICIES.md **P68** is the law; this is the short map. LP5's own named
+prerequisite for append-only — a witness naming WHO read, not only WHAT —
+is built: `hyperlexicon.js::recipeId` (SHA-256 over a caller-declared
+descriptor, now including every relevant repo's own git-commit state), a
+real double-counting bug caught and fixed in the same pass (`hear()` used
+to append even a re-sighting that taught it nothing new — now a structural
+no-op), and `hypergraph.js::relationsFor`'s `vocabulary.candidates` (task
+#9's own adversarial audit finding: nominated vs. cleared are different
+facts, and the field genuinely diverges once a caller wires the
+already-existing `posPriorFor` POS gate in — which live_priors did, the
+same day, at corpus scale; see that repo's own POLICIES.md LP6 for the
+full account of the gate itself, which is entirely that repo's own
+driver-side decision).
+
+## The ratchet, finished for the text tier (added 2026-08-29) — pointer
+
+POLICIES.md **P69** is the law; this is the short map. eoreader7's own
+README states its ratchet: a compatibility subsystem retires only once its
+native replacement passes conformance. Before this pass, nothing had
+actually crossed — `app.js` carried nine separate `/engine/` imports of the
+frozen provider (`segments`, `spans`, `surfaces`, `pronouns`, `relations`,
+`priors`, `wordclass`, `operators`, `holon/task-log`) plus a native
+`/engine-v7/` import of the SAME two things twice over
+(`cube.js`/`operators.js`, `kernel/task-log.js`/`holon/task-log.js`) — the
+double-carriage drift this file's own postmortems (P22, P24, P25) already
+name, caught here across two engine generations rather than two branches
+of one function. All nine now cross to native, gated on measured parity
+(not export-shape agreement) run against real fetched Wikipedia material
+first — `resolvePronouns` proven strictly ADDITIVE field-for-field, the
+operator/task-log algebra checked over all 81 operator pairs. One import,
+`emergence/tiers.js` (and the 1,306-line `nul/index.js` statistics
+subsystem it stands on), stays on `/engine/` — disclosed, not silently
+ported shallow: native's `dynamics.js` is a structurally different
+mechanism from the Bayesian tier-stack the self plane (`reflex.js`/
+`aperture.js`) depends on, and porting it faithfully is its own pass.
+
+**Three real, load-bearing bugs found in the first minutes, before any
+deliberate work began.** `app.js:147` imported `blankLabelRows` as a named
+binding from `/engine/perceiver/text/spans.js` — a symbol that exists on
+NO engine path, legacy or native, anywhere. This was a link-time error:
+the page's whole module graph was unloadable in any real browser. Not
+caught by `node --check` (which only parses); found only by reading what
+the import actually resolved to. The organ it names — a length-preserving
+blanker so a flattened Wikipedia infobox is never read as prose by the
+clause extractor — is a the-fold concern (infobox furniture is not a fact
+about language), so it now lives in `source.js`, declared per this
+file's own P4 discipline (`minRun`/`maxCell`, no defaults), validated
+against the real fetched Hannibal Hamlin page this file's own P50 section
+already used as a specimen. Second: `explore-server.mjs`, which this
+file's own Explore section already documents as needing every mount
+`serve.mjs` has ("without that mount the chat page half-loads"), had no
+`/engine-v7` mount at all — fixed by mirroring `serve.mjs`'s exact
+pattern. Third, found and deliberately NOT fixed: `packages/host/
+assertion-resolution.js`, in the frozen `legacy-eoreader6.1` submodule at
+its pinned commit, has a genuine unbalanced-parens syntax error (12 opens,
+11 closes) that predates this pass and blocks `explore-server.mjs` from
+booting in this environment — Constitution I.2 holds legacy as frozen
+reference, so this is disclosed rather than silently patched.
+
+**Verified, not assumed, at every layer.** A real headless Chromium
+(already vendored, no Playwright package needed — Node 22's native
+`WebSocket` speaks CDP directly) loaded the real page against a real
+`serve.mjs`: zero console errors, zero exceptions, the `#not-served`
+banner correctly hidden (this file's own boot code only removes it once
+module execution genuinely completes). Full suites, failure names diffed
+rather than counted (this file's own standing rule): the-fold's 45-name
+failure set identical before and after; eoreader7 native's own 320 tests
+— including both structural walls, `native-boundary.test.mjs` and
+`text-boundary.test.mjs` — all passing. `eoreader-contract.json`, whose
+own stated purpose is tracking exactly this migration, now records the
+crossing: `runtimeConsumers.browserEngineModules["app.js"]` holds the one
+disclosed holdout, a new `browserNativeModules` entry holds the nine that
+crossed, and a new contract test fails loudly on any future silent drift
+of either surface — the same posture the pre-existing `/engine/` test
+already held.
+
+## The MHC scaffold's own null, fixed: exact where an exact answer exists (added 2026-08-30) — pointer
+
+POLICIES.md **P70** is the law; this is the pointer. Order 10's own missing
+probe (this file's "MHC battery" section, above) turned out not to be a
+capability ceiling: widening the read window to get order 10 a real
+specimen made order 8's `arbitrary` arm flip on a 20-draw Monte Carlo
+estimate that could not tell a true rate near 0.6% from one near 10%.
+Replaced with the exact hypergeometric answer this one arm's shape actually
+has (`redealAgainstExactNull`, `eval/mhc-battery.mjs`) — no draws, no seed,
+nothing to be underpowered at — derived and its alpha fixed (reusing this
+repo's own standing 0.05, `network-standing.js`'s convention) BEFORE the
+wider run, never tuned to make it pass. Both orders now hold on both
+materials at full-document scale (`WORKING_PASSAGES` 40 → 70, still a
+declared cap, not an assumed wholeness); order 7's real ceiling on
+Borodino is untouched. Suite 1468/1418/45, failure names diffed via
+`git stash`: identical, zero regressions.
+
+**Amended same day — audited, not assumed, and the reported stage moved
+down as a result.** Told *"we must be solid on all levels earlier,"* the
+whole ladder's own `arbitrary` arms were read one by one rather than
+trusted from their "passed" verdicts. Order 9's arm had the identical
+defect P70 had just fixed, worse: it shuffled the ORDER of an array and
+then took a `Set()` of it — order-insensitive by construction, so the
+check never varied across any of its 20 draws — and separately, this
+driver's own material-loading tags every passage with one source key, so
+the "two passages of one source vs. two sources" distinction order 9
+claims to test has never once been exercisable here. Rebuilt on the same
+exact-proportion pattern as P70 (`redealCountAgainstExactNull`) and
+caught hitting the SAME bare-Monte-Carlo trap a second time mid-fix (2/20
+fired read as signal, the exact math showed 0.0145/0.0187 — real noise
+around a true rate under 2%) before being trusted. Order 11's arm was
+ALSO vacuous — three identical unshuffled text copies, a completion check
+hardcoded `&& false`, `perturbed` falsely hardcoded true — and this one is
+NOT patched with a guess: every real construction considered reduces to
+testing a pure function against itself. It now honestly reports
+`unlicensed_perturbation`. **Consequence:** war-and-peace's reported STAGE
+drops from 13 back to 10 — order 11 sitting unmeasured caps it exactly
+where `stageFrom` must, and the earlier "13" was standing on an arm that
+was never really evidence. Full account, including which orders (5–8,
+12–13) were re-read and found genuinely sound: POLICIES.md P70's
+same-day amendment.
+
+**Amended same day (second) — order 11 fixed for real.** The dead end named
+above (every naive redeal reproduces `standingOf`'s own pure-function input)
+is escaped by redealing a different variable: not the ref-count, the
+CORROBORATED LABEL. If that label were assigned to k edges by chance, the
+exact probability a same-size arbitrary draw lands entirely inside the K
+edges that genuinely clear the witness floor is the hypergeometric point
+mass at the maximum — closed-form, no simulation. A first attempt measured
+K off the wrong field (`refs.length`, order 9's distinct-passage grain) and
+manufactured false mismatches that looked like a real engine bug; caught by
+inspecting the raw edge data directly before shipping, and fixed to read
+`assertion.statements` — the field `hypergraph.js` itself keys `standingOf`
+off. War-and-peace: 692/692 typed, `P(chance) ≈ 1.7e-29`. Borodino:
+854/854, `P(chance) ≈ 1.3e-37`. **Stage returns to 13**, standing on real
+evidence this time. Full account: POLICIES.md P70's second same-day
+amendment.
+
+**Amended same day (third) — tested omnilingually.** A genuine Russian
+Wikipedia fixture (`ru.wikipedia.org`'s own Battle of Borodino article,
+fetched live, not translated) joined the two English fixtures, with no
+English-tagged prior (determiners/negation/verb-forms) opted in. **Zero
+scale violations across three materials, one non-Latin.** Two real,
+disclosed performance gaps, not scale failures: order 5 (Nominal)
+reproduces the already-known greedy-non-transitive coreference stranding
+on Cyrillic AND surfaces a genuinely new failure mode English cannot
+produce — a proper name wrongly merged with its own grammatically
+inflected case-form (`Евгений`/`Евгения`); order 7 (pronoun binding)
+fails with 0 pronouns even ATTEMPTED, because `resolvePronouns` runs on
+an English-only closed class (`priors.js`'s `ANAPHORIC_PRONOUNS`,
+`lang/en`) — not a weak mechanism, an absent one for this language, named
+as real unbuilt work rather than fixed here. "Omnimodally" was scoped
+honestly rather than forced: no organ in either repo does semantic or
+relational extraction from a non-text modality — `measure.js` (this
+file's own "measuring door" section) reads audio only as numeric series,
+with no path to a claim or referent, so no MHC order has anything to run
+against a non-text file. Full account, every number, the two disclosed
+limits: POLICIES.md P70's third same-day amendment.
+## The generality gate — specimen-scoped or universal, said out loud (added 2026-08-29) — pointer
+
+POLICIES.md **P71** is the law; eoreader7's **`native/READING-SPEC.md` S31**
+is its paired entry there — the same discipline stated once in each repo's
+own register rather than duplicated text, because a fix crossing the
+fold/native boundary (most of them do, per the ratchet) should not need
+translating between two different disclosure languages.
+
+The gate closes a question this document has answered by feel for seventy
+entries: whether a fix that made one specimen pass is a corpus-specific
+patch or a universal improvement to reading. Three checks, all already
+exercised somewhere in this project's own history and now made mandatory
+together — cross-domain replay on a structurally-similar but unrelated
+corpus (`eval/grain-refinement.mjs`'s politics/hospital-beds pairing is the
+reference), a named giver or a derived structural floor rather than a
+number fitted to the specimen, and a demonstrated-necessity case built from
+material the discovery never saw (`eval/falsification-probe.mjs`'s
+six-corpora design is the reference). The gate runs both directions on
+purpose: P44's own corrected content-independence check is the standing
+reminder that a mechanism performing differently across materials is not
+automatically a violation, and reading it as one is the overcorrection this
+same gate would otherwise invite.
+
+Every POLICIES.md entry from P71 on, and every READING-SPEC.md entry from
+S31 on, states `**Generality:** universal / specimen-scoped /
+not-applicable`, enforced going forward by `generality-gate.test.mjs` here
+and the matching case added to `native/conformance/reading-spec.test.mjs`
+there. Neither test can verify the claim is TRUE — only that it was made.
+The measurement underneath it is still real work, done the way
+`grain-refinement.mjs` and `falsification-probe.mjs` already did it, not a
+label applied for free.
+
+## Metacognition: watching the gap between S1 and S2 (added 2026-08-31) — pointer
+
+POLICIES.md **P72** is the law; this is the short map. The ask: watch the
+surprise between what S1 (`runFastPass`) and S2 (`holonicTurn`) generate,
+and feed it into the surf and the fold as something learnable, repeatable,
+revisable — pursued "as Friston but visited by the Ramakrishna."
+
+**The one-line version.** `metacognition.js` is the watcher P34's own
+two-pass turn never had: `assessAgreement` classifies each of S1's
+checkable atoms against S2's material into CONFIRMED / CORRECTED /
+EXTENDED / UNRESOLVED — CORRECTED only ever fires on a real
+`contradicted` relation verdict, never on a bare containment miss, which
+is this repo's own "may never manufacture conviction from absence" rule
+applied a second time — and `makeMetacognition`'s ledger (the native
+`kernel/task-log.js` bundle injected, `hyperlexicon.js`'s own append-only
+shape) accumulates the classification per caller-declared cell into a
+`standingOf` reading: `unproven` / `established` / `contested`, never
+phrased finer than `WITNESS_FLOOR` (reused from `asserted.js`) supports.
+
+**Friston's contribution is precision-weighting an S1/S2 gap this repo
+already produces and never watched;** the dark-room failure that produces
+by itself is closed structurally — `observe` is a no-op on an all-zero
+delta, reusing `hyperlexicon.js::hear`'s own rule, so silence can never
+move a standing. **Ramakrishna's contribution is refusing to collapse
+UNRESOLVED into CORRECTED** — a claim S2 can neither confirm nor refute is
+its own outcome, never smoothed into either bucket, the same discipline
+this file's own grounding-ladder section already states in the opposite
+direction. `concede` (mirroring `grid.js::concedeEvaluation` exactly) is
+how a standing is explicitly revised, never left to drift — bhavamukha's
+own shape, read onto an append-only ledger.
+
+**Measured, not asserted.** `metacognition.test.mjs`, 25/25, both guards
+pinned as named regressions; full suite 1085/1085, the same 125
+pre-existing environment failures by name, zero regressions.
+`eval/metacognition-eval.mjs` clears two of POLICIES.md P71's three legs
+live: cross-domain replay (the SAME code, unmodified, reads an
+error-prone cell `contested` and a reliable one `established` on both
+real, byte-verbatim Wikipedia text — reused from `experiments/
+mechanical-first-hamlin-johnson.mjs` — and a declared-invented,
+zero-shared-vocabulary lab-instrument chronicle) and demonstrated
+necessity (on eight atoms from one real error and three real gaps, the
+shipped classifier reports 2 corrected / 6 unresolved; the naive
+Friston-alone collapse this policy's own header names reports all 8 as
+corrections).
+
+**Amended same day — wired in, by direct instruction.** Reading
+`holonicTurn`'s own turn-ending sequence closely found both of the
+integration note's harder open questions already answered on the
+existing return shape (`result.sections[].passages` and
+`.relations.claims` were already being read a few lines above, for
+`state.lastMaterialChars`/`relationClaims`) — so `holonicTurn` now calls
+`assessAgreement`/`observe` directly, gated on `opts.priorPass`, onto one
+disclosed starting cell (`"s1-draft"`), reusing the exact `nativeTaskLog`
+instance `buildLog`/`store`/`grid` already share. `node --check app.js`
+passes, the full suite's 125 pre-existing failures are unchanged by name.
+A real browser load could not be verified — this checkout's
+`/engine/emergence/tiers.js` 404s regardless of this change (P69's own
+disclosed holdout), breaking the WHOLE module graph's link step, with no
+way here to isolate the new import chain from that pre-existing gap; every
+new line was instead verified against already-live, adjacent code in the
+same function. Two open decisions remain: a finer cell taxonomy, and
+whether `surfWeight`/`forcesFoldRefresh` are worth wiring —
+`metacognition-integration-note.md` carries the full, corrected account.
+
+**Amended again — flow #2 wired ("do it"): suspicion widens the search.**
+P72's second amendment is the law; the one-line map:
+`metacognition.js::escalationFor` is now `surfWeight`'s one live consumer
+— on a `contested` `"s1-draft"` standing, an S1/S2 turn's preflight
+consults 5 pages instead of 3, each part retrieves 5 passages instead of
+3, and the correction loop gets 2 passes instead of 1 (ceil × the
+declared 1.5, always from holon.js/proof.js's own exported constants,
+never a prior escalated value — so it cannot compound). Asymmetric by
+construction (`established`/`unproven` come back byte-identical — trust
+never removes checking), channel-aligned (gated on `opts.priorPass`, the
+same gate `observe` uses — measured on S1/S2 turns, adjusts S1/S2 turns),
+and never silent (an `escalated` act lands on the reflex ledger). Whether
+the flow HELPS — does the correction rate fall once it engages — remains
+the named, unrun measured leg; the counts to answer it now accumulate on
+the ledger itself. `forcesFoldRefresh` and the gate flow (#1, which would
+widen the thin S1/S2 channel) stay deliberately unbuilt.
+
+**Amended once more — the hunt stops on surprise, not on a count.** P72's
+third amendment is the law; the one-line map: the user's own stopping
+rule ("hunt until what we experienced would not be surprising to a
+degree that is a distinction that makes a difference" — Bateson's sign,
+P31's own sketched rule, built for the hunt loop) is live in
+`gatherPreflightMaterial`: `makeHuntMeter` (metacognition.js) runs the
+SAME tier-stack physiology reflex.js/aperture.js already wire, seeded
+with the question + discourse + snippets digest, each kept page placed
+against the material's own continuation null; a page landing past the
+null's own median (`huntSettled` — aperture's live-measured cut, cited
+not re-derived) stops the hunt early, a genuinely-moving page keeps it
+alive to the ceiling, and a GAP never stops anything. Escalation's
+`pagesConsulted` is thereby a LEASH, not a count — contested buys a
+longer one, the settling decides the spend. Probed against the REAL
+engine organ before wiring (convergent stream settles at rank 0.97/0.98,
+alien page censored above, empty page refused as a stop, thin-seed first
+page continues, byte-deterministic) — 7/7 in
+`metacognition-hunt.test.mjs`, runnable here because this same session
+initialized `legacy-eoreader6.1` (suite honestly swelled: 1585 tests
+execute, the old 125-name environment set now 42, identical
+before/after). Every hunt lands a `hunted` act on the reflex ledger.
+Disclosed: a calm turn may stop below the old fixed 3 pages, but only on
+a MEASURED settle — never on a gap, never on silence; and this is the
+per-arrival gate, not `nul.pattern()`'s licensed pair over the series,
+which stays open exactly as aperture.js's own header already names.
+
+**Amended 2026-09-01 — flow #2 proven live, end to end, on the real
+page.** P72's live-run addendum carries the numbers; the one-line map: a
+scripted stand-in Ollama answering every call with a claim the attached
+material contradicts drove the whole chain through the real browser —
+turn 1 spent 3 text-mode calls and observed 3 corrected atoms
+(`contested`), turns 2 and 3 spent 4 calls each with the correction pass
+visibly run twice, and `escalated: cell s1-draft · corrections 2 ·
+pages 5 · passages 5` landed on the reflex ledger, read back through the
+page's own `/self acts` door. Zero page exceptions; the aperture gate
+carried turn 2's summary in the same run. Two harness lessons kept in
+P72: a turn sharing no token with the material can never teach the loop
+anything (`retrieve()`'s zero-relevance-floor starves the whole channel),
+and the `/self acts` table lives in the Folds pane, so a DOM readback
+needs `textContent` on the build cards, not `innerText`. Proves the flow
+engages and spends — whether it HELPS stays the named, unrun leg.
+
+**Amended 2026-09-01 (independently, reconciled on merge) —
+`forcesFoldRefresh` wired too.** The third amendment's own scope note
+("`forcesFoldRefresh` and the gate flow (#1...) stay deliberately
+unbuilt") is now half closed. `relationClaims`/`result.sections` —
+everything `assessAgreement` needs — are already computed before
+`refreshSummary`'s own call in `holonicTurn`, so the metacognition block
+moved to right before that call (also ahead of the `!state.grounded`
+early return a few lines further down — a plain-mode S1/S2 disagreement
+now reaches the ledger too, bookkeeping rather than drawing).
+`refreshSummary` gained a fourth, defaulted `{forceRefresh}` option and
+ORs it onto `exchangeHeldGround`'s own reading, logging its own
+`forcedRefresh` act on override. This pass's own first draft also wired
+`surfWeight` directly into `gatherPreflightMaterial`, via a bespoke
+`weight` multiplier — on merge, found to be the identical function flow
+#2's `escalationFor`/`pagesConsulted` already occupies, more generally
+(multiple budgets, not one) and better tested; that half is DROPPED, not
+merged alongside it. `needsSystem2` stays untouched and named still
+open, as both the module and the amendments above already state.
+Verified: a real headless-Chromium load over raw CDP (no Playwright
+package present, Node 22's native `WebSocket` speaks the protocol
+directly) confirmed the page's boot code runs to completion — banner
+hidden, composer present — byte-identical between the unmodified
+baseline and this change, correcting an earlier pass's own worry that
+the `/engine/emergence/tiers.js` 404 blocks the whole module graph (it
+doesn't — only the self plane's own surprise meter, its actual
+importer). Full suite unchanged by name, zero regressions. Still open,
+the same disclosed limit every recent pass carries: no Ollama reachable
+in this checkout, so `forcesFoldRefresh`'s live effect on a real turn
+could not be shown the way flow #2's own live-run addendum showed
+engagement above — only that it now runs safely. POLICIES.md P72's own
+fourth amendment and `metacognition-integration-note.md` carry the full
+account.
+
+## The hyperlexicon door made ready (added 2026-09-01) — pointer
+
+POLICIES.md **P73** is the law; this is the short map. The question,
+verbatim: *"are you reading eot well enough to have a meaningful
+hypergraph?"* Measured against the live door's exact configuration
+(`eval/hyperlexicon-door-probe.mjs`, two real committed Wikipedia
+fixtures): no — 18 of 29 admitted notes carried a closed-class label
+(`—and→`, `—of→`, `—to→`…), and 0 of 29 ever reached two witnesses, so
+the ≥2-witness ledger block (the one place the accumulated hypergraph
+reaches the model) rendered EMPTY on real prose. Then, on the user's
+*"assuming that's coming, merge us to gh but ready to leverage those
+improvements"*: **half one closed by data** — `priors-data/
+pos-prior-eng.json` built by the engine's own `build-pos-prior.mjs`
+(UD_English-EWT, 16,654 forms, the documented figure exactly) lights up
+`hypergraph.js`'s already-built `posPriorFor` vocabulary gate, which
+removes ALL 18 junk labels at extraction (notes 29 → 10, every surviving
+connector a real verb); the door's own asymmetric `classifyConnector`
+gate is threaded through holon.js and app.js (data-gated on the same
+fetch, null-default byte-identical) as the wall behind that wall.
+**Half two built as a socket:** `makeHyperlexicon` takes an injectable
+`noteIdentity` organ — ID-only canonicalization, first reading's face
+wins the display, gaps fall back to surface forms — with the mechanism
+proven in `hyperlexicon-identity.test.mjs` (a toy canonicalizer folds two
+restatements into one note with two witnesses). The production organ
+(referent faces + `sameAct`, both proven in the MINE-1 work) and the
+subject-span-debris extractor gap are the two named next levers, not
+built here. Disclosed cost: the prior rides every `relationsFor`
+consumer — bound 36 → 15, `unheard` 2 → 31 on the probe — the
+closes-a-false-binding class (P41/P43), shipped on. Suite 1587/1538/44 →
+1593/1544/44, same 44 names, zero regressions.
+
+## The admission door closed by its ground (added 2026-09-01) — pointer
+
+POLICIES.md **P74** is the law (renumbered from P72 on merge — a
+concurrent PR landed its own P72/P73 first; the number moved, nothing
+about the policy itself did); `eval/results/admission-gate-RESULTS.md`
+the measurement; live_priors' POLICIES.md **LP10/LP11** the Ground-repo
+side. The one-line version: the hypergraph door's 18-of-29-junk admissions
+and its unrunnable quality gate were **a 404 masquerading as three missing
+features** — the POS prior's mount pointed at a gitignored dir inside an
+uninitialized submodule, so `hypergraph.js`'s own already-wired
+vocabulary-level POS gate (P68) had never once run. Shipping the ground
+(the `/priors-data/` mounts now fall back to live_priors' committed
+POSPrior@1, one declared eng→en alias at the seam) takes junk 18/32 → 0/19
+with the door still ungated; the door's lens (classifyConnector, now
+threaded app.js → runHolonicTask → runPart → admit, refusals returned as
+`hyperlexiconTurnedAway`, never read-and-discarded) is defense-in-depth —
+alone it catches 18/32 with zero real verbs lost, but `to`/PART slips its
+declared Thrax scope.
+
+**The corroboration half was refuted before it was built:** folding note
+identity by referent face + lemma yields 0 joins on the real pages, and
+the flagship pair fails by name — `sameLemma("withdraws","retreated") =
+false`. Withdraw≠retreat is synonymy: the ledgerBlock's emptiness is the
+semantic tier's problem (the witness machinery, P32), not identity
+folding's — measured under live_priors LP11's own law, earned the same
+day: a loosened key is judged on its marginal admits (there: 0-56%
+accurate, 0/8 in English), never aggregate coverage.
+
+Named absences: turnedAway reaches no UI yet; explore-server.mjs's mount
+edit is syntax-checked only (that server cannot boot here — P69's
+disclosed submodule error); subject-span hygiene (the handoff's lever 3)
+is untouched upstream extractor work.
+
+**Amended 2026-09-01 — the two committed priors reconciled.** P73 (this
+repo, train-only, 16,654 forms) and P74's companion (live_priors,
+train+dev+test with sha256 provenance, 19,341 forms) had shipped two
+DIFFERENT builds of the same POSPrior@1, and the serving chain's
+availability tier preferred the smaller. `priors-data/pos-prior-eng.json`
+is now live_priors' artifact byte-for-byte (drift = one hash comparison),
+every consumer reads `forms` alone, and the probe's numbers are identical
+after the swap. Full account: POLICIES.md P74's 2026-09-01 amendment.
+
+## Pronoun/anaphora as an omnimodal function — the medium axis was already right; the language axis is now declared (added 2026-08-30) — pointer, nothing here changed
+
+Asked directly whether the recent pronoun/anaphora work (P38, P66) actually
+conforms to how this project wants a capability built as an omnimodal
+function. It splits into two different axes, and only one had been
+addressed.
+
+**The medium axis was already correct, verified by reading the code rather
+than the changelog.** `eoreader7/native/kernel/contest.js` (P66) genuinely
+extracted the decision procedure — co-presence raises the bar, never the
+score; test the lead against the material's own permutation null — into a
+kernel module with zero text vocabulary, exactly the eoreader7
+`READING-SPEC.md` S6/S16 law ("the kernel never speaks a medium's
+grammar... the kernel is omnimodal"). This is enforced MECHANICALLY
+(`contest.test.js` reads the module's own source and fails if `sentence`,
+`pronoun`, `surface`, `token`, `word` or `text` appears in it) and exercised
+on two real non-text synthetic cases in the same file (an unlabelled gaze
+across two faces in a film shot; an unattributed motif across two
+instruments in a bar of music). It is a live production dependency
+(`native/assemblies.js`, `adapters/text/pronouns.js`), not an orphaned
+module, and both new regimes it unlocks are honestly measured and shipped
+default-off because they do not yet improve the actual reading — a
+disclosed negative result, not a silent no-op.
+
+**The language axis had not been.** Both pronoun mechanisms
+(`resolvePronouns`, `resolvePronounsByActivation`) ran a hardcoded English
+pronoun regex and gender table against whatever text arrived, with no
+`language` parameter anywhere. Non-Latin material happened to degrade
+safely (P70's omnilingual MHC test: Russian correctly gets zero pronoun
+attempts) but that safety was an ACCIDENT of script mismatch, not a
+declared decision — this codebase already has the correct template for
+exactly this class of gap (`createLemmatizer({ language })`, defaulting to
+English only when unspecified, the fix "it needs to work for Ancient
+Greek" section above), and pronouns.js had not been brought into it.
+
+**Closed in eoreader7, not here.** `native/READING-SPEC.md` **S39** is the
+law and carries the full account: a small per-language registry
+(`PRONOUN_PRIORS`, one entry today) replaces the bare constant, all three
+functions take a `language` parameter defaulting to `"en"`, and a declared
+language with no registered prior returns one typed gap
+(`no_pronoun_prior_for_language`) for the whole call rather than a silent
+English attempt or a pile of per-sentence non-matches. Byte-identical for
+every existing caller (none of which pass `language`); 255 native tests
+passing both before and after (same pre-existing failures), 13/13 in
+`pronouns.test.js` (9 pre-existing plus 4 new). **Nothing in this repo
+changed** — `app.js`/`hypergraph.js` import `resolvePronouns` from
+`/engine-v7/adapters/text/pronouns.js` and omit `language`, so they get the
+unchanged default. No second language's pronoun table exists yet; this
+closes the honesty gap, not the coverage gap.
+
+**Corrected the same day — "add a second language" was the wrong target;
+the arrangement itself was still English-shaped.** User's own redirect,
+twice: first, don't add French next — it shares English's SVO typology and
+would pass by accident, never testing the real gap (`relations.js`'s own
+header: slot-finding is POSITIONAL, "the token immediately FOLLOWING a
+candidate referent surface" — a fact about word order, not vocabulary, and
+it fails outright on case-marked languages like Latin, Russian, Finnish,
+several of which are already in `live_priors`). Second, correcting the
+proposed fix itself: a case-marking STRATEGY that still recovers "subject"
+and "object" by a different signal is the same borrowed grammatical
+category surviving through a new mechanism, not removed. **POLICIES.md
+P76** is the law: `hypergraph.js`'s edges and claims are keyed literally
+`.subject`/`.verb`/`.object` at four construction sites — the grammar-lens
+section's own stated principle ("the arrangement is earned, the SAE
+reading is a declared overlay") was never true of the STORED shape. Two
+ordered ends and a label is already typologically neutral; what a language
+signals is only WHERE to look for them, never which one is the agent.
+
+**Shipped additively, by explicit choice over a full rename.** `arrangementOf(t)`
+maps `{subject, verb, object}` onto `{end1, label, end2}` under their
+earned names, wired at all four sites so the mapping cannot drift the way
+four independent literals eventually would. `subject`/`verb`/`object` are
+untouched everywhere; the neutral fields sit beside them, read by nothing
+yet. The full rename this closes part of (P56's own grammar-lens section:
+"~120 call sites... not attempted without confirmation") is now 221 across
+22 files — larger than last measured, and still not attempted: migrating a
+consumer off the SAE names is real, scoped, future work, one file at a
+time. Verified against the real native engine organs (`arrangement.test.mjs`,
+6 cases, the `hyperlexicon-stance.test.mjs` separate-file precedent since
+`hypergraph.test.mjs` cannot load in this checkout): full suite
+1060/933/125 → 1066/939/125, zero regressions. A real second-typology
+extractor (case-marking, for a language like Latin already in the corpus)
+is named, real, and unstarted — it should build against this neutral
+shape, never against `subject`/`object`.
+
+**Built and measured the same day — the second typology is real, not just
+named.** `eoreader7/native/adapters/text/relations-case-marked.js`
+(READING-SPEC.md S40) reads grammatical role off Latin case morphology,
+not position — a genuinely different mechanism from `relations.js`'s own
+positional slot-finding, proving the neutral arrangement is REQUIRED for
+a language like this, not merely tidy. Built against real UD_Latin-Perseus
+treebank data (fetched live, CC BY-NC-SA 2.5, committed as a fixture),
+measured against 380 held-out gold sentences never used to build its case
+prior: matches a real verb-object-subject specimen ("possedit cetera
+pontus," the sea possessed the rest) exactly, using zero information
+about word position — the actual proof positional extraction cannot give.
+Modest, honestly disclosed precision/recall (end1 vs gold nsubj: 0.26/0.08;
+end2 vs gold obj: 0.33/0.12) — subject detection is genuinely harder than
+object detection because Latin's nominative case is the least
+systematically marked, a real fact about Latin morphology, not a defect
+in the organ. Four real bugs found by measuring against gold rather than
+reasoning about it, all disclosed in S40 and `eval/results/
+latin-case-marking-RESULTS.md`.
+
+**Wired into this repo via `hypergraph.js::makeCaseMarkedRelationReader`**
+(POLICIES.md P77) — a SEPARATE entry point from `makeRelationReader`, not
+a branch inside it, because the English pipeline's referent-index/
+assertion/connector-class machinery all assume the positional extractor's
+own edge shape. What's shared is the actual point: every edge carries
+`end1`/`label`/`end2`, never `subject`/`verb`/`object` — Latin's oblique
+cases have no honest 1:1 mapping onto English argument structure, and
+this reader refuses to force one (a `case`/`number` detail rides each end
+instead). Verified against eoreader7's real organs, byte-accurate spans
+confirmed against source bytes: `case-marked-relations.test.mjs` (5
+cases). Full pipeline parity with the English reader (referent
+resolution, assertion tiers, connector-class) is real, scoped,
+unattempted future work — disclosed, not silently implied done. Full
+suite: 1066/939/125 → 1071/944/125, zero regressions.
+`LatinCasePrior@1` itself moved to `live_priors/derived-priors/
+case-priors/` the same session, matching `act-priors`' own precedent
+exactly ("a received lexicon is content, not app logic") — see
+`live_priors`'s own README there and eoreader7's `READING-SPEC.md` S40
+amendment for the full move.
+
+**The consumer migration named above as remaining is now finished; the
+wipe is blocked on something bigger.** POLICIES.md P76's own amendment
+carries the full account — the short version: every one of the nine
+files named as unmigrated (`term.js`, `capacity-runner.js`, `holon.js`,
+`app.js`, plus `dialogue-graph.js`/`hl-acquire.js`/`hyperlexicon.js`/
+`predigest.js`/`explore/explore.js`, confirmed out of scope) was traced
+to a real conclusion, verified by full-suite diff at every step
+(1071/944/125, zero regressions throughout). A final repo-wide sweep for
+every `makeRelationReader` importer beyond the originally-scoped nine
+found `capacities.js`/`proxy-runner.mjs` (clean) and — the actual
+blocker — `hypergraph.test.mjs` itself: 81 lines across 1,231 directly
+assert `.subject`/`.verb`/`.object` on real engine output, and that file
+cannot load in this checkout (`legacy-eoreader6.1`, an uninitialised
+submodule pointing outside this session's own GitHub access scope), so
+those 81 assertions cannot be migrated and verified by running here. The
+wipe — removing the old fields from hypergraph.js's four construction
+sites — needs a checkout where that submodule resolves; nothing else is
+in its way.

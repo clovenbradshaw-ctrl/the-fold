@@ -607,9 +607,9 @@ export function buildRedefinedPart(part, findings) {
 function landCompletenessBelief(grid, gridLog, runCapacity, landAct, { claim, sourceKey, sourceText, experiencer }) {
   if (!grid || !gridLog || !runCapacity || !landAct) return gridLog;
   const safe = (s) => String(s ?? "").replace(/[^\w\s-]/g, " ").replace(/\s+/g, " ").trim();
-  const subject = safe(claim.subject);
-  const verb = safe(claim.verb);
-  const object = safe(claim.object);
+  const subject = safe(claim.end1);
+  const verb = safe(claim.label);
+  const object = safe(claim.end2);
   if (!subject || !verb || !object) return gridLog;
   const line = `evaluate ${subject} ${verb} ${object} at Link from differentiate ground ${sourceKey} broken:rotation because ${safe(experiencer)}`;
   let out;
@@ -947,6 +947,17 @@ export async function runPart({
   // existed — no existing caller's behavior changes.
   hyperlexicon = null,
   hyperlexiconLog = null,
+  // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
+  // — asymmetric, P56: a settled non-verb connector is refused with its
+  // giver, an out-of-vocabulary word admits). Threaded, never built here:
+  // the lens is app.js's to construct from the POS prior it already
+  // fetches, and `null` (the default for every existing caller) leaves the
+  // admit call byte-identical to before this existed — a check that did
+  // not run never reports a pass (P41), and the door's own header says the
+  // same. Measured need (eval/hyperlexicon-door-probe.mjs): unthreaded,
+  // 18 of 29 notes admitted from real prose carried a closed-class label
+  // (—and→, —of→, —to→…) into the belief ledger.
+  classifyConnector = null,
 }) {
   // Stable sub-assemblies (2026-08-19, user direction). The part's own words
   // and the fold's discourse line are two DIFFERENT assemblies, and the old
@@ -1048,6 +1059,12 @@ export async function runPart({
   // touches nothing downstream — byte-identical to before this existed,
   // the same discipline `grid`/`gridLog` already hold above.
   let beliefNotes = hyperlexiconLog;
+  // Every refusal the door types comes back out (P57: `turnedAway` is not
+  // optional) — accumulated here and returned beside the log, never read
+  // and discarded. With no classifyConnector this stays empty for the
+  // connector reason but still carries the door's own structural refusals
+  // (incomplete edges, unaddressed spans), exactly as admit types them.
+  const hyperlexiconTurnedAway = [];
   if (hyperlexicon && relations) {
     for (const p of passages) {
       const text = String(p?.text ?? "");
@@ -1055,13 +1072,28 @@ export async function runPart({
       const claims = relations.read(text)?.claims ?? [];
       const edges = claims
         .filter((c) => c.verdict === "bound")
-        .map((c) => ({ subject: c.subject, verb: c.verb, object: c.object, spans: c.spans ?? [] }));
+        // Read off the claim's neutral arrangement (P72); hyperlexicon.js's
+        // own admit() still requires subject/verb/object as ITS OWN field
+        // contract (P57's independent ledger vocabulary, not this claim's),
+        // so the destination keys stay as they are — only the source read
+        // moved off the legacy names.
+        .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
       if (!edges.length) continue;
-      beliefNotes = hyperlexicon.admit(
+      const admitted = hyperlexicon.admit(
         beliefNotes ?? hyperlexicon.createHyperlexicon(),
         edges,
-        { witness: p.ref ?? null },
-      ).log;
+        // minShare stays the door's own declared default — no second number
+        // is introduced here; classifyConnector null = the gate does not
+        // run, admit's own disclosed behaviour.
+        { witness: p.ref ?? null, classifyConnector },
+      );
+      beliefNotes = admitted.log;
+      // Refusals are returned, never read-and-discarded (P57: turnedAway
+      // is not optional) — accumulated per part and threaded out through
+      // runHolonicTask as hyperlexiconTurnedAway (P74).
+      for (const t of admitted.turnedAway) {
+        hyperlexiconTurnedAway.push({ witness: p.ref ?? null, reason: t.reason, detail: t.detail, verb: t.edge?.verb ?? null });
+      }
     }
   }
 
@@ -1785,11 +1817,14 @@ export async function runPart({
       // thrown away whenever the draft's own sentence failed to bind, which
       // is precisely when the draft most needs correcting.
       if (!(claim.fillers?.length > 1)) continue;
-      const slot = `${claim.subject}|${claim.verb}`;
+      const slot = `${claim.end1}|${claim.label}`;
       if (seenSlots.has(slot)) continue;
       const named = claims
-        .filter((c2) => c2.verdict === "bound" && `${c2.subject}|${c2.verb}` === slot)
-        .map((c2) => foldTypography(c2.object).toLowerCase());
+        .filter((c2) => c2.verdict === "bound" && `${c2.end1}|${c2.label}` === slot)
+        .map((c2) => foldTypography(c2.end2).toLowerCase());
+      // f.object: clusterFillers' own narrow shape (P36) — a filler answers
+      // "which OBJECT" for an already-fixed subject+verb slot, never an
+      // arrangement with its own end1/label — out of scope for the rename.
       const uncovered = claim.fillers.filter((f) => {
         const ft = foldTypography(f.object).toLowerCase();
         return !named.some((t) => t.includes(ft) || ft.includes(t));
@@ -1859,10 +1894,13 @@ export async function runPart({
       // "querying the slot directly finds it regardless of which (or
       // whether any) subject the draft picked" — the gate just never
       // matched the argument.
-      if (!claim?.verb || !claim?.object) continue;
+      if (!claim?.label || !claim?.end2) continue;
       let subjects;
       try {
-        subjects = relations.queryReferents({ verb: claim.verb, object: claim.object });
+        // queryReferents' own parameter names (verb:/object:) are its own
+        // API, unrelated to this claim's arrangement fields — only the
+        // source read moved off the legacy names.
+        subjects = relations.queryReferents({ verb: claim.label, object: claim.end2 });
       } catch {
         subjects = null;
       }
@@ -1881,9 +1919,12 @@ export async function runPart({
       // widening: any bound claim sharing this VERB is a candidate for
       // "already covers one of the confirmed subjects," not only a claim
       // whose own object string happens to match exactly.
-      const slot = `${claim.verb}|${subjects.map((s) => foldTypography(s.subject).toLowerCase()).sort().join(",")}`;
+      // s.subject: queryReferents' own open-subject cluster shape, out of
+      // scope for the arrangement rename (its own API, not this claim's).
+      const slot = `${claim.label}|${subjects.map((s) => foldTypography(s.subject).toLowerCase()).sort().join(",")}`;
       if (seenSlots.has(slot)) continue;
-      const named = claims.filter((c2) => c2.verdict === "bound" && c2.verb === claim.verb).map((c2) => foldTypography(c2.subject).toLowerCase());
+      const named = claims.filter((c2) => c2.verdict === "bound" && c2.label === claim.label).map((c2) => foldTypography(c2.end1).toLowerCase());
+      // f.subject: the SAME queryReferents cluster shape as s.subject above.
       const uncovered = subjects.filter((f) => {
         const ft = foldTypography(f.subject).toLowerCase();
         return !named.some((t) => t.includes(ft) || ft.includes(t));
@@ -1925,11 +1966,11 @@ export async function runPart({
   const incompleteFindings = (t, c) => [
     ...incompleteClaimsOf(c).map(
       (claim) =>
-        `"${claim.subject} ${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.fillers.map((f) => f.object).join(", ")} (nothing else)`,
+        `"${claim.end1} ${claim.label} ${claim.end2}" — the material confirms exactly: ${claim.fillers.map((f) => f.object).join(", ")} (nothing else)`,
     ),
     ...competingSubjectsOf(c).map(
       (claim) =>
-        `"${claim.verb} ${claim.object}" — the material confirms exactly: ${claim.competingSubjects.map((f) => f.subject).join(", ")} (nothing else)`,
+        `"${claim.label} ${claim.end2}" — the material confirms exactly: ${claim.competingSubjects.map((f) => f.subject).join(", ")} (nothing else)`,
     ),
     ...successionIncompleteFindings(t),
   ];
@@ -2041,7 +2082,12 @@ export async function runPart({
       for (const claim of competingSubjectsOf(check)) {
         for (const filler of claim.competingSubjects) {
           beliefLog = landCompletenessBelief(grid, beliefLog, runCapacity, landAct, {
-            claim: { subject: filler.subject, verb: claim.verb, object: claim.object },
+            // filler.subject: queryReferents' own open-subject cluster shape
+            // (out of scope for the arrangement rename — its own API, not
+            // hypergraph.js's edge/claim schema). claim.label/claim.end2:
+            // the ORIGINAL judge() claim's fields, spread through unchanged
+            // by competingSubjectsOf.
+            claim: { end1: filler.subject, label: claim.label, end2: claim.end2 },
             sourceKey,
             sourceText: sourceBlock ?? "",
             experiencer,
@@ -2251,6 +2297,9 @@ export async function runPart({
     // The updated hyperlexicon, same threading discipline: unchanged when
     // no organ was injected or nothing bound this part.
     hyperlexiconLog: beliefNotes,
+    // The door's typed refusals for this part (P57: not optional at any
+    // boundary). Empty when nothing was refused or no ledger was injected.
+    hyperlexiconTurnedAway,
   };
 }
 
@@ -2297,9 +2346,11 @@ export async function runHolonicTask({
   landAct = null,
   // Same shape, same threading, same default-null backward compatibility
   // as grid/gridLog just above — see runPart's own header for the full
-  // reasoning (P57's own hyperlexicon.js).
+  // reasoning (P57's own hyperlexicon.js; classifyConnector: the door's
+  // grammar gate, P73).
   hyperlexicon = null,
   hyperlexiconLog = null,
+  classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
@@ -2372,6 +2423,10 @@ export async function runHolonicTask({
   // divergent forks of what should be one shared record.
   let sharedGridLog = gridLog;
   let sharedHyperlexiconLog = hyperlexiconLog;
+  // The door's typed refusals, accumulated across parts the same way
+  // seenRefs accumulates — returned whole so no boundary reads them and
+  // discards them (P57).
+  const sharedHyperlexiconTurnedAway = [];
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -2412,10 +2467,12 @@ export async function runHolonicTask({
       landAct,
       hyperlexicon,
       hyperlexiconLog: sharedHyperlexiconLog,
+      classifyConnector,
     });
     seenRefs.push(...result.refs);
     sharedGridLog = result.gridLog;
     sharedHyperlexiconLog = result.hyperlexiconLog;
+    sharedHyperlexiconTurnedAway.push(...(result.hyperlexiconTurnedAway ?? []));
     sectionsById.set(t.part_id, result);
     return {
       refs: result.refs,
@@ -2462,5 +2519,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

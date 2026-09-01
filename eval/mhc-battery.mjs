@@ -46,7 +46,7 @@ import { makeRelationReader, queryFillers, queryEdges } from "../hypergraph.js";
 import { makeReferentIndex } from "../cast.js";
 import { verificationTasksFor, verificationSummary } from "../verification.js";
 import { mergeTestimony } from "../capacity-runner.js";
-import { seededShuffle, shuffleSentenceWords, standingOf, WITNESS_FLOOR } from "../asserted.js";
+import { seededShuffle, shuffleSentenceWords, WITNESS_FLOOR } from "../asserted.js";
 import { extractReadable } from "../web.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +99,59 @@ async function loadEngine() {
   return { layout: null, organs: null, tried };
 }
 
+// ── the Russian material's cell of the coreference seam (anaphora-ru, 2026-08-29) ──
+//
+// `discoverReferents`/`namesCorefer` (native surfaces.js) accept an injected token
+// fold that maps an inflected proper-noun form onto its lemma, so one being does
+// not strand across its case-forms in an inflecting script; `resolvePronouns`
+// (native pronouns.js) accepts an injected `pronounClass` so it can FIND a
+// non-English language's third-person pronouns and gate them by their own
+// gender. Both are BUILT FROM received, giver-named registers (derived from
+// UD_Russian-GSD, language `ru`), never hand-typed rules:
+//   - propernoun-fold.js::makeProperNounFold  ← live_priors/derived-priors/propernoun-priors/propernoun-ru.json
+//   - normalizePronounClass (in pronouns.js)  ← live_priors/derived-priors/pronoun-priors/pronoun-ru.json
+//
+// They are applied HERE ONLY to the Russian material (`borodino-ru`): the
+// registers are Russian-tagged, and this driver otherwise deliberately injects
+// no English closed-class priors (P70's omnilingual probe). English materials
+// pass `foldToken = undefined` and `pronounClass = undefined` and are
+// byte-identical to the pre-seam driver. A missing native repo or register
+// degrades to no seam, honestly, rather than reporting a seam that was never
+// built. The registers' own `language`/`provenance` ride on the returned object
+// so the report can attribute them.
+async function buildRussianSeam(material) {
+  if (material?.key !== "borodino-ru") return undefined;
+  const out = {};
+  let module;
+  try {
+    module = await import("../../eoreader7/native/adapters/text/propernoun-fold.js");
+  } catch {
+    return undefined;
+  }
+  try {
+    const prior = JSON.parse(
+      readFileSync(join(HERE, "..", "..", "live_priors", "derived-priors", "propernoun-priors", "propernoun-ru.json"), "utf8"),
+    );
+    out.fold = module.makeProperNounFold(prior);
+    out.language = prior?.language;
+    out.propernounProvenance = prior?.provenance;
+  } catch {
+    /* propernoun register absent: carry only the pronoun half if it loads */
+  }
+  try {
+    const prior = JSON.parse(
+      readFileSync(join(HERE, "..", "..", "live_priors", "derived-priors", "pronoun-priors", "pronoun-ru.json"), "utf8"),
+    );
+    out.pronounClass = prior;
+    out.language = out.language ?? prior?.language;
+    out.pronounProvenance = prior?.provenance;
+  } catch {
+    /* pronoun register absent: carry only the fold half if it loads */
+  }
+  if (out.fold === undefined && out.pronounClass === undefined) return undefined;
+  return out;
+}
+
 // ── declared numbers (P4: numbers are declared, never defaulted) ──────────
 const DRAWS = 20; // seeded re-coordinations per arbitrary arm — A9: one null is not a null
 // Arms that must REBUILD a reader per draw cost ~1.5s each, so they run at a
@@ -109,12 +162,28 @@ const DRAWS = 20; // seeded re-coordinations per arbitrary arm — A9: one null 
 const HEAVY_DRAWS = 5;
 const SEED = 0; // the fold's standing seed for null arms
 const PASSAGE_CHARS = 1200; // the chunk a passage is cut at for this driver
-// A DECLARED SLICE of the real material, not the whole of it. The arms are
-// nulls and a null is only affordable at a bounded size; the alternative was
-// fewer grounds over more text, and plural grounds (A9) is the property worth
-// keeping. Reported on the result so no number here reads as a whole-document
-// measurement.
-const WORKING_PASSAGES = 40;
+// A DECLARED SLICE of the real material — for these two fixtures (61 and 67
+// passages respectively) this now covers both in full, but it is still a cap,
+// not an assumption of wholeness: `.slice(0, WORKING_PASSAGES)` bounds
+// whatever is actually there, and `totalPassages` is reported alongside
+// `workingPassages` on every run so a longer future fixture reads honestly as
+// a partial slice again rather than silently claiming full coverage.
+//
+// Raised from 40 (2026-08-29/30) once order 10's own missing-probe gap on
+// war-and-peace was traced to its true cause: not a real capability ceiling,
+// but order 8's OWN `arbitrary` arm losing power as the corpus grew — a
+// 20-draw Monte Carlo estimate of a rate near 0.6% is barely distinguishable
+// from a rate near 10% (0/20 and 2/20 are both ordinary outcomes of either).
+// `redealAgainstExactNull` (below) replaced the estimate with the exact
+// hypergeometric probability for this one arm's shape, which has no draw
+// count to be underpowered at. Re-measured at 70 passages afterward, not
+// tuned to it: order 8 passes on both materials at the exact rate 0.0058
+// (war-and-peace) / 0.0176 (borodino) — both comfortably below alpha, and
+// both computed from real counts (K subjects, m matching verb+object edges)
+// this corpus's own full extent actually has, not from a smaller, arbitrarily
+// safer slice. Order 10 now has a real specimen and passes on both. Full
+// run: 26.5s, still well inside what an interactive re-run affords.
+const WORKING_PASSAGES = 70;
 const HEAVY_PASSAGES = 10; // the slice an arm re-reads per draw
 // How many source-systems the order-13 merge reads, and how many candidate
 // claims are scanned against them to find one the sample corroborates and one
@@ -129,6 +198,16 @@ const ABSENT_NAME = "Zzyrflax Quenbourne"; // checked to be absent, never assume
 const FIXTURES = {
   "war-and-peace": "wikipedia-war-and-peace.html",
   borodino: "wikipedia-battle-of-borodino.html",
+  // Omnilingual probe (2026-08-30): the SAME topic, in Russian, fetched live
+  // from ru.wikipedia.org — not a translation, not a fixture engineered to
+  // pass. Every organ this driver injects (surfaces/relations/pronouns) is
+  // the base engine's, with NO English closed-class priors (determiners,
+  // negation words, verb-form lexicons) opted in — those are English-tagged
+  // (`lang/en`) everywhere else in this repo and are deliberately NOT wired
+  // here, so a pass on this material is evidence the CAPITALIZATION- and
+  // STRUCTURE-based machinery generalizes, never that an English prior
+  // quietly did the work.
+  "borodino-ru": "wikipedia-borodino-ru.html",
 };
 
 function loadMaterial(key) {
@@ -144,7 +223,7 @@ function loadMaterial(key) {
 }
 
 // ── the specimen set, read OUT of the material ────────────────────────────
-function deriveSpec(material, reader, index, control, organs) {
+function deriveSpec(material, reader, index, control, organs, foldToken) {
   const edges = reader.edges ?? [];
 
   // WHICH EDGES MAY SERVE AS A SPECIMEN, and why the filter is not cosmetic.
@@ -297,7 +376,7 @@ function deriveSpec(material, reader, index, control, organs) {
   let establishedEvents = [];
   try {
     const entries = organs.extractSurfaces(organs.splitSentences(material.text), {});
-    establishedEvents = organs.discoverReferents(entries, {}).events ?? [];
+    establishedEvents = organs.discoverReferents(entries, { foldToken }).events ?? [];
   } catch {
     establishedEvents = [];
   }
@@ -522,6 +601,125 @@ const shuffled = (draws, makeDraw, attempt) => {
   };
 };
 
+// log-factorial via direct summation — n here is the corpus's own edge
+// count (hundreds to low thousands), so a plain loop is exact and fast
+// enough; no Stirling approximation is needed or wanted for an exact test.
+const logFactorial = (n) => {
+  let s = 0;
+  for (let i = 2; i <= n; i += 1) s += Math.log(i);
+  return s;
+};
+const logChoose = (n, k) => (k < 0 || k > n ? -Infinity : logFactorial(n) - logFactorial(k) - logFactorial(n - k));
+
+/**
+ * hyperAtLeastOne(n, K, m) — the EXACT probability that a uniform random
+ * permutation of n labels (K of them equal to the specimen's own subject)
+ * places at least one of them onto one of m fixed target positions.
+ *
+ * WHY THIS REPLACES A SIMULATED `shuffled()` ARM FOR THIS ONE SHAPE. o8's
+ * `arbitrary` arm redeals subjects across the edge set and asks whether the
+ * specimen's exact triple recurs — a question about where K copies of one
+ * label land among m matching-shaped positions out of n total, under a
+ * uniform permutation. That is a hypergeometric tail with a closed form:
+ * P(>=1 hit) = 1 - C(n-K, m) / C(n, m). Measured live (2026-08-29/30,
+ * widening this driver's own WORKING_PASSAGES from 40 to 100 passages on
+ * war-and-peace): the same specimen's `shuffled()` estimate moved from 0/20
+ * to 2/20 fired, which reads as "the corpus got noisier" but is at least as
+ * likely to be sampling noise on a small-n Monte Carlo estimate of a rate
+ * that may not have moved much at all — `shuffled()` cannot tell the two
+ * apart, and READING-POLICY A10 says a statistic that cannot tell the two
+ * apart is exactly the trap. An exact tail has no seed, no draw count, and
+ * no simulation variance to confound with a real corpus-size effect.
+ *
+ * This is NOT a general replacement for `shuffled()` — most of this file's
+ * arms perturb something with no closed-form null (passage order, source
+ * grouping, …) and a permutation estimate is the correct tool there. This
+ * closed form exists only because THIS arm's question — "does one label
+ * land in a fixed target set under a uniform permutation" — happens to be
+ * exactly what a hypergeometric distribution answers, and computing the
+ * true answer is strictly better than estimating it whenever it is cheap
+ * to compute, which it is here (n is this corpus's own edge count).
+ *
+ * `m` is symmetric with `K` in this formula (a well-known hypergeometric
+ * identity) — which one is called "the sample" and which "the successes"
+ * does not change the probability, only the reading.
+ */
+const hyperAtLeastOne = (n, K, m) => {
+  if (n <= 0 || K <= 0 || m <= 0) return 0;
+  if (m > n - K) return 1; // pigeonhole: the sample cannot avoid every success
+  return 1 - Math.exp(logChoose(n - K, m) - logChoose(n, m));
+};
+
+// The declared significance this repo already uses for exactly this
+// question elsewhere (network-standing.js's LINK_SPEC precedent, draws 199
+// / alpha 0.05; kind-induction.js's own default) — reused rather than
+// picked fresh for this file. "Not small" is a value judgment; 0.05 is not
+// invented here, it is cited.
+const ARBITRARY_ALPHA = 0.05;
+
+/**
+ * Order 9's own exact null: a specimen's ref-count is arbitrarily redealt
+ * among this corpus's real edges (marginals preserved — the same counts,
+ * reassigned to different identities). Under a uniform random permutation,
+ * the chance any ONE position draws a count clearing `floor` is exactly
+ * the corpus's own base rate — no simulation needed, for the identical
+ * reason `hyperAtLeastOne` needed none: the question has a closed form.
+ * A first cut at this arm used `shuffled()`'s 20-draw estimate and hit the
+ * SAME bare-inequality trap `redealAgainstExactNull` was built to close —
+ * 2/20 fired on real material, indistinguishable from either a rare or a
+ * common true rate at that draw count.
+ */
+const redealCountAgainstExactNull = (edges, specimen, floor) => {
+  const idx = edges.indexOf(specimen);
+  if (idx < 0) return { completed: false, perturbed: false, draws: 1, fired: 0, detail: "the specimen is not among this reading's own edges" };
+  const counts = edges.map((x) => x.refs?.length ?? 0);
+  const distinctCounts = new Set(counts);
+  const perturbed = distinctCounts.size > 1; // no real variation to redeal otherwise
+  if (!perturbed) {
+    return { completed: false, perturbed: false, draws: 1, fired: 0, detail: "every edge in this reading carries the same ref-count — a redeal is a no-op and tested nothing" };
+  }
+  const n = counts.length;
+  const clearing = counts.filter((c) => c >= floor).length;
+  const pHit = clearing / n;
+  const completed = pHit >= ARBITRARY_ALPHA;
+  return {
+    completed,
+    perturbed: true,
+    draws: 1,
+    fired: completed ? 1 : 0,
+    detail: `exact P(an arbitrary redeal hands this specimen a count clearing the witness floor) = ${pHit.toFixed(4)} (${clearing} of ${n} edges in this reading already clear it) — ${completed ? `at or above alpha ${ARBITRARY_ALPHA}, so the floor is not rare here` : `below alpha ${ARBITRARY_ALPHA}, so clearing it is not explained by chance alone`}`,
+  };
+};
+
+/**
+ * A redeal arm with an EXACT null, for the one shape that has one: does the
+ * specimen's own (subject, verb, object) recur under a uniform random
+ * redeal of subjects across `edges`, MORE OFTEN than chance alone predicts
+ * from this corpus's own composition (how many edges share the specimen's
+ * subject, how many share its verb+object) — never "did it ever happen
+ * once." `completed` (axiom 3 fails) only when the exact hit probability
+ * clears ARBITRARY_ALPHA; a rare, structurally-expected hit no longer
+ * convicts the item on 20 noisy draws' worth of bad luck.
+ */
+const redealAgainstExactNull = (edges, e) => {
+  const n = edges.length;
+  const K = edges.filter((x) => x.subject === e.subject).length;
+  const m = edges.filter((x) => x.verb === e.verb && x.object === e.object).length;
+  const perturbed = K < n; // some edge's subject differs — a redeal can move something
+  if (!perturbed) {
+    return { completed: false, perturbed: false, draws: 1, fired: 0, detail: "every edge shares the specimen's own subject — a redeal is a no-op and tested nothing" };
+  }
+  const pHit = hyperAtLeastOne(n, K, m);
+  const completed = pHit >= ARBITRARY_ALPHA;
+  return {
+    completed,
+    perturbed: true,
+    draws: 1,
+    fired: completed ? 1 : 0,
+    detail: `exact P(a uniform redeal reproduces this triple) = ${pHit.toFixed(4)} over n=${n} edges, K=${K} sharing the subject, m=${m} sharing the verb+object — ${completed ? `at or above alpha ${ARBITRARY_ALPHA}, so a random re-coordination is not rare here` : `below alpha ${ARBITRARY_ALPHA}, so the true match is not explained by chance alone`}`,
+  };
+};
+
 /** A discrimination arm: the same task on material that does not support it.
  * LICENSED only if the other material genuinely lacks the specimen. */
 const against = (lacks, detail, attempt) => ({
@@ -581,6 +779,13 @@ function buildItems(ctx) {
   const edges = reader.edges ?? [];
   const text = material.text;
   const heavyText = material.passages.slice(0, HEAVY_PASSAGES).map((p) => p.text).join("");
+  // The Russian material's cell of the coreference seam: single-lemma
+  // proper-noun case-forms fold onto their lemma so one being does not strand
+  // across inflections, and `resolvePronouns` reads the material's OWN
+  // third-person pronoun register so a Russian `он` can be found and gated by
+  // its own gender (both undefined for every other material → byte-identical).
+  const foldToken = ctx.foldToken;
+  const pronounClass = ctx.pronounClass;
 
   // Each passage read as its OWN system. Built once and memoised: the
   // order-13 arms perturb how these readings are GROUPED, never what they
@@ -593,9 +798,9 @@ function buildItems(ctx) {
     if (realBindingsMemo) return realBindingsMemo;
     const sentences = organs.splitSentences(text);
     const surfaces = organs.extractSurfaces(sentences, {});
-    const disc = organs.discoverReferents(surfaces, {});
+    const disc = organs.discoverReferents(surfaces, { foldToken });
     const map = new Map(disc.events.map((e) => [e.surface, e.referent_id]));
-    const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2 });
+    const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2, pronounClass });
     realBindingsMemo = res?.bindings ?? [];
     return realBindingsMemo;
   };
@@ -820,9 +1025,9 @@ function buildItems(ctx) {
       task: async () => {
         const sentences = organs.splitSentences(text);
         const surfaces = organs.extractSurfaces(sentences, {});
-        const disc = organs.discoverReferents(surfaces, {});
+        const disc = organs.discoverReferents(surfaces, { foldToken });
         const map = new Map(disc.events.map((e) => [e.surface, e.referent_id]));
-        const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2 });
+        const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2, pronounClass });
         const bindings = res?.bindings ?? [];
         const gaps = res?.gaps ?? [];
         // P1: a refusal is a correct result, so the task is not "bind
@@ -850,7 +1055,7 @@ function buildItems(ctx) {
               // cross-sentence trace was not what produced them.
               const sentences = organs.splitSentences(text);
               const surfaces = organs.extractSurfaces(sentences, {});
-              const disc = organs.discoverReferents(surfaces, {});
+              const disc = organs.discoverReferents(surfaces, { foldToken });
               const map = new Map(disc.events.map((e) => [e.surface, e.referent_id]));
               const real = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2 });
               const realKeys = new Set((real?.bindings ?? []).map((b) => `${b.offset}:${b.referentId}`));
@@ -884,9 +1089,9 @@ function buildItems(ctx) {
             (scrambled) => {
               const sentences = organs.splitSentences(scrambled);
               const surfaces = organs.extractSurfaces(sentences, {});
-              const disc = organs.discoverReferents(surfaces, {});
+              const disc = organs.discoverReferents(surfaces, { foldToken });
               const map = new Map(disc.events.map((e) => [e.surface, e.referent_id]));
-              const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2 });
+              const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2, pronounClass });
               // The arm accomplishes the task only if scrambling the sequence
               // reproduces THE SAME bindings — which would mean the sequence
               // was not what produced them. Offsets move under a re-ordering,
@@ -905,12 +1110,25 @@ function buildItems(ctx) {
             true,
             "text with no pronoun at all must yield no binding",
             () => {
-              const stripped = text.replace(/\b(he|she|they|him|her|his|hers|their|them)\b/gi, "someone");
+              // The stripped control must remove the pronouns the reader
+              // ACTUALLY binds — the register's own forms when one is in
+              // scope, the English closed set otherwise. A hardcoded English
+              // list named nothing on a Russian register (P70's third
+              // amendment: `resolvePronouns` now reads a language's own
+              // register), so on borodino-ru stripping `he|she|they…` left
+              // every `он`/его/их standing and the "no pronoun" control
+              // still bound — a false `indiscriminate`. The boundary is the
+              // same Unicode-aware one pronouns.js uses, so a Cyrillic
+              // register strips and an ASCII one is byte-identical.
+              const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const set = pronounClass?.forms ? Object.keys(pronounClass.forms) : ["he", "she", "they", "him", "her", "his", "hers", "their", "them"];
+              const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${set.sort((a, b) => b.length - a.length).map(esc).join("|")})(?![\\p{L}\\p{N}_])`, "giu");
+              const stripped = text.replace(re, "someone");
               const sentences = organs.splitSentences(stripped);
               const surfaces = organs.extractSurfaces(sentences, {});
-              const disc = organs.discoverReferents(surfaces, {});
+              const disc = organs.discoverReferents(surfaces, { foldToken });
               const map = new Map(disc.events.map((e) => [e.surface, e.referent_id]));
-              const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2 });
+              const res = organs.resolvePronouns(sentences, map, { minActivation: 0.05, minMargin: 0.2, pronounClass });
               return (res?.bindings ?? []).length > 0;
             },
           ),
@@ -958,23 +1176,15 @@ function buildItems(ctx) {
               return statedOk && reverseRefused;
             },
           ),
-        arbitrary: async () =>
-          shuffled(
-            DRAWS,
-            (seed) => {
-              // The coordination pairs a claim with the material it is
-              // checked against. Arbitrary version: check the claim against a
-              // re-dealt edge set (the same edges, subjects and objects
-              // redealt among them — marginals preserved, pairing destroyed).
-              const subjects = seededShuffle(edges.map((x) => x.subject), seed);
-              const redealt = edges.map((x, i) => ({ ...x, subject: subjects[i] }));
-              return { changed: redealt.some((x, i) => x.subject !== edges[i].subject), value: redealt };
-            },
-            (redealt) => {
-              const e = spec.specimen;
-              return queryEdges(redealt, { subject: e.subject, verb: e.verb, object: e.object }).length > 0;
-            },
-          ),
+        // The coordination pairs a claim with the material it is checked
+        // against. Arbitrary version: check the claim against a re-dealt
+        // edge set (the same edges, subjects redealt among them — marginals
+        // preserved, pairing destroyed). This question — does one label
+        // land in a fixed target set under a uniform permutation — has an
+        // exact hypergeometric answer, so it is computed rather than
+        // Monte Carlo-estimated; see `redealAgainstExactNull`'s own header
+        // for why a simulated `shuffled()` call is not used here.
+        arbitrary: async () => redealAgainstExactNull(edges, spec.specimen),
         discrimination: async () =>
           against(
             !!control,
@@ -1026,24 +1236,32 @@ function buildItems(ctx) {
               return !!claim && false;
             },
           ),
-        arbitrary: async () =>
-          shuffled(
-            DRAWS,
-            (seed) => {
-              // Marginals preserved: the same passages, the same number per
-              // source. Destroyed: which source each passage belongs to.
-              const refs = spec.recurring?.refs ?? [];
-              const permuted = seededShuffle(refs, seed);
-              return { changed: permuted.join("|") !== refs.join("|"), value: permuted };
-            },
-            (permuted) => {
-              // Re-labelling which source a passage came from must change the
-              // distinct-source count for the coordination to be doing work.
-              const distinct = new Set(permuted.map((r) => String(r).split("#")[0]));
-              const real = new Set((spec.recurring?.refs ?? []).map((r) => String(r).split("#")[0]));
-              return distinct.size === real.size && distinct.size > 1;
-            },
-          ),
+        // The original arm shuffled the ORDER of the specimen's own refs
+        // array, then took a Set() over the shuffled copy — a Set is
+        // insensitive to order, so that computation was byte-identical to
+        // the unshuffled Set on every single draw. It reported "0 of 20
+        // fired" on both fixtures, which happened to be the axiom-3-holds
+        // answer, but for no real reason: the check was a tautology, not a
+        // draw. Worse: this driver tags every passage with the SAME source
+        // key (one Wikipedia page per material), so "distinct sources" can
+        // never exceed 1 here regardless of what the arm computes — the
+        // distinction this item's own `organizes` field names (two
+        // passages of one source vs. two sources) has never actually been
+        // exercised by this battery, and no tuning of this arm's math can
+        // fix that; it traces to the driver's own material-loading, not to
+        // a wrong threshold. Disclosed, not silently patched around: real
+        // multi-source corroboration is order 13's own apparatus
+        // (`spec.sourceReaders`), unbuilt here.
+        //
+        // What axiom 3 actually needs of THIS specimen: does the corpus's
+        // own real distribution of ref-counts-per-edge, arbitrarily
+        // reassigned to a different edge identity (marginals preserved —
+        // the same counts, relabelled), still hand the SPECIMEN a count
+        // that clears the witness floor by pure chance? If most edges in
+        // this corpus recur at the floor anyway, the specimen's own count
+        // is not doing real work; if the floor is rare, an arbitrary
+        // redeal should almost never hand it to this specimen by luck.
+        arbitrary: async () => redealCountAgainstExactNull(edges, spec.recurring, WITNESS_FLOOR),
         discrimination: async () =>
           against(
             !!spec.specimen,
@@ -1138,8 +1356,27 @@ function buildItems(ctx) {
         if (!withAssertion.length) return GAP("no edge carried an assertion record");
         const corroborated = withAssertion.filter((e) => e.assertion.standing === "corroborated");
         const single = withAssertion.filter((e) => e.assertion.standing === "single-witness");
+        // Coverage alone (every edge typed, closed vocabulary) is necessary
+        // but not sufficient: asserted.js types every edge unconditionally,
+        // so 100% coverage would hold even if standings were assigned by a
+        // coin flip. A pointwise check against `standingOf` was tried here
+        // first and reverted: hypergraph.js computes `assertion.standing`
+        // AS `standingOf(e.statements)` in the same loop (its own comment,
+        // "statement grain, not passage grain: a restatement inside one
+        // passage is a second witness too" — a deliberate design, not a
+        // bug, and a DIFFERENT grain than order 9's `corroboration()`,
+        // which deliberately counts distinct PASSAGES instead), so
+        // checking standing against that same field is tautological by
+        // construction and proves nothing new. The real, non-tautological
+        // requirement is that the reading actually exhibits BOTH standings
+        // — a population where every edge landed on one label would not
+        // be discriminating anything.
         return {
-          completed: withAssertion.length === edges.length && corroborated.length + single.length === withAssertion.length,
+          completed:
+            withAssertion.length === edges.length &&
+            corroborated.length + single.length === withAssertion.length &&
+            corroborated.length > 0 &&
+            single.length > 0,
           detail: `${withAssertion.length}/${edges.length} edges carry a standing — ${corroborated.length} corroborated, ${single.length} single-witness`,
         };
       },
@@ -1156,27 +1393,55 @@ function buildItems(ctx) {
               return edges.length > 0 && distinct.size <= 1 && false;
             },
           ),
-        arbitrary: async () =>
-          shuffled(
-            HEAVY_DRAWS,
-            (seed) => {
-              // The coordination is "compare against material perturbed the
-              // one way the hypothesis is sensitive to". The arbitrary
-              // version compares against UNperturbed copies — a null that is
-              // not one. If the standing still separates, it was not the null
-              // producing it.
-              const copies = Array.from({ length: 3 }, () => heavyText);
-              return { changed: seed >= 0, value: copies };
-            },
-            (copies) => {
-              const r = makeRelationReader(organs)([{ ref: "copy#0", text: copies[0] }], { pool: material.passages });
-              const standings = new Set((r.edges ?? []).map((e) => e.assertion?.standing).filter(Boolean));
-              // Against an identical "null", every edge fires every time, so
-              // no edge can be separated from an artefact. The arm
-              // accomplishes the task only if a standing still discriminates.
-              return standings.size > 1 && false;
-            },
-          ),
+        // FIXED, not merely disclosed. The original construction (three
+        // identical unshuffled text copies, a completion check hardcoded
+        // `&& false`, `perturbed` falsely hardcoded true) was a rubber
+        // stamp — see this file's own git history for the diagnosis. The
+        // dead end every naive redeal hit: `standingOf` is a pure function
+        // of ref-count, so feeding it any redealt count trivially
+        // reproduces a self-consistent label, proving nothing.
+        //
+        // The way out: stop redealing COUNTS and redeal the LABEL instead.
+        // If the "corroborated" label were assigned ARBITRARILY — the same
+        // k edges chosen at random, without reference to real ref-counts
+        // at all — what is the exact chance that random draw lands
+        // ENTIRELY on the K edges that genuinely clear the witness floor,
+        // the same perfect correspondence the real, count-derived labeling
+        // achieves by construction? A uniformly random size-k draw from n
+        // edges, K of them true floor-clearers, landing entirely inside K
+        // is exactly the hypergeometric point mass at the maximum — no
+        // simulation, the same closed-form machinery `redealAgainstExactNull`
+        // and `redealCountAgainstExactNull` already use.
+        // K is measured off `assertion.statements` — the SAME field
+        // hypergraph.js itself keys `standingOf` off — never `refs.length`
+        // (order 9's distinct-passage count, a deliberately different
+        // grain here; conflating the two was tried and reverted, see the
+        // task's own comment above).
+        arbitrary: async () => {
+          const n = edges.length;
+          const K = edges.filter((e) => (e.assertion?.statements ?? e.statements ?? 0) >= WITNESS_FLOOR).length;
+          const k = edges.filter((e) => e.assertion?.standing === "corroborated").length;
+          const perturbed = k > 0 && k < n;
+          if (!perturbed) {
+            return {
+              completed: false,
+              perturbed: false,
+              draws: 1,
+              fired: 0,
+              detail: "no corroborated edges, or every edge is — a redeal of which edges carry the label has nothing to vary",
+            };
+          }
+          const logP = logChoose(K, k) - logChoose(n, k);
+          const pHit = Math.exp(logP);
+          const completed = pHit >= ARBITRARY_ALPHA;
+          return {
+            completed,
+            perturbed: true,
+            draws: 1,
+            fired: completed ? 1 : 0,
+            detail: `exact P(an arbitrary same-size redeal of the "corroborated" label lands entirely on genuine floor-clearers) = ${pHit < 1e-6 ? pHit.toExponential(2) : pHit.toFixed(4)} (${K} of ${n} edges genuinely clear the floor; ${k} carry the label) — ${completed ? `at or above alpha ${ARBITRARY_ALPHA}, so the labelling is not doing real work` : `below alpha ${ARBITRARY_ALPHA}, so the real derivation is not explained by chance`}`,
+          };
+        },
         discrimination: async () =>
           against(
             true,
@@ -1470,12 +1735,18 @@ async function runOne(engine, material, control) {
   const organs = engine.organs;
   const reader = makeRelationReader(organs)(material.passages, { pool: material.passages });
   const index = makeReferentIndex(organs)(material.passages);
-  const spec = deriveSpec(material, reader, index, control, engine.organs);
-  const ctx = { organs, material, reader, index, spec, control };
+  const fold = await buildRussianSeam(material);
+  const spec = deriveSpec(material, reader, index, control, engine.organs, fold?.fold);
+  const ctx = { organs, material, reader, index, spec, control, foldToken: fold?.fold, pronounClass: fold?.pronounClass, foldMeta: fold };
   const items = buildItems(ctx);
   const report = await runBattery(items, ctx, {
-    // P3: this run injects NO priors. That is a statement about which reader
-    // was measured — an unprimed one — not an omission.
+    // P3: this run injects NO priors into the READER. That is a statement
+    // about which reader was measured — an unprimed one — not an omission.
+    // (The Russian material additionally threads a language-tagged
+    // propernoun FOLD into `discoverReferents` at the coreference seam —
+    // that is an argument to an organ call, not a reader prior, and its
+    // presence is disclosed in the report via `foldMeta`, never implied
+    // default here.)
     priors: [],
     assembly: items[0].assembly,
     material: material.key,
@@ -1483,6 +1754,7 @@ async function runOne(engine, material, control) {
   return {
     report,
     stage: stageFrom(report),
+    fold: fold,
     // The coreference diagnostic is carried on the run rather than buried in
     // one item's detail string: it is an aggregate measurement over every
     // pair the material offers, and the order-5 item scores it but does not
@@ -1559,13 +1831,33 @@ function renderReport(out) {
   L.push("");
   L.push("**READING-POLICY P0 — the assembly.** " + (out.runs[0]?.report?.assembly ?? "unnamed"));
   L.push("");
-  L.push("**READING-POLICY P3 — priors injected.** None. Every number below is a result about an *unprimed* reader: no language prior, no per-text coreference prior, no kind vocabulary.");
+  const foldMention = out.runs.some((r) => r.fold)
+    ? " The Russian material additionally threads a language-tagged proper-noun fold into `discoverReferents` at the coreference seam — that is an organ argument, not a reader prior, and is disclosed per-run below."
+    : "";
+  L.push(
+    "**READING-POLICY P3 — priors injected.** None into the reader. Every number below is a result about an *unprimed* reader: no language prior, no per-text coreference prior, no kind vocabulary." +
+      foldMention,
+  );
   L.push("");
   for (const run of out.runs) {
     L.push(`## ${run.material}`);
     L.push("");
     const s = run.stage;
     L.push(`**Stage: ${s.stage == null ? "none readable" : `${s.stage} (${s.stageName})`}** — ${s.cappedBy ? s.cappedBy.detail : "no cap"}`);
+    if (run.fold) {
+      const f = run.fold;
+      const pn = f.propernounProvenance?.source ? `${f.propernounProvenance.source} (\`${f.propernounProvenance.license ?? "?"}\`)` : "giver-named by the derived register";
+      L.push(
+        `**Coreference fold:** a proper-noun fold (language \`${f.language ?? "?"}\`) injected into \`discoverReferents\` at the coreference seam, built from a received ProperNounPrior (${pn}). Single-lemma case-forms fold onto their lemma; ambiguous/multi-lemma forms and adjectives strand. Coverage is bounded by the register: in-register case-forms (москва/москву/москве, наполеон/наполеона) now fold, while in-register multi-word over-merge (Евгений/Евгения inside longer surfaces) remains a disclosed precision cost, and register-absent surnames are untouched. This fold is partial by disclosure, not by silence.`,
+      );
+      if (f.pronounClass) {
+        const pr = f.pronounProvenance?.source ? `${f.pronounProvenance.source} (\`${f.pronounProvenance.license ?? "?"}\`)` : "giver-named by the derived register";
+        L.push(
+          `**Pronoun register:** \`resolvePronouns\` now reads this material's own third-person register (language \`${f.language ?? "?"}\`, ${pr}) at every \`pronounClass\` seam. A pronoun the register covers can be FOUND and gated by its own gender (clean vs. soft, \`MIN_OBSERVATIONS\` floor); a pronoun whose antecedent is a register-absent being still strands as a typed gap. This is what lets order 7 actually attempt Russian \`он\`/его forms instead of reporting zero pronouns found — a partial binding, disclosed rather than presumed complete.`,
+        );
+      }
+      L.push("");
+    }
     if (s.isolated.length) L.push(`Passes above the cap, carried as observations and NOT folded into the stage: ${s.isolated.map((i) => `${i.order} (${i.name})`).join(", ")}`);
     L.push("");
     L.push("| order | name | verdict | item | detail |");

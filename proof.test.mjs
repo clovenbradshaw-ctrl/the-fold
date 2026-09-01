@@ -127,9 +127,9 @@ test("proof targets come from the turn's own checks, ordered by need, deduplicat
   );
   const relationReport = {
     claims: [
-      { sentence: "Pierre married Dolokhov.", subject: "Pierre", verb: "married", object: "Dolokhov", verdict: "unbound" },
-      { sentence: "Pierre loved Helene.", subject: "Pierre", verb: "loved", object: "Helene", verdict: "contradicted" },
-      { sentence: "He spoke.", subject: "He", verb: "spoke", object: "x", verdict: "beyond-reach" },
+      { sentence: "Pierre married Dolokhov.", subject: "Pierre", verb: "married", object: "Dolokhov", end1: "Pierre", label: "married", end2: "Dolokhov", verdict: "unbound" },
+      { sentence: "Pierre loved Helene.", subject: "Pierre", verb: "loved", object: "Helene", end1: "Pierre", label: "loved", end2: "Helene", verdict: "contradicted" },
+      { sentence: "He spoke.", subject: "He", verb: "spoke", object: "x", end1: "He", label: "spoke", end2: "x", verdict: "beyond-reach" },
     ],
   };
   const targets = proofTargets({ findings: grounding.findings, relationReport });

@@ -105,6 +105,17 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
 const ENGINE = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
+// serve.mjs's engine-v7 mount, carried here for the same reason: the chat
+// page's own ratchet pass (2026-08-29 — CLAUDE.md's "The connection pass" /
+// "finish the ratchet" section) moved app.js's text organs off /engine and
+// onto eoreader7's native kernel at /engine-v7/…, and this server serves
+// the chat page whole exactly as serve.mjs does. Missing this mount would
+// be the identical failure CLAUDE.md's Explore section already names for
+// /engine — "without that mount the chat page half-loads" — one mount
+// short of drift, the same class this repo's own postmortems (P22's
+// Array.find, P24's runtime ternary) keep catching between two copies of
+// one thing.
+const ENGINE_V7 = path.resolve(ROOT, "..", "eoreader7", "native");
 // serve.mjs's nul mount, carried here for the same reason as /engine:
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
@@ -114,6 +125,17 @@ const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // eoreader6.1's own gitignored, locally-reproducible build directory —
 // never a stale copy vendored into this repo.
 const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
+// Shipped fallbacks for the same mount — serve.mjs carries the full
+// reasoning (P73 + P74): the primary is a gitignored dir in a usually-absent
+// submodule, so without the chain the prior 404'd on every fresh checkout
+// and every organ gated on it silently degraded to off. Chain: sibling
+// live build dir -> this repo's own committed artifact (priors-data/) ->
+// live_priors' committed artifact. The alias is the declared eng->en
+// naming translation between eoreader6.1's ISO-3 file names and
+// live_priors' LANG_OF codes.
+const PRIORS_DATA_OWN = path.resolve(ROOT, "priors-data");
+const PRIORS_DATA_SHIPPED = path.resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
+const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 const PORT = Number(process.argv[2] ?? 8812);
 const BROWSE_ROOT = path.resolve(process.argv[3] ?? path.join(ROOT, ".."));
 const RECORD_DIR = path.join(ROOT, "record");
@@ -834,18 +856,29 @@ function readJsonBody(req) {
 
 function serveStatic(req, res, pathname) {
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  const file = rel.startsWith("/engine/") || rel.startsWith("engine/")
-    ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
-    : rel.startsWith("/nul/") || rel.startsWith("nul/")
-      ? path.join(NUL, rel.replace(/^\/?nul\//, ""))
-      : rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")
-        ? path.join(PRIORS_DATA, rel.replace(/^\/?priors-data\//, ""))
-        : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+  let file = rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
+    ? path.join(ENGINE_V7, rel.replace(/^\/?engine-v7\//, ""))
+    : rel.startsWith("/engine/") || rel.startsWith("engine/")
+      ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
+      : rel.startsWith("/nul/") || rel.startsWith("nul/")
+        ? path.join(NUL, rel.replace(/^\/?nul\//, ""))
+        : rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")
+          ? path.join(PRIORS_DATA, rel.replace(/^\/?priors-data\//, ""))
+          : path.join(ROOT, rel === "/" || rel === "." ? "index.html" : rel);
+  if ((rel.startsWith("/priors-data/") || rel.startsWith("priors-data/")) && !existsSync(file)) {
+    const name = rel.replace(/^\/?priors-data\//, "");
+    const own = path.join(PRIORS_DATA_OWN, name);
+    const shipped = path.join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
+    if (own.startsWith(PRIORS_DATA_OWN) && existsSync(own)) file = own;
+    else if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
+  }
   const withinRoot = file === ROOT || file.startsWith(ROOT + path.sep);
   const withinEngine = file === ENGINE || file.startsWith(ENGINE + path.sep);
+  const withinEngineV7 = file === ENGINE_V7 || file.startsWith(ENGINE_V7 + path.sep);
   const withinNul = file === NUL || file.startsWith(NUL + path.sep);
-  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep);
-  if (!withinRoot && !withinEngine && !withinNul && !withinPriorsData) {
+  const withinPriorsData = file === PRIORS_DATA || file.startsWith(PRIORS_DATA + path.sep)
+    || file === PRIORS_DATA_SHIPPED || file.startsWith(PRIORS_DATA_SHIPPED + path.sep);
+  if (!withinRoot && !withinEngine && !withinEngineV7 && !withinNul && !withinPriorsData) {
     res.writeHead(403);
     return res.end("forbidden");
   }

@@ -168,16 +168,25 @@ is already measured (P44, `eval/results/mhc-RESULTS.md`) against a
 received scale (Commons's MHC), with control arms per order and the
 task/performance separation kept:
 
-- **War and Peace: stage 9** (Concrete) — capped by a MISSING PROBE at
-  order 10, not a failure (the slice offers no two-filler slot).
+- **War and Peace: stage 13** (Metasystematic) — no cap; every order 5
+  through 13 passes, order 10's earlier missing-probe gap and order 11's
+  earlier vacuous null both closed for real (P70): order 10 now has a real
+  two-filler specimen, order 11 an exact hypergeometric test that
+  independently reproduces from the raw edges (`n=692, K=14, k=14`,
+  `P(chance) ≈ 1.7e-29`).
 - **Borodino: stage 6** (Sentential) — capped by a REAL ceiling: order 7
   (pronoun binding across sentences) measured and failed, every attempt
-  `pronoun_no_margin`.
-- Orders 11–13 (Formal, Systematic, Metasystematic) PASS on both
-  materials — and are carried as isolated observations, never summed into
-  a stage across a failed or unmeasured floor. A refused item is a gap in
-  the battery, never a failure of the system; a pass above a hole is
-  never a stage.
+  `pronoun_no_margin`. Orders 8–13 PASS above that ceiling — carried as
+  isolated observations, never summed into a stage across a failed floor.
+  A refused item is a gap in the battery, never a failure of the system;
+  a pass above a hole is never a stage.
+- **Tested omnilingually, same day:** a genuine, live-fetched Russian
+  Wikipedia fixture (same topic as Borodino, no English-tagged prior
+  opted in) joined the battery. Content-independence held — zero scale
+  violations across three materials, one non-Latin — with two real,
+  disclosed performance gaps: order 5 (coreference) and order 7 (pronoun
+  binding, which turns out silently English-only). Full account:
+  POLICIES.md P70's second and third same-day amendments.
 - Orders 0–4 are out of scope BY CONSTRUCTION: this instrument receives
   symbols and has no sensor. That is the honest floor of any capability
   claim it ever makes.

@@ -9403,3 +9403,27 @@ membership against a received treebank, nothing fitted to these pages;
 the arm-C refutation is per-specimen honest — 0 joins ON THIS MATERIAL —
 and the synonymy-not-morphology reading of the flagship pair is checked
 by name, not induced from the corpus).
+
+### P74, amended 2026-09-01 — the availability tier's content is the sibling's artifact, byte for byte
+
+P73 and P74 landed the SAME ground twice within the hour, from two
+concurrent sessions: P73 committed a train-only POSPrior@1 into this
+repo's `priors-data/` (16,654 forms — `build-pos-prior.mjs`'s own
+documented single-file usage), P74's companion (live_priors #17, LP10)
+committed a train+dev+test build with per-file sha256 provenance (19,341
+forms). The merge kept both honestly — the serving chain's tier 2
+(availability: present on every checkout of this repo) preferred the
+SMALLER build over the richer one sitting one tier down. Reconciled, not
+deduped (eoreader6.1's own rule): the tier is right to exist and its
+CONTENT is now live_priors' artifact, copied byte-for-byte
+(sha256 a5774fa16fd56bd4…, identical on both sides), so the two committed
+copies can never silently drift — a divergence is one hash comparison
+away, and live_priors remains the artifact's home (its build provenance,
+its LP10 resolution discipline). Safe by construction: every consumer
+reads `posPrior.forms` alone (checked: hypergraph.js, grammar-lens.js,
+wordclass.js — none reads `language`/`provenance`/`giver`), and
+`admission-gate.test.mjs` already proves this exact artifact through the
+real lens. Measured after the swap: the three-arm probe's numbers are
+IDENTICAL on the committed fixtures (15 bound / 10 notes / 0 junk labels
+— the 2,687 extra forms flip no decision there, they widen coverage
+elsewhere); full suite 1596/1547/44, the same 44 names, zero regressions.

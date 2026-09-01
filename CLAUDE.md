@@ -5993,3 +5993,12 @@ Named absences: turnedAway reaches no UI yet; explore-server.mjs's mount
 edit is syntax-checked only (that server cannot boot here — P69's
 disclosed submodule error); subject-span hygiene (the handoff's lever 3)
 is untouched upstream extractor work.
+
+**Amended 2026-09-01 — the two committed priors reconciled.** P73 (this
+repo, train-only, 16,654 forms) and P74's companion (live_priors,
+train+dev+test with sha256 provenance, 19,341 forms) had shipped two
+DIFFERENT builds of the same POSPrior@1, and the serving chain's
+availability tier preferred the smaller. `priors-data/pos-prior-eng.json`
+is now live_priors' artifact byte-for-byte (drift = one hash comparison),
+every consumer reads `forms` alone, and the probe's numbers are identical
+after the swap. Full account: POLICIES.md P74's 2026-09-01 amendment.

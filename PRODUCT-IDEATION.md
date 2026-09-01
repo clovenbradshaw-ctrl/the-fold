@@ -347,12 +347,22 @@ knowing.
 > build: **"the ID engine."** Also "the model", "the platform", "our data
 > layer". It fits into every sentence, which is exactly why it's useless: it
 > connects to every idea and distinguishes between none of them.
+> **The test that settles it:** write the plan with it, and write the plan
+> without it. If those are the same plan, it isn't a thing. A second tell, and
+> the easier one to spot in a live meeting: it mostly appears in sentences that
+> are *about something else*, "we'll need the ID engine for that", "that depends
+> on the ID engine". It's the subject of almost nothing and the dependency of
+> almost everything.
+> **Why it's first in this phase:** before the fan-out it looks like a
+> placeholder, which is what it is. After the fan-out it looks like the thing
+> that unifies the proposals, which is much harder to argue with. Name it while
+> it still has nothing to unify.
 > **Done when:** it's named on the board with a line through it, and *the fact
 > that you parked it is written down*.
-> **Trap:** quietly dropping it. It comes back next quarter with a new name and
-> another quarter attached to it. **Test:** does it mostly appear in sentences
-> that are describing other things? Then it's how you talk about the work, not
-> the work.
+> **Trap:** quietly dropping it. **Park, don't delete**: the concern underneath
+> is usually real, so a deleted one comes back next quarter with a new name and
+> another quarter attached to it. Parked in writing, you can point at the record
+> instead of having the argument again. §6 says why this one gets its own task.
 
 > **Task 9: Fan out, in silence, from one source only.**
 > Everyone writes proposals for the gap from Task 2–4. Start with the source
@@ -566,9 +576,39 @@ up** (Task 18).
 
 Before any of the three, check for the thing that isn't a thing at all: "the ID
 engine", "the platform", "the pipeline". It sounds like a candidate. It can't be
-one, because it doesn't do anything specific enough to test. That's Task 8, and
-it comes first for a reason: a fake subject can absorb an entire quarter and leave
-everyone able to describe progress.
+one, and it's worth being exact about why, because "it's too vague" is not the
+problem and tightening the wording does not fix it. It is not a bad description
+of something. It is a name for a container of work, standing where the name of a
+piece of work should be.
+
+**It cannot be judged, so it can never be refused.** Task 10 gives every proposal
+one of three outcomes against the test. A fake subject slips that gate every
+time, because whether it passes depends on what the person judging it happens to
+be imagining inside it. Ask whether "the ID engine" narrows down what the bird
+could be, using evidence the person actually has, and the only honest answer is
+*depends what's in it*. Anything that can absorb any objection isn't a proposal.
+
+**It falsifies the count.** Put it on the ground from Task 4 and it appears to
+cover all six evidence kinds, because it is defined as whatever covers them.
+Four of six quietly becomes six of six, and the named holes, the one thing this
+whole method exists to produce, vanish without anyone filling them. This is the
+real damage, and it's specific to a method whose output is a list.
+
+**Agreement about it is cheap, and cheap agreement reads as a decision.**
+Everyone says yes immediately, because there is nothing specific to say no to. A
+room that has just agreed feels like a room that has just decided. It hasn't:
+each person agreed to their own version, and the versions surface a quarter
+later as scope.
+
+**Park it, don't delete it.** The concern underneath is usually real. Photo ID
+and sound ID are real, and "the ID engine" is the shadow they cast when you
+stand far enough back. Delete it and the person who raised it hears their actual
+point being dismissed, and it returns next quarter as "the recognition layer".
+Parked in writing, with the parking itself on the record, you point at the
+record instead of relitigating.
+
+That's Task 8, and it comes first in Phase B for a reason: a fake subject can
+absorb an entire quarter and leave everyone able to describe progress.
 
 ---
 

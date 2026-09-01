@@ -71,6 +71,20 @@ const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 // absence honestly when the file has never been built locally, rather than
 // assuming every checkout has run the builder.
 const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
+// The SHIPPED fallback for the same mount (P72): the primary above is a
+// gitignored build directory inside a submodule most checkouts never
+// initialize, so on a fresh machine the fetch 404'd and every organ gated
+// on this prior silently degraded to off — hypergraph.js's vocabulary-level
+// POS gate included, which is exactly the 18/32-junk admission condition
+// eval/admission-gate.mjs measures. live_priors commits the SAME
+// POSPrior@1 artifact (UD_English-EWT, giver + license + per-file sha256),
+// so the mount now falls back to it — still read live off a sibling repo,
+// never a copy vendored here, the same discipline as /engine and /nul.
+// The alias is a DECLARED translation between two naming conventions
+// (eoreader6.1 keys files by ISO-3 "eng"; live_priors by its own LANG_OF
+// codes, "en") — THRAX_MAP's own precedent: named at the seam, once.
+const PRIORS_DATA_SHIPPED = resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
+const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 const PORT = Number(process.argv[2] ?? 8811);
 
 // The one package environment. Both the build runner and the terminal get
@@ -522,7 +536,7 @@ createServer((req, res) => {
 
   // Never serve outside the directory (or the engine/nul/priors-data mounts),
   // whatever the path claims to be.
-  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(ENGINE_V7) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA)) {
+  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(ENGINE_V7) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA) && !file.startsWith(PRIORS_DATA_SHIPPED)) {
     res.writeHead(403).end("no");
     return;
   }
@@ -552,10 +566,16 @@ createServer((req, res) => {
     }
   }
   if (rel.startsWith("/priors-data/")) {
-    file = join(PRIORS_DATA, rel.slice("/priors-data/".length));
+    const name = rel.slice("/priors-data/".length);
+    file = join(PRIORS_DATA, name);
     if (!file.startsWith(PRIORS_DATA)) {
       res.writeHead(403).end("no");
       return;
+    }
+    if (!existsSync(file)) {
+      // Fall back to the shipped artifact (see PRIORS_DATA_SHIPPED above).
+      const shipped = join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
+      if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
     }
   }
 

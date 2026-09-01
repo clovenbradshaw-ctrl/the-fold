@@ -277,6 +277,7 @@ import * as enginePriors from "/engine-v7/adapters/text/priors.js";
 // (of/in/for/at/…), so declaredSlotShape's anchor recovery generalizes past
 // a single hardcoded preposition without a second word list.
 import { classifyWord, dominantClass } from "/engine-v7/adapters/text/wordclass.js";
+import { makeGrammarLens } from "./grammar-lens.js";
 import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
@@ -359,6 +360,20 @@ fetch("/priors-data/pos-prior-eng.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => { posPriorCache = j; })
   .catch(() => {});
+
+// The hyperlexicon door's EVA station (grammar-lens.js over the same
+// POSPrior@1, P72): passed into runHolonicTask and forwarded to
+// hyperlexicon.admit, so a connector that SETTLES as a non-verb under real
+// treebank evidence is turned away with its giver named, and an
+// out-of-vocabulary connector still admits (the asymmetric discipline —
+// absence convicts nothing). Wrapped per call rather than constructed once
+// for the same reason posPriorFor is an accessor: the prior resolves after
+// boot, and a lens captured over `null` would silently never refuse. When
+// the cache is still null this degrades to exactly the ungated door
+// (classifyWord returns found:false, nothing settles, nothing refuses) —
+// a check that cannot run must not refuse, and must not block boot.
+const classifyConnector = (edge, opts) =>
+  makeGrammarLens({ classifyWord, dominantClass, posPrior: posPriorCache })(edge, opts);
 
 // The relation reader's factory — one per passage set, pool = the live
 // corpus (the closed-class measure needs the corpus's scale, not the
@@ -4321,6 +4336,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // reading, which is itself null with checking off — see two lines up.
       hyperlexicon: state.grounded ? hyperlexiconFor : null,
       hyperlexiconLog: state.grounded ? state.hyperlexiconLog : null,
+      // The door's EVA station (P72) — same gate as the ledger two lines up.
+      classifyConnector: state.grounded ? classifyConnector : null,
       planMode,
       // Verbatim recent history for the chat path (no material). The
       // discourse slice is the folded fallback when this window is empty.

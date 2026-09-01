@@ -947,6 +947,12 @@ export async function runPart({
   // existed — no existing caller's behavior changes.
   hyperlexicon = null,
   hyperlexiconLog = null,
+  // The door's own EVA station (grammar-lens.js's classifyConnector over
+  // POSPrior@1, P72), handed straight to hyperlexicon.admit below — the
+  // parameter admit has carried, unfilled, since P57. Null (the default)
+  // leaves the door byte-identical: admit's own contract is that a check
+  // that did not run reports no pass and refuses nothing.
+  classifyConnector = null,
 }) {
   // Stable sub-assemblies (2026-08-19, user direction). The part's own words
   // and the fold's discourse line are two DIFFERENT assemblies, and the old
@@ -1048,6 +1054,12 @@ export async function runPart({
   // touches nothing downstream — byte-identical to before this existed,
   // the same discipline `grid`/`gridLog` already hold above.
   let beliefNotes = hyperlexiconLog;
+  // Every refusal the door types comes back out (P57: `turnedAway` is not
+  // optional) — accumulated here and returned beside the log, never read
+  // and discarded. With no classifyConnector this stays empty for the
+  // connector reason but still carries the door's own structural refusals
+  // (incomplete edges, unaddressed spans), exactly as admit types them.
+  const hyperlexiconTurnedAway = [];
   if (hyperlexicon && relations) {
     for (const p of passages) {
       const text = String(p?.text ?? "");
@@ -1057,11 +1069,15 @@ export async function runPart({
         .filter((c) => c.verdict === "bound")
         .map((c) => ({ subject: c.subject, verb: c.verb, object: c.object, spans: c.spans ?? [] }));
       if (!edges.length) continue;
-      beliefNotes = hyperlexicon.admit(
+      const admitted = hyperlexicon.admit(
         beliefNotes ?? hyperlexicon.createHyperlexicon(),
         edges,
-        { witness: p.ref ?? null },
-      ).log;
+        { witness: p.ref ?? null, classifyConnector },
+      );
+      beliefNotes = admitted.log;
+      for (const t of admitted.turnedAway) {
+        hyperlexiconTurnedAway.push({ witness: p.ref ?? null, reason: t.reason, detail: t.detail, verb: t.edge?.verb ?? null });
+      }
     }
   }
 
@@ -2251,6 +2267,9 @@ export async function runPart({
     // The updated hyperlexicon, same threading discipline: unchanged when
     // no organ was injected or nothing bound this part.
     hyperlexiconLog: beliefNotes,
+    // The door's typed refusals for this part (P57: not optional at any
+    // boundary). Empty when nothing was refused or no ledger was injected.
+    hyperlexiconTurnedAway,
   };
 }
 
@@ -2300,6 +2319,11 @@ export async function runHolonicTask({
   // reasoning (P57's own hyperlexicon.js).
   hyperlexicon = null,
   hyperlexiconLog = null,
+  // The admission door's EVA station (grammar-lens.js over POSPrior@1,
+  // P72), forwarded through runPart to hyperlexicon.admit. Null leaves the
+  // door byte-identical to before — a check that cannot run refuses
+  // nothing and reports no pass.
+  classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
@@ -2372,6 +2396,10 @@ export async function runHolonicTask({
   // divergent forks of what should be one shared record.
   let sharedGridLog = gridLog;
   let sharedHyperlexiconLog = hyperlexiconLog;
+  // The door's typed refusals, accumulated across parts the same way
+  // seenRefs accumulates — returned whole so no boundary reads them and
+  // discards them (P57).
+  const sharedHyperlexiconTurnedAway = [];
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -2412,10 +2440,12 @@ export async function runHolonicTask({
       landAct,
       hyperlexicon,
       hyperlexiconLog: sharedHyperlexiconLog,
+      classifyConnector,
     });
     seenRefs.push(...result.refs);
     sharedGridLog = result.gridLog;
     sharedHyperlexiconLog = result.hyperlexiconLog;
+    sharedHyperlexiconTurnedAway.push(...(result.hyperlexiconTurnedAway ?? []));
     sectionsById.set(t.part_id, result);
     return {
       refs: result.refs,
@@ -2462,5 +2492,5 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog };
+  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

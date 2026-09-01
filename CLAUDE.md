@@ -1876,18 +1876,21 @@ faces (operator × terrain) do not carry at all.
 **Three reconciliations, each cost something, disclosed in grid.js's own
 header too (not only here).**
 
-1. **Operator order.** The handed-down document's prose calls the chain
-   "NUL SIG INS SEG CON SYN DEF EVA REC" — the "HELIX order." `task-log.js`'s
-   own header (already in this repo, unrelated to this pass) — without
-   spelling out the old sequence's letters itself — records that "an
-   invented HELIX ordering" existed once, as a hand-rolled partial copy in
-   application-side code, and was replaced by the engine's real
-   `OPERATOR_ORDER` (NUL SEG SIG CON EVA DEF INS SYN REC) — the one
-   `validateChain`/`checkCubeProgression` actually enforce. The shared,
-   distinctive name is what ties the two together, not a literal quote of
-   the old sequence. Reusing the superseded name would have silently
-   reintroduced the defect the supersession was for either way. grid.js
-   uses the engine's order.
+1. **Operator order.** *(CORRECTED 2026-09-01 against the canon's own
+   sources, on user direction — the account below had it INVERTED.)* The
+   canonical chain is **NUL SIG INS SEG CON SYN DEF EVA REC** — the
+   domain-major sequence the handed-down document stated: `CUBE.md` line
+   39 enumerates it as the operator grid's own order, and the handbook's
+   construction-language chapter states it as the strict dependency chain
+   ("of nearly thirteen hundred possible orderings, only this one
+   survives basic consistency checks"), lineage eoreader4.1
+   `core/operators.js`. This pass's original reconciliation read
+   `task-log.js`'s header as demoting that chain in favour of the
+   engine's `OPERATOR_ORDER` constant (NUL SEG SIG CON EVA DEF INS SYN
+   REC) — backwards: the engine constant is the DIVERGENT one, and it
+   now stands flagged as pending reconciliation with canon, not as
+   authority. grid.js follows the engine constant today; that code fact
+   is unchanged by this correction and inherits the same flag.
 2. **Terrain is medium-blind, past the engine's own domain lock.**
    `operators.js::cellOf` ties an operator's terrain to `OP_DOMAIN[op]` —
    SIG/INS are always Existence-domain there, so `cellOf` alone could only
@@ -6427,15 +6430,19 @@ why 9 = 3 maths × 3 shared operations; and on the STANCE face the triad
 runs THROUGH the page — every stance cell is a three-story stack, so a
 "FULL stance" (P64's own vocabulary) is a proven INSTANTIATION in all
 three maths (the isomorphism is the hypothesis §VIII.1 tests) and the
-depth axis is ANALOGY. **Hardened same day by adversarial re-check
-against the tables**, which caught the doc walking into the HELIX trap:
-the enforced OPERATOR_ORDER (NUL SEG SIG CON EVA DEF INS SYN REC)
-INTERLEAVES the domains — cut before mark, SEG before SIG, which the
-tower's own measured floors corroborate (extents precede cast) — so the
-crossing rule is a PER-CLAIM partial order (unit before edge before
-integral for one claim's own lineage; INS-before-SYN survives), never
-domain-major phases. §VIII keeps it falsifiable: full stances must
-transfer ACROSS DOMAINS (untested — contest.js's precedent is media, a
-different axis), empty stances must be derivable from depth-siblings,
-and crossing-rule violations must present as measured nonsense, never
-clean error.
+depth axis is ANALOGY. **Corrected twice, the second time against the
+canon's own sources on user direction:** the canonical operator chain is
+**NUL SIG INS SEG CON SYN DEF EVA REC** (CUBE.md line 39; the handbook's
+construction-language chapter — "of nearly thirteen hundred possible
+orderings, only this one survives basic consistency checks"; eoreader4.1
+lineage) — which is exactly MATH-MAJOR, so the crossing rule "arithmetic
+before geometry before calculus" IS the canon's own chain.
+task-log.js's divergent OPERATOR_ORDER constant (NUL SEG SIG CON EVA DEF
+INS SYN REC) stands FLAGGED as pending reconciliation, never as
+authority over the chain; an intermediate "hardening" here had inverted
+which order was canonical on that constant's word, and the correction of
+the correction is kept named in the document. §VIII keeps it
+falsifiable: full stances must transfer ACROSS DOMAINS (untested —
+contest.js's precedent is media, a different axis), empty stances must
+be derivable from depth-siblings, and crossing-rule violations must
+present as measured nonsense, never clean error.

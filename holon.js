@@ -947,6 +947,17 @@ export async function runPart({
   // existed — no existing caller's behavior changes.
   hyperlexicon = null,
   hyperlexiconLog = null,
+  // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
+  // — asymmetric, P56: a settled non-verb connector is refused with its
+  // giver, an out-of-vocabulary word admits). Threaded, never built here:
+  // the lens is app.js's to construct from the POS prior it already
+  // fetches, and `null` (the default for every existing caller) leaves the
+  // admit call byte-identical to before this existed — a check that did
+  // not run never reports a pass (P41), and the door's own header says the
+  // same. Measured need (eval/hyperlexicon-door-probe.mjs): unthreaded,
+  // 18 of 29 notes admitted from real prose carried a closed-class label
+  // (—and→, —of→, —to→…) into the belief ledger.
+  classifyConnector = null,
 }) {
   // Stable sub-assemblies (2026-08-19, user direction). The part's own words
   // and the fold's discourse line are two DIFFERENT assemblies, and the old
@@ -1060,7 +1071,10 @@ export async function runPart({
       beliefNotes = hyperlexicon.admit(
         beliefNotes ?? hyperlexicon.createHyperlexicon(),
         edges,
-        { witness: p.ref ?? null },
+        // minShare stays the door's own declared default — no second number
+        // is introduced here; classifyConnector null = the gate does not
+        // run, admit's own disclosed behaviour.
+        { witness: p.ref ?? null, classifyConnector },
       ).log;
     }
   }
@@ -2297,9 +2311,11 @@ export async function runHolonicTask({
   landAct = null,
   // Same shape, same threading, same default-null backward compatibility
   // as grid/gridLog just above — see runPart's own header for the full
-  // reasoning (P57's own hyperlexicon.js).
+  // reasoning (P57's own hyperlexicon.js; classifyConnector: the door's
+  // grammar gate, P73).
   hyperlexicon = null,
   hyperlexiconLog = null,
+  classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
@@ -2412,6 +2428,7 @@ export async function runHolonicTask({
       landAct,
       hyperlexicon,
       hyperlexiconLog: sharedHyperlexiconLog,
+      classifyConnector,
     });
     seenRefs.push(...result.refs);
     sharedGridLog = result.gridLog;

@@ -6363,3 +6363,31 @@ chunks of one file are one perspective, `corroborateAtoms`' own rule).
 The Dracula driver counts `max(witnesses, spans)`, so a fact heard twice
 in ONE book counts. Neither is wrong; they answer different questions, and
 the 260-vs-0 gap between them is entirely that difference.
+
+## The hyperlexicon's real bottlenecks, in order (added 2026-09-01, second pass) — pointer
+
+The "three modules" section above named exact-triple identity as the
+starvation cause. **Measured same day: identity is the SECOND cause.** The
+first was that the door's diet was garbage — the POS grammar gate had run
+dark in `live_priors/scripts/eot-digest.mjs` for its whole life (one wrong
+word in a filename: `pos-eng.json` for `pos-prior-eng.json`), so 12,696
+Dracula edges arrived with `the`/`and`/`of`/`he` as labels and a quotation
+mark as a subject, and the door turned away zero. Gate lit: 6,503 edges,
+labels real verbs. eo-constitution **III.5** (20th amendment, sealed: a
+typed gap no test reads is a report, not an enforcement) and live_priors'
+`scripts/eot-digest.test.mjs` are the law and the assertion.
+
+**One refutation worth not retrying:** act identity by distributional
+company is DEAD — `saw/wrote` cosine 0.744 beats the genuine synonym pair
+`looked/gazed` at 0.585; company at ±1 token measures syntactic frame, not
+act. The control (II.23) is what caught it before it shipped.
+
+**The order of remaining levers, each gated on a measurement:** (1) subject
+-span hygiene, upstream in the extractor — ends like `"a dark"`/`"'e
+never"` make any identity organ pointless (P74's lever 3, still the
+biggest); (2) then `noteIdentity` ends through the earned referent standing,
+with `segmentation.js`'s cursor-honest `correct()` re-keying notes when a
+referent fold lands; (3) label identity stays `sameLemma` only — synonymy
+is open, disclosed, and not approximated by company; (4) `kind-standing.js`
+as the fold gate. Corroboration held at ~2.3% before and after the gate —
+the identity work only pays once the ends are real.

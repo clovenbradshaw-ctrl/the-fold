@@ -185,6 +185,70 @@ its mind.
 
 ---
 
+## The grid on the wall
+
+There is one more instrument in the house, and I saved it for late in the
+tour because it only shows its worth after you've seen everything else.
+This project inherits a small, strict algebra: nine verbs of reading and
+three depths. The verbs are things like *distinguish something from
+nothing*, *cut*, *sign*, *relate*, *evaluate*, *individuate*, *compose*,
+*concede*. The depths are the ground, the figure, and the pattern — the
+field something sits in, the thing itself, and the kind of thing it is.
+Nine verbs, three depths, twenty-seven cells, and every act the reader
+performs lands in exactly one of them — computed from the act itself,
+never chosen for effect. The one thing the grid refuses to do is classify
+content. It cannot tell you what a paragraph is about. We tested that
+refusal once, hard, and it held. It can only tell you what kind of act
+you just performed — which turns out to be the more useful confession.
+
+Because when you hang the grid on the wall and pin every station of the
+pipeline to its cell, the troubles stop looking scattered. Every choke
+point in the system sits on a *seam* — not inside a module, but between
+two domains, where one kind of work is supposed to hand its earnings to
+the next and doesn't. The cast not reaching the assertion-reader: that is
+existence failing to feed structure — the beings are earned upstairs and
+the relations downstairs never hear about them. The other-minds gap: that
+is structure failing to feed interpretation. The map doesn't just locate
+the bugs. It explains why they cluster where they do: a floor of the
+house can only furnish itself with what the floor below actually built.
+
+And then the grid handed me the week's most humbling sentence. We spent
+three days of measurements deriving a repair ordering — individuate the
+ends before you try to corroborate the claims; fix who-exists before you
+count how-often-something-was-said. Three probes, two broken statistical
+alibis, one constitutional amendment. Then I typed the stations into
+their cells and saw that our hard-won ordering is simply the algebra's
+own production order: birth before corroboration, existence before
+structure, five letters that were sitting in the engine the whole time.
+This is the second time this project has done exactly this — its oldest
+law was also rediscovered by measurement before anyone read it where it
+was already written down. I've decided not to be embarrassed by that,
+for a Pollan-shaped reason: the letter of a law you've never broken is
+just a sentence. The measurement is what makes it binding. But it does
+suggest a discipline for the next year — when a fix ordering feels
+discovered, check the grid first. The algebra keeps being ahead of us.
+
+The depths carry a law of their own, and it explains the week of broken
+alibis in one line: you cannot count your way up a floor. A claim about a
+*kind* — the pattern depth — can be refuted by instances but never earned
+by them, and our three failed nulls were three attempts to earn a
+pattern-claim with figure-arithmetic. The one test that survived is the
+one that lives at the claim's own depth.
+
+And the grid states the safety architecture of the whole system more
+crisply than any policy document we've written. Of the nine verbs, the
+generative model is permitted exactly one column — the *making* verbs,
+inside walls, as testimony. It is never, anywhere, granted *evaluate*.
+Reading is a model's. Judging is the record's. One sentence, typed.
+
+Which brings us to the thin column. Existence is dense with organs.
+Structure is dense. The third column — interpretation: the atmosphere a
+reading happens in, the lens a claim is checked through, the paradigm
+that gets conceded and reshaped — is sparse, and what little is built
+there points only inward, at the reader itself. That sparseness has a
+name, and it is the channel we forgot.
+
+
 ## The channel we forgot: other minds
 
 Here is the gap this overview exists to name, because until yesterday we
@@ -233,7 +297,7 @@ One mechanism, three mirrors.
 
 ## Where this is headed
 
-Near: the one wire — cast into assertion-reading — then watching
+Near: the one wire — cast into assertion-reading, the existence-to-structure seam — then watching
 corroboration climb, then the ledger's mouth opening, then every
 conversation inheriting an actual memory of everything ever read. That is
 the hyperlexicon finally doing what its name promised.

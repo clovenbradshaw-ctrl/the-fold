@@ -87,3 +87,59 @@ An extractor that took the clear cases and typed the rest as unread would
 lose nothing downstream — corroboration only ever uses repeatable
 propositions — and would stop poisoning the ledger. That is
 withhold-versus-convict applied one floor lower than it had been applied.
+
+---
+
+# Addendum: definite descriptions BUILT — the mechanism is sound, the lift is small (2026-09-01)
+
+The lever this document named ("one floor down, at Station 3") was built
+the same day: `description-standing.js` + 8 tests against the real book.
+
+**The mechanism works, and its controls hold.** A definite description
+earns referent standing when the material uses it CONSISTENTLY — measured
+as self-consistency of company across the material's own two halves,
+placed against the POPULATION of descriptions as the null (nothing
+redealt: kind-standing.js's own licensed pairing, the one of three that
+survived Station 6).
+
+| | median |
+|---|---|
+| named beings (yardstick) | 0.522 |
+| definite descriptions | 0.464 |
+| CONTROL, cross-term, noun-headed | 0.284 |
+
+Descriptions are ~78% as referent-like as named beings on the same
+instrument. The control is deliberately the HARD one — against a mixed
+control it sits at 0.067, which would have flattered the result.
+
+Two organs did real work: the received POS prior gates the HEAD (without
+it the harvest fills with "that he", "that we", "the same" — 527
+candidates become 206 real ones), and the verdict is genuinely
+discriminating — of the top 60 descriptions, **15 admitted, 40 refused,
+5 unknown**. A mechanism that admitted all 60 would have measured nothing,
+and that is this module's shipped control (II.23).
+
+**And the lift is small: first-end resolution 18.5% → 19.9%.**
+
+Stated plainly because it matters: only 97 of 5,753 unanchored
+propositions name an admitted description. The reason is now visible in
+the harvest itself — the admitted set is *the door, the room, the time,
+the window, the house, the night, the morning, the sun*. These are the
+SETTINGS of a novel, and settings are rarely the subject of an assertion.
+The unanchored propositions are mostly about abstractions ("belief", "a
+horse", "the range of knowledge") that occur too diffusely to earn
+standing under any consistency test.
+
+**So the ceiling reading in this document stands, corrected only
+slightly:** first-end resolution on a novel is bounded near 20%, not by a
+defect in individuation but by what novels assert about. Three levers have
+now been measured against it — anchor recurrence (refuted), parse-time
+reference (refuted), definite descriptions (real, +1.4 points). The
+remaining gap is not a bug to fix; it is the shape of the material.
+
+The honest consequence for the floor plan: **stop trying to raise the face
+rate.** Corroboration was never going to come from anchoring more
+propositions — it comes from the paraphrase tier (the witness), which is
+already measured working (2 cross-document confirmations against a
+mechanical baseline of 0, fabricated control 0/4). Level 4 is as done as
+the material allows.

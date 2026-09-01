@@ -9648,3 +9648,292 @@ of the three required a code change in this repo; P12's grounding
 ladder and the relation tier it stands on inherit all three the moment
 either sibling repo's fix lands, the same way P69's ratchet was designed
 to work.
+
+## P76 — The arrangement is two ends and a label; subject/verb/object is a reading of it, not its shape
+
+*(Renumbered from P72 on merge — concurrent PRs landed P72–P75 first; P77 below was P73, and the eoreader7 companions S32/S33 landed there as S39/S40 for the same reason. The numbers moved, nothing about the policies themselves did.)*
+
+**Generality:** not-applicable (names why — a schema/naming decision about
+this repo's own stored data shape, no claim about a reading mechanism's
+reach over any material).
+
+The grammar-lens work (P29-adjacent, CLAUDE.md) already stated the
+principle: *"the ARRANGEMENT (an ordered first end, a label, an ordered
+second end) is earned... the READING of that arrangement as subject/
+verb/object is a declared, giver-named OVERLAY, switchable, never baked
+into the record."* It was never true of the stored shape. Every edge and
+claim `hypergraph.js` builds is keyed literally `.subject`/`.verb`/
+`.object`, at four separate construction sites (the primary edge loop,
+`judge()`, `edgeFace()`'s projection, and the `unheard`-verdict claim) —
+the SAE-grammar reading, baked in as the record rather than laid over it.
+
+**Why now.** Raised while scoping a genuinely non-English relation
+extractor: `relations.js`'s own header says its slot-finding is
+POSITIONAL ("the token immediately FOLLOWING a candidate referent
+surface... the slot SVO order puts a verb in") — not merely English
+VOCABULARY, an assumption that fails outright on case-marked, freer-order
+languages (Latin, Russian, Finnish, Japanese, Korean), several of which
+are already in `live_priors`. The user's own correction closed a wrong
+next step: building a SECOND, case-marking strategy that still recovers
+"subject" and "object" by a different signal is the same borrowed
+category surviving through a different mechanism, not removed. The
+arrangement itself never needed grammatical names — two ordered ends and
+a label is already typologically neutral, true of every clause in every
+language regardless of how that language locates its two ends. What
+varies per language is only WHERE to look (position, case ending,
+particle, agreement) — never which one is the agent.
+
+**What shipped — additive, not a rename.** `arrangementOf(t)` (hypergraph.js,
+exported — it closes over nothing, so it is directly unit-testable without
+the organ-injected reader behind it) maps `{subject, verb, object}` onto
+`{end1, label, end2}` under their earned names. Wired at all four
+construction sites via `...arrangementOf(t)`, so the mapping cannot drift
+the way four independent `{subject: t.subject, verb: t.verb, object:
+t.object}` literals eventually would — this file's own history (DEF/EVA's
+`Array.find`, `synthesize`'s `String.includes`) has already found that
+drift class twice. `subject`/`verb`/`object` are untouched at every site;
+`end1`/`label`/`end2` sit beside them. No existing caller changes
+behavior; nothing existing reads the new fields yet.
+
+**What this is not.** Not the full rename P56's own grammar-lens section
+already scoped and deferred ("touches ~120 call sites across this repo...
+not attempted without [scope] confirmation") — that count is now 221
+across 22 files in this repo alone (not counting eoreader7's own `hl.js`
+kernel), larger than when it was first measured. Not a second (case-
+marking) extraction strategy — that is real, separate, unstarted work,
+and it should be built AGAINST the neutral shape, not against
+`subject`/`object`, so it never has to answer "which one is the agent" in
+the first place. Migrating a consumer off `subject`/`verb`/`object` onto
+`end1`/`label`/`end2` happens file by file, verified at each step — the
+user's own explicit choice over a single big-bang rename, given the size.
+
+**Evidence.** `arrangement.test.mjs` (new, 6 cases) — a separate file on
+purpose, the same precedent `hyperlexicon-stance.test.mjs` and
+`hypergraph-vocabulary-candidates.test.mjs` already established:
+`hypergraph.test.mjs` reaches the engine through
+`../eoreader7/legacy-eoreader6.1`, an uninitialised submodule in this
+checkout, so a case appended there would silently never execute. Two
+pure-function cases on `arrangementOf` itself, and four against the REAL
+native engine organs, one per construction site, including the `nearest`/
+`competing` projection (found needing a fixture fix live: a bare
+sentence-initial single-word capitalized subject, "Lincoln appointed...",
+produced zero candidates at all — `extractSurfaces` correctly refuses that
+as indistinguishable from ordinary sentence-initial capitalization; a
+two-word name, "Abraham Lincoln," is what the working
+`hypergraph-vocabulary-candidates.test.mjs` fixture already used, and
+matching it fixed the test rather than weakening the assertion). Full
+suite: 1060/933/125 (pre-existing failures, `git stash`-confirmed
+identical) → 1066/939/125, zero regressions.
+
+**Amended same day — the first real migration pass, and the finding that
+reframes the whole count.** The 221-call-site figure conflates SEVERAL
+independent, unrelated systems that happen to share the English words
+"subject"/"verb"/"object" for genuinely different reasons — found by
+reading each file's actual usage before editing it, not by trusting the
+grep. **`grid.js`'s 26 sites (and everything downstream of it —
+`web-hunt.js`'s `priorAct.object`, parts of `capacity-runner.js`) are the
+terminal-language ACT grammar** (`act relate <subject> to <object>`,
+`VERBS[raw.verb]`) — a completely different, independently-justified
+naming for an act's own arguments, never hypergraph.js's arrangement, and
+out of P76's scope entirely. `succession.js`'s `box.subject` is a parsed
+Wikipedia succession-box field. `relations-chain.js`'s `rel.subject`/
+`.verb`/`.object` read the ENGINE's raw `extractRelations()` triples
+directly, bypassing hypergraph.js and `arrangementOf` altogether — its
+own test confirms this (`extractRelations` imported straight from the
+engine, never through `makeRelationReader`). `templates.js`'s
+`edgeChips()` uses its own independent shape (`.from`/`.to`, not
+`.subject`/`.object`) and has no production caller anywhere in this repo.
+None of these four are hypergraph.js's arrangement wearing English
+clothes — they are four separate things that never needed migrating.
+
+**Two real regressions, caught by running tests, not by inspection.**
+`hl.js::stageFromEdges` takes an `edges` parameter from ANY caller, not
+exclusively hypergraph.js's own pipeline — `hl.test.mjs` hand-builds
+minimal `{subject, verb, object}` fixtures with no `end1`/`label`/`end2`,
+and migrating the read broke 2 of 4 cases silently (`git stash` comparison
+caught it: 3 passing before, 1 passing after). Reverted — a function whose
+contract is "any edge-shaped object" cannot assume an internal
+implementation detail of one particular producer. The same class of risk
+was found and fixed forward, not reverted, everywhere the caller WAS
+confirmed to be hypergraph.js's own pipeline: `provenance.test.mjs`,
+`proof.test.mjs`, `verification.test.mjs` (3 cases), and `firewall.test.mjs`
+(2 cases, found only by the FULL suite diff — `fact-block.test.mjs` itself
+cannot load in this checkout, so its own fixtures were fixed proactively
+and unverifiably here, but `firewall.test.mjs` exercises the same
+`fact-block.js` code path from a file that CAN load, and caught a real
+`"undefined — undefined→ undefined"` break) all needed their hand-built
+claim fixtures widened to carry `end1`/`label`/`end2` alongside the
+originals — the correct fix, not a reason to revert the production code,
+since a hand-built fixture omitting a field `arrangementOf` would have
+supplied is the fixture falling behind the shape, not the migration being
+wrong.
+
+**What actually migrated, confirmed safe by real callers and real
+tests:** `provenance.js`, `fact-block.js`, `proof.js`, `verification.js`
+— each confirmed to read exclusively from hypergraph.js's own
+`report.claims`/`relations.read()` output before being touched. Full
+suite 1066/939/125 → 1071/944/125, zero regressions (`git stash -u`
+diffed against the pre-migration baseline, not merely counted).
+
+**What remains, named rather than claimed done:** `dialogue-graph.js`,
+`hl-acquire.js`, `hyperlexicon.js`, `predigest.js`, `explore/explore.js`,
+`term.js`, and the hypergraph-related portions of `capacity-runner.js`,
+`holon.js`, `app.js` (each confirmed, by sampling, to MIX grid.js acts
+and hypergraph edges in the same file — the highest-risk shape, since a
+wrong call halfway through silently corrupts one system while looking
+like progress on the other). **The wipe itself — removing `subject`/
+`verb`/`object` from hypergraph.js's own edge/claim construction — is not
+attempted and is not yet safe**: the majority of real consumers, even
+after subtracting the four false-positive systems above, are still
+unmigrated, and removing the fields they still read would break them.
+Additive stays additive until that changes.
+
+**Amended same session — the consumer migration finished; the wipe is
+blocked on something bigger than remaining consumers.** All nine files
+named above were traced to a real conclusion, each verified by the same
+discipline (real caller confirmed before touching it; `git stash -u`
+full-suite diff after): `term.js` (one genuine site, the `query`
+command's no-query edge dump — `reader.edges`, real `edgeFace()` output);
+`capacity-runner.js` (confirmed mixed as predicted — `checkObjectSpecificity`/
+`checkConnectorClass` read genuine `judge()` output via `runCapacity`'s
+"relations" claim branch, migrated; `perSourceReadings`' own `edges`
+construction migrated on the READ side only, keeping `subject`/`verb`/
+`object` as the DESTINATION keys since `crown.js:376` still destructures
+that exact shape as ITS OWN established contract; grid.js's own act-event
+fields and `grammar-lens.js`'s `classifyConnector` — which reads
+`edge.verb` internally by its own pre-P76 disclosed, deliberately-
+unrenamed design — both left alone); `holon.js` (six genuine sites,
+`landCompletenessBelief` and both `incompleteClaimsOf`/
+`competingSubjectsOf`, same pattern: migrate the hypergraph read, keep
+`queryReferents`'/`clusterFillers`'s own separate, already-disclosed
+conventions untouched); `app.js` (`crownTestimony`, the edge-badge
+renderer, `renderGrounding`'s claim rows — all genuine judge()/
+`edgeFace()` consumers; `mintClaimId`'s own required parameter names kept
+as the destination shape, same pattern as `perSourceReadings`; found and
+fixed, as a byproduct of rewriting the exact line touched, a pre-existing
+pair of literal null bytes sitting in `crownTestimony`'s dedup key in
+place of two ordinary spaces — harmless in practice, isolated to that
+one line, unrelated to this migration). `dialogue-graph.js` and
+`hl-acquire.js` confirmed a THIRD and FOURTH instance of the hl.js
+pattern above (both explicitly, in their own file headers, hand-author
+post-extraction edges as a deliberate two-tier testing design — not
+fixable the way a fixture merely falling behind the shape is).
+`hyperlexicon.js` and `predigest.js` confirmed to share their OWN
+independent EOT-ledger vocabulary (P57) — `predigest.js` even imports
+`assertionId` directly from `hyperlexicon.js`, matching its exact
+signature, proving the coupling. `explore/explore.js` confirmed to read
+an entirely different organ (eoreader6/7's `sessionRelations`/binding-tie
+output via the standalone Explore app), never hypergraph.js at all.
+`capacities.js` and `proxy-runner.mjs` (found in a final repo-wide sweep
+for every `makeRelationReader` importer, beyond the originally-scoped
+nine) carry zero direct field reads — clean. One real fixture needed
+fixing, not reverting: `capacity-runner.test.mjs`'s Hebrew
+object-specificity test hand-builds a `mockRunCapacity` whose claims/
+edges carried only `.object` — widened to also carry `end2`, the correct
+fix per this same section's own established rule, confirmed by tracing
+the test's full logic and every assertion by hand since this file cannot
+execute in this sandbox (the same `legacy-eoreader6.1` gap named below).
+Full suite after every step: 1071/944/125, identical failure names,
+zero regressions throughout.
+
+**The wipe is still not safe, and the reason has changed.** Every
+originally-scoped consumer is now accounted for. What blocks the actual
+field removal is `hypergraph.js`'s OWN canonical test suite:
+`hypergraph.test.mjs` — the primary correctness contract for the exact
+file the wipe would edit — has 81 lines across 1,231 directly asserting
+`.subject`/`.verb`/`.object` on REAL claims and edges produced by the
+real engine pipeline (`c.subject === "Lincoln"`, `e.verb === "appointed"`,
+and so on, dozens of times over). That file cannot load in this
+checkout — `legacy-eoreader6.1` is an uninitialised submodule pointing
+at a repository (`eoreader6.1`) outside this session's own GitHub
+access scope — so there is no way here to update those 81 lines and
+verify the result by running them. A hand-edited, unexecuted change to
+81 assertions in a 1,231-line file is a real, disclosed risk of
+shipping a silently-wrong test suite, which is worse than leaving a
+correct-but-unmigrated one in place — the same "checks go blind rather
+than wrong" failure class P62 already names. Roughly two dozen `eval/`
+and `experiments/` scripts share the same dependency and the same
+unverifiability, and are named here rather than silently left as an
+undisclosed gap — this repo's own standing posture already treats these
+as re-runnable historical measurement records, not maintained code, so
+they are not migrated, but a future re-run of one after the wipe would
+need updating first or would silently print `undefined` in place of a
+real value.
+
+**What "ready" now requires, stated plainly so the next pass does not
+have to re-discover it:** a checkout with `legacy-eoreader6.1`
+initialised (or an equivalent working `eoreader6.1` engine checkout), so
+`hypergraph.test.mjs`'s 81 dependent assertions can be migrated to
+`end1`/`label`/`end2` AND VERIFIED BY RUNNING, before the four
+construction sites (`edges.push`'s literal, `judge()`'s claim object,
+`edgeFace()`'s return, the `unheard`-verdict `report.claims.push`) drop
+their `subject:`/`verb:`/`object:` lines. `claim.endpoints`'s own
+`{subject, object}` diagnostic (P50) and `clusterFillers`'s narrow
+`{object}` filler shape (P36) are not part of this wipe at all — separate,
+already-disclosed structures, never touched by `arrangementOf`.
+
+## P77 — A genuine second typology, built and measured: case-marking relation extraction, wired through the neutral arrangement
+
+**Generality:** specimen-scoped (disclosed; not claimed further) — see
+eoreader7's `native/READING-SPEC.md` S40 for the full measured account
+(the organ itself lives there); this entry is the the-fold-side wiring
+and its own test evidence.
+
+P76 closed the schema half — the arrangement is two ordered ends and a
+label, additive, never forcing `subject`/`object` on a language those
+categories don't cleanly fit. This entry closes the half P76's own
+"what this is not" section named as real, separate, unstarted work: a
+genuinely SECOND extraction strategy, for a language where position
+carries no grammatical signal at all, proving the neutral shape is
+*required*, not merely tidy.
+
+**Why Latin, and why it had to be measured rather than argued.** S31's
+own gate: a fix scoped to a convenient case proves nothing. Latin's
+grammatical role is signaled by case morphology (a noun's own ending),
+not position — free word order, several real specimens in the corpus
+already (`live_priors`' Ovid, Lucretius). The organ
+(`eoreader7/native/adapters/text/relations-case-marked.js`) is real,
+tested against 380 held-out gold sentences from UD_Latin-Perseus (never
+used to build its case prior), and matches a real VOS (verb-object-
+subject) specimen — *"possedit cetera pontus"*, "the sea possessed the
+rest" — exactly, using zero information about word position. Full
+numbers, every disclosed limit, and four real bugs found by measuring
+against gold rather than reasoning about it (a punctuation-stripping
+regex that never trimmed "manent." to "manent"; mined-vs-received verb
+personal endings; weak-ending collisions with common noun cases; a
+preposition misread as a nominative) are in eoreader7's own S40 and
+`native/eval/results/latin-case-marking-RESULTS.md` — not restated here,
+per this document's own summarize-and-point discipline.
+
+**What's wired here, and what deliberately is not.**
+`hypergraph.js::makeCaseMarkedRelationReader` is a SEPARATE entry point
+from `makeRelationReader`, not a branch inside it — the English
+pipeline's referent-index resolution (`cast.js`), assertion order-arm,
+connector-class checks, and gender evidence all assume a positional
+extractor's own edge shape (`subjectEnd`/`objectEnd` fuzzy matching over
+a referent index) that a case-marked organ does not produce. Retrofitting
+full pipeline parity is real, scoped, unattempted future work — named
+here rather than silently implied done. What IS real: a working reader,
+organ-injected (the cast.js pattern — this file never imports
+`relations-case-marked.js` directly), producing edges in the shared
+`{end1, label, end2}` shape with byte-accurate spans (verified against
+source bytes, P5.2's self-verification discipline) and a `case`/`number`
+detail on each end that the positional English reader has no use for and
+never needed — because Latin's oblique cases (dative, ablative, genitive)
+have no honest 1:1 mapping onto `subject`/`object` and this reader
+refuses to force one. A gap (multi-clause sentences, ambiguous verbs,
+unresolved case endings) is reported on its own list, never silently
+dropped — the same "never attempted" vs "attempted and refused" bucket
+discipline S22/S39 already hold.
+
+**Evidence.** `case-marked-relations.test.mjs` (new, 5 cases, against the
+REAL eoreader7 native organs — `spans.js` + `relations-case-marked.js`,
+the same real-organ-integration-test precedent `arrangement.test.mjs`
+set): the declared-organs guard, the VOS specimen matched with byte-
+accurate spans, the neutral shape checked at the integration boundary
+too (never `subject`/`verb`/`object`), a gap correctly surfaced rather
+than dropped, multiple passages/sentences all read. Full suite:
+1066/939/125 → 1071/944/125, zero regressions (`git stash -u` confirmed
+identical failure set — untracked new files included this time, unlike
+an earlier check in this same session that omitted `-u` and produced a
+misleading result, caught and corrected before being reported here).

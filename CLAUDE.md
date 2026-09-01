@@ -6035,3 +6035,146 @@ availability tier preferred the smaller. `priors-data/pos-prior-eng.json`
 is now live_priors' artifact byte-for-byte (drift = one hash comparison),
 every consumer reads `forms` alone, and the probe's numbers are identical
 after the swap. Full account: POLICIES.md P74's 2026-09-01 amendment.
+
+## Pronoun/anaphora as an omnimodal function — the medium axis was already right; the language axis is now declared (added 2026-08-30) — pointer, nothing here changed
+
+Asked directly whether the recent pronoun/anaphora work (P38, P66) actually
+conforms to how this project wants a capability built as an omnimodal
+function. It splits into two different axes, and only one had been
+addressed.
+
+**The medium axis was already correct, verified by reading the code rather
+than the changelog.** `eoreader7/native/kernel/contest.js` (P66) genuinely
+extracted the decision procedure — co-presence raises the bar, never the
+score; test the lead against the material's own permutation null — into a
+kernel module with zero text vocabulary, exactly the eoreader7
+`READING-SPEC.md` S6/S16 law ("the kernel never speaks a medium's
+grammar... the kernel is omnimodal"). This is enforced MECHANICALLY
+(`contest.test.js` reads the module's own source and fails if `sentence`,
+`pronoun`, `surface`, `token`, `word` or `text` appears in it) and exercised
+on two real non-text synthetic cases in the same file (an unlabelled gaze
+across two faces in a film shot; an unattributed motif across two
+instruments in a bar of music). It is a live production dependency
+(`native/assemblies.js`, `adapters/text/pronouns.js`), not an orphaned
+module, and both new regimes it unlocks are honestly measured and shipped
+default-off because they do not yet improve the actual reading — a
+disclosed negative result, not a silent no-op.
+
+**The language axis had not been.** Both pronoun mechanisms
+(`resolvePronouns`, `resolvePronounsByActivation`) ran a hardcoded English
+pronoun regex and gender table against whatever text arrived, with no
+`language` parameter anywhere. Non-Latin material happened to degrade
+safely (P70's omnilingual MHC test: Russian correctly gets zero pronoun
+attempts) but that safety was an ACCIDENT of script mismatch, not a
+declared decision — this codebase already has the correct template for
+exactly this class of gap (`createLemmatizer({ language })`, defaulting to
+English only when unspecified, the fix "it needs to work for Ancient
+Greek" section above), and pronouns.js had not been brought into it.
+
+**Closed in eoreader7, not here.** `native/READING-SPEC.md` **S39** is the
+law and carries the full account: a small per-language registry
+(`PRONOUN_PRIORS`, one entry today) replaces the bare constant, all three
+functions take a `language` parameter defaulting to `"en"`, and a declared
+language with no registered prior returns one typed gap
+(`no_pronoun_prior_for_language`) for the whole call rather than a silent
+English attempt or a pile of per-sentence non-matches. Byte-identical for
+every existing caller (none of which pass `language`); 255 native tests
+passing both before and after (same pre-existing failures), 13/13 in
+`pronouns.test.js` (9 pre-existing plus 4 new). **Nothing in this repo
+changed** — `app.js`/`hypergraph.js` import `resolvePronouns` from
+`/engine-v7/adapters/text/pronouns.js` and omit `language`, so they get the
+unchanged default. No second language's pronoun table exists yet; this
+closes the honesty gap, not the coverage gap.
+
+**Corrected the same day — "add a second language" was the wrong target;
+the arrangement itself was still English-shaped.** User's own redirect,
+twice: first, don't add French next — it shares English's SVO typology and
+would pass by accident, never testing the real gap (`relations.js`'s own
+header: slot-finding is POSITIONAL, "the token immediately FOLLOWING a
+candidate referent surface" — a fact about word order, not vocabulary, and
+it fails outright on case-marked languages like Latin, Russian, Finnish,
+several of which are already in `live_priors`). Second, correcting the
+proposed fix itself: a case-marking STRATEGY that still recovers "subject"
+and "object" by a different signal is the same borrowed grammatical
+category surviving through a new mechanism, not removed. **POLICIES.md
+P76** is the law: `hypergraph.js`'s edges and claims are keyed literally
+`.subject`/`.verb`/`.object` at four construction sites — the grammar-lens
+section's own stated principle ("the arrangement is earned, the SAE
+reading is a declared overlay") was never true of the STORED shape. Two
+ordered ends and a label is already typologically neutral; what a language
+signals is only WHERE to look for them, never which one is the agent.
+
+**Shipped additively, by explicit choice over a full rename.** `arrangementOf(t)`
+maps `{subject, verb, object}` onto `{end1, label, end2}` under their
+earned names, wired at all four sites so the mapping cannot drift the way
+four independent literals eventually would. `subject`/`verb`/`object` are
+untouched everywhere; the neutral fields sit beside them, read by nothing
+yet. The full rename this closes part of (P56's own grammar-lens section:
+"~120 call sites... not attempted without confirmation") is now 221 across
+22 files — larger than last measured, and still not attempted: migrating a
+consumer off the SAE names is real, scoped, future work, one file at a
+time. Verified against the real native engine organs (`arrangement.test.mjs`,
+6 cases, the `hyperlexicon-stance.test.mjs` separate-file precedent since
+`hypergraph.test.mjs` cannot load in this checkout): full suite
+1060/933/125 → 1066/939/125, zero regressions. A real second-typology
+extractor (case-marking, for a language like Latin already in the corpus)
+is named, real, and unstarted — it should build against this neutral
+shape, never against `subject`/`object`.
+
+**Built and measured the same day — the second typology is real, not just
+named.** `eoreader7/native/adapters/text/relations-case-marked.js`
+(READING-SPEC.md S40) reads grammatical role off Latin case morphology,
+not position — a genuinely different mechanism from `relations.js`'s own
+positional slot-finding, proving the neutral arrangement is REQUIRED for
+a language like this, not merely tidy. Built against real UD_Latin-Perseus
+treebank data (fetched live, CC BY-NC-SA 2.5, committed as a fixture),
+measured against 380 held-out gold sentences never used to build its case
+prior: matches a real verb-object-subject specimen ("possedit cetera
+pontus," the sea possessed the rest) exactly, using zero information
+about word position — the actual proof positional extraction cannot give.
+Modest, honestly disclosed precision/recall (end1 vs gold nsubj: 0.26/0.08;
+end2 vs gold obj: 0.33/0.12) — subject detection is genuinely harder than
+object detection because Latin's nominative case is the least
+systematically marked, a real fact about Latin morphology, not a defect
+in the organ. Four real bugs found by measuring against gold rather than
+reasoning about it, all disclosed in S40 and `eval/results/
+latin-case-marking-RESULTS.md`.
+
+**Wired into this repo via `hypergraph.js::makeCaseMarkedRelationReader`**
+(POLICIES.md P77) — a SEPARATE entry point from `makeRelationReader`, not
+a branch inside it, because the English pipeline's referent-index/
+assertion/connector-class machinery all assume the positional extractor's
+own edge shape. What's shared is the actual point: every edge carries
+`end1`/`label`/`end2`, never `subject`/`verb`/`object` — Latin's oblique
+cases have no honest 1:1 mapping onto English argument structure, and
+this reader refuses to force one (a `case`/`number` detail rides each end
+instead). Verified against eoreader7's real organs, byte-accurate spans
+confirmed against source bytes: `case-marked-relations.test.mjs` (5
+cases). Full pipeline parity with the English reader (referent
+resolution, assertion tiers, connector-class) is real, scoped,
+unattempted future work — disclosed, not silently implied done. Full
+suite: 1066/939/125 → 1071/944/125, zero regressions.
+`LatinCasePrior@1` itself moved to `live_priors/derived-priors/
+case-priors/` the same session, matching `act-priors`' own precedent
+exactly ("a received lexicon is content, not app logic") — see
+`live_priors`'s own README there and eoreader7's `READING-SPEC.md` S40
+amendment for the full move.
+
+**The consumer migration named above as remaining is now finished; the
+wipe is blocked on something bigger.** POLICIES.md P76's own amendment
+carries the full account — the short version: every one of the nine
+files named as unmigrated (`term.js`, `capacity-runner.js`, `holon.js`,
+`app.js`, plus `dialogue-graph.js`/`hl-acquire.js`/`hyperlexicon.js`/
+`predigest.js`/`explore/explore.js`, confirmed out of scope) was traced
+to a real conclusion, verified by full-suite diff at every step
+(1071/944/125, zero regressions throughout). A final repo-wide sweep for
+every `makeRelationReader` importer beyond the originally-scoped nine
+found `capacities.js`/`proxy-runner.mjs` (clean) and — the actual
+blocker — `hypergraph.test.mjs` itself: 81 lines across 1,231 directly
+assert `.subject`/`.verb`/`.object` on real engine output, and that file
+cannot load in this checkout (`legacy-eoreader6.1`, an uninitialised
+submodule pointing outside this session's own GitHub access scope), so
+those 81 assertions cannot be migrated and verified by running here. The
+wipe — removing the old fields from hypergraph.js's four construction
+sites — needs a checkout where that submodule resolves; nothing else is
+in its way.

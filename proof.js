@@ -396,8 +396,8 @@ export function proofTargets({ findings = [], relationReport = null } = {}) {
     if (c.verdict === "contradicted") {
       targets.push({
         kind: "edge",
-        text: `${c.subject} ${c.verb} ${c.object}`,
-        tokens: [c.subject, c.verb, c.object].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
+        text: `${c.end1} ${c.label} ${c.end2}`,
+        tokens: [c.end1, c.label, c.end2].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
         sentence: c.sentence,
         why: "contradicted",
       });
@@ -417,8 +417,8 @@ export function proofTargets({ findings = [], relationReport = null } = {}) {
     if (c.verdict === "unbound") {
       targets.push({
         kind: "edge",
-        text: `${c.subject} ${c.verb} ${c.object}`,
-        tokens: [c.subject, c.verb, c.object].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
+        text: `${c.end1} ${c.label} ${c.end2}`,
+        tokens: [c.end1, c.label, c.end2].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2),
         sentence: c.sentence,
         why: "unbound",
       });

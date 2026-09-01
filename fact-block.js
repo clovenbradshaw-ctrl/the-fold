@@ -191,7 +191,7 @@ const tripleKeysOf = (relations, sentence) => {
   const report = relations.read(sentence);
   return (report?.claims ?? [])
     .filter((c) => c.verdict === "bound")
-    .map((c) => `${c.subject}|${c.verb}|${c.object}`.toLowerCase());
+    .map((c) => `${c.end1}|${c.label}|${c.end2}`.toLowerCase());
 };
 
 export function dedupeSourceText(passages, relations = null) {
@@ -267,11 +267,11 @@ export function buildFactBlock(relations, passages, question = "") {
     for (const claim of report.claims) {
       if (claim.verdict !== "bound") continue;
       boundSentences.add(claim.sentence);
-      const key = `${claim.subject}|${claim.verb}|${claim.object}`.toLowerCase();
+      const key = `${claim.end1}|${claim.label}|${claim.end2}`.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
       const negated = claim.polarity === "-" ? " not" : "";
-      lines.push(`${claim.subject} —${negated} ${claim.verb}→ ${claim.object}`);
+      lines.push(`${claim.end1} —${negated} ${claim.label}→ ${claim.end2}`);
       // THE SPANS THAT PRODUCED THIS NOTE, and only those (user direction,
       // 2026-08-28: "use only the spans linked to the precise hyperlexicon
       // elements"). A note is defeasible, so what defeats it has to be

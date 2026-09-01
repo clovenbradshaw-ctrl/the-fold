@@ -223,7 +223,7 @@ import { makeHyperlexicon } from "./hyperlexicon.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
 // metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
 // same "one implementation, injected everywhere" posture.
-import { assessAgreement, makeMetacognition } from "./metacognition.js";
+import { assessAgreement, forcesFoldRefresh, makeMetacognition, surfWeight } from "./metacognition.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
 // the `briefFor` call site below. One confirmed set, two consumers: this is
@@ -3122,19 +3122,32 @@ async function reflectTurn(question, typed) {
  * number picked here), or a held line would fall out of the window
  * unseen by any refresh. The skip is on the ledger as a `carried` act —
  * a decision the instrument made is never silent.
+ *
+ * `forceRefresh` (metacognition.js::forcesFoldRefresh, P72) ORs onto this
+ * gate rather than replacing it — the module's own stated design ("a
+ * natural OR onto refreshSummary's existing gate, not a replacement for
+ * it"). A real, positive S1/S2 contradiction on THIS turn means the
+ * running summary may itself carry the error S2 just found, which is
+ * grounds to refresh regardless of what the discourse-drift meter alone
+ * decided: `exchangeHeldGround` watches whether the GROUND moved, this
+ * watches whether S1's OWN account of it was found wrong — different
+ * axes, so one holding still is never evidence the other should too.
  */
 // `sentCalls`: the caller's own capture of every messages array sent to the
 // model this turn (renderFold's whole content, now) — this refresh is one
 // more call in that same turn when it fires, so it is appended to the same
 // array rather than left to vanish as a call the turn's own disclosure never
 // knew happened.
-async function refreshSummary(fold, arrivals = null, sentCalls = null) {
+async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false } = {}) {
   state.turnFolds.push(fold);
-  if (
-    arrivals &&
-    exchangeHeldGround(arrivals) &&
-    state.heldFolds < MAX_FOLDS_IN_PROMPT - 1
-  ) {
+  const heldGround = Boolean(arrivals) && exchangeHeldGround(arrivals);
+  if (heldGround && forceRefresh) {
+    // The override is itself an act, never silent — the same discipline
+    // the ordinary `carried` skip below already holds for the opposite
+    // decision.
+    logAct("forcedRefresh", { because: "S1/S2 disagreement (metacognition.js)" });
+  }
+  if (heldGround && !forceRefresh && state.heldFolds < MAX_FOLDS_IN_PROMPT - 1) {
     logAct("carried", { streak: state.heldFolds + 1 });
     state.heldFolds += 1;
     state.summary = advanceSummaryFold(state.summary, fold);
@@ -3930,7 +3943,21 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // search plus up to three page fetches is seconds of real waiting,
       // and a reader watching "checking for material · 9s" with no motion
       // reads it as hung, not working.
-      const preflight = await gatherPreflightMaterial(task, discourseLine, (step) => setPhase(step));
+      // A running S1/S2 disagreement (metacognition.js::surfWeight, P72)
+      // widens how much of this search gets read — the ledger's "s1-draft"
+      // cell is a standing across the whole conversation, not this turn
+      // alone, so it is read here regardless of whether THIS turn itself
+      // runs an S1 pass (Friston's own move: precision is a property of the
+      // CHANNEL, learned from repeated exposure, not re-derived turn by
+      // turn). `established`/`unproven` both read as weight 1 — surfWeight's
+      // own floor — so a conversation that has never run an S1/S2 turn yet
+      // sees byte-identical preflight behavior.
+      const preflight = await gatherPreflightMaterial(
+        task,
+        discourseLine,
+        (step) => setPhase(step),
+        surfWeight(metaLedger.standingOf(state.metaLedger, "s1-draft")),
+      );
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -4548,7 +4575,28 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   } else {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
-  await refreshSummary(fold, arrivals, sentCalls);
+  // The metacognition watcher (metacognition.js, P72) — moved here, ahead
+  // of `refreshSummary`'s own call, so `forcesFoldRefresh` can actually OR
+  // onto its gate (metacognition-integration-note.md's own disclosed open
+  // question — this pass traced it: every input this needs, `result.
+  // sections`, `relationClaims`, `opts.priorPass`, is already computed by
+  // this point, so nothing needed threading through holon.js). Also ahead
+  // of the `!state.grounded` early return a few lines down: the watcher is
+  // bookkeeping, not drawing — the same "the fold and the record stay ON
+  // either way" rule the checking-mode section (CLAUDE.md) already states
+  // for exactly this kind of state, applied here so a plain-mode S1/S2
+  // disagreement is still heard rather than silently skipped because
+  // nothing about it is painted. Fires only on an S1/S2 turn (`opts.
+  // priorPass` is set only by twoPassTurn's own gated call, `priorPassFor`'s
+  // own "a caller with no S1 pass simply never calls it" convention).
+  let forceRefresh = false;
+  if (opts.priorPass) {
+    const s2Passages = result.sections.flatMap((s) => s.passages ?? []);
+    const agreement = assessAgreement(opts.priorPass, { question: task, s2Passages, relationEdges: relationClaims });
+    state.metaLedger = metaLedger.observe(state.metaLedger, { cell: "s1-draft", delta: agreement.counts });
+    forceRefresh = forcesFoldRefresh(agreement);
+  }
+  await refreshSummary(fold, arrivals, sentCalls, { forceRefresh });
   // MOMENT 3: everything the turn held, retrieved passages INCLUDED.
   //
   // THE UNION IS LOAD-BEARING AND WAS FOUND LIVE. This pass used to declare
@@ -4619,22 +4667,6 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   crownTestimony(node, relationClaims).catch((e) => {
     $("status").textContent = `testimony pass failed: ${e?.message ?? e}`;
   });
-  // The metacognition watcher (metacognition.js, P72) — only ever fires on
-  // an S1/S2 turn (`opts.priorPass` is set only by twoPassTurn's own gated
-  // call, priorPassFor's own "a caller with no S1 pass simply never calls
-  // it" convention, reused here rather than re-derived). Pure and
-  // synchronous — no network, no model call, nothing to await or catch —
-  // so it runs plainly, using data this function already computed:
-  // `result.sections` (real retrieved passages, real relation edges S2
-  // itself read) and `opts.priorPass` (S1's own drafted text). One cell,
-  // `"s1-draft"`, disclosed as the deliberate starting choice —
-  // metacognition-integration-note.md names the finer, per-verb taxonomy
-  // as real, unmeasured future work, not attempted here.
-  if (opts.priorPass) {
-    const s2Passages = result.sections.flatMap((s) => s.passages ?? []);
-    const agreement = assessAgreement(opts.priorPass, { question: task, s2Passages, relationEdges: relationClaims });
-    state.metaLedger = metaLedger.observe(state.metaLedger, { cell: "s1-draft", delta: agreement.counts });
-  }
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
 }
@@ -6384,7 +6416,13 @@ async function checkLinkCitation(url) {
  * page was never deposited as a library source — reopen() hides that
  * door for archived material instead of offering a dead one.
  */
-async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
+// `weight` (metacognition.js::surfWeight, P72, default 1 — byte-identical
+// when omitted): widens how many full pages this preflight fetches past the
+// declared P9 budget, when the running S1/S2 ledger says S1's own drafts
+// have measurably needed correcting. Never narrows (surfWeight's own floor
+// is 1) and never fires from an outcome check here — the multiplier is the
+// module's own disclosed constant, not tuned against what this call finds.
+async function gatherPreflightMaterial(task, discourse = "", onStep = null, weight = 1) {
   // The anaphor door is the engine's own received closed class (Amendment
   // IV register), injected here the same way widget.js takes it — never a
   // hand-typed intent list.
@@ -6406,7 +6444,8 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null) {
     };
   }
   if (search.gap) return { chunks: [], pages: [], gap: search.gap };
-  const picks = (search.results ?? []).slice(0, PREFLIGHT_PAGES_CONSULTED);
+  const pagesConsulted = Math.max(1, Math.round(PREFLIGHT_PAGES_CONSULTED * weight));
+  const picks = (search.results ?? []).slice(0, pagesConsulted);
   if (!picks.length) return { chunks: [], pages: [], gap: { silence: "not-present", detail: "the search ran but found no pages for these words" } };
   onStep?.(`${picks.length} result(s) for “${query}” — reading ${picks.map((r) => hostOf(r.url)).join(", ")}`);
   const chunks = [];

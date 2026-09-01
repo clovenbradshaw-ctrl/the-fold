@@ -5870,3 +5870,29 @@ new line was instead verified against already-live, adjacent code in the
 same function. Two open decisions remain: a finer cell taxonomy, and
 whether `surfWeight`/`forcesFoldRefresh` are worth wiring —
 `metacognition-integration-note.md` carries the full, corrected account.
+
+**Amended 2026-09-01 — both signals wired.** `forcesFoldRefresh`'s own
+open question (whether `refreshSummary` could safely be threaded) traced
+clean: `relationClaims`/`result.sections` are already computed before
+`refreshSummary`'s call in `holonicTurn`, so the metacognition block moved
+earlier (also ahead of the `!state.grounded` early return — a plain-mode
+S1/S2 disagreement now reaches the ledger too, bookkeeping rather than
+drawing). `refreshSummary` ORs `forceRefresh` onto its existing hold gate,
+logging its own `forcedRefresh` act when it overrides. `surfWeight` is
+wired into `gatherPreflightMaterial`'s page count (the one of its two
+named candidate sites its own docstring actually specifies), reading the
+ledger's running `"s1-draft"` standing regardless of whether the current
+turn itself ran an S1 pass; `needsSystem2` stays untouched and named
+still open, a larger, unscoped decision. Verified further than the prior
+pass could: a real headless-Chromium load over raw CDP (no Playwright
+package present, Node 22's native `WebSocket` speaks the protocol
+directly) confirmed the page's boot code runs to completion — banner
+hidden, composer present — byte-identical between the unmodified baseline
+and this change, correcting the prior pass's own worry that the
+`/engine/emergence/tiers.js` 404 blocks the whole module graph (it
+doesn't — only the self plane's own surprise meter, its actual importer).
+Full suite identical by name, zero regressions. Still open, the same
+disclosed limit every recent pass carries: no Ollama reachable here, so
+neither signal's live effect on a real turn could be shown, only that
+each runs safely. POLICIES.md P72's own amendment and
+`metacognition-integration-note.md` carry the full account.

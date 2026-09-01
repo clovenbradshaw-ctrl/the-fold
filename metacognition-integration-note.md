@@ -62,6 +62,81 @@ exercises against the real native task-log module. A real live-browser
 confirmation is still the honest gap — named here rather than implied
 closed.
 
+**Amended 2026-09-01 — both signals wired; one of two open decisions
+resolved, the other genuinely reduced.** This note's own item 4 ("STILL
+OPEN") is now split: `forcesFoldRefresh` is wired, and `surfWeight` is
+wired into ONE of its two named candidate sites (`gatherPreflightMaterial`)
+while the other (`needsSystem2`) is deliberately left untouched and still
+open, narrower than before rather than fully closed.
+
+`forcesFoldRefresh`: this note's own guess that threading it "turned out
+LESS trivial than first guessed" was traced, not just re-asserted.
+Reading `holonicTurn`'s turn-ending sequence found `relationClaims` and
+`result.sections` — everything `assessAgreement` needs — are already
+computed several lines BEFORE `refreshSummary`'s own call, not after it;
+the metacognition block (previously placed after `renderGrounding`/
+`crownTestimony`, effectively too late to influence the SAME turn's own
+refresh decision) moved to right after `renderAnswer`, before
+`refreshSummary` fires. `refreshSummary` gained a fourth, options-object
+parameter (`{forceRefresh = false}`, byte-identical to every existing
+caller that omits it) and now computes `heldGround` once, ORing
+`forceRefresh` onto it exactly as the module's own header names ("a
+natural OR onto refreshSummary's existing gate ... not a replacement for
+it") — a forced override logs its own `forcedRefresh` act, the same
+"never silent" discipline the pre-existing `carried` skip already holds
+for the opposite decision. One side effect, disclosed rather than
+incidental: moving the block also moved it AHEAD of the `!state.grounded`
+early return a few lines down, so a plain-mode S1/S2 turn's disagreement
+is now heard too — bookkeeping, not drawing, the same "the fold and the
+record stay ON either way" rule the checking-mode section (CLAUDE.md)
+already states for exactly this kind of state; before this pass, a
+plain-mode S1/S2 turn silently never reached the ledger at all.
+
+`surfWeight`: wired into `gatherPreflightMaterial` alone, not
+`needsSystem2` — the docstring itself settles which of the two the module
+means ("widens what the next turn's preflight search should pull in"),
+and `PREFLIGHT_PAGES_CONSULTED`'s own slice is the one place that phrase
+names precisely. `gatherPreflightMaterial` gained a fourth `weight = 1`
+parameter (again byte-identical when omitted); the call site reads
+`surfWeight(metaLedger.standingOf(state.metaLedger, "s1-draft"))` —
+the ledger's own running standing, not this turn's own agreement (which
+may not even exist yet at that point in `holonicTurn` — the preflight
+runs BEFORE any draft), matching Friston's own move: precision is a
+property of the CHANNEL, learned from repeated exposure, read regardless
+of whether THIS turn itself runs an S1 pass. `needsSystem2` stays
+untouched and still open: it is a materially bigger, riskier decision
+(whether S2 runs AT ALL, not how much a preflight search reads) with no
+mechanism this note or its parent module names, and narrowing it further
+than that would have been exactly the kind of guess this repo's own
+discipline forbids.
+
+**What was verified, and how this differs from the prior pass's own
+disclosure.** `node --check app.js` passes; the full suite reports the
+identical 125 pre-existing failures by name (`git stash` diff), zero
+regressions. Unlike the prior amendment above, a real browser load COULD
+be verified end to end this pass, and it changes what should be believed
+about the standing `/engine/emergence/tiers.js` 404 (P69's disclosed
+holdout): headless Chromium driven over the real DevTools protocol (no
+Playwright/Puppeteer package present in this checkout — Node 22's native
+`WebSocket` speaks CDP directly) loaded the real page against a real
+`serve.mjs` and found the `#not-served` banner correctly hidden, the
+composer present, and 19 real DOM children under `<body>` — the page's
+own boot code DID run to completion, in BOTH the unmodified baseline and
+this pass's modified `app.js`, byte-identical: the same five pre-existing
+404s in both (`katex.min.css`, `mathjs/.../math.js`,
+`monaco-editor/.../loader.js`, `katex.mjs`, `/engine/emergence/tiers.js`),
+zero JS exceptions in either. The tiers.js 404 does not "break the WHOLE
+module graph's link step" the way the prior amendment above worried it
+might — it breaks the self plane's OWN surprise meter
+(`reflexMeter`/`apertureMeter`, which import it), a real, disclosed, but
+narrower gap than "nothing runs." What could NOT be verified, matching
+every recent pass's own disclosed limit: no Ollama is reachable in this
+environment, so no real model-driven conversation could exercise
+`forceRefresh`/`surfWeight` and show either one actually moving a live
+turn's outcome — `POLICIES.md` P71's own "does this actually help, not
+just run" leg stays open for both signals, named here rather than
+claimed closed.
+
 Original framing, kept below for what is still genuinely open:
 
 ## What exists now (metacognition.js — done, tested, yours to consume)

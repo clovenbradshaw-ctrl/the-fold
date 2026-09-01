@@ -9025,3 +9025,60 @@ worth wiring — `forcesFoldRefresh` turned out to need `refreshSummary`
 threaded from a different point in the turn-ending sequence than this
 pass traced closely enough to risk). `metacognition-integration-note.md`
 carries the full, corrected account.
+
+**Amended 2026-09-01 — both signals wired.** The prior amendment's own
+caution about `forcesFoldRefresh` was traced rather than left standing:
+`relationClaims`/`result.sections` — everything `assessAgreement` needs —
+are already computed several lines BEFORE `refreshSummary`'s own call in
+`holonicTurn`, not after it, so the metacognition block moved to right
+before that call (and, as a consequence, ahead of the `!state.grounded`
+early return a few lines further down — a plain-mode S1/S2 turn's
+disagreement was previously never reaching the ledger at all, silently;
+this is bookkeeping, not drawing, the same "the fold and the record stay
+ON either way" rule the checking-mode section already states for exactly
+this kind of state). `refreshSummary` gained a fourth, defaulted options
+parameter (`{forceRefresh = false}`, byte-identical for every existing
+caller that omits it) and now ORs it onto `exchangeHeldGround`'s own
+reading exactly as `forcesFoldRefresh`'s own header names ("a natural OR
+onto refreshSummary's existing gate ... not a replacement for it") — an
+override logs its own `forcedRefresh` act, mirroring the `carried` skip's
+own never-silent discipline for the opposite decision.
+
+`surfWeight` is wired into ONE of its two named candidate sites,
+`gatherPreflightMaterial`, not `needsSystem2` — the module's own docstring
+settles which ("widens what the next turn's preflight search should pull
+in"), and `PREFLIGHT_PAGES_CONSULTED`'s slice is precisely that. A fourth
+`weight = 1` parameter (again byte-identical when omitted) scales the
+page count; the call site reads the ledger's own running `"s1-draft"`
+standing, not this turn's own agreement (which does not exist yet at that
+point — preflight runs before any draft), matching Friston's own move:
+precision is a property of the CHANNEL, read regardless of whether THIS
+turn runs an S1 pass at all. `needsSystem2` stays untouched and named
+still open — a materially larger, riskier decision (whether S2 runs AT
+ALL) with no mechanism either this policy or the module names, and
+choosing one for it here would have been exactly the guess this repo's
+own discipline forbids.
+
+**Verified more completely than the prior amendment achieved, and one
+correction to its own disclosed limit.** `node --check app.js` passes;
+the full suite's 125 pre-existing failures are identical by name via
+`git stash`, zero regressions. This pass could verify a real browser load
+end to end where the prior one could not: headless Chromium driven over
+raw CDP (no Playwright/Puppeteer package present — Node 22's native
+`WebSocket` speaks the protocol directly) loaded the real page against a
+real `serve.mjs` and found the `#not-served` banner hidden, the composer
+present, 19 real DOM children — the page's own boot code ran to
+completion, byte-identical (same five pre-existing 404s: `katex.min.css`,
+`mathjs/.../math.js`, `monaco-editor/.../loader.js`, `katex.mjs`,
+`/engine/emergence/tiers.js`; zero JS exceptions) in both the unmodified
+baseline and this pass's modified `app.js`. The correction: the prior
+amendment's own worry that the tiers.js 404 "breaks the WHOLE module
+graph's link step" does not hold in this environment — it breaks the
+self plane's own surprise meter (`reflexMeter`/`apertureMeter`, its actual
+importers), a real but narrower gap than "nothing runs," found by
+checking rather than re-asserting the earlier guess (P5.5). What still
+could not be verified, the same disclosed limit every recent pass
+carries: no Ollama is reachable here, so no live model-driven turn could
+show either signal actually moving a real outcome — P71's "does this
+help, not just run" leg stays open for both, named rather than claimed
+closed. `metacognition-integration-note.md` carries the full account.

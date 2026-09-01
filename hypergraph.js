@@ -1298,6 +1298,33 @@ export function makeRelationReader(organs) {
     const resolutionOf = (end) =>
       end.formOnly ? "form" : end.referents.size ? "referent" : end.tokens.size ? "tokens" : "none";
 
+    // The canonical face of an end that resolved to exactly one real
+    // referent — the Station-3 identity handed to Station-4 consumers.
+    const faceOf = (end) => {
+      const real = [...end.referents].filter((id) => !String(id).startsWith("form:"));
+      if (!real.length) return null;
+      const faces = [...new Set(real.map((id) => index.represent?.(id)).filter(Boolean))];
+      if (faces.length === 1) return faces[0];
+      if (!faces.length) return null;
+      // FRAGMENTS OF ONE BEING, told apart from GENUINE AMBIGUITY by the
+      // same address-containment rule the cast's own folds earned
+      // (referent-fold.js): at passage scale, "Van Helsing" resolves to
+      // van_helsing AND the fragment referents van / helsing — three ids,
+      // one being — and the first cut of this function returned null for
+      // exactly that reason on EVERY named subject (measured: 0.0% faces
+      // on 7,050 edges, the wire dark the hour it was built). Every face
+      // word-contained in the longest = one fragmented being, and the
+      // longest face is its fullest name. Faces that do NOT nest ("Jonathan
+      // and Mina" hitting two unrelated beings) stay null — a disclosed
+      // ambiguity, never a coin flip.
+      const longest = [...faces].sort((a, b) => b.length - a.length)[0];
+      const fl = diaNorm(longest);
+      const nested = faces.every(
+        (f) => f === longest || new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRe(diaNorm(f))}(?:$|[^\\p{L}\\p{N}])`, "iu").test(fl),
+      );
+      return nested ? longest : null;
+    };
+
     // A span whose FIRST token is a received negation word is a span whose
     // POLARITY WAS NEVER MEASURED (added 2026-08-25 — POLICIES.md P43).
     //
@@ -1477,6 +1504,22 @@ export function makeRelationReader(organs) {
             polarity: t.polarity,
             subjectEnd,
             objectEnd,
+            // THE STATION-3->4 WIRE (2026-09-01, "What Is Being Born" §VI:
+            // the single highest-leverage unbuilt wire). endpoint() already
+            // resolves an end against the material's own earned referent
+            // index — by exact resolution AND by surface CONTAINMENT inside
+            // the end span (the same address-containment rule the cast's
+            // own folds earned) — but the public edge never carried what it
+            // found, so every downstream identity (the hyperlexicon door
+            // above all) re-keyed on raw strings. `end1Face`/`end2Face` is
+            // the canonical face when the end resolved to EXACTLY ONE real
+            // referent; two referents is a disclosed ambiguity and a form
+            // is not a being, so both stay null — never a coin flip.
+            // Measured headroom on the whole of Dracula before building:
+            // subjects that ARE a known surface 7.5%; subjects CONTAINING
+            // one, 18.5%.
+            end1Face: faceOf(subjectEnd),
+            end2Face: faceOf(objectEnd),
             refs: [p.ref].filter(Boolean),
             // The bytes this edge was read from. Empty only when the
             // sentence pairing above refused — never a guessed address.
@@ -1857,6 +1900,14 @@ export function makeRelationReader(organs) {
         // holds, so a caller checking `"connectorClass" in edge` sees the
         // organ's own presence honestly.
         ...(e.connectorClass ? { connectorClass: e.connectorClass } : {}),
+        // The Station-3->4 wire's public face (same no-key-when-absent
+        // posture as assertion/connectorClass above). The first cut set
+        // these on the INTERNAL edge only and this projection stripped
+        // them — the wire dark for a second reason within one hour, found
+        // only because the measurement was re-run after the fix (III.5:
+        // a lit-assertion, not a loaded one).
+        ...(e.end1Face ? { end1Face: e.end1Face } : {}),
+        ...(e.end2Face ? { end2Face: e.end2Face } : {}),
       };
     }
 

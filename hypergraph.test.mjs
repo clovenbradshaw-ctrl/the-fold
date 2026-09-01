@@ -1229,3 +1229,47 @@ test("queryReferents discloses HOW each open end resolved — the noise gate a c
   assert.ok(named.some((n) => n.includes("hamlin")), `Hamlin should resolve as a referent, got ${JSON.stringify(subs)}`);
   assert.ok(named.some((n) => n.includes("johnson")), `Johnson should resolve as a referent, got ${JSON.stringify(subs)}`);
 });
+
+// ── the Station-3->4 wire: earned faces on public edges (2026-09-01) ────
+// "What Is Being Born" §VI named this the single highest-leverage unbuilt
+// wire; it went dark TWICE in its first hour (fragment-referent ambiguity
+// inside faceOf; edgeFace's projection stripping the fields) and both
+// darknesses were found only by re-running the measurement. These tests are
+// the lit-assertion (eo-constitution III.5): the wire stays measured, not
+// merely present.
+test("a named mid-sentence subject carries its earned face on the PUBLIC edge — fragments nest into the fullest name", async () => {
+  const passages = [{
+    ref: "wp",
+    text: "That evening Pierre Bezukhov arrived at the salon early. " +
+      "Later Pierre Bezukhov greeted the old countess warmly. " +
+      "Everyone in the room admired Pierre Bezukhov. " +
+      "Afterwards Pierre thanked the hostess and departed quietly. " +
+      "By midnight Pierre carried the candle upstairs.",
+  }];
+  const reader = makeRelationReader(await organs())(passages, { pool: passages });
+  const faced = reader.edges.filter((e) => e.end1Face);
+  assert.ok(faced.length >= 1, `no edge carries end1Face — the wire is dark again: ${JSON.stringify(reader.edges.map((e) => e.subject))}`);
+  for (const e of faced) {
+    assert.match(e.end1Face, /Pierre/, `face should be Pierre's fullest name, got ${e.end1Face}`);
+  }
+  // fragments nest: at least one faced edge whose subject is the FULL name
+  // must carry the full name as its face, not a fragment
+  const full = faced.find((e) => /Bezukhov/.test(e.subject));
+  if (full) assert.match(full.end1Face, /Bezukhov/, "the fullest name wins the face");
+});
+
+test("a subject naming TWO unrelated beings carries NO face — disclosed ambiguity, never a coin flip", async () => {
+  const passages = [{
+    ref: "wp2",
+    text: "That morning Anna Scherer opened the salon doors. " +
+      "Later Anna Scherer welcomed the guests herself. " +
+      "Meanwhile Prince Vasili watched the door with interest. " +
+      "Soon Prince Vasili approached the famous hostess. " +
+      "Then Anna Scherer and Prince Vasili discussed the war gravely.",
+  }];
+  const reader = makeRelationReader(await organs())(passages, { pool: passages });
+  const both = reader.edges.filter((e) => /Scherer/.test(e.subject) && /Vasili/.test(e.subject));
+  for (const e of both) {
+    assert.equal("end1Face" in e, false, `two-being subject must carry no face key at all, got ${e.end1Face}`);
+  }
+});

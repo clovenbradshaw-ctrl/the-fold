@@ -140,7 +140,7 @@ This station moved twice TODAY, and the numbers matter:
   verbs, discovered not hand-listed, refused not by a word list but by a
   received treebank prior with a named giver.
 - With labels fixed, the honest choke is now the ENDS: "belief may," "those
-  who," "late and," "which." Only **9.9%** of subjects are surfaces the
+  who," "late and," "which." Only **7.5%** of subjects are surfaces the
   referent index knows. The most-repeated triples are `if it|may|be` and
   `that|was|all`. The cast (Station 3) and the arrangements (Station 4) do
   not yet share an identity — the extractor anchors on its own capitalized
@@ -428,7 +428,7 @@ product — it is one more surface over the record, the only one that talks.
 | 1 container | ✓ | ✓ | Gutenberg-scoped; other containers are disclosed absences |
 | 2 extents | ✓ | ✓ | claims discipline exists; nothing revises a real extent live yet |
 | 3 cast | ✓ | ✓ (in a scratchpad driver) | the reconciliation ladder lives in `live-read.mjs`, not app.js; speaker boundary unbuilt; East/West Cliff below evidence floor |
-| 4 arrangements | ✓ | POS gate lit TODAY | ends are fragments; 9.9% referent-anchored; extractor never consults the cast |
+| 4 arrangements | ✓ | POS gate lit TODAY | ends are fragments; 7.5% referent-anchored; extractor never consults the cast |
 | 5 ledger | ✓ live in app | mouth ≥2 starves | admission quality upstream; noteIdentity seam empty on purpose; witnesses-vs-spans divergence between callers |
 | 6 kinds | ✓ | ✓ | `kind-standing.js` has NO CALLER — the live cast still folds Castle into Count |
 | 7 judgment | ✓ | partly | chemistry is filter-not-generator (priced); HL declaration register nearly empty; three hyperlexicon layers unassembled |
@@ -456,3 +456,30 @@ the reader itself did and felt — is one append-only record of dated,
 witnessed, revisable claims; where every mechanism that promotes a claim
 must first survive a control built to kill it; and where the model, at
 last, is just the mouth of the record — never its memory, never its judge.
+
+
+---
+
+*Correction and delta update, same day, per this essay's own epigraph
+("the measurements win"). (1) Station 4's referent-anchored figure
+re-measured at **7.5%** exact (531/7,050 subjects that ARE a known
+surface), not 9.9%; the containment headroom measured **18.5%**
+(1,302/7,050). (2) §VI's "single highest-leverage unbuilt wire" was BUILT
+the day this essay landed: every public edge now carries
+`end1Face`/`end2Face` where the material earned exactly one being for the
+end (fragments nest by address containment; two beings stay a disclosed
+absence), the door's `hear` keys on the faces ahead of raw strings, and
+the live measurement reads **end1Face 18.6% / end2Face 12.1%** on the
+whole of Dracula. The wire went dark twice in its first hour — fragment
+-referent ambiguity inside `faceOf`, then `edgeFace`'s projection
+stripping the fields — and both darknesses were found only by re-running
+the measurement, which is III.5 earning its seal a third time in one day.
+Corroboration did NOT move (25 within-book, 1 cross-doc pronoun join) —
+exactly as §VI's ordering predicts: ends before identity before
+corroboration, and the paraphrase wall (the witness tier's job) still
+stands between. (3) One §VI row is stale on arrival: the witness tier WAS
+run cross-document the same day (gemma2:2b, sibling-swap armed, temp 0):
+**2 of 12 retrieval-proposed notes corroborated across the Borodino pair
+against a mechanical baseline of 0, with the fabricated-note control
+holding 0/4** — one of the two deciders is honest-but-questionable and is
+flagged in `reading-recall-finding.md` rather than counted clean.*

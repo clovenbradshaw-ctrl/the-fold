@@ -94,3 +94,81 @@ two sides sit in different validated kinds," and it needs the kind
 standing carried on the referent, not recomputed per merge.
 
 Drivers: `/tmp` probes, to be promoted to `eval/` when the gate lands.
+
+
+---
+
+# Addendum: three nulls, and the one that answers membership (2026-09-01)
+
+User: *"lets just let things segment into kinds as they truly are"* and
+*"we are probably using a bad NUL."* Both were right, and chasing them
+produced a working discriminator — `kind-standing.js`.
+
+## The null ran BACKWARDS, which is why agglomeration stalled
+
+Redealing which entity each mention belongs to gives every entity the
+CORPUS-AVERAGE profile. So redealt entities are MORE alike than real ones:
+
+| redeal null over 60 draws, 23,780 pairs | |
+|---|---|
+| median pairwise cosine | 0.400 |
+| p99 | 0.880 |
+| max | **0.950** |
+
+Real entities are specialised, therefore LESS similar than chance. Testing
+"observed similarity beats the null" is the wrong direction — it stalls
+agglomeration at 105 singletons, which is exactly what was measured.
+Binding energy (intra minus inter) has the direction right, which is why
+the structure test worked and the similarity test did not.
+
+## Binding energy is right for STRUCTURE and insensitive for MEMBERSHIP
+
+Testing declared groups against the redeal null:
+
+| group | observed | null max | verdict |
+|---|---|---|---|
+| places | 0.3557 | 0.0719 | 0/300 — censored above |
+| persons | 0.2766 | 0.3058 | p≈0.163 — not a kind |
+| CONTROL mixed 5+5 | 0.1628 | 0.1962 | p≈0.050 |
+| CONTROL arbitrary 10 | 0.0119 | 0.2252 | p≈1.000 — correctly refused |
+
+Two real findings. **Places are a MARKED kind; "person" is the unmarked
+default** — the population is mostly persons, so a person-set is not
+differentiated from its own background. And the controls behave, which is
+what licenses reading the rest.
+
+But adding ONE outsider to a cohesive ten-member set barely moves binding
+energy: `PLACES + Van Helsing`, `PLACES + Mina` and `PLACES + Castle
+Dracula` ALL came back censored above. A10 one level in — sound for "does
+structure exist", insensitive to "does this member fit".
+
+## The licensed pairing: the population is the null
+
+Nothing redealt. "Is X a member of K" is answered by asking whether X sits
+closer to K's members than the rest of the material does; the comparison
+is every other entity, measured rather than simulated.
+
+| candidate | fit | rank in population | verdict |
+|---|---|---|---|
+| Whitby, Varna, Exeter *(declared)* | 0.65-0.67 | 0/100 | member |
+| **Castle Dracula** | **0.595** | **3/100** | **member** |
+| Purfleet *(declared)* | 0.477 | 10/100 | marginal — disclosed |
+| Renfield | 0.319 | 29/100 | not a member |
+| **Count Dracula** | **0.244** | **43/100** | **not a member** |
+| Van Helsing / Mina | 0.24 / 0.20 | 44 / 51 | not a member |
+| East Cliff | 0.180 | 61/100 | not a member — *for want of evidence* |
+
+9 of 10 declared members recover. The specimen separates by more than 2x.
+
+## What ships, and what does not
+
+`kind-standing.js` + `kind-standing.test.mjs` (12 cases, the real book, no
+fixtures). `foldPermitted` refuses a fold ONLY on positive evidence of
+different standing; `unknown` on either side allows it, because a thin
+profile is a fact about the reader and not about the referents.
+
+NOT closed, and pinned as a test rather than left implicit: **East Cliff /
+West Cliff**. East Cliff has too few mentions to read and lands
+mid-population — absence of evidence, not evidence of difference. The
+merge gate is still not wired into the live cast; `kind-standing.js` has
+no caller yet.

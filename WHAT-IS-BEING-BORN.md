@@ -38,7 +38,7 @@ station, with what each station is trying to hand the next.
 
 ## II. The pipeline as it wants to be
 
-### Station 0 — the bytes arrive
+### Station 0 — the bytes arrive · NUL/SIG·Ground (Void — something, not nothing; signed)
 
 First experience is binary, not text. `measure.js::sniffContainer` reads
 magic bytes before any text heuristic (a PDF's first kilobyte is ASCII and
@@ -53,7 +53,7 @@ War and Peace).
 What Station 0 hands forward: *bytes with a declared container and a
 provenance chain that starts at the file itself.*
 
-### Station 1 — the container speaks, and is stripped
+### Station 1 — the container speaks, and is stripped · SEG·Ground (Field — the body's own extent)
 
 The file's own claims about itself are read and **labeled as the source's
 claims**: `declaredIdentity` (Gutenberg's own Title/Author header — built
@@ -69,7 +69,7 @@ The rule being born here: **markup conventions are named as categories and
 stripped once, before any span exists** — never chased token by token
 downstream.
 
-### Station 2 — extents are claims
+### Station 2 — extents are claims · SEG·Figure, revised by REC
 
 `splitSentences` + `deriveAbbreviations` cut the stream into sentences —
 and the cut itself is now a CLAIM, not a fact. `segmentation.js` (new this
@@ -87,7 +87,7 @@ substituted "Dr." anywhere in 800K characters zeroed the span on all 15,149
 extracted edges at once. Rewrites now happen inside one already-fixed
 sentence, so there is no second count to disagree with the first.
 
-### Station 3 — who is here (the cast)
+### Station 3 — who is here (the cast) · INS·Figure (Entity — births), folds as REC + fresh INS, kinds at Existence·Pattern
 
 The longest ladder, and the one this session rebuilt live against Dracula:
 
@@ -124,7 +124,7 @@ claim that holds until superseded.
 What Station 3 hands forward: *an earned referent index — beings, aliases,
 folds, kinds — every entry revisable and every revision dated.*
 
-### Station 4 — what is said (arrangements)
+### Station 4 — what is said (arrangements) · CON·Figure (Link — two ends related)
 
 `extractRelations` reads clauses into **two ordered ends and a label**
 (`arrangementOf` → `end1 / label / end2`). "Subject—verb—object" is
@@ -146,7 +146,7 @@ This station moved twice TODAY, and the numbers matter:
   not yet share an identity — the extractor anchors on its own capitalized
   spans and never consults the earned index sitting one station upstream.
 
-### Station 5 — the assertion ledger (the hyperlexicon)
+### Station 5 — the assertion ledger (the hyperlexicon) · INS·Figure at first hearing, SYN·Figure at corroboration
 
 Three modules share the name; they are three layers of one organ that has
 not been assembled:
@@ -183,7 +183,7 @@ withdraw≈retreat is *synonymy*, and no cheap proxy for it has survived a
 control yet. Exact-triple identity is conservative **on purpose** until one
 does.
 
-### Station 6 — kinds, and the discipline of the null
+### Station 6 — kinds, and the discipline of the null · NUL·Pattern (Kind — the figure clears its ground, or doesn't)
 
 The week's deepest lesson, now sealed as law. Three nulls were spent on one
 question ("is this a kind?") and two were refuted:
@@ -212,7 +212,7 @@ Also learned here, and worth its own line: **places are a marked kind;
 background. The material tells you which distinctions it carries; the
 reader's job is to refuse the ones it doesn't.
 
-### Station 7 — composition and judgment
+### Station 7 — composition and judgment · EVA·Figure (Lens — Binding), CON·Pattern (Network), REC on concession
 
 Above the ledger, the layers that make notes into reasoning:
 
@@ -235,7 +235,7 @@ Above the ledger, the layers that make notes into reasoning:
   model's own bare assertion entering as `self:model`, one witness among
   many, never allowed to co-sign its own corroboration.
 
-### Station 8 — the turn (holonic tasks, and the many prompts of one answer)
+### Station 8 — the turn (holonic tasks, and the many prompts of one answer) · the full nine-operator loop, per question
 
 Everything above is standing state. A chat turn is a TASK run over it, and
 the task runtime speaks the same log discipline as everything else: the
@@ -275,7 +275,7 @@ S2 dress, a single turn can spend:
 The prompts are many because each is small, typed, and checkable — the
 opposite of one giant prompt trusted once.
 
-### Station 9 — the mouth
+### Station 9 — the mouth · SYN·Figure (Making, inside walls) — never EVA
 
 Generation is last. What ships is drawn over by marks (addresses, ground
 underlines, relation badges) that render findings without becoming them;
@@ -287,7 +287,65 @@ append-only and not the UI's to switch off.
 
 ---
 
-## III. The long instruction set — reading what cannot fit
+## III. What the cube sees
+
+Type every station's characteristic act by the engine's own algebra —
+operator × grain, domain and terrain derived, never chosen — and structure
+appears that the prose above only gestures at. Four findings, each checkable
+against the measurements already cited.
+
+**1. The choke points are the domain seams.** Read the deltas again with
+cells attached and they stop being a miscellaneous bug list. The cast not
+feeding the extractor is the Existence→Structure seam: Entity-terrain
+output (who exists) failing to reach Link-terrain work (what relates). The
+one place in the whole system where that seam IS wired — the live driver's
+cast-canonicalized merge key, whose own comment reads "Link consumes what
+Entity has already learned" — is also the one place the tables looked
+right. The theory-of-mind gap (named in the companion essay) is the
+Structure→Interpretation seam: we relate beings all day and barely ever
+land a claim about how a being *takes* anything. Seams, not modules, are
+where this project's work keeps landing — and the cube says why: a terrain
+consumes only what the terrain before it has actually earned.
+
+**2. The choke-point ordering is the production order.** Section VI's rule
+— ends before identity before corroboration — was derived here by
+measurement, three probes deep. The algebra already said it:
+`checkCubeProgression` runs INS before SYN, Existence before Structure.
+You cannot corroborate (SYN·Figure) what was never individuated
+(INS·Figure), and the ledger's 0.5% corroboration rate is exactly that law
+enforcing itself against ends the Existence tier never earned. We
+rediscovered by instrument what the operator order states in five letters
+— which is this project's oldest experience (L5 was rediscovered by
+measurement before it was read), and it upgrades the ordering from "our
+finding" to "the algebra's own sequence, confirmed."
+
+**3. The grain theorem explains the null week.** A Pattern-grain claim
+(this is a KIND) can be refuted by Figure-grain evidence but never earned
+by it — HL's probe D, already law. The three-null saga at Station 6 was
+three attempts to earn a Pattern claim with mis-scoped Figure statistics,
+and II.23 is the constitution catching up with the grain theorem: the one
+null that survived is the one whose comparison lives at the claim's own
+grain (this member against this population), not below it.
+
+**4. The Interpretation column is the thin one — and it is where the
+other-minds channel lives.** Existence and Structure are dense: nine
+stations' worth of organs. Interpretation has Atmosphere (the aperture
+meter — built, self-directed only), Lens (EVA checks — built, but only for
+claims about material), and Paradigm (metacognition standings, REC
+reshapes — nascent). An attitude report — *Mina fears X*, *Jonathan knows
+Y* — is an Interpretation-domain claim whose first end is a mind. The
+forgotten channel is not a new subsystem; it is the grid's third column
+pointed at referents other than the self. Same cells, second mirror.
+
+And one division of labor the cube states more crisply than any policy
+prose: **models may occupy Generate-mode cells only** — Making, inside
+walls, slot-filling, drafting-as-testimony. They are never granted EVA.
+Reading is a model's; judging is the record's. That single sentence is
+most of the safety architecture, typed.
+
+---
+
+## IV. The long instruction set — reading what cannot fit
 
 The neglected thread, named here so it stops being neglected. A local
 model's window cannot hold a long instruction set — a spec, a style guide,
@@ -320,7 +378,7 @@ does not. That is buildable work, not research.
 
 ---
 
-## IV. What is being born — five convergences
+## V. What is being born — five convergences
 
 **1. One log, many surfaces.** Count what now speaks the same discipline —
 append-only, seq-not-clock, PROPOSE/SUPERSEDE keeps the past, payload
@@ -362,7 +420,7 @@ product — it is one more surface over the record, the only one that talks.
 
 ---
 
-## V. The delta — station by station
+## VI. The delta — station by station
 
 | station | built | lit | the gap |
 |---|---|---|---|
@@ -390,7 +448,7 @@ hyperlexicon finally doing what it was named for.
 
 ---
 
-## VI. The one-sentence version
+## VII. The one-sentence version
 
 What is being born is a reader whose entire state — who exists, what kind
 of thing each one is, what was said about them, what follows from it, what

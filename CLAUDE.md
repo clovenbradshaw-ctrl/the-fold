@@ -5887,3 +5887,29 @@ the flow HELPS — does the correction rate fall once it engages — remains
 the named, unrun measured leg; the counts to answer it now accumulate on
 the ledger itself. `forcesFoldRefresh` and the gate flow (#1, which would
 widen the thin S1/S2 channel) stay deliberately unbuilt.
+
+**Amended once more — the hunt stops on surprise, not on a count.** P72's
+third amendment is the law; the one-line map: the user's own stopping
+rule ("hunt until what we experienced would not be surprising to a
+degree that is a distinction that makes a difference" — Bateson's sign,
+P31's own sketched rule, built for the hunt loop) is live in
+`gatherPreflightMaterial`: `makeHuntMeter` (metacognition.js) runs the
+SAME tier-stack physiology reflex.js/aperture.js already wire, seeded
+with the question + discourse + snippets digest, each kept page placed
+against the material's own continuation null; a page landing past the
+null's own median (`huntSettled` — aperture's live-measured cut, cited
+not re-derived) stops the hunt early, a genuinely-moving page keeps it
+alive to the ceiling, and a GAP never stops anything. Escalation's
+`pagesConsulted` is thereby a LEASH, not a count — contested buys a
+longer one, the settling decides the spend. Probed against the REAL
+engine organ before wiring (convergent stream settles at rank 0.97/0.98,
+alien page censored above, empty page refused as a stop, thin-seed first
+page continues, byte-deterministic) — 7/7 in
+`metacognition-hunt.test.mjs`, runnable here because this same session
+initialized `legacy-eoreader6.1` (suite honestly swelled: 1585 tests
+execute, the old 125-name environment set now 42, identical
+before/after). Every hunt lands a `hunted` act on the reflex ledger.
+Disclosed: a calm turn may stop below the old fixed 3 pages, but only on
+a MEASURED settle — never on a gap, never on silence; and this is the
+per-arrival gate, not `nul.pattern()`'s licensed pair over the series,
+which stays open exactly as aperture.js's own header already names.

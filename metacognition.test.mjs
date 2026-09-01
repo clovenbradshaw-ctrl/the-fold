@@ -31,6 +31,12 @@ import {
 
 import * as taskLog from "../eoreader7/native/kernel/task-log.js";
 
+// The REAL constants the live wiring hands escalationFor — imported from
+// the same modules app.js imports them from, never restated, so this file
+// fails the moment the wiring's assumptions and the constants drift.
+import { MAX_CORRECTIONS, PASSAGES_PER_PART } from "./holon.js";
+import { PREFLIGHT_PAGES_CONSULTED } from "./proof.js";
+
 // ── classifyAtom ─────────────────────────────────────────────────────────
 
 test("classifyAtom: a bound edge sharing a token confirms", () => {
@@ -299,6 +305,48 @@ test("escalationFor: pure over its inputs — the same declared constants give t
 });
 
 // ── end-to-end: a turn's assessment folded straight into the ledger ───────
+
+test("the live wiring's own chain, on the REAL imported constants: two corrected turns -> contested -> 2 corrections, 5 passages, 5 pages", () => {
+  // The exact sequence app.js's holonicTurn runs, minus only the DOM: a
+  // turn's S1 draft assessed against S2's claims, observed onto the
+  // "s1-draft" cell, and — once the standing reads contested — the three
+  // declared budget constants (imported above from holon.js/proof.js,
+  // the same modules app.js imports them from) handed to escalationFor.
+  const m = ledger();
+  let log = m.createLedger();
+  const s1Text = "Kessler founded Ostrel in 1901.";
+  const relationEdges = [
+    { subject: "Kessler", verb: "founded", object: "Ostrel", verdict: "contradicted" },
+  ];
+  for (let i = 0; i < WITNESS_FLOOR; i++) {
+    const r = assessAgreement(s1Text, { relationEdges });
+    log = m.observe(log, { cell: "s1-draft", delta: r.counts });
+  }
+  const standing = m.standingOf(log, "s1-draft");
+  assert.equal(standing.standing, "contested");
+  const escalation = escalationFor(standing, {
+    maxCorrections: MAX_CORRECTIONS,
+    passagesPerPart: PASSAGES_PER_PART,
+    pagesConsulted: PREFLIGHT_PAGES_CONSULTED,
+  });
+  assert.equal(escalation.escalated, true);
+  // The concrete live numbers the PR and P72's amendment promise — pinned
+  // against the REAL constants, so a drift in holon.js/proof.js resurfaces
+  // here rather than silently changing what "widened" means.
+  assert.equal(escalation.maxCorrections, 2);
+  assert.equal(escalation.passagesPerPart, 5);
+  assert.equal(escalation.pagesConsulted, 5);
+  // And the same chain on a clean history stays at the constants exactly.
+  const calm = escalationFor(m.standingOf(m.createLedger(), "s1-draft"), {
+    maxCorrections: MAX_CORRECTIONS,
+    passagesPerPart: PASSAGES_PER_PART,
+    pagesConsulted: PREFLIGHT_PAGES_CONSULTED,
+  });
+  assert.equal(calm.escalated, false);
+  assert.equal(calm.maxCorrections, MAX_CORRECTIONS);
+  assert.equal(calm.passagesPerPart, PASSAGES_PER_PART);
+  assert.equal(calm.pagesConsulted, PREFLIGHT_PAGES_CONSULTED);
+});
 
 test("end-to-end: assessAgreement's counts feed observe, and a real error moves the standing to contested", () => {
   const m = ledger();

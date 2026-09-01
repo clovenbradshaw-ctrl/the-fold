@@ -223,7 +223,7 @@ import { makeHyperlexicon } from "./hyperlexicon.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
 // metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
 // same "one implementation, injected everywhere" posture.
-import { assessAgreement, escalationFor, makeMetacognition } from "./metacognition.js";
+import { assessAgreement, escalationFor, makeHuntMeter, makeMetacognition } from "./metacognition.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
 // the `briefFor` call site below. One confirmed set, two consumers: this is
@@ -473,6 +473,13 @@ const reflexMeter = makeReflexMeter({ createTierStack, foldThrough });
 // separate instance so the world plane's belief never shares state with
 // the self plane's.
 const apertureMeter = makeApertureMeter({ createTierStack, foldThrough });
+// The hunt gate (metacognition.js, P72's third amendment): the SAME
+// tier-stack physiology as the two meters above, pointed at the
+// preflight's own page stream — surprise deciding when the hunt stops,
+// instead of a fixed page count spent blind. Per-hunt instances are
+// created inside gatherPreflightMaterial; this is the factory, built once
+// on the same injected organs.
+const huntMeter = makeHuntMeter({ createTierStack, foldThrough });
 
 import {
   blankLabelRows,
@@ -3960,6 +3967,16 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       const preflight = await gatherPreflightMaterial(task, discourseLine, (step) => setPhase(step), {
         pagesConsulted: escalation.pagesConsulted,
       });
+      // The hunt's outcome on the ledger, whichever way it ended — a
+      // reading the instrument cut short (or ran to its leash's end) is a
+      // decision, and a decision the instrument made is never silent.
+      if (preflight.hunt?.pages) {
+        logAct("hunted", {
+          pages: preflight.hunt.pages,
+          ceiling: preflight.hunt.ceiling,
+          stop: preflight.hunt.stop,
+        });
+      }
       if (preflight.chunks.length) {
         live = preflight.chunks;
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
@@ -6509,6 +6526,24 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
     .filter(Boolean)
     .join("\n");
   if (digest) chunks.push(...chunkSource("web:search-results", digest));
+  // The hunt's own stopping rule (P72's third amendment, user direction:
+  // "hunt until what we experienced would not be surprising to a degree
+  // that is a distinction that makes a difference"). The meter is seeded
+  // with what is ALREADY held before any page is fetched — the question,
+  // the discourse line, the snippets digest — so the first page is
+  // measured against a real ground. After each KEPT page, the arrival is
+  // placed against the material's own continuation null: a page that
+  // landed where noise alone would put it (aperture.js's own measured
+  // cut) means the material has stopped moving belief, and the hunt stops
+  // EARLY rather than spending the remaining fetches restating it. A page
+  // that genuinely moved belief (censored above, or inside the surprising
+  // half) keeps the hunt alive to the declared ceiling. The floor is
+  // structural: the first kept page always lands before the rule can
+  // speak, so a hunt never returns page-less because its own seed was
+  // already rich. A gap (unreadable, empty, unplaceable) NEVER stops the
+  // hunt — withheld is not "nothing moved".
+  const hunt = huntMeter.create([task, discourse, digest]);
+  let huntStop = null;
   for (const [i, r] of picks.entries()) {
     try {
       onStep?.(`reading ${hostOf(r.url)} (${i + 1} of ${picks.length})`);
@@ -6548,6 +6583,15 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       state.citedMaterial[sourceName] = text;
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
       onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+      const arrived = huntMeter.arrive(hunt, text);
+      if (arrived.settled) {
+        huntStop = "settled";
+        onStep?.(
+          `settled after ${pages.length} page(s) — the last one moved nothing the material's own noise wouldn't` +
+            (i + 1 < picks.length ? `; ${picks.length - i - 1} fetch(es) not spent` : ""),
+        );
+        break;
+      }
     } catch (e) {
       // One page failing to fetch is not the search failing — the other
       // picks still get their chance, the same posture seekProof takes.
@@ -6555,9 +6599,23 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       continue;
     }
   }
+  if (!huntStop && pages.length) huntStop = "ceiling";
   return {
     chunks,
     pages,
+    // The hunt's own record, for the caller's ledger: how many pages were
+    // actually read, against what ceiling, and WHY the reading stopped —
+    // "settled" (the material converged and said so) or "ceiling" (belief
+    // was still moving when the declared budget ran out; a longer leash —
+    // escalation's own knob — is what would have let it continue).
+    hunt: {
+      pages: pages.length,
+      ceiling: pagesConsulted,
+      stop: huntStop,
+      arrivals: hunt.arrivals
+        .filter((a) => a.role === "page")
+        .map(({ bits, rank, censored, settled, gap }) => ({ bits, rank, censored, settled, ...(gap ? { gap } : {}) })),
+    },
     gap: chunks.length ? null : { silence: "not-present", detail: "pages were found but none had readable text" },
   };
 }

@@ -9073,3 +9073,71 @@ measurement now exists on the ledger itself (corrected counts per cell,
 `escalated` acts on the reflex ledger); running it needs live turns this
 environment cannot drive. Suite: 1085 → 1092, pass 958 → 965, the same
 125 pre-existing environment failures by name, zero regressions.
+
+**Third amendment — the hunt stops on surprise, not on a count (user
+direction, near-verbatim: "we should hunt until we have enough
+information such that what we experienced would not be surprising to a
+degree that is a distinction that makes a difference").** The question
+this answers, put back plainly first: flow #2 as first wired was a
+fixed quantum — 3 pages (5 contested), decided before the hunt started,
+spent blind. Nothing about what the pages actually SAID could stop the
+hunt early or say "this is still moving, keep going." The user's clause
+is this repo's own standing vocabulary — Bateson's
+difference-that-makes-a-difference, `nul.pattern()`'s documented sign —
+and P31 had already sketched exactly this stopping rule for a different
+loop ("hop until widening stops moving the answer beyond what reseeding
+noise would move it anyway; the noise can't beat the NUL"). This builds
+it for the hunt.
+
+**The mechanism.** `metacognition.js::makeHuntMeter` — the SAME
+tier-stack physiology reflex.js and aperture.js already wire
+(`emergence/tiers.js`, bayesianSurprise placed against
+priorContinuationNull), injected the same cast.js way, on the SAME
+declared numbers (SURPRISE_WINDOW/DRAWS/ALPHA/SEED, imported from
+reflex.js where their givers are named), one tier. The meter is seeded
+with what the hunt STARTS from — the question, the discourse line, the
+search-results digest — so the first page is measured against a real
+ground; each kept page then arrives as one observation, placed against
+the material's own continuation null. `huntSettled` is aperture.js's own
+live-measured cut applied per arrival (censored above → still
+surprising; censored below → held; placed → held iff rank > 0.5, the
+null's OWN median — the cut aperture earned through two measured
+corrections, cited rather than re-derived). `gatherPreflightMaterial`'s
+fetch loop stops EARLY on a settled arrival and runs to the declared
+ceiling while pages keep genuinely moving belief; the escalation's
+`pagesConsulted` is thereby reframed from "the count" into "the leash" —
+`contested` buys a LONGER leash (5), and the settling decides where the
+hunt actually stops inside it. Every hunt's outcome lands on the reflex
+ledger as a `hunted` act (pages read, ceiling, and WHY it stopped —
+`settled` or `ceiling`), and the return's own `hunt` record carries each
+page's placement, so the decision is inspectable per turn.
+
+**Measured against the REAL organ before a line of wiring** — probe run
+kept in `metacognition-hunt.test.mjs`'s own header, fixtures declared
+invented so nothing tests recalled world knowledge: a convergent stream
+settles (page A rank 0.97 against a seed it overlaps, near-paraphrase B
+0.98); an alien-topic page lands censored ABOVE and keeps the hunt alive;
+an empty page is a typed gap and can NEVER stop the hunt (withheld is
+not "nothing moved" — the grounding ladder's own line, applied to
+stopping); a first page against a thin seed is unplaceable and continues
+the hunt (the safe side); and the whole stream is byte-deterministic on
+the declared null seed. 7/7 against the real engine module — runnable in
+this checkout for the first time, because this same session initialized
+the `legacy-eoreader6.1` submodule (which also swelled the honest suite:
+1578 tests now execute where 1092 did, the old 125-name environment
+failure set collapsing to 42, identical before/after every change here).
+
+**The disclosed behavior change, named rather than smoothed.** A calm
+turn may now stop BELOW the old fixed 3 pages — but only ever on a
+MEASURED settle (a page placed past the null's own median), never on a
+gap, an unreadable page, or an unplaceable first arrival, all of which
+continue the hunt. The asymmetry law's spirit holds in the new register:
+effort is only ever cut by the material itself converging this turn,
+measured against its own null — never by a learned standing, never by
+silence, never by default. And the sharper sign remains open, stated
+here as aperture.js already states it for its own series: this is the
+per-arrival continuation-null gate, NOT `nul.pattern()`'s licensed
+windowMean/shuffle pair over the hunt's series — the null-of-nulls
+`opened` reading stays unbuilt, named, not absorbed. Suite after this
+amendment: 1585 tests / 1538 pass / the same 42 environment failures by
+name, zero regressions.

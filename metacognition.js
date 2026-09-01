@@ -100,6 +100,8 @@
 
 import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
 import { WITNESS_FLOOR } from "./asserted.js";
+import { tokenize } from "./source.js";
+import { SURPRISE_ALPHA, SURPRISE_DRAWS, SURPRISE_SEED, SURPRISE_WINDOW } from "./reflex.js";
 
 export { WITNESS_FLOOR };
 
@@ -423,6 +425,120 @@ export function escalationFor(standing, budgets = {}) {
     out[key] = escalated && Number.isFinite(value) ? Math.ceil(value * factor) : value;
   }
   return out;
+}
+
+// ── the hunt gate: surprise decides when to stop hunting ────────────────
+//
+// User direction, near-verbatim (2026-09-01): "we should hunt until we
+// have enough information such that what we experienced would not be
+// surprising to a degree that is a distinction that makes a difference."
+// That last clause is this repo's own standing vocabulary — Bateson's
+// difference-that-makes-a-difference, `nul.pattern()`'s documented sign —
+// and P31 already sketched exactly this stopping rule for a different
+// loop ("hop until widening stops moving the answer beyond what reseeding
+// noise would move it anyway; the noise can't beat the NUL"). This is
+// that rule, built for the hunt: the preflight's page-fetch loop stops
+// EARLY when the last page's arrival lands where the material's own
+// continuation null says noise alone would put it, and runs to its
+// declared ceiling while pages keep genuinely moving belief.
+//
+// THE MEASURING ORGAN IS REUSED, NOT INVENTED. `createTierStack`/
+// `foldThrough` (the engine's emergence/tiers.js — bayesianSurprise
+// placed against priorContinuationNull) is the SAME physiology
+// reflex.js and aperture.js already wire, injected the same cast.js way,
+// on the SAME declared numbers (SURPRISE_WINDOW/DRAWS/ALPHA/SEED,
+// imported from reflex.js where their givers are named — nothing here is
+// re-declared or re-tuned). One tier, named "hunt": the question a hunt
+// asks ("did this page move what I hold") is tier-0's own question; the
+// ladder above it answers a different one (aperture.js's) and is not
+// dragged along as costume.
+//
+// THE SETTLED CUT IS APERTURE'S OWN, MEASURED ONE — not a new threshold.
+// `huntSettled` reads an arrival exactly as `aperture.js::arrivalHeld`
+// does (its private helper, mirrored with its history cited rather than
+// exported across module intent): censored above → still surprising;
+// censored below → stiller than every one of the null's own draws, held;
+// a PLACED arrival holds iff rank > 0.5 — the null's OWN median, the cut
+// aperture.js earned through two live-measured corrections (the
+// both-censored version was unreachable, the censored-above-only version
+// let a real topic pivot through at rank 0.01; the median catches it).
+// A GAP NEVER SETTLES: an arrival that could not be measured is
+// "withheld", not "nothing moved" — the same line the grounding ladder
+// holds everywhere else, and it means an unmeasurable page can never be
+// the reason a hunt stops early.
+//
+// WHAT THIS DOES NOT CLAIM. This is the per-arrival continuation-null
+// gate, already validated live at aperture's own call site — it is NOT
+// `nul.pattern()`'s licensed windowMean/shuffle pair run over a series,
+// which is the sharper, null-of-nulls `opened` sign aperture.js's header
+// names as still-open work. Named here too, not silently absorbed.
+
+const huntCounts = (text) => {
+  const m = new Map();
+  for (const t of tokenize(text)) m.set(t, (m.get(t) ?? 0) + 1);
+  return m;
+};
+
+/** aperture.js::arrivalHeld's own cut, applied to one hunt arrival. */
+export function huntSettled(obs) {
+  if (!obs || obs.gap) return false;
+  if (obs.censored === "above") return false;
+  if (obs.censored === "below") return true;
+  return obs.rank != null && obs.rank > 0.5;
+}
+
+/**
+ * makeHuntMeter(organs) — `{ create, arrive }`, the reflex.js/aperture.js
+ * factory shape. `create(seedTexts)` folds the ground the hunt STARTS
+ * from (the question, the discourse line, the search snippets — what is
+ * already held before any page is fetched) so the first page is measured
+ * against a real prior rather than an empty one; seed arrivals are
+ * recorded with `role: "seed"` and never consulted by the stop rule.
+ * `arrive(meter, text)` measures one fetched page and returns the
+ * observation with `settled` already read off it.
+ */
+export function makeHuntMeter({ createTierStack, foldThrough }) {
+  const fold = (meter, text, role) => {
+    const arrival = huntCounts(text);
+    const seq = meter.arrivals.length;
+    let obs;
+    if (arrival.size === 0) {
+      obs = { seq, role, bits: null, rank: null, censored: null, gap: "empty_arrival — nothing tokenizable arrived" };
+    } else {
+      const r = foldThrough(meter.tiers, arrival, { alpha: SURPRISE_ALPHA });
+      const t0 = r.results[0];
+      obs = {
+        seq,
+        role,
+        bits: t0.surprise != null ? Number(t0.surprise.toFixed(3)) : null,
+        rank: t0.rank ?? null,
+        censored: t0.censored ?? null,
+        gap: t0.gap ? `${t0.gap.gap ?? t0.gap}${t0.gap.detail?.reason ? ` — ${t0.gap.detail.reason}` : ""}` : null,
+      };
+    }
+    obs.settled = role === "seed" ? null : huntSettled(obs);
+    obs = Object.freeze(obs);
+    meter.arrivals.push(obs);
+    return obs;
+  };
+
+  return {
+    create(seedTexts = []) {
+      const meter = {
+        tiers: createTierStack(["hunt"], {
+          window: SURPRISE_WINDOW,
+          draws: SURPRISE_DRAWS,
+          seed: SURPRISE_SEED,
+        }),
+        arrivals: [],
+      };
+      for (const t of seedTexts) if (String(t ?? "").trim()) fold(meter, t, "seed");
+      return meter;
+    },
+    arrive(meter, text) {
+      return fold(meter, text, "page");
+    },
+  };
 }
 
 /**

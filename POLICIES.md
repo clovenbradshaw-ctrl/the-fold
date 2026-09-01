@@ -9937,3 +9937,150 @@ than dropped, multiple passages/sentences all read. Full suite:
 identical failure set — untracked new files included this time, unlike
 an earlier check in this same session that omitted `-u` and produced a
 misleading result, caught and corrected before being reported here).
+
+
+## P78 — Working with something that answers back is a capacity the instrument holds, not a score it receives
+
+*(Renumbered from P54 on merge — main took P54–P77 while this PR was open; the entry moved to the tail, nothing about it changed.)*
+
+**Generality:** not-applicable (a capability/architecture pass written before P71's gate existed; renumbered on merge, not retroactively re-measured)
+
+*(Renumbered from P45 on merge — concurrent PRs landed P45 through P53 first. The number moved; nothing about the policy did. Same convention P42 and P29 already record for their own merges.)*
+
+**The law.** Where this instrument acts on something that RESPONDS — a
+sandboxed runtime, its own act grammar, a shell, a database, a web organ,
+another agent — it may hold, and must be able to hold, seven capacities,
+each coordinating the one below it: name what the counterpart affords and
+read its refusal as information; attribute an effect to the act that caused
+it; compute a later act FROM what came back; predict an effect before
+causing it and compare; count corroboration by ROUTE rather than by
+repetition; quantify over an open slot rather than trying one filler; and
+intervene — run the world again without the act — to establish that an
+effect depended on it. `interact.js` is where they live. A caller may not
+claim a capacity it did not exercise: what an interaction reached is
+DERIVED from the run's own structure, never from what the caller meant.
+
+**The list is received, not invented.** The seven are Commons's orders 5
+through 11 (P44's own GIVER names the sources; the eo-wiki's "MHC and EO"
+article is where this project already recorded the convergence), read as
+requirements on a task rather than as a scale to be graded against. Applied
+to interaction instead of to reading they name, in dependency order,
+exactly what every door this app owned was missing: `/run`, `/act`,
+`.load`, `pip install` each fire ONE act and read ONE response. Before this
+policy there was nowhere in this repo to say *do this, read what came back,
+then do that with it* — let alone to predict an effect before causing it,
+or to establish that an effect actually depended on the act that appeared
+to cause it.
+
+**The distinction that produced this policy, kept because the first pass
+got it backwards.** The pass that became this one began as a BATTERY: a
+ladder of items scoring whether the instrument's interaction reached order
+N. That is a thermometer, and a thermometer is not a capacity — the user's
+own correction, verbatim: *"are you saying the code is examples of mhc? I
+want the app to have these capacities."* The machinery turned out to be the
+same machinery either way (a counterpart contract, a closed-loop plan
+runner, and the blinding/reordering/intervention controls), pointed at a
+different consumer. So the capacities live in `interact.js`, which the app
+calls, and the battery (`mhc-interact.js` + `eval/mhc-interaction-
+battery.mjs`) is a SECOND CONSUMER of that same organ — never a parallel
+copy, because a battery that scores machinery nobody runs has measured
+nothing that matters, and two implementations of one fact is the drift
+class this repo's own postmortems keep naming (P22's `Array.find`, P24's
+runtime-type ternary, P39's deleted `landCell`).
+
+**What interaction can establish that no amount of reading can.** CLAUDE.md
+records the causal door as deliberately shut for the measuring organ:
+`binding.js` carries `transferEntropy` and `reversalNull`, and the DFR work
+measured 100/100 false positives on common-cause synthetic data — that
+paper's own conclusion being that confounding *"requires design, not
+statistics."* Interaction IS that design. `depends()` infers nothing from a
+record: it runs the world again with the act removed, again with an
+accepted-but-irrelevant act in its place, and again with that irrelevant
+act merely ADDED. All four counts are reported natural-frequency, and a
+dependence is established only when the pattern is unanimous. This is the
+one capacity here with no counterpart anywhere else in this repo.
+
+**Four honesty rules, each earned by a live failure rather than reasoned
+into place.**
+
+1. *A refusal is information, never an exception.* A counterpart saying "I
+   do not have that" is the first capacity working. Every step carries
+   `accepted`; nothing throws.
+
+2. *An effect is read across the WHOLE run, never off its last response.*
+   Found by running an intervention, not by reasoning about one: an effect
+   predicate that inspects only the final observation reports where the
+   transcript happened to STOP, so appending a no-op breaks it — which is
+   exactly what the insertion control does. A sound intervention item was
+   refused for `arbitrary_coordination` before this was understood.
+   `EFFECT_READS_THE_WHOLE_RUN` is the named export that states it.
+
+3. *A control that decides a correctness claim does not get to depend on a
+   seed.* The insertion control originally sampled ONE random position per
+   draw and could simply miss the position that breaks the effect,
+   reporting robustness it never tested. It now sweeps every position.
+
+4. *Provenance, not position, locates the computed act.* The reordering
+   control moves a computed act off whatever index it started at, and a
+   positional goal then reads whichever act happened to land there — which
+   is how a null gets satisfied by an act that was never computed from
+   anything. `runPlan` records `computed` on the act itself.
+
+**Rung 7 is proven, not assumed.** Writing a step as a function of the
+responses is a CLAIM; that the act genuinely changed because of them is a
+FACT, and only the fact is the capacity. `verifyLoop` re-runs the script
+open-loop — every act built from an empty response history — and reports
+whether the acts actually differed. A script whose "closed loop" produces
+identical acts is not a loop, and that is a real finding about the script,
+reported as `loopReal: false` rather than as an error.
+
+**Experiments do not land on the record.** The act-grammar counterpart
+(`term.js::actsCounterpart`) opens a SCRATCH log every time, never the
+shared app-wide `gridLog`. An intervention runs its plan once per draw plus
+once per insertion position, and landing all of that on the instrument's
+real append-only record would bury it under an experiment nobody asked to
+keep. What is learned lands; what was tried in order to learn it does not.
+A caller that wants an act ON the record uses `act`, which is what that
+command is for.
+
+**The doors.** `openRuntime(lang)` (term.js) holds a sandboxed runtime OPEN
+across acts — the same boot/exec/done protocol every worker here already
+speaks, with the same per-runtime budget `runSandboxed` uses, and a
+timed-out act resolving as a refused response rather than a thrown error.
+The interactive prompt already had a held session; the instrument did not,
+because `spawn()` is wired to the drawer's DOM. Two terminal commands
+expose the capacities: `interact <counterpart> | <act> | <act>` (where `$N`
+is the Nth response — which is what makes an act computed rather than
+typed — and `=> text` declares an expectation BEFORE the act runs), and
+`depends <counterpart> effect:<text> omit:<n> placebo:<act> | <act> | ...`.
+Counterparts are derived from `ROSTER` plus the act grammar, so a runtime
+added there is workable-with without an edit here. The grammars are pure
+and exported (`parseInteract`/`buildScript`/`parseDepends`) so they are
+tested off the page, and `buildScript` is tested by CONDUCTING against an
+in-memory counterpart — "this act is computed from the response" is
+demonstrated, not asserted.
+
+**Evidence.** `interact.test.mjs`, 32 cases, process-free and organ-free:
+every capacity against in-memory counterparts whose behaviour is fully
+known, including a deliberately deaf one (answers identically whatever it
+is asked) which never establishes a dependence, and a deliberately brittle
+plan which cannot establish one either and says why. `term.test.mjs` grew 8
+cases for the doors' grammars. `eval/mhc-interaction-battery.mjs` runs the
+scoring consumer against three genuinely different REAL counterparts — this
+repo's act grammar over the engine kernel, a real `python3 -i` subprocess,
+and a real `sh` subprocess, no model anywhere — and all three reach stage
+11 with the scale holding: **zero orders changed their order-hood with the
+counterpart**. Full suite: 608 passing / 116 failing before this pass,
+672 / 116 after — the same 116 pre-existing environment failures (missing
+vendored `sql.js`, model files, `monaco-editor`, and the sibling-engine
+import paths this checkout does not carry), confirmed by `git stash`
+against this exact worktree, zero regressions.
+
+**Disclosed, not silently absent.** A live model is a legitimate
+counterpart for this contract and is not wired: scoring one re-opens P44's
+own confound (both sides act, so the number is about the pair) and needs a
+scripted control of declared order beside it. The web organ, the database
+fold and the GitHub organ all satisfy the contract and have no adapter yet
+— each is one `open()` away, and naming them is not the same as having
+written them. Orders 12 and above carry no capacity here: `interact.js`
+stops at 11, and `stageFrom` caps accordingly rather than implying more.

@@ -12,7 +12,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { ROSTER, REFUSED, SEVERED, continues, isControl, csvTable, formatCells, autoRunnable, parseRunCommand, rubyBlockDepth, rBracketDepth } from "./term.js";
+import { ROSTER, REFUSED, SEVERED, continues, isControl, csvTable, formatCells, autoRunnable, parseRunCommand, rubyBlockDepth, rBracketDepth, parseInteract, buildScript, parseDepends } from "./term.js";
+import { conduct, depends as dependsOnAct } from "./interact.js";
 import { SEVERED as JS_SEVERED } from "./term-js-worker.mjs";
 import { SEVERED as PY_SEVERED, mountName } from "./term-py-worker.mjs";
 import { SEVERED as RUBY_SEVERED, mountName as rubyMountName } from "./term-ruby-worker.mjs";
@@ -259,4 +260,105 @@ test("parseRunCommand: text with no /run prefix at all is null — the door fall
   assert.equal(parseRunCommand("just some ordinary chat\nwith a second line too"), null);
   assert.equal(parseRunCommand("print(2+2)"), null);
   assert.equal(parseRunCommand(""), null);
+});
+
+
+// ── the interaction doors' grammars ────────────────────────────────────────
+//
+// The doors themselves drive real Workers and cannot run here; their GRAMMARS
+// are pure and are the part that decides what a typed line means, so they are
+// tested here — and `buildScript` is tested by actually conducting against an
+// in-memory counterpart, so "this act is computed from the response" is
+// demonstrated rather than asserted.
+
+/** A counterpart with no worker in it, so the capacities are testable in node
+ * exactly as interact.test.mjs's own are. */
+const echoCounterpart = () => ({
+  id: "echo",
+  kind: "in-memory",
+  open: async () => {
+    const state = new Map();
+    return {
+      step: (act) => {
+        const [verb, ...rest] = String(act).trim().split(/\s+/);
+        if (verb === "set") { state.set(rest[0], rest.slice(1).join(" ")); return { accepted: true, text: `ok` }; }
+        if (verb === "get") return state.has(rest[0]) ? { accepted: true, text: state.get(rest[0]) } : { accepted: false, text: "no such key" };
+        if (verb === "sum") return { accepted: true, text: String(Number(rest[0]) + Number(rest[1])) };
+        if (verb === "nop") return { accepted: true, text: "" };
+        return { accepted: false, text: "unknown act" };
+      },
+      close() {},
+    };
+  },
+});
+
+test("parseInteract: a counterpart with pipe-separated acts", () => {
+  const p = parseInteract("python | print(1) | print(2)");
+  assert.equal(p.counterpart, "python");
+  assert.deepEqual(p.acts.map((a) => a.act), ["print(1)", "print(2)"]);
+  assert.deepEqual(p.acts.map((a) => a.expect), [null, null]);
+});
+
+test("parseInteract: `=> text` declares the expectation and is stripped from the act", () => {
+  const p = parseInteract("python | print(6*7) => 42");
+  assert.equal(p.acts[0].act, "print(6*7)");
+  assert.equal(p.acts[0].expect, "42");
+});
+
+test("parseInteract: a bare counterpart parses with no acts, so the door can print its usage", () => {
+  assert.deepEqual(parseInteract("python"), { counterpart: "python", acts: [] });
+  assert.equal(parseInteract(""), null);
+});
+
+test("buildScript: an act with no $N stays a literal, so it can never be reported as computed", async () => {
+  const script = buildScript(parseInteract("x | sum 1 2 | sum 3 4").acts);
+  assert.ok(script.every((s) => typeof s.act === "string"));
+  const r = await conduct(echoCounterpart(), script);
+  assert.equal(r.rung, 6);
+});
+
+test("buildScript: an act carrying $N becomes a function of the responses — rung 7, demonstrated", async () => {
+  const script = buildScript(parseInteract("x | sum 6 7 | sum $1 1").acts);
+  assert.equal(typeof script[1].act, "function");
+  const r = await conduct(echoCounterpart(), script);
+  assert.equal(r.steps[1].act, "sum 13 1");
+  assert.equal(r.steps[1].text, "14");
+  assert.equal(r.rung, 7);
+});
+
+test("buildScript: `=> text` reaches the run as a declared expectation — rung 8, demonstrated", async () => {
+  const r = await conduct(echoCounterpart(), buildScript(parseInteract("x | sum 6 7 => 13").acts));
+  assert.equal(r.steps[0].predicted, "13");
+  assert.equal(r.steps[0].met, true);
+  assert.equal(r.rung, 8);
+});
+
+test("parseDepends: keyed options are order-free and quoted values survive", () => {
+  const a = parseDepends('python effect:42 omit:0 placebo:"pass  " | x = 42 | print(x)');
+  const b = parseDepends('python omit:0 placebo:"pass  " effect:42 | x = 42 | print(x)');
+  assert.deepEqual(a, b);
+  assert.equal(a.effect, "42");
+  assert.equal(a.placebo, "pass  ");
+  assert.deepEqual(a.plan, ["x = 42", "print(x)"]);
+  assert.equal(a.draws, 3);
+});
+
+test("parseDepends: no effect, no plan, or an out-of-range omit is null — the door falls through to usage", () => {
+  assert.equal(parseDepends("python omit:0 | x = 1"), null, "an intervention with no effect predicate decides nothing");
+  assert.equal(parseDepends("python effect:42"), null);
+  assert.equal(parseDepends("python effect:42 omit:9 | x = 1"), null);
+  assert.equal(parseDepends(""), null);
+});
+
+test("a parsed depends line drives a real intervention end to end", async () => {
+  const p = parseDepends("x effect:42 omit:0 placebo:nop | set k 42 | get k");
+  const r = await dependsOnAct(echoCounterpart(), {
+    plan: p.plan,
+    act: p.omit,
+    placebo: p.placebo,
+    draws: p.draws,
+    effect: (obs) => obs.some((o) => o.text.includes(p.effect)),
+  });
+  assert.equal(r.dependsOnAct, true);
+  assert.equal(r.counts.without, 0);
 });

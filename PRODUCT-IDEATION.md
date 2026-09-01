@@ -194,20 +194,126 @@ loops the way they actually nest, and says what each one costs.
 > obviously bad, you haven't drawn an edge yet.
 
 > **Task 4: Draw the ground, and give it units.**
-> What has to be covered, and in what countable pieces? Here: *the kinds of
-> evidence a birdwatcher actually has*, and the units are **evidence kinds**, of
-> which there are six.
-> **Two words that are not the same word.** The **gap** is the whole description
-> you are building across Tasks 1–7. The **ground** is one part of it: the field
-> this task draws, the thing that has to be covered, cut into countable pieces.
-> When §10 says a loop rewrites the ground, it means this task's answer changed,
-> which is what makes the rest of the description move.
-> **Done when:** you can write the pieces out as a list: an actual list, with
-> lines on it. If you can't, try a different angle before you decide the units are
-> wrong. See below.
+> **A ground is not a baseline you look up. It is a nothing you construct**, out
+> of what is already in front of you. Two declarations here, and rooms reliably
+> make the second and skip the first.
+>
+> **(a) The ground: the product you already have, known well enough that it
+> stops registering.** Not a summary of it. The state where you can stop
+> mentioning most of it because mentioning it changes no decision. Here: *the
+> logging flow, the life list, the sharing screen, the settings, the existing
+> search, all of it so familiar to this room that none of it is in play.* What
+> refuses to recede is the void: *a person at a sighting, holding evidence, with
+> nothing in the product that takes it.*
+>
+> **(b) The extent, and its units: what has to be covered, in what countable
+> pieces.** Here: *the kinds of evidence a birdwatcher actually has*, and the
+> units are **evidence kinds**, of which there are six.
+>
+> **Three words that are not the same word.** The **gap** is the whole
+> description you're building across Tasks 1–7. The **extent** is what has to be
+> covered, cut into countable pieces: it tells you *where to look*. The
+> **ground** is the constructed nothing: it's what everything else has to stand
+> out *from*. You need both, and only one of them is arithmetic.
+> **Done when:** someone in the room can say what they stopped noticing and it
+> is most of the product, **and** you can write the pieces out as a list: an
+> actual list, with lines on it. If the list won't come, try a different angle
+> before you decide the units are wrong. See below.
 > **Trap:** units you can't count: "a better experience", "user delight". If you
 > can't count it, nothing can ever be missing from it, so nothing can ever be
-> finished.
+> finished. **And the larger one:** declaring only (b). A room with an extent and
+> no ground can count what it covers and can never tell whether covering it did
+> anything at all.
+
+### The ground is a nothing you build, not a baseline you look up
+
+This is the part of Phase A that gets skipped, and skipping it is what makes a
+room's numbers unfalsifiable later. It is worth the space.
+
+**You are looking for negative space.** A thing only becomes visible by standing
+out from something, so before you can say anything stands out, you have to build
+the something. The method this comes from puts it in one line:
+
+> A ground is a nothing constructed by perturbing what is present. Everything
+> is a difference against one.
+
+Two words are load-bearing. **Constructed:** you make it, you don't retrieve it.
+**What is present:** you make it out of the material you already have, not out
+of an assumption about what normal ought to be.
+
+**For a product, the material you already have is the product.** Which means the
+work of Phase A is not research, at first. It is saturation. You learn the thing
+you already shipped until it stops registering: until the logging flow and the
+settings screen and the export are so ordinary to this room that nobody thinks
+to mention them, because mentioning them changes nothing. That is the product
+becoming ground. And the moment it does, the thing that will not go quiet is the
+void: the place a person stands with something in their hands and the product has
+nowhere to put it.
+
+**The operational test, and it is a real test.** Ask it in this order, because
+the order is what makes it answerable:
+
+1. **Name the decision first.** A difference is always a difference *to*
+   something. "Which evidence kind do we build for next?" You cannot ask whether
+   something matters until you have said what it would matter to.
+2. **Then ask how much you can forget and still land on the same answer.**
+   Drop the settings screen: same answer. Drop the sharing flow, the life-list
+   export, the follower graph: same answer. All of that is ground. Drop "photo
+   ID exists and already covers *what they saw*": the answer changes. That one
+   isn't ground, it's live, and it's live precisely because forgetting it moves
+   the conclusion.
+3. **What survives is the difference that makes a difference.** Usually a
+   startlingly small part of a product you have spent years on. That is not a
+   sign you did it wrong. It's the point: most of a product is correctly
+   invisible for any given decision, and the room that can't let it go is
+   carrying weight that isn't deciding anything.
+
+**When it won't settle, that is the finding.** If you keep dropping things and
+the answer keeps moving, you have not reached the ground: you don't yet know the
+product well enough for this decision, and no amount of proposing will fix that.
+Stop and say so. It's a better place to stop than one step further on, having
+chosen something.
+
+**Two refusals worth taking whole.** Never widen the description to make
+something fit: if a proposal only belongs once you've loosened the gap, the
+loosening is the thing to look at, not the proposal. And **the size of your
+product tells you nothing about how much of it is ground.** A large product is
+not automatically a large background, and a small one is not automatically a
+small one. What decides it is behaviour, which is to say: what actually changes
+the answer. Not how much there is.
+
+**The ladder this puts you on, and why no rung is available without the one
+below it:**
+
+| rung | what it means | what it means here |
+|---|---|---|
+| **ground** | the constructed nothing | the existing product, known until it recedes |
+| **figure** | something that stands out against *that* ground | a person holding evidence the product can't take |
+| **pattern** | a figure that **changed what ordinary looks like next** | after it ships, the next ground is different: fewer unidentified logs, so "a stuck birdwatcher" has itself moved |
+| **witness** | only now may you claim it | you can say sound ID works, and say what backs it |
+
+**The one sentence to keep:** *a difference that made no difference is not
+information, so it is not testimony either.* A proposal can genuinely stand out,
+be a real figure, and still leave everything downstream exactly as it was. Then
+there is nothing honest to say about it yet. This is what Task 10 is already
+reaching for when it asks for **a witness** rather than an opinion, and Task 4(a)
+is what gives that word something to mean.
+
+**Presence is not standing.** Phase B's count is *presence*: this proposal
+touches this piece of the ground. That's real and worth having, and it is not the
+same claim as *this made a difference*. Two of six covered is a fact about your
+board. It is not yet a fact about birdwatchers. Keeping those apart is what stops
+a coverage number from quietly becoming a performance claim.
+
+**And the ground has to be rebuilt, not stored.** A background settled once and
+kept forever slowly stops describing anything: it was true of a product that has
+since moved, and a room comparing against it will eventually be unable to notice
+anything that wasn't already visible on the day it was set. Every loop in §10
+rebuilds it. That is a large part of what going around again *is*.
+
+**The trap, and it has the same shape as Task 6's.** Deciding what counts as
+background *after* you have a favourite. Then the things that recede are, without
+anyone intending it, exactly the things that would have argued against it.
 
 ### If Task 4 won't come: six angles to try on the same gap
 
@@ -268,9 +374,15 @@ pass through Phase A, not starting over.
 
 > **Task 7: Write the kill line.**
 > One sentence: *what result would tell us this whole picture is wrong?* Here:
-> *re-run it on real sightings with the location and date removed: if the
-> suggestions don't change, then "where" and "when" were never really doing
-> anything, and the coverage we're claiming is fiction.*
+> *re-run it on real sightings with the location and date **shuffled between
+> sightings**: if the suggestions don't change, then "where" and "when" were
+> never really doing anything, and the coverage we're claiming is fiction.*
+> **Shuffled, not deleted, and the difference matters.** Delete them and you've
+> changed how much information is on the table, so of course the answers move.
+> Shuffle them and everything is still there in the same amounts: same number of
+> locations, same spread of dates, same everything except which one went with
+> which. Only the link dies. Whatever survives that is what would have been true
+> anyway, which is the ground from Task 4 built for this specific claim.
 > **Done when:** someone could actually go and run it.
 > **Trap:** "if users don't like it." That's not a result, it's a mood. If you
 > can't write this line, don't start: a plan with no way to be wrong will
@@ -300,7 +412,10 @@ people arguing about which box to tick first, in a room where nobody had written
 the list.
 
 **The list is the finding.** Not a score, not a percentage. If someone needs a
-number you can say "two of six", but the number is the boring part. The useful
+number you can say "two of six", but the number is the boring part. And it is a
+count of *presence*, not of effect: it says these two are touched and those four
+are not. Whether touching them did anything is a different question, asked
+against the ground from Task 4, and the list does not answer it. The useful
 part is that *where they were* and *what the bird was doing* are now written down
 as things, sitting there, waiting for someone to pick them up.
 
@@ -391,8 +506,9 @@ knowing.
 > difference matters more than almost anything else here. See §5.
 
 > **Task 11: Mark the coverage and name the hole.**
-> Put what passed onto the ground from Task 4. Count it. Then **name what's left
-> over, with its size**.
+> Put what passed onto the extent from Task 4. Count it. Then **name what's left
+> over, with its size**. What you are counting is **presence**: which pieces are
+> touched. Not effect, which is checked against the ground and comes later.
 > **Done when:** the list from the Checkpoint is ticked, and you can read the
 > unticked lines out loud: here: *what the bird was doing*, and *how long they
 > had*.
@@ -648,6 +764,17 @@ The tasks, actually run, including the two loops that fire while they're
 running. Watch for Task 12 (the innermost loop, same gap, new source) and
 Tasks 13–14 (the middle loop, the gap itself gets redrawn). Neither is a
 detour. They're most of what the session produces.
+
+**Before anything: the ground.** The room spends the first stretch not
+proposing. Fieldmark is three years old and everyone in it can recite the
+logging flow, the life list, the sharing screen, the export, the follower graph.
+They name the decision out loud first, *which evidence kind do we build for
+next*, and then start dropping: settings, same answer; export, same answer;
+followers, same answer. All background. Drop *photo ID exists and covers what
+they saw* and the answer moves, so that one stays live. What is left standing
+when everything droppable has been dropped is a person at a sighting holding
+something the product has nowhere to put. That's the void, and nobody had to
+propose anything to find it.
 
 **Tasks 1–7.** The ask, written down: Priya's photo ID and Marcus's sound ID,
 both pushed hard, neither one backed yet by a gap description. The moment: a
@@ -939,13 +1066,17 @@ the tasks.
 | the moment | the **slot** (NUL) |
 | one person, one occasion | the **anchor** (SIG) |
 | what kind of thing counts | **admits** (INS) |
-| the ground, and its units | the **extent** (SEG) |
+| the extent, and its units | the **extent** (SEG) |
 | what it has to achieve | the **relation** (CON) |
 | how pieces fit together | the **composition** (SYN) |
 | how many pieces | the **cardinality** (DEF) |
 | the test | the **admission** (EVA) |
 | what would change our mind | **reopens on** (REC) |
-| the kill line | the **perturbation**: `broken:` |
+| the ground: the constructed nothing | the **perturbation**: `broken:` |
+| the kill line | that perturbation, applied to the whole picture |
+| what stands out against the ground | a **figure** |
+| a figure that changed what ordinary looks like next | a **pattern** |
+| what earns the right to be claimed | **witness** |
 | the three sources | the **stance ladder**: extraction, cultivation, encounter |
 | passes / fails / can't tell | **testimony** / **refused** / **undetermined** |
 | hunch → candidate → commitment | **emanon** → **protogon** → **holon** |

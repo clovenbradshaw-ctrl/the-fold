@@ -6425,10 +6425,17 @@ difference equation); the MODES are the same triad again as every
 mathematics' internal −/=/+ (differentiate/relate/generate), which is
 why 9 = 3 maths × 3 shared operations; and on the STANCE face the triad
 runs THROUGH the page — every stance cell is a three-story stack, so a
-"FULL stance" (P64's own vocabulary) is a proven isomorphism and the
-depth axis is ANALOGY. Crossing rule, measured all week without the
-name: arithmetic before geometry before calculus, per claim — the
-production order and Commons's no-skipping axiom in a third vocabulary.
-§VIII keeps it falsifiable: full stances must transfer, empty stances
-must be derivable from their depth-siblings, and crossing-rule
-violations must always present as measured nonsense, never clean error.
+"FULL stance" (P64's own vocabulary) is a proven INSTANTIATION in all
+three maths (the isomorphism is the hypothesis §VIII.1 tests) and the
+depth axis is ANALOGY. **Hardened same day by adversarial re-check
+against the tables**, which caught the doc walking into the HELIX trap:
+the enforced OPERATOR_ORDER (NUL SEG SIG CON EVA DEF INS SYN REC)
+INTERLEAVES the domains — cut before mark, SEG before SIG, which the
+tower's own measured floors corroborate (extents precede cast) — so the
+crossing rule is a PER-CLAIM partial order (unit before edge before
+integral for one claim's own lineage; INS-before-SYN survives), never
+domain-major phases. §VIII keeps it falsifiable: full stances must
+transfer ACROSS DOMAINS (untested — contest.js's precedent is media, a
+different axis), empty stances must be derivable from depth-siblings,
+and crossing-rule violations must present as measured nonsense, never
+clean error.

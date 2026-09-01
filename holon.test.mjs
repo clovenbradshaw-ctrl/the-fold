@@ -623,7 +623,11 @@ test("the material path sends the real conversation on a flat turn — role-stru
     const roles = messages.map((m) => m.role);
     if (
       messages[0].content.startsWith(FLAT_EXECUTE_SYSTEM_PROMPT) &&
-      messages[0].content.includes("MATERIAL") &&
+      // The material rides in the system message — identified by its own
+      // SOURCE NAME now, not a generic "MATERIAL" banner (user direction
+      // 2026-08-27; source.js::sourceFace). The passage text itself is the
+      // durable check: whatever heading precedes it, the material is here.
+      messages[0].content.includes("harbor") &&
       roles.join(",") === "system,user,assistant,user" &&
       messages[1].content === "hey" &&
       messages[messages.length - 1].content === "what was the harbor figure?"
@@ -1722,4 +1726,50 @@ test("mechanicalAnswer: still surfaces a bare fragment honestly when no real sen
     "Preceded by John C. Breckinridge\nSucceeded by Andrew Johnson";
   const out = mechanicalAnswer("Who was Abraham Lincoln's vice president?", [{ text: infoboxOnly, ref: "a" }]);
   assert.match(out, /President Abraham Lincoln/, "never nothing when something exists, even a fragment");
+});
+
+// ── P73: the door's grammar gate threads from runHolonicTask to admit ──────
+// The pin is the THREADING, not the lens: a stub reader yields one bound
+// claim so the admit path genuinely runs, a stub hyperlexicon captures the
+// options the door was actually called with, and the lens object must
+// arrive by identity — with null (the default, every pre-existing caller)
+// pinned as its own case so the gate never runs unasked.
+test("classifyConnector threads from runHolonicTask through runPart to the admit door (P73)", async () => {
+  const runWith = async (opts) => {
+    const seen = [];
+    const stubHyperlexicon = {
+      createHyperlexicon: () => ({ entries: [] }),
+      admit: (log, edges, o) => { seen.push(o); return { log, heard: edges.map(() => ({})), turnedAway: [] }; },
+      foldHyperlexicon: () => [],
+    };
+    const stubReader = () => ({
+      edges: [],
+      read: () => ({
+        claims: [{
+          verdict: "bound", subject: "Kessington report", verb: "put",
+          object: "the harbor figure at 12%",
+          spans: [{ ref: "notes.txt#0-40", start: 0, end: 40, text: "The Kessington report put the harbor" }],
+        }],
+      }),
+    });
+    await runHolonicTask({
+      task: "what is the harbor figure?",
+      chunks,
+      call: async () => "The harbor figure is 12%.",
+      makeRelationReader: stubReader,
+      hyperlexicon: stubHyperlexicon,
+      hyperlexiconLog: null,
+      ...opts,
+    });
+    return seen;
+  };
+
+  const lens = () => ({ settled: false, thraxClass: null });
+  const threaded = await runWith({ classifyConnector: lens });
+  assert.ok(threaded.length > 0, "the door was reached");
+  for (const o of threaded) assert.equal(o.classifyConnector, lens, "the lens arrives at admit by identity");
+
+  const unthreaded = await runWith({});
+  assert.ok(unthreaded.length > 0, "the door was reached on the default path too");
+  for (const o of unthreaded) assert.equal(o.classifyConnector, null, "absent, the gate is null — never a silent default lens");
 });

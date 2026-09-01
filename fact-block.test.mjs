@@ -51,7 +51,17 @@ test("buildFactBlock: real material, real bound facts, no address anywhere in th
     assert.ok(!line.includes("["), `fact line must carry no address/ref bracket, got: ${line}`);
     assert.ok(!line.includes(PASSAGE_1.ref) && !line.includes(PASSAGE_2.ref), `fact line must not name a source ref: ${line}`);
   }
-  assert.ok(block.text.includes("FACTS"));
+  // REVISED 2026-08-27 (firewall.js): the header used to be the literal
+  // label "FACTS — read directly from your material (…)". The label and
+  // its parenthetical were apparatus vocabulary; what has to survive is
+  // that the block announces the facts as known and then lists them.
+  // REVISED 2026-08-28: the block used to open "Known to be true:", which
+  // asserts a fact about the world while having only produced a reading.
+  // It is the speaking model's NOTES — provisional, and beaten by the
+  // sources' own words when the two disagree.
+  assert.match(block.text, /^My notes so far/, block.text);
+  assert.match(block.text, /may be wrong/, "the notes state their own defeasibility");
+  assert.match(block.text, /the source is right/, "and say what beats them");
   assert.ok(!block.text.includes("["), "the full rendered text must carry no bracket anywhere");
 });
 
@@ -79,7 +89,13 @@ test("buildFactBlock: coverage is a real, honest count — not every sentence yi
   assert.ok(block);
   assert.ok(block.coverage < 100, `expected partial coverage (a pronoun-subject sentence should not bind), got ${block.coverage}%`);
   assert.ok(block.coverage > 0, "expected the real, capitalized-subject sentence to still bind");
-  assert.ok(block.text.includes("of"), "the coverage disclosure must state a real fraction, e.g. 'N of M'");
+  // REVISED 2026-08-27 (firewall.js): the fraction used to be stated to the
+  // MODEL ("7 of 97 sentence(s) with an extractable relation"). It is a
+  // fact about this instrument, so it moved to the thinking — but it must
+  // still be computed and reachable, which is what these fields are.
+  assert.equal(block.boundSentenceCount + 0, block.boundSentenceCount, "the numerator is real and numeric");
+  assert.ok(block.sentenceCount > block.boundSentenceCount, "the denominator is the real sentence count");
+  assert.doesNotMatch(block.text, /sentence\(s\)/, "the count no longer rides into the model's own context");
 });
 
 test("buildFactBlock: negation renders as 'not' inline, never silently dropped", () => {
@@ -127,8 +143,13 @@ test("buildFactBlock: capped at MAX_FACT_LINES, with the omission disclosed in t
   assert.ok(block);
   assert.ok(block.allLines.length > block.lines.length, "expected more real facts than the cap allows in this fixture");
   assert.ok(block.lines.length <= 8, "lines shown must never exceed MAX_FACT_LINES");
+  // REVISED 2026-08-27 (firewall.js): the omission used to be disclosed in
+  // the model-facing header. Disclosure is still mandatory — it just goes
+  // to the reader, on the block's own `omitted` field, not into the
+  // prompt, where it was one more sentence about how this app works.
   const omittedCount = block.allLines.length - block.lines.length;
-  assert.ok(block.text.includes(`${omittedCount} lower-ranked fact(s) omitted`), `omission must be disclosed in text, got: ${block.text}`);
+  assert.equal(block.omitted, omittedCount, "the omission is disclosed as data, never silently dropped");
+  assert.doesNotMatch(block.text, /omitted/, "…and no longer explained to the model");
   for (const l of block.lines) assert.ok(block.allLines.includes(l), "every shown line must be a real extracted fact");
 });
 
@@ -159,10 +180,13 @@ test("buildFactBlock: real material that yields no relation states an explicit V
   assert.ok(block, "real material must not vanish from the prompt");
   assert.equal(block.empty, true);
   assert.equal(block.lines.length, 0);
-  assert.match(block.text, /FACTS — none/, block.text);
+  // REVISED 2026-08-27 (firewall.js): was /FACTS — none/. The void's FORCE
+  // is what this case exists to protect (the "William R. Hargis" incident);
+  // the label and the extractor talk beneath it were not part of that force.
+  assert.match(block.text, /I made no notes on these/, block.text);
   // The void must say what it is, not merely be short: an absence the model
   // is told to respect, rather than an empty heading it can read past.
-  assert.match(block.text, /Do not fill this space from memory/, block.text);
+  assert.match(block.text, /Do not fill this in from memory/, block.text);
 });
 
 test("buildFactBlock: NO material and material-that-yielded-nothing stay different facts", () => {

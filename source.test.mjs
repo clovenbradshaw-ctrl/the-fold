@@ -130,9 +130,40 @@ test("buildSourceBlock surfaces the declared header, labeled as the source's own
   assert.match(block, /One of the next arrivals/);
 });
 
-test("buildSourceBlock is byte-identical to before this pass when no chunk carries a declared identity", () => {
-  const chunks = [{ text: "plain passage text", identity: { kind: "prose", guess: null, certainty: "default" } }];
-  assert.equal(buildSourceBlock(chunks), "MATERIAL — passages retrieved for this turn. Answer from these when they cover the question; if they do not, say so rather than filling the gap.\n\nplain passage text");
+// REVISED 2026-08-27 (user direction: 'i dont like where it says "material
+// offers, material states" — just have it be like "Wikipedia, Retrieved"').
+// The old assertion pinned the generic "MATERIAL —" banner, which was BOTH
+// a scaffolding word the model was measured echoing AND a restatement of a
+// duty the execute system prompt already carries in the same call. A source
+// now names itself; the duty is stated once, elsewhere.
+test("a source names itself — no generic scaffolding word, and the duty is not restated here", () => {
+  const chunks = [{ source: "notes.txt", text: "plain passage text", identity: { kind: "prose", guess: null, certainty: "default" } }];
+  const block = buildSourceBlock(chunks);
+  assert.equal(block, "notes.txt:\nplain passage text");
+  assert.ok(!block.includes("MATERIAL"), "a generic category word is a term of art the model must interpret");
+  assert.ok(!/answer from these/i.test(block), "the duty belongs in the task, said once");
+});
+
+test("a fetched page names its host and its real retrieval date, and invents neither", () => {
+  const dated = [{ source: "web:en.wikipedia.org-0", text: "Paris is the capital of France.", identity: { retrievedAt: "2026-08-27T20:14:03.000Z" } }];
+  assert.match(buildSourceBlock(dated), /^en\.wikipedia\.org, retrieved 2026-08-27:/);
+  // No date on the record → no date in the prompt. A date this app made up
+  // would be exactly the fabricated provenance the naming exists to avoid.
+  const undated = [{ source: "web:en.wikipedia.org-0", text: "Paris is the capital of France." }];
+  assert.match(buildSourceBlock(undated), /^en\.wikipedia\.org:/);
+  assert.ok(!/retrieved/.test(buildSourceBlock(undated)));
+});
+
+test("search results say what they are, and each source is named once for all its passages", () => {
+  assert.match(buildSourceBlock([{ source: "web:search-results", text: "snippet" }]), /^Web search results:/);
+  const two = [
+    { source: "web:en.wikipedia.org-0", text: "first passage" },
+    { source: "web:en.wikipedia.org-0", text: "second passage" },
+  ];
+  const block = buildSourceBlock(two);
+  assert.equal(block.match(/en\.wikipedia\.org/g).length, 1, "one heading for the source, not one per passage");
+  assert.match(block, /first passage/);
+  assert.match(block, /second passage/);
 });
 
 test("buildSourceBlock still draws the existing structural guess line when declared is absent", () => {

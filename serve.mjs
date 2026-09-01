@@ -54,9 +54,10 @@ const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // eoreader7's NATIVE tree, mounted separately from the legacy /engine path
 // because they are different engines, not different folders: /engine is the
 // frozen 6.1 compatibility surface, /engine-v7 is v7's own kernel. Kept
-// apart by name so an import line always says which one a module came from,
-// and so retiring the legacy mount later is a deletion rather than an
-// untangling. Used, never copied — the discipline /engine and /nul hold.
+// apart by name so a reader of an import line always knows which one a
+// module came from, and so retiring the legacy mount later is a deletion
+// rather than an untangling. Used, never copied — the same discipline
+// /engine and /nul already hold.
 const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 // Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
 // output) — never a fact this repo derives or vendors a stale copy of.
@@ -70,6 +71,30 @@ const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 // absence honestly when the file has never been built locally, rather than
 // assuming every checkout has run the builder.
 const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
+// The SHIPPED fallback for the same mount (P74): the primary above is a
+// gitignored build directory inside a submodule most checkouts never
+// initialize, so on a fresh machine the fetch 404'd and every organ gated
+// on this prior silently degraded to off — hypergraph.js's vocabulary-level
+// POS gate included, which is exactly the 18/32-junk admission condition
+// eval/admission-gate.mjs measures. live_priors commits the SAME
+// POSPrior@1 artifact (UD_English-EWT, giver + license + per-file sha256),
+// so the mount now falls back to it — still read live off a sibling repo,
+// never a copy vendored here, the same discipline as /engine and /nul.
+// The alias is a DECLARED translation between two naming conventions
+// (eoreader6.1 keys files by ISO-3 "eng"; live_priors by its own LANG_OF
+// codes, "en") — THRAX_MAP's own precedent: named at the seam, once.
+const PRIORS_DATA_SHIPPED = resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
+const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
+// A second shipped tier, found at merge (P73 + P74 landing together): P73
+// committed the SAME POSPrior@1 into THIS repo's own priors-data/ — but the
+// mount above shadowed it, so on a checkout without the sibling build dir
+// the fetch STILL 404'd, the exact masquerade P74 measured. The chain is
+// now honest and ordered by freshness-then-availability: the sibling's
+// live build dir (rebuilt priors picked up with no copy to go stale) →
+// this repo's own committed artifact (present on every checkout of this
+// repo, no sibling needed) → live_priors' committed artifact (for names
+// this repo does not vendor).
+const PRIORS_DATA_OWN = resolve(ROOT, "priors-data");
 const PORT = Number(process.argv[2] ?? 8811);
 
 // The one package environment. Both the build runner and the terminal get
@@ -462,13 +487,13 @@ createServer((req, res) => {
       const audioBuf = Buffer.concat(chunks);
       if (!audioBuf.length) return refuse(400, "empty audio");
       const tmpPath = `/tmp/the-fold-upload-${randomUUID()}.dat`;
-      const wavPath = `/tmp/the-fold-upload-${randomUUID()}.wav`;
+      const pcmPath = `/tmp/the-fold-upload-${randomUUID()}.raw`;
       try {
         writeFileSync(tmpPath, audioBuf);
-        // Convert to mono 16kHz WAV (Whisper's native format)
+        // Convert to raw mono 16kHz float32 PCM (no WAV header to parse)
         await new Promise((resolve, reject) => {
           const proc = spawn("ffmpeg", [
-            "-y", "-i", tmpPath, "-ar", "16000", "-ac", "1", "-f", "wav", wavPath
+            "-y", "-i", tmpPath, "-ar", "16000", "-ac", "1", "-f", "f32le", pcmPath
           ], { stdio: ["ignore", "ignore", "pipe"] });
           let stderr = "";
           proc.stderr.on("data", (b) => { stderr += b.toString(); });
@@ -480,7 +505,7 @@ createServer((req, res) => {
         try {
           const probe = spawn("ffprobe", [
             "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", wavPath
+            "-of", "default=noprint_wrappers=1:nokey=1", tmpPath
           ], { stdio: ["ignore", "pipe", "ignore"] });
           duration = await new Promise((resolve) => {
             let out = "";
@@ -494,9 +519,8 @@ createServer((req, res) => {
         const asr = await pipeline("automatic-speech-recognition", "onnx-community/whisper-base", {
           device: "cpu", dtype: "q8",
         });
-        const wavBuf = readFileSync(wavPath);
-        // WAV header is 44 bytes; skip to raw PCM
-        const pcm = new Float32Array(wavBuf.buffer, wavBuf.byteOffset + 44, (wavBuf.byteLength - 44) / 2);
+        const pcmBuf = readFileSync(pcmPath);
+        const pcm = new Float32Array(pcmBuf.buffer, pcmBuf.byteOffset, pcmBuf.byteLength / 4);
         const t0 = Date.now();
         const out = await asr(pcm, {
           chunk_length_s: 30, stride_length_s: 5,
@@ -512,7 +536,7 @@ createServer((req, res) => {
         refuse(500, e.message);
       } finally {
         try { unlinkSync(tmpPath); } catch {}
-        try { unlinkSync(wavPath); } catch {}
+        try { unlinkSync(pcmPath); } catch {}
       }
     })();
     return;
@@ -522,7 +546,7 @@ createServer((req, res) => {
 
   // Never serve outside the directory (or the engine/nul/priors-data mounts),
   // whatever the path claims to be.
-  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(ENGINE_V7) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA)) {
+  if (!file.startsWith(ROOT) && !file.startsWith(ENGINE) && !file.startsWith(ENGINE_V7) && !file.startsWith(NUL) && !file.startsWith(PRIORS_DATA) && !file.startsWith(PRIORS_DATA_SHIPPED)) {
     res.writeHead(403).end("no");
     return;
   }
@@ -552,10 +576,20 @@ createServer((req, res) => {
     }
   }
   if (rel.startsWith("/priors-data/")) {
-    file = join(PRIORS_DATA, rel.slice("/priors-data/".length));
+    const name = rel.slice("/priors-data/".length);
+    file = join(PRIORS_DATA, name);
     if (!file.startsWith(PRIORS_DATA)) {
       res.writeHead(403).end("no");
       return;
+    }
+    if (!existsSync(file)) {
+      // Fall back through the shipped tiers (see PRIORS_DATA_OWN /
+      // PRIORS_DATA_SHIPPED above): this repo's own committed artifact
+      // first, then live_priors' (aliased at the naming seam).
+      const own = join(PRIORS_DATA_OWN, name);
+      const shipped = join(PRIORS_DATA_SHIPPED, PRIORS_DATA_ALIASES[name] ?? name);
+      if (own.startsWith(PRIORS_DATA_OWN) && existsSync(own)) file = own;
+      else if (shipped.startsWith(PRIORS_DATA_SHIPPED) && existsSync(shipped)) file = shipped;
     }
   }
 

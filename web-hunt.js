@@ -240,6 +240,8 @@ export async function huntUndetermined(
     explore = "http://localhost:8812",
     definiteDeterminers,
     inflectionalSuffixes,
+    interrogativePronouns,
+    mannerReasonPronouns,
   } = {},
 ) {
   const priorAct = grid.foldGrid(log).acts.find((a) => a.task_id === priorEvaId);
@@ -254,12 +256,17 @@ export async function huntUndetermined(
     return { ok: false, refusal: { type: "no_object", detail: `"${priorEvaId}" carries no object to hunt for` } };
   }
 
-  // declaredSlotShape (web-claim.js) requires its two closed classes
-  // declared by the caller — never a default (the same discipline
+  // declaredSlotShape (web-claim.js) requires its closed classes declared
+  // by the caller — never a default (the same discipline
   // dominantClass/grammar-lens.js already hold) — injected here from the
   // engine's own prior register, exactly as eval/web-snip-eval.mjs already
-  // does at its own call site.
-  const shape = declaredSlotShape(question, { definiteDeterminers, inflectionalSuffixes });
+  // does at its own call site. `interrogativePronouns`/`mannerReasonPronouns`
+  // are the two classes web-claim.js's own generalization pass added
+  // (2026-08-27) — this call site widened the same day, the same injection
+  // discipline, no anchor-recovery predicate passed (`isAdposition` stays
+  // optional and this caller has no POS prior in scope), so this path is
+  // byte-identical to before for every question it was already correct on.
+  const shape = declaredSlotShape(question, { definiteDeterminers, inflectionalSuffixes, interrogativePronouns, mannerReasonPronouns });
 
   const evaParsed = grid.parseAct(`evaluate "${slotObject}" at Link from differentiate ground web broken:rotation`, { log });
   if (!evaParsed.ok) return { ok: false, refusal: evaParsed.refusal };

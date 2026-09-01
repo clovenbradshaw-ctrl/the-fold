@@ -5930,6 +5930,39 @@ and the `/self acts` table lives in the Folds pane, so a DOM readback
 needs `textContent` on the build cards, not `innerText`. Proves the flow
 engages and spends — whether it HELPS stays the named, unrun leg.
 
+**Amended 2026-09-01 (independently, reconciled on merge) —
+`forcesFoldRefresh` wired too.** The third amendment's own scope note
+("`forcesFoldRefresh` and the gate flow (#1...) stay deliberately
+unbuilt") is now half closed. `relationClaims`/`result.sections` —
+everything `assessAgreement` needs — are already computed before
+`refreshSummary`'s own call in `holonicTurn`, so the metacognition block
+moved to right before that call (also ahead of the `!state.grounded`
+early return a few lines further down — a plain-mode S1/S2 disagreement
+now reaches the ledger too, bookkeeping rather than drawing).
+`refreshSummary` gained a fourth, defaulted `{forceRefresh}` option and
+ORs it onto `exchangeHeldGround`'s own reading, logging its own
+`forcedRefresh` act on override. This pass's own first draft also wired
+`surfWeight` directly into `gatherPreflightMaterial`, via a bespoke
+`weight` multiplier — on merge, found to be the identical function flow
+#2's `escalationFor`/`pagesConsulted` already occupies, more generally
+(multiple budgets, not one) and better tested; that half is DROPPED, not
+merged alongside it. `needsSystem2` stays untouched and named still
+open, as both the module and the amendments above already state.
+Verified: a real headless-Chromium load over raw CDP (no Playwright
+package present, Node 22's native `WebSocket` speaks the protocol
+directly) confirmed the page's boot code runs to completion — banner
+hidden, composer present — byte-identical between the unmodified
+baseline and this change, correcting an earlier pass's own worry that
+the `/engine/emergence/tiers.js` 404 blocks the whole module graph (it
+doesn't — only the self plane's own surprise meter, its actual
+importer). Full suite unchanged by name, zero regressions. Still open,
+the same disclosed limit every recent pass carries: no Ollama reachable
+in this checkout, so `forcesFoldRefresh`'s live effect on a real turn
+could not be shown the way flow #2's own live-run addendum showed
+engagement above — only that it now runs safely. POLICIES.md P72's own
+fourth amendment and `metacognition-integration-note.md` carry the full
+account.
+
 ## The hyperlexicon door made ready (added 2026-09-01) — pointer
 
 POLICIES.md **P73** is the law; this is the short map. The question,

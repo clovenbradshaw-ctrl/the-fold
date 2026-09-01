@@ -9191,6 +9191,77 @@ engages" remains the second amendment's named, unrun measured leg. The
 harness files stay uncommitted per their own headers; this paragraph and
 the ledger vocabulary above are the record.
 
+**Fourth amendment (2026-09-01, landed independently and reconciled on
+merge) — `forcesFoldRefresh` wired too.** The second amendment's own
+scope note ("`forcesFoldRefresh` and the gate flow (#1, which would
+widen the thin S1/S2 channel) stay deliberately unbuilt") is now half
+closed — this pass wires the first, leaves the second exactly as named.
+`forcesFoldRefresh`'s own open question — whether `refreshSummary` could
+safely be threaded — traced clean rather than left standing:
+`relationClaims`/`result.sections`, everything `assessAgreement` needs,
+are already computed several lines BEFORE `refreshSummary`'s own call
+inside `holonicTurn`, not after it, so the metacognition block moved to
+right before that call (and, as a disclosed consequence, ahead of the
+`!state.grounded` early return a few lines further down — a plain-mode
+S1/S2 turn's disagreement now reaches the ledger too; bookkeeping, not
+drawing, the same "the fold and the record stay ON either way" rule the
+checking-mode section already states for exactly this kind of state).
+`refreshSummary` gained a fourth, defaulted options parameter
+(`{forceRefresh = false}`, byte-identical for every existing caller that
+omits it) and now ORs it onto `exchangeHeldGround`'s own reading exactly
+as `forcesFoldRefresh`'s own header names ("a natural OR onto
+refreshSummary's existing gate ... not a replacement for it") — an
+override logs its own `forcedRefresh` act, mirroring the `carried`
+skip's own never-silent discipline for the opposite decision.
+
+**What this pass's own first draft got wrong, found on merge rather than
+shipped.** Working independently of the three amendments above, this
+pass's own first cut ALSO wired `surfWeight` — directly into
+`gatherPreflightMaterial`, via a bespoke `weight` multiplier on the page
+count alone. Merging against `origin/main` found the identical function,
+and the identical parameter slot, already occupied by flow #2's
+`escalationFor`/`pagesConsulted` — more general (it widens
+`maxCorrections`/`passagesPerPart` too, not page count alone), more
+rigorously specified (the three named laws above), and already proven
+live end to end, none of which this pass's own narrower version had.
+That half of this pass's original draft is DROPPED entirely rather than
+kept alongside theirs — two competing wideners of the same budget would
+have been the exact "does the factor compound" hazard `escalationFor`'s
+own NON-COMPOUNDING law was written to forbid. `needsSystem2` stays
+untouched and named still open, exactly as both the module and the
+amendments above already state — a materially larger, riskier decision
+(whether S2 runs AT ALL) with no mechanism any of these passes name.
+
+**Verified, on this checkout's own terms — including one gap closed
+along the way.** `node --check app.js` passes. This checkout's own
+`legacy-eoreader6.1` submodule (a real, declared git submodule of
+`eoreader7`, `.gitmodules`-registered but never checked out before this
+pass) was initialized during this reconciliation — a reversible, local,
+read-only clone of a public repo, not a code change — which is why this
+checkout's own suite counts differ from the second/third amendments'
+own reported numbers above (1092/1585 there; a different number here,
+both honest, each a fact about its own checkout's submodule state, not a
+disagreement about the code) and, more directly useful, resolves the
+`/engine/` mount for the first time in any of this repo's recent
+sessions: `explore-server.mjs` can now actually boot in this
+environment, where P69's own disclosed holdout previously blocked it.
+Full suite unchanged by name against THIS checkout's own pre-merge
+baseline (`git stash` diff), zero regressions from this pass's own
+changes. A real browser load was verified end to end: headless Chromium
+driven over raw CDP (no Playwright/Puppeteer package present — Node
+22's native `WebSocket` speaks the protocol directly) loaded the real
+page against a real `serve.mjs` and found the `#not-served` banner
+hidden, the composer present, real DOM content — the page's own boot
+code runs to completion, byte-identical between the pre-merge baseline
+and this pass's own final change. What still could not be verified, the
+same disclosed limit every recent pass in this file carries: no Ollama
+is reachable in this environment, so `forcesFoldRefresh`'s live effect
+on a real turn could not be shown the way flow #2's own live-run
+addendum showed engagement above — only that it now runs safely, the
+same honest boundary the very first P72 amendment already drew before
+either signal was wired. `metacognition-integration-note.md` carries
+the full, reconciled account.
+
 ## P73 — The hyperlexicon door made ready: the label data was one curl away, the identity question is now a socket
 
 **Generality:** universal for the two seams (an injectable note identity,

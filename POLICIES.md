@@ -9026,59 +9026,238 @@ threaded from a different point in the turn-ending sequence than this
 pass traced closely enough to risk). `metacognition-integration-note.md`
 carries the full, corrected account.
 
-**Amended 2026-09-01 — both signals wired.** The prior amendment's own
-caution about `forcesFoldRefresh` was traced rather than left standing:
-`relationClaims`/`result.sections` — everything `assessAgreement` needs —
-are already computed several lines BEFORE `refreshSummary`'s own call in
-`holonicTurn`, not after it, so the metacognition block moved to right
-before that call (and, as a consequence, ahead of the `!state.grounded`
-early return a few lines further down — a plain-mode S1/S2 turn's
-disagreement was previously never reaching the ledger at all, silently;
-this is bookkeeping, not drawing, the same "the fold and the record stay
-ON either way" rule the checking-mode section already states for exactly
-this kind of state). `refreshSummary` gained a fourth, defaulted options
-parameter (`{forceRefresh = false}`, byte-identical for every existing
-caller that omits it) and now ORs it onto `exchangeHeldGround`'s own
-reading exactly as `forcesFoldRefresh`'s own header names ("a natural OR
-onto refreshSummary's existing gate ... not a replacement for it") — an
-override logs its own `forcedRefresh` act, mirroring the `carried` skip's
-own never-silent discipline for the opposite decision.
+**Second amendment — flow #2 wired: suspicion widens the search ("do
+it", user direction after the flows were laid out).** The ledger was a
+thermostat reading the room with no furnace connected; this connects
+exactly one duct. `metacognition.js` gained `escalationFor(standing,
+budgets)` — the one live consumer of `surfWeight`: on a `contested`
+standing every numeric budget handed in is ceil-widened by the declared
+1.5 factor; on `established`/`unproven`/none they come back
+byte-identical. Three laws, each pinned as its own regression
+(`metacognition.test.mjs`, 25 → 32): ASYMMETRY (budgets only ever rise —
+a good record never quietly removes checking, an unmeasured one never
+earns a discount; the dark-room refusal applied to the spend side);
+CEIL, NOT ROUND (for any integer budget ≥ 1 and factor > 1,
+`ceil(v·1.5) > v`, so `contested` always buys at least one more unit —
+round would no-op a budget of 1 and turn the flow into a comment);
+NON-COMPOUNDING BY CONSTRUCTION (the call site always passes the
+DECLARED constants — holon.js's own exported `MAX_CORRECTIONS = 1` and
+`PASSAGES_PER_PART = 3`, proof.js's own `PREFLIGHT_PAGES_CONSULTED = 3` —
+never a prior escalated value, so the factor applies once per turn from
+the same base).
 
-`surfWeight` is wired into ONE of its two named candidate sites,
-`gatherPreflightMaterial`, not `needsSystem2` — the module's own docstring
-settles which ("widens what the next turn's preflight search should pull
-in"), and `PREFLIGHT_PAGES_CONSULTED`'s slice is precisely that. A fourth
-`weight = 1` parameter (again byte-identical when omitted) scales the
-page count; the call site reads the ledger's own running `"s1-draft"`
-standing, not this turn's own agreement (which does not exist yet at that
-point — preflight runs before any draft), matching Friston's own move:
-precision is a property of the CHANNEL, read regardless of whether THIS
-turn runs an S1 pass at all. `needsSystem2` stays untouched and named
-still open — a materially larger, riskier decision (whether S2 runs AT
-ALL) with no mechanism either this policy or the module names, and
-choosing one for it here would have been exactly the guess this repo's
-own discipline forbids.
+**The concrete flow, in numbers.** On an S1/S2 turn whose `"s1-draft"`
+standing reads `contested`: the preflight consults 5 pages instead of 3
+(`gatherPreflightMaterial` gained an optional `pagesConsulted`,
+defaulting to the same constant its slice always used — its one other
+behavior byte-identical), each part retrieves 5 passages instead of 3,
+and the correction loop gets 2 passes instead of 1. CHANNEL ALIGNMENT is
+the scoping law: the escalation is gated on `opts.priorPass`, the
+identical gate `observe`'s own call site uses — a standing measured on
+S1/S2 turns adjusts S1/S2 turns, never a channel nothing measured. That
+channel is thin today (S1 only runs on trivially-chatty questions that
+volunteer something checkable, per the SEARCH-BEFORE-ANSWERING
+amendment), and that thinness is stated rather than papered over: flow
+#1 (the gate itself reading the standing) is what would widen the
+channel, and it is deliberately not built here. Every engagement lands
+on the reflex ledger as an `escalated` act (reflex.js's designed
+unknown-act fallback, the same door `measured`/`carried`/`narrowed`
+entered through) — a decision the instrument made is never silent.
 
-**Verified more completely than the prior amendment achieved, and one
-correction to its own disclosed limit.** `node --check app.js` passes;
-the full suite's 125 pre-existing failures are identical by name via
-`git stash`, zero regressions. This pass could verify a real browser load
-end to end where the prior one could not: headless Chromium driven over
-raw CDP (no Playwright/Puppeteer package present — Node 22's native
-`WebSocket` speaks the protocol directly) loaded the real page against a
-real `serve.mjs` and found the `#not-served` banner hidden, the composer
-present, 19 real DOM children — the page's own boot code ran to
-completion, byte-identical (same five pre-existing 404s: `katex.min.css`,
-`mathjs/.../math.js`, `monaco-editor/.../loader.js`, `katex.mjs`,
-`/engine/emergence/tiers.js`; zero JS exceptions) in both the unmodified
-baseline and this pass's modified `app.js`. The correction: the prior
-amendment's own worry that the tiers.js 404 "breaks the WHOLE module
-graph's link step" does not hold in this environment — it breaks the
-self plane's own surprise meter (`reflexMeter`/`apertureMeter`, its actual
-importers), a real but narrower gap than "nothing runs," found by
-checking rather than re-asserting the earlier guess (P5.5). What still
-could not be verified, the same disclosed limit every recent pass
-carries: no Ollama is reachable here, so no live model-driven turn could
-show either signal actually moving a real outcome — P71's "does this
-help, not just run" leg stays open for both, named rather than claimed
-closed. `metacognition-integration-note.md` carries the full account.
+**Still honest about what is not proven.** This wires the flow; it does
+not prove the flow HELPS — whether the correction rate for the cell
+actually falls once escalation engages is the same unrun measured leg
+the first amendment already named (P60's own line stands: a mechanism
+that runs is not a mechanism that helps). The observability for that
+measurement now exists on the ledger itself (corrected counts per cell,
+`escalated` acts on the reflex ledger); running it needs live turns this
+environment cannot drive. Suite: 1085 → 1092, pass 958 → 965, the same
+125 pre-existing environment failures by name, zero regressions.
+
+**Third amendment — the hunt stops on surprise, not on a count (user
+direction, near-verbatim: "we should hunt until we have enough
+information such that what we experienced would not be surprising to a
+degree that is a distinction that makes a difference").** The question
+this answers, put back plainly first: flow #2 as first wired was a
+fixed quantum — 3 pages (5 contested), decided before the hunt started,
+spent blind. Nothing about what the pages actually SAID could stop the
+hunt early or say "this is still moving, keep going." The user's clause
+is this repo's own standing vocabulary — Bateson's
+difference-that-makes-a-difference, `nul.pattern()`'s documented sign —
+and P31 had already sketched exactly this stopping rule for a different
+loop ("hop until widening stops moving the answer beyond what reseeding
+noise would move it anyway; the noise can't beat the NUL"). This builds
+it for the hunt.
+
+**The mechanism.** `metacognition.js::makeHuntMeter` — the SAME
+tier-stack physiology reflex.js and aperture.js already wire
+(`emergence/tiers.js`, bayesianSurprise placed against
+priorContinuationNull), injected the same cast.js way, on the SAME
+declared numbers (SURPRISE_WINDOW/DRAWS/ALPHA/SEED, imported from
+reflex.js where their givers are named), one tier. The meter is seeded
+with what the hunt STARTS from — the question, the discourse line, the
+search-results digest — so the first page is measured against a real
+ground; each kept page then arrives as one observation, placed against
+the material's own continuation null. `huntSettled` is aperture.js's own
+live-measured cut applied per arrival (censored above → still
+surprising; censored below → held; placed → held iff rank > 0.5, the
+null's OWN median — the cut aperture earned through two measured
+corrections, cited rather than re-derived). `gatherPreflightMaterial`'s
+fetch loop stops EARLY on a settled arrival and runs to the declared
+ceiling while pages keep genuinely moving belief; the escalation's
+`pagesConsulted` is thereby reframed from "the count" into "the leash" —
+`contested` buys a LONGER leash (5), and the settling decides where the
+hunt actually stops inside it. Every hunt's outcome lands on the reflex
+ledger as a `hunted` act (pages read, ceiling, and WHY it stopped —
+`settled` or `ceiling`), and the return's own `hunt` record carries each
+page's placement, so the decision is inspectable per turn.
+
+**Measured against the REAL organ before a line of wiring** — probe run
+kept in `metacognition-hunt.test.mjs`'s own header, fixtures declared
+invented so nothing tests recalled world knowledge: a convergent stream
+settles (page A rank 0.97 against a seed it overlaps, near-paraphrase B
+0.98); an alien-topic page lands censored ABOVE and keeps the hunt alive;
+an empty page is a typed gap and can NEVER stop the hunt (withheld is
+not "nothing moved" — the grounding ladder's own line, applied to
+stopping); a first page against a thin seed is unplaceable and continues
+the hunt (the safe side); and the whole stream is byte-deterministic on
+the declared null seed. 7/7 against the real engine module — runnable in
+this checkout for the first time, because this same session initialized
+the `legacy-eoreader6.1` submodule (which also swelled the honest suite:
+1578 tests now execute where 1092 did, the old 125-name environment
+failure set collapsing to 42, identical before/after every change here).
+
+**The disclosed behavior change, named rather than smoothed.** A calm
+turn may now stop BELOW the old fixed 3 pages — but only ever on a
+MEASURED settle (a page placed past the null's own median), never on a
+gap, an unreadable page, or an unplaceable first arrival, all of which
+continue the hunt. The asymmetry law's spirit holds in the new register:
+effort is only ever cut by the material itself converging this turn,
+measured against its own null — never by a learned standing, never by
+silence, never by default. And the sharper sign remains open, stated
+here as aperture.js already states it for its own series: this is the
+per-arrival continuation-null gate, NOT `nul.pattern()`'s licensed
+windowMean/shuffle pair over the hunt's series — the null-of-nulls
+`opened` reading stays unbuilt, named, not absorbed. Suite after this
+amendment: 1585 tests / 1538 pass / the same 42 environment failures by
+name, zero regressions.
+
+**Live-run evidence (2026-09-01) — flow #2 proven END TO END on the real
+page, not only in test files.** The user's own bar ("did you test it? did
+it actually do those things?") was answered with the harness shape this
+repo's own precedents supply whole: a scripted stand-in Ollama (P27's
+disclosed posture — this sandbox has no real install), the real
+`serve.mjs`, real headless Chromium driven over raw CDP (P69's method,
+Node's native WebSocket, no Playwright), material attached through the
+page's own real drop handler, turns typed through the real composer. The
+scenario: attached material contradicting one fixed claim ("Renn Kessler
+never founded the Ostrel Works"); the stub answers every text-mode call
+with that claim verbatim, so every S2 relation read lands `contradicted`
+against the material. Measured, from the stub's own request log with
+marks between turns and from the page's own `/self acts` door: **turn 1
+spent 3 text-mode model calls** (S1, S2 execute, ONE correction pass —
+`rewrote the question` once on the ledger); its observation landed 3
+CORRECTED atoms, standing `contested`; **turns 2 and 3 spent 4 text-mode
+calls each** — `rewrote the question` TWICE on the ledger, the correction
+budget's 1 → 2 visible in both currencies — and each landed
+`escalated: cell s1-draft · corrections 2 · pages 5 · passages 5` on the
+reflex ledger, read back through the page's own computed table. Zero page
+exceptions across boot, attach, three S1/S2 turns and the mechanical
+door. A side-confirmation rode along free: turn 2's summary refresh was
+CARRIED by the aperture gate (zero json-mode calls in its window,
+`carried: streak 1` on the same ledger) — the two meters coexisting on
+one live turn.
+
+Two harness findings kept (P5.5's discipline — both were the driver, not
+the theory). (1) The first driver's turns said "hi" — and no escalation
+could ever fire, because a turn text sharing NO token with the material
+gives `retrieve()`'s zero-relevance-floor nothing to return: zero
+passages → no relation vocabulary → no verdicts → no CORRECTED → never
+`contested`. Diagnosed OFFLINE against the real organs first (the
+material+claim pair does yield `contradicted` when passages reach the
+reader), then fixed in the driver alone: turn texts that speak the
+material's own words while staying inside the S1 gate. The lesson is
+about the channel, not the harness: the metacognition loop only ever
+learns from turns that actually reach the material — a turn that
+retrieves nothing is measured as nothing. (2) The `/self acts` readback:
+`mechanicalTurn` appends only `publishBuild`'s chip to the chat body and
+the TABLE lives in the Folds pane, which at headless width (< 900px)
+stays unshown — `innerText` excludes non-rendered nodes, `textContent`
+does not; the build cards are the read. **The boundary, restated so this
+addendum cannot be over-cited:** this proves the flow ENGAGES and SPENDS
+— standing moves, budgets widen, the extra pass runs, every act lands —
+not that it HELPS. "Does the correction rate fall once escalation
+engages" remains the second amendment's named, unrun measured leg. The
+harness files stay uncommitted per their own headers; this paragraph and
+the ledger vocabulary above are the record.
+
+**Fourth amendment (2026-09-01, landed independently and reconciled on
+merge) — `forcesFoldRefresh` wired too.** The second amendment's own
+scope note ("`forcesFoldRefresh` and the gate flow (#1, which would
+widen the thin S1/S2 channel) stay deliberately unbuilt") is now half
+closed — this pass wires the first, leaves the second exactly as named.
+`forcesFoldRefresh`'s own open question — whether `refreshSummary` could
+safely be threaded — traced clean rather than left standing:
+`relationClaims`/`result.sections`, everything `assessAgreement` needs,
+are already computed several lines BEFORE `refreshSummary`'s own call
+inside `holonicTurn`, not after it, so the metacognition block moved to
+right before that call (and, as a disclosed consequence, ahead of the
+`!state.grounded` early return a few lines further down — a plain-mode
+S1/S2 turn's disagreement now reaches the ledger too; bookkeeping, not
+drawing, the same "the fold and the record stay ON either way" rule the
+checking-mode section already states for exactly this kind of state).
+`refreshSummary` gained a fourth, defaulted options parameter
+(`{forceRefresh = false}`, byte-identical for every existing caller that
+omits it) and now ORs it onto `exchangeHeldGround`'s own reading exactly
+as `forcesFoldRefresh`'s own header names ("a natural OR onto
+refreshSummary's existing gate ... not a replacement for it") — an
+override logs its own `forcedRefresh` act, mirroring the `carried`
+skip's own never-silent discipline for the opposite decision.
+
+**What this pass's own first draft got wrong, found on merge rather than
+shipped.** Working independently of the three amendments above, this
+pass's own first cut ALSO wired `surfWeight` — directly into
+`gatherPreflightMaterial`, via a bespoke `weight` multiplier on the page
+count alone. Merging against `origin/main` found the identical function,
+and the identical parameter slot, already occupied by flow #2's
+`escalationFor`/`pagesConsulted` — more general (it widens
+`maxCorrections`/`passagesPerPart` too, not page count alone), more
+rigorously specified (the three named laws above), and already proven
+live end to end, none of which this pass's own narrower version had.
+That half of this pass's original draft is DROPPED entirely rather than
+kept alongside theirs — two competing wideners of the same budget would
+have been the exact "does the factor compound" hazard `escalationFor`'s
+own NON-COMPOUNDING law was written to forbid. `needsSystem2` stays
+untouched and named still open, exactly as both the module and the
+amendments above already state — a materially larger, riskier decision
+(whether S2 runs AT ALL) with no mechanism any of these passes name.
+
+**Verified, on this checkout's own terms — including one gap closed
+along the way.** `node --check app.js` passes. This checkout's own
+`legacy-eoreader6.1` submodule (a real, declared git submodule of
+`eoreader7`, `.gitmodules`-registered but never checked out before this
+pass) was initialized during this reconciliation — a reversible, local,
+read-only clone of a public repo, not a code change — which is why this
+checkout's own suite counts differ from the second/third amendments'
+own reported numbers above (1092/1585 there; a different number here,
+both honest, each a fact about its own checkout's submodule state, not a
+disagreement about the code) and, more directly useful, resolves the
+`/engine/` mount for the first time in any of this repo's recent
+sessions: `explore-server.mjs` can now actually boot in this
+environment, where P69's own disclosed holdout previously blocked it.
+Full suite unchanged by name against THIS checkout's own pre-merge
+baseline (`git stash` diff), zero regressions from this pass's own
+changes. A real browser load was verified end to end: headless Chromium
+driven over raw CDP (no Playwright/Puppeteer package present — Node
+22's native `WebSocket` speaks the protocol directly) loaded the real
+page against a real `serve.mjs` and found the `#not-served` banner
+hidden, the composer present, real DOM content — the page's own boot
+code runs to completion, byte-identical between the pre-merge baseline
+and this pass's own final change. What still could not be verified, the
+same disclosed limit every recent pass in this file carries: no Ollama
+is reachable in this environment, so `forcesFoldRefresh`'s live effect
+on a real turn could not be shown the way flow #2's own live-run
+addendum showed engagement above — only that it now runs safely, the
+same honest boundary the very first P72 amendment already drew before
+either signal was wired. `metacognition-integration-note.md` carries
+the full, reconciled account.

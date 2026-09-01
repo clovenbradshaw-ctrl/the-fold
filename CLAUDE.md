@@ -5871,28 +5871,94 @@ same function. Two open decisions remain: a finer cell taxonomy, and
 whether `surfWeight`/`forcesFoldRefresh` are worth wiring —
 `metacognition-integration-note.md` carries the full, corrected account.
 
-**Amended 2026-09-01 — both signals wired.** `forcesFoldRefresh`'s own
-open question (whether `refreshSummary` could safely be threaded) traced
-clean: `relationClaims`/`result.sections` are already computed before
-`refreshSummary`'s call in `holonicTurn`, so the metacognition block moved
-earlier (also ahead of the `!state.grounded` early return — a plain-mode
-S1/S2 disagreement now reaches the ledger too, bookkeeping rather than
-drawing). `refreshSummary` ORs `forceRefresh` onto its existing hold gate,
-logging its own `forcedRefresh` act when it overrides. `surfWeight` is
-wired into `gatherPreflightMaterial`'s page count (the one of its two
-named candidate sites its own docstring actually specifies), reading the
-ledger's running `"s1-draft"` standing regardless of whether the current
-turn itself ran an S1 pass; `needsSystem2` stays untouched and named
-still open, a larger, unscoped decision. Verified further than the prior
-pass could: a real headless-Chromium load over raw CDP (no Playwright
+**Amended again — flow #2 wired ("do it"): suspicion widens the search.**
+P72's second amendment is the law; the one-line map:
+`metacognition.js::escalationFor` is now `surfWeight`'s one live consumer
+— on a `contested` `"s1-draft"` standing, an S1/S2 turn's preflight
+consults 5 pages instead of 3, each part retrieves 5 passages instead of
+3, and the correction loop gets 2 passes instead of 1 (ceil × the
+declared 1.5, always from holon.js/proof.js's own exported constants,
+never a prior escalated value — so it cannot compound). Asymmetric by
+construction (`established`/`unproven` come back byte-identical — trust
+never removes checking), channel-aligned (gated on `opts.priorPass`, the
+same gate `observe` uses — measured on S1/S2 turns, adjusts S1/S2 turns),
+and never silent (an `escalated` act lands on the reflex ledger). Whether
+the flow HELPS — does the correction rate fall once it engages — remains
+the named, unrun measured leg; the counts to answer it now accumulate on
+the ledger itself. `forcesFoldRefresh` and the gate flow (#1, which would
+widen the thin S1/S2 channel) stay deliberately unbuilt.
+
+**Amended once more — the hunt stops on surprise, not on a count.** P72's
+third amendment is the law; the one-line map: the user's own stopping
+rule ("hunt until what we experienced would not be surprising to a
+degree that is a distinction that makes a difference" — Bateson's sign,
+P31's own sketched rule, built for the hunt loop) is live in
+`gatherPreflightMaterial`: `makeHuntMeter` (metacognition.js) runs the
+SAME tier-stack physiology reflex.js/aperture.js already wire, seeded
+with the question + discourse + snippets digest, each kept page placed
+against the material's own continuation null; a page landing past the
+null's own median (`huntSettled` — aperture's live-measured cut, cited
+not re-derived) stops the hunt early, a genuinely-moving page keeps it
+alive to the ceiling, and a GAP never stops anything. Escalation's
+`pagesConsulted` is thereby a LEASH, not a count — contested buys a
+longer one, the settling decides the spend. Probed against the REAL
+engine organ before wiring (convergent stream settles at rank 0.97/0.98,
+alien page censored above, empty page refused as a stop, thin-seed first
+page continues, byte-deterministic) — 7/7 in
+`metacognition-hunt.test.mjs`, runnable here because this same session
+initialized `legacy-eoreader6.1` (suite honestly swelled: 1585 tests
+execute, the old 125-name environment set now 42, identical
+before/after). Every hunt lands a `hunted` act on the reflex ledger.
+Disclosed: a calm turn may stop below the old fixed 3 pages, but only on
+a MEASURED settle — never on a gap, never on silence; and this is the
+per-arrival gate, not `nul.pattern()`'s licensed pair over the series,
+which stays open exactly as aperture.js's own header already names.
+
+**Amended 2026-09-01 — flow #2 proven live, end to end, on the real
+page.** P72's live-run addendum carries the numbers; the one-line map: a
+scripted stand-in Ollama answering every call with a claim the attached
+material contradicts drove the whole chain through the real browser —
+turn 1 spent 3 text-mode calls and observed 3 corrected atoms
+(`contested`), turns 2 and 3 spent 4 calls each with the correction pass
+visibly run twice, and `escalated: cell s1-draft · corrections 2 ·
+pages 5 · passages 5` landed on the reflex ledger, read back through the
+page's own `/self acts` door. Zero page exceptions; the aperture gate
+carried turn 2's summary in the same run. Two harness lessons kept in
+P72: a turn sharing no token with the material can never teach the loop
+anything (`retrieve()`'s zero-relevance-floor starves the whole channel),
+and the `/self acts` table lives in the Folds pane, so a DOM readback
+needs `textContent` on the build cards, not `innerText`. Proves the flow
+engages and spends — whether it HELPS stays the named, unrun leg.
+
+**Amended 2026-09-01 (independently, reconciled on merge) —
+`forcesFoldRefresh` wired too.** The third amendment's own scope note
+("`forcesFoldRefresh` and the gate flow (#1...) stay deliberately
+unbuilt") is now half closed. `relationClaims`/`result.sections` —
+everything `assessAgreement` needs — are already computed before
+`refreshSummary`'s own call in `holonicTurn`, so the metacognition block
+moved to right before that call (also ahead of the `!state.grounded`
+early return a few lines further down — a plain-mode S1/S2 disagreement
+now reaches the ledger too, bookkeeping rather than drawing).
+`refreshSummary` gained a fourth, defaulted `{forceRefresh}` option and
+ORs it onto `exchangeHeldGround`'s own reading, logging its own
+`forcedRefresh` act on override. This pass's own first draft also wired
+`surfWeight` directly into `gatherPreflightMaterial`, via a bespoke
+`weight` multiplier — on merge, found to be the identical function flow
+#2's `escalationFor`/`pagesConsulted` already occupies, more generally
+(multiple budgets, not one) and better tested; that half is DROPPED, not
+merged alongside it. `needsSystem2` stays untouched and named still
+open, as both the module and the amendments above already state.
+Verified: a real headless-Chromium load over raw CDP (no Playwright
 package present, Node 22's native `WebSocket` speaks the protocol
 directly) confirmed the page's boot code runs to completion — banner
-hidden, composer present — byte-identical between the unmodified baseline
-and this change, correcting the prior pass's own worry that the
-`/engine/emergence/tiers.js` 404 blocks the whole module graph (it
-doesn't — only the self plane's own surprise meter, its actual importer).
-Full suite identical by name, zero regressions. Still open, the same
-disclosed limit every recent pass carries: no Ollama reachable here, so
-neither signal's live effect on a real turn could be shown, only that
-each runs safely. POLICIES.md P72's own amendment and
-`metacognition-integration-note.md` carry the full account.
+hidden, composer present — byte-identical between the unmodified
+baseline and this change, correcting an earlier pass's own worry that
+the `/engine/emergence/tiers.js` 404 blocks the whole module graph (it
+doesn't — only the self plane's own surprise meter, its actual
+importer). Full suite unchanged by name, zero regressions. Still open,
+the same disclosed limit every recent pass carries: no Ollama reachable
+in this checkout, so `forcesFoldRefresh`'s live effect on a real turn
+could not be shown the way flow #2's own live-run addendum showed
+engagement above — only that it now runs safely. POLICIES.md P72's own
+fourth amendment and `metacognition-integration-note.md` carry the full
+account.

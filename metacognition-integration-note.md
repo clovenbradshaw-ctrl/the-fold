@@ -62,80 +62,72 @@ exercises against the real native task-log module. A real live-browser
 confirmation is still the honest gap — named here rather than implied
 closed.
 
-**Amended 2026-09-01 — both signals wired; one of two open decisions
-resolved, the other genuinely reduced.** This note's own item 4 ("STILL
-OPEN") is now split: `forcesFoldRefresh` is wired, and `surfWeight` is
-wired into ONE of its two named candidate sites (`gatherPreflightMaterial`)
-while the other (`needsSystem2`) is deliberately left untouched and still
-open, narrower than before rather than fully closed.
+**Amended 2026-09-01 — `surfWeight` wired via flow #2 (a concurrent,
+independent pass, POLICIES.md P72's second/third/live-run amendments);
+`forcesFoldRefresh` wired here, reconciled on merge.** Two sessions
+worked this note's own item 4 at the same time without seeing each
+other's work. The `surfWeight` half of THIS session's own first draft —
+a bespoke `weight` multiplier wired straight into
+`gatherPreflightMaterial`'s page count — is superseded and DROPPED: the
+concurrent pass's `escalationFor` occupies the identical function and
+parameter slot, more generally (it also widens `maxCorrections`/
+`passagesPerPart`, not page count alone), more rigorously (three named,
+pinned laws — asymmetry, ceil-not-round, non-compounding), and already
+proven live end to end against a scripted-Ollama harness — see this
+note's own item 4 below, which now describes it, and CLAUDE.md/
+POLICIES.md P72 for the full account. Nothing here restates it further.
 
-`forcesFoldRefresh`: this note's own guess that threading it "turned out
-LESS trivial than first guessed" was traced, not just re-asserted.
-Reading `holonicTurn`'s turn-ending sequence found `relationClaims` and
-`result.sections` — everything `assessAgreement` needs — are already
-computed several lines BEFORE `refreshSummary`'s own call, not after it;
-the metacognition block (previously placed after `renderGrounding`/
-`crownTestimony`, effectively too late to influence the SAME turn's own
-refresh decision) moved to right after `renderAnswer`, before
-`refreshSummary` fires. `refreshSummary` gained a fourth, options-object
-parameter (`{forceRefresh = false}`, byte-identical to every existing
-caller that omits it) and now computes `heldGround` once, ORing
-`forceRefresh` onto it exactly as the module's own header names ("a
-natural OR onto refreshSummary's existing gate ... not a replacement for
-it") — a forced override logs its own `forcedRefresh` act, the same
-"never silent" discipline the pre-existing `carried` skip already holds
-for the opposite decision. One side effect, disclosed rather than
-incidental: moving the block also moved it AHEAD of the `!state.grounded`
-early return a few lines down, so a plain-mode S1/S2 turn's disagreement
-is now heard too — bookkeeping, not drawing, the same "the fold and the
-record stay ON either way" rule the checking-mode section (CLAUDE.md)
-already states for exactly this kind of state; before this pass, a
-plain-mode S1/S2 turn silently never reached the ledger at all.
+What THIS session actually contributes is `forcesFoldRefresh` — this
+note's own guess that threading it "turned out LESS trivial than first
+guessed" was traced, not just re-asserted. Reading `holonicTurn`'s
+turn-ending sequence found `relationClaims` and `result.sections` —
+everything `assessAgreement` needs — are already computed several lines
+BEFORE `refreshSummary`'s own call, not after it; the metacognition
+block (previously placed after `renderGrounding`/`crownTestimony`,
+effectively too late to influence the SAME turn's own refresh decision)
+moved to right after `renderAnswer`, before `refreshSummary` fires.
+`refreshSummary` gained a fourth, options-object parameter
+(`{forceRefresh = false}`, byte-identical to every existing caller that
+omits it) and now computes `heldGround` once, ORing `forceRefresh` onto
+it exactly as the module's own header names ("a natural OR onto
+refreshSummary's existing gate ... not a replacement for it") — a
+forced override logs its own `forcedRefresh` act, the same "never
+silent" discipline the pre-existing `carried` skip already holds for
+the opposite decision. One side effect, disclosed rather than
+incidental: moving the block also moved it AHEAD of the
+`!state.grounded` early return a few lines down, so a plain-mode S1/S2
+turn's disagreement is now heard too — bookkeeping, not drawing, the
+same "the fold and the record stay ON either way" rule the
+checking-mode section (CLAUDE.md) already states for exactly this kind
+of state; before this pass, a plain-mode S1/S2 turn silently never
+reached the ledger at all. `needsSystem2` stays untouched and still
+open: a materially bigger, riskier decision (whether S2 runs AT ALL)
+with no mechanism this note, its parent module, or the concurrent pass
+names — narrowing it further would have been exactly the kind of guess
+this repo's own discipline forbids.
 
-`surfWeight`: wired into `gatherPreflightMaterial` alone, not
-`needsSystem2` — the docstring itself settles which of the two the module
-means ("widens what the next turn's preflight search should pull in"),
-and `PREFLIGHT_PAGES_CONSULTED`'s own slice is the one place that phrase
-names precisely. `gatherPreflightMaterial` gained a fourth `weight = 1`
-parameter (again byte-identical when omitted); the call site reads
-`surfWeight(metaLedger.standingOf(state.metaLedger, "s1-draft"))` —
-the ledger's own running standing, not this turn's own agreement (which
-may not even exist yet at that point in `holonicTurn` — the preflight
-runs BEFORE any draft), matching Friston's own move: precision is a
-property of the CHANNEL, learned from repeated exposure, read regardless
-of whether THIS turn itself runs an S1 pass. `needsSystem2` stays
-untouched and still open: it is a materially bigger, riskier decision
-(whether S2 runs AT ALL, not how much a preflight search reads) with no
-mechanism this note or its parent module names, and narrowing it further
-than that would have been exactly the kind of guess this repo's own
-discipline forbids.
-
-**What was verified, and how this differs from the prior pass's own
-disclosure.** `node --check app.js` passes; the full suite reports the
-identical 125 pre-existing failures by name (`git stash` diff), zero
-regressions. Unlike the prior amendment above, a real browser load COULD
-be verified end to end this pass, and it changes what should be believed
-about the standing `/engine/emergence/tiers.js` 404 (P69's disclosed
-holdout): headless Chromium driven over the real DevTools protocol (no
-Playwright/Puppeteer package present in this checkout — Node 22's native
+**What was verified.** `node --check app.js` passes; the full suite is
+unchanged by name against this checkout's own pre-merge baseline
+(`git stash` diff), zero regressions. This checkout's own
+`legacy-eoreader6.1` submodule (a real, `.gitmodules`-declared git
+submodule of `eoreader7`, never checked out before this reconciliation)
+was initialized while merging — reversible, local, read-only — which is
+also why the `/engine/` mount (not just `/engine-v7/`) now resolves in
+this environment for the first time in any recent pass, closing P69's
+own disclosed holdout for this checkout. A real browser load was
+verified end to end: headless Chromium driven over the real DevTools
+protocol (no Playwright/Puppeteer package present — Node 22's native
 `WebSocket` speaks CDP directly) loaded the real page against a real
-`serve.mjs` and found the `#not-served` banner correctly hidden, the
-composer present, and 19 real DOM children under `<body>` — the page's
-own boot code DID run to completion, in BOTH the unmodified baseline and
-this pass's modified `app.js`, byte-identical: the same five pre-existing
-404s in both (`katex.min.css`, `mathjs/.../math.js`,
-`monaco-editor/.../loader.js`, `katex.mjs`, `/engine/emergence/tiers.js`),
-zero JS exceptions in either. The tiers.js 404 does not "break the WHOLE
-module graph's link step" the way the prior amendment above worried it
-might — it breaks the self plane's OWN surprise meter
-(`reflexMeter`/`apertureMeter`, which import it), a real, disclosed, but
-narrower gap than "nothing runs." What could NOT be verified, matching
-every recent pass's own disclosed limit: no Ollama is reachable in this
+`serve.mjs` and found the `#not-served` banner hidden, the composer
+present, real DOM content — the page's own boot code runs to
+completion, byte-identical between the pre-merge baseline and this
+pass's own final change. What could NOT be verified, matching every
+recent pass's own disclosed limit: no Ollama is reachable in this
 environment, so no real model-driven conversation could exercise
-`forceRefresh`/`surfWeight` and show either one actually moving a live
-turn's outcome — `POLICIES.md` P71's own "does this actually help, not
-just run" leg stays open for both signals, named here rather than
-claimed closed.
+`forceRefresh` and show it actually moving a live turn's outcome —
+`POLICIES.md` P71's own "does this actually help, not just run" leg
+stays open for it, exactly as it does for `escalationFor` above, named
+here rather than claimed closed.
 
 Original framing, kept below for what is still genuinely open:
 
@@ -210,20 +202,25 @@ now sits.
    CORRECTED (no edges to contradict against) — a graceful, honest
    degradation, never a wrong finding manufactured from a check that did
    not run.
-4. **Whether `surfWeight`/`forcesFoldRefresh` are worth wiring at all
-   yet.** STILL OPEN. Both are pure, real, tested — but neither has been
-   validated against a real turn where widening retrieval, or forcing a
-   fold refresh, actually changed an outcome (POLICIES.md's own
-   generality gate, P71, names exactly this as the unrun leg). Wiring
-   `forcesFoldRefresh` into `refreshSummary`'s own gate turned out LESS
-   trivial than first guessed: `refreshSummary` is called from a
-   DIFFERENT point in the turn-ending sequence than where
-   `assessAgreement` now runs, inside code this pass did not trace
-   closely enough to be confident threading a signal across that gap
-   would not risk the refresh gate itself — left alone rather than risked.
-   Wiring `surfWeight` into `gatherPreflightMaterial`/`needsSystem2`
-   remains the larger, real design question (widen WHAT) this note
-   already named.
+4. **`surfWeight` — WIRED (flow #2, second amendment, "do it").**
+   `escalationFor` (metacognition.js) is its one live consumer:
+   `holonicTurn` reads the `"s1-draft"` standing once per S1/S2 turn
+   (gated on `opts.priorPass`, the same gate `observe` uses) and, on
+   `contested`, ceil-widens the three declared budgets — preflight pages
+   3 → 5 (`gatherPreflightMaterial`'s new optional `pagesConsulted`),
+   passages per part 3 → 5, correction passes 1 → 2 — always computed
+   from the exported constants so it cannot compound, always landing an
+   `escalated` act on the reflex ledger. "Widen WHAT" is thereby
+   answered: the three budgets that were already parameters. What is
+   STILL not proven: that the widening helps — the correction rate's
+   response to escalation is the measured leg that needs live turns.
+   **`forcesFoldRefresh` — WIRED**, in a concurrent, independent pass
+   reconciled on merge (this note's own 2026-09-01 amendment above): the
+   metacognition block moved to right before `refreshSummary`'s own call
+   (everything `assessAgreement` needs was already computed earlier in
+   `holonicTurn`, contrary to this item's own original worry), and
+   `refreshSummary` ORs a `{forceRefresh}` option onto its existing hold
+   gate.
 
 ## Residues, so you can say them rather than rediscover them
 

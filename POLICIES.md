@@ -9261,3 +9261,101 @@ addendum showed engagement above — only that it now runs safely, the
 same honest boundary the very first P72 amendment already drew before
 either signal was wired. `metacognition-integration-note.md` carries
 the full, reconciled account.
+
+## P73 — The hyperlexicon door made ready: the label data was one curl away, the identity question is now a socket
+
+**Generality:** universal for the two seams (an injectable note identity,
+a threaded door gate — neither knows any language or domain);
+specimen-scoped for the shipped data layer (`priors-data/
+pos-prior-eng.json` is `lang/en`, giver Universal Dependencies
+UD_English-EWT, CC BY-SA 4.0 — riding every classification via
+`POS_PRIOR_META`, exactly as P41/P43's received English classes already
+ship).
+
+**The question that opened it, verbatim: "are you reading eot well enough
+to have a meaningful hypergraph?"** Measured rather than recalled
+(`eval/hyperlexicon-door-probe.mjs`, mirroring the live turn exactly —
+app.js's relation-reader configuration, holon.js's per-passage admission,
+holon.js's own ≥2-witness ledger block — over the two committed real
+Wikipedia fixtures): **no.** Of 29 notes the live door admitted, 18
+carried a closed-class label (`—and→` ×7, `—of→` ×4, `—to→`, `—in→`,
+`—on→`, `—or→`, `—himself→`…) and 0 ever reached two witnesses — the
+same battle described by both pages, the same fact stated in both
+("The Russian army withdraws the next day" / "Imperial Russian forces
+retreated southwards"), and the ≥2-witness ledger block — the ONE place
+the accumulated hypergraph reaches the model — rendered empty,
+structurally, because note identity is the exact triple and prose never
+restates a fact in extractable-identical form. Meanwhile the algebra
+ABOVE admission was already measured strong (P60/P61/P63: multi-hop at
+precision 1.000, oracle-checked). The bottleneck was admission from
+prose, in two named halves. The user's direction: "assuming that's
+coming, merge us to gh but ready to leverage those improvements."
+
+**Half one — label quality — closed by data that already had its consumer
+built.** Three organs were sitting complete and dark: `hypergraph.js`'s
+`posPriorFor` vocabulary gate (P68), `hyperlexicon.js::admit`'s own
+asymmetric `classifyConnector` gate (P56's rule, implemented, never
+threaded), and app.js's fetch of `/priors-data/pos-prior-eng.json` into
+the cache `posPriorFor` reads — against a file that did not exist. The
+engine's own `scripts/build-pos-prior.mjs` header says exactly how to
+make it (one curl of UD_English-EWT, one node run); built, it lands
+16,654 forms — the documented figure exactly — and the probe's arm B
+shows the vocabulary gate ALONE removing all 18 closed-class labels AT
+EXTRACTION: bound 36 → 15, notes 29 → 10, closed-class labels 18 → 0,
+every surviving connector a real verb (`fought`, `loses`, `suffers`,
+`resorted`, `managed`, `translated`, `remained`, `set`, `took`,
+`discusses`). Arm C threads the door gate on top and turns away zero —
+a wall behind a wall, kept because it guards any future reader path that
+lacks the vocabulary gate, at zero cost when there is nothing left to
+refuse. The honest cost, disclosed as P41/P43's own distinguishing test
+requires: the prior rides EVERY consumer of `relationsFor`, and `unheard`
+rises 2 → 31 — claims whose connector was a function word no longer bind.
+Those were never real relations (a conjunction heard as a verb fabricates
+an edge — the closes-a-false-binding class, which ships on), but the
+`bound` count is honestly lower everywhere, not only at this door.
+
+**Half two — corroboration identity — built as a socket, not guessed at.**
+`makeHyperlexicon` gains an injectable `noteIdentity(subject, verb,
+object) → canonical forms`, used for the note's ID ALONE: the display
+keeps the FIRST reading's own words (bytes read, never a normalised
+paraphrase — evidence accumulates, the words do not drift),
+witnesses/spans union exactly as before, a gapping organ falls back to
+the surface form per field (an identity gap never blocks admission — the
+withhold-vs-convict rule aimed at identity), and absent the organ the
+door is byte-identical to before. `hyperlexicon-identity.test.mjs` (5
+cases, native kernel only — the stance-test file's own
+checkout-independence reasoning) proves the mechanism reachable: an
+injected toy canonicalizer folds two differently-worded sightings into
+ONE note with TWO witnesses, which is the exact event the live ledger
+block has been waiting for. The PRODUCTION organ — referent faces for
+the ends, `sameAct` lemma equivalence for the connector, both already
+proven in the MINE-1 work — is the named next wiring, deliberately not
+invented in the same pass as the seam (the same discipline the
+referent-bar and `classifyConnector`/`minShare` postures already hold:
+new enough that turning it on for real traffic is its own deliberate
+decision).
+
+**The wiring, all default-null, all byte-identical when absent.**
+`holon.js`: `runPart`/`runHolonicTask` gain `classifyConnector = null`,
+passed at the one admit call (minShare stays the door's own declared
+default — no second number introduced); pinned in `holon.test.mjs` by a
+threading test that asserts the lens arrives at `admit` BY IDENTITY, and
+that the default path arrives null (a check that did not run never
+reports a pass). `app.js`: the lens is DATA-GATED, never code-gated —
+built in the same `.then` as `posPriorCache`, from `makeGrammarLens` with
+`POS_PRIOR_META`/`THRAX_META` so givers ride every classification, and
+passed `state.grounded ? connectorLens : null` beside the ledger it
+guards; a checkout without `priors-data/` runs byte-identically to
+before this policy existed.
+
+**The third lever, named and untouched:** subject-span debris
+(`and Andrei`, `that Napoleon`, `which Tolstoy` as subjects — clause
+openers leading the span) is the extractor's own gap, eoreader7 native
+`relations.js` territory, real unbuilt work.
+
+**Evidence.** `eval/hyperlexicon-door-probe.mjs` +
+`eval/results/hyperlexicon-door-probe-RESULTS.md` (the three-arm table,
+every note printed for eyeball meaningfulness). Full suite 1587/1538/44
+→ 1593/1544/44, the same 44 failure names via sorted-name diff (TAP
+ordinals shift with 6 new tests; names are the authority), zero
+regressions.

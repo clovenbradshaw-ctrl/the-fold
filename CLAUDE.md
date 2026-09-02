@@ -6939,3 +6939,29 @@ the material, not the organ); polarity is a DECLARATION on a non-text
 edge (the acquisition scan silently skipped polarity-less edges);
 correspondence is still not established — the relay's facts are true by
 construction, and a real material needs the oracle posture (P60).
+
+## The circuit against an independent oracle (added 2026-09-02) — pointer
+
+`eval/full-circuit-oracle.mjs` + `eval/results/full-circuit-oracle-RESULTS.md`.
+The relay run on REAL material — 23 Wikidata entities, 28 succession
+edges — judged by term dates the derivation never reads. Triangulation
+is real here (each edge witnessed by two records through two
+properties; 22/28 corroborate) and resolves tenure-grain identity for
+free. The circuit derived 8 never-stated facts, 8 TRUE, 0 FALSE (Grant
+after Lincoln; Colfax after Hamlin), each with byte-address provenance.
+
+**The finding: the oracle had to pass II.23 first, and did not on the
+first cut.** The person-grain verdict (P60's own) is true for a random
+within-office pair ~0.82 of the time — 8/8 discriminated nothing, 4/49
+shuffles matched it, and a fixed 0.6 gate was the wrong test. Judged at
+TENURE grain (the grain the circuit composes at — the grain lesson
+applied to the judge), 0/49 redealt circuits matched: discriminated at
+α=0.05 on the run-level null (the pointwise binomial assumes independent
+facts, which transitive products are not — both reported). This is the
+first null this project has spent on an oracle rather than on material,
+and it quietly undercuts P60's precision claims, which never asked what
+a shuffle would score. Triangulation's measured value: the naive arm's
+extra facts are exactly its unverifiable ones — corroboration keeps the
+circuit inside what the oracle can see. Honest scope: 23 entities is
+small; carrying the tenure-grain judge back into derivation-precision.mjs
+is the named next step.

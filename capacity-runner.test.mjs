@@ -17,7 +17,7 @@ import { makeRelationReader } from "./hypergraph.js";
 import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, readsNothing, landSelfAssertion } from "../eoreader7/native/organs/index.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
-import { makeGrammarLens } from "./grammar-lens.js";
+import { makeGrammarLens } from "../eoreader7/native/organs/index.js";
 
 function freshRunner() {
   const referentIndexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { makeHyperlexicon, assertionId, REFUSALS, VERB_CLASS } from "./hyperlexicon.js";
-import { makeGrammarLens } from "./grammar-lens.js";
+import { makeGrammarLens } from "../eoreader7/native/organs/index.js";
 
 const ENGINE = "../eoreader7/legacy-eoreader6.1/packages/engine";
 const taskLog = await import(`${ENGINE}/holon/task-log.js`);

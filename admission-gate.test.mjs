@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 
 import { runPart } from "./holon.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
-import { makeGrammarLens } from "./grammar-lens.js";
+import { makeGrammarLens } from "../eoreader7/native/organs/index.js";
 import { adaptTaskLog } from "./consequence.js";
 import { chunkSource } from "./source.js";
 import { classifyWord, dominantClass } from "../eoreader7/native/adapters/text/wordclass.js";

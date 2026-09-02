@@ -287,7 +287,7 @@ test("classifyConnector/minShare omitted: no edge carries connectorClass at all 
 });
 
 test("classifyConnector supplied without minShare throws — dominantClass's own never-defaulted contract, not a silent default here either", async () => {
-  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { makeGrammarLens } = await import("../eoreader7/native/organs/index.js");
   const { classifyWord, dominantClass } = await import(PROVIDER + "wordclass.js");
   const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
   const builtOrgans = { ...(await organs()), classifyConnector };
@@ -295,7 +295,7 @@ test("classifyConnector supplied without minShare throws — dominantClass's own
 });
 
 test("an edge's connectorClass, tagged at extraction time, matches exactly what classifyConnector says directly — a real non-verb and a real verb, same reader", async () => {
-  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { makeGrammarLens } = await import("../eoreader7/native/organs/index.js");
   const { classifyWord, dominantClass } = await import(PROVIDER + "wordclass.js");
   const classifyConnector = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });
   const reader = makeRelationReader({ ...(await organs()), classifyConnector, minShare: CONNECTOR_MIN_SHARE })(
@@ -323,7 +323,7 @@ test("an edge's connectorClass, tagged at extraction time, matches exactly what 
 });
 
 test("connectorClass forwards the giver when injected, and stays null when it isn't — grammar-lens.js's own BUILD-3 fix, visible through hypergraph.js", async () => {
-  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { makeGrammarLens } = await import("../eoreader7/native/organs/index.js");
   const { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } = await import(PROVIDER + "wordclass.js");
 
   const withoutGivers = makeGrammarLens({ classifyWord, dominantClass, posPrior: CONNECTOR_POS_PRIOR });

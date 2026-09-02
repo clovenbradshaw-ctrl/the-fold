@@ -178,7 +178,7 @@ test("end to end, adversarial: real reader + real grammar lens over INVENTED pro
     "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js"
   );
   const { classifyWord, dominantClass } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js");
-  const { makeGrammarLens } = await import("./grammar-lens.js");
+  const { makeGrammarLens } = await import("../eoreader7/native/organs/index.js");
   const { makeRelationReader } = await import("./hypergraph.js");
   const { readFileSync } = await import("node:fs");
 

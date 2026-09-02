@@ -602,6 +602,20 @@ const readerFrame = () => ({
   model: state.model ?? null,
 });
 
+// The frame's RECIPE ID — minted once per distinct frame (SHA-256 over the
+// canonical descriptor, kernel/notes.js::recipeId, P68) and carried on every
+// witness the ledger lands as `<ref>~<recipe>`. corroboration.js counts
+// (source, recipe) pairs: two pages read by this one reader are two sources
+// and ONE instrument, and cannot disagree about anything the reader gets
+// wrong. Until now every live witness was bare, and every reading counted
+// as its own undeclared instrument.
+let readerRecipeCache = { key: null, id: null };
+async function readerRecipe(frame) {
+  const key = JSON.stringify(frame);
+  if (readerRecipeCache.key !== key) readerRecipeCache = { key, id: await hyperlexiconFor.recipeId(frame) };
+  return readerRecipeCache.id;
+}
+
 // One meter per conversation, built on the engine's own tiers. reflex.js
 // declares the numbers (window from the fold's own present, draws and alpha
 // from read-frankenstein) — nothing here picks any.
@@ -4758,6 +4772,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // show what was actually established, not the state before the seek.
     if (seekFillers.length) narrateTheVoid(live.map((c) => c.text).filter(Boolean), "material", seekFillers);
 
+    // The ledger's frame in force for THIS turn, and its recipe id — read
+    // off the reader as it stands now, so a prior that loaded since the
+    // ledger's birth is redeclared (holon.js) rather than frozen out.
+    const ledgerFrame = state.grounded ? readerFrame() : null;
+    const ledgerRecipe = ledgerFrame ? await readerRecipe(ledgerFrame) : null;
+
     result = await runHolonicTask({
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
@@ -4818,7 +4838,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       hyperlexiconLog: state.grounded ? state.hyperlexiconLog : null,
       // The frame a FRESH ledger is born under (holon.js creates one only
       // when hyperlexiconLog is null) — declared here, where the reader was built.
-      hyperlexiconFrame: state.grounded ? readerFrame() : null,
+      hyperlexiconFrame: ledgerFrame,
+      hyperlexiconRecipe: ledgerRecipe,
       // The door's grammar gate, data-gated (null until the POS prior
       // loads — see connectorLens's own construction comment) and mode-
       // gated with the ledger it guards.

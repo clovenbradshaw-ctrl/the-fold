@@ -966,6 +966,13 @@ export async function runPart({
   // it actually built; a ledger created here without one carries the gap
   // by name (`frameOf` → no_frame), never an invented standing.
   hyperlexiconFrame = null,
+  // The frame's recipe id (kernel/notes.js::recipeId over hyperlexiconFrame),
+  // carried on every witness this part lands as `<ref>~<recipe>` so two
+  // sources read by ONE reader count as one instrument (corroboration.js::
+  // independentReadings) — and the ledger's frame is redeclared when it has
+  // moved since birth. `null` (every existing caller) leaves witnesses bare
+  // and undeclared, exactly as before.
+  hyperlexiconRecipe = null,
   // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
   // — asymmetric, P56: a settled non-verb connector is refused with its
   // giver, an out-of-vocabulary word admits). Threaded, never built here:
@@ -1098,13 +1105,19 @@ export async function runPart({
         // moved off the legacy names.
         .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
       if (!edges.length) continue;
+      let ledger = beliefNotes ?? hyperlexicon.createHyperlexicon(hyperlexiconFrame ? { frame: hyperlexiconFrame } : undefined);
+      // The frame in force follows the reader, not the ledger's birthday: a
+      // prior that loaded since is redeclared (SUPERSEDE, the past kept),
+      // so every hearing's seq falls under the frame that actually read it.
+      if (hyperlexiconFrame && hyperlexicon.redeclareFrame) ledger = hyperlexicon.redeclareFrame(ledger, hyperlexiconFrame);
+      const witness = p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null;
       const admitted = hyperlexicon.admit(
-        beliefNotes ?? hyperlexicon.createHyperlexicon(hyperlexiconFrame ? { frame: hyperlexiconFrame } : undefined),
+        ledger,
         edges,
         // minShare stays the door's own declared default — no second number
         // is introduced here; classifyConnector null = the gate does not
         // run, admit's own disclosed behaviour.
-        { witness: p.ref ?? null, classifyConnector },
+        { witness, classifyConnector },
       );
       beliefNotes = admitted.log;
       // Refusals are returned, never read-and-discarded (P57: turnedAway
@@ -2392,6 +2405,13 @@ export async function runHolonicTask({
   hyperlexicon = null,
   hyperlexiconLog = null,
   hyperlexiconFrame = null,
+  // The frame's recipe id (kernel/notes.js::recipeId over hyperlexiconFrame),
+  // carried on every witness this part lands as `<ref>~<recipe>` so two
+  // sources read by ONE reader count as one instrument (corroboration.js::
+  // independentReadings) — and the ledger's frame is redeclared when it has
+  // moved since birth. `null` (every existing caller) leaves witnesses bare
+  // and undeclared, exactly as before.
+  hyperlexiconRecipe = null,
   classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -2512,6 +2532,7 @@ export async function runHolonicTask({
       hyperlexicon,
       hyperlexiconLog: sharedHyperlexiconLog,
       hyperlexiconFrame,
+      hyperlexiconRecipe,
       classifyConnector,
     });
     seenRefs.push(...result.refs);

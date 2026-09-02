@@ -278,6 +278,12 @@ media, a different axis.
 
 ## The refused list — measured dead ends, do not retry
 
+- **A furniture/diet gate on the ledger's own surprise** (2026-09-02, P81 /
+  eoreader7 S43): a source's tail run above its null misses real wrappers
+  and the Gutenberg licence (their ends recur) and fires on closing LISTS
+  in editor-written prose. Sound statistic, wrong claim. Furniture is
+  "about something else" — a referent-tier question, not a surprise one.
+
 - Raising the face rate past ~20% on narrative prose (three levers
   measured; the bound is the material's).
 - Recurrence as an anchor signal (junk recurs identically; Zipf owns

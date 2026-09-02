@@ -7220,3 +7220,19 @@ any consumer reading `.subject` off a stored ENTRY (not a fold row) breaks —
 provider to native when the legacy submodule is absent, `ENGINE=legacy` still
 pins it; `hypergraph.test.mjs` is 58/58 native, so Pass 7's "settle the
 supersession first" note is spent.
+
+## The frame follows the reader; the diet door is refused (added 2026-09-02) — pointer
+
+POLICIES.md **P81** is the law here; eoreader7 **S43** its pair;
+`eoreader7/native/eval/the-fold/results/diet-boundary-RESULTS.md` the
+numbers. Short map: `holon.js` redeclares the ledger's frame every grounded
+turn and lands every witness as `<ref>~<recipe>` (app.js mints the recipe
+per frame), so one reader over many pages is one instrument to
+`independentReadings`. **Do not rebuild a furniture gate on surprise** —
+the tail-run door was measured and refuted (misses wrappers and the
+Gutenberg licence, fires on closing lists); the kernel keeps it as a
+diagnostic with the refutation in its header. The "most surprising
+hearings are the furniture" line in P80's pointer above was a floor
+artifact and is withdrawn. What did survive its control: label ORDER
+transfers between two English pages (0.2–0.3 bits/hearing, 20/20), ends
+do not — the first cross-source number.

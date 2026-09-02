@@ -10257,3 +10257,38 @@ import surface modules (provenance, proof, tables, grid, crown) and run
 through the shims. A non-English page passes the English POS gate untouched
 (every Cyrillic label is out of its vocabulary): a gate with no giver for the
 language is honestly no gate, and stays that way until one is received.
+
+## P81 — The frame follows the reader, and every witness names its recipe (2026-09-02)
+
+**Generality:** universal.
+
+**Decision.** The ledger's frame is no longer a birthday: `holon.js`
+redeclares it on every grounded turn from `app.js::readerFrame()` as the
+reader stands now (eoreader7 `kernel/notes.js::redeclareFrame`, SUPERSEDE,
+the past kept), so a prior that loads after the first grounded turn is
+recorded as in force from the hearing it first read. And every mechanical
+witness the ledger lands carries the reader's recipe — `<ref>~<recipe>`,
+`recipeId` over the frame (P68) — so `independentReadings` counts this
+reader as ONE instrument across every page it reads. Until now every live
+witness was bare and every reading was its own undeclared instrument.
+
+**The door that was proposed beside it is refuted, and stays refuted.** A
+"diet boundary" by surprise (a source's tail run above its own null) was
+built, tested on planted structure, and measured on real pages and a real
+Gutenberg licence: it misses furniture and fires on lists. eoreader7 S43
+and `diet-boundary-RESULTS.md` carry the numbers; the kernel keeps the
+statistic as a diagnostic and the concession act unlicensed. Do not
+rebuild a furniture gate on surprise. Furniture is about something else,
+and "about" is the referent tier's question (P38, P79).
+
+**A first number for reading getting richer from what it has read:** the
+ORDER of labels on one English page predicts the next English page's
+hearings 0.2–0.3 bits better than its own shuffle, 20/20; nothing
+transfers on the ends. One number, three pages, the label stream.
+
+**Enforced.** eoreader7 `tests/notes.test.js` 10/10; here `holon.test.mjs`
+unchanged and the full suite 940/67, zero new failures by name; the real
+page loaded through `serve.mjs` in headless Chromium — boot completed, zero
+exceptions, zero console errors. Not verified live: a turn against a real
+model, since no Ollama is reachable here; the recipe reaches the record
+through the same `admit` call every grounded turn already makes.

@@ -7045,10 +7045,12 @@ amendment is the law.
 protocols run over ONE real two-page ledger with ONE ask budget: equivalent
 recall (7 vs 6 attested), equal precision (0 lies on 4 planted
 fabrications each), select twice as fast per ask and 25% more calls.
-Neither buys the paraphrase wall, which is now measured standing one step
-earlier than identity: **46 pairs never asked for lack of a shared
-end-word** — the co-presence gate. Loosen it only under LP11 (marginal
-asks judged, planted guard as control). The run also fixed the walk's
+The first reading — "46 pairs never asked, the wall is the co-presence
+gate" — was a MISCOUNT corrected the same day by an offline audit: 46 of
+166 pairs, and 119 were feasible; the budget bounded recall, not the
+gate. Of the skips: 18 end-debris, 14 genuine paraphrase, 15 window-
+recoverable. `copresenceWindow` is now a declared option on the walk,
+judged on marginal pairs (LP11) with the planted guard as control. The run also fixed the walk's
 tally, which had counted the select path's own typed refusals as `other`.
 Also this pass: the SVO-wipe ripples in `hyperlexicon-door-probe`,
 `admission-gate`, `asserted-eval` read the earned names.

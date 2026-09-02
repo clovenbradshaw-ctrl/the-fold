@@ -303,3 +303,17 @@ own first draft, the dark-room proposer, the whole-claim decider floor,
 and two darknesses in the faces wire. Nothing here is exempt, including
 the plan itself: if Tier 1 cannot raise clean-votes-per-ask measurably,
 the memory floor's design — not its tuning — is what gets re-examined.
+
+## Pass 10 — `/reopen`: restore the last open from the record (added 2026-09-02)
+
+`reopen.test.mjs` carries the BECOMING (`{todo:true}`), written before any
+code: restore the last source, fold, or door result the person had open,
+from the record's OWN rows (`source-open` / `read-start` / `read-reused` /
+`term-run` / `term-act`), never from a transcript search. Licensed only
+when each wall has a test that would fail without it — address carried
+from the row (P5.2), identical on a heard-only ledger, no model asked
+what to reopen, `readsNothing`/self:model never an open, any hit rate
+shuffled (REDEAL_SEED) before it is reported, restore never re-admits.
+A wall that cannot be tested leaves the BECOMING open and says why.
+Control built to fail: a fixture whose transcript text names a DIFFERENT
+file than the record's last open — the door must follow the record.

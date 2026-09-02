@@ -7054,3 +7054,12 @@ judged on marginal pairs (LP11) with the planted guard as control. The run also 
 tally, which had counted the select path's own typed refusals as `other`.
 Also this pass: the SVO-wipe ripples in `hyperlexicon-door-probe`,
 `admission-gate`, `asserted-eval` read the earned names.
+
+## `/reopen` — BECOMING recorded first (added 2026-09-02) — pointer
+
+`reopen.test.mjs` holds the `{todo:true}` referent, written before the
+door: restore the last source/fold/door result from the record's own rows,
+address carried from the row, heard-only identical, no model asked, no
+self co-sign, null before any number, restore never re-admits.
+NEXT-PASSES.md Pass 10 is the plan entry. Licensed by the walls and the
+null when built — never by the builder's say-so.

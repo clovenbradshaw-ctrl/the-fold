@@ -198,7 +198,7 @@ import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
 import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
-import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
+import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice, witnessSentences } from "../eoreader7/native/organs/index.js";
 import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
@@ -1428,6 +1428,28 @@ function mustTurn(argstr, typed) {
   mirrorTermRecord("obligation-admit", { clauses: admitted.ledger.clauses.length, via: "chat" });
   return usageTurn(typed, render(admitted.ledger));
 }
+
+// The sentence witness for a checked turn (holon.js's `witnessSentences`
+// option): the same ask organs /corroborate uses — generate as the
+// fallback, SELECT as the protocol — bound here so holon.js owns no model.
+// Measured live 2026-09-02 before this existed: on one gemma2:2b answer the
+// TRUE sentence ("Kutuzov replaced Barclay de Tolly") wore the ∅ badge
+// because the material arranges it as "the Tsar replaced Barclay with
+// Kutuzov", and the FALSE sentence ("the Russian army continued to fight")
+// wore nothing because "continued" is a verb the material never uses. The
+// witness answers the question the relation tier cannot: does any passage
+// STATE this sentence?
+const witnessAskOrgan = async (s, slice) =>
+  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+const witnessSelectOrgan = async (messages) => {
+  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; }
+};
+const witnessSentencesFor = (sentences, claims, passages, { maxAsks }) =>
+  witnessSentences(sentences, claims, passages, {
+    ask: witnessAskOrgan, selectAsk: witnessSelectOrgan, splitSentences: engineSentences,
+    testimony: { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect },
+    maxAsks,
+  });
 
 async function corroborateTurn(argstr, typed) {
   const maxAsks = Number((argstr ?? "").trim());
@@ -4715,6 +4737,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
       makeRelationReader: state.grounded ? relationsFor : null,
+      witnessSentences: state.grounded ? witnessSentencesFor : null,
       // The link tier (links.js): a cited URL is fetched through the SAME
       // standing web consent proof-seeking already asks for — an automatic
       // crossing the instrument decided to make, not a click the reader
@@ -4944,6 +4967,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // it is stamped with THIS turn's number, not the next one's.
   const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
   const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
+  // the sentence witness's rows, read by renderAnswer's badge pass by sentence text
+  state.lastWitness = result.sections.flatMap((s) => s.witness?.rows ?? []);
   // The instruction is the model's own plan — task + plan parts, mechanically
   // assembled. It goes into the build log's PROPOSE entries (build-log.js)
   // so the code is always projected from the instruction that produced it.
@@ -5556,7 +5581,21 @@ function taggedProse(text, offered, classified = []) {
     // readers ever click a citation, so a flag that lives behind a click
     // does not exist). Bound edges stay quiet here — support is the normal
     // case, counted in the tally and detailed in the grounding disclosure.
-    for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || c.verdict === "unbound")) {
+    // The sentence witness (holon.js → witness-sentences.js) speaks first:
+    // a sentence a passage STATES keeps no ∅ badge from the relation tier
+    // (the paraphrase wall, answered); a sentence the witness was asked
+    // about and REFUSED gets its own badge, whether or not the relation
+    // tier ever extracted a claim from it.
+    const wit = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
+    if (wit?.witness === "refused") {
+      const badge = document.createElement("button");
+      badge.className = "edge-badge unbound witness-refused";
+      badge.textContent = "∅ no passage states this";
+      badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction. Press to search the material.`;
+      badge.onclick = () => groundHunt(entry.text);
+      sent.append(badge);
+    }
+    for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || (c.verdict === "unbound" && wit?.witness !== "states"))) {
       const badge = document.createElement("button");
       badge.className = `edge-badge ${c.verdict}`;
       // The badge names the exact words it means — a blanket "never says

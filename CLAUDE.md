@@ -7112,3 +7112,30 @@ as that mount). One-line shims stand at the moved organs' old paths for
 stale importers only. Still here, deferred with the reason in the seam's
 header: `hypergraph.js` (closure reaches the surface through grounding.js
 → source.js/web.js), `testimony.js`, `capacity-runner.js`.
+
+## The sentence witness, and small models only (added 2026-09-02) — pointer
+
+Two user directions, verbatim, the same afternoon: "the thinking part of
+a local model is way shittier than our own reasoning, and we gave up on
+using actual 'reasoning' models", then "use way smaller models". Measured
+live: olmo-3:7b ran 160s at 7 tok/s and died inside its own thinking pass;
+gemma2:2b answered the same grounded question in 17–45s. `model-routing.js`
+is small instruct models only (gemma2:2b, llama3.2, phi3:mini, the 14b
+instruct as a hand-chosen rung), S2 = gemma2:2b, and a pin refuses any
+olmo-3/qwen3/deepseek-r1 rung.
+
+The same live turn showed the checking ladder marking the TRUE sentence
+(a paraphrase the relation tier could not bind) and missing the FALSE one
+(a verb the material never uses — `unheard`, deliberately off the
+unsupported list). **`eoreader7/native/organs/witness-sentences.js`** is
+the rung that answers it: after the correction loop settles, every answer
+sentence the relation tier did not settle is put to the witness (select
+protocol, same-index arm, `WITNESS_ASKS_PER_PART = 6` declared) against
+the part's own passages; holon.js carries the rows on the section, app.js
+draws "∅ no passage states this" on a sentence the witness itself refused
+and lets a witnessed sentence keep no relation-tier ∅. Only the model's
+own "no" is a refusal — a protocol non-verdict (the morphology miss
+"prepared/prepare" at the company wall, found live) is a typed skip that
+draws nothing. Verified live on gemma2:2b: true sentence quiet with its
+address, unsupported sentence marked, 17s. Known next rung: the company
+wall should fold morphology (`sameAct`), so "prepare/prepared" is company.

@@ -841,6 +841,14 @@ export function makeRelationReader(organs) {
     extractRelations,
     tokenize,
     verbForms = null,
+    // `oovLexicon` — OPTIONAL, a Set of known verb surface forms used ONLY to
+    // gate an out-of-vocabulary connector at the POS gate (discoverRelationVocab's
+    // `verbForms` option). Kept apart from `verbForms` above on a measurement:
+    // the same UniMorph set used to WIDEN the vocabulary added 98 notes to an
+    // 81-note ledger, with labels like battle / work / and / version / author
+    // (noun-verb conversions UniMorph lists as verb forms), while as a gate it
+    // refused 'nobility', 'aristocratic', 'и' and admitted nothing new.
+    oovLexicon = null,
     createLemmatizer = null,
     morphologyIndex = null,
     morphologyLanguage = null,
@@ -1117,6 +1125,8 @@ export function makeRelationReader(organs) {
           minSurfaces: MIN_SURFACES_PER_VERB,
           negationWords,
           ...(posPrior ? { posPrior, grammarMinShare: GRAMMAR_MIN_SHARE } : {}),
+          // an OOV connector must be a known verb form to admit — the gate's own organ, never the widening one
+          ...(posPrior && oovLexicon ? { verbForms: oovLexicon } : {}),
           ...(phrasalPredicates ? { phrasalPredicates } : {}),
         });
         verbs = discovered.verbs;
@@ -1965,7 +1975,7 @@ export function makeRelationReader(organs) {
 
         let heard = [];
         try {
-          heard = extractRelations(sentence, { verbs: sentenceVerbs, functionWords });
+          heard = extractRelations(sentence, { verbs: sentenceVerbs, functionWords, ...(phrasalPredicates ? { phrasalPredicates } : {}), ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}) });
         } catch {
           heard = [];
         }
@@ -1979,7 +1989,7 @@ export function makeRelationReader(organs) {
         try {
           const unheardVerbs = new Set([...answerVerbs].filter((v) => !verbs.has(v) && !sameActExtra.has(v)));
           if (unheardVerbs.size) {
-            for (const t of extractRelations(sentence, { verbs: unheardVerbs, functionWords })) {
+            for (const t of extractRelations(sentence, { verbs: unheardVerbs, functionWords, ...(phrasalPredicates ? { phrasalPredicates } : {}), ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}) })) {
               const subj = endpoint(t.subject, true);
               if (!subj.referents.size) continue; // a pronoun subject is noise here, not a claim about the cast
               report.claims.push({

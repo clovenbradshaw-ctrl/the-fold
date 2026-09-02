@@ -19,10 +19,23 @@
 // (qwen2.5:14b) is untouched: no ethically-sourced model at that headroom
 // is pulled on this machine, so replacing it would be a downgrade dressed
 // as a swap, not a real one.
+// Amended 2026-09-02, user direction, verbatim: "we've found that the
+// thinking part of a local model is way shittier than our own reasoning,
+// and we gave up on using actual 'reasoning' models" — then "use way
+// smaller models". Measured the same day: olmo-3:7b spent 160s at 7 tok/s
+// on a grounded question and ran out its budget inside its own thinking
+// pass, never answering. The fold's mechanics carry the reasoning (the
+// void, the grounding ladder, the corroboration walk); the model reads and
+// points. So the rungs are small INSTRUCT models, fastest first, no
+// thinking-mode model anywhere on the ladder (olmo-3, qwen3, deepseek-r1
+// all out). The 14b instruct stays as the one DEEP rung a person can
+// still choose by hand; nothing routes to it on its own. The ethical-
+// sourcing argument of the previous amendment is real and is set aside by
+// this direction, not answered by it — said here rather than deleted.
 export const MODEL_PICKER = [
-  "olmo-3:7b",
-  "qwen3:4b",
-  "qwen3:8b",
+  "gemma2:2b",
+  "llama3.2:latest",
+  "phi3:mini",
   "qwen2.5:14b-instruct-q4_K_M",
 ];
 
@@ -75,7 +88,9 @@ export function routeModel(kind, { offered = [], selected = null } = {}) {
 // (Allen Institute for AI): full training data, process, and checkpoints
 // published, never an undisclosed mix.
 export const S1_MODEL = "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest";
-export const S2_MODEL = "olmo-3:7b";
+// 2026-09-02: S2 follows the same direction — small instruct, no thinking pass; gemma2:2b is the
+// model every corroboration and witness measurement in this repo was taken on, at temperature 0.
+export const S2_MODEL = "gemma2:2b";
 
 /**
  * The named model if Ollama actually has it pulled (`available`, the

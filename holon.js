@@ -274,6 +274,12 @@ function canon(value) {
 const foldDigest = (log) => canon(projectParts(log).map(({ first_seq, last_seq, ...t }) => t));
 
 /** Production passes per run — a runaway backstop, same duty as eochat's maxSteps. */
+// The sentence witness (2026-09-02): after the correction loop settles,
+// every answer sentence the relation tier did not settle is put to the
+// witness under the select protocol against this part's own passages.
+// Declared budget per part (P9), with its reason: a flat answer is two to
+// six sentences, each ask one small-model call plus its arm.
+export const WITNESS_ASKS_PER_PART = 6;
 export const MAX_PRODUCE_STEPS = 3;
 
 /**
@@ -877,6 +883,12 @@ export async function runPart({
   // `unexamined`, never silently treated as checked.
   checkLink = null,
   linkBudget = LINK_CHECKS_PER_PART,
+  // The sentence witness (witness-sentences.js, injected already bound to
+  // the model's ask organs): (sentences, claims, passages, {maxAsks}) →
+  // {rows, asks}. null means no witness — every unsettled sentence then
+  // ships with the relation tier's own verdict alone, as before.
+  witnessSentences = null,
+  witnessAsks = WITNESS_ASKS_PER_PART,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -2284,6 +2296,19 @@ export async function runPart({
   // read against this part's answer) but never left this function — the
   // caller had no way to narrate it live. Passed through verbatim, never
   // re-summarized here: summarizing is a rendering decision, not a check.
+  // THE SENTENCE WITNESS, once, after the loop — the same posture as the
+  // link tier above: a model call per unsettled sentence is not free
+  // containment, so it does not re-run on every correction retry. It marks;
+  // it never drives a correction (a refusal is "these passages do not state
+  // this", which is silence, not a lie about the given).
+  let witnessReport = null;
+  if (witnessSentences && passages.length) {
+    try {
+      witnessReport = await witnessSentences(splitSentences(stripFraming(text)), check.relations?.claims ?? [], passages, { maxAsks: witnessAsks });
+    } catch (e) {
+      witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
+    }
+  }
   onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
   return {
@@ -2295,6 +2320,7 @@ export async function runPart({
     quoteCorrections,
     links: linkReport,
     linkCorrections,
+    witness: witnessReport,
     open,
     // The updated shared log, threaded back to the caller — `gridLog`
     // unchanged (byte-identical `===`) when no organ was injected or
@@ -2325,6 +2351,8 @@ export async function runHolonicTask({
   maxCorrections = MAX_CORRECTIONS,
   makeNameResolver = null,
   makeRelationReader = null,
+  witnessSentences = null,
+  witnessAsks = WITNESS_ASKS_PER_PART,
   checkLink = null,
   chatHistory = [],
   discourse = "",
@@ -2459,6 +2487,8 @@ export async function runHolonicTask({
       makeNameResolver,
       makeRelationReader,
       checkLink,
+      witnessSentences,
+      witnessAsks,
       // planMode is task-wide, not per-part: a flat task runs exactly one
       // part (however many times retryStrayedRule retries it), so there is
       // no case where this callback runs for a part that isn't the flat one

@@ -49,7 +49,7 @@
 // `identity: "assertion-log"` so no downstream reader can mistake it for
 // an earned coreference.
 
-import { assertionId } from "./hyperlexicon.js";
+import { assertionId } from "../eoreader7/native/organs/index.js";
 
 export const COMPILED_SCHEMA = "EOCompiledPriors@1";
 

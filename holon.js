@@ -960,6 +960,12 @@ export async function runPart({
   // existed — no existing caller's behavior changes.
   hyperlexicon = null,
   hyperlexiconLog = null,
+  // NO VIEW FROM NOWHERE (kernel/notes.js). The frame a fresh ledger is
+  // created under — what the reader stood on: which organs, which priors
+  // loaded, which deliberately absent. app.js declares it from the reader
+  // it actually built; a ledger created here without one carries the gap
+  // by name (`frameOf` → no_frame), never an invented standing.
+  hyperlexiconFrame = null,
   // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
   // — asymmetric, P56: a settled non-verb connector is refused with its
   // giver, an out-of-vocabulary word admits). Threaded, never built here:
@@ -1093,7 +1099,7 @@ export async function runPart({
         .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
       if (!edges.length) continue;
       const admitted = hyperlexicon.admit(
-        beliefNotes ?? hyperlexicon.createHyperlexicon(),
+        beliefNotes ?? hyperlexicon.createHyperlexicon(hyperlexiconFrame ? { frame: hyperlexiconFrame } : undefined),
         edges,
         // minShare stays the door's own declared default — no second number
         // is introduced here; classifyConnector null = the gate does not
@@ -2385,6 +2391,7 @@ export async function runHolonicTask({
   // grammar gate, P73).
   hyperlexicon = null,
   hyperlexiconLog = null,
+  hyperlexiconFrame = null,
   classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -2504,6 +2511,7 @@ export async function runHolonicTask({
       landAct,
       hyperlexicon,
       hyperlexiconLog: sharedHyperlexiconLog,
+      hyperlexiconFrame,
       classifyConnector,
     });
     seenRefs.push(...result.refs);

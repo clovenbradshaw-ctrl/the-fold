@@ -317,3 +317,34 @@ shuffled (REDEAL_SEED) before it is reported, restore never re-admits.
 A wall that cannot be tested leaves the BECOMING open and says why.
 Control built to fail: a fixture whose transcript text names a DIFFERENT
 file than the record's last open — the door must follow the record.
+
+## Phase 4 — the-fold as ONLY a surface (added 2026-09-02)
+
+P80 moved the reading closure and the ledger; the-fold is not yet only an
+interaction surface. Measured by the crude instrument "no `document.`,
+`window.`, `localStorage`, `querySelector`, `addEventListener`, `createServer`
+in the file" — a lead, not a verdict; some of these are pure UI helpers
+(render, editor, folds-pane, templates) and some are servers' own pure halves
+— these remain here and are candidates for `native/organs/` (or the kernel):
+
+aperture arithmetic bound build-log builds chains claims clearance code-scout
+consequence constitution crown description-standing dialogue-graph fact-block
+firewall fold-log fold github grid ground-ledger handbook holon interact
+library links metacognition mhc-interact mhc model-routing moves network pace
+pass-delta periodicity predigest proof provenance proxy-api read-source
+referent-fold reflex relations-chain reopen retrieval sameness seed seek
+segmentation shape skills sources-store store-sql store succession tables
+term-lessons title-fold transcribe-log unravel verification void-brief
+void-hl void-loop void-narration void-shape web-claim web-hunt wheels wikidata
+
+The rule that governs the order, learned by moving the last closure: **move a
+closure together, never a file** — the seam's own header shows why hypergraph
+waited (its imports reached the surface), and the fix was moving grounding/
+source/web/cite/cast/asserted with it rather than re-pointing one. Candidate
+next closures, by import graph: `holon.js` (with fact-block, firewall,
+provenance, claims, verification, void-*) is the largest and is the model
+loop itself — it belongs with the engine only once the model call is an
+injected organ, which it already nearly is; `store.js`/`store-sql.js`/
+`build-log.js`/`fold-log.js` (the EOT stores) are kernel-shaped already;
+`proof.js`/`web-claim.js`/`web-hunt.js`/`primary` sit behind P13's egress
+and must cross with their consent posture intact.

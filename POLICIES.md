@@ -10197,3 +10197,63 @@ is doing work.
 **Honest boundary.** The test verifies a control was BUILT, never that it
 is a good one — the same boundary P71's generality gate draws. The
 measurement is still real work.
+
+## P80 — The ledger is the engine's, medium-blind, and born with its frame; the-fold keeps only the surface (2026-09-02)
+
+**Generality:** universal.
+
+**User direction, verbatim:** "I think the hyperlexicon should be part of
+eoreader7, medium agnostic" — "make that shift and learn lessons about music
+and priors and have all reading be vastly richer. no view from nowhere" —
+"the fold should only be an interaction surface."
+
+**Decision.** The assertion ledger (P57) lives in eoreader7 as
+`native/kernel/notes.js`: ends `end1/label/end2` (P76's earned names), gate
+injected, structural refusals only, spans carried opaque past their address,
+and a `frame` declared at creation as the log's first entry (DEF · Ground ·
+declared). `native/organs/hyperlexicon.js` is the text face and keeps every
+caller's API byte-compatible; this repo's `hyperlexicon.js` is a shim. The
+reading closure that the seam had deferred — `hypergraph.js` and the twelve
+files it closes over — crossed into `native/organs/` together, with eleven
+test files; shims stand at every old path; `web-seam.test.mjs` (new here) is
+the one test that came back, because it reads this surface's own page files.
+
+**No view from nowhere, as code.** A ledger born under `holonicTurn` carries
+`readerFrame()` (app.js): the organs `relationsFor` was built from, which
+priors had loaded by then, which are deliberately absent, the model. Read it
+back with `hyperlexiconFor.frameOf(log)`; a ledger with no frame says
+`no_frame` and is never given one. Honest edge: the frame is a fact about the
+ledger's BIRTH — priors that load after the first grounded turn are not in
+it, which is true of that reading and is not a promise about later ones.
+
+**The music lesson, measured and mostly negative.** The ledger is now a stream
+`surprise-segments.js` cuts unchanged (`stream`/`figures`/`segment` on the
+kernel). Against three real pages' own section headings the cuts land at
+chance at every grain (best 12% vs 11% null median, 58/200 at or above) — a
+page's section is a convention of its script, as the sentence was. What
+surprise DID find, untold, on all three pages: the most surprising hearings
+are the page's furniture at its tail (`category link —is→ on Wikidata`) — the
+diet boundary of a reading, a lead for the admission door. And one kernel
+bug, caught by two numbers disagreeing: the flat cut ran without the stream's
+own alphabet as its floor. Full account: eoreader7 S42 and
+`native/eval/the-fold/results/notes-segments-RESULTS.md`.
+
+**Enforced.** eoreader7 `tests/notes.test.js` (7, including the medium pin —
+the kernel's body may not name sentence/word/verb/subject/object/bar/pitch),
+`organs/hyperlexicon*.test.mjs` 36/36, the eleven moved files 168/168
+(`hypergraph.test.mjs` 58/58 native — Pass 7 had it at 52/58); here,
+`holon.test.mjs`/`admission-gate.test.mjs` unchanged. Suites diffed by
+failure NAME against clean baselines: this repo 1052/125 → 940/67 with zero
+new failures (every line that left is a moved test); eoreader7 592/23 →
+792/22, zero new, one fixed. The real page loaded through the shims in
+headless Chromium: boot completed, zero exceptions, zero console errors.
+
+**Disclosed, not done.** The-fold still holds ~90 modules with no DOM or
+server reference (`NEXT-PASSES.md`, Phase 4 inventory) — the surface is not
+yet ONLY the surface; this pass moved the closure that blocked the seam and
+the ledger that the music work named as the next stream. The-fold's tests
+for cite, primary, measure, capacity-runner and crown stay here because they
+import surface modules (provenance, proof, tables, grid, crown) and run
+through the shims. A non-English page passes the English POS gate untouched
+(every Cyrillic label is out of its vocabulary): a gate with no giver for the
+language is honestly no gate, and stays that way until one is received.

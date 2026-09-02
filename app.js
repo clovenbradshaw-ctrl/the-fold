@@ -576,6 +576,32 @@ const hyperlexiconFor = makeHyperlexicon({
   cellOf,
 });
 
+// NO VIEW FROM NOWHERE (eoreader7 kernel/notes.js; POLICIES.md P80). The
+// ledger is born on the first grounded turn, and its first entry declares
+// what the reader feeding it actually stood on at that moment — the organs
+// `relationsFor` was built from, the priors that had LOADED by then (the
+// POS prior, UniMorph's verb forms, the morphology prior are all fetched
+// after boot, so a ledger born before they land says so — a true statement
+// about that reading, never a promise about a later one), and what is
+// deliberately absent. Read back with `hyperlexiconFor.frameOf(log)`; a
+// ledger with no frame reports `no_frame` rather than an invented one.
+const readerFrame = () => ({
+  reader: "makeRelationReader",
+  organs: {
+    splitSentences: "native", surfaces: "native", relations: "native", pronouns: "native/en",
+    blankFurniture: "blankLabelRows{minRun:4,maxCell:60}", determiners: "priors.js/en", negation: "priors.js/en",
+  },
+  priors: {
+    posPrior: posPriorCache ? "POSPrior@1" : null,
+    verbForms: unimorphVerbForms.size ? `UniMorph eng verb forms (${unimorphVerbForms.size})` : null,
+    morphology: sameFormOrgan ? "UniMorph morphology prior (sameAct)" : null,
+    connectorLens: connectorLens ? "grammar-lens over POSPrior@1 (asymmetric, P56)" : null,
+  },
+  options: { nounPhraseSubjects: true, oovLexicon: unimorphVerbForms.size > 0 },
+  omitted: ["noteIdentity"],
+  model: state.model ?? null,
+});
+
 // One meter per conversation, built on the engine's own tiers. reflex.js
 // declares the numbers (window from the fold's own present, draws and alpha
 // from read-frankenstein) — nothing here picks any.
@@ -4790,6 +4816,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // reading, which is itself null with checking off — see two lines up.
       hyperlexicon: state.grounded ? hyperlexiconFor : null,
       hyperlexiconLog: state.grounded ? state.hyperlexiconLog : null,
+      // The frame a FRESH ledger is born under (holon.js creates one only
+      // when hyperlexiconLog is null) — declared here, where the reader was built.
+      hyperlexiconFrame: state.grounded ? readerFrame() : null,
       // The door's grammar gate, data-gated (null until the POS prior
       // loads — see connectorLens's own construction comment) and mode-
       // gated with the ledger it guards.

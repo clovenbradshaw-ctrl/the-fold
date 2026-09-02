@@ -6329,7 +6329,7 @@ They are not the same thing and two entries above had conflated them:
 
 | module | what it is | law |
 |---|---|---|
-| `the-fold/hyperlexicon.js` | the **assertion ledger** — what the material was heard to say, INS first sighting / SYN re-sighting, witnesses and spans unioned, append-only | P57 |
+| `eoreader7/native/kernel/notes.js` (was `the-fold/hyperlexicon.js`, now a shim; `native/organs/hyperlexicon.js` is its text face) | the **assertion ledger** — what the material was heard to say, INS first sighting / SYN re-sighting, witnesses and spans unioned, append-only, medium-blind since P80 | P57, P80 |
 | `the-fold/hl.js` | the **adapter** to HL, whose logic moved into the engine | P37 |
 | `eoreader7/native/kernel/hyperlexicon.js` | the **chemistry table** — which affordances license composition, giver required | HL amendment |
 
@@ -7109,9 +7109,12 @@ surface. The surface imports organs through ONE seam,
 `../eoreader7/native/organs/index.js` (served to the page by serve.mjs's
 `/eoreader7/native/` alias onto the `/engine-v7` root, typed by page-graph
 as that mount). One-line shims stand at the moved organs' old paths for
-stale importers only. Still here, deferred with the reason in the seam's
-header: `hypergraph.js` (closure reaches the surface through grounding.js
-→ source.js/web.js), `testimony.js`, `capacity-runner.js`.
+stale importers only. The closure that had been deferred — `hypergraph.js`
+with cast, grounding, cite, source, asserted, web, measure, testimony,
+primary, capacity-runner, experiencer, quotes — crossed later the same day
+(P80), moved TOGETHER so no organ imports the surface; the assertion ledger
+is eoreader7's `kernel/notes.js`. What is still here and not surface is
+inventoried in `NEXT-PASSES.md`, Phase 4.
 
 ## The sentence witness, and small models only (added 2026-09-02) — pointer
 
@@ -7179,3 +7182,41 @@ residue: on this run gemma2:2b's witness said no to "Kutuzov replaced
 Barclay de Tolly as commander" against "the Tsar replaced Barclay with
 Kutuzov" — a strict reading of a role-reversed paraphrase, marked as
 silence, never as a contradiction.
+
+## The ledger is the engine's, and born with its frame (added 2026-09-02) — pointer
+
+POLICIES.md **P80** is the law here; eoreader7 **S42** is its paired entry;
+`eoreader7/native/eval/the-fold/results/notes-segments-RESULTS.md` the
+measurement. Three directions in one afternoon, verbatim: "the hyperlexicon
+should be part of eoreader7, medium agnostic"; "learn lessons about music and
+priors and have all reading be vastly richer. no view from nowhere"; "the
+fold should only be an interaction surface."
+
+**Where things are now.** The assertion ledger is `eoreader7/native/kernel/
+notes.js` — ends `end1/label/end2`, gate injected, a `frame` declared as the
+log's first entry (DEF · Ground · declared), `frameOf` reporting `no_frame`
+by name and never inventing one; `notes.test.js` pins that its body names no
+medium. `native/organs/hyperlexicon.js` is the text face with the identical
+API; this repo's `hyperlexicon.js` is a shim. The whole reading closure
+(hypergraph + twelve) crossed with eleven test files; shims at every old
+path; `web-seam.test.mjs` is the one test that came back because it reads
+this surface's page files. `app.js::readerFrame()` declares what the reader
+stood on at the ledger's birth and threads it `runHolonicTask → runPart →
+createHyperlexicon({ frame })`.
+
+**What the music lesson bought, measured.** The ledger is a stream the same
+segmenter cuts; against three real pages' section headings the cuts land at
+chance at every grain — a section is a convention of the script, as the
+sentence was. Surprise did find, untold, the diet boundary of every reading
+(the furniture at the tail: `category link —is→ on Wikidata`) — a lead for
+the admission door, not built. Two walls reconfirmed in passing: ~2%
+corroboration, and an English POS gate that is honestly no gate on a Russian
+page.
+
+**Do not re-derive:** move a closure together, never a file (why hypergraph
+waited, and how it crossed); stored notes carry the neutral names only and
+any consumer reading `.subject` off a stored ENTRY (not a fold row) breaks —
+`derivation.js` did, and reads either now; the moved tests resolve the frozen
+provider to native when the legacy submodule is absent, `ENGINE=legacy` still
+pins it; `hypergraph.test.mjs` is 58/58 native, so Pass 7's "settle the
+supersession first" note is spent.

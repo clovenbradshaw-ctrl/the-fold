@@ -14,9 +14,9 @@ import { tokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/percei
 import { classifyWord, dominantClass } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, readsNothing, landSelfAssertion } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, readsNothing, landSelfAssertion } from "../eoreader7/native/organs/index.js";
 import { makeGrid } from "./grid.js";
-import { findCapacity, unresolvedCapacity } from "./capacities.js";
+import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { makeGrammarLens } from "./grammar-lens.js";
 
 function freshRunner() {
@@ -1365,8 +1365,8 @@ test("floor 4½'s wall in testimony's vocabulary: a hold that READ NOTHING never
 });
 
 // ── the speaker boundary consumed: a journal's "I" is a witness with a name ──
-import { speakerWho } from "./capacity-runner.js";
-import { speakerSections, speakerAt as speakerAtOffset } from "./speaker.js";
+import { speakerWho } from "../eoreader7/native/organs/index.js";
+import { speakerSections, speakerAt as speakerAtOffset } from "../eoreader7/native/organs/index.js";
 import { readFileSync, existsSync } from "node:fs";
 
 test("speakerWho: a reading inside a declared section is attributed to its narrator; front matter and no-organ stay bare", () => {

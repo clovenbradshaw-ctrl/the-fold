@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMoves } from "./moves.js";
-import { CAPACITIES } from "./capacities.js";
+import { CAPACITIES } from "../eoreader7/native/organs/index.js";
 
 const operators = await import("../eoreader7/legacy-eoreader6.1/packages/engine/operators.js");
 const moves = makeMoves({ operators });

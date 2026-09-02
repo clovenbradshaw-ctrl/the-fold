@@ -29,8 +29,8 @@ import {
 import { chunkSource } from "./source.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { makeGrid } from "./grid.js";
-import { makeCapacityRunner, landAct } from "./capacity-runner.js";
-import { findCapacity, unresolvedCapacity } from "./capacities.js";
+import { makeCapacityRunner, landAct } from "../eoreader7/native/organs/index.js";
+import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 
 // Real engine organs for the relation tier (hypergraph.test.mjs's own
 // pattern) — the completeness gate is worth nothing tested against a

@@ -1,0 +1,2 @@
+{"turn":1,"question":"Who is Pierre Bezukhov and what happens to him?","answerChars":1136,"planMode":"flat","tokenUnsupported":0,"hyperUnsupported":0,"hyperUnbacked":2,"transcript":1183,"carried":2794,"usage":{"promptTokens":9433,"completionTokens":746}}
+{"turn":2,"question":"What happens at the duel with Dolokhov?","answerChars":694,"planMode":"flat","tokenUnsupported":0,"hyperUnsupported":0,"hyperUnbacked":2,"transcript":1916,"carried":4276,"usage":{"promptTokens":10304,"completionTokens":656}}

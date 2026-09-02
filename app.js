@@ -92,6 +92,10 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxe
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "../eoreader7/native/organs/index.js";
+// The list reader (P-enumeration): when the material enumerates its own
+// answer, READ THE LIST rather than asking a model to paraphrase it. Same
+// station as arithmetic.js — computed, never generated.
+import { answeringEnumeration, checkDeclaredCount, enumerationsInChunk } from "./enumeration.js";
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
@@ -229,7 +233,7 @@ import { makeHyperlexicon } from "./hyperlexicon.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
 // metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
 // same "one implementation, injected everywhere" posture.
-import { assessAgreement, escalationFor, forcesFoldRefresh, makeHuntMeter, makeMetacognition } from "./metacognition.js";
+import { assessAgreement, escalationFor, forcesFoldRefresh, makeHuntMeter, makeMetacognition, shouldThink } from "./metacognition.js";
 // The completeness gate's own confirmed set (succession.js), re-shaped as
 // real fillers void-brief.js's `fillersFor` can `fill()` a space with — see
 // the `briefFor` call site below. One confirmed set, two consumers: this is
@@ -650,6 +654,19 @@ const state = {
   offeredModels: [],
   /** Every model name Ollama actually reports (not just MODEL_PICKER's four rungs) — what resolveNamedModel checks S1_MODEL/S2_MODEL against. */
   availableModels: new Set(),
+  /**
+   * S1 and S2's own model, overriding model-routing.js's S1_MODEL/S2_MODEL
+   * defaults. Persisted (user direction, 2026-09-01: "i think we should be
+   * able to select different models for S1 and S2") — until this, the pass-
+   * to-model fit (2026-09-01's own model-routing.js amendment, the S1_MODEL/
+   * S2_MODEL header) was a constant nobody could change without editing
+   * code. `null` means "use the default"; `resolveNamedModel` already
+   * falls back to the fastest offered rung when the chosen name isn't
+   * actually pulled, so an override naming a model that gets removed can
+   * never leave a turn unable to answer.
+   */
+  s1Model: localStorage.getItem("fold-s1-model") || null,
+  s2Model: localStorage.getItem("fold-s2-model") || null,
   ready: false,
   busy: false,
   queue: [],
@@ -1070,7 +1087,7 @@ async function connect() {
  * bare string, so a caller can tell "the model finished" from "the cap
  * cut it off" without re-deriving that fact by guessing at the text.
  */
-async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature } = {}) {
+async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature, think } = {}) {
   // One request, to the one place a model lives. `model` is routed: plain
   // turns and the summary refresh spend the fastest rung; deep work (task,
   // bound, reflect) spends the model the user chose. Whatever it is, the
@@ -1091,6 +1108,22 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
       // structured outputs constrain decoding to the schema, which is how a
       // caller gets a SHAPE by physics instead of by asking the model nicely.
       ...(json ? { format: json === true ? "json" : json } : {}),
+      // THINKING IS A BUDGET, NOT A DEFAULT. A reasoning model reasons about
+      // everything it is handed, including questions with nothing in them to
+      // reason about — measured live 2026-09-01: "say hi in three words",
+      // with no slot and no material, spent over a thousand tokens looping
+      // ("'Hi there!' is two words... 'Hi everyone!' That's three... wait")
+      // and never settled. The instrument had already DIAGNOSED that in its
+      // own first line ("This question does not open a slot to fill — there
+      // is no particular thing an answer has to name"), and the diagnosis
+      // gated nothing.
+      //
+      // `think: false` is Ollama's own switch for a thinking model, so this
+      // is a request-level budget, not a prompt asking the model to please be
+      // brief — L5's own distinction, and the reason it belongs here rather
+      // than in a system message. Undefined leaves the model's own default
+      // untouched, so every existing caller is unchanged.
+      ...(think === undefined ? {} : { think }),
       // Undefined (the default) leaves Ollama's own sampling untouched —
       // every ordinary generative turn keeps its diversity. A caller doing
       // binary CLASSIFICATION (testimony.js's witness reads) may pass 0:
@@ -2610,6 +2643,87 @@ async function chartTurn(question) {
  * own past turn back and learn to forge that certification onto something
  * it merely generated (see `stripComputedCaption`'s own header).
  */
+/**
+ * Does the MATERIAL enumerate the answer to this question outright?
+ *
+ * Runs over the same live chunks a grounded turn would retrieve against, and
+ * fires only when a list's own head shares content with the question — a list
+ * that is not about what was asked is not an answer to it. Returns null
+ * otherwise, so every ordinary question falls through untouched.
+ */
+function checkEnumeration(question) {
+  try {
+    const chunks = liveChunks();
+    if (!chunks.length) return null;
+    const found = [];
+    for (const c of chunks) {
+      const src = state.sources?.[c.source];
+      if (typeof src !== "string") continue;
+      found.push(...enumerationsInChunk(c, src).enumerations.map((e) => ({ e, source: c.source })));
+    }
+    if (!found.length) return null;
+    const best = answeringEnumeration(found.map((f) => f.e), question, { tokenize });
+    if (!best) return null;
+
+    // NO READER IS PERFECT, SO THIS ONE REFUSES RATHER THAN COMMITS.
+    // A mechanical answer carries byte addresses, and addresses confer
+    // authority: a wrong list shipped with references is worse than a hedged
+    // model answer, because it looks checked. arithmetic.js holds the same
+    // line for the same reason ("a wrong mechanical answer is worse than
+    // none" — it refuses order-reversing phrasing rather than risk it
+    // backwards). So the door opens only on a reading with nothing
+    // outstanding, and every doubt falls through to the ordinary grounded
+    // turn, which can hedge, retrieve more, and be checked by the ladder.
+    const counted = checkDeclaredCount(best.enumeration, { cardinals: { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 } });
+    // The material said how many and we found a different number: something
+    // here is misread — this reader, or that sentence — and which one is not
+    // knowable from inside. Refuse.
+    if (counted.agrees === false) return null;
+
+    const owner = found.find((f) => f.e === best.enumeration);
+    return { ...best, source: owner?.source ?? null, counted };
+  } catch {
+    return null; // a mechanical door never breaks a turn
+  }
+}
+
+/**
+ * The list, rendered from the material's own bytes with every item addressed.
+ * No model call: the same posture arithmeticTurn holds one register over.
+ */
+async function enumerationTurn(question, found) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = "";
+  const e = found.enumeration;
+  const count = checkDeclaredCount(e, { cardinals: { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 } });
+
+  const lead = document.createElement("p");
+  lead.textContent = e.head.replace(/\s+/g, " ").trim() + ":";
+  const list = document.createElement("ol");
+  for (const it of e.items) {
+    const li = document.createElement("li");
+    li.textContent = it.text.replace(/\s+/g, " ");
+    const ref = document.createElement("span");
+    ref.className = "ref";
+    ref.textContent = `  [${found.source ?? "material"}#${it.start}-${it.end}]`;
+    li.append(ref);
+    list.append(li);
+  }
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent =
+    count.declared != null
+      ? `read from the list, not generated — the material declares ${count.declared} and ${count.agrees ? "states" : "states a differing"} ${count.found}`
+      : "read from the list, not generated";
+  body.append(lead, list, note);
+  observeExchange(question, `${e.head}: ${e.items.map((i) => i.text).join("; ")}`);
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+  return node;
+}
+
 async function arithmeticTurn(question, found) {
   addMessage("user", question);
   const node = addMessage("assistant", "");
@@ -2846,6 +2960,13 @@ async function send(question) {
   // the world (or the material) always falls through untouched.
   const arithmetic = checkArithmetic(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
+
+  // The material's own list, when it answers the question outright. Checked
+  // after arithmetic and before the model doors: a list IS the answer, and
+  // paraphrasing one through a model can only lose its items or its
+  // addresses. Falls through untouched when no list is about what was asked.
+  const enumerated = checkEnumeration(question);
+  if (enumerated) return enumerationTurn(question, enumerated);
 
   // Self questions asked in words ("what surprised you most", "how do you
   // think"). Checked AFTER detectTable so a question the app can answer
@@ -4067,7 +4188,20 @@ async function runFastPass(question, model) {
   const sent = [{ n: 1, messages }];
   let text = "";
   try {
-    const raw = await complete(messages, { model, onDelta: (partial) => { body.textContent = partial; } });
+    // THE VOID'S DIAGNOSIS, SPENT RATHER THAN ONLY SAID. S1 runs before any
+    // retrieval, so a question that opens no slot has, at this moment,
+    // nothing whatever for reasoning to resolve — and this is the pass that
+    // was measured spending a thousand tokens counting the words in "Hi
+    // there!". `voidBriefFor` is the SAME reader the narration uses, so the
+    // budget and the paragraph can never disagree about what the question
+    // holds. Any failure to read the shape leaves thinking untouched.
+    let think;
+    try {
+      think = shouldThink({ hasSlot: Boolean(voidBriefFor(question, [])), passages: 0 }) ? undefined : false;
+    } catch {
+      think = undefined;
+    }
+    const raw = await complete(messages, { model, think, onDelta: (partial) => { body.textContent = partial; } });
     text = stripSelfCitations(raw).text;
   } catch (e) {
     text = "";
@@ -4089,8 +4223,11 @@ async function twoPassTurn(question) {
   // fastest offered picker rung if not actually pulled — never routeModel's
   // ordinary FLAT/DEEP split, which routes on TURN KIND (plain vs. deep
   // work) and has no notion of "which pass" at all.
-  const s1Model = resolveNamedModel(S1_MODEL, { available: state.availableModels, offered: state.offeredModels });
-  const s2Model = resolveNamedModel(S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
+  // `state.s1Model`/`state.s2Model` are the reader's own override
+  // (settings, below) when set; `S1_MODEL`/`S2_MODEL` (model-routing.js)
+  // are the fit-to-job defaults either way stands on.
+  const s1Model = resolveNamedModel(state.s1Model || S1_MODEL, { available: state.availableModels, offered: state.offeredModels });
+  const s2Model = resolveNamedModel(state.s2Model || S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
 
   // SEARCH BEFORE ANSWERING (user direction 2026-08-26: "let's have it do
   // the searching before it answers, and only respond to truly trivial
@@ -4336,15 +4473,44 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // log line opens a fresh run. The log lines end up reading as stage
   // directions between thoughts, which is what they are.
   const traceEl = document.createElement("div");
-  // ONE THINKING AFFORDANCE, NOT TWO. A `<details class="fold">` was built
-  // here to hold the trace — but `addMessage` already gives every assistant
-  // turn one (the turn-meta disclosure), and `renderFold` already takes a
-  // `reasoning` argument that puts exactly this narration at the top of it.
-  // Two affordances both labelled "thinking" is worse than either: a reader
-  // has to open both to find out which one has the work in it. The trace
-  // streams into the body while the turn runs and moves into the existing
-  // disclosure when it lands.
-  body.replaceChildren(traceEl, tickEl, draftEl);
+  // ONE THINKING AFFORDANCE, NOT TWO, AND THE TRACE LIVES INSIDE IT.
+  //
+  // `addMessage` already gives every assistant turn one disclosure (the
+  // turn-meta `<details class="fold">`, now drawn ABOVE the answer), and two
+  // affordances both labelled "thinking" is worse than either: a reader has
+  // to open both to find out which one has the work in it.
+  //
+  // The trace used to stream into `.body` and simply be replaced when the
+  // answer landed. Measured live (user, 2026-09-01: "thinking is out of
+  // control"): on a slow turn the log lines, the void's reasoning and the
+  // model's own deliberation grow to hundreds of pixels of grey wall sitting
+  // exactly where the answer is supposed to be, and until the turn lands
+  // that wall IS the message. Narration is not the answer; it belongs in the
+  // affordance that discloses thinking, not in the surface that carries what
+  // was said.
+  //
+  // So the trace and the ticker go into the disclosure — open while the turn
+  // works, so it can be watched, closed by `renderFold` the moment there is
+  // an answer — and only `draftEl`, the answer as the model writes it, stays
+  // in the body. This also RETIRES a whole class of bug by construction: the
+  // `body.textContent = ""` that P54 records destroying the live log, and
+  // every later call site that had to remember not to (renderAnswer's own,
+  // and the entity-seek path's careful `body.replaceChildren()`), can no
+  // longer reach the trace at all — it is not in the body to be wiped.
+  const foldBox = node.querySelector(".turn-meta > .fold");
+  if (foldBox) {
+    const host = document.createElement("div");
+    host.className = "trace";
+    // Before the `<p>`: the work came first, and `renderFold` clears only
+    // that paragraph, so the prompt payload lands under the trace rather
+    // than over it.
+    // `:scope >` — the trace's own reasoning paragraphs are `<p>` too, so an
+    // unscoped query finds one of THOSE the moment a thought lands.
+    foldBox.insertBefore(host, foldBox.querySelector(":scope > p"));
+    host.append(traceEl, tickEl);
+    foldBox.open = true;
+  }
+  body.replaceChildren(draftEl);
 
   let logBlock = null;
   const show = (line) => {
@@ -4713,6 +4879,51 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // next line, so this reads exactly the material the answer will be
     // built from, never a second set gathered separately.
     narrateTheVoid(live.map((c) => c.text).filter(Boolean), "material");
+
+    // ── the void's diagnosis TRIGGERS a resurf, instead of only being said ──
+    // User direction, 2026-09-01: "thinking is useless if it doesnt trigger
+    // resurf and fold and mechanical logic." The paragraph just narrated is a
+    // real finding — the slot's extent was never declared, so completeness
+    // cannot be judged — and until now it was inert: the turn said it and
+    // then drafted anyway, which is a diagnosis with no consequence.
+    //
+    // The consequence is the same shape the identity seek below already has
+    // (the void declares, an organ runs), pointed at the extent instead of the
+    // anchor: go back over THIS TURN'S OWN material and look for a place where
+    // it declares an extent outright — a list, with its own cardinality. That
+    // is exactly what `enumerationsInChunk` reads, mechanically, off the bytes.
+    //
+    // It bounds the void or it says nothing: a resurf that finds no list adds
+    // no line, because "I looked and there was no list" is not news about the
+    // material, only about this reader.
+    if (state.grounded && voidBrief && voidBrief.standing && voidBrief.standing.standing !== "covered") {
+      try {
+        const found = [];
+        for (const c of live) {
+          const src = state.sources?.[c.source];
+          if (typeof src !== "string") continue;
+          found.push(...enumerationsInChunk(c, src).enumerations.map((e) => ({ e, source: c.source })));
+        }
+        const best = found.length ? answeringEnumeration(found.map((f) => f.e), task, { tokenize }) : null;
+        if (best) {
+          const owner = found.find((f) => f.e === best.enumeration);
+          const counted = checkDeclaredCount(best.enumeration, { cardinals: { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 } });
+          const where = `${owner?.source ?? "material"}#${best.enumeration.start}-${best.enumeration.end}`;
+          think(
+            `Going back over the material for a declared extent: it lists ${best.enumeration.count}` +
+              `${counted.declared != null ? ` and says ${counted.declared}` : ""} — ${where}. ` +
+              `That bounds the slot the paragraph above could not: ` +
+              best.enumeration.items.map((it, i) => `(${i + 1}) ${it.text.replace(/\s+/g, " ")}`).join("; ") + ".",
+          );
+          // FOLD: the extent is now a fact this turn established, not a
+          // sentence it emitted — carried on the brief the rest of the turn
+          // reads, so a later step sees a bounded slot rather than an open one.
+          voidBrief = { ...voidBrief, resurfacedExtent: { count: best.enumeration.count, declared: counted.declared ?? null, at: where, items: best.enumeration.items } };
+        }
+      } catch {
+        // a resurf never breaks a turn
+      }
+    }
 
     // ── the identity seek (P56) ──────────────────────────────────────────
     // The void has just declared what the question hangs on (SIG's anchor)
@@ -5476,13 +5687,23 @@ function addMessage(role, text) {
   // (FOLD-CONSTITUTION I.5); it is simply no longer drawn here. The `.fold`
   // CLASS below is left alone deliberately: it is the disclosure's shared
   // styling and renaming it would buy nothing a reader ever sees.
+  //
+  // It sits ABOVE the answer (user direction, 2026-09-01), the way Claude
+  // draws its own thinking: what a turn saw comes before what it said, so a
+  // reader can open the ground first and read the answer against it rather
+  // than back-tracking to a footnote. `.turn-meta` stays a SIBLING of
+  // `.body` — every `marks-off` rule is scoped to `.msg .body`, so the
+  // disclosure remains out of the hiding toggle's reach by construction
+  // ("hidden drawing, never a hidden finding"), whichever side of the
+  // answer it is drawn on.
   el.innerHTML =
-    `<div class="who"></div><div class="body"></div>` +
+    `<div class="who"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
         `<details class="fold"><summary>thinking</summary><p></p></details>` +
         `</div>`
-      : "");
+      : "") +
+    `<div class="body"></div>`;
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
   if (role === "user" && /^\//.test(text)) {
     const body = el.querySelector(".body");
@@ -8277,7 +8498,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
 }
 
 /**
- * The whole "thinking" disclosure for one turn, under that turn.
+ * The whole "thinking" disclosure for one turn, ABOVE that turn's answer.
  *
  * Vastly simplified (user direction, 2026-08-28): this used to carry the
  * turn's live narration, the model's own deliberation, the running summary's
@@ -8314,7 +8535,21 @@ function renderFold(node, { sent } = {}) {
       meta.append(t);
     }
   }
-  const out = box.querySelector("p");
+  // CLOSED ONCE IT HAS ANSWERED. The trace streams live inside this box, open,
+  // so a reader can watch the question get taken apart; the moment there is an
+  // answer the work stops being the thing on screen and becomes the thing
+  // available. It stays ABOVE the answer either way — the reasoning genuinely
+  // preceded the conclusion, and printing the conclusion first would read as
+  // having known it all along.
+  box.open = false;
+  // Only the paragraph. The `.trace` div beside it is this turn's live
+  // narration, put there while the turn ran; clearing the whole box would
+  // erase the work at the exact moment it becomes reviewable.
+  // `:scope >` for the same reason the trace host's own insert uses it: the
+  // narration inside `.trace` is made of `<p>` elements, and an unscoped
+  // query lands on one of those — measured live (2026-09-01), which put the
+  // prompt payload inside a reasoning paragraph and erased the trace.
+  const out = box.querySelector(":scope > p");
   out.textContent = "";
 
   if (!sent?.length) {
@@ -9593,7 +9828,45 @@ const settingsDialog = $("model-menu");
 function openSettings(open) {
   if (!open) return settingsDialog.close();
   renderModelMenu();
+  renderPassModelPickers();
   settingsDialog.showModal();
+}
+
+/**
+ * S1 and S2's own model pickers (user direction, 2026-09-01: "i think we
+ * should be able to select different models for S1 and S2") — separate
+ * from the single `state.model` picker above them, because S1/S2 each want
+ * a model fit to their own job (model-routing.js's S1_MODEL/S2_MODEL), not
+ * the picker ladder's single choice. Options are drawn from
+ * `state.availableModels` — every model Ollama actually has, not just
+ * MODEL_PICKER's four rungs — since the whole point is naming a specialist
+ * (a 1B draft model, say) that the ladder would never offer.
+ */
+function renderPassModelPickers() {
+  const specs = [
+    { sel: $("s1-model-select"), stateKey: "s1Model", storageKey: "fold-s1-model", fallback: S1_MODEL },
+    { sel: $("s2-model-select"), stateKey: "s2Model", storageKey: "fold-s2-model", fallback: S2_MODEL },
+  ];
+  for (const { sel, stateKey, storageKey, fallback } of specs) {
+    if (!sel) continue;
+    sel.textContent = "";
+    const auto = document.createElement("option");
+    auto.value = "";
+    auto.textContent = `Auto (${fallback})`;
+    sel.append(auto);
+    for (const name of [...state.availableModels].sort()) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sel.append(opt);
+    }
+    sel.value = state[stateKey] && state.availableModels.has(state[stateKey]) ? state[stateKey] : "";
+    sel.onchange = () => {
+      state[stateKey] = sel.value || null;
+      if (sel.value) localStorage.setItem(storageKey, sel.value);
+      else localStorage.removeItem(storageKey);
+    };
+  }
 }
 
 /** The models this machine has, current one marked. Built from the same

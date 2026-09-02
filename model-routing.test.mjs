@@ -12,7 +12,9 @@ const SELECTED = MODEL_PICKER[MODEL_PICKER.length - 1];
 
 test("the picker is four rungs, fastest first", () => {
   assert.equal(MODEL_PICKER.length, 4);
-  assert.equal(MODEL_PICKER[0], "olmo-3:7b");
+  assert.equal(MODEL_PICKER[0], "gemma2:2b");
+  // user direction 2026-09-02: no thinking-mode model on the ladder, and small ones first
+  for (const m of MODEL_PICKER) assert.ok(!/^(olmo-3|qwen3|deepseek-r1)/.test(m), `${m} is a reasoning model — not a rung`);
   assert.equal(MODEL_PICKER[MODEL_PICKER.length - 1], "qwen2.5:14b-instruct-q4_K_M");
 });
 
@@ -45,11 +47,11 @@ test("deep work with no selection falls back to the fastest rung, never throws",
 
 test("S1 and S2 are distinct, fixed models", () => {
   assert.equal(S1_MODEL, "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest");
-  assert.equal(S2_MODEL, "olmo-3:7b");
+  assert.equal(S2_MODEL, "gemma2:2b");
   assert.notEqual(S1_MODEL, S2_MODEL);
-  // S1 is a genuine specialist pick, never a picker rung. S2 currently
-  // coincides with MODEL_PICKER[0] (both "olmo-3:7b") -- an accident of
-  // this assignment, not a structural requirement of the abstraction.
+  // S1 is a genuine specialist pick, never a picker rung. S2 coincides with
+  // MODEL_PICKER[0] (both gemma2:2b) -- an accident of this assignment, not
+  // a structural requirement of the abstraction.
   assert.ok(!MODEL_PICKER.includes(S1_MODEL), "S1's model is a specialist, never offered as a picker rung");
 });
 

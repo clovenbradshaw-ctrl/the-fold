@@ -6818,3 +6818,71 @@ owns the algebra, the adapter owns criterion/floor/margin/foil as
 declared parameters. Both of THE-THREE-MATHEMATICS' testable predictions
 (§VIII.1 transfer, §VIII.2 depth-derivation) now carry a first earned
 point each, recorded as one trial apiece, not laws.
+
+## The batch of 2026-09-02: everything left, done — pointer
+
+Seven items closed in one directed pass ("do all of what you said is
+left"), each with its own commit and tests:
+
+**A. `/corroborate <maxAsks>` (F5 at scale, Pass 4b — the last Tier-1
+item).** The eval-proven settling walk wired into app.js as a typed door:
+the walk runs over state.hyperlexiconLog against ALL loaded sources with
+witnessProof's own ask (temp 0, WITNESS_SCHEMA), lands attest() witnesses
+append-only, reports mechanically (including how many notes reached the
+>=2-distinct-sources ledger gate), mirrors to the record. The spend is
+the person's own declared budget (P9) — a door, never a silent per-turn
+cost. Blob-staged (HEAD + this hunk) per the shared-file precedent.
+Disclosed: no live Ollama here, so verified by parse+contract against
+the 42-test walk; the first live run is the next measurement.
+
+**B. The witness calibrations as declared frames** — frame.js's first
+live consumer, the day after DEF·Ground was built: calibrationFrames()
+in corroboration.js; comparing generate's 0.33 against select's 2/6 as
+one scale now REFUSES with `organs.protocol` named.
+
+**C. `fold-gate.js` — kind-standing's first caller (Tier 4 #10).**
+Review-not-prevention over discoverReferents' own reported merges,
+against a DECLARED kind + the cast as population (P79's null needs the
+rest-of-material — found by the first live run refusing `no_population`).
+**The flagship runs on real bytes: on the real pg345 Dracula, the
+{Count Dracula ← Castle Dracula} merge is VETOED by the live gate.**
+
+**D. `speaker.js` — the speaker boundary (Tier 4 #11, the pinned
+direction).** Declared-speaker sections as a binding table beside
+immutable text (offsets into the text AS GIVEN, P5.2-verified). Received:
+a 7-word genre lexicon with its giver. Read: the structural heading gate
+(underscore-wrapped or all-caps — prose containing "journal" is never a
+heading), possessive/from-phrase/letter-comma authors, kind-only
+boundaries typed speakerless. Measured on the whole real Dracula: 110
+sections, the speaker map reading like the novel's own contents (Seward's
+29 diary entries, the firms, Sister Agatha, Van Helsing with his
+degrees). Three bugs found by running: a zero-length-match regex hang
+(the timeout found it), case-sensitive possessives vs ALL-CAPS, and
+authors cut at abbreviation periods ("Quincey P") — an author span runs
+to the RECIPIENT marker or the heading's end.
+
+**E. `obligation.js` — the obligation ledger (Tier 4 #13).** Declared
+enumeration admitted at a door (prose refused, boundaries never
+invented); four typed standings with not-yet-visited its OWN standing;
+append-only entries with because+refs (a violation later satisfied keeps
+its road); waivers need a reason AND a name; coverage as ENUMERATION —
+the unvisited NAMED, complete only when nothing is unvisited and nothing
+stands violated.
+
+**F. `event-arrangements.js` — floor 2 for non-text media (Tier 4 #14's
+remainder).** Recurrence-gated adjacency with DECLARED labels and
+event-ordinal addresses (coordinate space declared, P5.2 self-verified —
+a span that does not read back as its own pair throws). Lands as
+ordinary hyperlexicon notes with ~recipe witnesses; the e2e puts the
+turbulence ejection-sweep (q2 -precedes-> q4) on the REAL ledger at 2
+distinct sources x 2 distinct instruments. Integration fact the e2e
+caught: hear() unions span OBJECTS by .at — bare strings drop silently.
+
+**G. The sixth medium — signal.js's first run IN ANGER**
+(`eval/results/record-pipeline-RESULTS.md`): the instrument's own
+3,083-row operational record, no planted truth. Four findings, all
+verifiable against the app's own documented flow (read-start follows
+source-open at share 1.000; server-start opens operating bursts,
+CORROBORATED 2/2 sources x 2/3 instruments); the heavy-tailed alphabet
+pushed the search-aware ceiling to 0.846 — the null arm earning its keep
+exactly where turbulence predicted. Third clean medium; no organ changed.

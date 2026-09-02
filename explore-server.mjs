@@ -2365,7 +2365,15 @@ function mergeRelatingLedger(left, nominations) {
     // already have.
     if (req.method === "POST" && p === "/api/term-record") {
       const body = await readJsonBody(req);
-      if (typeof body.event !== "string" || !body.event.startsWith("term-")) return send(res, 400, { error: 'event (string, "term-"-prefixed) is required' });
+      // The chat page mirrors more than terminal acts now: its own opens
+      // (source-open, fold-open — the same vocabulary Explore's opens use,
+      // so /reopen reads one record, not two) and transcriptions. Measured
+      // live (2026-09-02): every such row had been refused 400 by the
+      // term- prefix rule and silently dropped by the page's fire-and-forget
+      // mirror — the chat's opens never reached the record at all. A
+      // declared allowlist beside the prefix, never an open door.
+      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe"]);
+      if (typeof body.event !== "string" || !(body.event.startsWith("term-") || CHAT_MIRRORED.has(body.event))) return send(res, 400, { error: 'event (string) is required: "term-"-prefixed, or one of source-open / fold-open / transcribe' });
       const { event, ...fields } = body;
       record(event, fields);
       return send(res, 200, { ok: true });

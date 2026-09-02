@@ -198,7 +198,7 @@ import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
 import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
-import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
+import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
 import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
@@ -1365,13 +1365,16 @@ async function reopenTurn(argstr, typed) {
   if (arg && !["source", "fold", "door"].includes(arg)) return usageTurn(typed, "/reopen [source|fold|door] — restore the last thing you had open, from the record's own rows. Nothing is re-read, re-run, or re-admitted.");
   let rows = [];
   try {
-    const res = await fetch(`${EXPLORE_BASE}/api/record?tail=500`);
+    // The whole record, not a tail: web-fetch rows are ~60% of it, so a
+    // 500-row tail routinely holds no open at all (measured live: "nothing
+    // source on the record's tail" against a record with 81 source-opens).
+    const res = await fetch(`${EXPLORE_BASE}/api/record?tail=100000`);
     if (res.ok) rows = ((await res.json()).tail ?? []).map((raw) => { try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return null; } }).filter(Boolean);
   } catch { /* unreachable record — said below, never guessed around */ }
   if (!rows.length) return usageTurn(typed, `the record is not reachable (no explore server at ${EXPLORE_BASE}) — /reopen restores only from the record, never from the chat's own memory.`);
   const pick = lastOpened(rows, { kinds: arg ? [arg] : null });
   const plan = restoreFor(pick);
-  if (plan.action === "none") return usageTurn(typed, `nothing ${arg || "open"} on the record's tail to reopen.`);
+  if (plan.action === "none") return usageTurn(typed, `nothing ${arg || "open"} on the record to reopen.`);
   if (plan.action === "open-source") {
     if (state.sources[plan.name] != null) {
       openSourceViewer(plan.name);
@@ -1445,11 +1448,21 @@ async function corroborateTurn(argstr, typed) {
 
   const ask = async (s, slice) =>
     readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+  // SELECT is the default protocol: the model POINTS at a mechanically
+  // gathered stating sentence by index and never writes a because. Measured
+  // at full budget on one real two-page ledger (2026-09-02): select attested
+  // 33 of 103 asks, generate 13 of 119, both at zero attests on planted
+  // fabrications — the same walk, the same budget, 2.5x the recall. The
+  // generate path stays as witnessNote's own fallback when no co-present
+  // candidate can be offered.
+  const selectAsk = async (messages) => {
+    try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; }
+  };
   let report;
   try {
     report = await corroborateLedger(log, hyperlexiconFor, sources, {
-      ask,
-      testimony: { witnessSlice, siblingSwap, foldTestimony },
+      ask, selectAsk, splitSentences: engineSentences,
+      testimony: { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect },
       maxAsks,
     });
   } catch (err) {

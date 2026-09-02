@@ -6,7 +6,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-test("BECOMING reopen — restores the last source, fold, or door result from the record's own rows, never from a transcript search", { todo: true }, async () => {
+test("BECOMING reopen — INHABITED 2026-09-02: restores the last source, fold, or door result from the record's own rows, never from a transcript search", async () => {
+  // Inhabited live, in the real page against the real explore-server:
+  // `/reopen` re-rendered the last door result (an entity-seek row) with no
+  // model call; `/reopen source` named an Explore-opened MP3 and refused to
+  // re-admit it; then a pasted source opened in the Reading pane landed
+  // `source-open` (via chat) on the record and `/reopen source` restored
+  // it into the viewer. Two things had to move first: the door reads the
+  // WHOLE record (a 500-row tail held no open at all — web-fetch is 60% of
+  // rows), and explore-server's mirror route accepted only "term-" events,
+  // so every chat-side open (and every `transcribe` row, ever) had been
+  // refused 400 and dropped silently — a declared allowlist now.
   // THE REFERENT. The record (record/explore-record.jsonl, append-only,
   // FOLD-CONSTITUTION I.5) already lands `source-open` / `read-start` /
   // `read-reused` for Explore and `term-run`/`term-act` (via:"chat") for

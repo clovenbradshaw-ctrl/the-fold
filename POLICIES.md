@@ -10489,3 +10489,47 @@ in March 1865" resolves to TWO beings — "March" was admitted as a referent
 the uniqueness veto fires on it. That is P79's kind gate with no caller,
 now visible as a face loss: the next lever, and a cheaper one than any
 cut. `hypergraph.test.mjs` runs 58/58 under both providers after this.
+
+## P83 — Disclosure is not the answer; words are for the person; a thing is a chip (2026-09-02)
+
+**Generality:** universal.
+
+Three directions in one sitting, on the `/derive` door, each generalising
+past it:
+
+1. **"All this looks like content that should need to be disclosed, it's
+   not extraordinarily useful normally."** The typed blocks P80 built — a
+   rule as a quotation, facts as a table with addresses, worked-out results
+   as a code box, withdrawals struck — are the RECORD of how a result was
+   reached. They now live where every turn's record already lives: behind
+   "thinking". The body says the plain thing. `levelsTurn(question, text,
+   buildBody, buildDisclosure)` is the shape: two builders, two surfaces,
+   one turn.
+2. **"Do a terminology pass, it's all quite esoteric."** The instrument's
+   vocabulary — premise, licence, concede, witness, floor, cascade, F5/F6,
+   REC, ⊢ — stays in the code and on the record. On the screen: *a rule
+   you gave*, *a fact read in the sources*, *worked out from those facts —
+   not stated in the sources*, *withdrawn*. `/derive rule <relation> means
+   <chained>`, `/derive run sources:<n> steps:<n>`, `/derive withdraw
+   <fact> because <reason>`. The old spellings still parse. The numbers are
+   still declared (P9); they are named for what they are.
+3. **"Attribution should be selectable unique-ID chips, not strings you
+   have to type correctly … it would be cool if we can copy + paste a
+   'fact' into the chat and it copies through as an object."** A giver is
+   an identity said once (`/derive iam <name>` → `person:<slug>`, kept
+   across reloads) and shown as a chip; every rule is attributed to the
+   chip, no `by …` typed. Every fact the door lists is a chip whose label
+   is its words and whose id rides underneath; a click pastes the OBJECT
+   into the composer as `fact:<id>` (a giver pastes `person:<id>`), and the
+   door resolves tokens — so a fact travels through the chat as a
+   reference to a unique thing, never as text retyped. A rule given in
+   someone else's name is refused.
+
+**Evidence, live:** `/derive iam Michael Lacy` → chip `person:michael-lacy`;
+`/derive rule replaced means after` attributed to it with nothing typed;
+`/derive run sources:2 steps:6` → four fact chips and six worked-out lines
+in plain words, the table/quote/code box behind thinking; typing
+`/derive withdraw `, clicking a fact chip, finishing the sentence → the
+composer held `fact:hannibal hamlin|replaced|john breckinridge …`, the
+door withdrew that fact and, in plain words, the three things worked out
+from it.

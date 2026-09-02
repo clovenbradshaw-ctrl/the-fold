@@ -7310,3 +7310,14 @@ now stamps `faceOf` on every claim; holon forwards it; pinned on the real
 paste through the real reader and ledger. Live, notes fold across sources
 without concessions. Remainder: "March" admitted as a being blocks one
 face (two beings in one object) — P79's kind gate with no caller.
+
+## Disclosure is not the answer; words are for the person; a thing is a chip — P83 (added 2026-09-02) — pointer
+
+POLICIES.md **P83**. Three directions on `/derive`, all general: the typed
+level blocks go behind "thinking" (`levelsTurn` takes a body builder and a
+disclosure builder); the screen speaks plain words (rule / fact read in
+the sources / worked out / withdrawn — `rule … means …`, `run sources:<n>
+steps:<n>`, `withdraw <fact> because …`); a giver is an identity chip said
+once (`/derive iam`, `person:<slug>`) and a fact is a chip that pastes as
+`fact:<id>` — objects travel through the chat by id, never as retyped
+text. Blob-staged on HEAD; verified live end to end.

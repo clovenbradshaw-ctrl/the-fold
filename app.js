@@ -781,6 +781,14 @@ const state = {
    * candidate the register holds yields nothing (P80).
    */
   declarations: createDeclarationLog(),
+  /**
+   * WHO GIVES A RULE is an identity, not a string typed each time (user
+   * direction, 2026-09-02: "selectable unique ID chips not just strings you
+   * have to type correctly"). Said once (/derive iam <name>), kept across
+   * reloads, shown as a chip carrying its id; every rule is attributed to
+   * the chip. `null` until someone says who they are.
+   */
+  giver: (() => { try { return JSON.parse(localStorage.getItem("fold-giver") ?? "null"); } catch { return null; } })(),
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
   /**
@@ -1339,12 +1347,21 @@ function usageTurn(question, usage) {
  * code box IS the code box any build draws — the formats already mean
  * "a record of sightings" and "a construction" everywhere else.
  */
-function levelsTurn(question, text, build) {
+function levelsTurn(question, text, build, disclose = null) {
   const node = usageTurn(question, text);
   const body = node?.querySelector?.(".body");
   if (!body) return node;
   body.textContent = "";
   try { build(body); } catch (err) { body.textContent = `${text}\n\n(blocks failed to draw: ${err?.message ?? err})`; }
+  // WHAT IS DISCLOSURE STAYS DISCLOSURE (user direction, 2026-09-02: "all
+  // this looks like content that should need to be disclosed, it's not
+  // extraordinarily useful normally"). The typed blocks — the rule as a
+  // quotation, the facts as a table with addresses, the worked-out results
+  // as a code box, withdrawals struck — are the record of HOW a result was
+  // reached, and they go where every turn's record already goes: behind
+  // "thinking". The body says the plain thing in plain words.
+  const fold = node.querySelector(".turn-meta > .fold");
+  if (disclose && fold) { try { const box = document.createElement("div"); disclose(box); fold.append(box); } catch { /* disclosure never breaks a turn */ } }
   return node;
 }
 
@@ -1410,6 +1427,47 @@ function concededList(items) {
   return levelFigure("REC · conceded · taken back, kept on the log", ul);
 }
 const proseP = (text) => { const p = document.createElement("p"); p.textContent = text; return p; };
+/** A chip for a unique thing: the words are the label, the id rides underneath, and a click
+ * does something exact so nobody retypes an attribution. Reuses the address chip's own look. */
+function idChip(label, id, { title = null, onClick = null } = {}) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "ref";
+  b.dataset.id = id;
+  b.textContent = label;
+  b.title = title ?? id;
+  if (onClick) b.addEventListener("click", onClick);
+  return b;
+}
+/** Insert a token at the composer's cursor — a chip PASTES AS THE OBJECT
+ * (user direction, 2026-09-02: "copy + paste a fact into the chat and it
+ * copies through as an object more than just text"). The token names the
+ * unique thing by id; the door resolves it. Nobody retypes an attribution. */
+function insertToken(token) {
+  const el = $("input");
+  const a = el.selectionStart ?? el.value.length, b = el.selectionEnd ?? a;
+  const before = el.value.slice(0, a), after = el.value.slice(b);
+  const pad = before && !/\s$/.test(before) ? " " : "";
+  el.value = `${before}${pad}${token} ${after}`;
+  const at = (before + pad + token + " ").length;
+  el.setSelectionRange(at, at);
+  el.focus();
+}
+/** A fact chip: the words are the label; a click pastes `fact:<id>` — the object — into the composer. */
+const factChip = (n) => idChip(`${n.subject} ${n.verb} ${n.object}`, n.id, {
+  title: `fact:${n.id} — click to put this fact in the composer`,
+  onClick: () => insertToken(`fact:${n.id}`),
+});
+/** The giver chip: who gave a rule, by id; a click pastes `person:<id>` into the composer. */
+const giverChip = (g) => { const id = g.id ?? `person:${slugify(String(g.name ?? g.giver ?? ""))}`; return idChip(g.name ?? g.giver ?? "?", id, { title: `${id} — click to put this person in the composer`, onClick: () => insertToken(id) }); };
+const slugify = (t) => String(t).toLowerCase().trim().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+/** A row of chips with a lead-in. */
+function chipRow(lead, chips) {
+  const p = document.createElement("p");
+  if (lead) p.append(document.createTextNode(lead + " "));
+  for (const c of chips) { p.append(c); p.append(document.createTextNode(" ")); }
+  return p;
+}
 
 /**
  * Fire-and-forget mirror onto the SAME durable record every terminal-typed
@@ -1588,120 +1646,130 @@ function mustTurn(argstr, typed) {
  */
 function deriveTurn(argstr, typed) {
   const arg = String(argstr ?? "").trim();
-  const USAGE = "/derive give <relation> yields <product> by <who> — licence a closure (you are the giver); /derive run floor:<sources>x<instruments> steps:<n> — derive from the notes at that standing; /derive show — live derived notes; /derive concede <noteId> because <trigger> — concede a premise and withdraw what rested on it.";
+  // PLAIN WORDS ON THE SCREEN (user direction, 2026-09-02: "do a terminology
+  // pass, it's all quite esoteric"). The instrument's own vocabulary —
+  // premise, licence, concede, witness, floor, cascade, F5/F6, REC — stays
+  // in the code and the record; what a person reads is: a rule you gave, a
+  // fact read in the sources, something worked out from those facts, and
+  // a fact withdrawn. The typed blocks (P80's levels) live behind
+  // "thinking", drawn exactly as before.
+  const USAGE = "/derive iam <your name> — say who you are once (rules are attributed to you by id; click any chip to paste it as an object: fact:<id>, person:<id>). /derive rule <relation> means <chained> — e.g. `/derive rule replaced means after` says: if A replaced B and B replaced C, then A came after C. /derive run sources:<n> steps:<n> [about:<name>;<name> focus:<0-1>] — work out what follows from facts read in at least <n> sources. /derive show — what has been worked out. /derive withdraw <fact> because <reason> — withdraw a fact; anything worked out from it goes too.";
   const fold = foldDeclarations(state.declarations);
   const log = state.hyperlexiconLog;
+  const factWords = (n) => `${n.subject} ${n.verb} ${n.object}`;
   const heardRows = (notes, standing) => notes.map((n) => [
     `${n.subject} —${n.verb}→ ${n.object}`,
     String(distinctWitnessSources(n.witnesses ?? []).size),
-    String((n.witnesses ?? []).filter((w) => String(w).includes("~")).length ? new Set((n.witnesses ?? []).map((w) => String(w).split("~")[1]).filter(Boolean)).size : 0),
+    String((n.witnesses ?? []).some((w) => String(w).includes("~")) ? new Set((n.witnesses ?? []).map((w) => String(w).split("~")[1]).filter(Boolean)).size : 0),
     standing,
     n.spans?.[0]?.at ?? "—",
   ]);
-  const status = () => {
-    const derived = log ? derivation.foldDerived(log) : [];
-    return [
-      `licences (a person's declarations): ${fold.given.length ? fold.given.map((g) => `⟪ ${g.yields ?? g.declKind} ⇐ ${g.rel} ⟫ by ${g.giver}`).join("; ") : "none — nothing composes until someone gives a licence"}`,
-      `candidates (yield nothing): ${fold.candidates.length}`,
-      `F5 heard (from bytes): ${log ? hyperlexiconFor.foldHyperlexicon(log).length : 0} · F6 derived (under licence, no witness of their own): ${derived.length}`,
-    ].join("\n");
-  };
-  if (!arg) {
-    const text = `${status()}\n${USAGE}`;
-    return levelsTurn(typed, text, (body) => {
-      if (fold.given.length) body.append(licenceQuote(fold.given));
-      else body.append(proseP("no licence yet — nothing composes until a person gives one."));
-      const heard = log ? hyperlexiconFor.foldHyperlexicon(log) : [];
-      body.append(proseP(`F5 heard from bytes: ${heard.length} note(s) · candidates on the register (yield nothing): ${fold.candidates.length}`));
-      const derived = log ? derivation.foldDerived(log) : [];
-      if (derived.length) body.append(derivedBox(derived));
-      body.append(proseP(USAGE));
-    });
+  const ruleWords = (g) => `if A ${g.rel} B and B ${g.rel} C, then A ${g.yields ?? g.declKind} C`;
+  const giverOf = (g) => ({ name: String(g.giver ?? "").replace(/\s*\[person:[^\]]+\]$/, ""), id: (String(g.giver ?? "").match(/\[(person:[^\]]+)\]$/) ?? [])[1] ?? `person:${slugify(String(g.giver ?? ""))}` });
+  const ruleRow = (g) => chipRow(`${ruleWords(g)} — rule from`, [giverChip(giverOf(g))]);
+  const iam = arg.match(/^iam\s+(.+)$/s);
+  if (iam) {
+    const name = iam[1].trim();
+    state.giver = { name, id: `person:${slugify(name)}` };
+    try { localStorage.setItem("fold-giver", JSON.stringify(state.giver)); } catch { /* storage may be unavailable */ }
+    mirrorTermRecord("derive-iam", { giver: state.giver, via: "chat" });
+    return levelsTurn(typed, `You are ${name} (${state.giver.id}). Rules you give will carry this.`, (body) => body.append(chipRow("You are", [giverChip(state.giver)])));
   }
-  const give = arg.match(/^give\s+(\S+)\s+yields\s+(\S+)\s+by\s+(.+)$/s);
+  if (!arg) {
+    const heard = log ? hyperlexiconFor.foldHyperlexicon(log) : [];
+    const derived = log ? derivation.foldDerived(log) : [];
+    const text = [`Rules: ${fold.given.length ? fold.given.map((g) => `${ruleWords(g)} (rule from ${giverOf(g).name})`).join("; ") : "none yet"}.`, `Facts read in the sources: ${heard.length}. Worked out from them: ${derived.length}.`, USAGE].join("\n");
+    return levelsTurn(typed, text, (body) => {
+      if (state.giver) body.append(chipRow("You are", [giverChip(state.giver)]));
+      if (fold.given.length) for (const g of fold.given) body.append(ruleRow(g));
+      else body.append(proseP("Rules: none yet — nothing can be worked out until you give one."));
+      body.append(proseP(`Facts read in the sources: ${heard.length}. Worked out from them: ${derived.length}.`));
+      if (heard.length) body.append(chipRow("Facts:", heard.slice(0, 24).map(factChip)));
+      body.append(proseP(USAGE));
+    }, (box) => { if (fold.given.length) box.append(licenceQuote(fold.given)); if (derived.length) box.append(derivedBox(derived)); });
+  }
+  const give = arg.match(/^(?:rule|give)\s+(\S+)\s+(?:means|yields)\s+(\S+)(?:\s+by\s+(.+))?$/s);
   if (give) {
-    const [, rel, yields, giver] = give;
-    const p = proposeCandidate(state.declarations, { kind: "composes", rel, yields, acquisition: { declared: "by a person at the /derive door", note: "no scan ran — this is testimony, not acquisition" }, source: "chat: /derive give" });
+    const [, rel, yields, byName] = give;
+    // the giver is the remembered identity; a typed `by <name>` sets it when none is set yet
+    if (byName && /^person:/.test(byName.trim()) && state.giver && byName.trim() !== state.giver.id) return usageTurn(typed, `${byName.trim()} is not who you said you are (${state.giver.id}); a rule is given in your own name.`);
+    if (byName && !/^person:/.test(byName.trim()) && !state.giver) { const name = byName.trim(); state.giver = { name, id: `person:${slugify(name)}` }; try { localStorage.setItem("fold-giver", JSON.stringify(state.giver)); } catch { /* storage may be unavailable */ } }
+    if (!state.giver) return usageTurn(typed, "say who you are once, then give the rule: /derive iam <your name>");
+    const giver = `${state.giver.name} [${state.giver.id}]`;
+    const p = proposeCandidate(state.declarations, { kind: "composes", rel, yields, acquisition: { declared: "by a person at the /derive door", note: "no scan ran — this is testimony, not acquisition" }, source: "chat: /derive rule" });
     const pr = promoteDeclaration(p.log, p.id, { giver: giver.trim() });
-    if (!pr.ok) return usageTurn(typed, `refused (${pr.refusal?.type}): ${JSON.stringify(pr.refusal)}`);
+    if (!pr.ok) return usageTurn(typed, `couldn't record that rule (${pr.refusal?.type}).`);
     state.declarations = pr.log;
     mirrorTermRecord("derive-give", { rel, yields, giver: giver.trim(), via: "chat" });
-    const text = `⟪ ${yields} ⇐ ${rel} ⟫ by ${giver.trim()} — a licence: "${yields}" is declared the closure of "${rel}". This is your testimony, not the material's; it stands until conceded. Run /derive run floor:<s>x<i> steps:<n> to compose under it.`;
-    return levelsTurn(typed, text, (body) => {
-      body.append(licenceQuote([{ rel, yields, giver: giver.trim() }]));
-      body.append(proseP("Run /derive run floor:<sources>x<instruments> steps:<n> to compose under it."));
-    });
+    const g = { rel, yields, giver };
+    const text = `Rule noted: ${ruleWords(g)} — rule from ${state.giver.name}. It is yours, not the sources' — it stands until you withdraw it. Run /derive run sources:<n> steps:<n> to use it.`;
+    return levelsTurn(typed, text, (body) => { body.append(chipRow(`Rule noted: ${ruleWords(g)} — rule from`, [giverChip(state.giver)])); body.append(proseP("It is yours, not the sources' — it stands until you withdraw it. Run /derive run sources:<n> steps:<n> to use it.")); }, (box) => box.append(licenceQuote([g])));
   }
-  if (arg.startsWith("give")) return usageTurn(typed, "a licence needs a relation, a product and a NAME: /derive give <relation> yields <product> by <who>");
-  const run = arg.match(/^run\s+floor:(\d+)x(\d+)\s+steps:(\d+)(?:\s+cue:([^\n]+?)\s+presence:([\d.]+))?$/);
+  if (/^(rule|give)\b/.test(arg)) return usageTurn(typed, "a rule needs the relation and what it chains into: /derive rule replaced means after");
+  const run = arg.match(/^run\s+(?:sources:(\d+)|floor:(\d+)x(\d+))(?:\s+instruments:(\d+))?\s+steps:(\d+)(?:\s+(?:about|cue):([^\n]+?)\s+(?:focus|presence):([\d.]+))?$/);
   if (run) {
-    if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard this session, so there are no premises.");
-    const floor = { sources: Number(run[1]), instruments: Number(run[2]) };
-    const maxSteps = Number(run[3]);
-    // the cue names identity ends (the ledger's own lowercased faces),
-    // separated by ";" because an end may carry spaces
-    const cue = run[4] ? run[4].split(";").map((x) => x.trim().toLowerCase()).filter(Boolean) : null;
-    const presenceFloor = run[5] != null ? Number(run[5]) : null;
+    if (!log) return usageTurn(typed, "nothing has been read yet this session, so there are no facts to work from.");
+    const floor = { sources: Number(run[1] ?? run[2]), instruments: Number(run[4] ?? run[3] ?? 0) };
+    const maxSteps = Number(run[5]);
+    const cue = run[6] ? run[6].split(";").map((x) => x.trim().toLowerCase()).filter(Boolean) : null;
+    const presenceFloor = run[7] != null ? Number(run[7]) : null;
     let r;
     try { r = derivation.derive(log, { declarations: state.declarations, floor, maxSteps, cue, presenceFloor }); }
-    catch (err) { return usageTurn(typed, `refused: ${err?.message ?? err}`); }
+    catch (err) { return usageTurn(typed, `couldn't run that: ${err?.message ?? err}`); }
     state.hyperlexiconLog = r.log;
-    const summary = `derivation at floor ${floor.sources} source(s) × ${floor.instruments} instrument(s), ${cue ? `cued by ${cue.join("; ")} at presence ${presenceFloor}` : "uncued (the full-closure control arm)"}, ${r.steps} step(s)${r.quiescent ? ", quiescent" : ", step cap reached"}: ${r.premises.length} premise(s) stood, ${r.stopped.length} note(s) below the floor · licences ${r.licences.length} · withheld pairs (no giver) ${r.withheld.length} · vetoed pairs (giver refuted by the material) ${r.vetoed.length} · derived ${r.derived.length} (${r.derived.filter((d) => d.landed === "new").length} new)`;
+    const notesById = new Map(hyperlexiconFor.foldHyperlexicon(log).map((n) => [n.id, n]));
+    const premiseNotes = r.premises.map((id) => notesById.get(id)).filter(Boolean);
+    const stoppedNotes = r.stopped.map((st) => notesById.get(st.id)).filter(Boolean);
     const noRecipe = r.stopped.length && r.stopped.every((st) => st.instruments === 0) && floor.instruments > 0;
-    const lines = [summary];
-    for (const id of r.premises.slice(0, 6)) lines.push(`  F5 heard · premise ${id}`);
-    for (const st of r.stopped.slice(0, 4)) lines.push(`  F5 heard · below the floor: ${st.subject} —${st.verb}→ ${st.object}  (${st.sources} source(s), ${st.instruments} instrument(s))`);
-    if (noRecipe) lines.push(`  every stopped note's witnesses carry no recipe (~) — a chat turn admits bare source refs, so instrument independence cannot be counted here. Declare it not required: floor:${floor.sources}x0.`);
-    for (const d of r.derived.slice(0, 12)) lines.push(`  F6 derived · ⊢ ${d.subject} ⇒${d.verb}⇒ ${d.object}  no witness of its own · depth ${d.depth}, ${d.paths} path(s) · rests on ${d.grounds.length} heard note(s) · ${d.provenance.length} address(es) through them · licence by ${d.giver}`);
-    for (const v of r.vetoed.slice(0, 4)) lines.push(`  ✗ vetoed ${v.left} ∘ ${v.right}: ${(v.reasons ?? []).join("; ")}`);
-    if (!r.licences.length) lines.push("  nothing composes without a licence — /derive give <relation> yields <product> by <who>");
+    // plain words
+    const lines = [];
+    lines.push(`Worked from ${r.premises.length} fact(s) read in at least ${floor.sources} source(s)${r.stopped.length ? ` (${r.stopped.length} fact(s) not read in enough sources were left out)` : ""}${cue ? `, starting from ${cue.join(", ")}` : ""}.`);
+    if (!r.licences.length) lines.push("No rule to work with — give one first: /derive rule <relation> means <chained> by <your name>.");
+    for (const v of r.vetoed.slice(0, 4)) lines.push(`The rule can't be applied: the sources contradict it (${(v.reasons ?? []).includes("uniqueness") ? "someone is listed with two different " + v.left + " partners" : (v.reasons ?? []).join("; ")}). Withdraw the fact that's wrong with /derive withdraw <fact> because <reason>.`);
+    if (r.derived.length) {
+      lines.push(`Worked out (${r.derived.filter((d) => d.landed === "new").length} new): these are not stated in the sources — they follow from the facts above under your rule.`);
+      for (const d of r.derived.slice(0, 12)) lines.push(`  • ${d.subject} ${d.verb} ${d.object}`);
+    } else if (r.licences.length && !r.vetoed.length) lines.push("Nothing new follows: no two facts connect under the rule.");
+    if (noRecipe) lines.push(`(No fact could count: facts read in a chat turn don't record which instrument read them. Use sources:${floor.sources} without instruments.)`);
     mirrorTermRecord("derive-run", { floor, maxSteps, cue, presenceFloor, premises: r.premises.length, stopped: r.stopped.length, derived: r.derived.length, vetoed: r.vetoed.length, withheld: r.withheld.length, via: "chat" });
     logAct("derived", { text: `derive: ${r.derived.length} product(s) from ${r.premises.length} premise(s)` });
-    const notesById = new Map(hyperlexiconFor.foldHyperlexicon(log).map((n) => [n.id, n]));
     return levelsTurn(typed, lines.join("\n"), (body) => {
-      body.append(proseP(summary));
-      if (r.licences.length) body.append(licenceQuote(r.licences));
-      const premiseNotes = r.premises.map((id) => notesById.get(id)).filter(Boolean);
-      const stoppedNotes = r.stopped.map((st) => notesById.get(st.id)).filter(Boolean);
-      if (premiseNotes.length || stoppedNotes.length)
-        body.append(heardTable([...heardRows(premiseNotes, "premise — at the floor"), ...heardRows(stoppedNotes, "below the floor")]));
-      if (noRecipe) body.append(proseP(`every stopped note's witnesses carry no recipe (~) — a chat turn admits bare source refs, so instrument independence cannot be counted here. Declare it not required: floor:${floor.sources}x0.`));
-      if (r.vetoed.length) body.append(levelFigure("veto · the material refuted a given licence", (() => { const p = document.createElement("p"); p.style.padding = "10px 14px"; p.style.margin = "0"; p.textContent = r.vetoed.map((v) => `✗ ${v.left} ∘ ${v.right}: ${(v.reasons ?? []).join("; ")} — nothing composes under it until the contradiction is conceded`).join("\n"); return p; })()));
-      if (r.derived.length) body.append(derivedBox(r.derived));
-      else if (!r.licences.length) body.append(proseP("nothing composes without a licence — /derive give <relation> yields <product> by <who>"));
-      else body.append(proseP("nothing derived: no two premises share a bridge under the given licence."));
+      for (const l of lines) body.append(proseP(l.replace(/^  • /, "• ")));
+      if (premiseNotes.length) body.append(chipRow("Facts it worked from (click one to withdraw it):", premiseNotes.map(factChip)));
+    }, (box) => {
+      box.append(proseP(`${floor.sources} source(s) × ${floor.instruments} instrument(s), ${r.steps} step(s), ${r.quiescent ? "settled" : "stopped at the step limit"}, ${cue ? `cued by ${cue.join("; ")} at ${presenceFloor}` : "uncued (full closure)"}; rules ${r.licences.length}, pairs without a rule ${r.withheld.length}, pairs the sources refuted ${r.vetoed.length}.`));
+      if (r.licences.length) box.append(licenceQuote(r.licences));
+      if (premiseNotes.length || stoppedNotes.length) box.append(heardTable([...heardRows(premiseNotes, "counted"), ...heardRows(stoppedNotes, "not in enough sources")]));
+      if (r.vetoed.length) box.append(levelFigure("refuted · the sources contradict the rule", (() => { const p = document.createElement("p"); p.style.cssText = "padding:10px 14px;margin:0;"; p.textContent = r.vetoed.map((v) => `✗ ${v.left} ∘ ${v.right}: ${(v.reasons ?? []).join("; ")}`).join("\n"); return p; })()));
+      if (r.derived.length) box.append(derivedBox(r.derived));
     });
   }
-  if (arg.startsWith("run")) return usageTurn(typed, "the floor and the step cap are yours to declare: /derive run floor:<sources>x<instruments> steps:<n> [cue:<end>;<end> presence:<f>] — a cue lights identity ends and needs its presence floor beside it");
+  if (arg.startsWith("run")) return usageTurn(typed, "say how many sources a fact must be read in, and how many steps to allow: /derive run sources:<n> steps:<n>");
   if (arg === "show") {
     const derived = log ? derivation.foldDerived(log) : [];
-    if (!derived.length) return usageTurn(typed, "no live derived notes.");
-    const text = ["F6 derived — construction under a licence, no witness of its own; every address below belongs to a PREMISE, never to the product:", ...derived.map((d) => `  ⊢ ${d.subject} ⇒${d.verb}⇒ ${d.object}  [${d.id}]  depth ${d.depth}${d.stated ? " · since also HEARD from bytes (a separate F5 note)" : ""} · rests on: ${d.premises.join(", ")} · through addresses: ${d.provenance.slice(0, 4).join(", ")}${d.provenance.length > 4 ? " …" : ""}`)].join("\n");
-    return levelsTurn(typed, text, (body) => {
-      body.append(proseP("Every address below belongs to a premise, never to the product."));
-      body.append(derivedBox(derived));
-    });
+    if (!derived.length) return usageTurn(typed, "nothing has been worked out yet.");
+    const lines = ["Worked out from facts read in the sources (not stated there themselves):", ...derived.map((d) => `  • ${d.subject} ${d.verb} ${d.object}${d.stated ? " (since also read directly in a source)" : ""}`)];
+    return levelsTurn(typed, lines.join("\n"), (body) => { for (const l of lines) body.append(proseP(l.replace(/^  • /, "• "))); }, (box) => box.append(derivedBox(derived)));
   }
-  // a note id carries spaces ("andrew johnson|replaced|hannibal hamlin"),
-  // so the id runs non-greedily up to the " because " that opens the trigger
-  const concede = arg.match(/^concede\s+([\s\S]+?)\s+because\s+([\s\S]+)$/);
+  const concede = arg.match(/^(?:withdraw|concede)\s+([\s\S]+?)\s+because\s+([\s\S]+)$/);
   if (concede) {
-    if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing to concede.");
-    const noteBefore = hyperlexiconFor.foldHyperlexicon(log).find((n) => n.id === concede[1]);
-    const r = derivation.concedePremise(log, concede[1], { trigger: concede[2].trim() });
-    if (r.refused) return usageTurn(typed, `refused (${r.refused.type}): ${r.refused.detail}`);
+    if (!log) return usageTurn(typed, "nothing has been read yet — nothing to withdraw.");
+    const target = concede[1].trim().replace(/^fact:/, "");
+    const notes = hyperlexiconFor.foldHyperlexicon(log);
+    // a fact may be named by its id or by its own words
+    const noteBefore = notes.find((n) => n.id === target) ?? notes.find((n) => factWords(n).toLowerCase() === target.toLowerCase()) ?? notes.find((n) => `${n.subject} —${n.verb}→ ${n.object}`.toLowerCase() === target.toLowerCase());
+    if (!noteBefore) return usageTurn(typed, `no fact matches "${target}". Facts are named by their words, e.g. /derive withdraw Andrew Johnson replaced Hannibal Hamlin because …`);
+    const r = derivation.concedePremise(log, noteBefore.id, { trigger: concede[2].trim() });
+    if (r.refused) return usageTurn(typed, `couldn't withdraw it (${r.refused.type}): ${r.refused.detail}`);
     state.hyperlexiconLog = r.log;
-    mirrorTermRecord("derive-concede", { note: concede[1], withdrawn: r.withdrawn.length, trigger: concede[2].trim(), via: "chat" });
-    const text = [`✗ conceded (REC) F5 heard note ${concede[1]} — ${concede[2].trim()}`, `F6 derived withdrawn with it (REC each, kept on the log): ${r.withdrawn.length}`, ...r.withdrawn.map((w) => `  ✗ ⊢ ${w.subject} ⇒${w.verb}⇒ ${w.object} (cascade depth ${w.cascadeDepth}, from ${w.cascadedFrom})`)].join("\n");
-    return levelsTurn(typed, text, (body) => {
-      body.append(concededList([
-        { line: `F5 heard · ${noteBefore ? `${noteBefore.subject} —${noteBefore.verb}→ ${noteBefore.object}` : concede[1]}`, why: concede[2].trim() },
-        ...r.withdrawn.map((w) => ({ line: `F6 derived · ⊢ ${w.subject} ⇒${w.verb}⇒ ${w.object}`, why: `cascade depth ${w.cascadeDepth}, from ${w.cascadedFrom}` })),
-      ]));
-      body.append(proseP(`${r.withdrawn.length} derived note(s) withdrawn with it. Nothing deleted: the entries stay on the log; the projections stop showing them.`));
-    });
+    mirrorTermRecord("derive-concede", { note: noteBefore.id, withdrawn: r.withdrawn.length, trigger: concede[2].trim(), via: "chat" });
+    const lines = [`Withdrawn: ${factWords(noteBefore)} — ${concede[2].trim()}.`, ...(r.withdrawn.length ? [`Also withdrawn, because they were worked out from it:`, ...r.withdrawn.map((w) => `  • ${w.subject} ${w.verb} ${w.object}`)] : ["Nothing had been worked out from it."]), "Nothing is deleted: the record keeps it, marked withdrawn."];
+    return levelsTurn(typed, lines.join("\n"), (body) => { for (const l of lines) body.append(proseP(l.replace(/^  • /, "• "))); }, (box) => box.append(concededList([
+      { line: `${noteBefore.subject} —${noteBefore.verb}→ ${noteBefore.object}`, why: concede[2].trim() },
+      ...r.withdrawn.map((w) => ({ line: `⊢ ${w.subject} ⇒${w.verb}⇒ ${w.object}`, why: `rested on it (${w.cascadeDepth} step${w.cascadeDepth === 1 ? "" : "s"} away)` })),
+    ])));
   }
-  if (arg.startsWith("concede")) return usageTurn(typed, "a concession records its reason: /derive concede <noteId> because <trigger>");
+  if (/^(withdraw|concede)\b/.test(arg)) return usageTurn(typed, "a withdrawal records its reason: /derive withdraw <fact> because <reason>");
   return usageTurn(typed, USAGE);
 }
 

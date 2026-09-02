@@ -6446,3 +6446,22 @@ falsifiable: full stances must transfer ACROSS DOMAINS (untested —
 contest.js's precedent is media, a different axis), empty stances must
 be derivable from depth-siblings, and crossing-rule violations must
 present as measured nonsense, never clean error.
+
+## The plan of record (added 2026-09-01) — pointer
+
+`NEXT-PASSES.md` (repo root). Ordering principle: the canonical chain is
+math-major and PER-CLAIM (arithmetic's units → geometry's edges →
+calculus's accumulation), floors 0-4 are done to the material's own
+ceiling, so the work is calculus over earned units. Tier 1: scale the
+memory floor (the slice lever, walk calibration, the third-source
+seeker, wiring the mouth into the app, reading-with-recall redone with a
+sound control). Tier 2: the two flagged reconciliations (task-log's
+divergent OPERATOR_ORDER — audit real logs BEFORE flipping; unblock the
+SVO wipe's verification via the initialized submodule). Tier 3: test
+THE-THREE-MATHEMATICS' own predictions (one Ground-row cell built from
+depth-siblings; one domain-transfer attempt on Binding). Tier 4:
+kind-standing's caller, the speaker boundary, nesting (gated on
+throughput), the obligation ledger, non-text adapters. Plus the REFUSED
+list — seven measured dead ends kept so nobody retries one. Every pass
+ships a control built to fail; if Tier 1 cannot raise
+clean-votes-per-ask, the memory floor's DESIGN is what gets re-examined.

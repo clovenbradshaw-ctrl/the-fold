@@ -409,7 +409,7 @@ let posPriorCache = null;
 // Empty until then — and an empty Set adds no words, which is byte-identical
 // to today's behaviour, so nothing here may delay boot either.
 const unimorphVerbForms = new Set();
-fetch("/eval/fixtures/unimorph-eng-verb-forms.json")
+fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
   .then((r) => (r.ok ? r.json() : null))
   .then((forms) => { if (Array.isArray(forms)) for (const f of forms) unimorphVerbForms.add(f); })
   .catch(() => {});
@@ -479,6 +479,18 @@ const relationsFor = makeRelationReader({
   // decided this (1 edge → 40 on the specimen), and for the disclosed
   // boundary-quality cost it is shipped in spite of.
   verbForms: unimorphVerbForms,
+  // The SAME received set as the gate on an out-of-vocabulary connector
+  // (hypergraph.js `oovLexicon`): measured 2026-09-02 on the real two-page
+  // ledger, junk labels 12 → 3 ('nobility', 'aristocratic', Cyrillic 'и'
+  // refused; 'left'/'redoubt' survive because UniMorph lists them as verb
+  // forms). Kept apart from the widening above in hypergraph.js because
+  // as a WIDENER the set added 98 noun-verb-conversion notes.
+  oovLexicon: unimorphVerbForms,
+  // DR4: a subject expands left through its own determiner and genitive
+  // chain ("The Battle of Moscow", not "of Moscow"). Measured on the same
+  // ledger: preposition-led subjects 6 → 1. The extractor's own option,
+  // forwarded on every read (material and answer side) since 9ea3c30.
+  nounPhraseSubjects: true,
   // Two RECEIVED closed classes, both from the engine's own prior register
   // (perceiver/text/priors.js, giver "lang/en" — the same `enginePriors`
   // namespace this file already imports), turned ON here rather than left
@@ -4497,10 +4509,16 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           // A REWRITE THAT FINDS NOTHING IS NOT A REASON TO STOP LOOKING.
           // The rewrite is a proposal; if the source cannot resolve it, the
           // question's own words get their turn before anything is refused.
-          if (seek?.gap && askedAs.rewritten) {
+          // The retry has the same wall as the first ask: an anchor or slot
+          // the question's own words never supplied is a skip SAID, never a
+          // request. Measured live 2026-09-02: "battle" of "null" went to the
+          // route and answered 400 — a fabricated lookup, not a refusal.
+          if (seek?.gap && askedAs.rewritten && askedFallback.anchor && askedFallback.slot) {
             think(`Nothing on record under those words — trying the question's own: "${askedFallback.slot}" of "${askedFallback.anchor}".`);
             const retry = await webApi("/api/entity/seek", { anchor: askedFallback.anchor, slot: askedFallback.slot, question: task });
             if (!retry?.gap) seek = retry;
+          } else if (seek?.gap && askedAs.rewritten) {
+            think(`Nothing on record under those words, and the question's own words name no ${askedFallback.anchor ? "kind of thing" : "thing"} to try instead.`);
           }
           if (seek?.gap) {
             // THE PUBLISHED RECORD IS NOT THE ONLY RECORD. Measured live:

@@ -6764,3 +6764,32 @@ which rule wins, not a fix); two are a disclosed capability limit the
 tests over-claim. Settle those first — by deciding the supersession, and
 by rewriting the referent-bar tests to assert the limit rather than past
 it.
+
+## DEF·Ground built from its depth-siblings — §VIII.2's first earned point (added 2026-09-02) — pointer
+
+Tier 3 Pass 8, run to the letter: the derivation was committed BEFORE the
+build (`def-ground-derivation.md`, 6e404c2), predicting the design by
+transposing the cell's two depth-siblings — NUL·Ground (measure.js's
+declared-numbers gate) and SEG·Ground (extent-and-units) — into the
+calculus column: a declaration gate with typed refusals, verdicts
+stamped with content-addressed frame ids, and a cross-frame comparison
+wall. `frame.js` followed it with zero departures and passed everything
+including the live e2e: the two REAL engine providers as two declared
+frames over one material, the comparison refusing with
+`organs.provider: legacy vs native` named. **The depth axis has now
+moved a build correctly once** — one point, not a law, said so in
+THE-THREE-MATHEMATICS §VIII.2's result.
+
+The plan's own gate was met by a measurement before the build: the
+specimen question ("a turn whose interpretive ground is definably
+different with the definition absent?") was answered live by the
+hypergraph-suite incident — 54/58 under one provider, 52/58 under the
+other, invisible until `ENGINE=native` declared the frame. That also
+closes the plan's "this cell never produced a live incident" note.
+
+Registered as `frame` in capacities.js (DEF·Atmosphere, Clearing).
+**Coverage 25/27, seven FULL stances, the Differentiate mode complete**;
+CON·Ground and INS·Ground remain gated on the fold-architecture
+session's boundary. Not yet consumed by a live caller — the natural
+first consumers are the hypergraph provider switch itself and
+WITNESS_OPERATING_POINT's per-protocol calibrations.

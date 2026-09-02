@@ -7343,3 +7343,9 @@ hears the harmonic series in real recordings at 4.8×/7.5× the noise rate
 consonance untaught; as a prior on succession it earns nothing (controlled
 negative — its claim is on simultaneity, next). Intervals as a second
 alphabet help the long context. P84's amendment carries the numbers.
+
+**Amended again — simultaneity.** Where the overtone metric belongs, it
+reads the opposite sign: the notes Bach sounds together share FEWER
+partials than chance (six of eight arms below the 5th percentile, every
+arm on the Aria; metric control holds). Fusion is what the counterpoint
+avoids. P84's second amendment; eoreader7 `overtones-RESULTS.md` §4.

@@ -10600,3 +10600,17 @@ and hurt the short one; on that alphabet the record log's move-shapes tie
 the hearing and the mixture splits 0.6/0.4. One floor now applies to every
 scorer. Results: eoreader7 `results/overtones-RESULTS.md`,
 `midi-continuation-RESULTS.md` §1b.
+
+**Amended again 2026-09-02 — the simultaneity test turned the question
+around.** Run where the metric belongs (what sounds together, not what
+comes next): co-sounding pairs by tick-overlap, pitch-redeal null with
+timing kept, 200 draws, two-sided, two measured profiles × two tolerances.
+**Six of eight arms — every arm on the Aria — sit below the 5th
+percentile: the notes Bach sounds together share FEWER partials than
+random pairings of the same pitches.** What the physics metric scores
+high is fusion (octave, fifth), and the counterpoint avoids exactly that;
+the most-sounding pairs are thirds and sixths, which the metric scores
+near zero. The metric-control arm never beat its own null. The sign was
+read off two real files with nothing taught. Caveats: fusion-shaped
+metric (k ≤ 8), two pieces, one composer. eoreader7
+`results/overtones-RESULTS.md` §4.

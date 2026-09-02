@@ -88,19 +88,36 @@ cold on paired steps, not on a mean propped up by feedback.
 
 ## Tier 2 — the two reconciliations the checks flagged
 
-**Pass 6 — the operator-order reconciliation.** `task-log.js`'s
-`OPERATOR_ORDER` (NUL SEG SIG CON EVA DEF INS SYN REC) diverges from
-canon (NUL SIG INS SEG CON SYN DEF EVA REC) and now stands flagged.
-This is engine surgery with a measurement first: audit every real
-persisted log (grid acts, build logs, hyperlexicon entries, plan logs)
-for threads whose entry order would violate the CANONICAL chain. If the
-audit is clean, flip the constant and let the suites speak; if not, the
-violating threads name exactly what the divergent constant was
-protecting, and THAT finding decides. Never flip on faith — the
-constant has been enforcing something for two engine generations, and
-the handbook's own warning (construction chain ≠ engine dependency
-ordering) may mean both orders are right about different things. The
-gate is the audit, not an opinion.
+**Pass 6 — the operator-order reconciliation. CLOSED 2026-09-01, and not
+by a flip.** The audit the gate demanded was built and run
+(`eval/operator-order-audit.mjs`, re-runnable): every operator-typed entry
+in every persisted log on disk, replayed through the engine's OWN
+`checkCubeProgression` walk under each order, with a drift check proving
+the replay matches the real function. One discriminating flag
+(`SEG → INS`), inspected and explained as the documented PROPOSE retyping
+(typed SEG on 2026-08-17, INS from 2026-08-18) — a migration artifact, not
+an order fact. The full native suite then ran under BOTH orders: 456/456
+either way.
+
+**What settled it was neither audit but a reading of the code.** `cube.js`'s
+own `OP_MODE`/`OP_DOMAIN` tables derive canon exactly (domain-major × mode),
+and `OP_MODE`'s key order IS canon — so `task-log.js`'s hand-written
+`OPERATOR_ORDER` was a RESTATEMENT that had drifted from the tables in the
+module it imports, in a file whose own header reads "Nothing is restated
+here." The fix is therefore not flipping a literal but removing the
+restatement: `cube.js` now derives and exports `OPERATOR_CHAIN`, and
+`OPERATOR_ORDER` IS that object. The drift is structurally impossible, and
+the audit now reports zero disagreeing pairs because there is one order.
+457/457 native, 256/256 in the-fold's operator-consuming suites.
+
+**Two lessons kept:** the burden is on a DIVERGENCE, never on canon — two
+independent searches for what it protected found nothing, which is what
+licensed the change; and the audit's own first cut grouped threads by build
+number and reported 3 violations that were artifacts of that grouping (a
+REC re-zero is deliberately its own single-entry thread, and the engine
+keys threads by supersession lineage). It now replays through the engine's
+own referee rather than re-deriving legality — search for the organ, even
+when writing an audit.
 
 **Pass 7 — unblock the SVO wipe's verification.** The rename
 (subject/verb/object → end1/label/end2, 221 call sites) is blocked only

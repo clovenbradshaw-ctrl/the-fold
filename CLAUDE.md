@@ -6674,3 +6674,37 @@ correctly admits an addressed `self:ledger` reading, and additionally
 excludes an unaddressed hold from ANY voice, which never counted honestly
 either (P5.2). The refuted namespace attempt is kept in both the module and
 the test so it is not retried.
+
+## The operator-order divergence, closed at the source (added 2026-09-01) — pointer
+
+NEXT-PASSES Pass 6 (Tier 2's first reconciliation) is CLOSED, and not by
+flipping a constant. `eval/operator-order-audit.mjs` is the re-runnable
+gate the plan demanded: every operator-typed entry in every persisted log,
+replayed through the engine's OWN `checkCubeProgression` walk under each
+order, with a drift check proving the replay matches the real function.
+One discriminating flag (`SEG → INS`), inspected and explained as the
+documented PROPOSE retyping (SEG on 2026-08-17, INS from 2026-08-18) — a
+migration artifact. The full native suite then ran under BOTH orders:
+456/456 either way.
+
+**What actually settled it was reading the code, not either audit.**
+`cube.js`'s own `OP_MODE`/`OP_DOMAIN` tables derive canon exactly
+(domain-major × mode) and `OP_MODE`'s key order IS canon — so
+`task-log.js`'s hand-written `OPERATOR_ORDER` was a RESTATEMENT that had
+drifted from the tables in the module it imports, inside a file whose own
+header says "Nothing is restated here." So the fix removes the
+restatement rather than flipping a literal: `cube.js` derives and exports
+`OPERATOR_CHAIN`; `OPERATOR_ORDER` IS that object; no consumer can see a
+different order and the drift is structurally impossible. **Every earlier
+note in this file flagging task-log's constant as "divergent, pending
+reconciliation with canon" is now spent** — there is one order, and it is
+canon. 457/457 native, 256/256 in the-fold's operator-consuming suites.
+
+Two lessons: the burden is on a DIVERGENCE, never on canon (two
+independent searches for what it protected found nothing, which is what
+licensed the change); and the audit's own first cut grouped threads by
+build number and reported 3 violations that were artifacts of the
+grouping — a REC re-zero is deliberately its own single-entry thread, and
+the engine keys threads by supersession lineage. It now replays through
+the engine's own referee rather than re-deriving legality: search for the
+organ, even when writing an audit.

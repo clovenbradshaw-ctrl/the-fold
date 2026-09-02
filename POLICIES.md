@@ -10197,3 +10197,89 @@ is doing work.
 **Honest boundary.** The test verifies a control was BUILT, never that it
 is a good one — the same boundary P71's generality gate draws. The
 measurement is still real work.
+
+## P80 — Floor 6: a corroborated note as a premise (2026-09-02)
+
+**Generality:** universal.
+
+**Law.** A note that survived corroboration (F5) may stand as a PREMISE,
+and licensed composition may derive from premises facts the material never
+stated — provided the product is kept on a different footing from a heard
+note. Concretely: a derived note lands with **no witnesses of its own**;
+what carries it is its premises and the byte addresses the provenance walk
+reaches through them. Premises' witnesses never corroborate the product,
+the product never corroborates a premise, and conceding a premise withdraws
+everything resting on it, transitively, on the same act. This is nesting's
+wall (floor 4½: witnesses of an outer note never corroborate the inner
+claim) one register up, and it is the whole reason floor 6 is a floor
+rather than a flattening.
+
+**Where it lives.** `eoreader7/native/organs/derivation.js`
+(`makeDerivation` → `derive`, `foldDerived`, `concedePremise`,
+`withdrawDerived`, `withdrawnDerived`; pure helpers `premisesOf`,
+`chemistryFor`, `substrateEdges`, `naiveJoin`, `redeal`), and one addition
+to the ledger organ itself: `hyperlexicon.js::concede` (REC·Figure on a
+note — mirrors `grid.js::concedeEvaluation` and `declarations.js::concede`
+exactly: its own task_id, `concedes`, a required verbatim `trigger`), with
+`foldHyperlexicon` now excluding derived and conceded notes from the F5
+projection. Registered as `derive` at SYN·Pattern (Network, Composing).
+
+**What already existed and what did not.** The circuit is the kernel's
+(`kernel/reaction.js`, P60 — measured as a filter, not a generator). It had
+run only inside eval drivers, over edges each driver assembled by hand,
+and its products were printed and discarded. Nothing read premises off the
+real ledger; nothing landed products back on it; nothing could concede a
+premise; and no wall existed for a product sitting beside a heard note.
+
+**The floor is declared.** `{sources, instruments}` — how many distinct
+sources and how many distinct instruments make a note a premise — is the
+caller's number (P4/P9), refused when absent. The counters are the
+corroboration walk's own (`distinctSources`/`distinctRecipes`).
+
+**The licence comes from the register, never from the organ.** Chemistry
+is projected from `interpretation/declarations.js`'s GIVEN tier alone
+(`affordancesFromDeclarations`), so every affordance can be conceded; a
+CANDIDATE yields nothing (the grain theorem, P37). The veto
+(`auditChemistry`/`vetoedPairs`) runs before the licence and is reported
+apart from `withheld`: nobody vouched, versus somebody vouched and the
+material refuted it.
+
+**Two controls ship with the organ (II.23).** No giver → derivation is a
+measured zero with the candidate disclosed and the withheld chains
+counted. `redeal` (objects permuted within a relation, seeded) → the
+derived set moves when the premises move; and on both the real and the
+redealt material the licensed set stays a SUBSET of `naiveJoin`'s
+unlicensed transitive closure — reaction.js's own standing regression,
+restated at this floor.
+
+**Typed by the act.** SYN · Pattern · `derived` (task-log's own
+`OPERATOR_BASIS.DERIVED`), the cell read off the injected `cellOf`; a
+withdrawal is REC · Pattern per product, each naming what it cascaded
+from and at what depth; the premise's own concession is REC · Figure.
+
+**Evidence.** `organs/derivation.test.mjs`, 11 cases against the REAL
+ledger, reaction circuit, refutation scan and declarations register, on a
+relay a→b→c→d→e recorded by two sources and read by two instruments. The
+closure composes two edges at a bridge, so `a after c` is derived (depth 1,
+grounds = the two raw notes, provenance = eight byte addresses) and `a
+after b` is not — the circuit is right about what "after" means. The wall:
+every derived note carries `witnesses: []`, `distinctSources` reads 0,
+`foldHyperlexicon` projects none of them, and every premise's witness set
+is byte-identical after landing. The cascade: conceding `b replaces c`
+withdraws five products (`a after c` and `b after d` directly; `a after d`,
+`b after e`, `a after e` by cascade) and leaves `c after e` standing;
+entries grow by exactly six, nothing deleted; re-deriving over the
+conceded ledger does not resurrect them. The veto: a corroborated second
+predecessor for `b` refutes the adjacency claim, nothing is derived, and
+`vetoed` is non-empty while `withheld` is empty. Regression: 91/92 organ
+tests (the one skip pre-existing), 468/468 native conformance, the
+capability map 27/27 at 29 entries, the-fold's map pins 130/130.
+
+**Disclosed, not claimed.** No live caller yet — `derive` is registered and
+returns from the seam, and the chat has no door onto it; the natural first
+consumer is a `/derive` door where the person is the giver (the same
+posture `/act`'s warrant clause already holds). A conceded note stays
+conceded: hearing the same triple again does not resurrect it. Organ tests
+do not run in eoreader7's CI (its `npm test` covers `conformance/` and
+`tests/`); this file's evidence was run by hand, as every organ test in
+that directory is.

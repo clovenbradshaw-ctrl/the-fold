@@ -7219,3 +7219,19 @@ residue: on this run gemma2:2b's witness said no to "Kutuzov replaced
 Barclay de Tolly as commander" against "the Tsar replaced Barclay with
 Kutuzov" — a strict reading of a role-reversed paraphrase, marked as
 silence, never as a contradiction.
+
+## Floor 6 opened — a corroborated note as a premise (added 2026-09-02) — pointer
+
+POLICIES.md **P80** is the law; eoreader7's `native/docs/LEVELS.md` names
+the floor; `native/organs/derivation.js` + `derivation.test.mjs` (11 cases,
+real ledger / real circuit / real veto / real register) are the organ. The
+one-line version: F5's finding (a note that survived corroboration) becomes
+F6's operand (a premise); licensed composition derives what the material
+never stated and lands it on the SAME ledger with **no witnesses of its
+own** — premises and walked provenance carry it, `foldHyperlexicon` never
+projects it, the ≥2 gate excludes it by construction — and conceding a
+premise (`hyperlexicon.js::concede`, REC·Figure, new) withdraws every
+product transitively (REC·Pattern each). Nesting's wall, one register up.
+Registered as `derive` at SYN·Pattern; the map stays 27/27 at 29 entries.
+No live caller yet — a `/derive` door with the person as giver is the named
+next consumer (NEXT-PASSES Pass 11).

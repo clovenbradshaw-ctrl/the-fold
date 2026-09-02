@@ -317,3 +317,20 @@ shuffled (REDEAL_SEED) before it is reported, restore never re-admits.
 A wall that cannot be tested leaves the BECOMING open and says why.
 Control built to fail: a fixture whose transcript text names a DIFFERENT
 file than the record's last open — the door must follow the record.
+
+## Pass 11 — floor 6: a corroborated note as a premise (OPENED 2026-09-02)
+
+The floor above the memory floor. `eoreader7/native/organs/derivation.js`
+reads premises off the real ledger at a DECLARED standing floor, derives
+through the real reaction circuit under licences that come only from the
+declarations register's GIVEN tier, lands products on the same ledger as
+SYN·Pattern·derived notes with no witnesses of their own, and withdraws
+every product transitively when a premise is conceded (`hyperlexicon.js::
+concede`, new). POLICIES.md P80 is the law; LEVELS.md names the floor.
+Controls built to fail, both shipped: no giver → zero; redealt premises →
+a different set, licensed ⊆ naive throughout. What is owed next, in
+order: (a) a `/derive` chat door where the PERSON is the giver — the first
+live consumer; (b) declarations acquired from the real ledger by
+`hl-acquire` (candidates only, never given) so the door has something to
+promote; (c) the physics — a real cue and presence floor from the turn's
+own present, instead of the full-closure control arm every eval ran.

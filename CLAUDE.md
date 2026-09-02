@@ -7349,3 +7349,14 @@ reads the opposite sign: the notes Bach sounds together share FEWER
 partials than chance (six of eight arms below the 5th percentile, every
 arm on the Aria; metric control holds). Fusion is what the counterpoint
 avoids. P84's second amendment; eoreader7 `overtones-RESULTS.md` §4.
+
+## Ground/figure/pattern by surprise — P85 (added 2026-09-02) — pointer
+
+POLICIES.md **P85**; eoreader7 `kernel/surprise-segments.js` +
+`results/surprise-segments-RESULTS.md`. A boundary is where the ground
+was most wrong, against a shuffled null, recursively, medium-blind. Music:
+the Prelude's bar found at 34% vs 18% random (0/200), spacing = its own
+8-note figure. English: chance at words, moves, and POS classes — the
+sentence is a convention of the script, not a surprise peak; the
+statement's figures live at the arrangement/ledger grain (next). The
+received POS prior made the text a ground at all (11.10 → 4.00 bits).

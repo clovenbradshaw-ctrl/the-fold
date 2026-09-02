@@ -10614,3 +10614,41 @@ near zero. The metric-control arm never beat its own null. The sign was
 read off two real files with nothing taught. Caveats: fusion-shaped
 metric (k ≤ 8), two pieces, one composer. eoreader7
 `results/overtones-RESULTS.md` §4.
+
+## P85 — Ground, figure, pattern: a boundary is where the ground was most wrong (2026-09-02)
+
+**Generality:** universal (the kernel); the findings are per medium and say so.
+
+**The direction, verbatim:** "the system has no view from nowhere and never
+is without Bayesian priors … music exists in statements too — in ground
+figure patterns that need to be segmented recursively, more elegantly
+than language ever can."
+
+**The law.** Segmentation is not a rule about marks. Ground is the prior so
+far; figure is an event's surprise, measured before it arrives; a boundary
+is a local peak of surprise at or above what the SHUFFLED stream produces
+under the same reader (the null lives inside the cut, II.23); pattern is
+the next level, where segments become symbol-free move-shape tokens and
+the cut recurs. The material's own script — bar lines, punctuation — is
+the ORACLE a boundary is tested against, never something the segmenter
+reads. eoreader7 `kernel/surprise-segments.js`, pinned medium-blind.
+
+**Measured.** Music: the Prelude's boundaries fall on the file's own bar
+at 34% vs 18% for count-matched random placement, 0 of 200 above; the
+boundary spacing is the piece's own 8-note figure; recursion condenses 77
+→ 16 → 4 cuts. The Aria is chance (a ground never right has no figures,
+only novelty). Text (Dracula, sentence ends held aside): chance at three
+grains — raw words (every unseen word a "figure"), word-moves (sentence-
+SIZED segments, below chance on sentence ends), and POS classes, where the
+received prior turned a hapax stream into a real ground (11.10 → 4.00
+bits to cut) and the sentence still did not appear.
+
+**What it means.** A prior is what makes a ground possible — and a sentence
+is a convention of the script, not a peak of surprise at the word grain.
+The thesis stands for music and is not refuted for statements; it is
+mis-aimed at words. A statement's figures live where recurrence is dense:
+the arrangements (floor 2) and the ledger's notes (floor 5) — streams
+this repo already keeps. Segmenting those by surprise is the next
+measurement. And which representation a stream is read at is itself a
+source, to be chosen by what actually happens (P84's mixture), never by
+hand.

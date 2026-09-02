@@ -7147,6 +7147,46 @@ Re-verified live: "The Tsar replaced Barclay de Tolly with Mikhail
 Kutuzov" bound and quiet with its address; "the Russian army continued
 fighting" marked "∅ no passage states this" by the witness's own no; 19s.
 
+**Amended same day — the paraphrase strictness measured, both on a small
+excerpt and on the whole book, not left as one specimen's impression.**
+The standing open question ("Kutuzov replaced Barclay de Tolly as
+commander" refused — is role-reversed paraphrase categorically refused,
+or was that one specimen?) is closed by measurement, in
+`eoreader7/native/eval/the-fold/witness-paraphrase.mjs`: a 16-item battery
+(verbatim/passive/role-reversed/synonym-verb/rearranged, each with a FALSE
+twin, truth fixed before the run) over the Borodino excerpt shows it is
+**not categorical** — role-reversed passed 1/2, rearranged 2/2, passive
+and near-verbatim 0/2 and 0/1 — and zero lies across 7 FALSE items.
+
+Then, on direct instruction ("make sure this all works on a huge corpus
+not just a small attachment"): `witness-paraphrase-corpus.mjs` runs the
+identical discipline through the REAL pipeline — `source.js::chunkSource`
+over the full 3.3MB `pg2600.txt` (11,132 byte-addressed chunks, 0.2s),
+`source.js::retrieve()` per question exactly as a live turn ranks
+passages, only the retrieved passages ever handed to the witness.
+**Mechanically it holds at 400x the material**: no crash, no timeout,
+retrieval always surfaced a candidate, sixteen items in 18-43s. **The
+precision guarantee survives unchanged: 0/7 lies**, both gemma2:2b and
+llama3.2, both retrieval widths tried. **Recall collapsed to 0/9**, and
+the cause was traced rather than assumed: byte-verified the retrieved
+chunk genuinely states the fact ("the French army had crossed the
+Niemen"), printed the single candidate sentence shown to the model (a
+correct, near-verbatim statement), and printed the raw model call —
+gemma2:2b itself answered `stated:no` to a sentence that plainly states
+the claim, most likely because the fact sits inside a subordinate clause
+of a longer reported-speech sentence ("Borís was thus the first to learn
+the news that...") rather than the short declaratives the excerpt battery
+used. Cross-checked on llama3.2 with the identical shape — a fact about
+real literary prose and small-model reading, not a pipeline defect. Full
+account, every number, and the diagnostic method (verify a byte-addressed
+span in the SAME runtime that produced it, not a second one — a first
+pass at this check used Python's own text-mode read and got the wrong
+bytes entirely): `eoreader7/native/eval/the-fold/results/
+witness-paraphrase-corpus-RESULTS.md`. Not yet decided: whether the wall
+should widen its reading unit past one sentence for a fact folded into a
+subordinate clause, or whether this ceiling is the wall correctly
+preferring silence — a real next measurement, not resolved here.
+
 ## JSON is the decoder's job, never the prompt's (added 2026-09-02) — pointer
 
 User direction on reading the summary-refresh prompt: telling a small

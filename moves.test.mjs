@@ -88,10 +88,14 @@ test("coverage is honest about how much of the space is empty", () => {
   // dissolved). The original ratio's lesson stands — a reading that misses
   // something is far more often an unoccupied cell than a misconfigured
   // organ — and P64's law with it: an empty cell is a lead, never a
-  // verdict. The three still empty (CON·Ground, DEF·Ground, INS·Ground —
-  // the whole remaining gap is Ground-grain, one cell per mode) are the
-  // plan's own gated three, waiting on the fold-architecture session's
-  // boundary and on a workable DEF·Ground specimen.
-  assert.equal(c.covered.length, 24);
-  assert.equal(c.empty.length, 3);
+  // verdict. DEF·Ground got its specimen (the 54/58-vs-52/58 provider
+  // incident) and its build (frame.js, from its depth-siblings,
+  // 2026-09-02); the TWO still empty (CON·Ground, INS·Ground — Ground
+  // grain, Relate and Generate modes) wait on the fold-architecture
+  // session's boundary, exactly as the plan wrote them.
+  // 25 since DEF·Ground (frame.js) was built from its depth-siblings and
+  // registered, 2026-09-02 — this pin moves exactly when the registry does,
+  // which is the honesty it exists to enforce
+  assert.equal(c.covered.length, 25);
+  assert.equal(c.empty.length, 2);
 });

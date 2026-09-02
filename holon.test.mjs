@@ -680,7 +680,7 @@ test("a verbatim reproduction fails as not-answering, and the correction can sav
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
     const user = messages[1].content;
     const refs = offeredRefs(user);
-    if (user.includes("copies the passage word for word")) {
+    if (user.includes("word for word")) {
       corrected = true;
       return `The report gives the harbor figure as 12% for the spring quarter. [${refs[0]}]`;
     }
@@ -1312,7 +1312,7 @@ test("reproduction and incompleteness each get their own correction round — th
       assert.match(user, /Johnson/, "the completeness correction must name the real missing filler");
       return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
     }
-    if (user.includes("copies the passage word for word")) {
+    if (user.includes("word for word")) {
       reproductionRound++;
       // Paraphrased, not verbatim — clears reproduction, but is now a
       // full clause the completeness gate can examine, and it names only
@@ -1492,6 +1492,45 @@ test("a transcription with its typography normalized is still a reproduction", a
   // quoting the material with its address on every sentence.
   assert.ok(result.open.some((o) => o.includes("assembled mechanically")));
   assert.ok(result.output.includes("[ledger.txt#"), result.output);
+});
+
+test("SELECTED TESTIMONY: an answer that is a set of the sources' own atomic statements, every one question-relevant, is not a reproduction — the live 2026-09-02 specimen", async () => {
+  // the irrelevant sentence sits INSIDE the offered passage — a control
+  // that lived in an unretrieved chunk was never a copy of anything offered
+  // and cleared for the wrong reason (found by running it)
+  const succession = chunkSource("vp.txt",
+    "Hannibal Hamlin replaced John Breckinridge. Andrew Johnson replaced Hannibal Hamlin. Schuyler Colfax replaced Andrew Johnson. Henry Wilson replaced Schuyler Colfax. The convention that year met in Baltimore.");
+  let corrections = 0;
+  const list = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    if (/word for word/.test(messages[1].content)) corrections++;
+    return "Here is the order:\n\n1. Hannibal Hamlin replaced John Breckinridge.\n2. Andrew Johnson replaced Hannibal Hamlin.\n3. Schuyler Colfax replaced Andrew Johnson.\n4. Henry Wilson replaced Schuyler Colfax.";
+  };
+  const r = await runHolonicTask({ task: "Who replaced whom as vice president, in order?", chunks: succession, call: list, planMode: "flat" });
+  assert.equal(corrections, 0, "a set of relevant statements is answering — no reproduction correction fired");
+  assert.ok(!r.open.some((o) => o.includes("reproduces the material")), JSON.stringify(r.open));
+  assert.ok(!r.open.some((o) => o.includes("assembled mechanically")), "the model's own list ships, not the fallback");
+  assert.match(r.output, /Henry Wilson replaced Schuyler Colfax/);
+  // THE CONTROL, built to fail: the same list with ONE irrelevant sentence
+  // copied along — the convention line the question never asked about —
+  // is transcription, and convicts.
+  let corrections2 = 0;
+  const dragged = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    if (/word for word/.test(messages[1].content)) corrections2++;
+    return "Hannibal Hamlin replaced John Breckinridge. Andrew Johnson replaced Hannibal Hamlin. Schuyler Colfax replaced Andrew Johnson. Henry Wilson replaced Schuyler Colfax. The convention that year met in Baltimore.";
+  };
+  const r2 = await runHolonicTask({ task: "Who replaced whom as vice president, in order?", chunks: succession, call: dragged, planMode: "flat" });
+  assert.ok(corrections2 >= 1, "one irrelevant copied sentence makes it a photocopy again");
+  // and ONE copied relevant sentence is still a single fact owed in one's own words
+  let corrections3 = 0;
+  const single = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    if (/word for word/.test(messages[1].content)) corrections3++;
+    return "Andrew Johnson replaced Hannibal Hamlin.";
+  };
+  await runHolonicTask({ task: "Who replaced Hannibal Hamlin?", chunks: succession, call: single, planMode: "flat" });
+  assert.ok(corrections3 >= 1, "a set needs two members; one copied sentence stays a reproduction");
 });
 
 test("wholesale transcription of short dialogue is a reproduction", async () => {

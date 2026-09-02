@@ -323,3 +323,17 @@ third.
    header row naming its source) is real, unattempted future work — each
    would need its own real, addressable provenance, not a guess dressed
    as one.
+
+## Amendment 2026-09-02 — the correction loop destroyed a right answer (P81)
+
+Read P81. The one-line version for anyone touching chat behaviour: a
+correction call MUST quote the question; a correction prompt MUST NOT
+name our own parts (the firewall scans all five modes now); an answer
+that is a set of ≥2 of the sources' own question-relevant statements is
+selected testimony, not a photocopy; and the mechanical fallback prints
+one line per distinct sentence with every address on it. Measured live:
+the same question went from a narrated non-answer (3 calls) to the first
+draft shipping untouched (2 calls). Still open from the same direction:
+dedupe identical passages in the source block, activate only the notes
+the question's slot reaches, and decide whether the crown line belongs on
+a turn whose sentences already carry addresses.

@@ -1564,7 +1564,12 @@ function mustTurn(argstr, typed) {
  * (floor:<sources>x<instruments>, steps:<n>) — never defaulted here (P9).
  *   /derive                                         status: licences, candidates, derived
  *   /derive give <rel> yields <product> by <who>    licence: <product> is the closure of <rel>
- *   /derive run floor:<s>x<i> steps:<n>             derive over the ledger; products land on it
+ *   /derive run floor:<s>x<i> steps:<n> [cue:<end>;<end> presence:<f>]
+ *                                                   derive over the ledger; products land on it.
+ *                                                   Without a cue: the full-closure control arm.
+ *                                                   With one: only chains in contact with what the
+ *                                                   cue lights react — reaction.js's physics — and
+ *                                                   the presence floor is declared beside it.
  *   /derive show                                    every live derived note with its provenance
  *   /derive concede <noteId> because <trigger>      concede a premise; its products withdraw
  * Mechanical throughout (usageTurn, no model call). A derived note carries
@@ -1628,16 +1633,20 @@ function deriveTurn(argstr, typed) {
     });
   }
   if (arg.startsWith("give")) return usageTurn(typed, "a licence needs a relation, a product and a NAME: /derive give <relation> yields <product> by <who>");
-  const run = arg.match(/^run\s+floor:(\d+)x(\d+)\s+steps:(\d+)$/);
+  const run = arg.match(/^run\s+floor:(\d+)x(\d+)\s+steps:(\d+)(?:\s+cue:([^\n]+?)\s+presence:([\d.]+))?$/);
   if (run) {
     if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard this session, so there are no premises.");
     const floor = { sources: Number(run[1]), instruments: Number(run[2]) };
     const maxSteps = Number(run[3]);
+    // the cue names identity ends (the ledger's own lowercased faces),
+    // separated by ";" because an end may carry spaces
+    const cue = run[4] ? run[4].split(";").map((x) => x.trim().toLowerCase()).filter(Boolean) : null;
+    const presenceFloor = run[5] != null ? Number(run[5]) : null;
     let r;
-    try { r = derivation.derive(log, { declarations: state.declarations, floor, maxSteps }); }
+    try { r = derivation.derive(log, { declarations: state.declarations, floor, maxSteps, cue, presenceFloor }); }
     catch (err) { return usageTurn(typed, `refused: ${err?.message ?? err}`); }
     state.hyperlexiconLog = r.log;
-    const summary = `derivation at floor ${floor.sources} source(s) × ${floor.instruments} instrument(s), ${r.steps} step(s)${r.quiescent ? ", quiescent" : ", step cap reached"}: ${r.premises.length} premise(s) stood, ${r.stopped.length} note(s) below the floor · licences ${r.licences.length} · withheld pairs (no giver) ${r.withheld.length} · vetoed pairs (giver refuted by the material) ${r.vetoed.length} · derived ${r.derived.length} (${r.derived.filter((d) => d.landed === "new").length} new)`;
+    const summary = `derivation at floor ${floor.sources} source(s) × ${floor.instruments} instrument(s), ${cue ? `cued by ${cue.join("; ")} at presence ${presenceFloor}` : "uncued (the full-closure control arm)"}, ${r.steps} step(s)${r.quiescent ? ", quiescent" : ", step cap reached"}: ${r.premises.length} premise(s) stood, ${r.stopped.length} note(s) below the floor · licences ${r.licences.length} · withheld pairs (no giver) ${r.withheld.length} · vetoed pairs (giver refuted by the material) ${r.vetoed.length} · derived ${r.derived.length} (${r.derived.filter((d) => d.landed === "new").length} new)`;
     const noRecipe = r.stopped.length && r.stopped.every((st) => st.instruments === 0) && floor.instruments > 0;
     const lines = [summary];
     for (const id of r.premises.slice(0, 6)) lines.push(`  F5 heard · premise ${id}`);
@@ -1646,7 +1655,7 @@ function deriveTurn(argstr, typed) {
     for (const d of r.derived.slice(0, 12)) lines.push(`  F6 derived · ⊢ ${d.subject} ⇒${d.verb}⇒ ${d.object}  no witness of its own · depth ${d.depth}, ${d.paths} path(s) · rests on ${d.grounds.length} heard note(s) · ${d.provenance.length} address(es) through them · licence by ${d.giver}`);
     for (const v of r.vetoed.slice(0, 4)) lines.push(`  ✗ vetoed ${v.left} ∘ ${v.right}: ${(v.reasons ?? []).join("; ")}`);
     if (!r.licences.length) lines.push("  nothing composes without a licence — /derive give <relation> yields <product> by <who>");
-    mirrorTermRecord("derive-run", { floor, maxSteps, premises: r.premises.length, stopped: r.stopped.length, derived: r.derived.length, vetoed: r.vetoed.length, withheld: r.withheld.length, via: "chat" });
+    mirrorTermRecord("derive-run", { floor, maxSteps, cue, presenceFloor, premises: r.premises.length, stopped: r.stopped.length, derived: r.derived.length, vetoed: r.vetoed.length, withheld: r.withheld.length, via: "chat" });
     logAct("derived", { text: `derive: ${r.derived.length} product(s) from ${r.premises.length} premise(s)` });
     const notesById = new Map(hyperlexiconFor.foldHyperlexicon(log).map((n) => [n.id, n]));
     return levelsTurn(typed, lines.join("\n"), (body) => {
@@ -1663,7 +1672,7 @@ function deriveTurn(argstr, typed) {
       else body.append(proseP("nothing derived: no two premises share a bridge under the given licence."));
     });
   }
-  if (arg.startsWith("run")) return usageTurn(typed, "the floor and the step cap are yours to declare: /derive run floor:<sources>x<instruments> steps:<n>");
+  if (arg.startsWith("run")) return usageTurn(typed, "the floor and the step cap are yours to declare: /derive run floor:<sources>x<instruments> steps:<n> [cue:<end>;<end> presence:<f>] — a cue lights identity ends and needs its presence floor beside it");
   if (arg === "show") {
     const derived = log ? derivation.foldDerived(log) : [];
     if (!derived.length) return usageTurn(typed, "no live derived notes.");

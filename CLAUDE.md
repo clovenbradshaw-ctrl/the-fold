@@ -7259,3 +7259,28 @@ a sighting), and a concession is STRUCK lines under a REC caption —
 `levelsTurn`/`levelFigure`/`heardTable`/`derivedBox`/`licenceQuote`/
 `concededList`, all on the page's existing artifact figure. POLICIES.md
 P80's amendment carries the four live findings in order.
+
+## The correction loop destroyed a right answer — P81 (added 2026-09-02) — pointer
+
+POLICIES.md **P81** is the law; CHAT-POLICIES.md carries the chat-side
+amendment. Measured live on "Who replaced whom as vice president, in
+order?": the first draft was right, the reproduction detector convicted
+it, the correction prompt never restated the question and told the model
+to "say what the passage shows" — narration by instruction — and the
+mechanical fallback then shipped one fact three times. Four fixes, all in
+`holon.js`, all pinned: the question is quoted verbatim in every
+correction mode (`firewall.test.mjs` asserts it); no apparatus vocabulary
+in any correction prompt (the firewall scan now covers all five modes);
+**selected testimony is not a photocopy** — a copied stretch resolving to
+≥2 distinct, all-question-relevant MATERIAL sentences (never counted in
+the draft's own punctuation; letterless "sentences" like list markers are
+furniture) is answering, while one copied sentence or one irrelevant one
+still convicts; and `mechanicalAnswer` prints one line per distinct
+sentence with every address on it. After: the same turn ships its first
+draft untouched, 2 calls instead of 3. User direction that opened this,
+verbatim: *"now that we've got to the level where the model is in here,
+we need to think more deeply about prompting formatting, activation,
+etc."* — P81's closing paragraph names the three parts not taken here
+(dedupe identical passages in the source block; activate only the notes
+the question's slot reaches; decide whether the crown line belongs on an
+already-addressed answer).

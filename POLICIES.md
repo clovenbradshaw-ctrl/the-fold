@@ -10333,3 +10333,82 @@ licence, no witness of its own), a licence (a person's declaration) and
 a concession (REC) are four standings, and a product must never read as
 a sighting. They now render as four different kinds of block, not four
 glyphs on one kind of line — see the door's own header for the shapes.
+
+## P81 — Selected testimony is not a photocopy, and the question is in every call (2026-09-02)
+
+**Generality:** universal.
+
+**The specimen.** "Who replaced whom as vice president, in order?" against
+two pasted sources stating the succession as four one-sentence facts.
+The model's FIRST draft was right — a numbered list of exactly those
+facts. The reproduction detector called it "copies the passage word for
+word" (a verbatim copy by every mass test it has), the correction prompt
+told the model to write "a short paragraph saying what the passage shows
+about it" — and, because that prompt never restated the QUESTION, the
+model could only describe the sources, which it did ("This passage
+details the order in which…"). Convicted again, the mechanical fallback
+shipped one fact three times, each with its own address, under a crown
+line restating it a fourth time. Every organ was individually honest and
+the sequence destroyed a correct answer. User, live: "it did not answer
+the question"; then "it gave multiple layers of answers in a weird way";
+then the standing direction this entry serves — *now that the model is
+in here, think more deeply about prompting, formatting, activation.*
+
+**Four laws, each measured on that one turn.**
+
+1. **The question is in every call.** `buildCorrectionPrompt` quotes
+   `part.description` verbatim, first, in every mode. A rewrite without
+   the question can only describe what it was handed. Enforced:
+   `firewall.test.mjs` asserts the question text appears in all five
+   modes' output.
+2. **No apparatus vocabulary in a correction prompt** (P55, extended).
+   "passage", "material", "the prompt" and "say what the passage shows"
+   were all there — narration by instruction. Every mode now says what to
+   DO with the question and never names our own parts; the firewall scan
+   covers `buildCorrectionPrompt` for all five modes, so the leak cannot
+   quietly return.
+3. **Selected testimony is not a photocopy.** When the answer to a
+   question IS a set of the sources' own atomic statements, copying those
+   statements is answering; what makes a photocopy a photocopy is that it
+   drags along what the question never asked for. The exemption in
+   `reproducedFromContent` is structural, not a threshold: the copied
+   stretch must resolve to at least TWO distinct material sentences (a
+   set needs two members; one copied sentence is a single fact owed in
+   one's own words — the Kessington and bare-"Hamlin" pins keep their
+   meaning), counted in the MATERIAL's sentences never the draft's own
+   punctuation (a numbered list with no full stops is one "sentence" to
+   the splitter), and EVERY one must share a content word with the
+   question (one irrelevant copied sentence and it is transcription — the
+   ledger retype and the dialogue transcription both still convict). A
+   sentence with no letters is furniture, not content: the list's own
+   markers ("1.", "2.") split off as sentences and "1 ." matched inside
+   "1861 ." in another passage — a coincidental, irrelevant "copy" that
+   vetoed the exemption until filtered.
+4. **One voice per passage, one line per sentence.** `mechanicalAnswer`
+   keys its chosen sentences by folded text; passages that state the same
+   sentence add their ADDRESS to one line rather than a second copy of the
+   words.
+
+**Evidence.** Offline replay of the exact live draft through the real
+pipeline: convicted → after each fix in turn, still convicted (the
+punctuation count, then the letterless marker) → ships. Live, same
+question, same material, after: the first draft ships untouched — all
+four handovers, one address chip, 2 model calls instead of 3.
+`holon.test.mjs` 64 → 65 (the specimen, with two controls built to fail:
+one irrelevant sentence dragged along convicts; one copied sentence alone
+convicts), `firewall.test.mjs` 9 → 11. Full the-fold suite: unchanged
+failure set.
+
+**Named, not done — the rest of the direction.** (a) FORMATTING: the
+source block showed the identical sentence three times (two paragraphs of
+one paste, one of another) and the notes block listed the same fact as
+three notes (two with adjunct debris); identical folded text should be
+one quote carrying every address, and a note whose ends are contained by
+another's should fold under it. (b) ACTIVATION: the notes block is every
+note heard; it should be the notes the QUESTION activates — the slot the
+void declared, queried against the ledger — with the rest withheld from
+the prompt (P55: richer provenance never becomes a bigger prompt). (c)
+The crown line restated one sentence of an answer that already carried
+its address — a fifth layer on a four-line answer; whether the crown
+belongs on a turn whose every sentence is addressed is a decision, not a
+bug, and it is not taken here.

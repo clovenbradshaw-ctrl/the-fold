@@ -629,89 +629,80 @@ function landCompletenessBelief(grid, gridLog, runCapacity, landAct, { claim, so
 }
 
 export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode = "unsupported") {
-  // Three failures, three rewrite instructions — each names exactly what
+  // Five failures, five rewrite instructions — each names exactly what
   // went wrong, because "try again" teaches nothing.
+  //
+  // TWO RULES, both measured live 2026-09-02 on "Who replaced whom as vice
+  // president, in order?" — where the FIRST draft was right (a numbered
+  // list of who replaced whom) and the correction destroyed it:
+  //
+  // 1. THE QUESTION IS IN EVERY CALL. The old prompt named the part by its
+  //    label ("the question") and never restated what was asked; a model
+  //    handed a draft and sources but no question can only describe the
+  //    sources — and did ("This passage details the order in which…").
+  //    `part.description` is the task's own words for a flat turn and the
+  //    part's brief for a decomposed one; it is quoted verbatim, first.
+  // 2. NO APPARATUS VOCABULARY (P55, firewall.js). "passage", "material",
+  //    "the prompt" were all in these strings, and the reproduction prompt
+  //    literally instructed "a short paragraph saying what the passage
+  //    shows about it" — narration by instruction, the exact failure the
+  //    narrated mode exists to correct. A directive about the task produces
+  //    a description of the task. These prompts now say what to DO with
+  //    the question and never name our own parts; firewall.test.mjs scans
+  //    every mode's output, so a future edit that explains the machinery
+  //    fails there.
+  const asked = String(part?.description ?? part?.label ?? "").trim();
+  const question = asked ? `The question you are answering, exactly: ${asked}\n\n` : "";
+  const given = sourceBlock ? `\n\n${sourceBlock}` : "";
   if (mode === "reproduction") {
     return (
-      `Your draft for "${part.label}" copies the passage word for word. Copying is not answering. ` +
-      `Answer the question in your own words — a short paragraph saying what the passage shows about it, ` +
-      `quoting at most one sentence.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+      `${question}Your answer so far repeats the sources word for word. Repeating is not answering. ` +
+      `Answer the question directly, in your own words. If the answer is a sequence of facts the sources state, ` +
+      `state each fact yourself, in order, as your own sentence — do not describe what the sources are about, ` +
+      `and quote at most one sentence.\n\nYour answer so far:\n${draft}${given}`
     );
   }
   if (mode === "echo") {
     return (
-      `Your draft for "${part.label}" restates the prompt instead of answering it. ` +
-      `Answer it from the material in your own words; ` +
-      `if the material does not answer it, say so plainly.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+      `${question}Your answer so far restates the question instead of answering it. ` +
+      `Answer it from what you were given, in your own words; ` +
+      `if the answer is not there, say so plainly.\n\nYour answer so far:\n${draft}${given}`
     );
   }
   if (mode === "narrated") {
     return (
-      `Your draft for "${part.label}" describes the passage instead of answering the question — ` +
-      `sentences like "this passage details…" or "it highlights…" are about the material, not an ` +
-      `answer drawn from it. State the answer directly, in your own words, using what the passage says.\n\n` +
-      `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
+      `${question}Your answer so far describes what you were given instead of answering the question — ` +
+      `sentences like "this details…" or "it highlights…" are about the sources, not an answer drawn from them. ` +
+      `State the answer directly, in your own words, using what the sources say.\n\nYour answer so far:\n${draft}${given}`
     );
   }
   if (mode === "incomplete") {
     // Measured live 2026-08-19: an earlier draft of this prompt offered "say
     // plainly that the material lists more than one" as an escape hatch for
     // the genuinely-ambiguous case — gemma2:2b instead echoed that exact
-    // clause back as its OWN answer's opening sentence ("The material lists
-    // more than one vice president...") even on a draft that WAS able to
-    // name every filler. A copy-pastable phrase in a correction prompt is an
-    // instruction the model can obey too literally — the same lesson this
-    // file's own EXECUTE_SYSTEM_PROMPT history already carries (a directive
-    // about the task produces a description of the task). Reworded to name
-    // what to DO (state every filler directly, plainly) without supplying
-    // any sentence shaped to be echoed.
-    //
-    // Measured live again 2026-08-20 (the same Lincoln/Hamlin/Johnson
-    // question): with that fix in place, gemma2:2b still dodged — not by
-    // echoing the escape hatch, but by describing the QUESTION instead of
-    // the material ("The question mentions two vice presidents: Hannibal
-    // Hamlin and Andrew Johnson."), since the instruction only forbade
-    // describing "the material itself" and said nothing about the question.
-    // Every other mode above already forbids both in one breath (echo:
-    // "restates the prompt instead of answering it"; narrated: "describes
-    // the passage instead of answering the question"); this mode had
-    // dropped the question half when it was written. provenance.js's own
-    // narration stripper does not catch this sentence either and correctly
-    // so — "mentions" only cuts wholesale text with no complement worth
-    // keeping (details?/describe[sd]/etc.), and this sentence's complement
-    // IS the two names the completeness gate exists to preserve; stripping
-    // it would ship an empty or gutted answer, worse than the narration it
-    // removes. The fix belongs at the source, same as the 2026-08-19 one.
-    //
-    // A third, deeper thing measured in that same 2026-08-20 run, once the
-    // wording fixes above were both in place and re-tested: the model still
-    // named a THIRD person ("Schuyler Colfax") who is real text sitting in
-    // the material but was never confirmed for this slot. Replaying the
-    // exact retrieved passages through both completeness signals directly
-    // (bypassing the model) proved the finding itself was already correct
-    // — a Wikipedia succession box sits one office's record directly beside
-    // the NEXT office-holder's own record, so a small model shown the raw
-    // box text a second time, under pressure to "find more", keeps reading
-    // past the confirmed slot into the next one. `failures` above is now
-    // the FULL confirmed set for each slot, phrased as closed ("confirms
-    // exactly: X, Y (nothing else)") rather than a delta — this is the
-    // actual fix: give the model nothing left to hunt for, instead of
-    // asking it not to hunt.
+    // clause back as its OWN answer's opening sentence. A copy-pastable
+    // phrase in a correction prompt is an instruction the model can obey
+    // too literally. Reworded to name what to DO without supplying any
+    // sentence shaped to be echoed. Measured again 2026-08-20: it then
+    // described the QUESTION instead; and then named a THIRD person sitting
+    // nearby in the sources — so `failures` is the FULL confirmed set,
+    // phrased as closed, giving the model nothing left to hunt for.
+    // (This mode is normally routed through buildRedefinedPart instead —
+    // see the call site — and kept here for any caller that asks by mode.)
     return (
-      `Your draft for "${part.label}" answers as if there is only one, but the material states more than one. ` +
-      `Here is the material's own COMPLETE, CONFIRMED answer for each — nothing beyond this list is confirmed, even if other names appear nearby in the passages below:\n` +
+      `${question}Your answer so far answers as if there is only one, but the sources state more than one. ` +
+      `Here is the COMPLETE, CONFIRMED answer for each — nothing beyond this list is confirmed, even if other names appear nearby:\n` +
       failures.map((f) => `- ${f}`).join("\n") +
-      `\n\nRewrite your answer to name every one of them directly, by name, the way you would if you had known all along — never describe the material or the question itself, and never add a name that is not on the confirmed list above, even one you recognize or see mentioned nearby. ` +
-      `If you genuinely cannot tell which the material means, name the ones you can and say which part is unclear. ` +
-      `Do not invent a reason to prefer one over the others unless the material itself gives one.\n\n` +
-      `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
+      `\n\nRewrite your answer to name every one of them directly, by name, the way you would if you had known all along — never describe the sources or the question itself, and never add a name that is not on the confirmed list above, even one you recognize or see mentioned nearby. ` +
+      `If you genuinely cannot tell which is meant, name the ones you can and say which part is unclear. ` +
+      `Do not invent a reason to prefer one over the others unless the sources themselves give one.\n\nYour answer so far:\n${draft}${given}`
     );
   }
   return (
-    `Your draft for the part "${part.label}" contains statements the supplied material does not support:\n` +
+    `${question}Your answer so far contains statements nothing you were given supports:\n` +
     failures.map((f) => `- ${f}`).join("\n") +
-    `\n\nRewrite the part using only what the passages state. ` +
-    `Where the material is silent, say so instead.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
+    `\n\nRewrite it using only what the sources state. ` +
+    `Where they are silent, say so instead.\n\nYour answer so far:\n${draft}${given}`
   );
 }
 
@@ -752,7 +743,14 @@ const SENTENCE_END_RE = /[.!?]["'”’)]*$/;
 export function mechanicalAnswer(question, passages) {
   const qTokens = new Set(tokenize(String(question ?? "")));
   if (!qTokens.size) return "";
-  const lines = [];
+  // ONE VOICE PER PASSAGE, ONE LINE PER SENTENCE. Measured live 2026-09-02:
+  // three passages carrying the identical sentence shipped it three times,
+  // each with its own address — the same fact read as three findings. A
+  // sentence is keyed by its folded text (source.js's own fold, the one the
+  // reproduction detector uses), and every passage that states it adds its
+  // ADDRESS to the one line rather than a second copy of the words. Each
+  // perspective still gets its voice; the voices just agree out loud.
+  const byText = new Map();
   for (const p of passages ?? []) {
     const best = splitSentences(String(p.text ?? ""))
       .map((s) => {
@@ -761,8 +759,13 @@ export function mechanicalAnswer(question, passages) {
       })
       .filter((x) => x.t && x.n > 0)
       .sort((a, b) => (b.sentence - a.sentence) || (b.n - a.n))[0];
-    if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
+    if (!best) continue;
+    const key = foldTypography(best.t);
+    const row = byText.get(key) ?? { t: best.t, refs: [] };
+    if (p.ref && !row.refs.includes(p.ref)) row.refs.push(p.ref);
+    byText.set(key, row);
   }
+  const lines = [...byText.values()].map((row) => `“${row.t}”${row.refs.length ? ` ${row.refs.map((r) => `[${r}]`).join(" ")}` : ""}`);
   if (!lines.length) return "";
   // NO FRAMING SENTENCES. This used to open "Here's what the material itself
   // says about this:" and close "That's everything the material offers on
@@ -1537,9 +1540,50 @@ export async function runPart({
    * The measure is a ratio of the answer's own substance, immune to how the
    * source happens to distribute its full stops.
    */
+  // SELECTED TESTIMONY IS NOT A PHOTOCOPY. Measured live 2026-09-02, "Who
+  // replaced whom as vice president, in order?" against sources that state
+  // the succession as four one-sentence facts: the model's first draft was
+  // a numbered list of exactly those facts — right, and by every mass test
+  // below a verbatim copy, so it was convicted, rewritten into narration,
+  // convicted again, and the mechanical fallback shipped one fact three
+  // times. When the answer to a question IS a set of the sources' own
+  // atomic statements, copying those statements is answering; what makes a
+  // photocopy a photocopy is that it drags along what the question never
+  // asked for. So the exemption is structural, not a threshold: the copied
+  // sentences must number at least TWO (a set needs two members — one
+  // copied sentence is a single fact that should be said in one's own
+  // words, and stays a reproduction; binding.js's own "one arrival has no
+  // co-arrival" floor, reused) and EVERY copied sentence must share a
+  // content word with the question (one irrelevant copied sentence and the
+  // whole copy is transcription — the ledger retype and the dialogue
+  // transcription both carry such sentences and both still convict).
+  const questionContent = [...questionWords];
+  const isRelevantSentence = (sf) => { const toks = tokenize(sf); return questionContent.some((w) => toks.includes(w)); };
+  // The set is counted in the MATERIAL's sentences, never the draft's own
+  // punctuation. Measured on the live draft: a numbered list with no full
+  // stops is ONE sentence to the splitter — one copied "sentence" spanning
+  // four of the sources' statements — and a count of draft sentences read
+  // it as a single fact. A copied stretch is resolved to the material
+  // sentences it contains; a fragment that contains none stands as itself.
+  const passageSentencesFolded = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map(foldTypography).filter(Boolean));
+  const selectedTestimony = (folded) => {
+    const units = new Set();
+    for (const sf of folded) {
+      if (!isVerbatimSentence(sf)) continue;
+      const contained = passageSentencesFolded.filter((ms) => ms.length > 0 && sf.includes(ms));
+      if (contained.length) for (const ms of contained) units.add(ms);
+      else units.add(sf);
+    }
+    return units.size >= 2 && [...units].every(isRelevantSentence);
+  };
   const reproducedFromContent = (content) => {
     if (!content.length) return false;
-    const folded = content.map(foldTypography).filter(Boolean);
+    // A "sentence" with no letters is list furniture ("1.", "2.") or bare
+    // punctuation, not content: measured live 2026-09-02, a numbered list's
+    // markers split off as sentences and "1 ." matched INSIDE "1861 ." in
+    // another passage — a letterless, coincidental, irrelevant "copy" that
+    // vetoed the selected-testimony exemption on a correct answer.
+    const folded = content.map(foldTypography).filter((f) => f && /\p{L}/u.test(f));
     if (!folded.length) return false;
     const contentText = folded.join(" ");
     const wholeBlockCopied = passagesFolded.some((pf) => pf.includes(contentText));
@@ -1549,7 +1593,8 @@ export async function runPart({
       totalMass += sf.length;
       if (isVerbatimSentence(sf)) copiedMass += sf.length;
     }
-    return wholeBlockCopied || copiedMass > totalMass / 2;
+    const copied = wholeBlockCopied || copiedMass > totalMass / 2;
+    return copied && !selectedTestimony(folded);
   };
   const judge = (t) => {
     const all = splitSentences(String(t ?? "").replace(ADDRESS_RE, " ")).filter(Boolean);

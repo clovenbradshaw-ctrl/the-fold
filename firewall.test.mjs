@@ -27,7 +27,24 @@ const MODEL_FACING = {
   PLAN_SYSTEM_PROMPT: holon.PLAN_SYSTEM_PROMPT,
   SEARCHED_VOID_PREFIX: holon.SEARCHED_VOID_PREFIX,
   priorPassFor: holon.priorPassFor("a first take"),
+  // The correction prompts, every mode — the live 2026-09-02 leak was here:
+  // "copies the passage word for word… say what the passage shows about it"
+  // reached gemma2:2b and it described the passage. Built with a real part
+  // shape, a bare source block, a draft and a failure, so the scan covers
+  // exactly the strings a correction call sends.
+  ...Object.fromEntries(["reproduction", "echo", "narrated", "incomplete", "unsupported"].map((mode) => [
+    `correction:${mode}`,
+    holon.buildCorrectionPrompt({ label: "the question", description: "who replaced whom, in order?" }, "", "a draft", ["a failure"], mode),
+  ])),
 };
+
+test("every correction prompt carries the question itself, verbatim — a rewrite without the question can only describe the sources", () => {
+  for (const mode of ["reproduction", "echo", "narrated", "incomplete", "unsupported"]) {
+    const s = holon.buildCorrectionPrompt({ label: "the question", description: "who replaced whom, in order?" }, "", "a draft", ["a failure"], mode);
+    assert.match(s, /who replaced whom, in order\?/, mode);
+    assert.doesNotMatch(s, /what the passage shows/i, mode);
+  }
+});
 
 test("no standing system prompt hands the model a word for one of our own parts", () => {
   assert.deepEqual(assertModelFacing(MODEL_FACING).sort(), Object.keys(MODEL_FACING).sort());

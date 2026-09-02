@@ -783,7 +783,28 @@ export function landAct(grid, log, line, { sources = {}, runCapacity, classifyCo
  * caller checking N different grounds against the SAME claim_id produces
  * N such RESULT cells.
  */
-export function perSourceReadings(grid, log, claimId) {
+/**
+ * speakerWho(who, refs, speakerAt) — the speaker boundary consumed
+ * (speaker.js, Tier 4 #11): a reading's `who` is the SOURCE being read,
+ * and when that source declares its speakers by section, the reading's
+ * own address says which one spoke. A journal's "I" becomes a WITNESS WITH
+ * A NAME — `dracula.txt:Dr. Seward` rather than `dracula.txt` — so the
+ * crown attributes a section's claims to the narrator, and two narrators
+ * of one book are two voices rather than one source (distinctSources
+ * keeps them apart by the `:` the same way it keeps `testimony:` apart).
+ * Optional and additive: no speakerAt, or no speaker at that offset (front
+ * matter, a speakerless log), leaves `who` exactly as it was — a typed
+ * absence, never a nearest-guess (speaker.js's own rule).
+ */
+export function speakerWho(who, refs, speakerAt) {
+  if (typeof speakerAt !== "function" || !who || !Array.isArray(refs) || !refs.length) return who;
+  const m = String(refs[0]).match(/^(.+?)#(\d+)-\d+$/);
+  if (!m) return who;
+  const speaker = speakerAt(m[1], Number(m[2]));
+  return speaker ? `${who}:${speaker}` : who;
+}
+
+export function perSourceReadings(grid, log, claimId, { speakerAt = null } = {}) {
   const { cells } = grid.foldClaim(log, claimId);
   return cells
     .filter((c) => c.kind === "result")
@@ -793,7 +814,7 @@ export function perSourceReadings(grid, log, claimId) {
       const judged = r.judged ?? null;
       return {
         claim_id: claimId,
-        who: experiencer.read ?? null,
+        who: speakerWho(experiencer.read ?? null, judged?.refs ?? [], speakerAt),
         read: judged?.refs ?? [],
         revision: experiencer.revision ?? null,
         verdict: c.verdict ?? "undetermined",

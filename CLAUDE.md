@@ -7002,3 +7002,24 @@ RANDOM declared ten-member kinds, drawn seeded from the same 100-surface
 population on the real Dracula, recover **0/10 every time** against the
 real kind's 9/10. Licensed, and pinned as a test beside the number it
 licenses.
+
+## Two organs consumed — the enumeration door and the named narrator (added 2026-09-02) — pointer
+
+**`/must`** (app.js, blob-staged): obligation.js's first live caller —
+admit an enumerated instruction set as clauses each owed a visit; bare
+`/must` renders coverage as ENUMERATION (the unvisited NAMED, complete
+only when nothing is unvisited and nothing stands violated); `done`/
+`broke`/`waive … by <who>` move standings append-only with their because.
+The prosthetic spoke brains lack, supplied as external apparatus, as the
+ways-of-knowing register predicted it would have to be.
+
+**`speakerWho`** (capacity-runner.js; `perSourceReadings` takes an
+optional `speakerAt`): the speaker boundary consumed — a reading's `who`
+is the source being read, and when that source declares its speakers by
+section, the reading's own address says which one spoke:
+`dracula.txt:DR. SEWARD` rather than `dracula.txt`. A journal's "I" is a
+WITNESS WITH A NAME, and two narrators of one book are two voices to the
+independence count (the `:` keeps them apart exactly as `testimony:`
+does). Additive: no organ, front matter, or a speakerless section leaves
+`who` bare — a typed absence, never a nearest-guess. Pinned on the real
+Dracula (Seward's diary vs Harker's journal, front matter bare).

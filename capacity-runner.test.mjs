@@ -1363,3 +1363,27 @@ test("floor 4½'s wall in testimony's vocabulary: a hold that READ NOTHING never
   assert.equal(mergeTestimony([realHoldReading("a.txt"), realHoldReading("b.txt")]).case, "AGREE",
     "and the ordinary boundary is unchanged");
 });
+
+// ── the speaker boundary consumed: a journal's "I" is a witness with a name ──
+import { speakerWho } from "./capacity-runner.js";
+import { speakerSections, speakerAt as speakerAtOffset } from "./speaker.js";
+import { readFileSync, existsSync } from "node:fs";
+
+test("speakerWho: a reading inside a declared section is attributed to its narrator; front matter and no-organ stay bare", () => {
+  const DRACULA = "../live_priors/01-literature-books/gutenberg/pg345_Dracula.txt";
+  if (!existsSync(DRACULA)) return; // the real book is the fixture; nothing is faked
+  const text = readFileSync(DRACULA, "utf8");
+  const sections = speakerSections(text);
+  const seward = sections.find((s) => /SEWARD/i.test(s.speaker ?? ""));
+  const speakerAt = (ref, offset) => (ref === "dracula.txt" ? speakerAtOffset(sections, offset) : null);
+
+  const inside = speakerWho("dracula.txt", [`dracula.txt#${seward.headingEnd + 200}-${seward.headingEnd + 260}`], speakerAt);
+  assert.match(inside, /^dracula\.txt:.*SEWARD/i, `the narrator rides the who: ${inside}`);
+  assert.equal(speakerWho("dracula.txt", ["dracula.txt#10-40"], speakerAt), "dracula.txt", "front matter binds to no one — who stays the source");
+  assert.equal(speakerWho("dracula.txt", ["dracula.txt#10-40"], null), "dracula.txt", "no organ, no change");
+  assert.equal(speakerWho("other.txt", ["other.txt#500-600"], speakerAt), "other.txt", "a source without declared sections is untouched");
+  // and two narrators of one book are two VOICES to the independence count
+  const harker = sections.find((s) => /HARKER/i.test(s.speaker ?? ""));
+  const w1 = speakerWho("dracula.txt", [`dracula.txt#${harker.headingEnd + 200}-${harker.headingEnd + 260}`], speakerAt);
+  assert.notEqual(w1, inside, "Harker's journal and Seward's diary are different witnesses");
+});

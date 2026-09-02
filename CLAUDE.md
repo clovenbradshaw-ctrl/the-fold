@@ -6793,3 +6793,28 @@ CON·Ground and INS·Ground remain gated on the fold-architecture
 session's boundary. Not yet consumed by a live caller — the natural
 first consumers are the hypergraph provider switch itself and
 WITNESS_OPERATING_POINT's per-protocol calibrations.
+
+## §VIII.1 tested: Binding transfers across the three mathematics (added 2026-09-02) — pointer
+
+Tier 3 Pass 9. `binding-core.js` extracts the Binding stance's algebra
+once, domain-blind (a figure seeks its counterpart in a field; declared
+criterion scores; unique clearing winner or typed refusal — ambiguous is
+never a coin flip; an optional FOIL probe refuses a criterion that also
+clears a designated foil; evidence carried, failures typed) — zero domain
+vocabulary, enforced by a source-scan. `binding-transfer.test.mjs` (5/5)
+then reproduces the three REAL Binding organs' decisions on real
+material with three thin adapters: mention→referent agrees with the real
+`makeReferentIndex`; claim→edge agrees with the real relation reader
+(bound AND not-bound); testimony→verdict reproduces the armed select
+protocol, with the same-index arm expressed as the core's own foil
+probe. Zero core edits between domains.
+
+Honest scope, in §VIII.1's own RESULT block: agreement on SPECIMENS, not
+behavioral equivalence — what transferred is the decision shape. And one
+refinement the trial surfaced: the MARGIN is domain-owned (geometry
+declares margin −1 because an exact tie of fully-clearing edges is
+corroboration there; arithmetic's tie is genuine ambiguity) — the core
+owns the algebra, the adapter owns criterion/floor/margin/foil as
+declared parameters. Both of THE-THREE-MATHEMATICS' testable predictions
+(§VIII.1 transfer, §VIII.2 depth-derivation) now carry a first earned
+point each, recorded as one trial apiece, not laws.

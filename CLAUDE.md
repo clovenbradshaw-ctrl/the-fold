@@ -6503,3 +6503,27 @@ addressable note (`general|keeps-company|kind:before=the`) with
 witnesses unioned across independently-discovering sources — kind
 membership is itself a corroboratable claim. LEVELS.md's amendment
 carries the full account.
+
+## Music and video through the pipeline (added 2026-09-01) — pointer
+
+`eval/results/omnimodal-pipeline-RESULTS.md` is the account; the driver
+re-runs from the repos plus local ffmpeg. The one-line version: real WAV
+(measure.js's own `wavSamples` + an autocorrelation tracker) and real MP4
+(ffmpeg rawvideo, mean-color shots) decoded to event streams, and the
+SAME kind organs — `discoverCompanyKinds`/`frameWords`/`kindNotes`/
+`hear`/`distinctSources`, unmodified — discover each medium's declared
+grammar taught-nothing (`kind:before=a3` the ornament kind;
+`kind:before=slate` the insert-shot kind), II.23 shuffle controls
+dissolving both, kinds corroborated to 2 distinct sources per medium in
+ONE ledger. Three paid-for findings: the single text prior hiding in the
+organ (contextVectors' token cleaner ate "d5" — now injectable); a noisy
+stream refuses honestly (the kinds formed nothing on a bad decode rather
+than garbage); and **the shared-instrument limit, demonstrated live** —
+a systematic tracker artifact corroborated at "2 distinct sources"
+because both witnesses share one decoder, the measured argument for
+carrying P68 recipe identity in witness strings (named, unbuilt). Music
+is S2-native: the heard rule satisfied by construction. Also this pass:
+the select protocol is now ARMED (sibling-swap over the same candidate
+list, siblings harvested from the whole source; unarmed yes refused) —
+after unarmed select measured p(states|fabricated)=1/8 live; the armed
+recalibration is the named next measurement.

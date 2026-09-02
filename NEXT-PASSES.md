@@ -149,10 +149,16 @@ media, a different axis.
     door, clause standings typed
     (satisfied/violated/waived/not-yet-visited), coverage as enumeration
     not relevance. The pieces exist; the ledger between them doesn't.
-14. **Non-text adapters above floor 0** — audio/image propositions. The
-    protocol seams are proven medium-blind (featuresOfSource/Note, the
-    witness shape); what's missing is an adapter that produces
-    arrangements from a non-text medium at all.
+14. **Non-text adapters above floor 0** — STARTED (2026-09-01,
+    `eval/omnimodal-pipeline.mjs` + results doc): real WAV and real MP4
+    decoded to event streams, the SAME kind-discovery organs unmodified
+    (one text prior found and made injectable: contextVectors' token
+    cleaner), kinds discovered and corroborated across two sources per
+    medium through the real hyperlexicon door, II.23 controls in-pass.
+    Still missing: F2 arrangements ({end1,label,end2}) from non-text
+    media, and the shared-instrument independence fix (a false music
+    kind corroborated at "2 distinct sources" because both decodes
+    share one tracker — recipeId belongs in the witness string).
 
 ## The refused list — measured dead ends, do not retry
 

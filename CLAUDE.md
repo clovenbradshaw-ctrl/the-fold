@@ -6981,3 +6981,24 @@ stand with the caveat that what separates them from the shuffle is
 REACH (5 vs 1 decided facts), not precision per fact. The FALSE-count
 claim (the veto prevents the false facts) survives whole. **The rule:
 before a precision number is reported, the judge is shuffled once.**
+
+## The map at 27/27, and a second judge shuffled (added 2026-09-02) — pointer
+
+On the user's direction not to block development on the fold-architecture
+boundary, the last two Ground cells are registered: **`field`**
+(CON·Ground → `fold.js::advanceSummaryFold`; the running summary's
+MAINTENANCE act, with the deciding half already registered apart as
+`atmosphere` at EVA·Ground — the boundary the plan's own gate asked for
+turned out to be the two organs' signatures) and **`preflight`**
+(INS·Ground → `proof.js::preflightQuery`; the pure declaration of P23's
+one-search-before-drafting, the crossing itself staying in app.js where
+P13's egress lives). **27/27, nine FULL stances, zero illegal** —
+`eval/capability-coverage.mjs` is the regeneration check; `moves.test.mjs`'s
+pins moved with the registry, as they exist to.
+
+Same pass, the rule P60's fifth amendment earned applied to another
+number: kind-standing's "9 of 10 places recover" is now shuffled — twelve
+RANDOM declared ten-member kinds, drawn seeded from the same 100-surface
+population on the real Dracula, recover **0/10 every time** against the
+real kind's 9/10. Licensed, and pinned as a test beside the number it
+licenses.

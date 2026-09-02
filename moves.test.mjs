@@ -69,10 +69,11 @@ test("THE SPECIMEN: the list failed at a cell this instrument has never occupied
   assert.equal(network.terrain, "Network");
   assert.deepEqual(network.organs, ["network"], "the cell the specimen exposed is now occupied by the organ built for it (P58, registered P64)");
 
-  // The lead-grading machinery still reads: the same act one grain finer
-  // remains covered (CON·Ground stays empty, so it is not listed).
+  // The lead-grading machinery still reads: the same act at every other
+  // grain is now covered — CON·Ground closed 2026-09-02 (`field`, the
+  // running summary's maintenance act), so it lists beside CON·Figure.
   const n = moves.neighbours("CON·Pattern", c.covered);
-  assert.deepEqual(n.sameActOtherGrain, ["CON·Figure"]);
+  assert.deepEqual(n.sameActOtherGrain, ["CON·Ground", "CON·Figure"]);
 });
 
 test("coverage is honest about how much of the space is empty", () => {
@@ -96,6 +97,6 @@ test("coverage is honest about how much of the space is empty", () => {
   // 25 since DEF·Ground (frame.js) was built from its depth-siblings and
   // registered, 2026-09-02 — this pin moves exactly when the registry does,
   // which is the honesty it exists to enforce
-  assert.equal(c.covered.length, 25);
-  assert.equal(c.empty.length, 2);
+  assert.equal(c.covered.length, 27); // 27/27 since the Ground row closed (field, preflight — 2026-09-02)
+  assert.equal(c.empty.length, 0);
 });

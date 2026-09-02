@@ -7139,3 +7139,19 @@ own "no" is a refusal — a protocol non-verdict (the morphology miss
 draws nothing. Verified live on gemma2:2b: true sentence quiet with its
 address, unsupported sentence marked, 17s. Known next rung: the company
 wall should fold morphology (`sameAct`), so "prepare/prepared" is company.
+
+## JSON is the decoder's job, never the prompt's (added 2026-09-02) — pointer
+
+User direction on reading the summary-refresh prompt: telling a small
+model to "reply with a JSON object only" is dangerous. Every JSON-shaped
+call already hands its schema to Ollama's `format`, so the instruction was
+redundant under L5 and only taught a 2B model that JSON is a way to talk.
+Removed everywhere it appeared (fold.js's refresh — with its placeholder
+template and the never-read turnCount line; holon.js's plan; skills.js's
+slot-fill and authoring). The rule that came out of it: a schema that
+carries CONTENT (summary fields, plan labels, a patch's find/add) is a form
+the model must fill, so it needs an abstain — the summary's empty field
+now carries the previous value (fold.js, pinned) — and a field that becomes
+ground must never bypass the checks a sentence gets. Schemas that only
+POINT (the witness's yes/no + index, an enum pick with `none`) are safe by
+construction: there is nothing to write.

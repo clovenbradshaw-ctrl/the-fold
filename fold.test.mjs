@@ -641,3 +641,19 @@ test("buildSourceBlock shows the identity guess ahead of a passage's text, and s
   const plain = [{ text: "Ordinary prose, nothing structural about it.", identity: { kind: "prose", guess: null } }];
   assert.ok(!buildSourceBlock(plain).includes("this looks like"));
 });
+
+// ── an empty field is the model's abstain (2026-09-02) ──────────────────
+// The refresh's schema requires every field, so a small model forced to
+// fill a form filled it: the prompt now says an empty field carries, the
+// prompt no longer tells the model to "reply with JSON" (the decoder holds
+// the shape; the words only taught it to talk JSON), and the placeholder
+// template that a 2B model copies back is gone.
+test("an empty summary field carries the previous value; the prompt never says JSON and never shows a placeholder template", async () => {
+  const { updateSummaryWithFold, emptySummary, buildSummaryUpdatePrompt, FOLD_SYSTEM_PROMPT } = await import("./fold.js");
+  const prev = { ...emptySummary(), topic: "Borodino", flow: "one question so far", entities: ["Kutuzov"], context: "who commanded", language: "en", turnCount: 1, folds: ["Q: who commanded? A: Kutuzov"] };
+  const next = updateSummaryWithFold(prev, "Q: and after? A: they retreated", JSON.stringify({ topic: "", flow: "", entities: [], context: "", language: "" }));
+  assert.equal(next.topic, "Borodino"); assert.equal(next.flow, "one question so far"); assert.deepEqual(next.entities, ["Kutuzov"]); assert.equal(next.language, "en");
+  assert.equal(next.turnCount, 2, "the count is mechanical");
+  const prompt = String(buildSummaryUpdatePrompt?.(prev, prev.folds) ?? "") + FOLD_SYSTEM_PROMPT;
+  assert.ok(!/JSON/.test(prompt) && !/<what this/.test(prompt), "no JSON instruction, no placeholder template");
+});

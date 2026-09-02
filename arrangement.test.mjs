@@ -63,64 +63,62 @@ test("arrangementOf: undefined fields map through as undefined, never guessed", 
   assert.deepEqual(arrangementOf({}), { end1: undefined, label: undefined, end2: undefined });
 });
 
-test("real edges (the primary edge loop) carry end1/label/end2 matching subject/verb/object", async () => {
+// ── THE WIPE, COMPLETED (2026-09-02) ─────────────────────────────────────
+// These four tests were the TRANSITION's own assertions: both name sets
+// present and equal on every construction site, so consumers could migrate
+// one at a time against a stable double-carriage. P76's amendment finished
+// the consumer migration; this pass removed the old names from the four
+// sites. The tests now assert the END STATE — earned names present and
+// real, SAE names GONE — so a re-introduction of the double carriage fails
+// loudly instead of drifting back in.
+
+test("real edges (the primary edge loop) carry ONLY the earned names — the SAE fields are gone", async () => {
   const { relationsFor } = await loadOrgans();
   const p = { ref: "prose", text: "Pierre Bezukhov walked to the market. Pierre Bezukhov bought bread. Natasha Rostova sang a song. Natasha Rostova danced with joy." };
   const report = relationsFor([p], { pool: [p] });
   assert.ok(report.edges.length > 0, "real prose must produce real edges to test against");
   for (const e of report.edges) {
-    assert.equal(e.end1, e.subject, `end1 must equal subject for edge ${JSON.stringify(e.verb)}`);
-    assert.equal(e.label, e.verb, `label must equal verb for edge ${JSON.stringify(e.verb)}`);
-    assert.equal(e.end2, e.object, `end2 must equal object for edge ${JSON.stringify(e.verb)}`);
-    // Nothing existing is removed — both readings coexist on the same edge.
-    assert.ok("subject" in e && "verb" in e && "object" in e, "the SAE fields are untouched, not replaced");
+    assert.ok(typeof e.end1 === "string" && e.end1.length > 0, "end1 is a real surface");
+    assert.ok(typeof e.label === "string" && e.label.length > 0, "label is a real connector");
+    assert.ok(typeof e.end2 === "string" && e.end2.length > 0, "end2 is a real surface");
+    assert.ok(!("subject" in e) && !("verb" in e) && !("object" in e),
+      `the SAE fields are wiped, not merely shadowed: ${JSON.stringify(Object.keys(e))}`);
   }
 });
 
-test("edgeFace's projection (nearest/competing) carries end1/label/end2 too, not just the raw edge", async () => {
+test("edgeFace's projection (nearest/competing) carries ONLY the earned names too", async () => {
   const { relationsFor } = await loadOrgans();
-  // Two-word proper names, matching the pattern the vocabulary/candidates
-  // fixture above already proved works: a bare single capitalized word
-  // sitting sentence-initially every time ("Lincoln appointed...") is the
-  // genuinely ambiguous case extractSurfaces refuses (indistinguishable
-  // from ordinary sentence-initial capitalization) — checked directly
-  // against the real organs before writing this fixture, not assumed.
   const p1 = { ref: "a.txt", text: "Abraham Lincoln appointed Hannibal Hamlin. Abraham Lincoln appointed Andrew Johnson." };
   const report = relationsFor([p1], { pool: [p1] });
   const { claims } = report.read("Abraham Lincoln appointed William Seward.");
   const withNearest = claims.find((c) => Array.isArray(c.nearest) && c.nearest.length > 0);
-  assert.ok(withNearest, "a claim contesting an existing subject+verb bucket must surface `nearest` (edgeFace's own projection) to test against");
+  assert.ok(withNearest, "a claim contesting an existing subject+verb bucket must surface `nearest` to test against");
   for (const n of withNearest.nearest) {
-    assert.equal(n.end1, n.subject);
-    assert.equal(n.label, n.verb);
-    assert.equal(n.end2, n.object);
+    assert.ok(n.end1 && n.label && n.end2, "the projection carries the earned names");
+    assert.ok(!("subject" in n) && !("verb" in n) && !("object" in n), "and none of the SAE ones");
   }
 });
 
-test("judge()'s claim (via read()) carries end1/label/end2 matching subject/verb/object", async () => {
+test("judge()'s claim (via read()) carries ONLY the earned names", async () => {
   const { relationsFor } = await loadOrgans();
   const p = { ref: "prose", text: "Pierre Bezukhov walked to the market." };
   const report = relationsFor([p], { pool: [p] });
   const { claims } = report.read("Pierre Bezukhov walked to the market.");
   assert.ok(claims.length > 0, "a restated sentence must produce a claim to test against");
   for (const c of claims) {
-    assert.equal(c.end1, c.subject);
-    assert.equal(c.label, c.verb);
-    assert.equal(c.end2, c.object);
+    assert.ok(c.end1 && c.label && c.end2);
+    assert.ok(!("subject" in c) && !("verb" in c) && !("object" in c),
+      `wiped on claims too: ${JSON.stringify(Object.keys(c))}`);
   }
 });
 
-test("an 'unheard' claim (the fourth construction site) carries end1/label/end2 too", async () => {
+test("an 'unheard' claim (the fourth construction site) carries ONLY the earned names too", async () => {
   const { relationsFor } = await loadOrgans();
-  // Material that never uses "orchestrated" at all, so the answer's own use
-  // of it lands on the unheard path (hypergraph.js's own disclosed-gap arm),
-  // not the ordinary judge() path.
   const p = { ref: "prose", text: "Pierre Bezukhov walked to the market and bought bread." };
   const report = relationsFor([p], { pool: [p] });
   const { claims } = report.read("Pierre Bezukhov orchestrated the market.");
   const unheard = claims.find((c) => c.verdict === "unheard");
   assert.ok(unheard, "the material never uses 'orchestrated' — this must land on the unheard arm to test it");
-  assert.equal(unheard.end1, unheard.subject);
-  assert.equal(unheard.label, unheard.verb);
-  assert.equal(unheard.end2, unheard.object);
+  assert.ok(unheard.end1 && unheard.label && unheard.end2);
+  assert.ok(!("subject" in unheard) && !("verb" in unheard) && !("object" in unheard));
 });

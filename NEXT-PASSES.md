@@ -197,8 +197,21 @@ than failing unexplained under `ENGINE=native`. Production is unaffected —
 lemma widening is opt-in and app.js injects neither organ. Porting it is
 real, scoped, unstarted work.
 
-**The rename is now unblocked in fact, not just in principle:** there is a
-green, production-configured baseline to move 221 call sites under.
+**THE WIPE IS DONE (2026-09-02).** hypergraph.js's four construction
+sites carry ONLY the earned names (end1/label/end2); internal readers,
+edgeFace, phrase(), queryEdges and both query clusters migrated; the
+arrangement transition tests flipped to assert the END STATE (SAE names
+gone, so a re-introduction fails loudly). One deliberate boundary, caught
+live when two shapes diverged mid-rename: FILLERS keep their own narrow
+vocabulary (f.subject/f.object — "which value fills this slot"), consumed
+by that name in holon.js by documented design; the query functions read
+the earned names and emit the filler shape, meeting exactly there. One
+real bug the suite caught: edgeFace called arrangementOf(e) on edges that
+no longer carry .subject, yielding end1: undefined on every public face.
+Consumers migrated: grammar-lens (label-first with .verb fallback), hl.js
+/ hl-acquire.js (earned-name-first), their tests, capacity-runner's edge
+assertions. 58/58 under BOTH providers; full sweep 1919/1922, the 3
+remaining baselined as pre-existing against HEAD organs.
 
 ## Tier 3 — make THE-THREE-MATHEMATICS earn its keep
 

@@ -76,8 +76,8 @@ test("runCapacity: \"relations\" with no query dumps the whole edge graph — re
   assert.equal(out.gap, undefined, JSON.stringify(out));
   assert.equal(out.id, "relations");
   assert.ok(out.count >= 3, `expected at least 3 edges, got ${out.count}`);
-  assert.ok(out.edges.some((e) => e.subject === "Lincoln" && e.verb === "appointed" && e.object === "Hamlin"));
-  assert.ok(out.edges.some((e) => e.subject === "Lincoln" && e.verb === "appointed" && e.object === "Johnson"));
+  assert.ok(out.edges.some((e) => e.end1 === "Lincoln" && e.label === "appointed" && e.end2 === "Hamlin"));
+  assert.ok(out.edges.some((e) => e.end1 === "Lincoln" && e.label === "appointed" && e.end2 === "Johnson"));
 });
 
 test("runCapacity: \"relations\" with subject+verb given answers the exact cardinality question — who did Lincoln appoint", () => {

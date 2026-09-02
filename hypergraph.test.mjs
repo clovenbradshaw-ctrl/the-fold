@@ -132,7 +132,7 @@ test("a subject+verb binding two distinct objects surfaces both as `fillers` on 
   // material shows a second, equally real filler this question's own
   // singular phrasing never asked about.
   const report = reader.read("Lincoln appointed Hamlin.");
-  const claim = report.claims.find((c) => c.verb === "appointed" && /Hamlin/i.test(c.object));
+  const claim = report.claims.find((c) => c.label === "appointed" && /Hamlin/i.test(c.end2));
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "bound");
   assert.ok(claim.fillers, "two distinct objects must surface as fillers");
@@ -145,7 +145,7 @@ test("a subject+verb binding two distinct objects surfaces both as `fillers` on 
   // group) carries no fillers annotation at all — singular is the
   // ordinary, unremarked case.
   const seward = reader.read("Lincoln nominated Seward.");
-  const single = seward.claims.find((c) => c.verb === "nominated");
+  const single = seward.claims.find((c) => c.label === "nominated");
   assert.ok(single, JSON.stringify(seward.claims, null, 2));
   assert.equal(single.fillers, undefined);
 });
@@ -153,7 +153,7 @@ test("a subject+verb binding two distinct objects surfaces both as `fillers` on 
 test("fillers surfaces even on an UNBOUND claim — a wrong answer to a multi-filler question shows what the real answers actually are", async () => {
   const reader = makeRelationReader(await organs())(LINCOLN_PASSAGES, { pool: LINCOLN_POOL });
   const report = reader.read("Lincoln appointed Breckinridge.");
-  const claim = report.claims.find((c) => c.verb === "appointed" && /Breckinridge/i.test(c.object));
+  const claim = report.claims.find((c) => c.label === "appointed" && /Breckinridge/i.test(c.end2));
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "unbound");
   assert.ok(claim.fillers, "the real fillers must surface even though THIS claim doesn't match either");
@@ -192,7 +192,7 @@ const GRAMMAR_POOL = [
 test("posPriorFor omitted: edges and claims carry grammar: null — byte-identical to before this existed", async () => {
   const reader = makeRelationReader(await organs())(GRAMMAR_PASSAGES, { pool: GRAMMAR_POOL });
   assert.equal(reader.vocabulary.grammarPrior, false);
-  const partyEdge = reader.edges.find((e) => e.verb === "party");
+  const partyEdge = reader.edges.find((e) => e.label === "party");
   assert.ok(partyEdge, JSON.stringify(reader.edges, null, 2));
   assert.equal(partyEdge.grammar, null);
 });
@@ -217,16 +217,16 @@ test("THE GRAMMAR-FILTER SUPERSESSION, pinned on both sides: a POS prior now REM
   // BUILD-3 described it: everything the slot admits is heard.
   const open = makeRelationReader(await organs())(GRAMMAR_PASSAGES, { pool });
   assert.equal(open.vocabulary.grammarPrior, false);
-  assert.deepEqual(open.edges.map((e) => e.verb).sort(), ["party", "party", "visited", "visited"],
+  assert.deepEqual(open.edges.map((e) => e.label).sort(), ["party", "party", "visited", "visited"],
     "unfiltered: the noun-labelled connector is heard alongside the genuine verb");
 
   // WITH the prior — the shipped behaviour: the noun-labelled connector is
   // GONE from the material's edges, and the genuine verb is untouched.
   const gated = makeRelationReader({ ...(await organs()), posPriorFor: () => GRAMMAR_PRIOR })(GRAMMAR_PASSAGES, { pool });
   assert.equal(gated.vocabulary.grammarPrior, true);
-  assert.deepEqual(gated.edges.map((e) => e.verb).sort(), ["visited", "visited"],
+  assert.deepEqual(gated.edges.map((e) => e.label).sort(), ["visited", "visited"],
     "gated: exactly the junk is dropped, and the real verb survives");
-  assert.equal(gated.edges.some((e) => e.verb === "party"), false,
+  assert.equal(gated.edges.some((e) => e.label === "party"), false,
     "this is the assertion that reversed — BUILD-3's 'disclosure never filters' no longer holds");
 
   // the cost, on this fixture, stated as a number rather than a worry
@@ -248,7 +248,7 @@ test("the live badge bug stays closed under the supersession — by a different 
   // carrying the same disclosure; only one of them is reachable at a time,
   // so this asserts the INVARIANT and accepts either route.
   const reader = makeRelationReader({ ...(await organs()), posPriorFor: () => GRAMMAR_PRIOR })(GRAMMAR_PASSAGES, { pool: GRAMMAR_POOL });
-  const claim = reader.read("Lincoln party favored union.").claims.find((c) => c.verb === "party");
+  const claim = reader.read("Lincoln party favored union.").claims.find((c) => c.label === "party");
   assert.ok(claim, "the claim is still read and still reported");
   assert.ok(["beyond-reach", "unheard"].includes(claim.verdict),
     `an honest non-verdict, by either route; got ${claim.verdict}`);
@@ -259,7 +259,7 @@ test("the live badge bug stays closed under the supersession — by a different 
   assert.notEqual(claim.verdict, "contradicted");
 
   // the genuine verb, same reader, same shape: judged normally
-  const real = reader.read("Hamlin visited Lincoln often.").claims.find((c) => c.verb === "visited");
+  const real = reader.read("Hamlin visited Lincoln often.").claims.find((c) => c.label === "visited");
   assert.ok(real, "grammar never gates a claim it has no objection to");
   assert.ok(["bound", "unbound", "contradicted"].includes(real.verdict), `really judged; got ${real.verdict}`);
 });
@@ -281,7 +281,7 @@ const CONNECTOR_POOL = [
 
 test("classifyConnector/minShare omitted: no edge carries connectorClass at all — byte-identical to before this organ pair existed", async () => {
   const reader = makeRelationReader(await organs())(CONNECTOR_PASSAGES, { pool: CONNECTOR_POOL });
-  const alwaysEdge = reader.edges.find((e) => e.verb === "always");
+  const alwaysEdge = reader.edges.find((e) => e.label === "always");
   assert.ok(alwaysEdge, JSON.stringify(reader.edges, null, 2));
   assert.equal("connectorClass" in alwaysEdge, false, "no key at all — not even null — the same posture assertion holds when its organ is omitted");
 });
@@ -303,7 +303,7 @@ test("an edge's connectorClass, tagged at extraction time, matches exactly what 
     { pool: CONNECTOR_POOL },
   );
 
-  const alwaysEdge = reader.edges.find((e) => e.verb === "always");
+  const alwaysEdge = reader.edges.find((e) => e.label === "always");
   assert.ok(alwaysEdge, JSON.stringify(reader.edges, null, 2));
   assert.equal(alwaysEdge.connectorClass.thraxClass, "adverb");
   assert.equal(alwaysEdge.connectorClass.settled, true);
@@ -311,7 +311,7 @@ test("an edge's connectorClass, tagged at extraction time, matches exactly what 
   // one classifier, one answer, read twice.
   assert.deepEqual(alwaysEdge.connectorClass, classifyConnector(alwaysEdge, { minShare: CONNECTOR_MIN_SHARE }));
 
-  const visitedEdge = reader.edges.find((e) => e.verb === "visited");
+  const visitedEdge = reader.edges.find((e) => e.label === "visited");
   assert.equal(visitedEdge.connectorClass.thraxClass, "verb");
   assert.deepEqual(visitedEdge.connectorClass, classifyConnector(visitedEdge, { minShare: CONNECTOR_MIN_SHARE }));
 
@@ -331,7 +331,7 @@ test("connectorClass forwards the giver when injected, and stays null when it is
     CONNECTOR_PASSAGES,
     { pool: CONNECTOR_POOL },
   );
-  assert.equal(readerWithout.edges.find((e) => e.verb === "always").connectorClass.givers, null);
+  assert.equal(readerWithout.edges.find((e) => e.label === "always").connectorClass.givers, null);
 
   const withGivers = makeGrammarLens({
     classifyWord,
@@ -344,7 +344,7 @@ test("connectorClass forwards the giver when injected, and stays null when it is
     CONNECTOR_PASSAGES,
     { pool: CONNECTOR_POOL },
   );
-  const givers = readerWith.edges.find((e) => e.verb === "always").connectorClass.givers;
+  const givers = readerWith.edges.find((e) => e.label === "always").connectorClass.givers;
   assert.match(givers.measured.giver, /Universal Dependencies/);
   assert.match(givers.declared.giver, /Dionysius Thrax/);
 });
@@ -465,13 +465,13 @@ test("the referent bar CONTROL: a genuinely coincidental sentence-initial capita
   // lever-3 gap and not this mechanism's business — asserting equality here
   // would pin an unrelated upstream defect into this test
   const bennettClaim = reader.read("The clerk saw Bennett studying law books near the courthouse.").claims
-    .find((c) => c.subject.includes("Bennett"));
+    .find((c) => c.end1.includes("Bennett"));
   assert.ok(bennettClaim, "Bennett is a real, ordinarily-established referent and must still bind");
   assert.equal(bennettClaim.verdict, "bound");
 
   // The spurious claim — Bennett's own real actions, misattributed to
   // "Spring" — must never bind. No edge, no bound/contradicted claim.
-  assert.equal(reader.edges.some((e) => e.subject === "Spring"), false, JSON.stringify(reader.edges.map((e) => e.subject)));
+  assert.equal(reader.edges.some((e) => e.end1 === "Spring"), false, JSON.stringify(reader.edges.map((e) => e.end1)));
   const spuriousReport = reader.read("Spring visited the courthouse again on a rainy morning.");
   assert.deepEqual(spuriousReport.claims.filter((c) => c.verdict === "bound" || c.verdict === "contradicted"), []);
 });
@@ -507,23 +507,23 @@ test("the referent bar: DISCLOSED LIMIT, pinned — a classic single-paragraph l
 // leaves read(), so these run on a fixture edge list with no live model.
 
 const LINCOLN_EDGES = [
-  { subject: "Lincoln", verb: "appointed", object: "Hamlin", polarity: "+", refs: ["a.txt#0-10"] },
-  { subject: "Lincoln", verb: "appointed", object: "Johnson", polarity: "+", refs: ["a.txt#10-20"] },
-  { subject: "Lincoln", verb: "nominated", object: "Seward", polarity: "+", refs: ["a.txt#20-30"] },
-  { subject: "Hamlin", verb: "visited", object: "Lincoln", polarity: "+", refs: ["a.txt#30-40"] },
-  { subject: "Booth", verb: "shot", object: "Lincoln", polarity: "+", refs: ["a.txt#40-50"] },
+  { end1: "Lincoln", label: "appointed", end2: "Hamlin", polarity: "+", refs: ["a.txt#0-10"] },
+  { end1: "Lincoln", label: "appointed", end2: "Johnson", polarity: "+", refs: ["a.txt#10-20"] },
+  { end1: "Lincoln", label: "nominated", end2: "Seward", polarity: "+", refs: ["a.txt#20-30"] },
+  { end1: "Hamlin", label: "visited", end2: "Lincoln", polarity: "+", refs: ["a.txt#30-40"] },
+  { end1: "Booth", label: "shot", end2: "Lincoln", polarity: "+", refs: ["a.txt#40-50"] },
 ];
 
 test("queryEdges: a fully-pinned query returns exactly the matching edges, folded and substring-tolerant", () => {
   const appointed = queryEdges(LINCOLN_EDGES, { subject: "Lincoln", verb: "appointed" });
   assert.equal(appointed.length, 2);
-  assert.deepEqual(appointed.map((e) => e.object).sort(), ["Hamlin", "Johnson"]);
+  assert.deepEqual(appointed.map((e) => e.end2).sort(), ["Hamlin", "Johnson"]);
 
   // Substring/diacritic-folded matching on subject and object — never on verb,
   // since the material's own measured vocabulary is already a closed set.
   const byPartialName = queryEdges(LINCOLN_EDGES, { object: "Hamlin" });
   assert.equal(byPartialName.length, 1);
-  assert.equal(byPartialName[0].subject, "Lincoln");
+  assert.equal(byPartialName[0].end1, "Lincoln");
 
   // verb is exact (fold-cased), never a substring — "appoint" must not match "appointed".
   assert.equal(queryEdges(LINCOLN_EDGES, { verb: "appoint" }).length, 0);
@@ -546,7 +546,7 @@ test("queryFillers: one open field returns every distinct value the graph binds 
   // Subject open: "who visited Lincoln" — the mirror direction.
   const whoVisited = queryFillers(LINCOLN_EDGES, { verb: "visited", object: "Lincoln" });
   assert.equal(whoVisited.length, 1);
-  assert.equal(whoVisited[0].subject, "Hamlin");
+  assert.equal(whoVisited[0].subject, "Hamlin"); // fillers' own narrow shape
 
   // Both open, or neither open, is a typed refusal — not a guess about
   // which side the caller meant.
@@ -569,7 +569,7 @@ test("queryReferents: the reader's own referent-aware query agrees with judge()'
   // Same refusal contract as the standalone queryFillers: both open or
   // neither open is not a well-formed question.
   assert.equal(reader.queryReferents({ verb: "appointed" }), null);
-  assert.equal(reader.queryReferents({ subject: "Lincoln", verb: "appointed", object: "Hamlin" }), null);
+  assert.equal(reader.queryReferents({ end1: "Lincoln", label: "appointed", end2: "Hamlin" }), null);
 
   // A name this material never establishes resolves to nothing — the
   // referent gate refuses rather than falling back to a string match.
@@ -615,7 +615,7 @@ test("a stated edge is bound, with its addresses and its corroboration counted a
   assert.equal(reader.examined, true);
   assert.ok(reader.vocabulary.verbs > 0, "the material's own vocabulary must be measurable");
   const report = reader.read("Pierre Bezukhov married Helene.");
-  const bound = report.claims.find((c) => c.verb === "married" && c.verdict === "bound");
+  const bound = report.claims.find((c) => c.label === "married" && c.verdict === "bound");
   assert.ok(bound, JSON.stringify(report.claims, null, 2));
   // Both passages that state the marriage carry it, and both are addresses.
   assert.ok(bound.refs.includes("wp.txt#0-400"));
@@ -632,12 +632,12 @@ test("the flagship case: every token present, edge never bound", async () => {
   // measured vocabulary, Dolokhov is established. The byte tier passes it
   // whole. The relation tier refuses it, and shows what the text binds.
   const report = reader.read("Pierre Bezukhov married Dolokhov.");
-  const claim = report.claims.find((c) => c.verb === "married");
+  const claim = report.claims.find((c) => c.label === "married");
   assert.ok(claim, JSON.stringify(report.claims));
   assert.equal(claim.verdict, "unbound");
   assert.ok(claim.nearest.length > 0, "the nearest-edge disclosure is the affordance");
   assert.ok(
-    claim.nearest.some((e) => /Helene/i.test(e.object)),
+    claim.nearest.some((e) => /Helene/i.test(e.end2)),
     `nearest should show the marriage the text does bind: ${JSON.stringify(claim.nearest)}`,
   );
   // And it lands on the record's unsupported list, with the explanation.
@@ -651,7 +651,7 @@ test("polarity is read, and a contradiction is its own verdict", async () => {
   // The material states "Pierre Bezukhov never loved Helene". The answer
   // asserts the affirmative. Every token is present; the polarity is not.
   const report = reader.read("Pierre Bezukhov loved Helene.");
-  const claim = report.claims.find((c) => c.verb === "loved");
+  const claim = report.claims.find((c) => c.label === "loved");
   assert.ok(claim, JSON.stringify(report.claims));
   assert.equal(claim.verdict, "contradicted");
   assert.ok(claim.refs.includes("letters.txt#0-300"));
@@ -659,7 +659,7 @@ test("polarity is read, and a contradiction is its own verdict", async () => {
 
   // And the same edge WITH the material's polarity is bound.
   const agreeing = reader.read("Pierre Bezukhov never loved Helene.");
-  const boundClaim = agreeing.claims.find((c) => c.verb === "loved");
+  const boundClaim = agreeing.claims.find((c) => c.label === "loved");
   assert.equal(boundClaim.verdict, "bound");
   assert.equal(boundClaim.polarity, "-");
 });
@@ -667,7 +667,7 @@ test("polarity is read, and a contradiction is its own verdict", async () => {
 test("a pronoun subject is beyond reach — disclosed, never judged", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
   const report = reader.read("He married Helene.");
-  const claim = report.claims.find((c) => c.verb === "married");
+  const claim = report.claims.find((c) => c.label === "married");
   assert.ok(claim);
   assert.equal(claim.verdict, "beyond-reach");
   // Limits of the instrument never land on the record as unsupported.
@@ -678,7 +678,7 @@ test("a pronoun subject is beyond reach — disclosed, never judged", async () =
 test("a verb the material never measures is unheard — the reach ends visibly", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
   const report = reader.read("Pierre Bezukhov betrayed Helene.");
-  const claim = report.claims.find((c) => c.verb === "betrayed");
+  const claim = report.claims.find((c) => c.label === "betrayed");
   assert.ok(claim, JSON.stringify(report.claims));
   assert.equal(claim.verdict, "unheard");
   // Beyond-reach, not a finding: it stays off the unsupported list.
@@ -712,7 +712,7 @@ const FORM_PASSAGES = [
 test("a recurring plain-noun subject resolves as a FORM — the concept-document starvation host/terrains.js already named", async () => {
   const reader = makeRelationReader(await organs())(FORM_PASSAGES);
   const report = reader.read("Butterflies wrote across the historical record.");
-  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Butterflies");
+  const claim = report.claims.find((c) => c.label === "wrote" && c.end1 === "Butterflies");
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "bound");
   assert.equal(claim.formBased, true, "a subject with no cast referent must disclose it rested on a form");
@@ -722,7 +722,7 @@ test("a recurring plain-noun subject resolves as a FORM — the concept-document
 test("a form is never mistaken for a name — a claim resting on a real referent is never marked formBased", async () => {
   const reader = makeRelationReader(await organs())(FORM_PASSAGES);
   const report = reader.read("Darwin wrote about their metamorphosis.");
-  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Darwin");
+  const claim = report.claims.find((c) => c.label === "wrote" && c.end1 === "Darwin");
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "bound");
   assert.equal(claim.formBased, false, "Darwin resolves through the real referent index, not a form");
@@ -731,7 +731,7 @@ test("a form is never mistaken for a name — a claim resting on a real referent
 test("a subject that recurs only once is still beyond reach — FORM_MIN_ARRIVALS is a floor, not a courtesy", async () => {
   const reader = makeRelationReader(await organs())(FORM_PASSAGES);
   const report = reader.read("Moths wrote about the meadow.");
-  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Moths");
+  const claim = report.claims.find((c) => c.label === "wrote" && c.end1 === "Moths");
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "beyond-reach");
   assert.equal(relationFindings(report).length, 0, "a limit of the instrument is never a finding against the answer");
@@ -740,7 +740,7 @@ test("a subject that recurs only once is still beyond reach — FORM_MIN_ARRIVAL
 test("a form-resolved subject with no matching edge is unbound, not silently beyond-reach", async () => {
   const reader = makeRelationReader(await organs())(FORM_PASSAGES);
   const report = reader.read("Butterflies wrote about a treaty.");
-  const claim = report.claims.find((c) => c.verb === "wrote" && c.subject === "Butterflies");
+  const claim = report.claims.find((c) => c.label === "wrote" && c.end1 === "Butterflies");
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "unbound");
   assert.equal(claim.formBased, true);
@@ -772,10 +772,10 @@ test("verbForms (a received lexicon) widens vocabulary on material with NO named
   const withLexicon = makeRelationReader({ ...base, verbForms: new Set(["undergo", "undergoes"]) })(passages);
   assert.equal(withLexicon.vocabulary.verbs, 1);
   const report = withLexicon.read("Butterflies undergo metamorphosis.");
-  const claim = report.claims.find((c) => c.verb === "undergo");
+  const claim = report.claims.find((c) => c.label === "undergo");
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "bound");
-  assert.equal(claim.subject, "Butterflies");
+  assert.equal(claim.end1, "Butterflies");
 });
 
 test("verbForms never admits a hapax — the same recurrence floor identity resolution already earned", async () => {
@@ -790,7 +790,7 @@ test("verbForms never admits a hapax — the same recurrence floor identity reso
 test("verbForms is fully backward compatible — omitted, behavior is untouched", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
   const report = reader.read("Pierre Bezukhov married Helene.");
-  const bound = report.claims.find((c) => c.verb === "married" && c.verdict === "bound");
+  const bound = report.claims.find((c) => c.label === "married" && c.verdict === "bound");
   assert.ok(bound, "the existing flagship bound case must be unaffected by verbForms' existence");
 });
 
@@ -811,7 +811,7 @@ test("headings and addresses are furniture to this tier too", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
   const report = reader.read("## Pierre married Dolokhov\n\nPierre Bezukhov spoke of the wedding. [wp.txt#0-400]");
   assert.ok(
-    !report.claims.some((c) => c.verb === "married"),
+    !report.claims.some((c) => c.label === "married"),
     `a heading must not be read as a claim: ${JSON.stringify(report.claims)}`,
   );
 });
@@ -849,12 +849,12 @@ test("a slot the material fills with exactly one other subject is named, not jus
   // branch — and the verb+object slot (married, Helene) is bound to exactly
   // one other subject across both mentions.
   const report = reader.read("Dolokhov married Helene.");
-  const claim = report.claims.find((c) => c.verb === "married" && /Dolokhov/i.test(c.subject));
+  const claim = report.claims.find((c) => c.label === "married" && /Dolokhov/i.test(c.end1));
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "unbound");
   assert.ok(claim.competing, "the single consistent filler must be surfaced");
-  assert.match(claim.competing.subject, /Pierre Bezukhov/i);
-  assert.equal(claim.competing.verb, "married");
+  assert.match(claim.competing.end1, /Pierre Bezukhov/i);
+  assert.equal(claim.competing.label, "married");
   assert.ok(claim.competing.refs.includes("wp.txt#0-400"));
   assert.ok(claim.competing.refs.includes("wp.txt#400-800"));
   // Two passages, one source: the same independence discipline `bound`
@@ -864,7 +864,7 @@ test("a slot the material fills with exactly one other subject is named, not jus
   // The competing edge leads `nearest` — every existing UI reader
   // (app.js's badge and grounding panel both read nearest[0]/nearest)
   // inherits the stronger evidence with no further change.
-  assert.equal(claim.nearest[0].subject, claim.competing.subject);
+  assert.equal(claim.nearest[0].end1, claim.competing.end1);
   // And the record's phrasing names the actual filler, not just an absence.
   const lines = relationFindings(report);
   assert.ok(
@@ -900,7 +900,7 @@ test("a slot the material fills with two DIFFERENT subjects stays plain unbound 
   ];
   const reader = makeRelationReader(await organs())(RIVAL_PASSAGES, { pool: RIVAL_POOL });
   const report = reader.read("Vantage Mills acquired Bramwell Textiles.");
-  const claim = report.claims.find((c) => c.verb === "acquired" && /Vantage Mills/i.test(c.subject));
+  const claim = report.claims.find((c) => c.label === "acquired" && /Vantage Mills/i.test(c.end1));
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "unbound");
   assert.equal(claim.competing, undefined, "two different real fillers must never collapse into one guess");
@@ -932,17 +932,17 @@ test("a competing filler must agree with the claim's own number when both carry 
   ];
   const reader = makeRelationReader(await organs())(YEAR_PASSAGES, { pool: YEAR_POOL });
   const report = reader.read("The New York Yankees won the 1960 World Series.");
-  const claim = report.claims.find((c) => c.verb === "won" && /Yankees/i.test(c.subject));
+  const claim = report.claims.find((c) => c.label === "won" && /Yankees/i.test(c.end1));
   assert.ok(claim, JSON.stringify(report.claims, null, 2));
   assert.equal(claim.verdict, "unbound");
   assert.ok(claim.competing, "the year-agreeing edge must still be found");
-  assert.match(claim.competing.object, /1960/);
-  assert.doesNotMatch(claim.competing.object, /1971/, "the 1971 edge must never be chosen for a 1960 claim");
+  assert.match(claim.competing.end2, /1960/);
+  assert.doesNotMatch(claim.competing.end2, /1971/, "the 1971 edge must never be chosen for a 1960 claim");
 });
 
 test("every edge carries its own assertion: statements counted, standing typed, verb support disclosed", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
-  const married = reader.edges.find((e) => e.verb === "married");
+  const married = reader.edges.find((e) => e.label === "married");
   assert.ok(married, JSON.stringify(reader.edges, null, 2));
   // Stated in both wp passages — two independent statements fold in.
   assert.ok(married.assertion, "an edge without its assertion is a silently-kept edge");
@@ -952,7 +952,7 @@ test("every edge carries its own assertion: statements counted, standing typed, 
   // distinct-surface count rides along, never re-derived.
   assert.ok(married.assertion.verbSupport >= 1);
 
-  const trusted = reader.edges.find((e) => e.verb === "trusted");
+  const trusted = reader.edges.find((e) => e.label === "trusted");
   assert.ok(trusted);
   assert.equal(trusted.assertion.statements, 1);
   assert.equal(trusted.assertion.standing, "single-witness");
@@ -960,7 +960,7 @@ test("every edge carries its own assertion: statements counted, standing typed, 
   // The disclosure never convicts: a single-witness edge stays off the
   // record's unsupported list exactly as before.
   const report = reader.read("Pierre Bezukhov trusted Dolokhov.");
-  const bound = report.claims.find((c) => c.verb === "trusted");
+  const bound = report.claims.find((c) => c.label === "trusted");
   assert.equal(bound.verdict, "bound");
   assert.equal(relationFindings(report).length, 0);
 });
@@ -980,8 +980,8 @@ test("the word-salad arm runs only when declared, reports counts, and replays un
   }
   const again = make(PASSAGES, { pool: POOL, assert: { draws: 12, seed: 0 } });
   assert.deepEqual(
-    armed.edges.map((e) => [e.subject, e.verb, e.object, e.assertion.orderArm.fired]),
-    again.edges.map((e) => [e.subject, e.verb, e.object, e.assertion.orderArm.fired]),
+    armed.edges.map((e) => [e.end1, e.label, e.end2, e.assertion.orderArm.fired]),
+    again.edges.map((e) => [e.end1, e.label, e.end2, e.assertion.orderArm.fired]),
     "same declaration, same counts — the arm is testimony only if it replays",
   );
 });
@@ -996,7 +996,7 @@ test("the declared number is the declaration, not a tuned knob", () => {
 test("lemma widening: a claim phrased in a different tense than the material still binds, when createLemmatizer is provided", async () => {
   const reader = makeRelationReader(await morphologyOrgans())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
   const report = reader.read("Pierre Bezukhov undergoes a remarkable transformation.");
-  const bound = report.claims.find((c) => c.verb === "undergoes" && c.verdict === "bound");
+  const bound = report.claims.find((c) => c.label === "undergoes" && c.verdict === "bound");
   assert.ok(bound, `"undergoes" must bind to the material's own "underwent" via the received lemma table: ${JSON.stringify(report.claims)}`);
   assert.ok(bound.refs.includes("y.txt#0-200"));
 });
@@ -1004,14 +1004,14 @@ test("lemma widening: a claim phrased in a different tense than the material sti
 test("lemma widening is opt-in and backward compatible: omitted, the same claim is unheard, exactly as before this amendment", async () => {
   const reader = makeRelationReader(await organs())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
   const report = reader.read("Pierre Bezukhov undergoes a remarkable transformation.");
-  const claim = report.claims.find((c) => c.verb === "undergoes");
+  const claim = report.claims.find((c) => c.label === "undergoes");
   assert.equal(claim?.verdict, "unheard", "without the lemma organ, a tense-shifted verb the material never uses verbatim must stay unheard, never bound");
 });
 
 test("lemma widening never lets an UNRELATED verb bind — it is not a general fuzzy match", async () => {
   const reader = makeRelationReader(await morphologyOrgans())(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
   const report = reader.read("Pierre Bezukhov married Helene.");
-  const claim = report.claims.find((c) => c.verb === "married");
+  const claim = report.claims.find((c) => c.label === "married");
   assert.equal(claim?.verdict, "unheard", "married shares no lemma with underwent/traveled — it must stay outside the material's vocabulary, not get swept in");
 });
 
@@ -1025,7 +1025,7 @@ test("a declared NON-English morphologyLanguage disables the English suffix rule
   const withEnglish = makeRelationReader(base)(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
   const englishReport = withEnglish.read("Pierre Bezukhov travels to Vienna in spring.");
   assert.equal(
-    englishReport.claims.find((c) => c.verb === "travels")?.verdict,
+    englishReport.claims.find((c) => c.label === "travels")?.verdict,
     "bound",
     "regular English inflection must still bind when morphologyLanguage is omitted (defaults to eng)",
   );
@@ -1033,7 +1033,7 @@ test("a declared NON-English morphologyLanguage disables the English suffix rule
   const withOther = makeRelationReader({ ...base, morphologyLanguage: "grc" })(IRREGULAR_PASSAGES, { pool: IRREGULAR_POOL });
   const otherReport = withOther.read("Pierre Bezukhov travels to Vienna in spring.");
   assert.equal(
-    otherReport.claims.find((c) => c.verb === "travels")?.verdict,
+    otherReport.claims.find((c) => c.label === "travels")?.verdict,
     "unheard",
     "the English-only suffix rule must not fire once a non-English language is declared, even though the SAME morphologyIndex is still loaded",
   );
@@ -1051,7 +1051,7 @@ test("a declared NON-English morphologyLanguage disables the English suffix rule
 
 test("every judged claim discloses HOW each endpoint resolved, not merely whether the subject cleared", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
-  const claim = reader.read("Pierre Bezukhov married Helene.").claims.find((c) => c.verb === "married");
+  const claim = reader.read("Pierre Bezukhov married Helene.").claims.find((c) => c.label === "married");
   assert.ok(claim, "the bound claim must be extracted at all");
   assert.equal(claim.verdict, "bound");
   assert.deepEqual(claim.endpoints, { subject: "referent", object: "referent" });
@@ -1059,7 +1059,7 @@ test("every judged claim discloses HOW each endpoint resolved, not merely whethe
 
 test("an object no referent covers reads as compared-by-content-word, never as a resolved referent", async () => {
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
-  const claim = reader.read("Pierre Bezukhov married Napoleon.").claims.find((c) => c.verb === "married");
+  const claim = reader.read("Pierre Bezukhov married Napoleon.").claims.find((c) => c.label === "married");
   assert.ok(claim, "the claim must be extracted at all");
   assert.equal(claim.verdict, "unbound", "the verdict itself is unchanged by this disclosure");
   assert.equal(claim.endpoints.subject, "referent");
@@ -1078,14 +1078,14 @@ test("CONTROL: an ordinary DESCRIPTION also reads token-only — the disclosure 
   // the same bucket the genuine stranger (Napoleon) does. A verdict flip
   // keyed on this signal would fire on both.
   const reader = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
-  const claim = reader.read("Pierre Bezukhov married the countess.").claims.find((c) => c.verb === "married");
+  const claim = reader.read("Pierre Bezukhov married the countess.").claims.find((c) => c.label === "married");
   assert.ok(claim, "the claim must be extracted at all");
   assert.equal(claim.endpoints.object, "tokens");
 });
 
 test("a form-resolved subject says so on the endpoint disclosure too, not only on formBased", async () => {
   const reader = makeRelationReader(await organs())(FORM_PASSAGES);
-  const claim = reader.read("Butterflies wrote across the historical record.").claims.find((c) => c.verb === "wrote");
+  const claim = reader.read("Butterflies wrote across the historical record.").claims.find((c) => c.label === "wrote");
   assert.ok(claim, "the claim must be extracted at all");
   assert.equal(claim.formBased, true);
   assert.equal(claim.endpoints.subject, "form", "a recurring form is never reported as a named referent");
@@ -1126,17 +1126,17 @@ test("under the corpus floor, a shared DEFINITE ARTICLE alone binds an object th
   // if the underlying matcher ever changes, this test says so out loud
   // instead of the fix silently becoming a no-op.
   const reader = makeRelationReader(await organs())(DETERMINER_PASSAGES, { pool: DETERMINER_PASSAGES });
-  const withArticle = reader.read("Seward negotiated the Suez canal.").claims.find((c) => c.verb === "negotiated");
-  const without = reader.read("Seward negotiated Suez canal.").claims.find((c) => c.verb === "negotiated");
+  const withArticle = reader.read("Seward negotiated the Suez canal.").claims.find((c) => c.label === "negotiated");
+  const without = reader.read("Seward negotiated Suez canal.").claims.find((c) => c.label === "negotiated");
   assert.equal(withArticle.verdict, "bound", "the article is doing the binding — this is the defect, not the fix");
   assert.equal(without.verdict, "unbound", "the SAME claim without its article correctly finds nothing");
 });
 
 test("a received determiner class closes it — and the material's own real edge still binds", async () => {
   const reader = makeRelationReader(await determinerOrgans())(DETERMINER_PASSAGES, { pool: DETERMINER_PASSAGES });
-  const fabricated = reader.read("Seward negotiated the Suez canal.").claims.find((c) => c.verb === "negotiated");
+  const fabricated = reader.read("Seward negotiated the Suez canal.").claims.find((c) => c.label === "negotiated");
   assert.equal(fabricated.verdict, "unbound", "an article shared with the material is no longer a binding");
-  const real = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.verb === "negotiated");
+  const real = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.label === "negotiated");
   assert.equal(real.verdict, "bound", "the claim the material really does state is untouched");
   assert.deepEqual(real.endpoints, { subject: "referent", object: "referent" });
 });
@@ -1144,7 +1144,7 @@ test("a received determiner class closes it — and the material's own real edge
 test("the determiner organ is opt-in: omitted, this reader is byte-identical to every caller before it", async () => {
   const plain = makeRelationReader(await organs())(PASSAGES, { pool: POOL });
   const withOrgan = makeRelationReader(await determinerOrgans())(PASSAGES, { pool: POOL });
-  const face = (r) => r.edges.map((e) => `${e.subject} —${e.verb}[${e.polarity}]→ ${e.object}`).sort();
+  const face = (r) => r.edges.map((e) => `${e.end1} —${e.label}[${e.polarity}]→ ${e.end2}`).sort();
   assert.deepEqual(
     face(plain.read("Pierre Bezukhov married Helene.")),
     face(withOrgan.read("Pierre Bezukhov married Helene.")),
@@ -1187,7 +1187,7 @@ test("the defect: a positive claim binds against a negation-carrying edge, citin
   // Pinned as it actually behaves WITHOUT the organ, so the fix cannot
   // silently become a no-op if the underlying matcher ever changes.
   const reader = makeRelationReader(await organs())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
-  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.subject === "Lincoln");
+  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.end1 === "Lincoln");
   assert.ok(claim, "the claim must be extracted at all");
   assert.equal(claim.verdict, "bound", "this is the defect: the material says he did NOT");
   assert.ok(claim.refs.includes("cabinet.txt#520-620"), "and it cites the very passage that contradicts it");
@@ -1195,7 +1195,7 @@ test("the defect: a positive claim binds against a negation-carrying edge, citin
 
 test("a received negation class closes it — the inverted claim becomes beyond-reach, never a verdict", async () => {
   const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
-  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.subject === "Lincoln");
+  const claim = reader.read("Lincoln did dismiss Seward.").claims.find((c) => c.end1 === "Lincoln");
   assert.ok(claim, "the claim must still be extracted");
   assert.equal(claim.verdict, "beyond-reach", "polarity was never measured on either side");
   assert.match(claim.reason, /polarity was never measured/);
@@ -1204,7 +1204,7 @@ test("a received negation class closes it — the inverted claim becomes beyond-
 test("the claim side too: a negation the extractor put inside the object is withheld, not judged", async () => {
   const reader = makeRelationReader(await negationOrgans())(NEGATION_PASSAGES, { pool: NEGATION_PASSAGES });
   for (const text of ["Seward negotiated not the Alaska purchase.", "Seward did not negotiate the Alaska purchase."]) {
-    const claim = reader.read(text).claims.find((c) => c.subject === "Seward");
+    const claim = reader.read(text).claims.find((c) => c.end1 === "Seward");
     assert.ok(claim, `${text} must extract a claim`);
     assert.equal(claim.verdict, "beyond-reach", `${text} must not be judged`);
     assert.match(claim.reason, /never measured/);
@@ -1217,12 +1217,12 @@ test("CONTROL: a negation the extractor DOES read correctly still contradicts �
     // Matched on the VERB, not the subject: when the extractor reads the
     // negation correctly it leaves the negation word ON the subject span
     // ("Seward never"), which is exactly the shape that proves it was read.
-    const claim = reader.read(text).claims.find((c) => c.verb === "negotiated");
+    const claim = reader.read(text).claims.find((c) => c.label === "negotiated");
     assert.ok(claim, `${text} must extract a claim`);
     assert.equal(claim.polarity, "-", `${text} must be read as negated at all`);
     assert.equal(claim.verdict, "contradicted", `${text} is read correctly and must stay a real verdict`);
   }
-  const positive = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.verb === "negotiated");
+  const positive = reader.read("Seward negotiated the Alaska purchase.").claims.find((c) => c.label === "negotiated");
   assert.equal(positive.verdict, "bound", "an ordinary positive claim is untouched");
 });
 
@@ -1240,7 +1240,7 @@ test("a clean edge beside an unmeasured one still binds on its own merits — ev
     },
   ];
   const reader = makeRelationReader(await negationOrgans())(mixed, { pool: mixed });
-  const claim = reader.read("Lincoln did dismiss Cameron.").claims.find((c) => c.subject === "Lincoln");
+  const claim = reader.read("Lincoln did dismiss Cameron.").claims.find((c) => c.end1 === "Lincoln");
   assert.ok(claim, "the claim must be extracted at all");
   assert.equal(claim.verdict, "bound", "the plainly-stated edge is not blocked by its unmeasurable neighbour");
 });
@@ -1301,13 +1301,13 @@ test("a named mid-sentence subject carries its earned face on the PUBLIC edge �
   }];
   const reader = makeRelationReader(await organs())(passages, { pool: passages });
   const faced = reader.edges.filter((e) => e.end1Face);
-  assert.ok(faced.length >= 1, `no edge carries end1Face — the wire is dark again: ${JSON.stringify(reader.edges.map((e) => e.subject))}`);
+  assert.ok(faced.length >= 1, `no edge carries end1Face — the wire is dark again: ${JSON.stringify(reader.edges.map((e) => e.end1))}`);
   for (const e of faced) {
     assert.match(e.end1Face, /Pierre/, `face should be Pierre's fullest name, got ${e.end1Face}`);
   }
   // fragments nest: at least one faced edge whose subject is the FULL name
   // must carry the full name as its face, not a fragment
-  const full = faced.find((e) => /Bezukhov/.test(e.subject));
+  const full = faced.find((e) => /Bezukhov/.test(e.end1));
   if (full) assert.match(full.end1Face, /Bezukhov/, "the fullest name wins the face");
 });
 
@@ -1321,7 +1321,7 @@ test("a subject naming TWO unrelated beings carries NO face — disclosed ambigu
       "Then Anna Scherer and Prince Vasili discussed the war gravely.",
   }];
   const reader = makeRelationReader(await organs())(passages, { pool: passages });
-  const both = reader.edges.filter((e) => /Scherer/.test(e.subject) && /Vasili/.test(e.subject));
+  const both = reader.edges.filter((e) => /Scherer/.test(e.end1) && /Vasili/.test(e.end1));
   for (const e of both) {
     assert.equal("end1Face" in e, false, `two-being subject must carry no face key at all, got ${e.end1Face}`);
   }

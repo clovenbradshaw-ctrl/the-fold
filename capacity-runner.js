@@ -64,23 +64,28 @@
 // own from `/engine`.
 //
 // DISCLOSED, NOT SILENTLY ABSENT — two limits an adversarial review of this
-// increment found and neither is fixed here, on purpose, under time
-// pressure that would have risked a worse fix:
+// increment found; the first is now PARTIALLY closed (below), the second
+// still is not, on purpose, under time pressure that would have risked a
+// worse fix:
 //
-// 1. RUNS SYNCHRONOUSLY ON THE CALLING THREAD, with no size bound and no
-//    interrupt. term.js's OTHER runtimes (js/python/sql) exist as Workers
-//    specifically so a long-running or unbounded computation cannot freeze
-//    the page and CAN be killed (term.js's own ✕/ctrl+c) — this capacity
-//    runner has neither property. On a small excerpt this is instant; on a
-//    large loaded source, `referentIndexFor` (cast.js → the engine's
-//    `extractSurfaces`/`discoverReferents`) could take real, unbounded
-//    time on the main thread with nothing the reader can do but wait. The
-//    same disclosed posture skills.js already carries for its own
-//    synchronous-body hole ("the run budget guards await points, and a
-//    synchronous spin inside a body is the one hole it does not cover") —
-//    named here rather than silently shipped as if it were bounded. Moving
-//    capacity execution into a worker (mirroring term-py-worker.mjs's own
-//    shape) is the natural fix and is not attempted in this pass.
+// 1. RUNS SYNCHRONOUSLY ON THE CALLING THREAD, with no interrupt.
+//    term.js's OTHER runtimes (js/python/sql) exist as Workers specifically
+//    so a long-running or unbounded computation cannot freeze the page and
+//    CAN be killed (term.js's own ✕/ctrl+c) — this capacity runner has
+//    neither property. AMENDED: `text` is now capped at
+//    `CAPACITY_TEXT_MAX_CHARS` before either capacity ever sees it — closed
+//    the hard way, by reproducing the freeze this disclosure warned about:
+//    a real 1.19MB attached source, run through this exact dispatch with
+//    no cap, took 328s end to end (measured, `eval`-adjacent driver, not
+//    guessed) and froze the tab solid — `crownTestimony`'s fire-and-forget
+//    per-claim call (app.js) hits this path automatically after every
+//    grounded turn, so "large loaded source" was never a hypothetical. The
+//    cap is a MINIMUM fix, not the complete one: a person who deliberately
+//    wants the whole document read still cannot get past the same 8000
+//    chars this way, and the calling thread is still not interruptible
+//    mid-computation on whatever it IS given. Moving capacity execution
+//    into a worker (mirroring term-py-worker.mjs's own shape) is still the
+//    real fix for both remaining gaps and is still not attempted here.
 //
 // 2. A RESULT ATTACHED TO A LATER-SUPERSEDED ACT DISAPPEARS FROM THE LIVE
 //    FOLD WITH IT. This is `grid.js`'s own append-only supersession rule,
@@ -124,6 +129,27 @@ import { withExperiencer } from "./experiencer.js";
  * the weaker, no-organs-needed siblings of this, disclosed as such in
  * their own header).
  */
+// Declared, reused rather than re-derived: `live_priors/scripts/eot-sidecar.mjs`
+// (a sibling instrument reading this same the-fold/hyperlexicon.js machinery
+// offline) already settled on 8000 chars as "one reading," measured safe
+// there (~1s on real prose). This file's own header above names BOTH
+// capacities as running unbounded on the calling thread with no interrupt —
+// confirmed the hard way: a live 1.19MB attached source, joined back into
+// one string by relationsFor exactly as this dispatch already did, took
+// 328s end to end and produced the exact freeze this cap exists to prevent
+// (renderFold's uncapped JSON.stringify of the resulting model turns, on
+// top of an unresponsive main thread, reads to a reader as a dead tab, not
+// a slow one). One bound, applied ONCE here — every caller (landAct's cast
+// and evaluate branches, squarePolarity's own internal re-check) routes
+// through this single function, so nothing downstream needs its own copy.
+// This is the disclosed-gap's MINIMAL fix, not its complete one: the
+// header above is still correct that a worker (mirroring term-py-worker
+// .mjs) is the real fix, for the same reason a cap can't be — a person who
+// deliberately wants the whole document read still can't get past 8000
+// chars this way. Not attempted here, under the same time-pressure
+// disclosure this file's header already makes about its own scope.
+const CAPACITY_TEXT_MAX_CHARS = 8000;
+
 export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
   return function runCapacity(id, { text, name, query, claim } = {}) {
     if (id !== "cast" && id !== "relations") {
@@ -141,12 +167,16 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
       // so on their own side; the wording here stays true either way.
       return { gap: "no_material", id, detail: `no material to read for "${name ?? "?"}" — either nothing by that name is loaded, or what is loaded there is empty` };
     }
+    const totalChars = text.length;
+    const truncated = totalChars > CAPACITY_TEXT_MAX_CHARS;
+    const boundedText = truncated ? text.slice(0, CAPACITY_TEXT_MAX_CHARS) : text;
+    const bound = truncated ? { truncated: true, examinedChars: CAPACITY_TEXT_MAX_CHARS, totalChars } : { truncated: false };
     if (id === "cast") {
-      const index = referentIndexFor([{ text }]);
+      const index = referentIndexFor([{ text: boundedText }]);
       const referents = [...index.referents]
         .map((rid) => ({ id: rid, surface: index.represent(rid) }))
         .sort((a, b) => a.surface.localeCompare(b.surface));
-      return { id, name: name ?? null, count: referents.length, referents };
+      return { id, name: name ?? null, count: referents.length, referents, ...bound };
     }
     if (!relationsFor) {
       return { gap: "not_yet_executable", id, detail: `"relations" is registered but this page has not wired relationsFor in yet` };
@@ -158,9 +188,9 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
     // SAME chunker every attachment/preflight/priors source in this app
     // already goes through (source.js) — one addressing scheme, not a
     // second one invented for the terminal.
-    const reader = relationsFor(chunkSource(name ?? "material", text));
+    const reader = relationsFor(chunkSource(name ?? "material", boundedText));
     if (!reader.examined) {
-      return { gap: "no_material", id, detail: `no relation vocabulary could be measured for "${name ?? "?"}"` };
+      return { gap: "no_material", id, detail: `no relation vocabulary could be measured for "${name ?? "?"}"`, ...bound };
     }
     // `claim` is EVA's own door: not a query over the graph (which/what
     // filler for an open slot) but a JUDGMENT of one stated claim against
@@ -181,9 +211,9 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
       // check cannot see (see checkObjectSpecificity below), and that
       // check needs the real matched edge's own object text, not just
       // the collapsed bound/contradicted/unbound label.
-      return { id, name: name ?? null, claim, claims: judged.claims, edges: judged.edges };
+      return { id, name: name ?? null, claim, claims: judged.claims, edges: judged.edges, ...bound };
     }
-    if (!query) return { id, name: name ?? null, count: reader.edges.length, edges: reader.edges };
+    if (!query) return { id, name: name ?? null, count: reader.edges.length, edges: reader.edges, ...bound };
     const fillers = reader.queryReferents(query);
     if (fillers === null) {
       return {
@@ -192,7 +222,7 @@ export function makeCapacityRunner({ referentIndexFor, relationsFor }) {
         detail: 'exactly one of subject/object must be left open — "who did X verb" or "who verb Y", never both pinned or both open',
       };
     }
-    return { id, name: name ?? null, query, count: fillers.length, fillers };
+    return { id, name: name ?? null, query, count: fillers.length, fillers, ...bound };
   };
 }
 
@@ -838,12 +868,46 @@ export function perSourceReadings(grid, log, claimId) {
  * function silently picked a winner.
  *
  * Backward compatible by construction: byte-identical output whenever no
- * reading's `who` is `SELF_WITNESS` — `countableHolds` then always equals
- * `holds`, and every existing case boundary is unchanged.
+ * reading's `who` sits in the reserved `self:` namespace — `countableHolds`
+ * then always equals `holds`, and every existing case boundary is
+ * unchanged. (Generalized 2026-09-01 from the single name `self:model` to
+ * the structural property it always stood for — a hold that read nothing;
+ * see `readsNothing` below, including the namespace generalization that
+ * was tried first and refuted.)
  */
 export const SELF_WITNESS = "self:model";
+
 export function isSelfWitness(reading) {
   return reading?.who === SELF_WITNESS;
+}
+
+/**
+ * THE STRUCTURAL FORM of the exclusion (floor 4½'s wall, 2026-09-01) — and
+ * a refuted generalization kept here so it is not retried.
+ *
+ * REFUTED FIRST: widening `isSelfWitness` from the name `self:model` to the
+ * whole reserved `self:` namespace. An existing pin refused it with a real
+ * reason, and the pin is right: `self:ledger` (reflex.js's SELF_SOURCE,
+ * P15) READS ADDRESSED BYTES — the reflex ledger is chunked with
+ * self-verifying offsets and cited as `self:ledger#a-b` — so it is a
+ * genuine source read. `self:model` reads nothing at all. The namespace
+ * does not carve at the joint; what does is whether the reading READ
+ * anything.
+ *
+ * So the general rule is structural, visible in the readings themselves:
+ * a reading whose `read` is empty asserted rather than read. That is
+ * exactly `nesting.js`'s wall in testimony's vocabulary — an unaddressed
+ * hold is an OUTER note ("this voice asserts X"), and outer notes never
+ * corroborate the inner claim. It subsumes the named case (`self:model`
+ * always carries `read: []`) and correctly admits `self:ledger` readings,
+ * which carry real addresses.
+ *
+ * Safe in both readings: a `holds` carrying no address is either a
+ * self-assertion (correctly excluded) or an unaddressed claim of support
+ * (which should never have counted either — P5.2's own discipline).
+ */
+export function readsNothing(reading) {
+  return !(Array.isArray(reading?.read) && reading.read.length > 0);
 }
 
 export function mergeTestimony(readings) {
@@ -851,7 +915,11 @@ export function mergeTestimony(readings) {
   const refused = readings.filter((r) => r.verdict === "refused");
   const undetermined = readings.filter((r) => r.verdict === "undetermined");
   // Real corroboration only — see this function's own AMENDED note above.
-  const countableHolds = holds.filter((r) => !isSelfWitness(r));
+  // Real corroboration only: a hold that READ nothing asserted rather than
+  // read (floor 4½'s wall — an unaddressed hold is an outer note). This
+  // subsumes the named `self:model` case and, unlike a namespace match,
+  // correctly counts a `self:ledger` reading, which carries real addresses.
+  const countableHolds = holds.filter((r) => !readsNothing(r));
 
   if (holds.length && refused.length) {
     return { case: "DISAGREE", verdict: "multiply-bound", standing: null, holds, refused, undetermined };

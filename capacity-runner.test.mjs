@@ -14,7 +14,7 @@ import { tokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/percei
 import { classifyWord, dominantClass } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, landSelfAssertion } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, readsNothing, landSelfAssertion } from "./capacity-runner.js";
 import { makeGrid } from "./grid.js";
 import { findCapacity, unresolvedCapacity } from "./capacities.js";
 import { makeGrammarLens } from "./grammar-lens.js";
@@ -1335,4 +1335,31 @@ test("landSelfAssertion: landing under one claim_id does not disturb a DIFFERENT
   assert.equal(realReadings[0].who, "lincoln");
   assert.equal(selfReadings.length, 1);
   assert.equal(selfReadings[0].who, SELF_WITNESS);
+});
+
+test("floor 4½'s wall in testimony's vocabulary: a hold that READ NOTHING never corroborates", () => {
+  // The general form of the self-witness exclusion, and the refuted
+  // generalization is pinned beside it. Widening `isSelfWitness` to the
+  // whole `self:` namespace was tried and is WRONG: `self:ledger` reads
+  // addressed bytes (reflex.js, P15) and is a genuine source read, which
+  // the pre-existing test above already demanded. What carves correctly is
+  // whether the reading read anything — nesting.js's wall, where an
+  // unaddressed hold is an OUTER note and outer notes never corroborate.
+  const selfModel = selfModelReading({ verdict: "holds" });
+  assert.ok(readsNothing(selfModel), "the model asserting reads nothing");
+  assert.ok(!readsNothing(realHoldReading("lincoln.txt")), "a real source read carries addresses");
+
+  // a self:ledger reading WITH addresses is a real read and DOES corroborate
+  const ledgerRead = { ...realHoldReading("self:ledger"), read: ["self:ledger#40-90"] };
+  assert.ok(!readsNothing(ledgerRead), "the self plane's own ledger is addressed material");
+  assert.equal(mergeTestimony([realHoldReading("lincoln.txt"), ledgerRead]).case, "AGREE",
+    "two addressed reads corroborate, even when one is the self plane's ledger");
+
+  // an unaddressed hold from ANY voice is excluded — the structural rule,
+  // which a name match could never have caught
+  const unaddressed = { ...realHoldReading("some-source.txt"), read: [], edges: [] };
+  assert.equal(mergeTestimony([realHoldReading("lincoln.txt"), unaddressed]).case, "SINGLE",
+    "an unaddressed claim of support never counted honestly either (P5.2)");
+  assert.equal(mergeTestimony([realHoldReading("a.txt"), realHoldReading("b.txt")]).case, "AGREE",
+    "and the ordinary boundary is unchanged");
 });

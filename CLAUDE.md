@@ -6658,4 +6658,19 @@ than left to inference; and **the model's own voice as the ordinary shape**
 refuses to let it corroborate X, which `mergeTestimony` previously had to
 special-case. Cycles and self-reference refused at any depth, `maxDepth`
 declared, an unresolved inner id NAMED rather than silently depth-0.
-Not yet consumed by any caller; `mergeTestimony` is the natural first.
+**Consumed the same day by `mergeTestimony`** — and the consumption found
+something. The exclusion there was `who === "self:model"`, a literal string
+match; widening it to the whole reserved `self:` namespace was tried and
+REFUTED by a pre-existing pin with a real reason: `self:ledger`
+(reflex.js's SELF_SOURCE, P15) READS ADDRESSED BYTES — the reflex ledger is
+chunked with self-verifying offsets and cited as `self:ledger#a-b` — so it
+is a genuine source read, while `self:model` reads nothing at all. The
+namespace does not carve at the joint. What does is structural and was
+visible in the readings the whole time (`read: []` vs
+`read: ["fake.txt#0-10"]`): **a hold that read nothing asserted rather than
+read**, which is exactly nesting's wall in testimony's vocabulary — an
+unaddressed hold is an outer note. `readsNothing` subsumes the named case,
+correctly admits an addressed `self:ledger` reading, and additionally
+excludes an unaddressed hold from ANY voice, which never counted honestly
+either (P5.2). The refuted namespace attempt is kept in both the module and
+the test so it is not retried.

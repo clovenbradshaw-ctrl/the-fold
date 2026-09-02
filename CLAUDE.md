@@ -6564,3 +6564,45 @@ second, genuinely different tracker (Goertzel vs autocorrelation) lifts
 the two TRUE kinds to 2 sources x 2 instruments. Witnesses carry
 `<source>~<recipe>` (P68 identity); an undeclared witness stays honestly
 undeclared, never silently independent.
+
+## signal.js — the mechanism made general (added 2026-09-01) — pointer
+
+`THE-CORE-MECHANISM.md` is the synthesis (standing: nomination); `signal.js`
++ `signal.test.mjs` are the organ. User direction: "let's have this enter
+our DNA and be useable for anything, trying things to find signal."
+
+Four media ran the same five steps by hand (instrument → discover → control
+→ count sources and instruments apart → report or refuse); `findSignal` is
+that shape once, medium-blind (material is OPAQUE — only the caller's
+instruments look inside), pure, discovery organ injected.
+
+**The two hazards are structural, not remembered.** (1) THE SEARCH
+INFLATES — trying many instruments is this organ's whole purpose and also
+the classic way to manufacture a finding, so the null is search-aware BY
+CONSTRUCTION: the ceiling is the distribution of the MAXIMUM share across
+every instrument tried, so trying more RAISES the bar. There is no opt-out
+parameter. (2) TWO SOURCES THROUGH ONE INSTRUMENT ARE ONE READING — every
+finding reports sources and instruments apart, `corroborated` requires both
+≥2, and a one-instrument finding carries the note saying a systematic error
+of that instrument is invisible. Plus: the II.23 control runs every time and
+a search whose control survived is REFUSED (`control_survived`), never
+reported with a caveat.
+
+Decisive test, the one that would make this organ dangerous if it failed:
+**a wide search (12 instruments × 2 sources) over pure noise finds
+nothing**, and `phrase()` calls that a measured absence rather than a
+failure to look. Real planted structure is found and reported corroborated;
+adding instruments never lowers the ceiling; an instrument that throws is a
+typed gap and the search continues. 9/9.
+
+**The synthesis worth not re-deriving** (THE-CORE-MECHANISM.md): every
+structure-finder here rebuilds the ground with exactly ONE relation
+destroyed and reads the difference — the census names which relation each
+one deletes. But honestly there are THREE families, not one:
+PERTURBATION (compare to a rebuilt ground — EVA·Figure), PREDICTION
+(compare to what came next — EVA·Pattern, no perturbation spent),
+DEDUCTION (compare to a declared license — CON/SYN, nothing measured).
+Three of this project's worst errors were using one family where another
+was needed, the falsification probe being the flagship. All three
+establish coherence; none establishes correspondence, and a general finder
+makes that wall more load-bearing, not less.

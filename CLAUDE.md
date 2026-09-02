@@ -6918,3 +6918,24 @@ one of the nine corruptions being refused. Held honestly: whether this
 constitutes anything like self-awareness is the one question the
 building cannot yet answer by measurement — the standing wall (coherence
 never establishes correspondence) includes that answer's own absence.
+
+## The full circuit measured (added 2026-09-02) — pointer
+
+`eval/full-circuit.mjs` + `eval/results/full-circuit-RESULTS.md`. The
+direct question "does our core mechanism do all three ways of knowing?"
+— answered no (no single mechanism, on purpose: signal.js has zero
+composition vocabulary, reaction.js zero perturbation vocabulary,
+hl-acquire stops at CANDIDATE never GIVEN) and then upgraded from "the
+pieces compose" to "the circuit is measured": one relay material, all
+three ways in relay, nine walls all held. The two controls that matter:
+with no declaration the chemistry derives 0 (construction cannot
+self-license), and the planted cycle-closer stopped by triangulation is
+also stopped by refutation when triangulation is skipped (two
+independent walls, one corruption). Six never-stated facts derived, each
+walking to event-ordinal addresses. Three paid-for findings: kinds and
+arrangements answer different questions (a relay's middle stations split
+their company at exactly 0.50 — the first wall assertion was wrong about
+the material, not the organ); polarity is a DECLARATION on a non-text
+edge (the acquisition scan silently skipped polarity-less edges);
+correspondence is still not established — the relay's facts are true by
+construction, and a real material needs the oracle posture (P60).

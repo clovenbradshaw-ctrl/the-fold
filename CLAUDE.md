@@ -6606,3 +6606,25 @@ Three of this project's worst errors were using one family where another
 was needed, the falsification probe being the flagship. All three
 establish coherence; none establishes correspondence, and a general finder
 makes that wall more load-bearing, not less.
+
+## The fifth medium: spatial, through signal.js (added 2026-09-01) — pointer
+
+`eval/results/spatial-pipeline-RESULTS.md`. A 2-D lattice — structurally
+unlike the first four media, which are all ordered 1-D streams — run
+entirely through `signal.js` rather than a hand-rolled driver, so it tests
+the general organ on material it was not built for. Five predictions fixed
+before the run, all five confirmed: row-major finds the planted
+west-to-east grammar and a same-scope different-rule instrument
+corroborates it; the mirrored instrument finds the MIRROR; column-major is
+structurally blind; the scatter instrument finds nothing; the control
+passes. **No organ changed** — the second medium to find nothing new
+(after video), and worth more than that one because a lattice is not a
+stream.
+
+**The usage law it sharpened, now in signal.js's own header: SCOPE IS NOT
+RULE.** Instrument independence needs instruments that CAN SEE THE SAME
+THING — a row-major and a column-major reading of one lattice are not two
+checks on a west-east grammar, one is simply blind. A directional finding
+stays honestly "one instrument only" until a same-scope, different-rule
+instrument exists. Turbulence's hole-vs-peak pair was same-scope by luck;
+choose the pair on purpose.

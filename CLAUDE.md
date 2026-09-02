@@ -7038,3 +7038,17 @@ cannot reach, all TRUE — while the 21 naive-only facts are 19/21
 unverifiable. Corroboration trades unverifiable reach for verifiable
 reach; tenure grain adds reach on top. POLICIES.md P60's sixth
 amendment is the law.
+
+## Select vs generate at ledger scale (added 2026-09-02) — pointer
+
+`eval/results/corroboration-select-vs-generate-RESULTS.md`. The two witness
+protocols run over ONE real two-page ledger with ONE ask budget: equivalent
+recall (7 vs 6 attested), equal precision (0 lies on 4 planted
+fabrications each), select twice as fast per ask and 25% more calls.
+Neither buys the paraphrase wall, which is now measured standing one step
+earlier than identity: **46 pairs never asked for lack of a shared
+end-word** — the co-presence gate. Loosen it only under LP11 (marginal
+asks judged, planted guard as control). The run also fixed the walk's
+tally, which had counted the select path's own typed refusals as `other`.
+Also this pass: the SVO-wipe ripples in `hyperlexicon-door-probe`,
+`admission-gate`, `asserted-eval` read the earned names.

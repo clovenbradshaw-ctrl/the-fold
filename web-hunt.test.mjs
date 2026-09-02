@@ -14,7 +14,7 @@ import * as operators from "../eoreader7/legacy-eoreader6.1/packages/engine/oper
 import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { DEFINITE_DETERMINERS, INFLECTIONAL_SUFFIXES, INTERROGATIVE_PRONOUNS, MANNER_REASON_PRONOUNS } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 import { makeGrid } from "./grid.js";
-import { findCapacity, unresolvedCapacity } from "./capacities.js";
+import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { huntUndetermined } from "./web-hunt.js";
 
 function freshGrid() {

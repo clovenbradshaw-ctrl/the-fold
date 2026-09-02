@@ -1497,9 +1497,11 @@ export function makeRelationReader(organs) {
           }
         } else {
           const fresh = {
-            subject: t.subject,
-            verb: t.verb,
-            object: t.object,
+            // THE WIPE (2026-09-02, P76 finished): constructed edges and
+            // claims carry ONLY the earned names — end1/label/end2, via
+            // arrangementOf. Raw extractor triples (`t.*`) keep the
+            // extractor's own shape; the rename is of what this tier
+            // BUILDS, not of what it receives.
             ...arrangementOf(t),
             polarity: t.polarity,
             subjectEnd,
@@ -1540,7 +1542,7 @@ export function makeRelationReader(organs) {
       e.assertion = {
         standing: standingOf(e.statements),
         statements: e.statements,
-        verbSupport: verbSurfaces.get(e.verb) ?? 0,
+        verbSupport: verbSurfaces.get(e.label) ?? 0,
       };
     }
 
@@ -1596,7 +1598,7 @@ export function makeRelationReader(organs) {
           if (
             sample.some(
               (t) =>
-                t.verb === e.verb &&
+                t.verb === e.label &&
                 endpointsMatch(endFor(t.subject), e.subjectEnd) &&
                 endpointsMatch(endFor(t.object), e.objectEnd),
             )
@@ -1633,7 +1635,7 @@ export function makeRelationReader(organs) {
           found.refs.push(...e.refs);
           if (!found.polarities.has(e.polarity)) found.polarities.add(e.polarity);
         } else {
-          clusters.push({ object: e.object, objectEnd: e.objectEnd, refs: [...e.refs], polarities: new Set([e.polarity]) });
+          clusters.push({ object: e.end2, objectEnd: e.objectEnd, refs: [...e.refs], polarities: new Set([e.polarity]) });
         }
       }
       return clusters.map((c) => ({ object: c.object, refs: [...new Set(c.refs)], polarity: c.polarities.size > 1 ? "±" : [...c.polarities][0] }));
@@ -1643,9 +1645,6 @@ export function makeRelationReader(organs) {
     function judge(sentence, t) {
       const claim = {
         sentence,
-        subject: t.subject,
-        verb: t.verb,
-        object: t.object,
         ...arrangementOf(t),
         polarity: t.polarity,
         // Same disclosure edgeFace carries, at claim scale: whether the
@@ -1735,7 +1734,7 @@ export function makeRelationReader(organs) {
         };
       }
       const sameSubjVerb = edges.filter(
-        (e) => sameAct(e.verb, t.verb) && intersects(e.subjectEnd.referents, subj.referents),
+        (e) => sameAct(e.label, t.verb) && intersects(e.subjectEnd.referents, subj.referents),
       );
       // Computed once, attached to every verdict below that reaches this
       // point — a reader needs cardinality regardless of whether THIS
@@ -1748,7 +1747,7 @@ export function makeRelationReader(organs) {
       // negation-led carries a polarity nothing measured, so it may not
       // decide this claim either way — `every`, not `some`: a clean edge
       // sitting beside an unmeasured one still binds on its own merits.
-      const matching = matched.filter((e) => !negationLed(e.object));
+      const matching = matched.filter((e) => !negationLed(e.end2));
       if (matched.length && !matching.length) {
         return {
           ...claim,
@@ -1815,7 +1814,7 @@ export function makeRelationReader(organs) {
       // it: same subject and verb first (what the subject actually did),
       // then same verb and object (who actually did this to the object).
       const sameVerbObj = edges.filter(
-        (e) => sameAct(e.verb, t.verb) && !sameSubjVerb.includes(e) && endpointsMatch(e.objectEnd, obj),
+        (e) => sameAct(e.label, t.verb) && !sameSubjVerb.includes(e) && endpointsMatch(e.objectEnd, obj),
       );
 
       // Slot competition (P32's named follow-up, added 2026-08-19): the
@@ -1847,7 +1846,7 @@ export function makeRelationReader(organs) {
         // eligible to compete for this slot at all.
         const claimNums = numberSet(t.object);
         const numbersAgree = (e) => {
-          const edgeNums = numberSet(e.object);
+          const edgeNums = numberSet(e.end2);
           if (!claimNums.size || !edgeNums.size) return true; // nothing to disagree about
           for (const n of claimNums) if (edgeNums.has(n)) return true;
           return false;
@@ -1868,17 +1867,20 @@ export function makeRelationReader(organs) {
       // the grounding panel) inherits the upgrade with no further change.
       const rest = [...sameSubjVerb, ...sameVerbObj]
         .map(edgeFace)
-        .filter((e) => !competing || e.subject !== competing.subject || e.object !== competing.object);
+        .filter((e) => !competing || e.end1 !== competing.end1 || e.end2 !== competing.end2);
       const nearest = (competing ? [competing, ...rest] : rest).slice(0, NEAREST_EDGES_MAX);
       return { ...claim, verdict: "unbound", nearest, ...(competing ? { competing } : {}), ...cardinality };
     }
 
     function edgeFace(e) {
       return {
-        subject: e.subject,
-        verb: e.verb,
-        object: e.object,
-        ...arrangementOf(e),
+        // internal edges already carry ONLY the earned names since the
+        // wipe — arrangementOf maps RAW extractor triples (t.subject...),
+        // and calling it here on an earned-name edge yielded end1:
+        // undefined on every public face (caught by the suite, first run)
+        end1: e.end1,
+        label: e.label,
+        end2: e.end2,
         polarity: e.polarity,
         refs: e.refs,
         // The exact bytes this edge was read from, carried THROUGH the
@@ -1889,7 +1891,7 @@ export function makeRelationReader(organs) {
         // null when no posPrior was available — a disclosed absence of the
         // check, never a false "plausible". Never used to drop or downrank
         // an edge here; a caller (verification.js) reads it as it chooses.
-        grammar: vocabGrammar.get(e.verb) ?? null,
+        grammar: vocabGrammar.get(e.label) ?? null,
         // The disclosure travels with the edge, so a claim's `bound` /
         // `nearest` lists carry it for free — a conviction resting on a
         // single-witness edge says so wherever that edge is shown.
@@ -1982,9 +1984,6 @@ export function makeRelationReader(organs) {
               if (!subj.referents.size) continue; // a pronoun subject is noise here, not a claim about the cast
               report.claims.push({
                 sentence,
-                subject: t.subject,
-                verb: t.verb,
-                object: t.object,
                 ...arrangementOf(t),
                 polarity: t.polarity,
                 verdict: "unheard",
@@ -2019,17 +2018,24 @@ export function makeRelationReader(organs) {
       const objEnd = object == null ? null : endpoint(object);
       const matches = edges.filter(
         (e) =>
-          (verb == null || e.verb === verb) &&
+          (verb == null || e.label === verb) &&
           (subjEnd == null || endpointsMatch(e.subjectEnd, subjEnd)) &&
           (objEnd == null || endpointsMatch(e.objectEnd, objEnd)),
       );
       const openField = openSubject ? "subjectEnd" : "objectEnd";
+      const sourceField = openSubject ? "end1" : "end2"; // read the earned name; emit the filler shape
+      // FILLERS KEEP THEIR OWN NARROW VOCABULARY (the wipe's one deliberate
+      // boundary, 2026-09-02): a filler answers "which value fills this
+      // SLOT", and clusterFillers' f.object is consumed by that name in
+      // holon.js with a comment saying exactly that (P36). Widening the
+      // wipe into the filler shape would have forked it from claim.fillers
+      // — caught live when the two diverged mid-rename.
       const faceField = openSubject ? "subject" : "object";
       const clusters = [];
       for (const e of matches) {
         const found = clusters.find((c) => endpointsMatch(c.end, e[openField]));
         if (found) found.refs.push(...e.refs);
-        else clusters.push({ [faceField]: e[faceField], end: e[openField], refs: [...e.refs] });
+        else clusters.push({ [faceField]: e[sourceField], end: e[openField], refs: [...e.refs] });
       }
       // EVERY CLUSTER CARRIES HOW ITS OPEN END RESOLVED. This function is
       // named queryReferents and returned whatever sat in the open slot,
@@ -2081,20 +2087,20 @@ export function relationFindings(report, { verdicts = ["contradicted", "unbound"
   const want = new Set(verdicts);
   const lines = [];
   for (const c of report?.claims ?? []) {
-    const edge = `${c.subject} —${c.verb}${c.polarity === "-" ? " (negated)" : ""}→ ${c.object}`;
+    const edge = `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}`;
     if (c.verdict === "contradicted" && want.has("contradicted")) {
       lines.push(`the material says otherwise: ${edge} [${(c.refs ?? []).join("; ")}]`);
     } else if (c.verdict === "unbound" && want.has("unbound")) {
       if (c.competing) {
         lines.push(
           `the material fills this differently: ${edge} — it says ` +
-            `${c.competing.subject} —${c.competing.verb}→ ${c.competing.object} [${c.competing.refs.join("; ")}]`,
+            `${c.competing.end1} —${c.competing.label}→ ${c.competing.end2} [${c.competing.refs.join("; ")}]`,
         );
       } else {
         const near = c.nearest?.[0];
         lines.push(
           `the material never says: ${edge}` +
-            (near ? ` (closest it does say: ${near.subject} —${near.verb}→ ${near.object})` : ""),
+            (near ? ` (closest it does say: ${near.end1} —${near.label}→ ${near.end2})` : ""),
         );
       }
     }
@@ -2149,9 +2155,9 @@ const foldMatch = (edgeVal, query) => {
 export function queryEdges(edges, { subject = null, verb = null, object = null, polarity = null } = {}) {
   return (edges ?? []).filter(
     (e) =>
-      foldMatch(e.subject, subject) &&
-      (verb == null || foldDiacritics(String(e.verb ?? "")).toLowerCase() === foldDiacritics(String(verb)).toLowerCase()) &&
-      foldMatch(e.object, object) &&
+      foldMatch(e.end1, subject) &&
+      (verb == null || foldDiacritics(String(e.label ?? "")).toLowerCase() === foldDiacritics(String(verb)).toLowerCase()) &&
+      foldMatch(e.end2, object) &&
       (polarity == null || e.polarity === polarity),
   );
 }
@@ -2173,11 +2179,16 @@ export function queryFillers(edges, { subject = null, verb = null, object = null
   const openObject = object == null;
   if (openSubject === openObject) return null; // both open, or neither — not this function's question
   const matches = queryEdges(edges, { subject, verb, object });
+  // READ from the edge's earned names (the wipe); EMIT the fillers' own
+  // narrow shape (subject/object — a filler answers "which value fills
+  // this slot", and holon.js consumes it by that name; see queryReferents'
+  // note). The two vocabularies meet exactly here, on purpose.
+  const sourceField = openSubject ? "end1" : "end2";
   const openField = openSubject ? "subject" : "object";
   const clusters = new Map();
   for (const e of matches) {
-    const key = foldDiacritics(String(e[openField] ?? "")).toLowerCase();
-    if (!clusters.has(key)) clusters.set(key, { value: e[openField], refs: [] });
+    const key = foldDiacritics(String(e[sourceField] ?? "")).toLowerCase();
+    if (!clusters.has(key)) clusters.set(key, { value: e[sourceField], refs: [] });
     clusters.get(key).refs.push(...e.refs);
   }
   return [...clusters.values()].map((c) => ({ [openField]: c.value, refs: [...new Set(c.refs)] }));

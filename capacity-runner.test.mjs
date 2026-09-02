@@ -14,10 +14,10 @@ import { tokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/percei
 import { classifyWord, dominantClass } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, landSelfAssertion } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, readsNothing, landSelfAssertion } from "../eoreader7/native/organs/index.js";
 import { makeGrid } from "./grid.js";
-import { findCapacity, unresolvedCapacity } from "./capacities.js";
-import { makeGrammarLens } from "./grammar-lens.js";
+import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
+import { makeGrammarLens } from "../eoreader7/native/organs/index.js";
 
 function freshRunner() {
   const referentIndexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
@@ -76,8 +76,8 @@ test("runCapacity: \"relations\" with no query dumps the whole edge graph — re
   assert.equal(out.gap, undefined, JSON.stringify(out));
   assert.equal(out.id, "relations");
   assert.ok(out.count >= 3, `expected at least 3 edges, got ${out.count}`);
-  assert.ok(out.edges.some((e) => e.subject === "Lincoln" && e.verb === "appointed" && e.object === "Hamlin"));
-  assert.ok(out.edges.some((e) => e.subject === "Lincoln" && e.verb === "appointed" && e.object === "Johnson"));
+  assert.ok(out.edges.some((e) => e.end1 === "Lincoln" && e.label === "appointed" && e.end2 === "Hamlin"));
+  assert.ok(out.edges.some((e) => e.end1 === "Lincoln" && e.label === "appointed" && e.end2 === "Johnson"));
 });
 
 test("runCapacity: \"relations\" with subject+verb given answers the exact cardinality question — who did Lincoln appoint", () => {
@@ -1335,4 +1335,55 @@ test("landSelfAssertion: landing under one claim_id does not disturb a DIFFERENT
   assert.equal(realReadings[0].who, "lincoln");
   assert.equal(selfReadings.length, 1);
   assert.equal(selfReadings[0].who, SELF_WITNESS);
+});
+
+test("floor 4½'s wall in testimony's vocabulary: a hold that READ NOTHING never corroborates", () => {
+  // The general form of the self-witness exclusion, and the refuted
+  // generalization is pinned beside it. Widening `isSelfWitness` to the
+  // whole `self:` namespace was tried and is WRONG: `self:ledger` reads
+  // addressed bytes (reflex.js, P15) and is a genuine source read, which
+  // the pre-existing test above already demanded. What carves correctly is
+  // whether the reading read anything — nesting.js's wall, where an
+  // unaddressed hold is an OUTER note and outer notes never corroborate.
+  const selfModel = selfModelReading({ verdict: "holds" });
+  assert.ok(readsNothing(selfModel), "the model asserting reads nothing");
+  assert.ok(!readsNothing(realHoldReading("lincoln.txt")), "a real source read carries addresses");
+
+  // a self:ledger reading WITH addresses is a real read and DOES corroborate
+  const ledgerRead = { ...realHoldReading("self:ledger"), read: ["self:ledger#40-90"] };
+  assert.ok(!readsNothing(ledgerRead), "the self plane's own ledger is addressed material");
+  assert.equal(mergeTestimony([realHoldReading("lincoln.txt"), ledgerRead]).case, "AGREE",
+    "two addressed reads corroborate, even when one is the self plane's ledger");
+
+  // an unaddressed hold from ANY voice is excluded — the structural rule,
+  // which a name match could never have caught
+  const unaddressed = { ...realHoldReading("some-source.txt"), read: [], edges: [] };
+  assert.equal(mergeTestimony([realHoldReading("lincoln.txt"), unaddressed]).case, "SINGLE",
+    "an unaddressed claim of support never counted honestly either (P5.2)");
+  assert.equal(mergeTestimony([realHoldReading("a.txt"), realHoldReading("b.txt")]).case, "AGREE",
+    "and the ordinary boundary is unchanged");
+});
+
+// ── the speaker boundary consumed: a journal's "I" is a witness with a name ──
+import { speakerWho } from "../eoreader7/native/organs/index.js";
+import { speakerSections, speakerAt as speakerAtOffset } from "../eoreader7/native/organs/index.js";
+import { readFileSync, existsSync } from "node:fs";
+
+test("speakerWho: a reading inside a declared section is attributed to its narrator; front matter and no-organ stay bare", () => {
+  const DRACULA = "../live_priors/01-literature-books/gutenberg/pg345_Dracula.txt";
+  if (!existsSync(DRACULA)) return; // the real book is the fixture; nothing is faked
+  const text = readFileSync(DRACULA, "utf8");
+  const sections = speakerSections(text);
+  const seward = sections.find((s) => /SEWARD/i.test(s.speaker ?? ""));
+  const speakerAt = (ref, offset) => (ref === "dracula.txt" ? speakerAtOffset(sections, offset) : null);
+
+  const inside = speakerWho("dracula.txt", [`dracula.txt#${seward.headingEnd + 200}-${seward.headingEnd + 260}`], speakerAt);
+  assert.match(inside, /^dracula\.txt:.*SEWARD/i, `the narrator rides the who: ${inside}`);
+  assert.equal(speakerWho("dracula.txt", ["dracula.txt#10-40"], speakerAt), "dracula.txt", "front matter binds to no one — who stays the source");
+  assert.equal(speakerWho("dracula.txt", ["dracula.txt#10-40"], null), "dracula.txt", "no organ, no change");
+  assert.equal(speakerWho("other.txt", ["other.txt#500-600"], speakerAt), "other.txt", "a source without declared sections is untouched");
+  // and two narrators of one book are two VOICES to the independence count
+  const harker = sections.find((s) => /HARKER/i.test(s.speaker ?? ""));
+  const w1 = speakerWho("dracula.txt", [`dracula.txt#${harker.headingEnd + 200}-${harker.headingEnd + 260}`], speakerAt);
+  assert.notEqual(w1, inside, "Harker's journal and Seward's diary are different witnesses");
 });

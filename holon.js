@@ -35,6 +35,7 @@
 // one turn without re-checking anything.
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
+import { distinctSources } from "./corroboration.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
@@ -1121,13 +1122,19 @@ export async function runPart({
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
     const standing = hyperlexicon
       .foldHyperlexicon(beliefNotes)
-      .filter((n) => n.witnesses.length >= 2)
+      // DISTINCT SOURCES, not witness-list length (corroboration.js's own
+      // independence rule, NEXT-PASSES Pass 4): a mechanical sighting on
+      // page A plus a testimony vote FROM page A is ONE source wearing two
+      // costumes, and `witnesses.length >= 2` read it as two — Ladha's
+      // correlated-witnesses cap, enforced at the one gate that feeds the
+      // model. One implementation, imported: corroboration.js is pure.
+      .filter((n) => distinctSources(n.witnesses).size >= 2)
       .filter((n) => !shown.has(`${n.subject} — ${n.verb}→ ${n.object}`.toLowerCase()))
       .slice(0, HYPERLEXICON_LEDGER_LINES);
     if (!standing.length) return null;
     return (
       `From earlier reading, confirmed independently in more than one place:\n` +
-      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${n.witnesses.length} places)`).join("\n")
+      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${distinctSources(n.witnesses).size} places)`).join("\n")
     );
   })();
 

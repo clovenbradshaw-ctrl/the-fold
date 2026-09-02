@@ -20,9 +20,9 @@ import { discoverRelationVocab, extractRelations } from "../eoreader7/legacy-eor
 import { tokenize as engineTokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
-import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, SELF_WITNESS } from "./capacity-runner.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, SELF_WITNESS } from "../eoreader7/native/organs/index.js";
 import { makeGrid } from "./grid.js";
-import { findCapacity, unresolvedCapacity } from "./capacities.js";
+import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { renderCrown, checkTraceCoverage, verifyOrFallback, tokenize, KNOWN_CONNECTIVES } from "./crown.js";
 
 function freshRelationsRunner() {

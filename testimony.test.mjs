@@ -17,7 +17,7 @@ import {
   readTestimony,
   siblingSwap,
   witnessSlice,
-} from "./testimony.js";
+} from "../eoreader7/native/organs/index.js";
 
 // The measured specimen, in miniature: a page about the 1960 World Series
 // where the claim's vocabulary saturates the bytes but the fact runs the

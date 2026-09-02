@@ -31,7 +31,7 @@ import {
 import { PRIMARY_SNIPS_KEPT } from "./primary.js";
 
 const FIXTURE_PATH = "06-government-legal/world-legislation/uk/ukpga-2017-1.md";
-const FIXTURE = readFileSync(new URL("eval/fixtures/ukpga-2017-1.md", import.meta.url), "utf8");
+const FIXTURE = readFileSync(new URL("../eoreader7/native/eval/the-fold/fixtures/ukpga-2017-1.md", import.meta.url), "utf8");
 
 // ── declared numbers name their givers ──────────────────────────────────────
 test("the declared bounds carry their givers, not fresh constants", () => {

@@ -90,8 +90,8 @@ import { renderBlocksInto } from "./render.js";
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxed } from "./term.js";
 
 import { makeGrid } from "./grid.js";
-import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
-import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "./capacity-runner.js";
+import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "../eoreader7/native/organs/index.js";
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
@@ -198,7 +198,10 @@ import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
 import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
-import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
+import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
+import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
+import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
+import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this
 // question's answer have to fill, and what part of it is still empty. Both
@@ -736,6 +739,7 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
   /**
    * The metacognition ledger (metacognition.js, P72) — same app-wide,
@@ -805,6 +809,7 @@ const PER_CONVO = [
   "lastMessages",
   "lastMaterialChars",
   "reflexLog",
+  "obligations",
   "meter",
   "aperture",
   "heldFolds",
@@ -1314,6 +1319,167 @@ function mirrorTermRecord(event, fields) {
  * grid.js's own grammar is what gates a malformed or unwarranted act, not
  * anything added here.
  */
+/**
+ * The F5-at-scale door (NEXT-PASSES Pass 4b). corroborateLedger is the
+ * eval-proven settling walk (corroboration.js — SPRT-shaped unit steps,
+ * per-end feasibility prefilter, the armed generate protocol, contests
+ * reported never landed); this function only SUPPLIES it the app's own
+ * organs and prints its report:
+ *  - the log is state.hyperlexiconLog — the same ledger every grounded
+ *    turn's admit() has been feeding (P57/P74);
+ *  - the door is hyperlexiconFor — attest() lands earned testimony
+ *    witnesses on the same append-only log, witnesses UNIONED;
+ *  - sources cross like the sandbox's mount, ALL loaded sources — the
+ *    mute toggle silences RETRIEVAL, not what material may witness
+ *    (term.js's sourcesPayload states the same rule for the same reason);
+ *  - the ask is witnessProof's own, verbatim: buildWitnessMessages at
+ *    temperature 0 with the WITNESS_SCHEMA grammar (P32's measured
+ *    posture — a classification ask, not a generative one).
+ * The walk's outcome lands back on state.hyperlexiconLog (append-only —
+ * attest never rewrites), the report renders mechanically, and the run
+ * mirrors onto the record via the same term-record route /act uses.
+ */
+/**
+ * /must — the obligation ledger as a chat door (Tier 4 #13's consumer).
+ *   /must <enumerated instructions>      admit (numbered/lettered/bulleted lines)
+ *   /must                                coverage — every clause, its standing, the unvisited NAMED
+ *   /must done <id> <because> [ref ...]  mark satisfied
+ *   /must broke <id> <because>           mark violated
+ *   /must waive <id> <because> by <who>  waive — reason AND name required
+ * Mechanical throughout (usageTurn, no model call): the ledger is
+ * append-only, standings project from it, and coverage is complete only
+ * when nothing is unvisited and nothing stands violated. Mirrors every
+ * change onto the record via the same term-record route the other doors use.
+ */
+/**
+ * /reopen [source|fold|door] — the record is the only ground. The pick is
+ * reopen.js's `lastOpened` over the record's tail (explore-server's own
+ * rows, read back exactly as term.js's `record` command reads them); the
+ * address is the row's own field, carried; nothing here searches the chat,
+ * asks a model, or admits bytes. A source the record names but this
+ * conversation never attached is SAID, not fetched — reopen restores what
+ * is held, it does not re-admit what is not.
+ */
+async function reopenTurn(argstr, typed) {
+  const arg = String(argstr ?? "").trim().toLowerCase();
+  if (arg && !["source", "fold", "door"].includes(arg)) return usageTurn(typed, "/reopen [source|fold|door] — restore the last thing you had open, from the record's own rows. Nothing is re-read, re-run, or re-admitted.");
+  let rows = [];
+  try {
+    const res = await fetch(`${EXPLORE_BASE}/api/record?tail=500`);
+    if (res.ok) rows = ((await res.json()).tail ?? []).map((raw) => { try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return null; } }).filter(Boolean);
+  } catch { /* unreachable record — said below, never guessed around */ }
+  if (!rows.length) return usageTurn(typed, `the record is not reachable (no explore server at ${EXPLORE_BASE}) — /reopen restores only from the record, never from the chat's own memory.`);
+  const pick = lastOpened(rows, { kinds: arg ? [arg] : null });
+  const plan = restoreFor(pick);
+  if (plan.action === "none") return usageTurn(typed, `nothing ${arg || "open"} on the record's tail to reopen.`);
+  if (plan.action === "open-source") {
+    if (state.sources[plan.name] != null) {
+      openSourceViewer(plan.name);
+      if (!matchMedia("(max-width: 900px)").matches) showView("explore");
+      return usageTurn(typed, `reopened source "${plan.name}" (${pick.event}, recorded ${pick.at})`);
+    }
+    return usageTurn(typed, `the last open on the record is "${plan.name}" (${pick.event}, recorded ${pick.at}) — not attached to this conversation, so it is not re-admitted here; attach it, or open it in Explore.`);
+  }
+  if (plan.action === "open-fold") {
+    const entry = state.builds.find((b) => b.n === Number(plan.n));
+    if (!entry) return usageTurn(typed, `the last fold open on the record is build ${plan.n} (recorded ${pick.at}) — not held in this page's folds, so nothing is restored.`);
+    await openBuild(entry);
+    return usageTurn(typed, `reopened fold ${plan.n} (recorded ${pick.at})`);
+  }
+  return usageTurn(typed, renderDoor(plan.fields));
+}
+
+function mustTurn(argstr, typed) {
+  const arg = String(argstr ?? "").trim();
+  const led = state.obligations;
+  const render = (ledger) => {
+    const cov = obligationCoverage(ledger);
+    const rows = obligationStandings(ledger).map((s) => `  ${s.standing === "satisfied" ? "✓" : s.standing === "violated" ? "✗" : s.standing === "waived" ? "–" : "·"} ${s.id}  [${s.standing}]  ${s.text}${s.because && s.standing !== "not-yet-visited" ? `  — ${s.because}` : ""}`);
+    return [`obligations: ${cov.total} clause(s) · satisfied ${cov.counts.satisfied} · violated ${cov.counts.violated} · waived ${cov.counts.waived} · not yet visited ${cov.counts["not-yet-visited"]} · ${cov.complete ? "COMPLETE" : "incomplete"}`, ...rows].join("\n");
+  };
+  if (!arg) {
+    if (!led) return usageTurn(typed, "/must <enumerated instructions> — admit a numbered, lettered, or bulleted instruction set as clauses each owed a visit. Then: /must (coverage), /must done <id> <because>, /must broke <id> <because>, /must waive <id> <because> by <who>. Coverage is ENUMERATION: the unvisited are named, and it is complete only when nothing is unvisited and nothing stands violated.");
+    return usageTurn(typed, render(led));
+  }
+  const verb = arg.match(/^(done|broke|waive)\s+(ob-\d+)\s+([\s\S]*)$/);
+  if (verb) {
+    if (!led) return usageTurn(typed, "no obligations admitted yet — /must <enumerated instructions> first.");
+    const [, kind, id, rest] = verb;
+    let r;
+    if (kind === "waive") {
+      const m = rest.match(/^([\s\S]*?)\s+by\s+(.+)$/);
+      if (!m) return usageTurn(typed, "a waiver needs a reason AND a name: /must waive <id> <because> by <who>");
+      r = markObligation(led, id, "waived", { because: m[1].trim(), waivedBy: m[2].trim() });
+    } else {
+      const refs = [...rest.matchAll(/\S+#\d+-\d+/g)].map((x) => x[0]);
+      r = markObligation(led, id, kind === "done" ? "satisfied" : "violated", { because: rest.trim(), refs });
+    }
+    if (r.refused) return usageTurn(typed, `refused (${r.refused}): ${r.detail}`);
+    state.obligations = r.ledger;
+    mirrorTermRecord("obligation-mark", { id, standing: kind, via: "chat" });
+    return usageTurn(typed, render(r.ledger));
+  }
+  const admitted = admitObligations(arg);
+  if (admitted.refused) return usageTurn(typed, `refused (${admitted.refused}): ${admitted.detail}`);
+  state.obligations = admitted.ledger;
+  mirrorTermRecord("obligation-admit", { clauses: admitted.ledger.clauses.length, via: "chat" });
+  return usageTurn(typed, render(admitted.ledger));
+}
+
+async function corroborateTurn(argstr, typed) {
+  const maxAsks = Number((argstr ?? "").trim());
+  if (!Number.isInteger(maxAsks) || maxAsks < 1)
+    return usageTurn(typed, "/corroborate <maxAsks> — walk this conversation's own hyperlexicon against the loaded sources with the witness protocol, so accumulated notes can earn second, independent votes. <maxAsks> is the model-call budget and is YOURS to declare (P9) — e.g. /corroborate 20. Notes with two distinct sources reach the ledger block the model actually sees (holon.js's own gate).");
+  if (!state.ready) return usageTurn(typed, "no model connected — corroboration asks a witness, and there is nobody to ask.");
+  const log = state.hyperlexiconLog;
+  const notes = log ? hyperlexiconFor.foldHyperlexicon(log) : [];
+  if (!notes.length) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard yet this session, so there is nothing to corroborate.");
+  const sources = Object.entries(state.sources ?? {}).map(([name, text]) => ({ ref: name, text })).filter((s) => s.text);
+  if (!sources.length) return usageTurn(typed, "no sources loaded — a witness reads a source, and there is nothing to read.");
+
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = `corroborating: ${notes.length} note(s) against ${sources.length} source(s), budget ${maxAsks} ask(s)…`;
+  logAct("asked", { text: typed });
+
+  const ask = async (s, slice) =>
+    readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+  let report;
+  try {
+    report = await corroborateLedger(log, hyperlexiconFor, sources, {
+      ask,
+      testimony: { witnessSlice, siblingSwap, foldTestimony },
+      maxAsks,
+    });
+  } catch (err) {
+    body.textContent = `corroboration failed: ${err?.message ?? err}`;
+    return;
+  }
+  state.hyperlexiconLog = report.log ?? log;
+
+  const settled = (report.standings ?? []).filter((s) => distinctWitnessSources(s.witnesses ?? []).size >= 2);
+  const lines = [
+    `corroboration: ${report.asks} of ${maxAsks} ask(s) spent across ${sources.length} source(s).`,
+    `attested: ${report.attested.length} · contradicted (reported, never landed): ${report.contradicted.length} · skipped without an ask (no co-presence): ${report.skippedNoCopresence}.`,
+    settled.length
+      ? `notes now at >=2 DISTINCT sources — the ledger block's own gate: ${settled.length}.`
+      : `no note reached two distinct sources this walk — a measured outcome, not a failure to walk.`,
+  ];
+  for (const a of (report.attested ?? []).slice(0, 6))
+    lines.push(`  ✓ ${a.noteId} — witnessed by ${a.ref}`);
+  for (const c of (report.contests ?? []).slice(0, 4))
+    lines.push(`  ⇄ contested: ${c.noteId} (stating: ${c.stating.join(", ") || "—"} · contradicting: ${c.contradicting.join(", ") || "—"})`);
+  body.textContent = lines.join("\n");
+  renderFold(node, {});
+  mirrorTermRecord("corroborate", {
+    asks: report.asks, budget: maxAsks, attested: report.attested.length,
+    contradicted: report.contradicted.length, skipped: report.skippedNoCopresence,
+    settled: settled.length, notes: notes.length, sources: sources.length, via: "chat",
+  });
+  logAct("checked", { text: `corroborate: ${report.attested.length} attested of ${report.asks} asks` });
+}
+
 async function actTurn(argstr, typed) {
   const actLine = argstr.trim();
   if (!actLine) {
@@ -1687,7 +1853,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
       statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
-      mirrorTermRecord("transcribe", { source: "file", duration, chars: text.length, via: "chat" });
+      mirrorTermRecord("transcribe", { source: "file", name, duration, chars: text.length, via: "chat" });
       logAct("recorded", { where: "transcribe", source: "file", layers: 3 });
       const historyNote = `transcribed audio file (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
       state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
@@ -1743,7 +1909,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     const mins = Math.floor(duration / 60);
     const secs = Math.floor(duration % 60);
     statusP.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
-    mirrorTermRecord("transcribe", { source: "youtube", url: arg, title, duration, chars: text.length, via: "chat" });
+    mirrorTermRecord("transcribe", { source: "youtube", name, url: arg, title, duration, chars: text.length, via: "chat" });
     logAct("recorded", { where: "transcribe", source: "youtube", layers: 3 });
     const historyNote = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
     state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
@@ -2196,6 +2362,33 @@ async function send(question) {
   // checked here among the other typed doors, before any automatic
   // detector or the widget router gets a look at the question, so nothing
   // the model decides on its own can reach this grammar.
+  // /corroborate <maxAsks> — the memory floor's mouth, wired into the app
+  // (NEXT-PASSES Pass 4b, the F5-at-scale item): walk the conversation's
+  // OWN accumulated hyperlexicon against the loaded sources with the
+  // witness protocol, so notes the turns have been hearing can earn their
+  // second, independent votes. Explicit-trigger only, checked among the
+  // typed doors like /act and /run — corroboration spends model calls, and
+  // the SPEND IS THE PERSON'S OWN DECLARATION (P9): the required <maxAsks>
+  // argument is the budget, never defaulted, which is also why this is a
+  // door rather than something that runs silently after every turn.
+  // /must — the obligation ledger (obligation.js), the ENUMERATION spoke's
+  // door: a long instruction set admitted as declared clauses, each owed a
+  // visit, coverage reported as enumeration (the unvisited NAMED) rather
+  // than relevance. Explicit-trigger only, like every typed door; every
+  // standing change carries its because, and a waiver names who waived.
+  const mustCmd = question.match(/^\/must\b\s*([\s\S]*)$/);
+  if (mustCmd) return mustTurn(mustCmd[1] ?? "", question);
+
+  // /reopen — restore the last open from the record's own rows (reopen.js).
+  // Mechanical, no model, and RESTORE never RE-ADMIT: a source is opened by
+  // the name the row carries, a fold by its n, a door result re-rendered
+  // from its recorded fields — never re-read, re-run, or re-attached.
+  const reopenCmd = question.match(/^\/reopen\b\s*(.*)$/s);
+  if (reopenCmd) return reopenTurn(reopenCmd[1] ?? "", question);
+
+  const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
+  if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
+
   const actCmd = question.match(/^\/act\b\s*(.*)$/s);
   if (actCmd) return actTurn(actCmd[1] ?? "", question);
 
@@ -6254,6 +6447,7 @@ async function openBuild(entry) {
   // committed first — the same leaving-is-an-act rule showView enforces.
   if (editorBuild && editorBuild !== entry) commitDraft(editorBuild);
   editorBuild = entry;
+  mirrorTermRecord("fold-open", { n: entry.n, via: "chat" }); // an open is a record event, so /reopen can carry it back
   await ensureEditor($("editor-host"));
   const fold = buildFold(entry, null);
   // An uncommitted draft survives leaving and re-entering the editor (and a
@@ -8277,6 +8471,7 @@ function openMediaViewer(name) {
 
 function openSourceViewer(name) {
   const text = state.sources[name] ?? "";
+  mirrorTermRecord("source-open", { path: name, bytes: text.length, via: "chat" }); // the chat's own opens land on the same record Explore's do
   const prov = state.provenance[name];
   $("source-viewer-name").textContent = name;
   $("source-viewer-meta").textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}${prov?.line ? ` · ${prov.line}` : ""}`;

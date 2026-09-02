@@ -28,7 +28,7 @@ import {
 import { PROOF_PAGES_CONSULTED } from "./proof.js";
 import { extractReadable } from "./web.js";
 
-const FIXTURE = readFileSync(new URL("eval/fixtures/wikipedia-battle-of-borodino.html", import.meta.url), "utf8");
+const FIXTURE = readFileSync(new URL("../eoreader7/native/eval/the-fold/fixtures/wikipedia-battle-of-borodino.html", import.meta.url), "utf8");
 
 // ── declared numbers name their givers ──────────────────────────────────────
 test("the consult bound's giver is proof.js's own declared bound, not a new constant", () => {

@@ -17,7 +17,7 @@ import { GRAINS } from "../eoreader7/native/kernel/cube.js";
 import { createHyperlexicon, giveHyperlexiconAffordance } from "../eoreader7/native/kernel/hyperlexicon.js";
 import { createReactionSubstrate, closureAffordances, nominateFromExperience } from "../eoreader7/native/kernel/reaction.js";
 
-import { makeHyperlexicon } from "./hyperlexicon.js";
+import { makeHyperlexicon } from "../eoreader7/native/organs/index.js";
 import { adaptTaskLog } from "./consequence.js";
 import { sedimentReading, compilePriors, loadCompiledPriors, assertionEdges, COMPILED_SCHEMA } from "./predigest.js";
 

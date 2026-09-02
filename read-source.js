@@ -26,7 +26,7 @@
 // pointing at it. Which system a question means is settled by `specialize`
 // against the ANCHOR's own words, and a tie is not narrowed.
 
-import { assertionId } from "./hyperlexicon.js";
+import { assertionId } from "../eoreader7/native/organs/index.js";
 import { rangesIn } from "./network.js";
 
 /** Content words only, so agreement is never carried by "of" and "the". */

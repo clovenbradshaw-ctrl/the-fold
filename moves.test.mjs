@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMoves } from "./moves.js";
-import { CAPACITIES } from "./capacities.js";
+import { CAPACITIES } from "../eoreader7/native/organs/index.js";
 
 const operators = await import("../eoreader7/legacy-eoreader6.1/packages/engine/operators.js");
 const moves = makeMoves({ operators });
@@ -69,10 +69,11 @@ test("THE SPECIMEN: the list failed at a cell this instrument has never occupied
   assert.equal(network.terrain, "Network");
   assert.deepEqual(network.organs, ["network"], "the cell the specimen exposed is now occupied by the organ built for it (P58, registered P64)");
 
-  // The lead-grading machinery still reads: the same act one grain finer
-  // remains covered (CON·Ground stays empty, so it is not listed).
+  // The lead-grading machinery still reads: the same act at every other
+  // grain is now covered — CON·Ground closed 2026-09-02 (`field`, the
+  // running summary's maintenance act), so it lists beside CON·Figure.
   const n = moves.neighbours("CON·Pattern", c.covered);
-  assert.deepEqual(n.sameActOtherGrain, ["CON·Figure"]);
+  assert.deepEqual(n.sameActOtherGrain, ["CON·Ground", "CON·Figure"]);
 });
 
 test("coverage is honest about how much of the space is empty", () => {
@@ -88,10 +89,14 @@ test("coverage is honest about how much of the space is empty", () => {
   // dissolved). The original ratio's lesson stands — a reading that misses
   // something is far more often an unoccupied cell than a misconfigured
   // organ — and P64's law with it: an empty cell is a lead, never a
-  // verdict. The three still empty (CON·Ground, DEF·Ground, INS·Ground —
-  // the whole remaining gap is Ground-grain, one cell per mode) are the
-  // plan's own gated three, waiting on the fold-architecture session's
-  // boundary and on a workable DEF·Ground specimen.
-  assert.equal(c.covered.length, 24);
-  assert.equal(c.empty.length, 3);
+  // verdict. DEF·Ground got its specimen (the 54/58-vs-52/58 provider
+  // incident) and its build (frame.js, from its depth-siblings,
+  // 2026-09-02); the TWO still empty (CON·Ground, INS·Ground — Ground
+  // grain, Relate and Generate modes) wait on the fold-architecture
+  // session's boundary, exactly as the plan wrote them.
+  // 25 since DEF·Ground (frame.js) was built from its depth-siblings and
+  // registered, 2026-09-02 — this pin moves exactly when the registry does,
+  // which is the honesty it exists to enforce
+  assert.equal(c.covered.length, 27); // 27/27 since the Ground row closed (field, preflight — 2026-09-02)
+  assert.equal(c.empty.length, 0);
 });

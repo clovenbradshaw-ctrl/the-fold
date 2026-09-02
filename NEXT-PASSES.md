@@ -88,28 +88,130 @@ cold on paired steps, not on a mean propped up by feedback.
 
 ## Tier 2 — the two reconciliations the checks flagged
 
-**Pass 6 — the operator-order reconciliation.** `task-log.js`'s
-`OPERATOR_ORDER` (NUL SEG SIG CON EVA DEF INS SYN REC) diverges from
-canon (NUL SIG INS SEG CON SYN DEF EVA REC) and now stands flagged.
-This is engine surgery with a measurement first: audit every real
-persisted log (grid acts, build logs, hyperlexicon entries, plan logs)
-for threads whose entry order would violate the CANONICAL chain. If the
-audit is clean, flip the constant and let the suites speak; if not, the
-violating threads name exactly what the divergent constant was
-protecting, and THAT finding decides. Never flip on faith — the
-constant has been enforcing something for two engine generations, and
-the handbook's own warning (construction chain ≠ engine dependency
-ordering) may mean both orders are right about different things. The
-gate is the audit, not an opinion.
+**Pass 6 — the operator-order reconciliation. CLOSED 2026-09-01, and not
+by a flip.** The audit the gate demanded was built and run
+(`eval/operator-order-audit.mjs`, re-runnable): every operator-typed entry
+in every persisted log on disk, replayed through the engine's OWN
+`checkCubeProgression` walk under each order, with a drift check proving
+the replay matches the real function. One discriminating flag
+(`SEG → INS`), inspected and explained as the documented PROPOSE retyping
+(typed SEG on 2026-08-17, INS from 2026-08-18) — a migration artifact, not
+an order fact. The full native suite then ran under BOTH orders: 456/456
+either way.
 
-**Pass 7 — unblock the SVO wipe's verification.** The rename
-(subject/verb/object → end1/label/end2, 221 call sites) is blocked only
-on `hypergraph.test.mjs`'s 81 assertions being unrunnable where the
-sibling `eoreader6.1` path doesn't resolve. eoreader7's
-`legacy-eoreader6.1` submodule IS initialized in this checkout —
-repoint the test's imports there (or symlink the sibling path), confirm
-the 4 pre-existing failures become runnable assertions, then migrate
-file by file with the suite green at every step.
+**What settled it was neither audit but a reading of the code.** `cube.js`'s
+own `OP_MODE`/`OP_DOMAIN` tables derive canon exactly (domain-major × mode),
+and `OP_MODE`'s key order IS canon — so `task-log.js`'s hand-written
+`OPERATOR_ORDER` was a RESTATEMENT that had drifted from the tables in the
+module it imports, in a file whose own header reads "Nothing is restated
+here." The fix is therefore not flipping a literal but removing the
+restatement: `cube.js` now derives and exports `OPERATOR_CHAIN`, and
+`OPERATOR_ORDER` IS that object. The drift is structurally impossible, and
+the audit now reports zero disagreeing pairs because there is one order.
+457/457 native, 256/256 in the-fold's operator-consuming suites.
+
+**Two lessons kept:** the burden is on a DIVERGENCE, never on canon — two
+independent searches for what it protected found nothing, which is what
+licensed the change; and the audit's own first cut grouped threads by build
+number and reported 3 violations that were artifacts of that grouping (a
+REC re-zero is deliberately its own single-entry thread, and the engine
+keys threads by supersession lineage). It now replays through the engine's
+own referee rather than re-deriving legality — search for the organ, even
+when writing an audit.
+
+**Pass 7 — unblock the SVO wipe's verification. BLOCKER CLEARED
+2026-09-01; the wipe itself is NOT started, and the pass found something
+bigger than it was looking for.** `hypergraph.test.mjs` loads and runs
+(58 tests) — the sibling path resolves in this checkout, so the 81
+assertions the wipe needs are runnable.
+
+**What the unblocking surfaced.** The suite pins the FROZEN legacy
+provider by path, while `app.js` — the only production caller of
+`makeRelationReader` — has imported `/engine-v7/adapters/text/*` since
+P69 crossed the ratchet. So this suite has been verifying a configuration
+the app does not run, and that was invisible for as long as the file
+could not load. Measured both ways: **legacy 54/58, native (production)
+52/58** — the same 4 failures plus lemma-widening and
+morphologyLanguage. The provider is now a declared switch
+(`ENGINE=native node --test hypergraph.test.mjs`), legacy still the
+default so the suite's own baseline does not move silently, and the
+delta is a measurement anyone can take rather than a surprise.
+
+**The 4 shared failures, diagnosed, not merely counted.** Two
+(`party`/grammar-disclosure) are a DESIGN SUPERSESSION: BUILD-3's rule
+was "the material's own belief graph is never filtered by grammar —
+disclosure never filters", and P73/P74 then wired the POS prior INTO
+`discoverRelationVocab` as a real vocabulary gate (measured there as a
+gain: junk labels 18 → 0). Both decisions are defensible; they are not
+compatible, and the tests encode the older one. Two (referent bar) report
+`candidates: 0` — the extractor nominating nothing on that fixture, which
+needs its own diagnosis.
+
+**The referent-bar zero, diagnosed the same day.** `extractLeadingSurfaces`
+— the organ the mechanism is built on, described in hypergraph.js's own
+header and imported BY NAME by the test — **existed in neither engine
+provider**, so the import yielded `undefined`, the mechanism could never
+run, and the tests could never pass. Built now in eoreader7
+(`native/adapters/text/surfaces.js`, 6 conformance cases, 463/463). With
+it present the two tests STILL fail, and the cause is now measured:
+`resolvePronouns` returns 8 gaps, all `pronoun_no_candidate` ("no
+admissible candidate has been activated yet"), because the fixture
+mentions its name once and activation never activates it. That is the
+mechanism's OWN disclosed cold-start limit, which the tests assert past.
+**Not fixed by moving a threshold** — that would be tuning against a
+golden.
+
+**ALL FOUR FAILURES CLOSED THE SAME DAY — the suite is 58/58 under BOTH
+providers, production included (it started this pass at 52/58).** None was
+closed by tuning:
+
+* **Two were a DESIGN SUPERSESSION, now pinned on both sides.** BUILD-3's
+  "disclosure never filters" vs P73/P74's real POS vocabulary gate. The
+  test now asserts BOTH: unfiltered, the noun-labelled connector is heard
+  (the old rule, still true when the prior is absent); gated, exactly the
+  junk is dropped and the genuine verb survives, with the cost stated as a
+  number (2 of 4 edges here, both junk). Whichever way that question is
+  settled, the evidence is in the test rather than in a mystery failure.
+  The live badge bug it guards stays closed by a DIFFERENT route
+  (`unheard` rather than `beyond-reach` — the gate removes the connector
+  before the claim is judged), so the test now asserts the INVARIANT (never
+  a false red flag) and accepts either route.
+* **Two were tests over-claiming past a disclosed limit,** on a mechanism
+  whose own organ did not exist. `extractLeadingSurfaces` is built now
+  (eoreader7); with it real, `resolvePronouns` still returns
+  `pronoun_no_candidate` for every frame, because the fixture's name is
+  activated by nothing — the cold-start limit hypergraph.js's header
+  already discloses. The test asserts the limit and will fail, usefully, the
+  day activation reaches this case. Its CONTROL had a fixture that
+  contradicted its own comment (every "Bennett" opened its sentence, so the
+  supposedly ordinarily-established referent was itself leading-only);
+  corrected, and it now matches subject spans by inclusion because the
+  extractor's leading debris ("saw Bennett") is P74's lever-3 gap and not
+  this mechanism's business.
+
+**One more unported organ surfaced:** `createLemmatizer` exists only in the
+frozen provider (native's `morphology.js` exports `actClosure` alone), the
+same shape `extractLeadingSurfaces` had. Its two tests now import it
+explicitly from legacy with the gap named at the point it bites, rather
+than failing unexplained under `ENGINE=native`. Production is unaffected —
+lemma widening is opt-in and app.js injects neither organ. Porting it is
+real, scoped, unstarted work.
+
+**THE WIPE IS DONE (2026-09-02).** hypergraph.js's four construction
+sites carry ONLY the earned names (end1/label/end2); internal readers,
+edgeFace, phrase(), queryEdges and both query clusters migrated; the
+arrangement transition tests flipped to assert the END STATE (SAE names
+gone, so a re-introduction fails loudly). One deliberate boundary, caught
+live when two shapes diverged mid-rename: FILLERS keep their own narrow
+vocabulary (f.subject/f.object — "which value fills this slot"), consumed
+by that name in holon.js by documented design; the query functions read
+the earned names and emit the filler shape, meeting exactly there. One
+real bug the suite caught: edgeFace called arrangementOf(e) on edges that
+no longer carry .subject, yielding end1: undefined on every public face.
+Consumers migrated: grammar-lens (label-first with .verb fallback), hl.js
+/ hl-acquire.js (earned-name-first), their tests, capacity-runner's edge
+assertions. 58/58 under BOTH providers; full sweep 1919/1922, the 3
+remaining baselined as pre-existing against HEAD organs.
 
 ## Tier 3 — make THE-THREE-MATHEMATICS earn its keep
 
@@ -141,18 +243,38 @@ media, a different axis.
     declared author via segmentation claims + a heading detector; also
     unlocks per-narrator testimony in the crown (a journal's "I" is a
     WITNESS with a name).
-12. **Floor 4½ — nesting** (`claim:` in an end slot). Designed,
-    namespaced, deliberately unopened until corroboration throughput
-    justifies it (Pass 1–2). The door from "knows what happened" to
-    "knows who believes what happened."
+12. **Floor 4½ — nesting** (`claim:` in an end slot). **OPENED
+    2026-09-01** — the gate (Pass 1 slice lever, Pass 2 both witness
+    protocols calibrated) was met, so the door was opened rather than
+    left named. `nesting.js` + `nesting.test.mjs` (9 cases against the
+    REAL ledger and the REAL independence counters). The wall that makes
+    it worth having: **witnesses of an outer note never corroborate the
+    inner claim** — `corroborationOf` keeps `direct` and `attributed`
+    strictly apart with no option to sum them, and `leakCheck` is the
+    assay (pinned both ways: an honest ledger does not leak, a planted
+    leak is caught). Disagreement without contradiction works
+    (`disagreement`, stance opposition declared by the caller — this
+    module holds no stance list). Cycles and self-reference refused at
+    any depth; `maxDepth` declared; an unresolved inner id is NAMED, not
+    silently depth-0. P39's `self:model` is now the ordinary shape
+    rather than a special case in `mergeTestimony`. **Not yet consumed
+    by any caller** — the natural first one is `mergeTestimony`, which
+    would replace its self-witness special case with the general
+    mechanism.
 13. **The obligation ledger** — long instruction sets admitted at the
     door, clause standings typed
     (satisfied/violated/waived/not-yet-visited), coverage as enumeration
     not relevance. The pieces exist; the ledger between them doesn't.
-14. **Non-text adapters above floor 0** — audio/image propositions. The
-    protocol seams are proven medium-blind (featuresOfSource/Note, the
-    witness shape); what's missing is an adapter that produces
-    arrangements from a non-text medium at all.
+14. **Non-text adapters above floor 0** — STARTED (2026-09-01,
+    `eval/omnimodal-pipeline.mjs` + results doc): real WAV and real MP4
+    decoded to event streams, the SAME kind-discovery organs unmodified
+    (one text prior found and made injectable: contextVectors' token
+    cleaner), kinds discovered and corroborated across two sources per
+    medium through the real hyperlexicon door, II.23 controls in-pass.
+    Still missing: F2 arrangements ({end1,label,end2}) from non-text
+    media, and the shared-instrument independence fix (a false music
+    kind corroborated at "2 distinct sources" because both decodes
+    share one tracker — recipeId belongs in the witness string).
 
 ## The refused list — measured dead ends, do not retry
 
@@ -181,3 +303,17 @@ own first draft, the dark-room proposer, the whole-claim decider floor,
 and two darknesses in the faces wire. Nothing here is exempt, including
 the plan itself: if Tier 1 cannot raise clean-votes-per-ask measurably,
 the memory floor's design — not its tuning — is what gets re-examined.
+
+## Pass 10 — `/reopen`: restore the last open from the record (added 2026-09-02)
+
+`reopen.test.mjs` carries the BECOMING (`{todo:true}`), written before any
+code: restore the last source, fold, or door result the person had open,
+from the record's OWN rows (`source-open` / `read-start` / `read-reused` /
+`term-run` / `term-act`), never from a transcript search. Licensed only
+when each wall has a test that would fail without it — address carried
+from the row (P5.2), identical on a heard-only ledger, no model asked
+what to reopen, `readsNothing`/self:model never an open, any hit rate
+shuffled (REDEAL_SEED) before it is reported, restore never re-admits.
+A wall that cannot be tested leaves the BECOMING open and says why.
+Control built to fail: a fixture whose transcript text names a DIFFERENT
+file than the record's last open — the door must follow the record.

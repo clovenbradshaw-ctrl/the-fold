@@ -63,7 +63,7 @@
 // that function's own header for the full account. This file only
 // consumes whatever `mergeTestimony` decided; it never re-derives standing.
 
-import { SELF_WITNESS } from "./capacity-runner.js";
+import { SELF_WITNESS } from "../eoreader7/native/organs/index.js";
 
 // ── tokenize — the ONE word/punctuation splitter every render, every
 // witness name, and the trace-coverage veto all use. Never a second one:

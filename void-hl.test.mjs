@@ -16,7 +16,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { stageFromReadings, admissionOf, declarationsOf, readingIsWellFormed, foldAnchor } from "./void-hl.js";
-import { BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH } from "./hl.js";
+import { BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH } from "../eoreader7/native/organs/index.js";
 
 const LINCOLN = "Abraham Lincoln";
 const REL = "vicePresidentOf";

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { harvestDescriptions, halfVectors, descriptionStanding } from "./description-standing.js";
-import { contextVectors, cosine } from "./kind-standing.js";
+import { contextVectors, cosine } from "../eoreader7/native/organs/index.js";
 
 const ALPHA = 0.05;          // declared once for every case; never defaulted in the module
 const MIN_OCCURRENCES = 5;   // declared by the caller, per P4

@@ -20,7 +20,7 @@ import { chainFillers } from "./chains.js";
 import * as wdMod from "./wikidata.js";
 
 const VP_OF_US = "Q11699";
-const fixture = (qid) => parseEntity(JSON.parse(readFileSync(`./eval/fixtures/wikidata/${qid}.json`, "utf8")));
+const fixture = (qid) => parseEntity(JSON.parse(readFileSync(`../eoreader7/native/eval/the-fold/fixtures/wikidata/${qid}.json`, "utf8")));
 const HAMLIN = fixture("Q273546");
 const JOHNSON = fixture("Q8612");
 const OFFICE = fixture("Q11699");
@@ -246,7 +246,7 @@ test("renderHolders never states an exactness the giver declined to state", asyn
 
 // ── learning the relating property ─────────────────────────────────────────
 
-const raw = (qid) => JSON.parse(readFileSync(`./eval/fixtures/wikidata/${qid}.json`, "utf8")).entities[qid];
+const raw = (qid) => JSON.parse(readFileSync(`../eoreader7/native/eval/the-fold/fixtures/wikidata/${qid}.json`, "utf8")).entities[qid];
 
 test("backPointersIn finds the properties an entity uses to point at a slot", async () => {
   const { backPointersIn } = await import("./wikidata.js");

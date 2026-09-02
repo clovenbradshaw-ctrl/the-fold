@@ -6465,3 +6465,653 @@ throughput), the obligation ledger, non-text adapters. Plus the REFUSED
 list — seven measured dead ends kept so nobody retries one. Every pass
 ships a control built to fail; if Tier 1 cannot raise
 clean-votes-per-ask, the memory floor's DESIGN is what gets re-examined.
+
+## Floors, strata, and the BECOMING map (added 2026-09-01) — pointer
+
+`LEVELS.md` is the vocabulary; this is the short map. Two ladders were
+both being called "level" and are now named apart: **floor** = operand
+grade (F0 units … F5 corroborated notes — WHAT-IS-BEING-BORN.md's
+anatomy), **stratum** = evidence channel (S0 bytes / S1 script / S2
+heard / S3 meaning). Three session rules live there verbatim: the
+**heard rule** ("the system must be able to work equally well if it only
+heard the novel and didn't read it" — S1 may accelerate, never silently
+carry a decision), the **trust rule** ("never trust the model on
+content, but it's pretty good with meaning if you give it proper
+activation context" — S3 judgment is the model's only over mechanically
+assembled S0–S2 activation), and the **baby question** ("how would a
+baby learn this?" — the generator of S2 designs, since a baby is a
+heard-only learner). A **BECOMING** is a `{todo:true}` test naming the
+referent of what an organ is trying to become — runnable, greppable
+(`grep -rn "BECOMING" --include="*.test.mjs"`), inhabited by removing
+the flag, and subject to II.23 like everything else. First entry:
+`BECOMING heard-clean` on corroboration.js's generic-title gate, which
+decides at S1 (capitalization) and declares it, with determiner
+precedence named as its S2 form. Landed alongside: the select witness
+protocol (the model POINTS at a mechanically gathered candidate by
+index, never writes a `because` — the echo failure mode is structurally
+impossible), which took the Kutuzov note's third distinct-source vote
+live from the novel's own bytes at a self-verified CRLF-mapped address.
+Details: reading-recall-finding.md addendum 7. **Amended same day —
+the first becoming inhabited, by a discovered kind, not its named
+design:** the S1 lowercase rule is now the DEFAULT of an injectable
+predicate, and `kind-standing.js::discoverCompanyKinds`/`frameWords`
+(company kinds discovered from the heard stream, named by their own
+signature — `kind:before=the` — II.23 shuffle control, one measured
+refusal: cross-kind precedence) inhabits `BECOMING heard-clean` via
+injection. A discovered kind lands in the hyperlexicon as an ordinary
+addressable note (`general|keeps-company|kind:before=the`) with
+witnesses unioned across independently-discovering sources — kind
+membership is itself a corroboratable claim. LEVELS.md's amendment
+carries the full account.
+
+## Music and video through the pipeline (added 2026-09-01) — pointer
+
+`eval/results/omnimodal-pipeline-RESULTS.md` is the account; the driver
+re-runs from the repos plus local ffmpeg. The one-line version: real WAV
+(measure.js's own `wavSamples` + an autocorrelation tracker) and real MP4
+(ffmpeg rawvideo, mean-color shots) decoded to event streams, and the
+SAME kind organs — `discoverCompanyKinds`/`frameWords`/`kindNotes`/
+`hear`/`distinctSources`, unmodified — discover each medium's declared
+grammar taught-nothing (`kind:before=a3` the ornament kind;
+`kind:before=slate` the insert-shot kind), II.23 shuffle controls
+dissolving both, kinds corroborated to 2 distinct sources per medium in
+ONE ledger. Three paid-for findings: the single text prior hiding in the
+organ (contextVectors' token cleaner ate "d5" — now injectable); a noisy
+stream refuses honestly (the kinds formed nothing on a bad decode rather
+than garbage); and **the shared-instrument limit, demonstrated live** —
+a systematic tracker artifact corroborated at "2 distinct sources"
+because both witnesses share one decoder, the measured argument for
+carrying P68 recipe identity in witness strings (named, unbuilt). Music
+is S2-native: the heard rule satisfied by construction. Also this pass:
+the select protocol is now ARMED (sibling-swap over the same candidate
+list, siblings harvested from the whole source; unarmed yes refused) —
+after unarmed select measured p(states|fabricated)=1/8 live; the armed
+recalibration is the named next measurement.
+
+## Turbulence through the pipeline (added 2026-09-01) — pointer
+
+`eval/results/turbulence-pipeline-RESULTS.md` is the account. The medium
+is hard in a NEW way: a continuous field has no events until an instrument
+CONSTITUTES them, and it has no S1 stratum at all (nobody writes
+turbulence down). Declared grammar: the ejection-sweep cycle (Q2 precedes
+Q4/Q1) on a Kolmogorov background; F0 through the real `measure.js` +
+`nul` door reads **censored above**; both instruments (textbook hole
+filter; local-peak rule) independently discover `kind:before=q2` = {q1,
+q4} — 2 matching memberships, 0 spurious, corroborated across independent
+runs AND independent instruments.
+
+**The finding that changed an organ:** the bare share floor is UNLICENSED
+on a small alphabet — with four symbols and one at ~50% marginal
+frequency, "has a dominant predecessor" happens by chance and the II.23
+shuffle control SURVIVED. Text/music/video could never expose it (large
+alphabets, no dominant symbol). `discoverCompanyKinds` gained an optional,
+fully declared `nullArm: {draws, seed, alpha}` — the control itself
+promoted to a null (same within-phrase shuffle, marginals kept, company
+destroyed; admit only above the 1-alpha quantile). Control dissolves, real
+kind survives. Two more disclosed findings: a generator that ADDS a
+coherent structure is unphysical (stress depends on background phase — the
+hole filter then deletes half the grammar), and a grammar can be
+legitimately invisible to a sound instrument (weak Q1/Q3 events are below
+any honest stress threshold) — an instrument's scope is a fact about the
+instrument, not a failure of the material.
+
+Also landed this pass: **instrument independence** in corroboration.js —
+`independentReadings`/`distinctRecipes` count (source, recipe) pairs, so
+two sources read by ONE decoder no longer corroborate an
+instrument-sensitive claim. Proven on the music failure: the false kind
+the shared tracker invented stays at 1 instrument and is refused, while a
+second, genuinely different tracker (Goertzel vs autocorrelation) lifts
+the two TRUE kinds to 2 sources x 2 instruments. Witnesses carry
+`<source>~<recipe>` (P68 identity); an undeclared witness stays honestly
+undeclared, never silently independent.
+
+## signal.js — the mechanism made general (added 2026-09-01) — pointer
+
+`THE-CORE-MECHANISM.md` is the synthesis (standing: nomination); `signal.js`
++ `signal.test.mjs` are the organ. User direction: "let's have this enter
+our DNA and be useable for anything, trying things to find signal."
+
+Four media ran the same five steps by hand (instrument → discover → control
+→ count sources and instruments apart → report or refuse); `findSignal` is
+that shape once, medium-blind (material is OPAQUE — only the caller's
+instruments look inside), pure, discovery organ injected.
+
+**The two hazards are structural, not remembered.** (1) THE SEARCH
+INFLATES — trying many instruments is this organ's whole purpose and also
+the classic way to manufacture a finding, so the null is search-aware BY
+CONSTRUCTION: the ceiling is the distribution of the MAXIMUM share across
+every instrument tried, so trying more RAISES the bar. There is no opt-out
+parameter. (2) TWO SOURCES THROUGH ONE INSTRUMENT ARE ONE READING — every
+finding reports sources and instruments apart, `corroborated` requires both
+≥2, and a one-instrument finding carries the note saying a systematic error
+of that instrument is invisible. Plus: the II.23 control runs every time and
+a search whose control survived is REFUSED (`control_survived`), never
+reported with a caveat.
+
+Decisive test, the one that would make this organ dangerous if it failed:
+**a wide search (12 instruments × 2 sources) over pure noise finds
+nothing**, and `phrase()` calls that a measured absence rather than a
+failure to look. Real planted structure is found and reported corroborated;
+adding instruments never lowers the ceiling; an instrument that throws is a
+typed gap and the search continues. 9/9.
+
+**The synthesis worth not re-deriving** (THE-CORE-MECHANISM.md): every
+structure-finder here rebuilds the ground with exactly ONE relation
+destroyed and reads the difference — the census names which relation each
+one deletes. But honestly there are THREE families, not one:
+PERTURBATION (compare to a rebuilt ground — EVA·Figure), PREDICTION
+(compare to what came next — EVA·Pattern, no perturbation spent),
+DEDUCTION (compare to a declared license — CON/SYN, nothing measured).
+Three of this project's worst errors were using one family where another
+was needed, the falsification probe being the flagship. All three
+establish coherence; none establishes correspondence, and a general finder
+makes that wall more load-bearing, not less.
+
+## The fifth medium: spatial, through signal.js (added 2026-09-01) — pointer
+
+`eval/results/spatial-pipeline-RESULTS.md`. A 2-D lattice — structurally
+unlike the first four media, which are all ordered 1-D streams — run
+entirely through `signal.js` rather than a hand-rolled driver, so it tests
+the general organ on material it was not built for. Five predictions fixed
+before the run, all five confirmed: row-major finds the planted
+west-to-east grammar and a same-scope different-rule instrument
+corroborates it; the mirrored instrument finds the MIRROR; column-major is
+structurally blind; the scatter instrument finds nothing; the control
+passes. **No organ changed** — the second medium to find nothing new
+(after video), and worth more than that one because a lattice is not a
+stream.
+
+**The usage law it sharpened, now in signal.js's own header: SCOPE IS NOT
+RULE.** Instrument independence needs instruments that CAN SEE THE SAME
+THING — a row-major and a column-major reading of one lattice are not two
+checks on a west-east grammar, one is simply blind. A directional finding
+stays honestly "one instrument only" until a same-scope, different-rule
+instrument exists. Turbulence's hole-vs-peak pair was same-scope by luck;
+choose the pair on purpose.
+
+## Floor 4½ opened: nesting, and the wall that makes it worth having (added 2026-09-01) — pointer
+
+`nesting.js` + `nesting.test.mjs`. NEXT-PASSES had this floor designed and
+deliberately shut "until corroboration throughput justifies it (Pass 1–2)";
+both passes are now measured, so the gate was met and the door opened
+rather than left named. An end slot may hold `claim:<assertionId>`, so the
+ledger carries `Tolstoy —states→ claim:napoleon|fought|kutuzov` as an
+ordinary corroboratable note.
+
+**The wall, which is the entire reason this is a floor and not a
+flattening: witnesses of an outer note NEVER corroborate the inner claim.**
+Two sources agreeing that Tolstoy says X corroborate that TOLSTOY SAYS X
+and give X nothing. `corroborationOf` returns `direct` (the only number a
+belief may be gated on) and `attributed` strictly apart, with no option to
+sum them; `leakCheck` is the assay, pinned both ways — an honest ledger
+does not leak, and a planted leak (an attribution's witness credited to the
+inner claim, which is how "papers report he said it" becomes "sources
+confirm it") is caught. Without the wall, nesting manufactures
+corroboration by restating attribution.
+
+What it buys, each tested: **disagreement without contradiction** (both
+"A states X" and "B denies X" stand; `disagreement` reports contested, with
+stance opposition DECLARED by the caller since this module holds no stance
+list of its own); **attributed-but-not-corroborated** said in words rather
+than left to inference; and **the model's own voice as the ordinary shape**
+— P39's `self:model` asserting X is just an outer note, and the wall
+refuses to let it corroborate X, which `mergeTestimony` previously had to
+special-case. Cycles and self-reference refused at any depth, `maxDepth`
+declared, an unresolved inner id NAMED rather than silently depth-0.
+**Consumed the same day by `mergeTestimony`** — and the consumption found
+something. The exclusion there was `who === "self:model"`, a literal string
+match; widening it to the whole reserved `self:` namespace was tried and
+REFUTED by a pre-existing pin with a real reason: `self:ledger`
+(reflex.js's SELF_SOURCE, P15) READS ADDRESSED BYTES — the reflex ledger is
+chunked with self-verifying offsets and cited as `self:ledger#a-b` — so it
+is a genuine source read, while `self:model` reads nothing at all. The
+namespace does not carve at the joint. What does is structural and was
+visible in the readings the whole time (`read: []` vs
+`read: ["fake.txt#0-10"]`): **a hold that read nothing asserted rather than
+read**, which is exactly nesting's wall in testimony's vocabulary — an
+unaddressed hold is an outer note. `readsNothing` subsumes the named case,
+correctly admits an addressed `self:ledger` reading, and additionally
+excludes an unaddressed hold from ANY voice, which never counted honestly
+either (P5.2). The refuted namespace attempt is kept in both the module and
+the test so it is not retried.
+
+## The operator-order divergence, closed at the source (added 2026-09-01) — pointer
+
+NEXT-PASSES Pass 6 (Tier 2's first reconciliation) is CLOSED, and not by
+flipping a constant. `eval/operator-order-audit.mjs` is the re-runnable
+gate the plan demanded: every operator-typed entry in every persisted log,
+replayed through the engine's OWN `checkCubeProgression` walk under each
+order, with a drift check proving the replay matches the real function.
+One discriminating flag (`SEG → INS`), inspected and explained as the
+documented PROPOSE retyping (SEG on 2026-08-17, INS from 2026-08-18) — a
+migration artifact. The full native suite then ran under BOTH orders:
+456/456 either way.
+
+**What actually settled it was reading the code, not either audit.**
+`cube.js`'s own `OP_MODE`/`OP_DOMAIN` tables derive canon exactly
+(domain-major × mode) and `OP_MODE`'s key order IS canon — so
+`task-log.js`'s hand-written `OPERATOR_ORDER` was a RESTATEMENT that had
+drifted from the tables in the module it imports, inside a file whose own
+header says "Nothing is restated here." So the fix removes the
+restatement rather than flipping a literal: `cube.js` derives and exports
+`OPERATOR_CHAIN`; `OPERATOR_ORDER` IS that object; no consumer can see a
+different order and the drift is structurally impossible. **Every earlier
+note in this file flagging task-log's constant as "divergent, pending
+reconciliation with canon" is now spent** — there is one order, and it is
+canon. 457/457 native, 256/256 in the-fold's operator-consuming suites.
+
+Two lessons: the burden is on a DIVERGENCE, never on canon (two
+independent searches for what it protected found nothing, which is what
+licensed the change); and the audit's own first cut grouped threads by
+build number and reported 3 violations that were artifacts of the
+grouping — a REC re-zero is deliberately its own single-entry thread, and
+the engine keys threads by supersession lineage. It now replays through
+the engine's own referee rather than re-deriving legality: search for the
+organ, even when writing an audit.
+
+## Pass 7: the SVO-wipe blocker cleared, and the suite was testing the wrong engine (added 2026-09-01) — pointer
+
+`hypergraph.test.mjs` loads and runs (58 tests), so the 81 assertions the
+SVO rename needs are runnable and Tier 2's second blocker is gone. **The
+wipe itself is not started, deliberately** — see the recommendation below.
+
+**What unblocking surfaced is bigger than the blocker.** The suite pins
+the FROZEN legacy provider by path, while `app.js` — the only production
+caller of `makeRelationReader` — has imported `/engine-v7/adapters/text/*`
+since P69 crossed the ratchet. The suite has therefore been verifying a
+configuration the app does not run, and that was invisible for exactly as
+long as the file could not load. Measured both ways: **legacy 54/58,
+native (production) 52/58** — the same 4 plus lemma-widening and
+morphologyLanguage. The provider is now a declared switch (`ENGINE=native
+node --test hypergraph.test.mjs`), legacy kept as the default so this
+suite's baseline does not move silently, and the gap is a measurement
+anyone can take instead of a surprise.
+
+**Two of the 4 shared failures are a DESIGN SUPERSESSION, not a bug.**
+BUILD-3's rule was "the material's own belief graph is never filtered by
+grammar — disclosure never filters"; P73/P74 then wired the POS prior into
+`discoverRelationVocab` as a real vocabulary gate, measured there as a
+gain (junk labels 18 → 0). Both are defensible, they are not compatible,
+and the tests encode the older one. The other two (referent bar) report
+`candidates: 0` and need their own diagnosis.
+
+**The referent-bar zero, diagnosed the same day, and one real absence
+closed.** `extractLeadingSurfaces` — the organ that mechanism is built
+on, described in hypergraph.js's own header and imported BY NAME by the
+test — **existed in neither engine provider**. The import yielded
+`undefined`, so the mechanism could never run and its tests could never
+pass; invisible for as long as the file could not load. Built now in
+eoreader7 (`native/adapters/text/surfaces.js`): the mirror of
+`extractSurfaces`, returning the capitalised runs that OPEN a sentence,
+evidence-free by contract (ordinary words like "The" ARE returned —
+filtering there would be reading capitalisation as evidence again, which
+the main scan refuses), reusing the main scan's own tokenisation and
+break rules rather than a second drifting copy. 6 conformance cases,
+463/463 native.
+
+With the organ present the two tests STILL fail, and the cause is
+measured rather than guessed: `resolvePronouns` returns 8 gaps, all
+`pronoun_no_candidate` ("no admissible candidate has been activated
+yet"), because the fixture mentions its name once and activation never
+activates it — the mechanism's OWN disclosed cold-start limit, which the
+tests assert past. **Not fixed by moving a threshold**: that would be
+tuning against a golden.
+
+**Recommendation, recorded rather than acted on:** do not migrate the
+221 call sites against this suite yet. Two of the four remaining
+failures are the grammar-filter DESIGN SUPERSESSION (a decision about
+which rule wins, not a fix); two are a disclosed capability limit the
+tests over-claim. Settle those first — by deciding the supersession, and
+by rewriting the referent-bar tests to assert the limit rather than past
+it.
+
+## DEF·Ground built from its depth-siblings — §VIII.2's first earned point (added 2026-09-02) — pointer
+
+Tier 3 Pass 8, run to the letter: the derivation was committed BEFORE the
+build (`def-ground-derivation.md`, 6e404c2), predicting the design by
+transposing the cell's two depth-siblings — NUL·Ground (measure.js's
+declared-numbers gate) and SEG·Ground (extent-and-units) — into the
+calculus column: a declaration gate with typed refusals, verdicts
+stamped with content-addressed frame ids, and a cross-frame comparison
+wall. `frame.js` followed it with zero departures and passed everything
+including the live e2e: the two REAL engine providers as two declared
+frames over one material, the comparison refusing with
+`organs.provider: legacy vs native` named. **The depth axis has now
+moved a build correctly once** — one point, not a law, said so in
+THE-THREE-MATHEMATICS §VIII.2's result.
+
+The plan's own gate was met by a measurement before the build: the
+specimen question ("a turn whose interpretive ground is definably
+different with the definition absent?") was answered live by the
+hypergraph-suite incident — 54/58 under one provider, 52/58 under the
+other, invisible until `ENGINE=native` declared the frame. That also
+closes the plan's "this cell never produced a live incident" note.
+
+Registered as `frame` in capacities.js (DEF·Atmosphere, Clearing).
+**Coverage 25/27, seven FULL stances, the Differentiate mode complete**;
+CON·Ground and INS·Ground remain gated on the fold-architecture
+session's boundary. Not yet consumed by a live caller — the natural
+first consumers are the hypergraph provider switch itself and
+WITNESS_OPERATING_POINT's per-protocol calibrations.
+
+## §VIII.1 tested: Binding transfers across the three mathematics (added 2026-09-02) — pointer
+
+Tier 3 Pass 9. `binding-core.js` extracts the Binding stance's algebra
+once, domain-blind (a figure seeks its counterpart in a field; declared
+criterion scores; unique clearing winner or typed refusal — ambiguous is
+never a coin flip; an optional FOIL probe refuses a criterion that also
+clears a designated foil; evidence carried, failures typed) — zero domain
+vocabulary, enforced by a source-scan. `binding-transfer.test.mjs` (5/5)
+then reproduces the three REAL Binding organs' decisions on real
+material with three thin adapters: mention→referent agrees with the real
+`makeReferentIndex`; claim→edge agrees with the real relation reader
+(bound AND not-bound); testimony→verdict reproduces the armed select
+protocol, with the same-index arm expressed as the core's own foil
+probe. Zero core edits between domains.
+
+Honest scope, in §VIII.1's own RESULT block: agreement on SPECIMENS, not
+behavioral equivalence — what transferred is the decision shape. And one
+refinement the trial surfaced: the MARGIN is domain-owned (geometry
+declares margin −1 because an exact tie of fully-clearing edges is
+corroboration there; arithmetic's tie is genuine ambiguity) — the core
+owns the algebra, the adapter owns criterion/floor/margin/foil as
+declared parameters. Both of THE-THREE-MATHEMATICS' testable predictions
+(§VIII.1 transfer, §VIII.2 depth-derivation) now carry a first earned
+point each, recorded as one trial apiece, not laws.
+
+## The batch of 2026-09-02: everything left, done — pointer
+
+Seven items closed in one directed pass ("do all of what you said is
+left"), each with its own commit and tests:
+
+**A. `/corroborate <maxAsks>` (F5 at scale, Pass 4b — the last Tier-1
+item).** The eval-proven settling walk wired into app.js as a typed door:
+the walk runs over state.hyperlexiconLog against ALL loaded sources with
+witnessProof's own ask (temp 0, WITNESS_SCHEMA), lands attest() witnesses
+append-only, reports mechanically (including how many notes reached the
+>=2-distinct-sources ledger gate), mirrors to the record. The spend is
+the person's own declared budget (P9) — a door, never a silent per-turn
+cost. Blob-staged (HEAD + this hunk) per the shared-file precedent.
+Disclosed: no live Ollama here, so verified by parse+contract against
+the 42-test walk; the first live run is the next measurement.
+
+**B. The witness calibrations as declared frames** — frame.js's first
+live consumer, the day after DEF·Ground was built: calibrationFrames()
+in corroboration.js; comparing generate's 0.33 against select's 2/6 as
+one scale now REFUSES with `organs.protocol` named.
+
+**C. `fold-gate.js` — kind-standing's first caller (Tier 4 #10).**
+Review-not-prevention over discoverReferents' own reported merges,
+against a DECLARED kind + the cast as population (P79's null needs the
+rest-of-material — found by the first live run refusing `no_population`).
+**The flagship runs on real bytes: on the real pg345 Dracula, the
+{Count Dracula ← Castle Dracula} merge is VETOED by the live gate.**
+
+**D. `speaker.js` — the speaker boundary (Tier 4 #11, the pinned
+direction).** Declared-speaker sections as a binding table beside
+immutable text (offsets into the text AS GIVEN, P5.2-verified). Received:
+a 7-word genre lexicon with its giver. Read: the structural heading gate
+(underscore-wrapped or all-caps — prose containing "journal" is never a
+heading), possessive/from-phrase/letter-comma authors, kind-only
+boundaries typed speakerless. Measured on the whole real Dracula: 110
+sections, the speaker map reading like the novel's own contents (Seward's
+29 diary entries, the firms, Sister Agatha, Van Helsing with his
+degrees). Three bugs found by running: a zero-length-match regex hang
+(the timeout found it), case-sensitive possessives vs ALL-CAPS, and
+authors cut at abbreviation periods ("Quincey P") — an author span runs
+to the RECIPIENT marker or the heading's end.
+
+**E. `obligation.js` — the obligation ledger (Tier 4 #13).** Declared
+enumeration admitted at a door (prose refused, boundaries never
+invented); four typed standings with not-yet-visited its OWN standing;
+append-only entries with because+refs (a violation later satisfied keeps
+its road); waivers need a reason AND a name; coverage as ENUMERATION —
+the unvisited NAMED, complete only when nothing is unvisited and nothing
+stands violated.
+
+**F. `event-arrangements.js` — floor 2 for non-text media (Tier 4 #14's
+remainder).** Recurrence-gated adjacency with DECLARED labels and
+event-ordinal addresses (coordinate space declared, P5.2 self-verified —
+a span that does not read back as its own pair throws). Lands as
+ordinary hyperlexicon notes with ~recipe witnesses; the e2e puts the
+turbulence ejection-sweep (q2 -precedes-> q4) on the REAL ledger at 2
+distinct sources x 2 distinct instruments. Integration fact the e2e
+caught: hear() unions span OBJECTS by .at — bare strings drop silently.
+
+**G. The sixth medium — signal.js's first run IN ANGER**
+(`eval/results/record-pipeline-RESULTS.md`): the instrument's own
+3,083-row operational record, no planted truth. Four findings, all
+verifiable against the app's own documented flow (read-start follows
+source-open at share 1.000; server-start opens operating bursts,
+CORROBORATED 2/2 sources x 2/3 instruments); the heavy-tailed alphabet
+pushed the search-aware ceiling to 0.846 — the null arm earning its keep
+exactly where turbulence predicted. Third clean medium; no organ changed.
+
+## The Ways of Knowing (added 2026-09-02) — pointer
+
+`THE-WAYS-OF-KNOWING.md` (standing: nomination — the census is read off
+the code, and the code wins). "Checking" was carrying nine different
+acts, each separating signal from noise differently, and the project's
+worst measured errors were one way asked to do another's job. The nine
+spokes, each with its giver, its code sites, and its characteristic
+corruption: OSTENSION (knowing-where — P5.2; corrupted: the fabricated
+address), PERTURBATION (knowing-by-surviving — the nulls; corrupted: the
+tuned null), PREDICTION (knowing-by-anticipating — prequential/surprise;
+corrupted: the dark room), TRIANGULATION (knowing-together —
+sources×instruments×frames; corrupted: the echo chamber), TESTIMONY
+(knowing-from-a-giver — śabda, every _META.giver; corrupted: nameless
+authority), COMPOSITION (knowing-by-license — vyāpti/HL; corrupted: the
+unlicensed join), ENUMERATION (knowing-completely — the finding is the
+HOLE; corrupted: the silent cap), APOPHASIS (knowing-the-absence —
+anupalabdhi, the typed refusal that REACHED its object; corrupted:
+absence-as-conviction), PROPRIOCEPTION (knowing-oneself — the self
+plane; corrupted: self-state as a displayed metric). Nine is a count,
+not the cube's nine — no cell correspondence claimed or sought.
+
+**The hub:** the spokes share one empty center (Tao 11; Advaita's
+sākṣin — the witness never itself an object of knowledge; Hofstadter's
+loop), and in this codebase the emptiness is five enforced walls — the
+model barred from EVA, readsNothing, nesting's wall, self:model never
+co-signing, and frame.js's no-view-from-nowhere. Each spoke's corruption
+is a way of FILLING the hub, and every wall in the repo traces back to
+one of the nine corruptions being refused. Held honestly: whether this
+constitutes anything like self-awareness is the one question the
+building cannot yet answer by measurement — the standing wall (coherence
+never establishes correspondence) includes that answer's own absence.
+
+## The full circuit measured (added 2026-09-02) — pointer
+
+`eval/full-circuit.mjs` + `eval/results/full-circuit-RESULTS.md`. The
+direct question "does our core mechanism do all three ways of knowing?"
+— answered no (no single mechanism, on purpose: signal.js has zero
+composition vocabulary, reaction.js zero perturbation vocabulary,
+hl-acquire stops at CANDIDATE never GIVEN) and then upgraded from "the
+pieces compose" to "the circuit is measured": one relay material, all
+three ways in relay, nine walls all held. The two controls that matter:
+with no declaration the chemistry derives 0 (construction cannot
+self-license), and the planted cycle-closer stopped by triangulation is
+also stopped by refutation when triangulation is skipped (two
+independent walls, one corruption). Six never-stated facts derived, each
+walking to event-ordinal addresses. Three paid-for findings: kinds and
+arrangements answer different questions (a relay's middle stations split
+their company at exactly 0.50 — the first wall assertion was wrong about
+the material, not the organ); polarity is a DECLARATION on a non-text
+edge (the acquisition scan silently skipped polarity-less edges);
+correspondence is still not established — the relay's facts are true by
+construction, and a real material needs the oracle posture (P60).
+
+## The circuit against an independent oracle (added 2026-09-02) — pointer
+
+`eval/full-circuit-oracle.mjs` + `eval/results/full-circuit-oracle-RESULTS.md`.
+The relay run on REAL material — 23 Wikidata entities, 28 succession
+edges — judged by term dates the derivation never reads. Triangulation
+is real here (each edge witnessed by two records through two
+properties; 22/28 corroborate) and resolves tenure-grain identity for
+free. The circuit derived 8 never-stated facts, 8 TRUE, 0 FALSE (Grant
+after Lincoln; Colfax after Hamlin), each with byte-address provenance.
+
+**The finding: the oracle had to pass II.23 first, and did not on the
+first cut.** The person-grain verdict (P60's own) is true for a random
+within-office pair ~0.82 of the time — 8/8 discriminated nothing, 4/49
+shuffles matched it, and a fixed 0.6 gate was the wrong test. Judged at
+TENURE grain (the grain the circuit composes at — the grain lesson
+applied to the judge), 0/49 redealt circuits matched: discriminated at
+α=0.05 on the run-level null (the pointwise binomial assumes independent
+facts, which transitive products are not — both reported). This is the
+first null this project has spent on an oracle rather than on material,
+and it quietly undercuts P60's precision claims, which never asked what
+a shuffle would score. Triangulation's measured value: the naive arm's
+extra facts are exactly its unverifiable ones — corroboration keeps the
+circuit inside what the oracle can see. Honest scope: 23 entities is
+small; carrying the tenure-grain judge back into derivation-precision.mjs
+is the named next step.
+
+## P60's judge shuffled — two numbers retracted, two re-read (added 2026-09-02) — pointer
+
+`eval/derivation-precision-resolution.mjs` + `eval/results/
+derivation-precision-resolution.md`; POLICIES.md P60's fifth amendment
+is the law. The oracle run showed P60's person-grain verdict is true for
+a random within-office pair ~0.82 of the time; running P60's own driver
+over 40 redealt materials (a `REDEAL_SEED` hook, succession targets
+shuffled within office) per arm: **E/E′ ("1.000 at occurrence grain")
+RETRACTED** — 40/40 shuffles match the perfect score at equal reach;
+**C's 0.842 "naive baseline" sits AT the null median (0.850)** — a
+chance-level number, so "0.842 → 1.000" compared chance to reach; A/D
+stand with the caveat that what separates them from the shuffle is
+REACH (5 vs 1 decided facts), not precision per fact. The FALSE-count
+claim (the veto prevents the false facts) survives whole. **The rule:
+before a precision number is reported, the judge is shuffled once.**
+
+## The map at 27/27, and a second judge shuffled (added 2026-09-02) — pointer
+
+On the user's direction not to block development on the fold-architecture
+boundary, the last two Ground cells are registered: **`field`**
+(CON·Ground → `fold.js::advanceSummaryFold`; the running summary's
+MAINTENANCE act, with the deciding half already registered apart as
+`atmosphere` at EVA·Ground — the boundary the plan's own gate asked for
+turned out to be the two organs' signatures) and **`preflight`**
+(INS·Ground → `proof.js::preflightQuery`; the pure declaration of P23's
+one-search-before-drafting, the crossing itself staying in app.js where
+P13's egress lives). **27/27, nine FULL stances, zero illegal** —
+`eval/capability-coverage.mjs` is the regeneration check; `moves.test.mjs`'s
+pins moved with the registry, as they exist to.
+
+Same pass, the rule P60's fifth amendment earned applied to another
+number: kind-standing's "9 of 10 places recover" is now shuffled — twelve
+RANDOM declared ten-member kinds, drawn seeded from the same 100-surface
+population on the real Dracula, recover **0/10 every time** against the
+real kind's 9/10. Licensed, and pinned as a test beside the number it
+licenses.
+
+## Two organs consumed — the enumeration door and the named narrator (added 2026-09-02) — pointer
+
+**`/must`** (app.js, blob-staged): obligation.js's first live caller —
+admit an enumerated instruction set as clauses each owed a visit; bare
+`/must` renders coverage as ENUMERATION (the unvisited NAMED, complete
+only when nothing is unvisited and nothing stands violated); `done`/
+`broke`/`waive … by <who>` move standings append-only with their because.
+The prosthetic spoke brains lack, supplied as external apparatus, as the
+ways-of-knowing register predicted it would have to be.
+
+**`speakerWho`** (capacity-runner.js; `perSourceReadings` takes an
+optional `speakerAt`): the speaker boundary consumed — a reading's `who`
+is the source being read, and when that source declares its speakers by
+section, the reading's own address says which one spoke:
+`dracula.txt:DR. SEWARD` rather than `dracula.txt`. A journal's "I" is a
+WITNESS WITH A NAME, and two narrators of one book are two voices to the
+independence count (the `:` keeps them apart exactly as `testimony:`
+does). Additive: no organ, front matter, or a speakerless section leaves
+`who` bare — a typed absence, never a nearest-guess. Pinned on the real
+Dracula (Seward's diary vs Harker's journal, front matter bare).
+
+## The wide oracle run — 158 entities, 223/223, 0/50 shuffles (added 2026-09-02) — pointer
+
+`eval/fetch-succession.mjs` (a 2-hop P1365/P1366 crawl from the 23 seeds
+into NEW fixtures — the committed set untouched) and the same circuit
+driver with `MATERIAL`/`ORACLE` env overrides. Result: **224 never-stated
+facts, 223 TRUE, 0 FALSE**, the tenure-grain null at p≈0.54 (chance, as
+it should be), **0 of 50 shuffles matching** — the precision claim
+licensed outright at the scale the 23-entity run could only suggest.
+And the grain fix GENERATES at scale: person grain refuses 7 offices and
+derives 137; tenure grain refuses 0 and derives 224 — 101 facts naive
+cannot reach, all TRUE — while the 21 naive-only facts are 19/21
+unverifiable. Corroboration trades unverifiable reach for verifiable
+reach; tenure grain adds reach on top. POLICIES.md P60's sixth
+amendment is the law.
+
+## Select vs generate at ledger scale (added 2026-09-02) — pointer
+
+`eval/results/corroboration-select-vs-generate-RESULTS.md`. The two witness
+protocols run over ONE real two-page ledger with ONE ask budget: equivalent
+recall (7 vs 6 attested), equal precision (0 lies on 4 planted
+fabrications each), select twice as fast per ask and 25% more calls.
+The first reading — "46 pairs never asked, the wall is the co-presence
+gate" — was a MISCOUNT corrected the same day by an offline audit: 46 of
+166 pairs, and 119 were feasible; the budget bounded recall, not the
+gate. Of the skips: 18 end-debris, 14 genuine paraphrase, 15 window-
+recoverable. `copresenceWindow` is now a declared option on the walk,
+judged on marginal pairs (LP11) with the planted guard as control. The run also fixed the walk's
+tally, which had counted the select path's own typed refusals as `other`.
+Also this pass: the SVO-wipe ripples in `hyperlexicon-door-probe`,
+`admission-gate`, `asserted-eval` read the earned names.
+
+## `/reopen` — BECOMING recorded first (added 2026-09-02) — pointer
+
+`reopen.test.mjs` holds the `{todo:true}` referent, written before the
+door: restore the last source/fold/door result from the record's own rows,
+address carried from the row, heard-only identical, no model asked, no
+self co-sign, null before any number, restore never re-admits.
+NEXT-PASSES.md Pass 10 is the plan entry. Licensed by the walls and the
+null when built — never by the builder's say-so.
+
+**Built the same day.** `reopen.js` (pure; `OPEN_EVENTS` read off the
+record's real vocabulary, `lastOpened` walks backwards from a cursor,
+`restoreFor` is a descriptor never the doing, `renderDoor` re-renders a
+door result from its recorded fields and says what was not kept) +
+`reopen.test.mjs` — five wall tests that scan CODE not comments (address
+decoys in transcript text lose to the row's field; a heard `transcribe`
+ledger opens identically to a read one; no model organ; self:model and
+addressless rows are not opens via `readsNothing`; rows untouched, pick
+frozen, no writing organ). `/reopen [source|fold|door]` in app.js
+(blob-staged): reads the record tail, restores a held source/fold or
+re-renders a door row, and SAYS when the record names something this
+conversation never attached rather than fetching it. The chat's own opens
+now land on the record (`source-open`/`fold-open` via chat; `transcribe`
+carries the attachment name). `eval/results/reopen-null-RESULTS.md`:
+the last-open-is-next-open rate 0.447 vs a redealt median 0.034, 0/50
+shuffles at or above — a real signal, and no precision number claimed
+for the door itself. **Still `{todo:true}`:** the BECOMING stays open
+until the door is driven live — `GET /api/record?tail=` did not exist
+on either server when this landed, and explore-server cannot boot in
+this checkout (P69's submodule error), so the live leg is unverified.
+
+## Moved down a level (Phase 2 of the organ migration, 2026-09-02) — pointers
+
+eoreader7 owns the evals and the theory now; each line is where a thing
+went, so nothing here is re-derived or re-searched:
+
+- `eval/` (drivers, `lib/`, `fixtures/`, `results/`) → `eoreader7/native/eval/the-fold/` — history carried by filter-repo; every fixture hash identical before and after (the 23-entity Wikidata set included).
+- `LEVELS.md` → `eoreader7/native/docs/LEVELS.md` — floors, strata, the heard/trust/address rules, BECOMING.
+- `THE-CORE-MECHANISM.md` → `eoreader7/native/docs/` — the census of what each finder deletes; three families.
+- `THE-WAYS-OF-KNOWING.md` → `eoreader7/native/docs/` — the nine spokes and the empty hub.
+- `THE-THREE-MATHEMATICS.md` → `eoreader7/native/docs/` — arithmetic / geometry / calculus over the cube, §VIII's two earned points.
+- `THE-27-CELLS.md` → `eoreader7/native/docs/` — every cell, its organs, one measured example each.
+- `CAPACITY-DEVELOPMENT-PLAN.md` → `eoreader7/native/docs/` — the Ground row's gates, closed at 27/27.
+- `def-ground-derivation.md` → `eoreader7/native/docs/` — the pre-registered depth-sibling derivation.
+- `reading-recall-finding.md` → `eoreader7/native/docs/` — the F5 measurements, addenda 1–9.
+
+The staying tests that read fixtures (`primary`, `priors`, `web`, `wikidata`,
+`hypergraph`) read them across the boundary at
+`../eoreader7/native/eval/the-fold/fixtures/`. The concurrent session's
+untracked files under `eval/` were not touched and remain here.
+
+## The boundary (2026-09-02)
+
+eoreader7 owns kernel, adapters, organs, and evals; the-fold owns the
+surface. The surface imports organs through ONE seam,
+`../eoreader7/native/organs/index.js` (served to the page by serve.mjs's
+`/eoreader7/native/` alias onto the `/engine-v7` root, typed by page-graph
+as that mount). One-line shims stand at the moved organs' old paths for
+stale importers only. Still here, deferred with the reason in the seam's
+header: `hypergraph.js` (closure reaches the surface through grounding.js
+→ source.js/web.js), `testimony.js`, `capacity-runner.js`.

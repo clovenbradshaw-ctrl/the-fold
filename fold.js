@@ -145,19 +145,16 @@ export function buildSummaryUpdatePrompt(prev, folds, { window = MAX_FOLDS_IN_PR
 TURNS:
 ${foldLines}
 
-Update the summary to include the latest turn. Track DISCOURSE FLOW — how the conversation evolved turn by turn, not message details. Every field stays short. Reply with a JSON object only (no markdown, no extra text), where:
+Update the summary to include the latest turn. Track DISCOURSE FLOW — how the conversation evolved turn by turn, not message details. Every field stays short. A field you have nothing new for is left EMPTY, and the previous value carries; never fill a field for the sake of filling it. The fields, and what each is for:
 - topic: one short phrase naming what the conversation is about now
 - flow: one short sentence on how the thread evolved across all turns
 - entities: only the people, organizations, or works actually named so far (max 8) — never turn labels, never prose
 - context: what the reader must still know from earlier turns to follow along
-- language: ISO 639-1 code of the dominant language
-- turnCount: integer, now ${prev.turnCount + 1}
-
-{"topic":"<what this conversation is about now>","flow":"<how the thread evolved>","entities":["<entity>","<entity>"],"context":"<what carries forward>","language":"<ISO code>","turnCount":${prev.turnCount + 1}}`;
+- language: ISO 639-1 code of the dominant language`;
 }
 
 export const FOLD_SYSTEM_PROMPT =
-  "You track a running discourse summary for an ongoing conversation. Follow the user message's instructions exactly and reply with a JSON object only -- no prose, no code fences.";
+  "You track a running discourse summary for an ongoing conversation. Follow the user message's instructions exactly. Leave a field empty when nothing new belongs in it.";
 
 /**
  * The refresh reply's shape, as grammar for a runtime that can enforce one
@@ -195,23 +192,28 @@ function normalizeSummary(parsed, prev, folds) {
     // The System 2 records are never rewritten by the summary-refresh model
     // call. A model that could edit the record could edit the evidence.
     records: prev.records ?? [],
+    // An EMPTY field is the model's abstain (the prompt says so): the
+    // previous value carries. A required schema field cannot be omitted,
+    // so "" and [] are the only honest way to say "nothing new here" — and
+    // treating them as new values would blank the summary every time the
+    // model declined to invent one.
     topic: truncate(
-      typeof parsed.topic === "string" ? parsed.topic : prev.topic,
+      typeof parsed.topic === "string" && parsed.topic.trim() ? parsed.topic : prev.topic,
       SUMMARY_MAX_CHARS,
     ),
     flow: truncate(
-      typeof parsed.flow === "string" ? parsed.flow : prev.flow,
+      typeof parsed.flow === "string" && parsed.flow.trim() ? parsed.flow : prev.flow,
       FLOW_MAX_CHARS,
     ),
-    entities: Array.isArray(parsed.entities)
+    entities: Array.isArray(parsed.entities) && parsed.entities.length
       ? parsed.entities.slice(0, ENTITIES_MAX).map((e) => String(e).slice(0, 40))
       : prev.entities,
     context: truncate(
-      typeof parsed.context === "string" ? parsed.context : prev.context,
+      typeof parsed.context === "string" && parsed.context.trim() ? parsed.context : prev.context,
       CONTEXT_MAX_CHARS,
     ),
     language:
-      typeof parsed.language === "string" ? parsed.language : prev.language,
+      typeof parsed.language === "string" && parsed.language.trim() ? parsed.language : prev.language,
     // Counted here, never read back from the response. The prompt states the
     // number and a model will still return a different one — observed on the
     // very first fold of a conversation, which came back as turn two. A count

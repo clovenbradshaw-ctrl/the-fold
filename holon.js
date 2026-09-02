@@ -377,7 +377,7 @@ export const EXECUTE_MAX_TOKENS = 512;
 export const PLAN_MAX_TOKENS = 400;
 
 export const PLAN_SYSTEM_PROMPT =
-  "You split a task into the few parts it is actually made of. Reply with only a JSON array, nothing before or after it.";
+  "You split a task into the few parts it is actually made of. If the task is one part, say one part.";
 
 /**
  * The plan's shape, enforced as grammar rather than requested as behavior:
@@ -410,7 +410,7 @@ export function buildPlanPrompt(task, maxParts = MAX_PARTS) {
   return (
     `A task is to be split into parts, each answerable on its own from written material. ` +
     `Task: ${task}\n\n` +
-    `Reply with a JSON array of at most ${maxParts} objects. Each object has a "label" of a few words ` +
+    `Give at most ${maxParts} parts. Each part has a label of a few words ` +
     `and a "description" of one sentence saying what that part must establish. ` +
     `Order the parts the way the finished piece should read. If the task is already a single question, return one part.`
   );

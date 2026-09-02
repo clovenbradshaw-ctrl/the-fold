@@ -301,13 +301,13 @@ export function slotSchema(skill, slots = skill.slots) {
 }
 
 export const SLOT_SYSTEM_PROMPT =
-  "You fill named slots for a procedure from the task's own words. Reply with only a JSON object, nothing before or after it. A slot the task does not determine is omitted, never guessed.";
+  "You fill named slots for a procedure from the task's own words. A slot the task does not determine is omitted, never guessed.";
 
 export function buildSlotPrompt(skill, missing, task) {
   return (
     `A procedure named "${skill.name}" (${skill.description}) needs these slots filled from the task below.\n` +
     missing.map((s) => `- ${s.name} (${s.type})${s.description ? `: ${s.description}` : ""}`).join("\n") +
-    `\n\nTask: ${task}\n\nReply with a JSON object whose keys are exactly the slot names. Omit any slot the task does not determine.`
+    `\n\nTask: ${task}\n\nThe keys are exactly the slot names. Omit any slot the task does not determine.`
   );
 }
 
@@ -431,7 +431,7 @@ export async function runSkilledTask({ task, library, execute, call = null, runM
 // model proposes; the gate disposes.
 
 export const SKILL_AUTHOR_SYSTEM_PROMPT =
-  "You turn a completed procedure into a reusable program. Reply with only a JSON object, nothing before or after it. The body and check are JavaScript async function expressions; they may use only the organs they declare in needs, received as their second argument.";
+  "You turn a completed procedure into a reusable program. The body and check are JavaScript async function expressions; they may use only the organs they declare in needs, received as their second argument.";
 
 export function buildSkillAuthorPrompt(task, organCatalog = []) {
   return (

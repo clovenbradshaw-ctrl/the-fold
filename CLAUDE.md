@@ -6527,3 +6527,40 @@ the select protocol is now ARMED (sibling-swap over the same candidate
 list, siblings harvested from the whole source; unarmed yes refused) —
 after unarmed select measured p(states|fabricated)=1/8 live; the armed
 recalibration is the named next measurement.
+
+## Turbulence through the pipeline (added 2026-09-01) — pointer
+
+`eval/results/turbulence-pipeline-RESULTS.md` is the account. The medium
+is hard in a NEW way: a continuous field has no events until an instrument
+CONSTITUTES them, and it has no S1 stratum at all (nobody writes
+turbulence down). Declared grammar: the ejection-sweep cycle (Q2 precedes
+Q4/Q1) on a Kolmogorov background; F0 through the real `measure.js` +
+`nul` door reads **censored above**; both instruments (textbook hole
+filter; local-peak rule) independently discover `kind:before=q2` = {q1,
+q4} — 2 matching memberships, 0 spurious, corroborated across independent
+runs AND independent instruments.
+
+**The finding that changed an organ:** the bare share floor is UNLICENSED
+on a small alphabet — with four symbols and one at ~50% marginal
+frequency, "has a dominant predecessor" happens by chance and the II.23
+shuffle control SURVIVED. Text/music/video could never expose it (large
+alphabets, no dominant symbol). `discoverCompanyKinds` gained an optional,
+fully declared `nullArm: {draws, seed, alpha}` — the control itself
+promoted to a null (same within-phrase shuffle, marginals kept, company
+destroyed; admit only above the 1-alpha quantile). Control dissolves, real
+kind survives. Two more disclosed findings: a generator that ADDS a
+coherent structure is unphysical (stress depends on background phase — the
+hole filter then deletes half the grammar), and a grammar can be
+legitimately invisible to a sound instrument (weak Q1/Q3 events are below
+any honest stress threshold) — an instrument's scope is a fact about the
+instrument, not a failure of the material.
+
+Also landed this pass: **instrument independence** in corroboration.js —
+`independentReadings`/`distinctRecipes` count (source, recipe) pairs, so
+two sources read by ONE decoder no longer corroborate an
+instrument-sensitive claim. Proven on the music failure: the false kind
+the shared tracker invented stays at 1 instrument and is refused, while a
+second, genuinely different tracker (Goertzel vs autocorrelation) lifts
+the two TRUE kinds to 2 sources x 2 instruments. Witnesses carry
+`<source>~<recipe>` (P68 identity); an undeclared witness stays honestly
+undeclared, never silently independent.

@@ -201,6 +201,7 @@ import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { corroborateLedger, distinctSources as distinctWitnessSources } from "./corroboration.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "./obligation.js";
+import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this
 // question's answer have to fill, and what part of it is still empty. Both
@@ -1350,6 +1351,44 @@ function mirrorTermRecord(event, fields) {
  * when nothing is unvisited and nothing stands violated. Mirrors every
  * change onto the record via the same term-record route the other doors use.
  */
+/**
+ * /reopen [source|fold|door] — the record is the only ground. The pick is
+ * reopen.js's `lastOpened` over the record's tail (explore-server's own
+ * rows, read back exactly as term.js's `record` command reads them); the
+ * address is the row's own field, carried; nothing here searches the chat,
+ * asks a model, or admits bytes. A source the record names but this
+ * conversation never attached is SAID, not fetched — reopen restores what
+ * is held, it does not re-admit what is not.
+ */
+async function reopenTurn(argstr, typed) {
+  const arg = String(argstr ?? "").trim().toLowerCase();
+  if (arg && !["source", "fold", "door"].includes(arg)) return usageTurn(typed, "/reopen [source|fold|door] — restore the last thing you had open, from the record's own rows. Nothing is re-read, re-run, or re-admitted.");
+  let rows = [];
+  try {
+    const res = await fetch(`${EXPLORE_BASE}/api/record?tail=500`);
+    if (res.ok) rows = ((await res.json()).tail ?? []).map((raw) => { try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return null; } }).filter(Boolean);
+  } catch { /* unreachable record — said below, never guessed around */ }
+  if (!rows.length) return usageTurn(typed, `the record is not reachable (no explore server at ${EXPLORE_BASE}) — /reopen restores only from the record, never from the chat's own memory.`);
+  const pick = lastOpened(rows, { kinds: arg ? [arg] : null });
+  const plan = restoreFor(pick);
+  if (plan.action === "none") return usageTurn(typed, `nothing ${arg || "open"} on the record's tail to reopen.`);
+  if (plan.action === "open-source") {
+    if (state.sources[plan.name] != null) {
+      openSourceViewer(plan.name);
+      if (!matchMedia("(max-width: 900px)").matches) showView("explore");
+      return usageTurn(typed, `reopened source "${plan.name}" (${pick.event}, recorded ${pick.at})`);
+    }
+    return usageTurn(typed, `the last open on the record is "${plan.name}" (${pick.event}, recorded ${pick.at}) — not attached to this conversation, so it is not re-admitted here; attach it, or open it in Explore.`);
+  }
+  if (plan.action === "open-fold") {
+    const entry = state.builds.find((b) => b.n === Number(plan.n));
+    if (!entry) return usageTurn(typed, `the last fold open on the record is build ${plan.n} (recorded ${pick.at}) — not held in this page's folds, so nothing is restored.`);
+    await openBuild(entry);
+    return usageTurn(typed, `reopened fold ${plan.n} (recorded ${pick.at})`);
+  }
+  return usageTurn(typed, renderDoor(plan.fields));
+}
+
 function mustTurn(argstr, typed) {
   const arg = String(argstr ?? "").trim();
   const led = state.obligations;
@@ -1814,7 +1853,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
       statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
-      mirrorTermRecord("transcribe", { source: "file", duration, chars: text.length, via: "chat" });
+      mirrorTermRecord("transcribe", { source: "file", name, duration, chars: text.length, via: "chat" });
       logAct("recorded", { where: "transcribe", source: "file", layers: 3 });
       const historyNote = `transcribed audio file (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
       state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
@@ -1870,7 +1909,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     const mins = Math.floor(duration / 60);
     const secs = Math.floor(duration % 60);
     statusP.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
-    mirrorTermRecord("transcribe", { source: "youtube", url: arg, title, duration, chars: text.length, via: "chat" });
+    mirrorTermRecord("transcribe", { source: "youtube", name, url: arg, title, duration, chars: text.length, via: "chat" });
     logAct("recorded", { where: "transcribe", source: "youtube", layers: 3 });
     const historyNote = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}"`;
     state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
@@ -2339,6 +2378,13 @@ async function send(question) {
   // standing change carries its because, and a waiver names who waived.
   const mustCmd = question.match(/^\/must\b\s*([\s\S]*)$/);
   if (mustCmd) return mustTurn(mustCmd[1] ?? "", question);
+
+  // /reopen — restore the last open from the record's own rows (reopen.js).
+  // Mechanical, no model, and RESTORE never RE-ADMIT: a source is opened by
+  // the name the row carries, a fold by its n, a door result re-rendered
+  // from its recorded fields — never re-read, re-run, or re-attached.
+  const reopenCmd = question.match(/^\/reopen\b\s*(.*)$/s);
+  if (reopenCmd) return reopenTurn(reopenCmd[1] ?? "", question);
 
   const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
   if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
@@ -6401,6 +6447,7 @@ async function openBuild(entry) {
   // committed first — the same leaving-is-an-act rule showView enforces.
   if (editorBuild && editorBuild !== entry) commitDraft(editorBuild);
   editorBuild = entry;
+  mirrorTermRecord("fold-open", { n: entry.n, via: "chat" }); // an open is a record event, so /reopen can carry it back
   await ensureEditor($("editor-host"));
   const fold = buildFold(entry, null);
   // An uncommitted draft survives leaving and re-entering the editor (and a
@@ -8424,6 +8471,7 @@ function openMediaViewer(name) {
 
 function openSourceViewer(name) {
   const text = state.sources[name] ?? "";
+  mirrorTermRecord("source-open", { path: name, bytes: text.length, via: "chat" }); // the chat's own opens land on the same record Explore's do
   const prov = state.provenance[name];
   $("source-viewer-name").textContent = name;
   $("source-viewer-meta").textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}${prov?.line ? ` · ${prov.line}` : ""}`;

@@ -7063,3 +7063,24 @@ address carried from the row, heard-only identical, no model asked, no
 self co-sign, null before any number, restore never re-admits.
 NEXT-PASSES.md Pass 10 is the plan entry. Licensed by the walls and the
 null when built — never by the builder's say-so.
+
+**Built the same day.** `reopen.js` (pure; `OPEN_EVENTS` read off the
+record's real vocabulary, `lastOpened` walks backwards from a cursor,
+`restoreFor` is a descriptor never the doing, `renderDoor` re-renders a
+door result from its recorded fields and says what was not kept) +
+`reopen.test.mjs` — five wall tests that scan CODE not comments (address
+decoys in transcript text lose to the row's field; a heard `transcribe`
+ledger opens identically to a read one; no model organ; self:model and
+addressless rows are not opens via `readsNothing`; rows untouched, pick
+frozen, no writing organ). `/reopen [source|fold|door]` in app.js
+(blob-staged): reads the record tail, restores a held source/fold or
+re-renders a door row, and SAYS when the record names something this
+conversation never attached rather than fetching it. The chat's own opens
+now land on the record (`source-open`/`fold-open` via chat; `transcribe`
+carries the attachment name). `eval/results/reopen-null-RESULTS.md`:
+the last-open-is-next-open rate 0.447 vs a redealt median 0.034, 0/50
+shuffles at or above — a real signal, and no precision number claimed
+for the door itself. **Still `{todo:true}`:** the BECOMING stays open
+until the door is driven live — `GET /api/record?tail=` did not exist
+on either server when this landed, and explore-server cannot boot in
+this checkout (P69's submodule error), so the live leg is unverified.

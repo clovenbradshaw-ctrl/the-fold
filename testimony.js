@@ -367,3 +367,74 @@ export function foldTestimony({
   }
   return { refused: "no-testimony", host, url };
 }
+
+// ── the SELECT protocol: activate, then point — never generate ──────────
+//
+// The generate protocol (buildWitnessMessages + siblingSwap + foldTestimony
+// above) asks the model to WRITE a `because`, and a small model wanders
+// there: measured live against the real War and Peace, gemma2:2b echoed the
+// CLAIM back as its own because rather than quoting the novel, and the
+// containment wall correctly refused the unquoted vote — a true fact lost
+// to the task shape, not to the model's judgment (it had answered "yes"
+// correctly).
+//
+// The fix is eoreader's posture everywhere else: the model slot-fills, the
+// mechanism constrains. Feed it ACTIVATION — the real sentences where both
+// ends already fire, pre-segmented — and have it SELECT one by index. The
+// decider is then a real source sentence BY CONSTRUCTION: the echo failure
+// mode cannot occur, because the model never writes a because, it points at
+// one. User's own steer (2026-09-01): "small model should be fed with
+// relevant activation, no?"
+//
+// Measured live, gemma2:2b, against the real novel, before shipping:
+//   positive (real claim, real co-present set) -> selects a real sentence
+//   control A (fabricated relation over a real co-present set) -> refuses
+//   control B (true-ish claim, all-decoy set)  -> refuses
+// Both controls built to fail; both held. This is a SIBLING protocol, not
+// a replacement — the generate protocol stays for callers who have a slice
+// but no segmenter, and foldTestimony still governs the generate path.
+
+export const SELECT_SCHEMA = Object.freeze({
+  type: "object",
+  properties: {
+    stated: { type: "string", enum: ["yes", "no"] },
+    sentence: { type: "integer" }, // 1-based index into the candidate list, or 0 for none
+  },
+  required: ["stated", "sentence"],
+});
+
+/** The one message shape the select protocol uses — candidates numbered from 1. */
+export function buildSelectMessages(claim, candidates) {
+  const list = (candidates ?? []).map((c, i) => `${i + 1}. ${String(c).replace(/\s+/g, " ").trim()}`).join("\n");
+  return [
+    {
+      role: "system",
+      content:
+        "You are given a claim and a numbered list of sentences from a source. " +
+        "Decide whether ANY sentence states the claim is true. If yes, give the NUMBER " +
+        "of the single sentence that most directly states it. If no sentence states it, " +
+        "answer stated:no and sentence:0. Do not invent; only choose from the list.",
+    },
+    { role: "user", content: `Claim: "${String(claim ?? "")}"\n\nSentences:\n${list}` },
+  ];
+}
+
+/**
+ * foldSelect(raw, candidates) — the verdict, DERIVED from the model's index,
+ * never trusting the index blind. A pick outside [1, n] or a stated:yes with
+ * no valid index is refused; a valid pick returns the candidate VERBATIM as
+ * the decider (containment is guaranteed, not checked, because the decider
+ * IS a candidate). `candidates` is the exact list buildSelectMessages was
+ * given, so index k names candidates[k-1].
+ */
+export function foldSelect(raw, candidates) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  let parsed = raw;
+  if (typeof raw === "string") { try { parsed = JSON.parse(raw); } catch { return { refused: "unreadable" }; } }
+  if (!parsed || typeof parsed !== "object") return { refused: "unreadable" };
+  if (parsed.stated !== "yes") return { refused: "no-testimony" };
+  const idx = Number(parsed.sentence);
+  if (!Number.isInteger(idx) || idx < 1 || idx > list.length) return { refused: "no-valid-pick" };
+  const decider = String(list[idx - 1]).replace(/\s+/g, " ").trim();
+  return { verdict: "states", because: decider, index: idx };
+}

@@ -6465,3 +6465,30 @@ throughput), the obligation ledger, non-text adapters. Plus the REFUSED
 list — seven measured dead ends kept so nobody retries one. Every pass
 ships a control built to fail; if Tier 1 cannot raise
 clean-votes-per-ask, the memory floor's DESIGN is what gets re-examined.
+
+## Floors, strata, and the BECOMING map (added 2026-09-01) — pointer
+
+`LEVELS.md` is the vocabulary; this is the short map. Two ladders were
+both being called "level" and are now named apart: **floor** = operand
+grade (F0 units … F5 corroborated notes — WHAT-IS-BEING-BORN.md's
+anatomy), **stratum** = evidence channel (S0 bytes / S1 script / S2
+heard / S3 meaning). Three session rules live there verbatim: the
+**heard rule** ("the system must be able to work equally well if it only
+heard the novel and didn't read it" — S1 may accelerate, never silently
+carry a decision), the **trust rule** ("never trust the model on
+content, but it's pretty good with meaning if you give it proper
+activation context" — S3 judgment is the model's only over mechanically
+assembled S0–S2 activation), and the **baby question** ("how would a
+baby learn this?" — the generator of S2 designs, since a baby is a
+heard-only learner). A **BECOMING** is a `{todo:true}` test naming the
+referent of what an organ is trying to become — runnable, greppable
+(`grep -rn "BECOMING" --include="*.test.mjs"`), inhabited by removing
+the flag, and subject to II.23 like everything else. First entry:
+`BECOMING heard-clean` on corroboration.js's generic-title gate, which
+decides at S1 (capitalization) and declares it, with determiner
+precedence named as its S2 form. Landed alongside: the select witness
+protocol (the model POINTS at a mechanically gathered candidate by
+index, never writes a `because` — the echo failure mode is structurally
+impossible), which took the Kutuzov note's third distinct-source vote
+live from the novel's own bytes at a self-verified CRLF-mapped address.
+Details: reading-recall-finding.md addendum 7.

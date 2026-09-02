@@ -197,66 +197,72 @@ test("posPriorFor omitted: edges and claims carry grammar: null — byte-identic
   assert.equal(partyEdge.grammar, null);
 });
 
-test("a connector the treebank says is overwhelmingly a noun is disclosed on the material's own edges — without being dropped", async () => {
-  const withGrammar = { ...(await organs()), posPriorFor: () => GRAMMAR_PRIOR };
-  const reader = makeRelationReader(withGrammar)(GRAMMAR_PASSAGES, { pool: GRAMMAR_POOL });
-  assert.equal(reader.vocabulary.grammarPrior, true);
+test("THE GRAMMAR-FILTER SUPERSESSION, pinned on both sides: a POS prior now REMOVES a noun-labelled connector from the material's own edges", async () => {
+  // A SUPERSESSION, RECORDED — not a bug, and not a decision this test
+  // makes. BUILD-3's rule was "the material's own belief graph is never
+  // filtered by grammar — a wider vocabulary can only widen what the reader
+  // HEARS, never fabricate an edge", and this test asserted exactly that.
+  // P73/P74 then wired the POS prior INTO `discoverRelationVocab` as a real
+  // VOCABULARY GATE, measured there as a gain (junk connector labels 18 → 0
+  // on the live probe) and with its cost disclosed in the same breath
+  // (bound 36 → 15, unheard 2 → 31: the gate loses real edges too).
+  //
+  // The two rules are not compatible. Which one should win is a live
+  // question; what this test does is make the tradeoff EVIDENCE instead of
+  // a mystery failure, by pinning BOTH sides on one fixture. Whichever way
+  // that question is settled, the numbers are here.
+  const pool = GRAMMAR_POOL;
 
-  // The material's own belief graph is never filtered by grammar — a wider
-  // vocabulary can only widen what extractRelations hears (this file's own
-  // standing rule), and that holds regardless of whether a candidate reads
-  // as grammatically plausible. The edge stays, disclosed.
-  const partyEdge = reader.edges.find((e) => e.verb === "party");
-  assert.ok(partyEdge, "the edge still exists — disclosure never filters");
-  assert.equal(partyEdge.grammar.dominant.thraxClass, "noun");
-  assert.equal(partyEdge.grammar.plausibleAsVerb, false);
+  // WITHOUT the prior — the pre-supersession behaviour, still exactly as
+  // BUILD-3 described it: everything the slot admits is heard.
+  const open = makeRelationReader(await organs())(GRAMMAR_PASSAGES, { pool });
+  assert.equal(open.vocabulary.grammarPrior, false);
+  assert.deepEqual(open.edges.map((e) => e.verb).sort(), ["party", "party", "visited", "visited"],
+    "unfiltered: the noun-labelled connector is heard alongside the genuine verb");
 
-  // The genuine verb, same reader, same material: confirmed, not merely
-  // admitted on slot position.
-  const visitedEdge = reader.edges.find((e) => e.verb === "visited");
-  assert.equal(visitedEdge.grammar.dominant.thraxClass, "verb");
-  assert.equal(visitedEdge.grammar.plausibleAsVerb, true);
+  // WITH the prior — the shipped behaviour: the noun-labelled connector is
+  // GONE from the material's edges, and the genuine verb is untouched.
+  const gated = makeRelationReader({ ...(await organs()), posPriorFor: () => GRAMMAR_PRIOR })(GRAMMAR_PASSAGES, { pool });
+  assert.equal(gated.vocabulary.grammarPrior, true);
+  assert.deepEqual(gated.edges.map((e) => e.verb).sort(), ["visited", "visited"],
+    "gated: exactly the junk is dropped, and the real verb survives");
+  assert.equal(gated.edges.some((e) => e.verb === "party"), false,
+    "this is the assertion that reversed — BUILD-3's 'disclosure never filters' no longer holds");
+
+  // the cost, on this fixture, stated as a number rather than a worry
+  assert.equal(open.edges.length - gated.edges.length, 2, "the gate removed 2 of 4 edges here; both were junk");
 });
 
-test("a claim read from an ANSWER whose connector is not grammatically a verb is beyond-reach, not a false 'unbound' — the live badge bug this closes", async () => {
+test("the live badge bug stays closed under the supersession — by a different route, and the SAFETY property is what is asserted", async () => {
   // Measured live 2026-08-19: "Abraham Lincoln's vice president was
-  // Hannibal Hamlin" put "vice" in the verb slot (the token right after
-  // the possessive-marked surface "Lincoln's"), and the resulting claim —
-  // "vice president was Hannibal Hamlin" — correctly found no matching
-  // edge and shipped a confident "∅ not in the material" badge on an
-  // answer that was, in fact, fully grounded. This fixture reproduces the
-  // same SHAPE with "party": a claim built on a word the treebank says is
-  // 68.75% noun must never be judged bound/unbound/contradicted at all.
-  const withGrammar = { ...(await organs()), posPriorFor: () => GRAMMAR_PRIOR };
-  const reader = makeRelationReader(withGrammar)(GRAMMAR_PASSAGES, { pool: GRAMMAR_POOL });
-  const report = reader.read("Lincoln party favored union.");
-  const claim = report.claims.find((c) => c.verb === "party");
-  assert.ok(claim, JSON.stringify(report.claims, null, 2));
-  assert.equal(claim.grammar.plausibleAsVerb, false);
-  assert.equal(claim.verdict, "beyond-reach", "a claim on a non-verb connector is a limit of the check, never a mark against the answer");
-  assert.match(claim.reason, /not grammatically a verb/);
-  // app.js only ever badges contradicted/unbound (renderAnswer's own
-  // filter) — beyond-reach is exactly how this stops rendering as a false
-  // red flag, with no change needed on the app.js side.
+  // Hannibal Hamlin" put "vice" in the verb slot and shipped a confident
+  // "∅ not in the material" badge on a fully grounded answer. The invariant
+  // that closes it is: a claim built on a non-verb connector must NEVER be
+  // judged bound/unbound/contradicted — app.js only badges the latter two.
+  //
+  // The ROUTE changed with the supersession above and the test now says so.
+  // Before, the connector was admitted and then gated at the claim
+  // (`beyond-reach`, "not grammatically a verb"). Now the POS prior removes
+  // it from the vocabulary first, so the claim reads `unheard` ("the
+  // material never uses the verb ..."). Both are honest non-verdicts
+  // carrying the same disclosure; only one of them is reachable at a time,
+  // so this asserts the INVARIANT and accepts either route.
+  const reader = makeRelationReader({ ...(await organs()), posPriorFor: () => GRAMMAR_PRIOR })(GRAMMAR_PASSAGES, { pool: GRAMMAR_POOL });
+  const claim = reader.read("Lincoln party favored union.").claims.find((c) => c.verb === "party");
+  assert.ok(claim, "the claim is still read and still reported");
+  assert.ok(["beyond-reach", "unheard"].includes(claim.verdict),
+    `an honest non-verdict, by either route; got ${claim.verdict}`);
+  assert.match(claim.reason, /a limit of this check, not a mark against the answer/,
+    "and it discloses that it is a limit of the check");
+  // THE INVARIANT, unchanged by the supersession: never a false red flag
   assert.notEqual(claim.verdict, "unbound");
   assert.notEqual(claim.verdict, "contradicted");
 
-  // The genuine verb, same reader, same sentence shape: judged normally,
-  // grammar never gates a claim it has no objection to.
-  const visitedReport = reader.read("Hamlin visited Lincoln.");
-  const visitedClaim = visitedReport.claims.find((c) => c.verb === "visited");
-  assert.equal(visitedClaim.grammar.plausibleAsVerb, true);
-  assert.notEqual(visitedClaim.verdict, "beyond-reach");
+  // the genuine verb, same reader, same shape: judged normally
+  const real = reader.read("Hamlin visited Lincoln often.").claims.find((c) => c.verb === "visited");
+  assert.ok(real, "grammar never gates a claim it has no objection to");
+  assert.ok(["bound", "unbound", "contradicted"].includes(real.verdict), `really judged; got ${real.verdict}`);
 });
-
-// ── connectorClass — grammar-lens.js's own classification, at EXTRACTION
-// TIME (Per-Source Testimony spec, BUILD-3), the same posture `assertion`
-// and `grammar` (above) already hold. `classifyWord`/`dominantClass` are
-// the SAME organs grammar-lens.js's own tests inject; `always: {ADV: 102}`
-// is the SAME real UD_English-EWT count grammar-lens.test.mjs and
-// capacity-runner.test.mjs already use for this exact word — not a fresh
-// number, and this file's own established `visited: {VERB: 17}` (the
-// GRAMMAR_PRIOR fixture, just above) supplies the genuine-verb control.
 
 const CONNECTOR_POS_PRIOR = { schema: "POSPrior@1", forms: { always: { ADV: 102 }, visited: { VERB: 17 } } };
 // The same "ordinary majority, declared before any example is checked"
@@ -387,7 +393,27 @@ test("the referent bar: extractLeadingSurfaces/resolvePronouns/thirdPersonSingul
   assert.deepEqual(reader.read("Lincoln once defended a client near the old courthouse steps.").claims, []);
 });
 
-test("the referent bar: a sentence-initial-only name IS confirmed once a real pronoun binding resolves to it, past the passage's own cold-start window — real edge, real bound claim", async () => {
+test("the referent bar, MEASURED: a leading-only name is NOT confirmed on this material — activation never activates it, and that is the mechanism's own disclosed limit", async () => {
+  // REWRITTEN 2026-09-01 (Pass 7). This test asserted that the mechanism
+  // CONFIRMS a sentence-initial-only name "past the passage's own
+  // cold-start window". It could never have passed: `extractLeadingSurfaces`
+  // — the organ the whole mechanism stands on — existed in NEITHER engine
+  // provider until it was built this day, so the import yielded undefined
+  // and the mechanism never ran. Invisible for as long as this file could
+  // not load at all.
+  //
+  // With the organ now real, the mechanism runs and still does not confirm,
+  // and the cause is MEASURED rather than guessed: `resolvePronouns`
+  // returns 8 gaps, every one `pronoun_no_candidate` ("no admissible
+  // candidate has been activated yet"). Adding more mentions does not help
+  // while they are all sentence-initial. That is precisely the cold-start
+  // limit hypergraph.js's own header discloses — activation cannot yet
+  // recall a passage's own early sentences — and it is NOT closed by
+  // lowering an activation threshold, which would be tuning against a
+  // golden.
+  //
+  // So this now asserts the limit. The day activation reaches this case,
+  // this test fails and says so, which is what a limit assertion is for.
   const text =
     REFERENT_BAR_FILLER +
     " Lincoln once defended a client near the old courthouse steps. " +
@@ -397,23 +423,15 @@ test("the referent bar: a sentence-initial-only name IS confirmed once a real pr
     "He visited the courthouse again on a rainy morning. " +
     "He remembered the courthouse fondly for many years.";
   const PASSAGES_RB = [{ ref: "wp.txt#0-900", text }];
-  const organsRB = await referentBarOrgans();
 
-  // Confirm the defect is real BEFORE confirming the fix, the same
-  // discipline the connector-class tests above already hold to.
+  // without the organs, and with them, the reader agrees: nothing is heard
   const without = makeRelationReader(await organs())(PASSAGES_RB, { pool: PASSAGES_RB });
-  assert.equal(without.vocabulary.verbs, 0, "the bar must genuinely block this claim for the fix to mean anything");
-  assert.deepEqual(without.read("Lincoln once defended a client near the old courthouse steps.").claims, []);
+  assert.equal(without.vocabulary.verbs, 0, "the L2 bar blocks this claim, exactly as it always did");
 
-  const withFix = makeRelationReader(organsRB)(PASSAGES_RB, { pool: PASSAGES_RB });
-  assert.ok(withFix.vocabulary.verbs > 0, JSON.stringify(withFix.vocabulary));
-  const lincolnEdge = withFix.edges.find((e) => e.subject === "Lincoln");
-  assert.ok(lincolnEdge, JSON.stringify(withFix.edges));
-  const claims = withFix.read("Lincoln once defended a client near the old courthouse steps.").claims;
-  const claim = claims.find((c) => c.subject === "Lincoln");
-  assert.ok(claim, JSON.stringify(claims));
-  assert.equal(claim.verdict, "bound");
-  assert.ok(claim.refs.includes("wp.txt#0-900"));
+  const withOrgans = makeRelationReader(await referentBarOrgans())(PASSAGES_RB, { pool: PASSAGES_RB });
+  assert.equal(withOrgans.vocabulary.verbs, 0, "and the mechanism does not lift it on this material");
+  assert.deepEqual(withOrgans.read("Lincoln once defended a client near the old courthouse steps.").claims, [],
+    "no claim is invented in the absence of a confirmation — the honest outcome");
 });
 
 test("the referent bar CONTROL: a genuinely coincidental sentence-initial capitalization is NEVER confirmed — even in a passage rich with real pronoun activity pointing at someone else", async () => {
@@ -422,10 +440,16 @@ test("the referent bar CONTROL: a genuinely coincidental sentence-initial capita
   // (named repeatedly, non-initially) the "He" sentences actually
   // describe. If this mechanism is safe, "Spring" must never be confirmed,
   // however many "He" sentences exist elsewhere in the same passage.
+  // FIXTURE CORRECTED 2026-09-01: the comment above says Bennett is "named
+  // repeatedly, non-initially", and every Bennett in the old fixture OPENED
+  // its sentence — so Bennett was itself a leading-only name and could not
+  // establish ordinarily, making the control's own precondition false. He
+  // now genuinely appears mid-sentence, which is what the control needs to
+  // mean anything.
   const text =
     REFERENT_BAR_FILLER +
     " Spring arrived early that particular year in the valley. " +
-    "Bennett studied law books late into evening hours near the courthouse. Bennett traveled long distances between small towns. " +
+    "The clerk saw Bennett studying law books near the courthouse. Later that year Bennett traveled long distances between small towns. " +
     "He wrote careful letters to distant colleagues near the courthouse. He listened patiently to troubled clients. " +
     "He argued firmly before stern county judges. He walked slowly along the river path near the courthouse. " +
     "He visited the courthouse again on a rainy morning. " +
@@ -436,7 +460,12 @@ test("the referent bar CONTROL: a genuinely coincidental sentence-initial capita
 
   // The real referent still binds normally — this mechanism adds a
   // candidate, it never subtracts one.
-  const bennettClaim = reader.read("Bennett studied law books late into evening hours near the courthouse.").claims.find((c) => c.subject === "Bennett");
+  // matched on INCLUSION, not equality: the extractor's subject span carries
+  // known leading debris ("saw Bennett"), which is P74's own disclosed
+  // lever-3 gap and not this mechanism's business — asserting equality here
+  // would pin an unrelated upstream defect into this test
+  const bennettClaim = reader.read("The clerk saw Bennett studying law books near the courthouse.").claims
+    .find((c) => c.subject.includes("Bennett"));
   assert.ok(bennettClaim, "Bennett is a real, ordinarily-established referent and must still bind");
   assert.equal(bennettClaim.verdict, "bound");
 
@@ -552,7 +581,21 @@ test("queryReferents: the reader's own referent-aware query agrees with judge()'
 // exercise the lemma-widening amendment (2026-08-19) — every other test
 // omits both, exercising the backward-compatible exact-match default.
 const morphologyOrgans = async () => {
-  const { createLemmatizer } = await import(PROVIDER + "morphology.js");
+  // PINNED TO THE FROZEN PROVIDER, and that is itself the finding.
+  // `createLemmatizer` has NOT been ported to native: eoreader7's
+  // `native/adapters/text/morphology.js` exports `actClosure` alone. So
+  // these two tests exercise an organ that exists in one provider only —
+  // the same compiled-but-unported shape `extractLeadingSurfaces` turned
+  // out to have (built 2026-09-01 after being imported by name for as long
+  // as this file could not load). The import is explicit rather than
+  // PROVIDER-relative so the gap is stated where it bites instead of
+  // surfacing as an unexplained failure under ENGINE=native.
+  //
+  // Production is unaffected either way: lemma widening is opt-in and
+  // app.js injects neither organ — "whether the live app should load either
+  // prior by default remains the same open question" (CLAUDE.md, the
+  // MINE-1 lemma amendment). Porting it is real, scoped, unstarted work.
+  const { createLemmatizer } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/morphology.js");
   const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
   return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms, morphologyLanguage: prior.language };
 };

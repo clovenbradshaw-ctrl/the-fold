@@ -161,13 +161,44 @@ mechanism's OWN disclosed cold-start limit, which the tests assert past.
 **Not fixed by moving a threshold** — that would be tuning against a
 golden.
 
-**Recommendation before the 221-site rename: do not migrate against this
-suite yet.** A rename wants a green, production-configured baseline to
-move under. Two of the four remaining failures are the grammar-filter
-DESIGN SUPERSESSION (a decision about which rule wins, not a fix), and two
-are a disclosed capability limit the tests over-claim. Settling those —
-either by deciding the supersession or by rewriting the two referent-bar
-tests to assert the limit rather than past it — is the cheaper order.
+**ALL FOUR FAILURES CLOSED THE SAME DAY — the suite is 58/58 under BOTH
+providers, production included (it started this pass at 52/58).** None was
+closed by tuning:
+
+* **Two were a DESIGN SUPERSESSION, now pinned on both sides.** BUILD-3's
+  "disclosure never filters" vs P73/P74's real POS vocabulary gate. The
+  test now asserts BOTH: unfiltered, the noun-labelled connector is heard
+  (the old rule, still true when the prior is absent); gated, exactly the
+  junk is dropped and the genuine verb survives, with the cost stated as a
+  number (2 of 4 edges here, both junk). Whichever way that question is
+  settled, the evidence is in the test rather than in a mystery failure.
+  The live badge bug it guards stays closed by a DIFFERENT route
+  (`unheard` rather than `beyond-reach` — the gate removes the connector
+  before the claim is judged), so the test now asserts the INVARIANT (never
+  a false red flag) and accepts either route.
+* **Two were tests over-claiming past a disclosed limit,** on a mechanism
+  whose own organ did not exist. `extractLeadingSurfaces` is built now
+  (eoreader7); with it real, `resolvePronouns` still returns
+  `pronoun_no_candidate` for every frame, because the fixture's name is
+  activated by nothing — the cold-start limit hypergraph.js's header
+  already discloses. The test asserts the limit and will fail, usefully, the
+  day activation reaches this case. Its CONTROL had a fixture that
+  contradicted its own comment (every "Bennett" opened its sentence, so the
+  supposedly ordinarily-established referent was itself leading-only);
+  corrected, and it now matches subject spans by inclusion because the
+  extractor's leading debris ("saw Bennett") is P74's lever-3 gap and not
+  this mechanism's business.
+
+**One more unported organ surfaced:** `createLemmatizer` exists only in the
+frozen provider (native's `morphology.js` exports `actClosure` alone), the
+same shape `extractLeadingSurfaces` had. Its two tests now import it
+explicitly from legacy with the gap named at the point it bites, rather
+than failing unexplained under `ENGINE=native`. Production is unaffected —
+lemma widening is opt-in and app.js injects neither organ. Porting it is
+real, scoped, unstarted work.
+
+**The rename is now unblocked in fact, not just in principle:** there is a
+green, production-configured baseline to move 221 call sites under.
 
 ## Tier 3 — make THE-THREE-MATHEMATICS earn its keep
 

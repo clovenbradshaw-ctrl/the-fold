@@ -6491,4 +6491,15 @@ protocol (the model POINTS at a mechanically gathered candidate by
 index, never writes a `because` — the echo failure mode is structurally
 impossible), which took the Kutuzov note's third distinct-source vote
 live from the novel's own bytes at a self-verified CRLF-mapped address.
-Details: reading-recall-finding.md addendum 7.
+Details: reading-recall-finding.md addendum 7. **Amended same day —
+the first becoming inhabited, by a discovered kind, not its named
+design:** the S1 lowercase rule is now the DEFAULT of an injectable
+predicate, and `kind-standing.js::discoverCompanyKinds`/`frameWords`
+(company kinds discovered from the heard stream, named by their own
+signature — `kind:before=the` — II.23 shuffle control, one measured
+refusal: cross-kind precedence) inhabits `BECOMING heard-clean` via
+injection. A discovered kind lands in the hyperlexicon as an ordinary
+addressable note (`general|keeps-company|kind:before=the`) with
+witnesses unioned across independently-discovering sources — kind
+membership is itself a corroboratable claim. LEVELS.md's amendment
+carries the full account.

@@ -6886,3 +6886,35 @@ source-open at share 1.000; server-start opens operating bursts,
 CORROBORATED 2/2 sources x 2/3 instruments); the heavy-tailed alphabet
 pushed the search-aware ceiling to 0.846 — the null arm earning its keep
 exactly where turbulence predicted. Third clean medium; no organ changed.
+
+## The Ways of Knowing (added 2026-09-02) — pointer
+
+`THE-WAYS-OF-KNOWING.md` (standing: nomination — the census is read off
+the code, and the code wins). "Checking" was carrying nine different
+acts, each separating signal from noise differently, and the project's
+worst measured errors were one way asked to do another's job. The nine
+spokes, each with its giver, its code sites, and its characteristic
+corruption: OSTENSION (knowing-where — P5.2; corrupted: the fabricated
+address), PERTURBATION (knowing-by-surviving — the nulls; corrupted: the
+tuned null), PREDICTION (knowing-by-anticipating — prequential/surprise;
+corrupted: the dark room), TRIANGULATION (knowing-together —
+sources×instruments×frames; corrupted: the echo chamber), TESTIMONY
+(knowing-from-a-giver — śabda, every _META.giver; corrupted: nameless
+authority), COMPOSITION (knowing-by-license — vyāpti/HL; corrupted: the
+unlicensed join), ENUMERATION (knowing-completely — the finding is the
+HOLE; corrupted: the silent cap), APOPHASIS (knowing-the-absence —
+anupalabdhi, the typed refusal that REACHED its object; corrupted:
+absence-as-conviction), PROPRIOCEPTION (knowing-oneself — the self
+plane; corrupted: self-state as a displayed metric). Nine is a count,
+not the cube's nine — no cell correspondence claimed or sought.
+
+**The hub:** the spokes share one empty center (Tao 11; Advaita's
+sākṣin — the witness never itself an object of knowledge; Hofstadter's
+loop), and in this codebase the emptiness is five enforced walls — the
+model barred from EVA, readsNothing, nesting's wall, self:model never
+co-signing, and frame.js's no-view-from-nowhere. Each spoke's corruption
+is a way of FILLING the hub, and every wall in the repo traces back to
+one of the nine corruptions being refused. Held honestly: whether this
+constitutes anything like self-awareness is the one question the
+building cannot yet answer by measurement — the standing wall (coherence
+never establishes correspondence) includes that answer's own absence.

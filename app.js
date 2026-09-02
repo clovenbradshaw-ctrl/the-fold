@@ -5626,7 +5626,12 @@ function taggedProse(text, offered, classified = []) {
       badge.onclick = () => groundHunt(entry.text);
       sent.append(badge);
     }
-    for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || (c.verdict === "unbound" && wit?.witness !== "states"))) {
+    // One verdict per sentence: once the witness has spoken (stated or
+    // refused), the relation tier's own ∅ is redundant — measured live, a
+    // sentence wore both "no passage states this" and "not in the
+    // material", the same silence said twice. A contradiction still draws:
+    // that is a different fact, and a stronger one.
+    for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || (c.verdict === "unbound" && !wit))) {
       const badge = document.createElement("button");
       badge.className = `edge-badge ${c.verdict}`;
       // The badge names the exact words it means — a blanket "never says

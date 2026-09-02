@@ -10579,3 +10579,24 @@ stream the reader produces — words, notes on the ledger, acts on the
 record. Wiring the sedimented priors into live reading is now a matter of
 registering them as experts and letting the turns charge them; it is not
 a design question any more.
+
+**Amended 2026-09-02 — overtones, and intervals.** User: "not melody per
+se — overtones more or less. music." Built in eoreader7
+(`adapters/audio/overtones.js`): a plain FFT reads real recordings (a
+piano Prelude, a 1940s 78rpm; audio from public archives, decoded
+locally, never committed) and the harmonic series is HEARD against a null
+— energy at integer multiples of the strongest peak at 4.8× and 7.5× the
+white-noise rate. The first verdict demanded a hand-set 50% and called
+the piano "not established"; the test is the ratio to the control, never
+an invented threshold — corrected. A metric read off the recording's own
+partial profile ranks octave 0.57 > fifth 0.09 > semitone 0.00, untaught.
+Put to the stream as an expert (`smoothedExpertOf`, medium-blind): as a
+prior on SUCCESSION it earns nothing on the Prelude — no better than a
+random permutation of itself, a controlled negative — because overtone
+nearness is a fact about what sounds TOGETHER, and the test asked about
+what comes NEXT; the simultaneity test is the next measurement. Intervals
+(`ALPHABET=interval`, the file's own subtraction) help the long context
+and hurt the short one; on that alphabet the record log's move-shapes tie
+the hearing and the mixture splits 0.6/0.4. One floor now applies to every
+scorer. Results: eoreader7 `results/overtones-RESULTS.md`,
+`midi-continuation-RESULTS.md` §1b.

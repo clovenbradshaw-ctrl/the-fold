@@ -7336,3 +7336,10 @@ novel/the record log is an honest negative at this grain; the mixture
 reads a different best source off each piece. Results + listenable .mid:
 eoreader7 `eval/the-fold/results/midi-continuation-RESULTS.md`. Next:
 register the sedimented text priors as experts in a live turn.
+
+**Amended same day — overtones.** eoreader7 `adapters/audio/overtones.js`
+hears the harmonic series in real recordings at 4.8×/7.5× the noise rate
+(against a null), reads a partial profile, and ranks pitch pairs like
+consonance untaught; as a prior on succession it earns nothing (controlled
+negative — its claim is on simultaneity, next). Intervals as a second
+alphabet help the long context. P84's amendment carries the numbers.

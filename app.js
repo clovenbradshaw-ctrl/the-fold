@@ -145,6 +145,7 @@ import { lineIndex, outlineOfIndex } from "/engine-v7/adapters/text/segments.js"
 // referent, not a byte sequence, and the engine owns what "the same name"
 // means. cast.js injects these so it stays pure and node-testable.
 import { splitSentences as engineSentences } from "/engine-v7/adapters/text/spans.js";
+import { createLemmatizer as nativeLemmatizer, morphologyFromPrior } from "/engine-v7/adapters/text/morphology.js";
 // blankLabelRows never existed on this path (or anywhere in the frozen
 // provider — it was a link-time error waiting to happen). It is now
 // source.js's own blankLabelRows, a the-fold concern (Wikipedia infobox
@@ -1439,6 +1440,18 @@ function mustTurn(argstr, typed) {
 // wore nothing because "continued" is a verb the material never uses. The
 // witness answers the question the relation tier cannot: does any passage
 // STATE this sentence?
+// The morphology prior (UniMorph, giver named in the file) for the witness's
+// company wall: "prepared" and "prepare" are one act. Fetched once, the
+// lemmatizer built by the engine's own organ; until it resolves, exact
+// match — byte-identical to before this existed (the fetch is data-gated,
+// never code-gated, P73's posture).
+let sameFormOrgan = null;
+fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-morphology-prior.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((raw) => { if (raw) { const prior = morphologyFromPrior(raw); sameFormOrgan = nativeLemmatizer(prior.forms, { language: prior.language }).sameAct; } })
+  .catch(() => {});
+const witnessTestimony = () => ({ witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect, ...(sameFormOrgan ? { sameForm: sameFormOrgan } : {}) });
+
 const witnessAskOrgan = async (s, slice) =>
   readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
 const witnessSelectOrgan = async (messages) => {
@@ -1447,7 +1460,7 @@ const witnessSelectOrgan = async (messages) => {
 const witnessSentencesFor = (sentences, claims, passages, { maxAsks }) =>
   witnessSentences(sentences, claims, passages, {
     ask: witnessAskOrgan, selectAsk: witnessSelectOrgan, splitSentences: engineSentences,
-    testimony: { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect },
+    testimony: witnessTestimony(),
     maxAsks,
   });
 
@@ -1484,7 +1497,7 @@ async function corroborateTurn(argstr, typed) {
   try {
     report = await corroborateLedger(log, hyperlexiconFor, sources, {
       ask, selectAsk, splitSentences: engineSentences,
-      testimony: { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect },
+      testimony: witnessTestimony(),
       maxAsks,
     });
   } catch (err) {

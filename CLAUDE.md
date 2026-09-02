@@ -7084,3 +7084,23 @@ for the door itself. **Still `{todo:true}`:** the BECOMING stays open
 until the door is driven live — `GET /api/record?tail=` did not exist
 on either server when this landed, and explore-server cannot boot in
 this checkout (P69's submodule error), so the live leg is unverified.
+
+## Moved down a level (Phase 2 of the organ migration, 2026-09-02) — pointers
+
+eoreader7 owns the evals and the theory now; each line is where a thing
+went, so nothing here is re-derived or re-searched:
+
+- `eval/` (drivers, `lib/`, `fixtures/`, `results/`) → `eoreader7/native/eval/the-fold/` — history carried by filter-repo; every fixture hash identical before and after (the 23-entity Wikidata set included).
+- `LEVELS.md` → `eoreader7/native/docs/LEVELS.md` — floors, strata, the heard/trust/address rules, BECOMING.
+- `THE-CORE-MECHANISM.md` → `eoreader7/native/docs/` — the census of what each finder deletes; three families.
+- `THE-WAYS-OF-KNOWING.md` → `eoreader7/native/docs/` — the nine spokes and the empty hub.
+- `THE-THREE-MATHEMATICS.md` → `eoreader7/native/docs/` — arithmetic / geometry / calculus over the cube, §VIII's two earned points.
+- `THE-27-CELLS.md` → `eoreader7/native/docs/` — every cell, its organs, one measured example each.
+- `CAPACITY-DEVELOPMENT-PLAN.md` → `eoreader7/native/docs/` — the Ground row's gates, closed at 27/27.
+- `def-ground-derivation.md` → `eoreader7/native/docs/` — the pre-registered depth-sibling derivation.
+- `reading-recall-finding.md` → `eoreader7/native/docs/` — the F5 measurements, addenda 1–9.
+
+The staying tests that read fixtures (`primary`, `priors`, `web`, `wikidata`,
+`hypergraph`) read them across the boundary at
+`../eoreader7/native/eval/the-fold/fixtures/`. The concurrent session's
+untracked files under `eval/` were not touched and remain here.

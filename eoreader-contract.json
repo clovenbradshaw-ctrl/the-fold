@@ -74,19 +74,22 @@
             "gammaFor"
           ],
           "consumedBy": [
-            "fold.test.mjs",
-            "eval/measured-memory-b.mjs"
+            "fold.test.mjs"
           ],
-          "productionSeam": "fold.js::deriveRecordWindow (organ-injected \u2014 fold.js itself has zero imports)"
+          "productionSeam": "fold.js::deriveRecordWindow (organ-injected \u2014 fold.js itself has zero imports)",
+          "consumersMovedIntoProducer": [
+            "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
+          ]
         },
         "native/kernel/return-curve.js": {
           "exports": [
             "returnCurve"
           ],
-          "consumedBy": [
-            "eval/measured-memory-b.mjs"
-          ],
-          "productionSeam": "none yet \u2014 measurement-only this pass (eval/results/measured-memory-b-RESULTS.md)"
+          "consumedBy": [],
+          "productionSeam": "none yet \u2014 measurement-only this pass (eval/results/measured-memory-b-RESULTS.md)",
+          "consumersMovedIntoProducer": [
+            "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
+          ]
         },
         "native/memory/activation.js": {
           "exports": [
@@ -96,10 +99,12 @@
             "encodeFrame"
           ],
           "consumedBy": [
-            "retrieval.test.mjs",
-            "eval/measured-memory-b.mjs"
+            "retrieval.test.mjs"
           ],
-          "productionSeam": "retrieval.js (organ-injected \u2014 retrieval.js itself has zero imports)"
+          "productionSeam": "retrieval.js (organ-injected \u2014 retrieval.js itself has zero imports)",
+          "consumersMovedIntoProducer": [
+            "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
+          ]
         },
         "native/kernel/task-log.js": {
           "exports": [

@@ -596,7 +596,7 @@ const morphologyOrgans = async () => {
   // prior by default remains the same open question" (CLAUDE.md, the
   // MINE-1 lemma amendment). Porting it is real, scoped, unstarted work.
   const { createLemmatizer } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/morphology.js");
-  const prior = JSON.parse(readFileSync("eval/fixtures/unimorph-morphology-prior.json", "utf8"));
+  const prior = JSON.parse(readFileSync("../eoreader7/native/eval/the-fold/fixtures/unimorph-morphology-prior.json", "utf8"));
   return { ...(await organs()), createLemmatizer, morphologyIndex: prior.forms, morphologyLanguage: prior.language };
 };
 

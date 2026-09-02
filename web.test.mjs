@@ -91,7 +91,7 @@ test("extractReadable: a truncated script takes its tail, a sloppy container doe
 test("extractReadable on a real page keeps the article, drops the chrome", (t) => {
   let html;
   try {
-    html = readFileSync(new URL("./eval/fixtures/wikipedia-war-and-peace.html", import.meta.url), "utf8");
+    html = readFileSync(new URL("../eoreader7/native/eval/the-fold/fixtures/wikipedia-war-and-peace.html", import.meta.url), "utf8");
   } catch {
     t.skip("fixture not present");
     return;
@@ -242,7 +242,7 @@ test("parseSearchResults: /lite face pairs links with snippet cells", () => {
 
 test("parseSearchResults: a live results page, as the endpoint actually serves it", () => {
   // captured live 2026-08-16 with the organ's own UA
-  const html = readFileSync(new URL("./eval/fixtures/ddg-results.html", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../eoreader7/native/eval/the-fold/fixtures/ddg-results.html", import.meta.url), "utf8");
   const { blocked, offEndpoint, results } = parseSearchResults(html);
   assert.equal(blocked, false);
   assert.equal(offEndpoint, undefined);
@@ -261,7 +261,7 @@ test("parseSearchResults: a 200 that is not the endpoint's page is off-endpoint,
 
 test("parseSearchResults: the bot-block page is a typed refusal, never an empty success", () => {
   // the exact page this repo received when building the organ (2026-08-16):
-  const blockedPage = readFileSync(new URL("./eval/fixtures/ddg-anomaly.html", import.meta.url), "utf8");
+  const blockedPage = readFileSync(new URL("../eoreader7/native/eval/the-fold/fixtures/ddg-anomaly.html", import.meta.url), "utf8");
   const out = parseSearchResults(blockedPage);
   assert.equal(out.blocked, true);
   // and the endpoint's own page with no results is neither blocked nor off-endpoint

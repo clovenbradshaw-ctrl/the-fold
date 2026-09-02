@@ -1365,13 +1365,16 @@ async function reopenTurn(argstr, typed) {
   if (arg && !["source", "fold", "door"].includes(arg)) return usageTurn(typed, "/reopen [source|fold|door] — restore the last thing you had open, from the record's own rows. Nothing is re-read, re-run, or re-admitted.");
   let rows = [];
   try {
-    const res = await fetch(`${EXPLORE_BASE}/api/record?tail=500`);
+    // The whole record, not a tail: web-fetch rows are ~60% of it, so a
+    // 500-row tail routinely holds no open at all (measured live: "nothing
+    // source on the record's tail" against a record with 81 source-opens).
+    const res = await fetch(`${EXPLORE_BASE}/api/record?tail=100000`);
     if (res.ok) rows = ((await res.json()).tail ?? []).map((raw) => { try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return null; } }).filter(Boolean);
   } catch { /* unreachable record — said below, never guessed around */ }
   if (!rows.length) return usageTurn(typed, `the record is not reachable (no explore server at ${EXPLORE_BASE}) — /reopen restores only from the record, never from the chat's own memory.`);
   const pick = lastOpened(rows, { kinds: arg ? [arg] : null });
   const plan = restoreFor(pick);
-  if (plan.action === "none") return usageTurn(typed, `nothing ${arg || "open"} on the record's tail to reopen.`);
+  if (plan.action === "none") return usageTurn(typed, `nothing ${arg || "open"} on the record to reopen.`);
   if (plan.action === "open-source") {
     if (state.sources[plan.name] != null) {
       openSourceViewer(plan.name);

@@ -7080,10 +7080,7 @@ now land on the record (`source-open`/`fold-open` via chat; `transcribe`
 carries the attachment name). `eval/results/reopen-null-RESULTS.md`:
 the last-open-is-next-open rate 0.447 vs a redealt median 0.034, 0/50
 shuffles at or above — a real signal, and no precision number claimed
-for the door itself. **Still `{todo:true}`:** the BECOMING stays open
-until the door is driven live — `GET /api/record?tail=` did not exist
-on either server when this landed, and explore-server cannot boot in
-this checkout (P69's submodule error), so the live leg is unverified.
+for the door itself. **INHABITED 2026-09-02, live in the real page:** the record route existed after all (`GET /api/record`, explore-server.mjs — the file reads as binary to grep, which is how it was missed); explore-server boots now that the submodule is initialised. Two fixes the live run forced: the door reads the whole record, not a 500-row tail (web-fetch is 60% of rows, so the tail held no open); and explore-server's mirror route accepted only `term-` events, so every chat-side `source-open`/`fold-open` — and every `transcribe` row ever mirrored — had been refused 400 and silently dropped. A declared allowlist now. Round trip proven: open a pasted source in the Reading pane → row lands → `/reopen source` restores it into the viewer.
 
 ## Moved down a level (Phase 2 of the organ migration, 2026-09-02) — pointers
 

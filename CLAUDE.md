@@ -7137,8 +7137,15 @@ and lets a witnessed sentence keep no relation-tier ∅. Only the model's
 own "no" is a refusal — a protocol non-verdict (the morphology miss
 "prepared/prepare" at the company wall, found live) is a typed skip that
 draws nothing. Verified live on gemma2:2b: true sentence quiet with its
-address, unsupported sentence marked, 17s. Known next rung: the company
-wall should fold morphology (`sameAct`), so "prepare/prepared" is company.
+address, unsupported sentence marked, 17s. The company wall folds morphology now
+(same day): `createLemmatizer`/`morphologyFromPrior` ported natively in
+eoreader7 under a parity test against the frozen provider (409 forms, 7
+sameAct pairs), the wall takes an injected `sameForm`, and app.js fetches
+the UniMorph morphology prior once and hands the engine's own `sameAct`
+to both witness bundles (data-gated: exact match until it resolves).
+Re-verified live: "The Tsar replaced Barclay de Tolly with Mikhail
+Kutuzov" bound and quiet with its address; "the Russian army continued
+fighting" marked "∅ no passage states this" by the witness's own no; 19s.
 
 ## JSON is the decoder's job, never the prompt's (added 2026-09-02) — pointer
 

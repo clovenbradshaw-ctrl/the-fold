@@ -7162,3 +7162,20 @@ now carries the previous value (fold.js, pinned) — and a field that becomes
 ground must never bypass the checks a sentence gets. Schemas that only
 POINT (the witness's yes/no + index, an enum pick with `none`) are safe by
 construction: there is nothing to write.
+
+**Amended same day — the reader adopts what the census measured, and the
+witness owns the sentence.** app.js's production reader now runs with
+`nounPhraseSubjects: true` (preposition-led subjects 6 → 1) and
+`oovLexicon` = the UniMorph set (junk labels 12 → 3); its widening fetch
+had pointed at `/eval/fixtures` since Phase 2 and 404ed silently, so the
+widening was dead in production — fixed, with the POS-prior consult on
+it. The entity-seek fallback retry had no wall and sent "battle" of
+"null" to the route (the 400 in the console); it has the first ask's wall
+now. Live: the notes block reads "the Battle of Moscow —took→ …" where it
+read "of Moscow", no 400, the false sentence marked by the witness's own
+no. One verdict per sentence: once the witness has spoken, the relation
+tier's own ∅ is not drawn beside it (a contradiction still is). Honest
+residue: on this run gemma2:2b's witness said no to "Kutuzov replaced
+Barclay de Tolly as commander" against "the Tsar replaced Barclay with
+Kutuzov" — a strict reading of a role-reversed paraphrase, marked as
+silence, never as a contradiction.

@@ -6708,3 +6708,34 @@ grouping — a REC re-zero is deliberately its own single-entry thread, and
 the engine keys threads by supersession lineage. It now replays through
 the engine's own referee rather than re-deriving legality: search for the
 organ, even when writing an audit.
+
+## Pass 7: the SVO-wipe blocker cleared, and the suite was testing the wrong engine (added 2026-09-01) — pointer
+
+`hypergraph.test.mjs` loads and runs (58 tests), so the 81 assertions the
+SVO rename needs are runnable and Tier 2's second blocker is gone. **The
+wipe itself is not started, deliberately** — see the recommendation below.
+
+**What unblocking surfaced is bigger than the blocker.** The suite pins
+the FROZEN legacy provider by path, while `app.js` — the only production
+caller of `makeRelationReader` — has imported `/engine-v7/adapters/text/*`
+since P69 crossed the ratchet. The suite has therefore been verifying a
+configuration the app does not run, and that was invisible for exactly as
+long as the file could not load. Measured both ways: **legacy 54/58,
+native (production) 52/58** — the same 4 plus lemma-widening and
+morphologyLanguage. The provider is now a declared switch (`ENGINE=native
+node --test hypergraph.test.mjs`), legacy kept as the default so this
+suite's baseline does not move silently, and the gap is a measurement
+anyone can take instead of a surprise.
+
+**Two of the 4 shared failures are a DESIGN SUPERSESSION, not a bug.**
+BUILD-3's rule was "the material's own belief graph is never filtered by
+grammar — disclosure never filters"; P73/P74 then wired the POS prior into
+`discoverRelationVocab` as a real vocabulary gate, measured there as a
+gain (junk labels 18 → 0). Both are defensible, they are not compatible,
+and the tests encode the older one. The other two (referent bar) report
+`candidates: 0` and need their own diagnosis.
+
+**Recommendation, recorded rather than acted on:** do not migrate the
+221 call sites against this suite yet. A rename wants a green,
+production-configured baseline to move under; settle the grammar-filter
+supersession and the referent-bar zero first.

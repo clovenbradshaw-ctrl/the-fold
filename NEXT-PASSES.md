@@ -119,14 +119,39 @@ keys threads by supersession lineage). It now replays through the engine's
 own referee rather than re-deriving legality — search for the organ, even
 when writing an audit.
 
-**Pass 7 — unblock the SVO wipe's verification.** The rename
-(subject/verb/object → end1/label/end2, 221 call sites) is blocked only
-on `hypergraph.test.mjs`'s 81 assertions being unrunnable where the
-sibling `eoreader6.1` path doesn't resolve. eoreader7's
-`legacy-eoreader6.1` submodule IS initialized in this checkout —
-repoint the test's imports there (or symlink the sibling path), confirm
-the 4 pre-existing failures become runnable assertions, then migrate
-file by file with the suite green at every step.
+**Pass 7 — unblock the SVO wipe's verification. BLOCKER CLEARED
+2026-09-01; the wipe itself is NOT started, and the pass found something
+bigger than it was looking for.** `hypergraph.test.mjs` loads and runs
+(58 tests) — the sibling path resolves in this checkout, so the 81
+assertions the wipe needs are runnable.
+
+**What the unblocking surfaced.** The suite pins the FROZEN legacy
+provider by path, while `app.js` — the only production caller of
+`makeRelationReader` — has imported `/engine-v7/adapters/text/*` since
+P69 crossed the ratchet. So this suite has been verifying a configuration
+the app does not run, and that was invisible for as long as the file
+could not load. Measured both ways: **legacy 54/58, native (production)
+52/58** — the same 4 failures plus lemma-widening and
+morphologyLanguage. The provider is now a declared switch
+(`ENGINE=native node --test hypergraph.test.mjs`), legacy still the
+default so the suite's own baseline does not move silently, and the
+delta is a measurement anyone can take rather than a surprise.
+
+**The 4 shared failures, diagnosed, not merely counted.** Two
+(`party`/grammar-disclosure) are a DESIGN SUPERSESSION: BUILD-3's rule
+was "the material's own belief graph is never filtered by grammar —
+disclosure never filters", and P73/P74 then wired the POS prior INTO
+`discoverRelationVocab` as a real vocabulary gate (measured there as a
+gain: junk labels 18 → 0). Both decisions are defensible; they are not
+compatible, and the tests encode the older one. Two (referent bar) report
+`candidates: 0` — the extractor nominating nothing on that fixture, which
+needs its own diagnosis.
+
+**Recommendation before the 221-site rename: do not migrate against this
+suite yet.** A rename wants a green, production-configured baseline to
+move under, and the production configuration is at 52/58 with two
+undiagnosed failures. Settling the grammar-filter supersession and the
+referent-bar zero first is the cheaper order.
 
 ## Tier 3 — make THE-THREE-MATHEMATICS earn its keep
 

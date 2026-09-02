@@ -200,6 +200,7 @@ import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
 import { corroborateLedger, distinctSources as distinctWitnessSources } from "./corroboration.js";
+import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "./obligation.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this
 // question's answer have to fill, and what part of it is still empty. Both
@@ -737,6 +738,7 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
   /**
    * The metacognition ledger (metacognition.js, P72) — same app-wide,
@@ -806,6 +808,7 @@ const PER_CONVO = [
   "lastMessages",
   "lastMaterialChars",
   "reflexLog",
+  "obligations",
   "meter",
   "aperture",
   "heldFolds",
@@ -1335,6 +1338,55 @@ function mirrorTermRecord(event, fields) {
  * attest never rewrites), the report renders mechanically, and the run
  * mirrors onto the record via the same term-record route /act uses.
  */
+/**
+ * /must — the obligation ledger as a chat door (Tier 4 #13's consumer).
+ *   /must <enumerated instructions>      admit (numbered/lettered/bulleted lines)
+ *   /must                                coverage — every clause, its standing, the unvisited NAMED
+ *   /must done <id> <because> [ref ...]  mark satisfied
+ *   /must broke <id> <because>           mark violated
+ *   /must waive <id> <because> by <who>  waive — reason AND name required
+ * Mechanical throughout (usageTurn, no model call): the ledger is
+ * append-only, standings project from it, and coverage is complete only
+ * when nothing is unvisited and nothing stands violated. Mirrors every
+ * change onto the record via the same term-record route the other doors use.
+ */
+function mustTurn(argstr, typed) {
+  const arg = String(argstr ?? "").trim();
+  const led = state.obligations;
+  const render = (ledger) => {
+    const cov = obligationCoverage(ledger);
+    const rows = obligationStandings(ledger).map((s) => `  ${s.standing === "satisfied" ? "✓" : s.standing === "violated" ? "✗" : s.standing === "waived" ? "–" : "·"} ${s.id}  [${s.standing}]  ${s.text}${s.because && s.standing !== "not-yet-visited" ? `  — ${s.because}` : ""}`);
+    return [`obligations: ${cov.total} clause(s) · satisfied ${cov.counts.satisfied} · violated ${cov.counts.violated} · waived ${cov.counts.waived} · not yet visited ${cov.counts["not-yet-visited"]} · ${cov.complete ? "COMPLETE" : "incomplete"}`, ...rows].join("\n");
+  };
+  if (!arg) {
+    if (!led) return usageTurn(typed, "/must <enumerated instructions> — admit a numbered, lettered, or bulleted instruction set as clauses each owed a visit. Then: /must (coverage), /must done <id> <because>, /must broke <id> <because>, /must waive <id> <because> by <who>. Coverage is ENUMERATION: the unvisited are named, and it is complete only when nothing is unvisited and nothing stands violated.");
+    return usageTurn(typed, render(led));
+  }
+  const verb = arg.match(/^(done|broke|waive)\s+(ob-\d+)\s+([\s\S]*)$/);
+  if (verb) {
+    if (!led) return usageTurn(typed, "no obligations admitted yet — /must <enumerated instructions> first.");
+    const [, kind, id, rest] = verb;
+    let r;
+    if (kind === "waive") {
+      const m = rest.match(/^([\s\S]*?)\s+by\s+(.+)$/);
+      if (!m) return usageTurn(typed, "a waiver needs a reason AND a name: /must waive <id> <because> by <who>");
+      r = markObligation(led, id, "waived", { because: m[1].trim(), waivedBy: m[2].trim() });
+    } else {
+      const refs = [...rest.matchAll(/\S+#\d+-\d+/g)].map((x) => x[0]);
+      r = markObligation(led, id, kind === "done" ? "satisfied" : "violated", { because: rest.trim(), refs });
+    }
+    if (r.refused) return usageTurn(typed, `refused (${r.refused}): ${r.detail}`);
+    state.obligations = r.ledger;
+    mirrorTermRecord("obligation-mark", { id, standing: kind, via: "chat" });
+    return usageTurn(typed, render(r.ledger));
+  }
+  const admitted = admitObligations(arg);
+  if (admitted.refused) return usageTurn(typed, `refused (${admitted.refused}): ${admitted.detail}`);
+  state.obligations = admitted.ledger;
+  mirrorTermRecord("obligation-admit", { clauses: admitted.ledger.clauses.length, via: "chat" });
+  return usageTurn(typed, render(admitted.ledger));
+}
+
 async function corroborateTurn(argstr, typed) {
   const maxAsks = Number((argstr ?? "").trim());
   if (!Number.isInteger(maxAsks) || maxAsks < 1)
@@ -2280,6 +2332,14 @@ async function send(question) {
   // the SPEND IS THE PERSON'S OWN DECLARATION (P9): the required <maxAsks>
   // argument is the budget, never defaulted, which is also why this is a
   // door rather than something that runs silently after every turn.
+  // /must — the obligation ledger (obligation.js), the ENUMERATION spoke's
+  // door: a long instruction set admitted as declared clauses, each owed a
+  // visit, coverage reported as enumeration (the unvisited NAMED) rather
+  // than relevance. Explicit-trigger only, like every typed door; every
+  // standing change carries its because, and a waiver names who waived.
+  const mustCmd = question.match(/^\/must\b\s*([\s\S]*)$/);
+  if (mustCmd) return mustTurn(mustCmd[1] ?? "", question);
+
   const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
   if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
 

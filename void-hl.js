@@ -49,7 +49,7 @@
 import {
   createStage, addAnchor, addEdge, declareFunctional, declareTransitive, atomic,
   BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH,
-} from "./hl.js";
+} from "../eoreader7/native/organs/index.js";
 
 /**
  * Anchor identity, and the honest boundary — `hl.js`'s own header already

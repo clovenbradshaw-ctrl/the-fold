@@ -1178,8 +1178,15 @@ export function makeRelationReader(organs) {
     // material, is acting as a verb rather than appearing in some other
     // role — the lexicon says the word CAN be a verb, recurrence is this
     // tier's own corroboration that it is doing real work here.
+    // …and, when a POS prior is loaded, never a form the prior attests as
+    // NON-verb-dominant: UniMorph lists every noun-verb conversion as a verb
+    // form, so unfiltered widening on the real two-page ledger added 98
+    // notes labelled battle / work / version / author / part / war. An OOV
+    // form (no attestation) still widens — the lexicon is the only witness
+    // it has, which is exactly the starvation case this widening exists for.
     if (verbForms) {
-      for (const w of forms) if (verbForms.has(w)) verbs.add(w);
+      const nonverbDominant = (w) => { const att = posPrior?.forms?.[w]; if (!att) return false; const total = Object.values(att).reduce((a, b) => a + b, 0); return total > 0 && ((att.VERB ?? 0) + (att.AUX ?? 0)) / total <= 0.5; };
+      for (const w of forms) if (verbForms.has(w) && !nonverbDominant(w)) verbs.add(w);
     }
 
     // ── endpoint resolution ──────────────────────────────────────────────

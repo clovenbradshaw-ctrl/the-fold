@@ -6628,3 +6628,34 @@ checks on a west-east grammar, one is simply blind. A directional finding
 stays honestly "one instrument only" until a same-scope, different-rule
 instrument exists. Turbulence's hole-vs-peak pair was same-scope by luck;
 choose the pair on purpose.
+
+## Floor 4½ opened: nesting, and the wall that makes it worth having (added 2026-09-01) — pointer
+
+`nesting.js` + `nesting.test.mjs`. NEXT-PASSES had this floor designed and
+deliberately shut "until corroboration throughput justifies it (Pass 1–2)";
+both passes are now measured, so the gate was met and the door opened
+rather than left named. An end slot may hold `claim:<assertionId>`, so the
+ledger carries `Tolstoy —states→ claim:napoleon|fought|kutuzov` as an
+ordinary corroboratable note.
+
+**The wall, which is the entire reason this is a floor and not a
+flattening: witnesses of an outer note NEVER corroborate the inner claim.**
+Two sources agreeing that Tolstoy says X corroborate that TOLSTOY SAYS X
+and give X nothing. `corroborationOf` returns `direct` (the only number a
+belief may be gated on) and `attributed` strictly apart, with no option to
+sum them; `leakCheck` is the assay, pinned both ways — an honest ledger
+does not leak, and a planted leak (an attribution's witness credited to the
+inner claim, which is how "papers report he said it" becomes "sources
+confirm it") is caught. Without the wall, nesting manufactures
+corroboration by restating attribution.
+
+What it buys, each tested: **disagreement without contradiction** (both
+"A states X" and "B denies X" stand; `disagreement` reports contested, with
+stance opposition DECLARED by the caller since this module holds no stance
+list of its own); **attributed-but-not-corroborated** said in words rather
+than left to inference; and **the model's own voice as the ordinary shape**
+— P39's `self:model` asserting X is just an outer note, and the wall
+refuses to let it corroborate X, which `mergeTestimony` previously had to
+special-case. Cycles and self-reference refused at any depth, `maxDepth`
+declared, an unresolved inner id NAMED rather than silently depth-0.
+Not yet consumed by any caller; `mergeTestimony` is the natural first.

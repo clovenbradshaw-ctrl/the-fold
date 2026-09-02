@@ -141,10 +141,24 @@ media, a different axis.
     declared author via segmentation claims + a heading detector; also
     unlocks per-narrator testimony in the crown (a journal's "I" is a
     WITNESS with a name).
-12. **Floor 4½ — nesting** (`claim:` in an end slot). Designed,
-    namespaced, deliberately unopened until corroboration throughput
-    justifies it (Pass 1–2). The door from "knows what happened" to
-    "knows who believes what happened."
+12. **Floor 4½ — nesting** (`claim:` in an end slot). **OPENED
+    2026-09-01** — the gate (Pass 1 slice lever, Pass 2 both witness
+    protocols calibrated) was met, so the door was opened rather than
+    left named. `nesting.js` + `nesting.test.mjs` (9 cases against the
+    REAL ledger and the REAL independence counters). The wall that makes
+    it worth having: **witnesses of an outer note never corroborate the
+    inner claim** — `corroborationOf` keeps `direct` and `attributed`
+    strictly apart with no option to sum them, and `leakCheck` is the
+    assay (pinned both ways: an honest ledger does not leak, a planted
+    leak is caught). Disagreement without contradiction works
+    (`disagreement`, stance opposition declared by the caller — this
+    module holds no stance list). Cycles and self-reference refused at
+    any depth; `maxDepth` declared; an unresolved inner id is NAMED, not
+    silently depth-0. P39's `self:model` is now the ordinary shape
+    rather than a special case in `mergeTestimony`. **Not yet consumed
+    by any caller** — the natural first one is `mergeTestimony`, which
+    would replace its self-witness special case with the general
+    mechanism.
 13. **The obligation ledger** — long instruction sets admitted at the
     door, clause standings typed
     (satisfied/violated/waived/not-yet-visited), coverage as enumeration

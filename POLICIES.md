@@ -10292,3 +10292,34 @@ page loaded through `serve.mjs` in headless Chromium — boot completed, zero
 exceptions, zero console errors. Not verified live: a turn against a real
 model, since no Ollama is reachable here; the recipe reaches the record
 through the same `admit` call every grounded turn already makes.
+
+## P82 — Floor 2 for floor 5: the extractor's subject debris ends at received walls (2026-09-02)
+
+**Generality:** universal.
+
+**Direction.** "Keep going on the witness thing for five, and if there was
+something on floor two, work on the steady foundation as needed." No model
+runs in this checkout, so the live witness walk could not run; what starves
+it could be fixed. A note whose end is debris ("night I", "the window
+Lucy", "I ran downstairs and") is a note nothing will ever corroborate.
+
+**Decision.** The subject-span lever P74 named is pulled in eoreader7
+(**S44**): five walls, each a received closed class with its giver, in the
+DR4 subject walk; the POS prior's verb and adposition forms threaded from
+the reader. This repo changes no code — the production reader reaches the
+new walk through the moved `hypergraph.js` and its `posPriorFor` — and it
+inherits the measured result: on narrative prose debris subjects fall
+96 → 30 of bound claims while referent subjects hold 83 → 78, and the
+random-wall control (as many random words as the classes hold) cuts harder
+and destroys referents. The gain is from which tokens wall, not from
+walling. Full account: `eoreader7/native/eval/the-fold/results/
+subject-wall-RESULTS.md`.
+
+**Priced.** 93 fewer bound claims on the Dracula slice: 44 refused for want
+of any subject (typed, counted), the rest claims that had bound through
+debris. Encyclopedic prose barely moves; its debris is prepositional
+subjects and is not this pass's. Named residue: a common noun glued to a
+name's left ("the window Lucy") needs the prior's noun forms as a wall.
+
+**Not verified live:** the effect on the ledger's ≥2-witness rate needs a
+model to attest, which this checkout cannot run.

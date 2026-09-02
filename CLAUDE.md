@@ -7236,3 +7236,11 @@ hearings are the furniture" line in P80's pointer above was a floor
 artifact and is withdrawn. What did survive its control: label ORDER
 transfers between two English pages (0.2–0.3 bits/hearing, 20/20), ends
 do not — the first cross-source number.
+
+## Floor 2 for floor 5: subject walls (added 2026-09-02) — pointer
+
+POLICIES.md **P82**; eoreader7 **S44**; `subject-wall-RESULTS.md` there. No
+code here changed — the production reader inherits the walls through the
+moved extractor. The one lesson to carry: the first cut's tally looked
+right and its rewrite list did not; diff every rewritten subject against
+the old one before trusting a debris count.

@@ -7593,6 +7593,28 @@ be judged there without carrying tenure identity; re-scoring them is
 named work. **The rule this earns, for every oracle in the building:
 before a precision number is reported, the judge is shuffled once.**
 
+### P60 amended 2026-09-02 (sixth) — at scale, the grain fix generates; the oracle passes resolution outright
+
+The fifth amendment's named next step, taken the same day: the full
+circuit (`eval/full-circuit-oracle.mjs`) run over a 158-entity crawl
+(`eval/fetch-succession.mjs`, two hops along P1365/P1366 from the 23
+seeds, new fixture files, the committed set untouched). Under the
+tenure-grain judge a redealt fact is TRUE with p≈0.54 — chance — and the
+circuit's **223/223 TRUE, 0 FALSE** is matched by **0 of 50** shuffles.
+The precision claim this policy could not license on 23 entities is
+licensed on 158.
+
+And the fourth amendment's grain argument, whose NUMBER was retracted an
+amendment ago, earns a better number than it ever claimed: at person
+grain 7 offices are refused and the naive arm derives 137; at tenure
+grain **0 offices are refused and the circuit derives 224** — 101 facts
+the person-grain arm cannot reach, every one oracle-TRUE. The "15 true
+facts lost per 2 false prevented" cost was the wrong grain's cost. The
+circuit gives up 21 naive-only facts, 19 of them unverifiable by the
+oracle (single-witness edges): corroboration trades unverifiable reach
+for verifiable reach, and tenure grain adds reach on top of that.
+Full numbers: `eval/results/full-circuit-oracle-RESULTS.md`, wide run.
+
 ## P61 — Admission by measurement: the sequence type, and the gate that now precedes a kernel organ
 
 **User direction, verbatim (2026-08-28):** *"this needs to demonstrably

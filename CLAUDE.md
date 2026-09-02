@@ -7023,3 +7023,18 @@ independence count (the `:` keeps them apart exactly as `testimony:`
 does). Additive: no organ, front matter, or a speakerless section leaves
 `who` bare — a typed absence, never a nearest-guess. Pinned on the real
 Dracula (Seward's diary vs Harker's journal, front matter bare).
+
+## The wide oracle run — 158 entities, 223/223, 0/50 shuffles (added 2026-09-02) — pointer
+
+`eval/fetch-succession.mjs` (a 2-hop P1365/P1366 crawl from the 23 seeds
+into NEW fixtures — the committed set untouched) and the same circuit
+driver with `MATERIAL`/`ORACLE` env overrides. Result: **224 never-stated
+facts, 223 TRUE, 0 FALSE**, the tenure-grain null at p≈0.54 (chance, as
+it should be), **0 of 50 shuffles matching** — the precision claim
+licensed outright at the scale the 23-entity run could only suggest.
+And the grain fix GENERATES at scale: person grain refuses 7 offices and
+derives 137; tenure grain refuses 0 and derives 224 — 101 facts naive
+cannot reach, all TRUE — while the 21 naive-only facts are 19/21
+unverifiable. Corroboration trades unverifiable reach for verifiable
+reach; tenure grain adds reach on top. POLICIES.md P60's sixth
+amendment is the law.

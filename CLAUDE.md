@@ -7321,3 +7321,18 @@ steps:<n>`, `withdraw <fact> because …`); a giver is an identity chip said
 once (`/derive iam`, `person:<slug>`) and a fact is a chip that pastes as
 `fact:<id>` — objects travel through the chat by id, never as retyped
 text. Blob-staged on HEAD; verified live end to end.
+
+## Priors are experts; what actually happens decides — P84 (added 2026-09-02) — pointer
+
+POLICIES.md **P84**. The census: received linguistic priors are live;
+declared priors are live; SEDIMENTED priors (111 works compiled) are
+consumed by nothing. The basin widened to music to fix that where no
+treebank can help: eoreader7 `adapters/midi/midi.js` (floor 0) and
+`kernel/continuation.js` (medium-blind, pinned) — a prior over any event
+stream, a symbol-free shape prior from any medium, and a prequential
+mixture weighted by each source's own surprise. Two real Bach pieces:
+hearing beats shuffle by 1.6–1.9 bits/note; structural analogy from a
+novel/the record log is an honest negative at this grain; the mixture
+reads a different best source off each piece. Results + listenable .mid:
+eoreader7 `eval/the-fold/results/midi-continuation-RESULTS.md`. Next:
+register the sedimented text priors as experts in a live turn.

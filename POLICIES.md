@@ -10533,3 +10533,49 @@ in plain words, the table/quote/code box behind thinking; typing
 composer held `fact:hannibal hamlin|replaced|john breckinridge …`, the
 door withdrew that fact and, in plain words, the three things worked out
 from it.
+
+## P84 — Priors are experts, and what actually happens decides (2026-09-02)
+
+**Generality:** universal.
+
+**The direction, verbatim:** "build out our priors influencing our reading
+and generation more, and not just with text but with music, where we
+generate a continuation of a midi file mid stream without teaching it
+music theory"; then "influenced by anything that has structural analogy";
+then the criterion that settles it: "use what ACTUALLY happens to find
+what source is most predictive by making what sequence of what comes next
+least surprising."
+
+**The census first, honestly.** Reading uses received linguistic priors
+heavily (the UD POS prior, UniMorph, determiners, negation, pronouns —
+facts about English, handed in). Reasoning uses declared priors (a
+person's rule). The SEDIMENTED priors — what the reader learned from 111
+works — are compiled and consumed by nothing live. The gap the direction
+names is real.
+
+**The law.** A prior is an EXPERT, never a choice. Every source of
+experience that can claim a distribution over what comes next — the
+hearing of this stream at each grain, another work, the shape of moves in
+a stream from any medium, a shuffled control — is kept alive, charged its
+surprise as each real event arrives, and weighted by 2^(−cumulative bits).
+The mixture predicts and generates. "Which source is most predictive" is
+READ OFF the stream, never assumed; a source that keeps being surprised
+fades on its own. The control built to fail is a shuffled hearing, and it
+must end at weight zero.
+
+**Where it lives:** eoreader7 `kernel/continuation.js` (medium-blind,
+pinned), `adapters/midi/midi.js` (floor 0 for MIDI), the driver and
+results in `eval/the-fold/`. **Measured** on two real Bach pieces: the
+hearing beats its shuffle by 1.6–1.9 bits/note; the mixture picked order 1
+on the prelude (order 3 replays) and the cross-work expert on the sparse
+aria — a different answer per piece; structural analogy from a novel or
+the record log did NOT reduce surprise at this grain (kept as a negative
+with its control). One defect the numbers found: a mixture scoring worse
+than its best expert — unequal floors — fixed with one declared floor for
+every scorer, and the bound (mixture ≤ best + log2 N / n) pinned.
+
+**What this means for text.** The same kernel applies unchanged to any
+stream the reader produces — words, notes on the ledger, acts on the
+record. Wiring the sedimented priors into live reading is now a matter of
+registering them as experts and letting the turns charge them; it is not
+a design question any more.

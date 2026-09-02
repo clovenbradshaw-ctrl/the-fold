@@ -7552,6 +7552,47 @@ Two more sit in the-fold's `app.js` and `explore-server.mjs`, left untouched:
 those belong to the fold-architecture session.
 
 
+### P60 amended 2026-09-02 (fifth) — the judge never passed resolution; two numbers retracted, two re-read
+
+`eval/full-circuit-oracle.mjs` ran the whole relay on this same material
+and spent a null on the ORACLE for the first time — and the oracle
+failed it. The person-grain verdict every P60 arm was scored with ("SOME
+term of X begins after SOME term of Y ends") is TRUE for a random
+within-office pair ~0.82 of the time, because any two holders of one
+office are time-ordered and a multi-term holder gives "after" several
+chances. `eval/derivation-precision-resolution.mjs` then ran this
+policy's own driver over 40 redealt materials (succession targets
+shuffled within each office, marginals kept) and asked, per arm, where
+the real number sits in the shuffle's distribution
+(`eval/results/derivation-precision-resolution.md`):
+
+- **RETRACTED — the fourth amendment's "1.000 precision at occurrence
+  grain with no veto anywhere" (arms E/E′).** 40 of 40 shuffles produce
+  the identical perfect score at equal reach. The number was the judge's
+  permissiveness, not the grain's virtue. The grain ARGUMENT (an edge
+  relates occurrences, not entities) stands on the hospital-bed control
+  and on the oracle run's tenure-grain judge; the precision NUMBER here
+  did not earn it.
+- **RE-READ — the third amendment's "0.842 → 1.000".** Arm C's 0.842 sits
+  AT the null's median (0.850): the naive join's precision was
+  chance-level on this judge, so the headline compared chance to a gated
+  arm whose separation from the shuffle is REACH, not precision — the
+  office gate derives 5 decided facts where the shuffle derives 1. Arms
+  A and D stand, with that caveat attached: what the gate demonstrably
+  does is refuse to compose on destroyed structure, which is a real
+  property and a different one from "its facts are truer per fact".
+- The claim that survives whole: **the veto prevents the false facts**
+  (arms B/C carry 2–3 FALSE; A/D carry 0) — a FALSE-count claim, not a
+  precision claim, and the shuffle does not touch it.
+
+What licenses a precision claim on this material is the TENURE-GRAIN
+judge (this tenure begins after that tenure ends — a random pair is
+"after" only about half the time), under which the full circuit's 8/8 is
+matched by 0 of 49 shuffles. Arms A–D compose at person grain and cannot
+be judged there without carrying tenure identity; re-scoring them is
+named work. **The rule this earns, for every oracle in the building:
+before a precision number is reported, the judge is shuffled once.**
+
 ## P61 — Admission by measurement: the sequence type, and the gate that now precedes a kernel organ
 
 **User direction, verbatim (2026-08-28):** *"this needs to demonstrably

@@ -6965,3 +6965,19 @@ extra facts are exactly its unverifiable ones — corroboration keeps the
 circuit inside what the oracle can see. Honest scope: 23 entities is
 small; carrying the tenure-grain judge back into derivation-precision.mjs
 is the named next step.
+
+## P60's judge shuffled — two numbers retracted, two re-read (added 2026-09-02) — pointer
+
+`eval/derivation-precision-resolution.mjs` + `eval/results/
+derivation-precision-resolution.md`; POLICIES.md P60's fifth amendment
+is the law. The oracle run showed P60's person-grain verdict is true for
+a random within-office pair ~0.82 of the time; running P60's own driver
+over 40 redealt materials (a `REDEAL_SEED` hook, succession targets
+shuffled within office) per arm: **E/E′ ("1.000 at occurrence grain")
+RETRACTED** — 40/40 shuffles match the perfect score at equal reach;
+**C's 0.842 "naive baseline" sits AT the null median (0.850)** — a
+chance-level number, so "0.842 → 1.000" compared chance to reach; A/D
+stand with the caveat that what separates them from the shuffle is
+REACH (5 vs 1 decided facts), not precision per fact. The FALSE-count
+claim (the veto prevents the false facts) survives whole. **The rule:
+before a precision number is reported, the judge is shuffled once.**

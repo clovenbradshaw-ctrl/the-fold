@@ -198,7 +198,7 @@ import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
 import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
-import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
+import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
 import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
@@ -1448,11 +1448,21 @@ async function corroborateTurn(argstr, typed) {
 
   const ask = async (s, slice) =>
     readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+  // SELECT is the default protocol: the model POINTS at a mechanically
+  // gathered stating sentence by index and never writes a because. Measured
+  // at full budget on one real two-page ledger (2026-09-02): select attested
+  // 33 of 103 asks, generate 13 of 119, both at zero attests on planted
+  // fabrications — the same walk, the same budget, 2.5x the recall. The
+  // generate path stays as witnessNote's own fallback when no co-present
+  // candidate can be offered.
+  const selectAsk = async (messages) => {
+    try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; }
+  };
   let report;
   try {
     report = await corroborateLedger(log, hyperlexiconFor, sources, {
-      ask,
-      testimony: { witnessSlice, siblingSwap, foldTestimony },
+      ask, selectAsk, splitSentences: engineSentences,
+      testimony: { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect },
       maxAsks,
     });
   } catch (err) {

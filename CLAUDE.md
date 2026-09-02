@@ -7235,3 +7235,27 @@ product transitively (REC·Pattern each). Nesting's wall, one register up.
 Registered as `derive` at SYN·Pattern; the map stays 27/27 at 29 entries.
 No live caller yet — a `/derive` door with the person as giver is the named
 next consumer (NEXT-PASSES Pass 11).
+
+**Amended same day — the door built and driven live; levels render as
+different kinds of block.** `/derive` (app.js, blob-staged on HEAD):
+`give <relation> yields <product> by <who>` (the person is the giver),
+`run floor:<sources>x<instruments> steps:<n>` (every number declared),
+`show`, `concede <noteId> because <trigger>`. Driven on the real page:
+five notes heard, zero stood at `1x1` because a chat turn's witnesses
+carry no `~recipe` (→ a declared `instruments:0`); the ends were the
+extractor's adjunct debris and no face had been earned (→ the substrate
+bonds on IDENTITY ends, eoreader7 PR #53; the debris itself is P74's
+lever 3, upstream); the veto fired on the ledger's own uniqueness
+contradiction, correctly, until the debris notes were conceded at the
+door; then **6 products derived, each walking to real addresses through
+its premises, and one concession withdrew exactly the 3 resting on it.**
+User direction, verbatim: *"be sure that different ontological and
+epistemological levels are rendered differently … in things like code
+boxes and more meaningfully different type of content formats."* So a
+licence is a BLOCKQUOTE in the giver's name (testimony), heard notes are
+a TABLE of sightings with addresses (a record), derived products are a
+CODE BOX (constructions, never sentences — a product must never read as
+a sighting), and a concession is STRUCK lines under a REC caption —
+`levelsTurn`/`levelFigure`/`heardTable`/`derivedBox`/`licenceQuote`/
+`concededList`, all on the page's existing artifact figure. POLICIES.md
+P80's amendment carries the four live findings in order.

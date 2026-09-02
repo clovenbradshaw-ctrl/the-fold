@@ -203,6 +203,8 @@ import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessage
 import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
+import { makeDerivation } from "../eoreader7/native/organs/index.js";
+import { createDeclarationLog, proposeCandidate, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this
 // question's answer have to fill, and what part of it is still empty. Both
@@ -575,6 +577,25 @@ const hyperlexiconFor = makeHyperlexicon({
   projectTasks: nativeTaskLog.projectTasks,
   cellOf,
 });
+// Floor 6 (derivation.js, P80) bound to the SAME ledger bundle: premises
+// are read off state.hyperlexiconLog, products land back on it. The
+// task-log bundle is the identical adaptTaskLog/projectTasks/cellOf trio
+// hyperlexiconFor was built on — one bundle, so the two organs cannot
+// disagree about what an entry is.
+const derivation = makeDerivation({
+  hl: hyperlexiconFor,
+  taskLog: {
+    ...adaptTaskLog({
+      createTaskLog: nativeTaskLog.createTaskLog,
+      append: nativeTaskLog.append,
+      ENTRY_KINDS: nativeTaskLog.ENTRY_KINDS,
+      OPERATOR_BASIS: nativeTaskLog.OPERATOR_BASIS,
+      GRAINS,
+    }),
+    projectTasks: nativeTaskLog.projectTasks,
+    cellOf,
+  },
+});
 
 // One meter per conversation, built on the engine's own tiers. reflex.js
 // declares the numbers (window from the fold's own present, draws and alpha
@@ -752,6 +773,14 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  /**
+   * The declarations register (engine interpretation/declarations.js) —
+   * which relations a NAMED GIVER has licensed floor 6 to compose over.
+   * App-wide like the ledger it licenses. Empty until a person declares
+   * one at the /derive door: nothing here is ever given by default, and a
+   * candidate the register holds yields nothing (P80).
+   */
+  declarations: createDeclarationLog(),
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
   /**
@@ -1295,7 +1324,92 @@ function usageTurn(question, usage) {
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
+  return node;
 }
+
+/**
+ * levelsTurn(question, text, build) — a usage turn whose BODY is laid out
+ * in blocks. The plain `text` is what the history, the fold line and the
+ * record keep (a door's answer stays a string on every record); `build`
+ * draws the same content into the message body as DIFFERENT KINDS OF
+ * BLOCK, one per ontological/epistemological level (user direction,
+ * 2026-09-02: "render different levels differently … code boxes and
+ * meaningfully different content formats"). The blocks reuse the page's
+ * own artifact figure, so a table here IS the table any fold draws and a
+ * code box IS the code box any build draws — the formats already mean
+ * "a record of sightings" and "a construction" everywhere else.
+ */
+function levelsTurn(question, text, build) {
+  const node = usageTurn(question, text);
+  const body = node?.querySelector?.(".body");
+  if (!body) return node;
+  body.textContent = "";
+  try { build(body); } catch (err) { body.textContent = `${text}\n\n(blocks failed to draw: ${err?.message ?? err})`; }
+  return node;
+}
+
+/** One level, one figure: the page's artifact frame with a caption naming
+ * the level and the standing its content carries. */
+function levelFigure(caption, child) {
+  const fig = document.createElement("figure");
+  fig.className = "artifact";
+  const cap = document.createElement("figcaption");
+  const label = document.createElement("span");
+  label.textContent = caption;
+  cap.append(label);
+  fig.append(cap, child);
+  return fig;
+}
+/** F5 · heard from bytes — a TABLE: a record of sightings, one row per note. */
+function heardTable(rows) {
+  return levelFigure("F5 · heard from bytes · a record of sightings",
+    tableWrap(["note (subject —verb→ object)", "sources", "instruments", "standing", "first address"], rows));
+}
+/** F6 · derived — a CODE BOX: constructions, not sentences; every address
+ * belongs to a premise. */
+function derivedBox(derived, { caption = "F6 · derived under a licence · construction · no witness of its own" } = {}) {
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  code.textContent = derived.map((d) => [
+    `⊢ ${d.subject} ⇒${d.verb}⇒ ${d.object}`,
+    `    depth ${d.depth} · ${d.paths ?? 1} path(s) · licence by ${d.giver ?? "?"}${d.stated ? " · since also HEARD from bytes (a separate F5 note)" : ""}`,
+    `    rests on: ${(d.premises ?? []).join(" ; ")}`,
+    `    through:  ${(d.provenance ?? []).slice(0, 4).join(", ")}${(d.provenance ?? []).length > 4 ? ` … (+${d.provenance.length - 4})` : ""}`,
+  ].join("\n")).join("\n\n");
+  pre.append(code);
+  return levelFigure(caption, pre);
+}
+/** A licence — a BLOCKQUOTE: a person's declaration, quoted in their name. */
+function licenceQuote(licences) {
+  const bq = document.createElement("blockquote");
+  bq.style.cssText = "margin:0;padding:10px 14px;border-left:3px solid var(--accent);font-style:italic;";
+  for (const g of licences) {
+    const p = document.createElement("p");
+    p.style.margin = "0 0 4px";
+    p.textContent = `⟪ ${g.yields ?? g.declKind} ⇐ ${g.rel} ⟫ — "${g.yields ?? g.declKind}" is declared the closure of "${g.rel}".`;
+    const who = document.createElement("span");
+    who.style.cssText = "display:block;font-style:normal;font-size:12px;color:var(--muted);";
+    who.textContent = `— ${g.giver}, giver. Testimony, not the material's; stands until conceded.`;
+    p.append(who);
+    bq.append(p);
+  }
+  return levelFigure("declaration · a licence given by a person", bq);
+}
+/** A concession — STRUCK lines under a REC caption: taken back, kept on the log. */
+function concededList(items) {
+  const ul = document.createElement("ul");
+  ul.style.cssText = "margin:0;padding:10px 14px 10px 28px;";
+  for (const it of items) {
+    const li = document.createElement("li");
+    const del = document.createElement("del");
+    del.textContent = it.line;
+    li.append(del);
+    if (it.why) { const w = document.createElement("span"); w.style.cssText = "color:var(--muted);font-size:12px;"; w.textContent = ` — ${it.why}`; li.append(w); }
+    ul.append(li);
+  }
+  return levelFigure("REC · conceded · taken back, kept on the log", ul);
+}
+const proseP = (text) => { const p = document.createElement("p"); p.textContent = text; return p; };
 
 /**
  * Fire-and-forget mirror onto the SAME durable record every terminal-typed
@@ -1440,6 +1554,146 @@ function mustTurn(argstr, typed) {
   state.obligations = admitted.ledger;
   mirrorTermRecord("obligation-admit", { clauses: admitted.ledger.clauses.length, via: "chat" });
   return usageTurn(typed, render(admitted.ledger));
+}
+
+/**
+ * /derive — floor 6 as a chat door (P80's named first consumer). The PERSON
+ * is the giver: a licence enters the register only through `give … by
+ * <who>`, exactly the posture /act's warrant clause and /must's waiver
+ * already hold. Every number the floor needs is declared on the line
+ * (floor:<sources>x<instruments>, steps:<n>) — never defaulted here (P9).
+ *   /derive                                         status: licences, candidates, derived
+ *   /derive give <rel> yields <product> by <who>    licence: <product> is the closure of <rel>
+ *   /derive run floor:<s>x<i> steps:<n>             derive over the ledger; products land on it
+ *   /derive show                                    every live derived note with its provenance
+ *   /derive concede <noteId> because <trigger>      concede a premise; its products withdraw
+ * Mechanical throughout (usageTurn, no model call). A derived note carries
+ * no witness of its own — the walk to bytes runs through its premises.
+ *
+ * LEVELS ARE RENDERED DIFFERENTLY (user direction, 2026-09-02): a thing
+ * heard from bytes, a thing derived under a licence, a licence a person
+ * gave, and a concession are four different standings, and the reader must
+ * be able to tell them apart at a glance without reading the words:
+ *   heard    F5 · "subject —verb→ object" · address        (the material's own)
+ *   derived  F6 · "⊢ subject ⇒verb⇒ object" · no witness    (construction under a licence)
+ *   licence  "⟪ product ⇐ relation ⟫ by <who>"               (a person's declaration)
+ *   conceded "✗ … (REC)"                                     (taken back, kept on the log)
+ * The heard shape is the app's own link shape (linkText); the derived shape
+ * deliberately is not — a product must never read as a sighting.
+ */
+function deriveTurn(argstr, typed) {
+  const arg = String(argstr ?? "").trim();
+  const USAGE = "/derive give <relation> yields <product> by <who> — licence a closure (you are the giver); /derive run floor:<sources>x<instruments> steps:<n> — derive from the notes at that standing; /derive show — live derived notes; /derive concede <noteId> because <trigger> — concede a premise and withdraw what rested on it.";
+  const fold = foldDeclarations(state.declarations);
+  const log = state.hyperlexiconLog;
+  const heardRows = (notes, standing) => notes.map((n) => [
+    `${n.subject} —${n.verb}→ ${n.object}`,
+    String(distinctWitnessSources(n.witnesses ?? []).size),
+    String((n.witnesses ?? []).filter((w) => String(w).includes("~")).length ? new Set((n.witnesses ?? []).map((w) => String(w).split("~")[1]).filter(Boolean)).size : 0),
+    standing,
+    n.spans?.[0]?.at ?? "—",
+  ]);
+  const status = () => {
+    const derived = log ? derivation.foldDerived(log) : [];
+    return [
+      `licences (a person's declarations): ${fold.given.length ? fold.given.map((g) => `⟪ ${g.yields ?? g.declKind} ⇐ ${g.rel} ⟫ by ${g.giver}`).join("; ") : "none — nothing composes until someone gives a licence"}`,
+      `candidates (yield nothing): ${fold.candidates.length}`,
+      `F5 heard (from bytes): ${log ? hyperlexiconFor.foldHyperlexicon(log).length : 0} · F6 derived (under licence, no witness of their own): ${derived.length}`,
+    ].join("\n");
+  };
+  if (!arg) {
+    const text = `${status()}\n${USAGE}`;
+    return levelsTurn(typed, text, (body) => {
+      if (fold.given.length) body.append(licenceQuote(fold.given));
+      else body.append(proseP("no licence yet — nothing composes until a person gives one."));
+      const heard = log ? hyperlexiconFor.foldHyperlexicon(log) : [];
+      body.append(proseP(`F5 heard from bytes: ${heard.length} note(s) · candidates on the register (yield nothing): ${fold.candidates.length}`));
+      const derived = log ? derivation.foldDerived(log) : [];
+      if (derived.length) body.append(derivedBox(derived));
+      body.append(proseP(USAGE));
+    });
+  }
+  const give = arg.match(/^give\s+(\S+)\s+yields\s+(\S+)\s+by\s+(.+)$/s);
+  if (give) {
+    const [, rel, yields, giver] = give;
+    const p = proposeCandidate(state.declarations, { kind: "composes", rel, yields, acquisition: { declared: "by a person at the /derive door", note: "no scan ran — this is testimony, not acquisition" }, source: "chat: /derive give" });
+    const pr = promoteDeclaration(p.log, p.id, { giver: giver.trim() });
+    if (!pr.ok) return usageTurn(typed, `refused (${pr.refusal?.type}): ${JSON.stringify(pr.refusal)}`);
+    state.declarations = pr.log;
+    mirrorTermRecord("derive-give", { rel, yields, giver: giver.trim(), via: "chat" });
+    const text = `⟪ ${yields} ⇐ ${rel} ⟫ by ${giver.trim()} — a licence: "${yields}" is declared the closure of "${rel}". This is your testimony, not the material's; it stands until conceded. Run /derive run floor:<s>x<i> steps:<n> to compose under it.`;
+    return levelsTurn(typed, text, (body) => {
+      body.append(licenceQuote([{ rel, yields, giver: giver.trim() }]));
+      body.append(proseP("Run /derive run floor:<sources>x<instruments> steps:<n> to compose under it."));
+    });
+  }
+  if (arg.startsWith("give")) return usageTurn(typed, "a licence needs a relation, a product and a NAME: /derive give <relation> yields <product> by <who>");
+  const run = arg.match(/^run\s+floor:(\d+)x(\d+)\s+steps:(\d+)$/);
+  if (run) {
+    if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard this session, so there are no premises.");
+    const floor = { sources: Number(run[1]), instruments: Number(run[2]) };
+    const maxSteps = Number(run[3]);
+    let r;
+    try { r = derivation.derive(log, { declarations: state.declarations, floor, maxSteps }); }
+    catch (err) { return usageTurn(typed, `refused: ${err?.message ?? err}`); }
+    state.hyperlexiconLog = r.log;
+    const summary = `derivation at floor ${floor.sources} source(s) × ${floor.instruments} instrument(s), ${r.steps} step(s)${r.quiescent ? ", quiescent" : ", step cap reached"}: ${r.premises.length} premise(s) stood, ${r.stopped.length} note(s) below the floor · licences ${r.licences.length} · withheld pairs (no giver) ${r.withheld.length} · vetoed pairs (giver refuted by the material) ${r.vetoed.length} · derived ${r.derived.length} (${r.derived.filter((d) => d.landed === "new").length} new)`;
+    const noRecipe = r.stopped.length && r.stopped.every((st) => st.instruments === 0) && floor.instruments > 0;
+    const lines = [summary];
+    for (const id of r.premises.slice(0, 6)) lines.push(`  F5 heard · premise ${id}`);
+    for (const st of r.stopped.slice(0, 4)) lines.push(`  F5 heard · below the floor: ${st.subject} —${st.verb}→ ${st.object}  (${st.sources} source(s), ${st.instruments} instrument(s))`);
+    if (noRecipe) lines.push(`  every stopped note's witnesses carry no recipe (~) — a chat turn admits bare source refs, so instrument independence cannot be counted here. Declare it not required: floor:${floor.sources}x0.`);
+    for (const d of r.derived.slice(0, 12)) lines.push(`  F6 derived · ⊢ ${d.subject} ⇒${d.verb}⇒ ${d.object}  no witness of its own · depth ${d.depth}, ${d.paths} path(s) · rests on ${d.grounds.length} heard note(s) · ${d.provenance.length} address(es) through them · licence by ${d.giver}`);
+    for (const v of r.vetoed.slice(0, 4)) lines.push(`  ✗ vetoed ${v.left} ∘ ${v.right}: ${(v.reasons ?? []).join("; ")}`);
+    if (!r.licences.length) lines.push("  nothing composes without a licence — /derive give <relation> yields <product> by <who>");
+    mirrorTermRecord("derive-run", { floor, maxSteps, premises: r.premises.length, stopped: r.stopped.length, derived: r.derived.length, vetoed: r.vetoed.length, withheld: r.withheld.length, via: "chat" });
+    logAct("derived", { text: `derive: ${r.derived.length} product(s) from ${r.premises.length} premise(s)` });
+    const notesById = new Map(hyperlexiconFor.foldHyperlexicon(log).map((n) => [n.id, n]));
+    return levelsTurn(typed, lines.join("\n"), (body) => {
+      body.append(proseP(summary));
+      if (r.licences.length) body.append(licenceQuote(r.licences));
+      const premiseNotes = r.premises.map((id) => notesById.get(id)).filter(Boolean);
+      const stoppedNotes = r.stopped.map((st) => notesById.get(st.id)).filter(Boolean);
+      if (premiseNotes.length || stoppedNotes.length)
+        body.append(heardTable([...heardRows(premiseNotes, "premise — at the floor"), ...heardRows(stoppedNotes, "below the floor")]));
+      if (noRecipe) body.append(proseP(`every stopped note's witnesses carry no recipe (~) — a chat turn admits bare source refs, so instrument independence cannot be counted here. Declare it not required: floor:${floor.sources}x0.`));
+      if (r.vetoed.length) body.append(levelFigure("veto · the material refuted a given licence", (() => { const p = document.createElement("p"); p.style.padding = "10px 14px"; p.style.margin = "0"; p.textContent = r.vetoed.map((v) => `✗ ${v.left} ∘ ${v.right}: ${(v.reasons ?? []).join("; ")} — nothing composes under it until the contradiction is conceded`).join("\n"); return p; })()));
+      if (r.derived.length) body.append(derivedBox(r.derived));
+      else if (!r.licences.length) body.append(proseP("nothing composes without a licence — /derive give <relation> yields <product> by <who>"));
+      else body.append(proseP("nothing derived: no two premises share a bridge under the given licence."));
+    });
+  }
+  if (arg.startsWith("run")) return usageTurn(typed, "the floor and the step cap are yours to declare: /derive run floor:<sources>x<instruments> steps:<n>");
+  if (arg === "show") {
+    const derived = log ? derivation.foldDerived(log) : [];
+    if (!derived.length) return usageTurn(typed, "no live derived notes.");
+    const text = ["F6 derived — construction under a licence, no witness of its own; every address below belongs to a PREMISE, never to the product:", ...derived.map((d) => `  ⊢ ${d.subject} ⇒${d.verb}⇒ ${d.object}  [${d.id}]  depth ${d.depth}${d.stated ? " · since also HEARD from bytes (a separate F5 note)" : ""} · rests on: ${d.premises.join(", ")} · through addresses: ${d.provenance.slice(0, 4).join(", ")}${d.provenance.length > 4 ? " …" : ""}`)].join("\n");
+    return levelsTurn(typed, text, (body) => {
+      body.append(proseP("Every address below belongs to a premise, never to the product."));
+      body.append(derivedBox(derived));
+    });
+  }
+  // a note id carries spaces ("andrew johnson|replaced|hannibal hamlin"),
+  // so the id runs non-greedily up to the " because " that opens the trigger
+  const concede = arg.match(/^concede\s+([\s\S]+?)\s+because\s+([\s\S]+)$/);
+  if (concede) {
+    if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing to concede.");
+    const noteBefore = hyperlexiconFor.foldHyperlexicon(log).find((n) => n.id === concede[1]);
+    const r = derivation.concedePremise(log, concede[1], { trigger: concede[2].trim() });
+    if (r.refused) return usageTurn(typed, `refused (${r.refused.type}): ${r.refused.detail}`);
+    state.hyperlexiconLog = r.log;
+    mirrorTermRecord("derive-concede", { note: concede[1], withdrawn: r.withdrawn.length, trigger: concede[2].trim(), via: "chat" });
+    const text = [`✗ conceded (REC) F5 heard note ${concede[1]} — ${concede[2].trim()}`, `F6 derived withdrawn with it (REC each, kept on the log): ${r.withdrawn.length}`, ...r.withdrawn.map((w) => `  ✗ ⊢ ${w.subject} ⇒${w.verb}⇒ ${w.object} (cascade depth ${w.cascadeDepth}, from ${w.cascadedFrom})`)].join("\n");
+    return levelsTurn(typed, text, (body) => {
+      body.append(concededList([
+        { line: `F5 heard · ${noteBefore ? `${noteBefore.subject} —${noteBefore.verb}→ ${noteBefore.object}` : concede[1]}`, why: concede[2].trim() },
+        ...r.withdrawn.map((w) => ({ line: `F6 derived · ⊢ ${w.subject} ⇒${w.verb}⇒ ${w.object}`, why: `cascade depth ${w.cascadeDepth}, from ${w.cascadedFrom}` })),
+      ]));
+      body.append(proseP(`${r.withdrawn.length} derived note(s) withdrawn with it. Nothing deleted: the entries stay on the log; the projections stop showing them.`));
+    });
+  }
+  if (arg.startsWith("concede")) return usageTurn(typed, "a concession records its reason: /derive concede <noteId> because <trigger>");
+  return usageTurn(typed, USAGE);
 }
 
 // The sentence witness for a checked turn (holon.js's `witnessSentences`
@@ -2438,6 +2692,11 @@ async function send(question) {
   // standing change carries its because, and a waiver names who waived.
   const mustCmd = question.match(/^\/must\b\s*([\s\S]*)$/);
   if (mustCmd) return mustTurn(mustCmd[1] ?? "", question);
+
+  // /derive — floor 6 (P80) as a door: a person licences a closure by name,
+  // declares the standing floor, and the ledger composes. Mechanical.
+  const deriveCmd = question.match(/^\/derive\b\s*([\s\S]*)$/);
+  if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
 
   // /reopen — restore the last open from the record's own rows (reopen.js).
   // Mechanical, no model, and RESTORE never RE-ADMIT: a source is opened by

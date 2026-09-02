@@ -10283,3 +10283,53 @@ conceded: hearing the same triple again does not resurrect it. Organ tests
 do not run in eoreader7's CI (its `npm test` covers `conformance/` and
 `tests/`); this file's evidence was run by hand, as every organ test in
 that directory is.
+
+**Amended 2026-09-02 — the door built, and driven live: `/derive`.** The
+named first consumer exists (app.js, blob-staged on HEAD per the
+shared-file rule): `/derive give <relation> yields <product> by <who>`
+(the PERSON is the giver, refused without a name — /act's warrant and
+/must's waiver posture), `/derive run floor:<sources>x<instruments>
+steps:<n>` (every number declared on the line, P9), `/derive show`,
+`/derive concede <noteId> because <trigger>`. Mechanical throughout;
+every act mirrors to the record (`derive-give` / `derive-run` /
+`derive-concede`, `via: "chat"`).
+
+Driven on the real page against real heard notes (gemma2:2b, two pasted
+sources, a grounded turn), four findings, in the order the page produced
+them — each one changed something:
+
+1. **A chat turn's witnesses carry no recipe.** Five notes heard, zero
+   stood at `floor:1x1`: `distinctRecipes` honestly reads 0 for a bare
+   source ref. `premisesOf` now accepts a DECLARED `instruments:0`
+   ("independence not required", said so), and the run output names the
+   stopped notes with their counts and says why.
+2. **The ends were debris, and no face had been earned.** `andrew
+   johnson|replaced|hannibal hamlin in march 1865` never bridged to
+   `hannibal hamlin|replaced|…`. The substrate now bonds on IDENTITY ends
+   (the id's, where the ledger folds earned faces) rather than display
+   strings — P73's seam consumed. On this material no face was earned at
+   all, so the fix had nothing to bond: the extractor's own end hygiene,
+   P74 lever 3, upstream and untouched.
+3. **The veto fired on the ledger's own contradiction, correctly.** With
+   clean sentences added beside the debris notes, `andrew johnson` stood
+   at the first end of `replaced` with two distinct partners — a
+   uniqueness violation of the adjacency claim — and the licence was
+   REFUSED, `vetoed: 1`, `derived: 0`. Conceding the three debris notes at
+   the door (each with its trigger) cleared it.
+4. **Then it composed:** 4 premises, 3 steps, quiescent, **6 derived** —
+   three at depth 1 (`Andrew Johnson ⇒after⇒ John Breckinridge`, …), three
+   at depth 2 with 2–3 paths each, every product walking to 5–11 real
+   addresses through its premises, none of its own. Conceding `hannibal
+   hamlin|replaced|john breckinridge` withdrew exactly the three products
+   resting on it (one at cascade depth 1, two at depth 2, each naming
+   what it cascaded from) and left three standing.
+
+Two door bugs found by driving, fixed: the concede grammar assumed a
+whitespace-free note id (real ids carry spaces — non-greedy up to
+` because ` now), and — user direction, same session — **different
+ontological and epistemological levels are rendered differently**: a
+heard note (F5, from bytes), a derived note (F6, construction under a
+licence, no witness of its own), a licence (a person's declaration) and
+a concession (REC) are four standings, and a product must never read as
+a sighting. They now render as four different kinds of block, not four
+glyphs on one kind of line — see the door's own header for the shapes.

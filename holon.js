@@ -1149,7 +1149,7 @@ export async function runPart({
     if (!standing.length) return null;
     return (
       `From earlier reading, confirmed independently in more than one place:\n` +
-      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${distinctSources(n.witnesses).size} places)`).join("\n")
+      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object}`).join("\n")
     );
   })();
 
@@ -1722,10 +1722,14 @@ export async function runPart({
   // case, not the corner. So a no-note turn still gets the deduplicated
   // raw block, with the notes block already stating that nothing could be
   // read out of it.
+  // The notes now carry their own verbatim sentences (fact-block.js,
+  // `grounded`), so a separate span list would repeat them — and the old
+  // one printed each span under its chunk ADDRESS, which had left the
+  // model's view on 2026-08-18 and crept back here. Only a notes block whose
+  // notes carry no quotes still gets the bare sentences, addressless.
   const spanBlock =
-    factBlock?.spans?.length
-      ? factBlock.spans.map((sp) => `${sp.ref}:
-"${sp.text}"`).join("\n\n")
+    factBlock?.spans?.length && !factBlock.grounded
+      ? [...new Map(factBlock.spans.map((sp) => [foldTypography(sp.text), sp.text])).values()].map((t) => `“${t}”`).join("\n")
       : null;
   const draftMaterial = factBlock
     ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")

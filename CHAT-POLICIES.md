@@ -337,3 +337,11 @@ draft shipping untouched (2 calls). Still open from the same direction:
 dedupe identical passages in the source block, activate only the notes
 the question's slot reaches, and decide whether the crown line belongs on
 a turn whose sentences already carry addresses.
+
+## Amendment 2026-09-02 — the minimum the model needs (P82)
+
+A note reaches the model as itself plus its own verbatim sentence(s), once
+— no address, no ref, no count, no separate span list. Everything else is
+the instrument's and stays on the instrument's side. Measured live: the
+same turn's prompt went from three copies of one sentence under three
+addresses to one note with one quote, and the first draft shipped.

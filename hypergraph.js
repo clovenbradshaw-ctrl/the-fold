@@ -881,6 +881,19 @@ export function makeRelationReader(organs) {
     // than silently assumed symmetric.
     phrasalPredicates = false,
     nounPhraseSubjects = false,
+    // THE RECEIVED OBJECT BOUNDARY (relations.js::objectBoundaryFrom, the-fold
+    // P74 lever 3, 2026-09-02). `objectBoundaryFrom` is injected (the cast.js
+    // pattern) and `boundedObjects` opts in; absent either, every
+    // extractRelations call below is byte-identical to before. When on, the
+    // boundary is built ONCE per relationsFor call from the same POS prior the
+    // vocabulary gate already reads, at the same GRAMMAR_MIN_SHARE — one
+    // declared share, cited, never a second number — and passed to ALL FOUR
+    // extraction sites (material passages, the assertion re-extraction, the
+    // answer's heard edges, the answer's unheard disclosure), because a claim
+    // and the edge it must match are read through the same organs or the
+    // match itself is meaningless (P11).
+    objectBoundaryFrom = null,
+    boundedObjects = false,
   } = organs;
   const indexFor = makeReferentIndex(organs);
 
@@ -1100,6 +1113,7 @@ export function makeRelationReader(organs) {
     // grammar disclosure must not narrow that; it only adds a caller-facing
     // fact about what was heard.
     const posPrior = organs.posPriorFor ? organs.posPriorFor() : null;
+    const objectBoundary = boundedObjects && objectBoundaryFrom && posPrior ? objectBoundaryFrom(posPrior, { minShare: GRAMMAR_MIN_SHARE }) : null;
     const vocabGrammar = new Map();
     let verbs = new Set();
     // How many DISTINCT surfaces each admitted verb followed — the
@@ -1479,6 +1493,7 @@ export function makeRelationReader(organs) {
                 negationWords,
                 ...(phrasalPredicates ? { phrasalPredicates } : {}),
                 ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+                ...(objectBoundary ? { objectBoundary } : {}),
               })
             : [];
         } catch {
@@ -1600,6 +1615,7 @@ export function makeRelationReader(organs) {
             negationWords,
             ...(phrasalPredicates ? { phrasalPredicates } : {}),
             ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}),
+            ...(objectBoundary ? { objectBoundary } : {}),
           }),
         draws: assert.draws,
         seed: assert.seed ?? 0,
@@ -1982,7 +1998,7 @@ export function makeRelationReader(organs) {
 
         let heard = [];
         try {
-          heard = extractRelations(sentence, { verbs: sentenceVerbs, functionWords, ...(phrasalPredicates ? { phrasalPredicates } : {}), ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}) });
+          heard = extractRelations(sentence, { verbs: sentenceVerbs, functionWords, ...(phrasalPredicates ? { phrasalPredicates } : {}), ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}), ...(objectBoundary ? { objectBoundary } : {}) });
         } catch {
           heard = [];
         }
@@ -1996,7 +2012,7 @@ export function makeRelationReader(organs) {
         try {
           const unheardVerbs = new Set([...answerVerbs].filter((v) => !verbs.has(v) && !sameActExtra.has(v)));
           if (unheardVerbs.size) {
-            for (const t of extractRelations(sentence, { verbs: unheardVerbs, functionWords, ...(phrasalPredicates ? { phrasalPredicates } : {}), ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}) })) {
+            for (const t of extractRelations(sentence, { verbs: unheardVerbs, functionWords, ...(phrasalPredicates ? { phrasalPredicates } : {}), ...(nounPhraseSubjects ? { nounPhraseSubjects } : {}), ...(objectBoundary ? { objectBoundary } : {}) })) {
               const subj = endpoint(t.subject, true);
               if (!subj.referents.size) continue; // a pronoun subject is noise here, not a claim about the cast
               report.claims.push({

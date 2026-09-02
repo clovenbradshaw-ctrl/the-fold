@@ -1,4 +1,5 @@
 import { splitSentences } from "./cite.js";
+import { foldTypography } from "./source.js";
 
 // fact-block.js — a structured fact list, extracted from the material
 // itself, handed to the model BEFORE it drafts. HYPERGRAPH-FIRST-
@@ -242,6 +243,18 @@ export function buildFactBlock(relations, passages, question = "") {
   const lines = [];
   const spans = [];
   const spanSeen = new Set();
+  // THE MODEL GETS THE NOTE AND ITS OWN WORDS, NOTHING ELSE (user direction,
+  // 2026-09-02: "the model doesn't need metadata for a given span, it should
+  // be given the minimum amount of info to respond well"). Each note carries
+  // the verbatim sentence(s) it was read from, keyed by folded text so a
+  // sentence heard in three passages is quoted ONCE — no address, no ref
+  // label, no witness count. The addresses stay on `spans` (below) for the
+  // instrument's own side: chips, the record, the fold. Measured before
+  // this: a real prompt carried the same sentence three times, each under
+  // its chunk address, in a separate list the model had to re-join to the
+  // notes by itself.
+  const quotesByLine = new Map();
+  const quoteKeys = new Map();
   let sentenceCount = 0;
   let boundSentenceCount = 0;
   for (const p of passages) {
@@ -271,7 +284,8 @@ export function buildFactBlock(relations, passages, question = "") {
       if (seen.has(key)) continue;
       seen.add(key);
       const negated = claim.polarity === "-" ? " not" : "";
-      lines.push(`${claim.end1} —${negated} ${claim.label}→ ${claim.end2}`);
+      const line = `${claim.end1} —${negated} ${claim.label}→ ${claim.end2}`;
+      lines.push(line);
       // THE SPANS THAT PRODUCED THIS NOTE, and only those (user direction,
       // 2026-08-28: "use only the spans linked to the precise hyperlexicon
       // elements"). A note is defeasible, so what defeats it has to be
@@ -280,12 +294,18 @@ export function buildFactBlock(relations, passages, question = "") {
       // carried "'President Lincoln' and 'Mr. Lincoln' redirect here" as
       // though it were evidence. The sentence that actually bound the claim
       // is the evidence, it is byte-addressed, and it is what goes.
+      const quotes = quotesByLine.get(line) ?? [];
       for (const sp of claim.spans ?? []) {
         const at = `${sp.ref}#${sp.start}-${sp.end}`;
-        if (spanSeen.has(at)) continue;
-        spanSeen.add(at);
-        spans.push({ at, ref: sp.ref, text: String(sp.text ?? "").replace(/\s+/g, " ").trim() });
+        const text = String(sp.text ?? "").replace(/\s+/g, " ").trim();
+        if (!spanSeen.has(at)) { spanSeen.add(at); spans.push({ at, ref: sp.ref, text }); }
+        const k = foldTypography(text);
+        if (!k) continue;
+        const keys = quoteKeys.get(line) ?? new Set();
+        if (!keys.has(k)) { keys.add(k); quotes.push(text); }
+        quoteKeys.set(line, keys);
       }
+      quotesByLine.set(line, quotes);
     }
     boundSentenceCount += boundSentences.size;
   }
@@ -335,9 +355,12 @@ export function buildFactBlock(relations, passages, question = "") {
   const ranked = rankByQuestion(lines, questionTerms);
   const shown = ranked.slice(0, MAX_FACT_LINES);
   const coverage = sentenceCount ? Math.round((boundSentenceCount / sentenceCount) * 100) : 0;
+  const grounded = shown.some((l) => (quotesByLine.get(l) ?? []).length > 0);
   return {
     lines: shown,
     allLines: ranked,
+    quotesByLine,
+    grounded,
     // The other register, ready to render: minimal, byte-addressed, and
     // each under the source that wrote it.
     spans,
@@ -381,6 +404,6 @@ export function buildFactBlock(relations, passages, question = "") {
     text:
       `My notes so far — what I made of the sources, which may be wrong; ` +
       `where a note and a source disagree, the source is right:\n` +
-      shown.map((l) => `- ${l}`).join("\n"),
+      shown.map((l) => [`- ${l}`, ...(quotesByLine.get(l) ?? []).map((q) => `  “${q}”`)].join("\n")).join("\n"),
   };
 }

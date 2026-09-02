@@ -328,3 +328,23 @@ test("dedupeSourceText: null/empty inputs are handled without a throw, with or w
   assert.deepEqual(dedupeSourceText([{ ref: "a#0", text: "" }]), [{ ref: "a#0", text: "" }]);
   assert.deepEqual(dedupeSourceText([], freshRelations([PASSAGE_1])), []);
 });
+
+
+test("GROUNDED NOTES: each note carries its own verbatim sentence, quoted once however many passages state it, with no address or count anywhere near it", () => {
+  const relations = {
+    read: (text) => ({
+      examined: true,
+      claims: [{ verdict: "bound", sentence: text, end1: "Hannibal Hamlin", label: "replaced", end2: "John Breckinridge", polarity: "+",
+        spans: [{ ref: "p.txt", start: 0, end: text.length, text }] }],
+    }),
+  };
+  const sent = "Hannibal Hamlin replaced John Breckinridge.";
+  const block = buildFactBlock(relations, [
+    { ref: "p.txt#0-40", text: sent }, { ref: "p.txt#41-80", text: sent }, { ref: "q.txt#0-40", text: sent },
+  ], "who replaced whom?");
+  assert.equal(block.grounded, true);
+  assert.equal(block.lines.length, 1, "one note, however many passages restate it");
+  assert.equal((block.text.match(/Hannibal Hamlin replaced John Breckinridge\./g) ?? []).length, 1, "the sentence is quoted exactly once: " + block.text);
+  assert.match(block.text, /- Hannibal Hamlin — replaced→ John Breckinridge\n  “Hannibal Hamlin replaced John Breckinridge\.”/, "the quote sits under its note");
+  assert.doesNotMatch(block.text, /#\d|p\.txt|read in \d/, "no address, no ref, no count reaches the model");
+});

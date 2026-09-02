@@ -10412,3 +10412,59 @@ The crown line restated one sentence of an answer that already carried
 its address — a fifth layer on a four-line answer; whether the crown
 belongs on a turn whose every sentence is addressed is a decision, not a
 bug, and it is not taken here.
+
+## P82 — The model gets the note and its own words, nothing else; the adposition cut is refuted at book scale (2026-09-02)
+
+**Generality:** universal (the prompt rule); specimen-scoped (the cut).
+
+**Two directions, same hour.** *"I thought we were going to prompt the
+system with hypergraph notes grounded in verbatim spans?"* — then, on
+seeing what a span carried into the prompt: *"the model doesn't need to
+have metadata for a given span, it should be given the minimum amount of
+info to respond well."*
+
+**What the prompt was doing.** The design existed (2026-08-28: notes
+first, then only the spans that bound them, raw text as the fallback), but
+the spans went in a SEPARATE list, each under its chunk ADDRESS
+(`pasted.txt#0-173:`) — addresses had left the model's view on 2026-08-18
+and had crept back — and the same sentence stated in three passages went
+three times. The model had to re-join notes to spans by itself; the ledger
+block added "(read in 2 places)" to every line.
+
+**The rule.** A grounded note is ONE unit: the note, then the verbatim
+sentence(s) it was read from, quoted once by folded text however many
+passages state it. No address, no ref label, no witness count, no
+coverage figure — every one of those is the instrument's, and every one
+stays on the instrument's side (`spans` with addresses for chips, the
+record, the fold). `buildFactBlock` renders it; `spanBlock` is gone unless
+a notes block carries no quotes at all (then bare sentences, addressless);
+the ledger block's per-line counts are gone. Pinned:
+`fact-block.test.mjs` — one note for three restatements, the quote under
+its note, `/#\d|p\.txt|read in \d/` absent from the text. Live, same
+question: a 1,725-char system message with every note carrying its words,
+the answer right on the first draft, 2 calls.
+
+**The cut — built, measured, refuted, kept.** The end-hygiene lever named
+as the next step (P74 lever 3) was built as `relations.js::
+objectBoundaryFrom` — the POS prior's adposition class, a received giver,
+no word list — first as a stop class (edges 1644 → 2647: the scan resumed
+inside the truncated adjunct; a random stop set did the same), then as a
+post-trim (match set byte-identical). Measured on 400 Dracula passages
+through the production reader: **782 objects moved, earned faces +15 /
+−48.** In narrative prose the referent sits after the preposition; the cut
+removes it. The VP specimen is the case where the referent comes first —
+specimen-scoped, P71's own gate applied to this repo's own proposal. It
+ships opt-in, pinned (including the disclosed "Duke of Wellington" cost),
+with a re-runnable driver and a results doc (eoreader7
+`results/object-boundary-RESULTS.md`), and NOT on in the production
+reader. Lexicon on that text: 92.6% of occurrences attested, 63.0% of
+types — names and period vocabulary are the gap; any boundary rule is
+bounded by that.
+
+**Where it points.** The identity the ledger keys on is the earned face;
+debris in the display never mattered where a face was earned. The live
+specimen bit because NO face was earned on a three-sentence paste. The
+lever is (a) why the face wire earned nothing there, and (b) a
+referent-aware trim at `hypergraph.js::endpoint` — cut after an earned
+face only when nothing earned follows — a rule about referents, not
+adpositions. Not built here.

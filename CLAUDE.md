@@ -7284,3 +7284,21 @@ etc."* — P81's closing paragraph names the three parts not taken here
 (dedupe identical passages in the source block; activate only the notes
 the question's slot reaches; decide whether the crown line belongs on an
 already-addressed answer).
+
+## The minimum the model needs; the adposition cut refuted — P82 (added 2026-09-02) — pointer
+
+POLICIES.md **P82** is the law. User direction: *"the model doesn't need to
+have metadata for a given span, it should be given the minimum amount of
+info to respond well."* `buildFactBlock` now renders each note with its own
+verbatim sentence(s) beneath it, quoted once by folded text; no address,
+ref, count or coverage figure reaches the model (they stay on `spans` for
+the instrument); `spanBlock` and the ledger block's "(read in N places)"
+are gone. The end-hygiene lever (P74 lever 3) was built as a received
+adposition post-trim in eoreader7 (`relations.js::objectBoundaryFrom`,
+opt-in, pinned) and **measured on Dracula: earned faces +15 / −48 among
+782 moved objects** — narrative prose puts the referent after the
+preposition. Refuted at book scale, specimen-scoped for the VP paste, not
+shipped on; `hypergraph.js` carries the opt-in organ (`objectBoundaryFrom`
++ `boundedObjects`), byte-identical when absent. Lexicon coverage on
+Dracula: 92.6% of occurrences, 63.0% of types. Next lever: why the face
+wire earned nothing on the paste, and a referent-aware trim at `endpoint`.

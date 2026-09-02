@@ -7104,3 +7104,14 @@ The staying tests that read fixtures (`primary`, `priors`, `web`, `wikidata`,
 `hypergraph`) read them across the boundary at
 `../eoreader7/native/eval/the-fold/fixtures/`. The concurrent session's
 untracked files under `eval/` were not touched and remain here.
+
+## The boundary (2026-09-02)
+
+eoreader7 owns kernel, adapters, organs, and evals; the-fold owns the
+surface. The surface imports organs through ONE seam,
+`../eoreader7/native/organs/index.js` (served to the page by serve.mjs's
+`/eoreader7/native/` alias onto the `/engine-v7` root, typed by page-graph
+as that mount). One-line shims stand at the moved organs' old paths for
+stale importers only. Still here, deferred with the reason in the seam's
+header: `hypergraph.js` (closure reaches the surface through grounding.js
+→ source.js/web.js), `testimony.js`, `capacity-runner.js`.

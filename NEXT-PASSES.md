@@ -147,11 +147,27 @@ compatible, and the tests encode the older one. Two (referent bar) report
 `candidates: 0` — the extractor nominating nothing on that fixture, which
 needs its own diagnosis.
 
+**The referent-bar zero, diagnosed the same day.** `extractLeadingSurfaces`
+— the organ the mechanism is built on, described in hypergraph.js's own
+header and imported BY NAME by the test — **existed in neither engine
+provider**, so the import yielded `undefined`, the mechanism could never
+run, and the tests could never pass. Built now in eoreader7
+(`native/adapters/text/surfaces.js`, 6 conformance cases, 463/463). With
+it present the two tests STILL fail, and the cause is now measured:
+`resolvePronouns` returns 8 gaps, all `pronoun_no_candidate` ("no
+admissible candidate has been activated yet"), because the fixture
+mentions its name once and activation never activates it. That is the
+mechanism's OWN disclosed cold-start limit, which the tests assert past.
+**Not fixed by moving a threshold** — that would be tuning against a
+golden.
+
 **Recommendation before the 221-site rename: do not migrate against this
 suite yet.** A rename wants a green, production-configured baseline to
-move under, and the production configuration is at 52/58 with two
-undiagnosed failures. Settling the grammar-filter supersession and the
-referent-bar zero first is the cheaper order.
+move under. Two of the four remaining failures are the grammar-filter
+DESIGN SUPERSESSION (a decision about which rule wins, not a fix), and two
+are a disclosed capability limit the tests over-claim. Settling those —
+either by deciding the supersession or by rewriting the two referent-bar
+tests to assert the limit rather than past it — is the cheaper order.
 
 ## Tier 3 — make THE-THREE-MATHEMATICS earn its keep
 

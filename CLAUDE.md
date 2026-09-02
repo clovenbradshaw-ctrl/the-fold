@@ -6735,7 +6735,32 @@ gain (junk labels 18 → 0). Both are defensible, they are not compatible,
 and the tests encode the older one. The other two (referent bar) report
 `candidates: 0` and need their own diagnosis.
 
+**The referent-bar zero, diagnosed the same day, and one real absence
+closed.** `extractLeadingSurfaces` — the organ that mechanism is built
+on, described in hypergraph.js's own header and imported BY NAME by the
+test — **existed in neither engine provider**. The import yielded
+`undefined`, so the mechanism could never run and its tests could never
+pass; invisible for as long as the file could not load. Built now in
+eoreader7 (`native/adapters/text/surfaces.js`): the mirror of
+`extractSurfaces`, returning the capitalised runs that OPEN a sentence,
+evidence-free by contract (ordinary words like "The" ARE returned —
+filtering there would be reading capitalisation as evidence again, which
+the main scan refuses), reusing the main scan's own tokenisation and
+break rules rather than a second drifting copy. 6 conformance cases,
+463/463 native.
+
+With the organ present the two tests STILL fail, and the cause is
+measured rather than guessed: `resolvePronouns` returns 8 gaps, all
+`pronoun_no_candidate` ("no admissible candidate has been activated
+yet"), because the fixture mentions its name once and activation never
+activates it — the mechanism's OWN disclosed cold-start limit, which the
+tests assert past. **Not fixed by moving a threshold**: that would be
+tuning against a golden.
+
 **Recommendation, recorded rather than acted on:** do not migrate the
-221 call sites against this suite yet. A rename wants a green,
-production-configured baseline to move under; settle the grammar-filter
-supersession and the referent-bar zero first.
+221 call sites against this suite yet. Two of the four remaining
+failures are the grammar-filter DESIGN SUPERSESSION (a decision about
+which rule wins, not a fix); two are a disclosed capability limit the
+tests over-claim. Settle those first — by deciding the supersession, and
+by rewriting the referent-bar tests to assert the limit rather than past
+it.

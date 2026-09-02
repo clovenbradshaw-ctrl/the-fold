@@ -7244,3 +7244,14 @@ code here changed — the production reader inherits the walls through the
 moved extractor. The one lesson to carry: the first cut's tally looked
 right and its rewrite list did not; diff every rewritten subject against
 the old one before trusting a debris count.
+
+## Floor 5 ran live, and the gate is the question (added 2026-09-02) — pointer
+
+POLICIES.md **P83**; eoreader7 **S45**; `dracula-witness-walk-RESULTS.md`
+there. Ollama runs on CPU in the container (gemma2:2b, ~3s a read). Two
+things to carry: `distinctSources` counted CHUNKS as sources until today —
+every ≥2-source number computed off chunk-addressed witnesses was
+inflated, and the fix is in eoreader7's `corroboration.js`; and the
+corrected floor-5 number (1 in 60 on a novel, 1 in 30 on a page pair, zero
+lies) is not a weak witness but the material — so the next decision is the
+ledger block's ≥2 gate in `holon.js`, not another corroboration lever.

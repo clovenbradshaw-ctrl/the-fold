@@ -10323,3 +10323,39 @@ name's left ("the window Lucy") needs the prior's noun forms as a wall.
 
 **Not verified live:** the effect on the ledger's ≥2-witness rate needs a
 model to attest, which this checkout cannot run.
+
+## P83 — Floor 5 measured live: a single-source note is evidence, and the gate that withholds it is guarding a diet that no longer arrives (2026-09-02)
+
+**Generality:** universal (the standing); specimen-scoped (the numbers).
+
+**What ran.** With Ollama on CPU in the container, the witness walk ran
+over a ledger read from a real novel and over the two-page encyclopedic
+ledger, both with the subject walls on (P82) — eoreader7 **S45** and
+`dracula-witness-walk-RESULTS.md`. Zero lies on eight planted
+fabrications across three runs.
+
+**What it found first was a bug this repo's numbers stand on.** A
+mechanical witness carries its passage address and a testimony witness
+does not, and `distinctSources` compared the strings as they came, so a
+page re-witnessing its own note counted as a second source. Every
+≥2-source figure computed here off chunk-addressed witnesses — the
+ledger block's own gate in `holon.js`, the ~2% book corroboration, the
+7-vs-6 select-vs-generate result — was inflated. The organ now reduces a
+witness to its ref; the-fold's suite is unchanged by name.
+
+**The corrected numbers.** Novel: 1 cross-source attestation in 60 asks,
+53 honest refusals. Page pair: 1 in 30 per arm. Not a weak witness — a
+novel does not restate its propositions across chapters, and two pages
+about one battle restate a few.
+
+**The standing this forces, named and not yet built.** The ≥2-witness
+gate on what reaches the model was chosen when the door admitted junk
+(P73: 18 of 29 notes carried a closed-class label). The door is clean now
+(P74's ground, P82's walls). A note with a verified address, real ends and
+a real label is evidence at one witness; its lack of corroboration should
+be disclosed on the note, never used to withhold the whole reading of a
+book from the model. NEXT-PASSES's own gate ("if Tier 1 cannot raise
+clean votes per ask, the floor's DESIGN is what gets re-examined") has
+fired: the re-examination is this paragraph, and the change it names is
+the ledger block's gate in `holon.js` — a decision for the next pass, with
+the model reachable here to measure it.

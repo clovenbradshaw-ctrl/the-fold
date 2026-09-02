@@ -302,6 +302,16 @@ media, a different axis.
 
 ## The gate on the whole plan
 
+**Fired 2026-09-02 (P83).** The witness walk ran live on CPU over a real
+novel and the page pair, with the walls on and the source count
+corrected: 0.017 and 0.033 clean votes per ask, zero lies. The number
+cannot be raised on a novel — restatement across chapters is structurally
+rare — so the floor's DESIGN is what gets re-examined: the ≥2-witness gate
+on the ledger block (`holon.js`) withholds a book's whole reading from the
+model to guard against a diet the door no longer admits. Next pass: a
+single-witness note with a verified address reaches the model with its
+corroboration DISCLOSED, measured live against the current gate.
+
 Every pass above ships with a control built to fail, and the week's
 record is why: the controls caught the engine's basin null, the redeal
 null's direction, the membership test's grain, the enforcement test's

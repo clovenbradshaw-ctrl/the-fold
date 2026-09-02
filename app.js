@@ -90,8 +90,8 @@ import { renderBlocksInto } from "./render.js";
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxed } from "./term.js";
 
 import { makeGrid } from "./grid.js";
-import { findCapacity, listCapacities, unresolvedCapacity } from "./capacities.js";
-import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "./capacity-runner.js";
+import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "../eoreader7/native/organs/index.js";
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
@@ -198,9 +198,9 @@ import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
 import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
-import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "./testimony.js";
-import { corroborateLedger, distinctSources as distinctWitnessSources } from "./corroboration.js";
-import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "./obligation.js";
+import { WITNESS_SCHEMA, buildWitnessMessages, foldTestimony, readTestimony, siblingSwap, witnessSlice } from "../eoreader7/native/organs/index.js";
+import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
+import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this

@@ -50,7 +50,7 @@
 import { delimitedTable } from "./source.js";
 import { LESSONS, stepLesson } from "./term-lessons.js";
 import { parseHandbookIndex, findChapter } from "./handbook.js";
-import { landAct } from "./capacity-runner.js";
+import { landAct } from "../eoreader7/native/organs/index.js";
 import { looksMutating, detectTables, deriveStoreOps, sanitizeTableName, opsFromCsvTable } from "./store-sql.js";
 import { conduct, verifyLoop, depends as dependsOnAct, corroborate, enumerateSlot, RUNGS } from "./interact.js";
 

@@ -18,7 +18,7 @@
 //   NO SELF CO-SIGN — a row authored self:model, or one carrying no address
 //     (readsNothing), is not an open.
 //   RESTORE, NEVER RE-ADMIT — rows are not mutated; the pick is frozen.
-import { readsNothing, SELF_WITNESS } from "./capacity-runner.js";
+import { readsNothing, SELF_WITNESS } from "../eoreader7/native/organs/index.js";
 
 /**
  * Which record events OPEN something, and where the row's own address lives.

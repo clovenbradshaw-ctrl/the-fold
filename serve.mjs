@@ -561,6 +561,13 @@ createServer((req, res) => {
       return;
     }
   }
+  // A the-fold module importing "../eoreader7/native/organs/index.js" (the
+  // organ seam, Phase 0 of the organ migration) is resolved by the browser
+  // to "/eoreader7/native/…" — the same tree /engine-v7 already serves. And
+  // the seam's own Phase-0 re-exports of "../../../the-fold/x.js" resolve
+  // to "/the-fold/x.js" — this directory. Two aliases, no new roots.
+  if (rel.startsWith("/eoreader7/native/")) file = join(ENGINE_V7, rel.slice("/eoreader7/native/".length));
+  if (rel.startsWith("/the-fold/")) file = join(ROOT, rel.slice("/the-fold/".length));
   if (rel.startsWith("/engine-v7/")) {
     file = join(ENGINE_V7, rel.slice("/engine-v7/".length));
     if (!file.startsWith(ENGINE_V7)) {

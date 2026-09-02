@@ -171,8 +171,16 @@ export function classify(spec, fromFile) {
   if (spec.startsWith(VENDOR.prefix)) return { where: "vendored", why: VENDOR.why };
   if (spec.startsWith("/")) return { where: "local", path: spec.slice(1).split(/[?#]/)[0] };
   if (/^[.]{1,2}\//.test(spec) || HTML.test(spec) || CSS.test(spec) || CODE.test(spec)) {
-    const joined = join(dirname(fromFile), spec.split(/[?#]/)[0]);
-    return { where: "local", path: normalize(joined) };
+    const joined = normalize(join(dirname(fromFile), spec.split(/[?#]/)[0]));
+    // A relative import that climbs out of this directory into eoreader7's
+    // native tree (the organ seam, "../eoreader7/native/organs/index.js") is
+    // the /engine-v7 mount by another spelling: the browser resolves it to
+    // /eoreader7/native/…, which serve.mjs aliases onto ENGINE_V7. Typed as
+    // that mount — with the spec rewritten so servedLocally checks the same
+    // bytes — never as a local file that happens not to exist.
+    const v7 = MOUNTS.find((m) => m.prefix === "/engine-v7/");
+    if (joined.startsWith("../eoreader7/native/")) return { where: "external", mount: v7.prefix, why: v7.why, spec: v7.prefix + joined.slice("../eoreader7/native/".length) };
+    return { where: "local", path: joined };
   }
   // A bare specifier has no meaning in a browser without an import map, and
   // this page has none — so it is a fact worth reporting, not a silent skip.

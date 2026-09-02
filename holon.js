@@ -1093,7 +1093,10 @@ export async function runPart({
         // contract (P57's independent ledger vocabulary, not this claim's),
         // so the destination keys stay as they are — only the source read
         // moved off the legacy names.
-        .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
+        // end1Face/end2Face ride along so hear() keys identity on the earned
+        // face (the Station-3→4 wire, door side) — measured dark live
+        // 2026-09-02 because claims never carried them.
+        .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [], end1Face: c.end1Face ?? null, end2Face: c.end2Face ?? null }));
       if (!edges.length) continue;
       const admitted = hyperlexicon.admit(
         beliefNotes ?? hyperlexicon.createHyperlexicon(),

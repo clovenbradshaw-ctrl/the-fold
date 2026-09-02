@@ -7302,3 +7302,11 @@ shipped on; `hypergraph.js` carries the opt-in organ (`objectBoundaryFrom`
 + `boundedObjects`), byte-identical when absent. Lexicon coverage on
 Dracula: 92.6% of occurrences, 63.0% of types. Next lever: why the face
 wire earned nothing on the paste, and a referent-aware trim at `endpoint`.
+
+**Amended same day — the face reaches the ledger.** The paste DID earn
+faces offline (4/5); `holon.js` admits from `read(text).claims`, and claims
+never carried `end1Face`/`end2Face` — the wire was on edges only. `judge()`
+now stamps `faceOf` on every claim; holon forwards it; pinned on the real
+paste through the real reader and ledger. Live, notes fold across sources
+without concessions. Remainder: "March" admitted as a being blocks one
+face (two beings in one object) — P79's kind gate with no caller.

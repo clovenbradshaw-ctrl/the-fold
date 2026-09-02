@@ -1719,6 +1719,16 @@ export function makeRelationReader(organs) {
       // `obj` is never built with forms (see endpoint()'s own comment), so
       // `obj.formOnly` is always false and is not read here.
       claim.formBased = Boolean(subj.formOnly);
+      // THE FACE RIDES THE CLAIM, NOT ONLY THE EDGE (2026-09-02). The
+      // Station-3→4 wire stamped end1Face/end2Face onto material EDGES, but
+      // holon.js admits the ledger from a passage's CLAIMS (read(text)), so
+      // every live note was keyed on raw strings — "hannibal hamlin in march
+      // 1865" beside "hannibal hamlin" — while offline the same reader
+      // earned 4 of 5 faces on the same paste. Same organ, same rule
+      // (exactly one real being, fragments nesting by containment), stamped
+      // where the ledger actually reads it.
+      claim.end1Face = faceOf(subj);
+      claim.end2Face = faceOf(obj);
       // HOW each endpoint resolved, disclosed on EVERY claim that gets far
       // enough to have endpoints at all — additive, never a gate, and never
       // read by anything in this function's own verdict arithmetic.

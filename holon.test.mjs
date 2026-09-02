@@ -1812,3 +1812,55 @@ test("classifyConnector threads from runHolonicTask through runPart to the admit
   assert.ok(unthreaded.length > 0, "the door was reached on the default path too");
   for (const o of unthreaded) assert.equal(o.classifyConnector, null, "absent, the gate is null — never a silent default lens");
 });
+
+// ── the face rides the claim into the ledger (2026-09-02) ───────────────────
+// Measured dark live: the door admits from read(text).claims, the face wire
+// was stamped on edges only, so every live note was keyed on raw strings
+// ("hannibal hamlin in march 1865" beside "hannibal hamlin"). Real reader,
+// real ledger organ, the exact paste — the note ids must carry the earned
+// face where one was earned, and the disclosed two-beings case stays debris.
+test("THE FACE REACHES THE LEDGER: a live-shaped admit keys notes on earned faces, not on the extractor's trailing adjuncts", async () => {
+  const { readFileSync } = await import("node:fs");
+  const NATIVE = new URL("../eoreader7/native/", import.meta.url).pathname;
+  const { splitSentences } = await import(`${NATIVE}adapters/text/spans.js`);
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(`${NATIVE}adapters/text/surfaces.js`);
+  const { resolvePronouns } = await import(`${NATIVE}adapters/text/pronouns.js`);
+  const { discoverRelationVocab, extractRelations } = await import(`${NATIVE}adapters/text/relations.js`);
+  const { tokenize } = await import(`${NATIVE}adapters/text/material.js`);
+  const enginePriors = await import(`${NATIVE}adapters/text/priors.js`);
+  const TL = await import(`${NATIVE}kernel/task-log.js`);
+  const { makeHyperlexicon } = await import(`${NATIVE}organs/hyperlexicon.js`);
+  const { blankLabelRows } = await import("./source.js");
+  const posPrior = JSON.parse(readFileSync(new URL("./priors-data/pos-prior-eng.json", import.meta.url), "utf8"));
+  const reader = (passages, opts) => makeRelationReader({
+    splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm, discoverRelationVocab, extractRelations, tokenize,
+    posPriorFor: () => posPrior,
+    determiners: new Set([...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS]),
+    negationWords: enginePriors.NEGATION_WORDS,
+    blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+    resolvePronouns, nounPhraseSubjects: true,
+  })(passages, opts);
+  const hl = makeHyperlexicon(TL);
+  const chunks = [
+    ...chunkSource("pasted.txt", "Hannibal Hamlin replaced John Breckinridge as vice president in 1861. Andrew Johnson replaced Hannibal Hamlin in March 1865. Schuyler Colfax replaced Andrew Johnson in 1869."),
+    ...chunkSource("pasted-2.txt", "Hannibal Hamlin replaced John Breckinridge. Andrew Johnson replaced Hannibal Hamlin. Schuyler Colfax replaced Andrew Johnson. Henry Wilson replaced Schuyler Colfax."),
+  ];
+  const result = await runHolonicTask({
+    task: "Who replaced whom as vice president, in order?",
+    chunks,
+    call: async () => "Hannibal Hamlin replaced John Breckinridge. Andrew Johnson replaced Hannibal Hamlin. Schuyler Colfax replaced Andrew Johnson. Henry Wilson replaced Schuyler Colfax.",
+    makeRelationReader: reader,
+    hyperlexicon: hl,
+    hyperlexiconLog: null,
+    planMode: "flat",
+  });
+  const ids = hl.foldHyperlexicon(result.hyperlexiconLog).map((n) => n.id);
+  assert.ok(ids.includes("hannibal hamlin|replaced|john breckinridge"), "the '…as vice president in 1861' reading keys on its earned face: " + ids.join(" ; "));
+  assert.ok(!ids.includes("hannibal hamlin|replaced|john breckinridge as vice president in 1861"), "no raw-string twin of it");
+  assert.ok(ids.includes("schuyler colfax|replaced|andrew johnson") && !ids.includes("schuyler colfax|replaced|andrew johnson in 1869"), ids.join(" ; "));
+  // the disclosed two-beings case: "Hannibal Hamlin in March 1865" resolves
+  // to TWO referents (hamlin, and March admitted as a being — the kind gate
+  // with no caller, P79) so no face is earned and the note stays raw. Pinned
+  // as the honest limit, not smoothed over.
+  assert.ok(ids.includes("andrew johnson|replaced|hannibal hamlin in march 1865"), "two beings in one object: no face, raw id kept — " + ids.join(" ; "));
+});

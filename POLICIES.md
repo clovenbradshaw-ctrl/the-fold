@@ -10468,3 +10468,24 @@ lever is (a) why the face wire earned nothing there, and (b) a
 referent-aware trim at `hypergraph.js::endpoint` — cut after an earned
 face only when nothing earned follows — a rule about referents, not
 adpositions. Not built here.
+
+**Amended 2026-09-02 — the face reaches the ledger.** The "why did a
+three-sentence paste earn no face" question P82 named was answered the
+same hour by reproducing the paste offline through the production reader:
+it earned 4 of 5 faces. The darkness was between the reader and the door:
+`holon.js` admits the ledger from `read(text).claims`, and the Station-3→4
+face wire had been stamped on material EDGES only — claims never carried
+`end1Face`/`end2Face`, so `hear()` keyed every live note on raw strings.
+Fixed at the source, symmetrically: `judge()` stamps `faceOf` on every
+claim's ends (the same organ, the same exactly-one-real-being rule), and
+holon's admit map forwards them. Pinned through the REAL reader and the
+REAL ledger organ on the exact paste (`holon.test.mjs`): the note keyed
+`hannibal hamlin|replaced|john breckinridge`, no raw-string twin. Live, no
+concessions: the two pastes' notes fold to one note each at 2–3 sources.
+
+**The one honest remainder, pinned rather than hidden:** "Hannibal Hamlin
+in March 1865" resolves to TWO beings — "March" was admitted as a referent
+— so no face is earned and the raw note stands beside the clean one, and
+the uniqueness veto fires on it. That is P79's kind gate with no caller,
+now visible as a face loss: the next lever, and a cheaper one than any
+cut. `hypergraph.test.mjs` runs 58/58 under both providers after this.

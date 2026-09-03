@@ -7275,3 +7275,19 @@ never reached. The `primary` switch is default OFF; `/ranke <maxFetches>
 [maxSearches]` is the door. Wording rule, from the user: nothing here
 claims what is true — the ledger is the richest map of what claims are
 made about the truth, and by whom.
+
+**Amended 2026-09-03 — worked backwards on Apollo 11** (`ranke-backwards-
+RESULTS.md` in eoreader7; P84's second amendment; S46's amendment). Four
+runs earned three rules in `ranke.js` — the footnote is the lead (a
+marker in the prose is an in-page link to one numbered note), a marker at
+a span's start is the previous sentence's, and a cited address is not the
+cited document (title-word identity, then the archive copy) — and one
+environment fact worth not re-finding: Node's fetch ignores `HTTPS_PROXY`
+without `NODE_USE_ENV_PROXY=1`, and Wayback 403s the direct path, so a
+run that reads no archive copies has measured a route. The wall that
+remains is paraphrase: containment is at parity with its control at every
+grain (twice), and 162 of 226 partial notes are missing the object. The
+witness crossed one such gap for real (Safire's memo, through the note's
+own footnote). Next rung: the witness on footnote-bound partials with the
+window chosen by referent activation, not word containment — never a
+tenth matcher.

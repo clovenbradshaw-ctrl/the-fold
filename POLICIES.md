@@ -10447,3 +10447,26 @@ load of the real page was byte-identical in outcome to HEAD (the same
 `/engine/emergence/tiers.js` 404 leaves the not-served banner up in this
 checkout with or without this pass; the `primary` switch renders,
 unchecked; zero exceptions either way).
+
+**Amended 2026-09-03 (second) — backwards from a readable-source
+article.** eoreader7 S46's same-day amendment carries the organ-side
+account and `eval/the-fold/results/ranke-backwards-RESULTS.md` the
+numbers; the surface-side facts worth holding here: the chase's leads
+are the article's own FOOTNOTES first (a marker is an in-page link to
+one numbered note whose outbound links are the source for that
+sentence), overlap-ranked links only after — run 1's overlap ranking was
+out-hit by its own control; a cited ADDRESS is not the cited DOCUMENT
+(half the footnote-bound NASA addresses on the Apollo 11 article now
+serve a portal), so a face must carry the citation's title words or the
+archive copy is read — which makes the archive route a load-bearing
+dependency of `/api/ranke` and its reachability a fact to be measured,
+never assumed (run 3's zero archive reads were a proxy route, cached as
+document gaps); and after four runs the honest shape is that containment
+sits at parity with its control at every grain (18 vs 16 same-sentence,
+9 vs 5 window), the witness signed 3 of 65 leads including one genuine
+paraphrase through a footnote (Safire's memo), and 162 of 226 `partial`
+notes are missing the OBJECT — the source says it in other words. The
+next rung is the witness pointed at footnote-bound partials with a window
+chosen by the face's own referent activation, under a declared budget,
+against the rotated control through the identical slicer; it is not
+another matcher.

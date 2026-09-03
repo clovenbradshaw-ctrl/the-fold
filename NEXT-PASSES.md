@@ -312,6 +312,28 @@ model to guard against a diet the door no longer admits. Next pass: a
 single-witness note with a verified address reaches the model with its
 corroboration DISCLOSED, measured live against the current gate.
 
+**CLOSED 2026-09-03 by P84 (the Ranke pass), and this entry was stale for a
+day — corrected here rather than left pointing at finished work, because a
+plan of record that names a done thing as next is worse than one that names
+nothing.** The gate is gone: `holon.js` (the `ledgerBlock` construction)
+now ranks BOTH tiers by shared vocabulary with the question and uses
+standing only as the TIEBREAK, so a single-witness note reaches the model on
+its own relevance and its corroboration is disclosed rather than withheld
+("stated in more than one place" / "stated once so far"). A question the
+ledger holds nothing on gets no block at all — measured by
+`eval/the-fold/gate-proof.mjs`, which also caught the reason the first cut
+failed: with the corroborated tier unranked, 21 corroborated notes filled
+the five-line budget on every question and the asked single-witness note
+reached the model on 1 of 8.
+
+So the gate fired, the design was re-examined, and the re-examination
+landed. What it did NOT do is raise clean-votes-per-ask — that number is
+still the plan's open gate, and the remaining lever is named in
+`reading-recall-finding.md`: identity is REFUTED (0 joins on real pages;
+`sameLemma("withdraws","retreated")` is false), so what is left of the ~2%
+wall is PARAPHRASE, and the licensed tool for paraphrase is P32's witness
+tier. That is Pass 12 step 4.
+
 Every pass above ships with a control built to fail, and the week's
 record is why: the controls caught the engine's basin null, the redeal
 null's direction, the membership test's grain, the enforcement test's

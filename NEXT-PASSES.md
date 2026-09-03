@@ -9,6 +9,19 @@ CAPACITY-DEVELOPMENT-PLAN.md (the cell map). Standing: a PLAN — every
 pass names its measurement and its control built to fail (II.23), and a
 pass whose gate fails is closed, not forced.*
 
+*Reconciliation note, added 2026-09-03: several Tier 3/4 items below were
+built and closed on 2026-09-02 without this document being re-edited at
+the time — a real staleness gap, caught by a cross-repo survey that
+checked commit history and both repos' actual file trees against this
+text. Status notes are appended in place at each affected item rather
+than rewriting the original prescriptive text, so the plan's own history
+stays legible and a reader can see what was asked for versus what
+shipped. Nothing in Tier 1, Tier 2 or the refused list was found stale.
+The gate-on-the-plan section read current at the moment of this survey and
+was CLOSED by P84 later the same day — see its own entry below, which
+records that it too stood stale for a day. A survey is a reading at a
+cursor, not a standing guarantee; it is dated for exactly that reason.*
+
 ## The ordering principle
 
 The canonical chain — **NUL SIG INS SEG CON SYN DEF EVA REC**, per
@@ -227,6 +240,24 @@ axis earned a point; if a from-scratch design succeeds where the derived
 one fails, §VIII.2 is broken and the document says so. Either outcome
 pays capability debt.
 
+**Status note, added 2026-09-03 (reconciliation pass).** Built, as
+`native/organs/frame.js` (+`frame.test.mjs`) — DEF·Ground, derived from
+its two depth-siblings (NUL·Ground's declaration gate, SEG·Ground's
+extent-and-units) exactly as the pass prescribes: a declaration gate
+with typed refusals, verdicts stamped with content-addressed frame ids,
+a cross-frame comparison wall. Verified live against the two real
+hypergraph providers (legacy vs. native) as two declared frames over one
+material. The depth axis earned one point; see
+`native/docs/def-ground-derivation.md` and the-fold's CLAUDE.md, "DEF·
+Ground built from its depth-siblings." The remaining two Ground-row
+cells were filled the same day rather than deferred further: CON·Ground
+as `field` (`fold.js::advanceSummaryFold`, the running summary's
+maintenance act) and INS·Ground as `preflight`
+(`proof.js::preflightQuery`, P23's one-search-before-drafting). The
+capability registry now reads **27/27, nine full stances, zero illegal
+cells** — see the-fold's CLAUDE.md, "The map at 27/27, and a second
+judge shuffled." Closed.
+
 **Pass 9 — one domain-transfer test (§VIII.1).** Pick the Binding stance
 (full first): specify what "the same organ, different adapter" means
 across two mathematics for compare-to-bound, attempt the port, and
@@ -234,15 +265,60 @@ record the result as the first real evidence on the isomorphism
 hypothesis — currently untested, since the contest.js precedent is
 media, a different axis.
 
+**Status note, added 2026-09-03 (reconciliation pass).** Attempted and
+recorded, as `native/organs/binding-core.js` (+`binding-transfer.test.mjs`,
+5 cases): the Binding stance's algebra extracted once, domain-blind (a
+figure seeks its counterpart in a field; declared criterion scores;
+unique clearing winner or typed refusal; an optional foil probe), then
+three thin adapters reproduce the REAL decisions of three existing
+Binding organs on real material (mention→referent against the real
+referent index, claim→edge against the real relation reader — both
+bound and not-bound cases, testimony→verdict against the armed select
+protocol). Zero core edits between domains. Scope is stated honestly:
+agreement on specimens, not proven behavioral equivalence, and one
+refinement surfaced — margin is domain-owned, not core (geometry's exact
+tie of fully-clearing edges reads as corroboration; arithmetic's tie
+reads as genuine ambiguity). One earned point toward §VIII.1, not a
+closed law; broader stance coverage beyond Binding is still real,
+unattempted work. See the-fold's CLAUDE.md, "§VIII.1 tested: Binding
+transfers across the three mathematics." Closed as a first trial;
+extending to other stances remains open (folded into Tier 4 below).
+
 ## Tier 4 — deferred, named, in order
 
 10. **`kind-standing`'s caller** — the live cast still folds Castle
     Dracula into Count Dracula; `foldPermitted` exists and nothing calls
     it. Small, gated by its own existing 12 tests.
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Built —
+    `native/organs/fold-gate.js` (+`fold-gate.test.mjs`): review-not-
+    prevention over `discoverReferents`' own reported merges, judged
+    against a declared kind plus the cast as population (kind-standing's
+    own null needs the rest-of-material — found by the first live run
+    refusing `no_population`). Measured live against real Dracula bytes:
+    the {Count Dracula ← Castle Dracula} merge is VETOED by the live
+    gate. Closed.
+
 11. **The speaker boundary** — epistolary "I" bound to its section's
     declared author via segmentation claims + a heading detector; also
     unlocks per-narrator testimony in the crown (a journal's "I" is a
     WITNESS with a name).
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Built —
+    `native/organs/speaker.js` (+`speaker.test.mjs`): declared-speaker
+    sections as a binding table beside immutable text (offsets into the
+    text as given, P5.2-verified), a structural heading gate
+    (underscore-wrapped or all-caps — prose containing "journal" is
+    never a heading), possessive/from-phrase/letter-comma author
+    detection, kind-only boundaries typed speakerless. Measured on the
+    whole real Dracula text: 110 sections read like the novel's own
+    contents (Seward's 29 diary entries, the firms, Sister Agatha, Van
+    Helsing with his degrees). Consumed the same day by
+    `capacity-runner.js`'s `speakerWho` — a reading's `who` now names
+    the section's speaker (e.g. `dracula.txt:DR. SEWARD`) rather than
+    only the source, additive and typed-absent where a source declares
+    no speakers. Closed.
+
 12. **Floor 4½ — nesting** (`claim:` in an end slot). **OPENED
     2026-09-01** — the gate (Pass 1 slice lever, Pass 2 both witness
     protocols calibrated) was met, so the door was opened rather than
@@ -261,10 +337,33 @@ media, a different axis.
     by any caller** — the natural first one is `mergeTestimony`, which
     would replace its self-witness special case with the general
     mechanism.
+
+    **Correction, added 2026-09-03 (reconciliation pass).** The line
+    directly above ("not yet consumed by any caller") is stale.
+    `nesting.js` was consumed the SAME day (2026-09-01) by
+    `mergeTestimony`, via a structural `readsNothing` check: an
+    unaddressed hold is an outer note, which subsumes the earlier
+    `self:model`-only special case (a namespace-based exclusion attempt
+    was tried first and refuted by a pre-existing pin — `self:ledger`
+    reads addressed bytes and is a genuine source read — before the
+    structural fix landed). See the-fold's CLAUDE.md, "Floor 4½ opened:
+    nesting, and the wall that makes it worth having." Closed.
+
 13. **The obligation ledger** — long instruction sets admitted at the
     door, clause standings typed
     (satisfied/violated/waived/not-yet-visited), coverage as enumeration
     not relevance. The pieces exist; the ledger between them doesn't.
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Built —
+    `native/organs/obligation.js` (+`obligation.test.mjs`): declared
+    enumeration admitted at a door (prose refused, boundaries never
+    invented), four typed standings with not-yet-visited its own
+    standing, append-only entries carrying `because`+`refs` (a violation
+    later satisfied keeps its road), waivers requiring both a reason and
+    a name, coverage as ENUMERATION — the unvisited named, complete only
+    when nothing is unvisited and nothing stands violated. Consumed the
+    same day via the-fold's `/must` chat door (blob-staged). Closed.
+
 14. **Non-text adapters above floor 0** — STARTED (2026-09-01,
     `eval/omnimodal-pipeline.mjs` + results doc): real WAV and real MP4
     decoded to event streams, the SAME kind-discovery organs unmodified
@@ -275,6 +374,24 @@ media, a different axis.
     media, and the shared-instrument independence fix (a false music
     kind corroborated at "2 distinct sources" because both decodes
     share one tracker — recipeId belongs in the witness string).
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Both
+    remaining pieces shipped the same week. F2 arrangements:
+    `native/organs/event-arrangements.js` (+`event-arrangements.test.mjs`)
+    — recurrence-gated adjacency with declared labels and event-ordinal
+    addresses (coordinate space declared, P5.2 self-verified), landing as
+    ordinary hyperlexicon notes with `~recipe`-tagged witnesses; the e2e
+    puts the turbulence ejection-sweep grammar on the real ledger at 2
+    distinct sources × 2 distinct instruments. The shared-instrument
+    independence fix: `corroboration.js` gained `independentReadings`/
+    `distinctRecipes`, counting (source, recipe) pairs rather than
+    sources alone, with witnesses now carrying `<source>~<recipe>` (P68
+    recipe identity) so two decodes sharing one tracker no longer
+    corroborate each other — proven on the original music failure (the
+    false shared-tracker kind stays at 1 instrument and is refused; a
+    second, genuinely different tracker lifts the two true kinds to 2
+    sources × 2 instruments). See the-fold's CLAUDE.md, "Music and video
+    through the pipeline" and "Turbulence through the pipeline." Closed.
 
 ## The refused list — measured dead ends, do not retry
 
@@ -387,6 +504,19 @@ injected organ, which it already nearly is; `store.js`/`store-sql.js`/
 `proof.js`/`web-claim.js`/`web-hunt.js`/`primary` sit behind P13's egress
 and must cross with their consent posture intact.
 
+**Status note, added 2026-09-03 (reconciliation pass).** This list has
+NOT been re-verified against current file trees in this pass (the
+reconciliation was scoped to Tier 3/Tier 4 status text, which is
+authoritative and independently gated). A quick cross-check while
+reconciling found `capacity-runner.js`, `hypergraph.js`, `testimony.js`,
+`experiencer.js`, `primary.js`, `source.js`, `web.js`, `cite.js`,
+`cast.js`, `grounding.js`, `quotes.js`, `asserted.js` and `measure.js`
+already present in `eoreader7/native/organs/` as of today (per P80's own
+closure), consistent with several files above being past-tense
+candidates rather than current ones; a fresh Phase 4 pass should
+re-derive this list from the actual current the-fold file tree rather
+than trust it standing.
+
 ## Pass 11 — Ranke: the primary-source chase, gated and witnessed (added 2026-09-03)
 
 The gate on the plan (above) fired and was closed by P84: the ledger block
@@ -404,6 +534,20 @@ cited primaries are catalogues and books. Next, named there: address rules
 for full-text faces with givers; the witness at book scale; quote leads on
 an engine that answers. The switch is default OFF and every run is
 budgeted — this is a door, not a per-turn cost.
+
+**Status note, added 2026-09-03 (reconciliation pass).** Extended twice
+more the same day: S46 amended (containment 1 real / 6 redealt on a
+larger run; gate-proof measured on gemma2:2b) and a "worked backwards"
+run over Apollo 11 (`ranke-backwards.mjs`) that earned three more rules
+(a footnote marker is a lead; a marker at a span's start belongs to the
+previous sentence; a cited address is not the cited document until its
+face carries the citation's own title words or an archive copy). The
+named next-work list from this pass is still open and is where Pass 12
+picks up: more address rules, book-scale runs, a real answering search
+engine, and — explicitly, per the second amendment — pointing the
+witness at the 162 of 226 "partial" (object-missing) notes via the cited
+face's own referent activation rather than word containment. See
+eoreader7's `native/READING-SPEC.md` S46 and its two amendments.
 
 ## Pass 12 — two universes, and the bridge between them (added 2026-09-03)
 
@@ -515,7 +659,7 @@ still applies and still comes first.
 (companion PR clovenbradshaw-ctrl/eoreader7#63): `hear()`'s exact-triple
 union is split into proposition identity (unchanged) and referent identity
 (now a recorded, refusable `join`). Gate measurement on real material: 22
-of 22 corroborated notes rest on an assumed bridge — common, not rare, so
+of 22 corroborated notes rest on an assumed bridge, common, not rare, so
 step 2 is warranted on that finding alone. A zero-model probe (do the two
 sources' own `discoverReferents` universes independently name the joined
 ends the same way) was built and its first cut refuted itself — false
@@ -537,3 +681,10 @@ What it must NOT do is claim the 22 measured bridges are safe; that
 question is still open, and a stronger probe (more material, or one that
 can examine non-named ends) is the honest way to close it, not an
 assumption that "common" implies "fine".
+
+**Status note, added 2026-09-03 (reconciliation pass; this pass is same-
+day, not stale, kept here to record where the next engineering session
+should pick up).** Step 1 is the most recent landed work in either repo
+as of this reconciliation (eoreader7 PR #63, merged; the-fold PR #125,
+merged). Steps 2–4 above are the standing next engineering work — not
+started as of this note.

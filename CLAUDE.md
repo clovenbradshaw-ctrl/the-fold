@@ -7379,3 +7379,29 @@ is not a second source) — it lands in `kinds`, counted apart, never summed.
 additions on a pre-S48 base) independently develops "earned identity at the
 shared bridge" in a wholly separate file set. No file-level conflict with
 S49/S52 — thematically convergent, reconciliation named and unattempted.
+
+## Composing a passage from checked claims (added 2026-09-03) — pointer
+
+POLICIES.md **P87** is the law. `compose.js` + `compose.test.mjs` (11 cases,
+real `renderCrown`, real `mergeTestimony`).
+
+`crown.js` rendered one merged testimony as one sentence, model-free, with
+a trace rule making fabrication structurally impossible. `compose.js` joins
+many into a passage and adds exactly three things: **an order the caller
+declares** (its absence is a REFUSAL, never a fallback to fold order — a
+guessed order is an argument nobody made), **a closed transition table**
+addressed by structure (shared end, standing drop, contested), never by
+meaning, and **a coverage report** naming what was withheld and why. An
+`UNDETERMINED` merge is never asserted; a renderer's `verified: false`
+fallback is never carried. Both walls mutation-checked.
+
+Real output, no model anywhere: *"Lincoln appointed Hamlin. But sources
+disagree on whether Lincoln dismissed Seward. Backing it: lincoln.txt.
+Denying it: almanac.txt. Still, according to almanac.txt, Hamlin chaired
+the Senate."* — composed 3 of 4, 1 withheld (undetermined).
+
+**The bound:** it is a renderer. It does not select, order, or check
+claims, and cannot make a thin ledger read as a confident account — its
+reach is whatever corroboration the reading holds (~2%, P83; and P86 showed
+the identity-side levers cannot move that). **Model-free long-form
+rendering was never the scarce thing; checked claims worth rendering are.**

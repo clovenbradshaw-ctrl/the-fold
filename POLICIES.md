@@ -10605,3 +10605,69 @@ material, one model, no oracle — 4 of 12 real correspondences read
 "different" and nothing adjudicated them. And the organ is unmeasured on
 non-identical faces, because this material produces none: the case bridges
 exist for is the case this material cannot exercise.
+
+## P87 — A passage composed from checked claims: the order is declared, the connectives are closed, and what could not be said is named (2026-09-03)
+
+**Generality:** universal.
+
+`crown.js` (P39's BUILD-4) renders ONE merged testimony as ONE sentence,
+with a trace rule that makes fabrication structurally impossible: every
+token traces to exactly one origin — a claim's own words, a named witness,
+or one declared connective. That has been the whole of this instrument's
+model-free rendering. Anything longer has always been a model drafting
+prose with the apparatus checking it afterward. `compose.js` assembles many
+such sentences into one passage, and adds exactly three things.
+
+**1. THE ORDER IS THE CALLER'S, DECLARED, AND ITS ABSENCE IS A REFUSAL.**
+`compose` does not know what order claims belong in and does not guess —
+a guessed order is an argument nobody made, and a ledger's fold order is
+not a narrative. Without a declared comparator it emits NO passage and
+returns `no_declared_order` with every claim named as withheld. This is the
+load-bearing wall (mutation-checked: making it fall back to input order
+fails the suite). Callers have real orders available where it matters —
+succession-shaped material orders itself (P61's sequence type IS the
+order), a chronology by its dates, a document's claims by their spans.
+
+**2. THE TRANSITION VOCABULARY IS CLOSED AND STRUCTURALLY ADDRESSED.**
+`TRANSITIONS` is the whole of what compose may write beyond a rendered
+sentence — crown.js's own `KNOWN_CONNECTIVES` move one level up. Which
+transition applies is computed from STRUCTURE (do the two claims share a
+first end, did the standing drop to single, did the case become
+contested), never from what the claims mean. Pinned by a test that
+reconstructs every composed sentence as exactly *declared connective +
+renderer's own text*: a word from anywhere else fails.
+
+**3. WHAT COULD NOT BE SAID IS NAMED.** An `UNDETERMINED` merge is never
+rendered as an assertion and never silently dropped — it is withheld with
+its reason, and `coverageLine` reports composed-of-given in natural
+frequencies with the reasons counted. **A renderer's UNVERIFIED output is
+also withheld**: crown.js's trace veto firing means it produced a fallback
+rather than an assertion, and a passage may not carry that as one
+(mutation-checked — letting it through fails the suite).
+
+**What a real passage reads like**, composed from real `mergeTestimony`
+verdicts through the real `renderCrown`, no model anywhere:
+
+> Lincoln appointed Hamlin. But sources disagree on whether Lincoln
+> dismissed Seward. Backing it: lincoln.txt. Denying it: almanac.txt.
+> Still, according to almanac.txt, Hamlin chaired the Senate.
+> — *composed 3 of 4 claim(s); 1 withheld (1 undetermined)*
+
+Corroborated claims assert plainly; a contested one names both sides; a
+single-witness one keeps its "according to"; the undetermined one does not
+appear and is counted.
+
+**THE BOUND, stated because the headline would otherwise read wider than
+it is.** This is a RENDERER. It does not decide what a passage is about
+(the caller selects the claims), does not order them, does not check them,
+and cannot make a thinly-corroborated ledger read as a confident account.
+A passage over single-witness claims renders as a passage of "according
+to X" sentences, because that is what those claims are. Its reach is
+bounded by the corroboration the reading actually holds — measured at ~2%
+on real prose (P83), and P86 established that the levers on the identity
+side cannot move that number. **Long-form model-free rendering was never
+the scarce thing; checked claims worth rendering are.**
+
+**Files.** `compose.js` (pure, `renderClaim` injected — no template of its
+own) + `compose.test.mjs` (11 cases against the REAL `renderCrown` and the
+REAL `mergeTestimony`, including two controls built to fail).

@@ -10359,3 +10359,65 @@ clean votes per ask, the floor's DESIGN is what gets re-examined") has
 fired: the re-examination is this paragraph, and the change it names is
 the ledger block's gate in `holon.js` — a decision for the next pass, with
 the model reachable here to measure it.
+
+## P84 — Ranke: chase the claim to the document its account cites; disclose a note's standing, never withhold on it (2026-09-03)
+
+**Generality:** universal (the ledger block's disclosure; the witness-kind
+axis; the gate); specimen-scoped (the two pages, the one model, the numbers).
+
+**User direction, verbatim and in order:** "when reading things like
+wikipedia, and in general, we must chase primary sources" → personify it
+as an agent, "after Leopold von Ranke" → "if it is citing something via a
+hyperlink, it should go read that, not just Wikipedia shaped sourcing. if
+it is just quoting someone, it should go try to find that quote if the
+source isn't given" → "but that needs a gate so it doesn't explode in a
+novel" → "perhaps we toggle this one as this could be very burdensome" →
+"remember: we are not making claims about what is objectively true, just
+making the richest possible hypergraph of what claims are about the truth."
+
+**What this closes.** P83 named the decision: the ledger block's >=2-source
+gate withheld a book's whole reading to guard against a diet the door no
+longer admits. Closed two ways at once.
+
+**(1) The block discloses.** `holon.js`'s ledger block carries every note
+with its STANDING said on the line (kernel `standingOf`: distinct sources,
+never witness-list length): corroborated notes first — "stated in more
+than one place" — then, inside the same five-line budget, single-witness
+notes ranked by shared vocabulary with THIS part's question
+(`proposeCandidates`, the walk's own ranker) — "stated once so far,
+nowhere else yet" — and a note a primary source states is named as such
+("one of them a source the account itself cites"). "Stated", never
+"confirmed": the wording changed mid-pass on the user's reminder, because
+the ledger maps what claims are made, not what is true. Found by the pin:
+the block had never reached the MATERIALLESS chat branches at all — the
+one turn that has nothing but the ledger to stand on was the one turn that
+never saw it. It rides the system message there now, a fact the model
+receives (P55), never an instruction. `holon.test.mjs` pins both tiers,
+the primary phrasing, the exclusion of a note sharing nothing with the
+question, and firewall cleanliness.
+
+**(2) Ranke.** eoreader7 **S46** is the organ's law; the surface here:
+`/ranke <maxFetches> [maxSearches]` (budgets are the person's — P9) and a
+`primary` switch beside `web`, DEFAULT OFF, which spends three faces and
+one search after a grounded turn (givers named on the constants). The
+browser remembers each fetched page's saved faces (`state.pageFaces`);
+`POST /api/ranke` (explore-server) owns the two crossings — `fetchAndKeep`
+for every face, kept and recorded like any page, and `searchWeb`, factored
+out of `/api/web/search` so the omnibox and the chase run one search — and
+returns LEADS, never landings; the browser's own witness (the same select
+protocol `/corroborate` uses) reads each lead's face and only its "states"
+lands `primary:<host>#a-b~ranke-v1` on the ledger. The gate is the
+organ's: a page that links to nothing chases nothing, so a novel's dialogue
+never opens a hunt.
+
+**The measurement that decided the landing rule.** Three runs on the
+Austerlitz / Third Coalition ledger (605 notes), each with a redealt
+control on the same kept faces: containment alone attested 1 real / 6
+redealt — not discriminated — so containment is a LEAD and the witness is
+the landing (0 real / 1 redealt with gemma2:2b reading). Zero notes landed
+on this material because the cited primaries are catalogues, paywalls and
+books; said plainly in `ranke-walk-RESULTS.md`, not smoothed.
+
+**Enforced:** `holon.test.mjs` (+1), `ranke.test.mjs` (6, eoreader7),
+`notes.test.js` (+2). Full the-fold suite: failure names identical to HEAD
+before and after (67 environment names), zero regressions.

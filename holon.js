@@ -35,7 +35,7 @@
 // one turn without re-checking anything.
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
-import { distinctSources } from "./corroboration.js";
+import { distinctSources, proposeCandidates } from "./corroboration.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
@@ -1139,34 +1139,55 @@ export async function runPart({
   // that never reaches this line is unaffected.
   const factBlock = relations ? buildFactBlock(relations, passages, question) : null;
 
-  // The ledger's own standing beyond what this part just read — notes
-  // corroborated across MORE THAN ONE witness (`foldHyperlexicon` sorts
-  // most-witnessed first), from earlier parts or earlier turns this part's
-  // own reading did not happen to touch again. Deduped against `factBlock`'s
-  // own fresh lines so nothing doubles. Firewall-clean (firewall.js's
-  // `APPARATUS_TERMS`): no "passage"/"retrieved"/"this turn" — "read in N
-  // places" is the same natural-corroboration phrasing this repo's own
-  // proof-seeking tier already uses ("stated by N of M pages").
+  // The ledger's own standing beyond what this part just read — every
+  // note is DISCLOSED with its standing, never withheld for lacking one.
+  // Until 2026-09-02 this block admitted only notes at >=2 distinct
+  // sources and rendered EMPTY on nearly everything the reader had heard:
+  // a whole real book corroborates 1 note in 60 asks (P83 — fiction
+  // re-mentions referents, not propositions), two encyclopedia pages 1 in
+  // 30. The gate was chosen when the door admitted junk (P73); the door is
+  // clean now (P74, P82), and a note with a verified address, real ends
+  // and a real label is a CLAIM SOMEONE MADE, addressed — what it lacks is
+  // restatement elsewhere, which is said on the line, not used to hide the
+  // line. Nothing here is a claim about what is true: the ledger is the
+  // richest map of what claims are made, and by whom, about the truth.
+  // Two tiers inside one declared budget: corroborated notes first
+  // (kernel standingOf — DISTINCT SOURCES, never witness-list length;
+  // a sighting and a testimony vote from one page are one perspective),
+  // then single-witness notes ranked by shared vocabulary with THIS
+  // part's own question (proposeCandidates — the same ranker the witness
+  // walk proposes from), so what reaches the model is what bears on what
+  // was asked. A note a PRIMARY source states (ranke.js — the chase
+  // through a citing page to the sources it cites) is named as such: the
+  // model reads "a source it cites states it", not a bare count.
+  // Firewall-clean (firewall.js's APPARATUS_TERMS): "read in N places",
+  // "read once", "a source it cites" — natural-frequency phrasing, no
+  // "passage"/"retrieved"/"this turn". Deduped against factBlock's own
+  // fresh lines so nothing doubles.
   const HYPERLEXICON_LEDGER_LINES = 5;
   const ledgerBlock = (() => {
     if (!hyperlexicon || !beliefNotes) return null;
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
-    const standing = hyperlexicon
-      .foldHyperlexicon(beliefNotes)
-      // DISTINCT SOURCES, not witness-list length (corroboration.js's own
-      // independence rule, NEXT-PASSES Pass 4): a mechanical sighting on
-      // page A plus a testimony vote FROM page A is ONE source wearing two
-      // costumes, and `witnesses.length >= 2` read it as two — Ladha's
-      // correlated-witnesses cap, enforced at the one gate that feeds the
-      // model. One implementation, imported: corroboration.js is pure.
-      .filter((n) => distinctSources(n.witnesses).size >= 2)
-      .filter((n) => !shown.has(`${n.subject} — ${n.verb}→ ${n.object}`.toLowerCase()))
-      .slice(0, HYPERLEXICON_LEDGER_LINES);
-    if (!standing.length) return null;
-    return (
-      `From earlier reading, confirmed independently in more than one place:\n` +
-      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${distinctSources(n.witnesses).size} places)`).join("\n")
-    );
+    const line = (n) => `${n.subject} — ${n.verb}→ ${n.object}`;
+    const all = (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} })))
+      .filter((n) => !shown.has(line(n).toLowerCase()));
+    const corroborated = all.filter((n) => n.sources >= 2).slice(0, HYPERLEXICON_LEDGER_LINES);
+    const room = HYPERLEXICON_LEDGER_LINES - corroborated.length;
+    const single = room > 0
+      ? proposeCandidates(all.filter((n) => n.sources < 2), String(question ?? ""), { limit: room }).map((c) => c.note)
+      : [];
+    if (!corroborated.length && !single.length) return null;
+    const phrase = (n) => {
+      const primaries = n.kinds?.primary ?? 0;
+      if (primaries && n.sources >= 2) return `read in ${n.sources} places, one of them a source the account itself cites`;
+      if (n.sources >= 2) return `read in ${n.sources} places`;
+      return "stated once so far, nowhere else yet";
+    };
+    const render = (list) => list.map((n) => `- ${line(n)} (${phrase(n)})`).join("\n");
+    return [
+      corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
+      single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
+    ].filter(Boolean).join("\n\n");
   })();
 
   // The salience gate's other half (fact-block.js's own header): the raw
@@ -1704,6 +1725,13 @@ export async function runPart({
   const draftMaterial = factBlock
     ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
     : [ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+  // A turn with nothing attached is exactly the turn that should stand on
+  // what was read BEFORE — until 2026-09-03 the ledger block reached only
+  // the material branches, so a from-memory question never saw the ledger
+  // at all (found by the P84 pin: the materialless path sent none of it).
+  // It rides the system message as a fact the model receives (P55's
+  // posture), never as an instruction about the apparatus.
+  const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
   const executeMessages = passages.length
     ? flat
       ? [
@@ -1720,12 +1748,12 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${ledgerSuffix}` },
           { role: "user", content: `${task}${chatContext}` },
         ];
   onProgress?.("execute", part, {

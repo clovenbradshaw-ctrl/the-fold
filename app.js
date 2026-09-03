@@ -200,7 +200,7 @@ import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice, witnessSentences } from "../eoreader7/native/organs/index.js";
-import { corroborateLedger, distinctSources as distinctWitnessSources } from "../eoreader7/native/organs/index.js";
+import { corroborateLedger, distinctSources as distinctWitnessSources, witnessNote } from "../eoreader7/native/organs/index.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
@@ -685,6 +685,17 @@ const state = {
    * authorization.
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
+  /**
+   * Ranke — the primary-source chase (eoreader7 native/organs/ranke.js).
+   * OFF by default and a switch, not a standing consent: every run is
+   * fetches and searches against the world (user, 2026-09-03: "perhaps we
+   * toggle this one as this could be very burdensome"). On, a grounded turn
+   * that read a citing page chases its new notes under RANKE_AUTO_* budgets;
+   * off, only the explicit door (/ranke <maxFetches> [maxSearches]) runs it.
+   */
+  ranke: localStorage.getItem("fold-ranke") === "on",
+  /** web source name → { url, host, rawPath, textPath }: the saved faces a chase can start from (the organ needs the page's own HTML for its links). */
+  pageFaces: {},
 
   /**
    * The master switch over everything attached. Silencing one attachment is
@@ -1515,6 +1526,101 @@ const witnessSentencesFor = (sentences, claims, passages, { maxAsks }) =>
     testimony: witnessTestimony(),
     maxAsks,
   });
+
+
+/** A fetched page kept as a source: remember its saved faces so Ranke can chase from it (the organ reads the page's own HTML for links; the text face for quotes). */
+function rememberPageFace(name, url, entry) {
+  if (!entry?.rawPath) return;
+  state.pageFaces[name] = { url, host: hostOf(url), rawPath: entry.rawPath, textPath: entry.textPath ?? null };
+}
+
+// ── /ranke — the primary-source chase, on request ────────────────────────
+// Budgets declared per run (P9). RANKE_AUTO_* are the standing budgets the
+// switch spends per grounded turn: three faces (giver: primary.js
+// PRIMARY_SOURCES_CONSULTED — one perspective is anecdote, three is the
+// smallest count where 2-of-3 can disagree with 3-of-3) and one quote
+// search (a search is the costlier crossing; one per turn keeps the switch
+// from becoming a crawler).
+const RANKE_AUTO_FETCHES = 3;
+const RANKE_AUTO_SEARCHES = 1;
+async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null }) {
+  const log = state.hyperlexiconLog;
+  if (!log) return { refused: "the hyperlexicon is empty — nothing has been heard yet, so there is nothing to chase." };
+  const notes = hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(log) : hyperlexiconFor.foldHyperlexicon(log);
+  const pages = Object.entries(state.pageFaces).map(([ref, f]) => ({ ref, ...f })).filter((p) => p.rawPath);
+  if (!pages.length) return { refused: "no fetched page is loaded — Ranke chases from a page's own citations, and none of the loaded sources came from the web." };
+  const r = await webApi("/api/ranke", { pages, notes, maxFetches, maxSearches, consult });
+  if (r?.error) return { refused: r.error };
+  let next = log;
+  let landedCount = 0;
+  // THE WITNESS reads each lead. The server owns the network and returns
+  // LEADS — a primary face at an address carrying the note's words —
+  // never a landing: containment is not a vote (measured, ranke.js's own
+  // header). The model is the browser's, so the read happens here: the
+  // same witness protocol /corroborate uses, over the lead's face, and
+  // only the model's own "states" lands a primary: witness. Reads are
+  // capped by the SAME declared fetch budget — one lead, one read.
+  const ask = async (sen, sl) => readTestimony(await complete(buildWitnessMessages(sen, sl), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+  const selectAsk = async (messages) => { try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; } };
+  const byId = new Map(notes.map((n) => [n.id, n]));
+  let reads = 0;
+  const verdicts = { states: 0, refused: 0, other: 0 };
+  for (const c of r.chased ?? []) {
+    const note = byId.get(c.noteId);
+    if (!note) continue;
+    for (const lead of (c.consulted ?? []).filter((x) => x.snipsFound > 0 && x.unwitnessed)) {
+      if (reads >= maxFetches) break;
+      reads += 1;
+      let text = "";
+      try { const res = await fetch(pageFaceUrl(EXPLORE_BASE, lead.snips?.[0]?.facePath ?? "")); if (res.ok) text = await res.text(); } catch { text = ""; }
+      if (!text) { verdicts.other += 1; continue; }
+      const w = await witnessNote(`${note.subject} ${note.verb} ${note.object}`, { ref: lead.host, text }, { ask, selectAsk, testimony: witnessTestimony(), splitSentences: engineSentences, ends: { end1: note.subject, end2: note.object }, slice: lead.snips[0].text });
+      if (w.refused) { verdicts.refused += 1; continue; }
+      if (w.verdict !== "states") { verdicts.other += 1; continue; }
+      verdicts.states += 1;
+      const at = w.because ? text.indexOf(w.because) : -1;
+      const span = at >= 0 ? { start: at, end: at + w.because.length, text: w.because } : lead.snips[0];
+      const a = hyperlexiconFor.attest(next, note.id, { witness: `primary:${lead.host}#${span.start}-${span.end}~ranke-v1`, span: { ref: lead.host, at: `${lead.host}#${span.start}-${span.end}`, text: span.text }, because: span.text });
+      if (!a.refused) { next = a.log; landedCount += 1; c.attested.push(a); }
+    }
+  }
+  r.notesAttested = (r.chased ?? []).filter((c) => c.attested.length).length;
+  r.witness = { reads, ...verdicts };
+  state.hyperlexiconLog = next;
+  mirrorTermRecord("ranke", { notes: notes.length, pages: pages.length, considered: r.notesConsidered, attested: r.notesAttested, landed: landedCount, fetches: r.fetches, searches: r.searches, refusedPages: (r.pagesRefused ?? []).length, budget: { maxFetches, maxSearches }, via: "chat" });
+  logAct("checked", { text: `ranke: ${r.notesAttested} of ${r.notesConsidered} chased notes attested by a primary (${r.fetches} fetches, ${r.searches} searches)` });
+  if (show) show(r);
+  return { report: r, landedCount, notes: notes.length, pages: pages.length };
+}
+
+async function rankeTurn(argstr, typed) {
+  const parts = (argstr ?? "").trim().split(/\s+/).filter(Boolean).map(Number);
+  const maxFetches = parts[0];
+  const maxSearches = Number.isInteger(parts[1]) ? parts[1] : 0;
+  if (!Number.isInteger(maxFetches) || maxFetches < 1 || maxSearches < 0)
+    return usageTurn(typed, "/ranke <maxFetches> [maxSearches] — chase this conversation's notes from the fetched pages they were read on to the sources those pages cite (any outbound link) or quote without a source (searched, then read). Every source that states a note lands as a primary: witness with a byte address; a page that cites nothing chases nothing. Budgets are YOURS to declare (P9) — e.g. /ranke 6 2. The switch beside 'web' runs a small chase after each grounded turn.");
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = `Ranke: chasing to primary sources — up to ${maxFetches} fetch(es), ${maxSearches} search(es)…`;
+  logAct("asked", { text: typed });
+  let out;
+  try { out = await rankeChase({ maxFetches, maxSearches }); } catch (err) { body.textContent = `the chase failed: ${err?.message ?? err}`; return; }
+  if (out.refused) { body.textContent = out.refused; renderFold(node, {}); return; }
+  const r = out.report;
+  const lines = [
+    `Ranke: ${r.notesConsidered} note(s) standing on citing pages alone were chased; ${r.leads ?? 0} lead(s) found (a primary face carrying a note's words); the witness read ${r.witness?.reads ?? 0} and said "states" for ${r.witness?.states ?? 0}; ${r.notesAttested} note(s) now carry a primary witness (${out.landedCount} landed). Spent: ${r.fetches} fetch(es), ${r.searches} search(es) of ${maxFetches}/${maxSearches}.`,
+  ];
+  if ((r.pagesRefused ?? []).length) lines.push(`pages that cite nothing (not chased from): ${r.pagesRefused.map((p) => p.ref).join(", ")}`);
+  for (const c of (r.chased ?? []).slice(0, 8)) {
+    const hits = (c.consulted ?? []).filter((x) => x.snipsFound > 0);
+    const gaps = (c.consulted ?? []).filter((x) => x.gap);
+    lines.push(`  ${c.attested.length ? "✓" : "·"} ${c.note} — ${c.leads.links} link lead(s), ${c.leads.quotes} unsourced quote(s); read ${(c.consulted ?? []).length - gaps.length}, stated by ${hits.length}${gaps.length ? `, ${gaps.length} could not be read` : ""}${hits.length ? ` — ${hits.map((h) => h.host).join(", ")}` : ""}`);
+  }
+  body.textContent = lines.join("\n");
+  renderFold(node, {});
+}
+
 
 async function corroborateTurn(argstr, typed) {
   const maxAsks = Number((argstr ?? "").trim());
@@ -2488,6 +2594,9 @@ async function send(question) {
 
   const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
   if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
+
+  const rankeCmd = question.match(/^\/ranke\b\s*(.*)$/s);
+  if (rankeCmd) return rankeTurn(rankeCmd[1] ?? "", question);
 
   const actCmd = question.match(/^\/act\b\s*(.*)$/s);
   if (actCmd) return actTurn(actCmd[1] ?? "", question);
@@ -4238,6 +4347,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           continue;
         }
         addSource(name, text);
+        rememberPageFace(name, url, f.entry);
         state.provenance[name] = {
           line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
           fields: { url: f.entry.finalUrl ?? url },
@@ -4957,6 +5067,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // off turn (`result.hyperlexiconLog` null) never clobbers what an
     // earlier checked turn already admitted.
     if (result.hyperlexiconLog) state.hyperlexiconLog = result.hyperlexiconLog;
+    // Ranke's switch: chase what this turn heard off citing pages, under
+    // the standing budgets, never awaited — the answer is already on screen
+    // and the primary witnesses land on the ledger for the NEXT turn's
+    // ledger block. Fire-and-forget like crownTestimony; a failure is a
+    // console line, never a broken turn.
+    if (state.ranke && state.grounded && result.hyperlexiconLog && Object.keys(state.pageFaces).length) {
+      rankeChase({ maxFetches: RANKE_AUTO_FETCHES, maxSearches: RANKE_AUTO_SEARCHES }).catch((e) => console.warn("ranke:", e?.message ?? e));
+    }
     clearInterval(ticker);
   } catch (err) {
     clearInterval(ticker);
@@ -7080,6 +7198,7 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // must re-open for the life of the conversation, or a real mechanical
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
+      rememberPageFace(sourceName, url, f.entry);
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
       onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
       const arrived = huntMeter.arrive(hunt, text);
@@ -9116,6 +9235,10 @@ bindSwitch("use-attachments", "fold-use-attachments", () => state.useAttachments
 bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
   state.webProof = v;
   $("status").textContent = v ? "web lookups on" : "web lookups off";
+});
+bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
+  state.ranke = v;
+  $("status").textContent = v ? "primary-source chase on (Ranke)" : "primary-source chase off";
 });
 
 // Checking, on or off. This is a MODE, not a paint setting: off, the relation

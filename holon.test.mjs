@@ -1773,3 +1773,46 @@ test("classifyConnector threads from runHolonicTask through runPart to the admit
   assert.ok(unthreaded.length > 0, "the door was reached on the default path too");
   for (const o of unthreaded) assert.equal(o.classifyConnector, null, "absent, the gate is null — never a silent default lens");
 });
+
+// ── P84: the ledger block discloses standing; it never withholds ──────────
+// Two tiers inside one budget: corroborated notes (kernel standingOf —
+// distinct SOURCES) first, then single-witness notes that share vocabulary
+// with THIS part's question; a primary-backed note is named as such. A
+// single note about something else never reaches the model, and every
+// line is firewall-clean.
+test("the ledger block carries corroborated notes, then question-relevant single-witness notes with their standing disclosed, and names a primary-backed note (P84)", async () => {
+  const sent = [];
+  const notes = [
+    { id: "a", subject: "Kessington", verb: "lies", object: "on the coast", witnesses: ["k.txt#0-9~r", "primary:archive.org#3-40~ranke-v1"], sources: 2, instruments: 2, standing: "corroborated-independently", kinds: { sighting: 1, primary: 1 } },
+    { id: "b", subject: "the harbor", verb: "opened", object: "in 1811", witnesses: ["k.txt#20-30~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: { sighting: 1 } },
+    { id: "c", subject: "Mars", verb: "orbits", object: "the sun", witnesses: ["m.txt#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: { sighting: 1 } },
+    { id: "d", subject: "the tide", verb: "turns", object: "twice a day", witnesses: ["k.txt#50-60~r", "t.txt#1-9~r"], sources: 2, instruments: 1, standing: "corroborated", kinds: { sighting: 2 } },
+  ];
+  const stubHyperlexicon = {
+    createHyperlexicon: () => ({ entries: [] }),
+    admit: (log, edges) => ({ log, heard: edges.map(() => ({})), turnedAway: [] }),
+    foldHyperlexicon: () => notes,
+    foldWithStanding: () => notes,
+    redeclareFrame: (log) => log,
+  };
+  const stubReader = () => ({ edges: [], read: () => ({ claims: [] }) });
+  await runHolonicTask({
+    task: "what is the harbor figure?",
+    chunks,
+    call: async (messages) => { sent.push(JSON.stringify(messages)); return "The harbor figure is 12%."; },
+    makeRelationReader: stubReader,
+    hyperlexicon: stubHyperlexicon,
+    hyperlexiconLog: { entries: [] },
+  });
+  const text = sent.join("\n");
+  assert.match(text, /stated in more than one place/, "the corroborated tier is shown");
+  assert.match(text, /Kessington — lies→ on the coast \(read in 2 places, one of them a source the account itself cites\)/, "a primary-backed note is named as such");
+  assert.match(text, /the tide — turns→ twice a day \(read in 2 places\)/);
+  assert.match(text, /stated once so far and bearing on this question/, "the single-witness tier is disclosed, not withheld");
+  assert.match(text, /the harbor — opened→ in 1811 \(stated once so far, nowhere else yet\)/);
+  assert.doesNotMatch(text, /Mars — orbits/, "a single-witness note sharing nothing with the question never reaches the model");
+  const { apparatusMentions } = await import("./firewall.js");
+  const block = text.match(/From earlier reading[^"]*/g) ?? [];
+  assert.ok(block.length, "the block was sent");
+  for (const b of block) assert.deepEqual(apparatusMentions(b.replace(/\\n/g, "\n")), [], "firewall-clean");
+});

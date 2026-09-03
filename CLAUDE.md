@@ -7255,3 +7255,23 @@ inflated, and the fix is in eoreader7's `corroboration.js`; and the
 corrected floor-5 number (1 in 60 on a novel, 1 in 30 on a page pair, zero
 lies) is not a weak witness but the material — so the next decision is the
 ledger block's ≥2 gate in `holon.js`, not another corroboration lever.
+
+## Ranke — the claim is chased to the document its account cites (added 2026-09-03) — pointer
+
+POLICIES.md **P84**; eoreader7 **S46**; `eoreader7/native/eval/the-fold/
+results/ranke-walk-RESULTS.md` the numbers. The agent is named after
+Leopold von Ranke by user direction (an earlier name, Seymour, was
+withdrawn the same hour). Four things to carry, each earned by running:
+**a page that cites nothing chases nothing** (the structural gate — a
+novel's dialogue never opens a hunt); **a link sharing no word with the
+claim is not a lead for it**; **containment is a lead, never a landing** —
+the redealt control attested six notes to the real ledger's one, so only
+the witness tier's own "states" lands `primary:<host>#a-b~ranke-v1`; and
+**an account and the document it cites are two KINDS of witness** (kernel
+`standingOf.kinds`), never summed. The ledger block now DISCLOSES standing
+("stated in more than one place" / "stated once so far") instead of
+withholding on it, and reaches the materialless chat branches it had
+never reached. The `primary` switch is default OFF; `/ranke <maxFetches>
+[maxSearches]` is the door. Wording rule, from the user: nothing here
+claims what is true — the ledger is the richest map of what claims are
+made about the truth, and by whom.

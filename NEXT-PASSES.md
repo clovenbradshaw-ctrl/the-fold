@@ -364,3 +364,21 @@ injected organ, which it already nearly is; `store.js`/`store-sql.js`/
 `build-log.js`/`fold-log.js` (the EOT stores) are kernel-shaped already;
 `proof.js`/`web-claim.js`/`web-hunt.js`/`primary` sit behind P13's egress
 and must cross with their consent posture intact.
+
+## Pass 11 — Ranke: the primary-source chase, gated and witnessed (added 2026-09-03)
+
+The gate on the plan (above) fired and was closed by P84: the ledger block
+discloses a note's standing instead of withholding on it, and a new agent
+— Ranke, after Leopold von Ranke — chases a note read off a citing page to
+the sources that page cites (any outbound link) or quotes without a source
+(searched). Three rules earned by running, each with a control: a page that
+cites nothing chases nothing (a novel is never chased — the gate); a link
+sharing no word with the claim is not a lead for it (178 blind fetches on
+the first run); and containment is a LEAD, never a landing — the redealt
+ledger attested 6 to the real ledger's 1, so only the witness tier's own
+"states" lands a `primary:` witness (0 real / 1 control with the model
+reading). On the Austerlitz/Third-Coalition pages zero notes landed: the
+cited primaries are catalogues and books. Next, named there: address rules
+for full-text faces with givers; the witness at book scale; quote leads on
+an engine that answers. The switch is default OFF and every run is
+budgeted — this is a door, not a per-turn cost.

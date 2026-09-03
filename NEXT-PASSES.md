@@ -16,8 +16,11 @@ checked commit history and both repos' actual file trees against this
 text. Status notes are appended in place at each affected item rather
 than rewriting the original prescriptive text, so the plan's own history
 stays legible and a reader can see what was asked for versus what
-shipped. Nothing in Tier 1, Tier 2, the refused list, or the gate-on-the-
-plan section was found stale.*
+shipped. Nothing in Tier 1, Tier 2 or the refused list was found stale.
+The gate-on-the-plan section read current at the moment of this survey and
+was CLOSED by P84 later the same day — see its own entry below, which
+records that it too stood stale for a day. A survey is a reading at a
+cursor, not a standing guarantee; it is dated for exactly that reason.*
 
 ## The ordering principle
 

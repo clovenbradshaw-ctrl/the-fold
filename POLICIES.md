@@ -10470,3 +10470,83 @@ next rung is the witness pointed at footnote-bound partials with a window
 chosen by the face's own referent activation, under a declared budget,
 against the rotated control through the identical slicer; it is not
 another matcher.
+
+## P85 — When the system earns an LLM or an embedder: parity is the license, and the authority is bounded to what the control covers (2026-09-03)
+
+**Generality:** universal.
+
+The ask, verbatim: *"objectively about when the system 'earns' an llm and/or
+embedder in the stack"*. This repo had answered it case by case — the
+witness tier earned its place against a fabricated-note control (P32), the
+0.5B void-loop reader earned its prompt by measurement (P53), embeddings
+were refused as an identity organ (P74, the withdraw/retreat verdict) — but
+the RULE behind those decisions had never been written down, so each new
+learned component was re-argued from scratch.
+
+**The rule, five conditions, pre-registered in `ranke-slicers.mjs`'s own
+header before the run that spent it.**
+
+**L1 — PARITY IS THE LICENSE.** A learned component is licensed for a slot
+only where the mechanical organ already in the tree is measured AT PARITY
+WITH ITS OWN CONTROL. Parity means the mechanical instrument carries zero
+information about this question, and that is the only condition under which
+a model call is not P30 waste: where the mechanical organ separates from
+control, a call buys what is already free. This is the positive condition,
+and it is why "the model would probably help" is never an argument — the
+argument is a parity measurement.
+
+**L2 — IT BEATS THE CHEAP ORGAN AT THE SAME REACH.** P60's fourth
+amendment is the standing reminder that the control most often skipped is
+the dumb baseline. A learned arm is never compared only to itself.
+
+**L3 — IT BEATS A CONTROL BUILT TO FAIL (II.23).** Through the identical
+wiring, on the identical material. An arm that lands redealt claims as
+often as real ones is measuring topic, not proposition.
+
+**L4 — ITS AUTHORITY IS BOUNDED TO WHAT THE CONTROL COVERS.** An embedder
+may RANK — choose where to look; it may never DECIDE. A model may POINT
+(the select protocol: there is nothing to write, so the echo failure mode is
+structurally impossible); it may never WRITE a fact. Every wrong answer a
+learned part can give must be catchable by an organ that is not itself
+learned. This is the condition that decides ARCHITECTURE, not just
+admission: it is why `witnessNote` gained an injectable candidate set rather
+than a second protocol — a slicer may change where the model is asked to
+look, never whether its yes counts.
+
+**L5 — THE ABSENCE IS TYPED.** A component that cannot run reports a named
+gap and the run continues. It never silently becomes a no-op arm that then
+reads as "no lift".
+
+**The retirement clause** — the ratchet (eoreader7's own README) applied to
+learned parts: when a mechanical organ is later measured to separate from
+control at the same reach, the learned component is WITHDRAWN from that
+slot. Earning a slot is not owning it.
+
+**Two corollaries this repo had already been obeying without stating.**
+A learned component never multiplies corroboration: two sources read through
+one embedder or one model are ONE instrument (`independentReadings`, P40;
+Ladha's effective sample size, corroboration.js's own header) — which is why
+a `testimony:` vote's independence is the SOURCE's and never the model's.
+And a learned component is not a way of knowing: read against
+THE-WAYS-OF-KNOWING's nine spokes, an embedder can only accelerate OSTENSION
+(knowing-where). It supplies no TESTIMONY (it has no giver), spends no
+PERTURBATION (it has no null of its own), and grants no COMPOSITION (it
+holds no license). So it is admissible exactly where the question is *where
+should I look*, and nowhere the question is *is this so*.
+
+**Measured?** Not yet. The run that would spend this rule on real material
+(`eoreader7/native/eval/the-fold/ranke-slicers.mjs`, the 162 object-missing
+partials of the Apollo 11 backwards walk) was launched twice and finished
+neither time — the second pass died with the container that ran it. The
+driver, the seam, and the tests are landed and green; the verdict is not
+taken, and this entry claims none. `slicer-licensing-RESULTS.md` states
+exactly what is established and what is not.
+
+**And the fault that entry records against this one, kept because it is the
+sharpest illustration of the rule:** the pass queued 2,592 model calls
+without a budget argument, on the same day and in the same breath as this
+policy. The minimum design that answers the licensing question is the
+confound control plus ONE candidate slicer over a declared sample — 480
+calls, five times cheaper. P9 exists to force that argument BEFORE the run,
+and it was not made. A rule about not spending calls where they cannot move
+a standing is worth exactly as much as the budget declared under it.

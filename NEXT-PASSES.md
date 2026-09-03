@@ -382,3 +382,109 @@ cited primaries are catalogues and books. Next, named there: address rules
 for full-text faces with givers; the witness at book scale; quote leads on
 an engine that answers. The switch is default OFF and every run is
 budgeted — this is a door, not a per-turn cost.
+
+## Pass 12 — two universes, and the bridge between them (added 2026-09-03)
+
+**The finding this starts from, which is a defect and not a plan.**
+`hear()` unions two sources' witnesses onto one note when their
+`(end1, label, end2)` triple matches exactly. That single string comparison
+is doing TWO jobs: asserting the two propositions are the same, and
+asserting the two documents' referents are the same. The second is a
+BRIDGE between two readings, and today it is never established, never
+recorded, and cannot be conceded. It is usually right, and silently
+catastrophic when it is not: two different Smiths, two different
+commissions, one note, two witnesses, no way to find out.
+
+So P83's corroboration rarity reads differently now. The measured ~2% was
+not only paraphrase. It was also that **string identity is the only bridge
+this system has**, and it is an unrecorded one — which means the rare
+firings are as unexamined as the common misses.
+
+**The reframe (user, 2026-09-03), and why "lens" was the wrong word.** A
+lens is one reader over one material. What two readings produce is two
+UNIVERSES of referents, each existing only relative to the reading that
+established it. `frame` is already taken, correctly, for HOW a reading was
+made; a universe is WHAT it produced. `frame.js` already refuses to compare
+readings taken under different frames, which is the right default and
+exactly where a licensed door belongs: a bridge is what makes that
+comparison legal, and it must be earned per crossing rather than assumed by
+a matching string.
+
+**The load-bearing clause, verbatim: "it is the same set of operations,
+just at another level."** Nothing new is needed operationally.
+Individuating a referent from mentions and individuating a correspondence
+from two referents are the same act one level up — SIG then INS to
+establish, EVA to test it against a ground, REC to concede it when
+refuted. The nine operators already cover this; what is missing is the
+object they act on.
+
+**Two more rules from the same conversation, both about not throwing
+information away.**
+
+*Never sever a proposition from its reading.* Notes keep spans and
+witnesses, so provenance to the source survives. What does not survive is
+the READING STATE — which referents were live, and how strongly, when this
+proposition was heard. That is a handful of ids and values per note. It is
+PROVENANCE, never prompt material (P55). Its absence is why the slicer pass
+existed at all: three slicers reconstructing, from cold text, something the
+reader had for free at extraction. `ranke-slicers.mjs`'s activation arm
+literally rebuilt an activation state over the face because the real one
+was gone.
+
+*Checks run where they are needed, in context.* A batch sweep over 162
+notes is out of context by construction, and it spends calls on
+propositions nobody is using. Checking at point of use keeps the reader
+standing there with its activation live, and is the same efficiency law
+P30 already states. The eval corollary: an eval must stay repeatable and
+offline, so its correct form is to RECORD AND REPLAY the activation, never
+to re-derive it.
+
+**The order, and it matters — each step is worthless before the one above
+it.**
+
+1. **Separate the two jobs `hear()` conflates.** Proposition identity and
+   referent identity become distinct, separately recorded claims. A union
+   today asserts both; after this it asserts one and NAMES the other as
+   assumed, so the assumption is at least visible. Control built to fail: a
+   fixture with two documents using one name for genuinely different
+   referents — the union must be refused or flagged, and a run over real
+   material must report how many existing unions rested on an unestablished
+   bridge. If that count is near zero, this pass is smaller than it looks
+   and the plan should say so.
+2. **Bridges as recorded objects.** A correspondence between universes
+   carries a witness, provenance, a standing, and a path to concession
+   (REC), exactly as any other claim does. Defeasible, corroboratable,
+   never assumed.
+3. **Read the cited document with the same apparatus.** Today the article
+   gets the full pipeline and the cited source gets a regex window and a
+   prompt — an asymmetry that is the entire reason a slicer existed. Read
+   both and the candidate set stops being eight heuristic sentences and
+   becomes the other reading's own propositions; the witness's question
+   shrinks from "read this page and tell me if it says X" to "are these two
+   notes the same act", which is the pointing question the select protocol
+   is actually good at. Cost: the extraction pipeline per cited document,
+   which is real compute and ZERO model calls.
+4. **Only then does witnessed paraphrase have somewhere to land** — as a
+   bridge at the proposition level, with its own provenance, rather than
+   another string match. P84's own next-step note is this, correctly framed.
+
+**What this does not do, said now so it is not claimed later.** It does not
+dissolve paraphrase. It reduces it to "same act?" between two structured
+notes, which is still the synonymy question that measured flat under every
+mechanical identity tried (reading-recall-finding, P74). It makes that
+question askable with both sides structured, and makes its answer
+recordable. That is all.
+
+**The gate on this pass.** Do not build step 2 before step 1 has been
+measured on real material. If unexamined bridges turn out to be rare and
+harmless, the honest outcome is a disclosure on `hear()` and a much smaller
+pass — and P85's retirement clause is the shape of that: an apparatus
+earns its place against a control, or it does not get built.
+
+**Also standing, from Pass 11's own handoff:** the slicer licensing
+measurement is unrun (`slicer-licensing-RESULTS.md`,
+`slicer-licensing-HANDOFF.md`). It should be run AFTER step 3, not before —
+step 3 may remove the model from that slot entirely, at which point the
+licensing question answers itself and the 480 calls are never spent. The
+cheap pre-check named in the handoff, candidate recall with no model calls,
+still applies and still comes first.

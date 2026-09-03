@@ -576,3 +576,31 @@ against raw prose" than as new machinery. Unstarted.
 And the standing gate on the whole plan is unchanged and unmet: none of
 this raised clean-votes-per-ask. Step 4's honest contribution to that
 number is zero, by construction, and it says so.
+
+**And step 3's premise was measured before building it (2026-09-03):
+eoreader7 S53 / PR #70.** P85's licensing run — unrun since it died with
+its container twice — was taken: **no slicer earns a license.** The
+proposed better candidate-selector (referent activation, the one meant to
+see "the crew", "it", "the module") could not offer candidates on 24 of 40
+notes and landed real and control at the SAME rate — refused by its own
+control. Containment separated on the count (9 vs 1) and then dissolved on
+inspecting the sample: 8 of its 9 landings are page furniture signed as
+testimony («Support the Museum», «Visit the Apollo Journals Website», a
+video caption), and under the decider-company wall it reads 1 vs 0.
+
+**The structural finding that reshapes step 3.** P85's L4 names the
+decider-company wall as one of the non-learned organs bounding a slicer's
+authority. It is not below the select path at all — it runs only on the
+generate path — and it CANNOT be switched on there, because it requires
+each end's own words while the seam exists precisely to reach cases where
+an end's words are absent (implemented, measured, reverted: it breaks
+`corroboration.test.mjs`'s own pinned "end2 never fires literally" test).
+
+So step 3 is not "give the witness better candidates" — that was measured
+and it does not help. The unguarded thing is RELATEDNESS on injected
+candidates, and the only shapes that could guard it without forbidding
+paraphrase are referent-identity ones: resolve the end (`makeReferentIndex`
+— "the crew" to the crew, not letter-matching) and ask about the referent,
+and draw the arm's sibling pool from the reader's referent state rather
+than from capitalized surfaces. Named, unmeasured, and now the actual
+content of step 3.

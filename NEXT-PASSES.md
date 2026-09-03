@@ -488,3 +488,30 @@ step 3 may remove the model from that slot entirely, at which point the
 licensing question answers itself and the 480 calls are never spent. The
 cheap pre-check named in the handoff, candidate recall with no model calls,
 still applies and still comes first.
+
+**Step 1 status (2026-09-03): built, measured, honest.** eoreader7 S48
+(companion PR clovenbradshaw-ctrl/eoreader7#63): `hear()`'s exact-triple
+union is split into proposition identity (unchanged) and referent identity
+(now a recorded, refusable `join`). Gate measurement on real material: 22
+of 22 corroborated notes rest on an assumed bridge — common, not rare, so
+step 2 is warranted on that finding alone. A zero-model probe (do the two
+sources' own `discoverReferents` universes independently name the joined
+ends the same way) was built and its first cut refuted itself — false
+disagreements from using a stricter identity rule than `namesCorefer`
+already licenses elsewhere in this codebase, fixed at the source. Even
+corrected, a seeded II.23 control matches the real suspect rate exactly
+(4.3%): **the probe cannot separate real bridges from random ones at this
+sample size.** Reported as a power problem, not a clearance — see
+`eoreader7/native/eval/the-fold/results/bridge-audit-RESULTS.md` for the
+full account, including that 57% of crossings are unexaminable by this
+method at all (a joined end is often a definite description the extractor
+never names as a referent).
+
+**What this licenses, and what it does not.** Step 2 (bridges as recorded
+objects with witness/provenance/standing/concession) may proceed — the
+`join` shape already carries most of what step 2 needs (source, basis,
+standing), so step 2 is closer to formalizing it than building it fresh.
+What it must NOT do is claim the 22 measured bridges are safe; that
+question is still open, and a stronger probe (more material, or one that
+can examine non-named ends) is the honest way to close it, not an
+assumption that "common" implies "fine".

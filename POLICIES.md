@@ -10257,3 +10257,296 @@ import surface modules (provenance, proof, tables, grid, crown) and run
 through the shims. A non-English page passes the English POS gate untouched
 (every Cyrillic label is out of its vocabulary): a gate with no giver for the
 language is honestly no gate, and stays that way until one is received.
+
+## P81 — The frame follows the reader, and every witness names its recipe (2026-09-02)
+
+**Generality:** universal.
+
+**Decision.** The ledger's frame is no longer a birthday: `holon.js`
+redeclares it on every grounded turn from `app.js::readerFrame()` as the
+reader stands now (eoreader7 `kernel/notes.js::redeclareFrame`, SUPERSEDE,
+the past kept), so a prior that loads after the first grounded turn is
+recorded as in force from the hearing it first read. And every mechanical
+witness the ledger lands carries the reader's recipe — `<ref>~<recipe>`,
+`recipeId` over the frame (P68) — so `independentReadings` counts this
+reader as ONE instrument across every page it reads. Until now every live
+witness was bare and every reading was its own undeclared instrument.
+
+**The door that was proposed beside it is refuted, and stays refuted.** A
+"diet boundary" by surprise (a source's tail run above its own null) was
+built, tested on planted structure, and measured on real pages and a real
+Gutenberg licence: it misses furniture and fires on lists. eoreader7 S43
+and `diet-boundary-RESULTS.md` carry the numbers; the kernel keeps the
+statistic as a diagnostic and the concession act unlicensed. Do not
+rebuild a furniture gate on surprise. Furniture is about something else,
+and "about" is the referent tier's question (P38, P79).
+
+**A first number for reading getting richer from what it has read:** the
+ORDER of labels on one English page predicts the next English page's
+hearings 0.2–0.3 bits better than its own shuffle, 20/20; nothing
+transfers on the ends. One number, three pages, the label stream.
+
+**Enforced.** eoreader7 `tests/notes.test.js` 10/10; here `holon.test.mjs`
+unchanged and the full suite 940/67, zero new failures by name; the real
+page loaded through `serve.mjs` in headless Chromium — boot completed, zero
+exceptions, zero console errors. Not verified live: a turn against a real
+model, since no Ollama is reachable here; the recipe reaches the record
+through the same `admit` call every grounded turn already makes.
+
+## P82 — Floor 2 for floor 5: the extractor's subject debris ends at received walls (2026-09-02)
+
+**Generality:** universal.
+
+**Direction.** "Keep going on the witness thing for five, and if there was
+something on floor two, work on the steady foundation as needed." No model
+runs in this checkout, so the live witness walk could not run; what starves
+it could be fixed. A note whose end is debris ("night I", "the window
+Lucy", "I ran downstairs and") is a note nothing will ever corroborate.
+
+**Decision.** The subject-span lever P74 named is pulled in eoreader7
+(**S44**): five walls, each a received closed class with its giver, in the
+DR4 subject walk; the POS prior's verb and adposition forms threaded from
+the reader. This repo changes no code — the production reader reaches the
+new walk through the moved `hypergraph.js` and its `posPriorFor` — and it
+inherits the measured result: on narrative prose debris subjects fall
+96 → 30 of bound claims while referent subjects hold 83 → 78, and the
+random-wall control (as many random words as the classes hold) cuts harder
+and destroys referents. The gain is from which tokens wall, not from
+walling. Full account: `eoreader7/native/eval/the-fold/results/
+subject-wall-RESULTS.md`.
+
+**Priced.** 93 fewer bound claims on the Dracula slice: 44 refused for want
+of any subject (typed, counted), the rest claims that had bound through
+debris. Encyclopedic prose barely moves; its debris is prepositional
+subjects and is not this pass's. Named residue: a common noun glued to a
+name's left ("the window Lucy") needs the prior's noun forms as a wall.
+
+**Not verified live:** the effect on the ledger's ≥2-witness rate needs a
+model to attest, which this checkout cannot run.
+
+## P83 — Floor 5 measured live: a single-source note is evidence, and the gate that withholds it is guarding a diet that no longer arrives (2026-09-02)
+
+**Generality:** universal (the standing); specimen-scoped (the numbers).
+
+**What ran.** With Ollama on CPU in the container, the witness walk ran
+over a ledger read from a real novel and over the two-page encyclopedic
+ledger, both with the subject walls on (P82) — eoreader7 **S45** and
+`dracula-witness-walk-RESULTS.md`. Zero lies on eight planted
+fabrications across three runs.
+
+**What it found first was a bug this repo's numbers stand on.** A
+mechanical witness carries its passage address and a testimony witness
+does not, and `distinctSources` compared the strings as they came, so a
+page re-witnessing its own note counted as a second source. Every
+≥2-source figure computed here off chunk-addressed witnesses — the
+ledger block's own gate in `holon.js`, the ~2% book corroboration, the
+7-vs-6 select-vs-generate result — was inflated. The organ now reduces a
+witness to its ref; the-fold's suite is unchanged by name.
+
+**The corrected numbers.** Novel: 1 cross-source attestation in 60 asks,
+53 honest refusals. Page pair: 1 in 30 per arm. Not a weak witness — a
+novel does not restate its propositions across chapters, and two pages
+about one battle restate a few.
+
+**The standing this forces, named and not yet built.** The ≥2-witness
+gate on what reaches the model was chosen when the door admitted junk
+(P73: 18 of 29 notes carried a closed-class label). The door is clean now
+(P74's ground, P82's walls). A note with a verified address, real ends and
+a real label is evidence at one witness; its lack of corroboration should
+be disclosed on the note, never used to withhold the whole reading of a
+book from the model. NEXT-PASSES's own gate ("if Tier 1 cannot raise
+clean votes per ask, the floor's DESIGN is what gets re-examined") has
+fired: the re-examination is this paragraph, and the change it names is
+the ledger block's gate in `holon.js` — a decision for the next pass, with
+the model reachable here to measure it.
+
+## P84 — Ranke: chase the claim to the document its account cites; disclose a note's standing, never withhold on it (2026-09-03)
+
+**Generality:** universal (the ledger block's disclosure; the witness-kind
+axis; the gate); specimen-scoped (the two pages, the one model, the numbers).
+
+**User direction, verbatim and in order:** "when reading things like
+wikipedia, and in general, we must chase primary sources" → personify it
+as an agent, "after Leopold von Ranke" → "if it is citing something via a
+hyperlink, it should go read that, not just Wikipedia shaped sourcing. if
+it is just quoting someone, it should go try to find that quote if the
+source isn't given" → "but that needs a gate so it doesn't explode in a
+novel" → "perhaps we toggle this one as this could be very burdensome" →
+"remember: we are not making claims about what is objectively true, just
+making the richest possible hypergraph of what claims are about the truth."
+
+**What this closes.** P83 named the decision: the ledger block's >=2-source
+gate withheld a book's whole reading to guard against a diet the door no
+longer admits. Closed two ways at once.
+
+**(1) The block discloses.** `holon.js`'s ledger block carries every note
+with its STANDING said on the line (kernel `standingOf`: distinct sources,
+never witness-list length): corroborated notes first — "stated in more
+than one place" — then, inside the same five-line budget, single-witness
+notes ranked by shared vocabulary with THIS part's question
+(`proposeCandidates`, the walk's own ranker) — "stated once so far,
+nowhere else yet" — and a note a primary source states is named as such
+("one of them a source the account itself cites"). "Stated", never
+"confirmed": the wording changed mid-pass on the user's reminder, because
+the ledger maps what claims are made, not what is true. Found by the pin:
+the block had never reached the MATERIALLESS chat branches at all — the
+one turn that has nothing but the ledger to stand on was the one turn that
+never saw it. It rides the system message there now, a fact the model
+receives (P55), never an instruction. `holon.test.mjs` pins both tiers,
+the primary phrasing, the exclusion of a note sharing nothing with the
+question, and firewall cleanliness.
+
+**(2) Ranke.** eoreader7 **S46** is the organ's law; the surface here:
+`/ranke <maxFetches> [maxSearches]` (budgets are the person's — P9) and a
+`primary` switch beside `web`, DEFAULT OFF, which spends three faces and
+one search after a grounded turn (givers named on the constants). The
+browser remembers each fetched page's saved faces (`state.pageFaces`);
+`POST /api/ranke` (explore-server) owns the two crossings — `fetchAndKeep`
+for every face, kept and recorded like any page, and `searchWeb`, factored
+out of `/api/web/search` so the omnibox and the chase run one search — and
+returns LEADS, never landings; the browser's own witness (the same select
+protocol `/corroborate` uses) reads each lead's face and only its "states"
+lands `primary:<host>#a-b~ranke-v1` on the ledger. The gate is the
+organ's: a page that links to nothing chases nothing, so a novel's dialogue
+never opens a hunt.
+
+**The measurement that decided the landing rule.** Three runs on the
+Austerlitz / Third Coalition ledger (605 notes), each with a redealt
+control on the same kept faces: containment alone attested 1 real / 6
+redealt — not discriminated — so containment is a LEAD and the witness is
+the landing (0 real / 1 redealt with gemma2:2b reading). Zero notes landed
+on this material because the cited primaries are catalogues, paywalls and
+books; said plainly in `ranke-walk-RESULTS.md`, not smoothed.
+
+**Enforced:** `holon.test.mjs` (+1), `ranke.test.mjs` (6, eoreader7),
+`notes.test.js` (+2). Full the-fold suite: failure names identical to HEAD
+before and after (67 environment names), zero regressions.
+
+**Amended 2026-09-03 (same day) — measured against a real model, and two
+leaks in the block closed.** `eval/the-fold/gate-proof.mjs` (eoreader7)
+runs the REAL `runHolonicTask` headlessly on gemma2:2b, every question a
+materialless turn, under two arms that differ only in what the door
+projects (old gate: >=2 sources; disclosed: every note). Two new
+materials: the Austerlitz/Third-Coalition ledger (605 notes) and *Pride and
+Prejudice* (522 notes, a book this project had not read). **Result:** on
+the book the old gate showed the model NOTHING on 8 of 8 questions and hit
+0; disclosed, the asked note reached the model on 6/8 and the answer
+carried its words on 4/8. On the pages, after the first fix below: asked
+note shown 7/8 vs 3/8, hits 6/8 vs 2/8. Two leaks the runs found, both in
+`holon.js`: (1) the corroborated tier was not ranked by the question, so
+21 corroborated notes filled the five lines on every question and the
+single tier never ran — both tiers are ranked by shared vocabulary now,
+standing as the tiebreak; (2) the question's own interrogative ("what")
+counted as shared vocabulary, so a control question about a committee no
+ledger holds still drew a block — the question side is filtered through
+`grounding.js`'s received `CLAIM_STOPWORDS` before ranking, and the
+control is withheld on both materials in a mechanical rerun (no model,
+same pipeline). Full tables and the honest caveat that hits measure
+restatement, never truth: `gate-proof-RESULTS.md`. A headless Chromium
+load of the real page was byte-identical in outcome to HEAD (the same
+`/engine/emergence/tiers.js` 404 leaves the not-served banner up in this
+checkout with or without this pass; the `primary` switch renders,
+unchecked; zero exceptions either way).
+
+**Amended 2026-09-03 (second) — backwards from a readable-source
+article.** eoreader7 S46's same-day amendment carries the organ-side
+account and `eval/the-fold/results/ranke-backwards-RESULTS.md` the
+numbers; the surface-side facts worth holding here: the chase's leads
+are the article's own FOOTNOTES first (a marker is an in-page link to
+one numbered note whose outbound links are the source for that
+sentence), overlap-ranked links only after — run 1's overlap ranking was
+out-hit by its own control; a cited ADDRESS is not the cited DOCUMENT
+(half the footnote-bound NASA addresses on the Apollo 11 article now
+serve a portal), so a face must carry the citation's title words or the
+archive copy is read — which makes the archive route a load-bearing
+dependency of `/api/ranke` and its reachability a fact to be measured,
+never assumed (run 3's zero archive reads were a proxy route, cached as
+document gaps); and after four runs the honest shape is that containment
+sits at parity with its control at every grain (18 vs 16 same-sentence,
+9 vs 5 window), the witness signed 3 of 65 leads including one genuine
+paraphrase through a footnote (Safire's memo), and 162 of 226 `partial`
+notes are missing the OBJECT — the source says it in other words. The
+next rung is the witness pointed at footnote-bound partials with a window
+chosen by the face's own referent activation, under a declared budget,
+against the rotated control through the identical slicer; it is not
+another matcher.
+
+## P85 — When the system earns an LLM or an embedder: parity is the license, and the authority is bounded to what the control covers (2026-09-03)
+
+**Generality:** universal.
+
+The ask, verbatim: *"objectively about when the system 'earns' an llm and/or
+embedder in the stack"*. This repo had answered it case by case — the
+witness tier earned its place against a fabricated-note control (P32), the
+0.5B void-loop reader earned its prompt by measurement (P53), embeddings
+were refused as an identity organ (P74, the withdraw/retreat verdict) — but
+the RULE behind those decisions had never been written down, so each new
+learned component was re-argued from scratch.
+
+**The rule, five conditions, pre-registered in `ranke-slicers.mjs`'s own
+header before the run that spent it.**
+
+**L1 — PARITY IS THE LICENSE.** A learned component is licensed for a slot
+only where the mechanical organ already in the tree is measured AT PARITY
+WITH ITS OWN CONTROL. Parity means the mechanical instrument carries zero
+information about this question, and that is the only condition under which
+a model call is not P30 waste: where the mechanical organ separates from
+control, a call buys what is already free. This is the positive condition,
+and it is why "the model would probably help" is never an argument — the
+argument is a parity measurement.
+
+**L2 — IT BEATS THE CHEAP ORGAN AT THE SAME REACH.** P60's fourth
+amendment is the standing reminder that the control most often skipped is
+the dumb baseline. A learned arm is never compared only to itself.
+
+**L3 — IT BEATS A CONTROL BUILT TO FAIL (II.23).** Through the identical
+wiring, on the identical material. An arm that lands redealt claims as
+often as real ones is measuring topic, not proposition.
+
+**L4 — ITS AUTHORITY IS BOUNDED TO WHAT THE CONTROL COVERS.** An embedder
+may RANK — choose where to look; it may never DECIDE. A model may POINT
+(the select protocol: there is nothing to write, so the echo failure mode is
+structurally impossible); it may never WRITE a fact. Every wrong answer a
+learned part can give must be catchable by an organ that is not itself
+learned. This is the condition that decides ARCHITECTURE, not just
+admission: it is why `witnessNote` gained an injectable candidate set rather
+than a second protocol — a slicer may change where the model is asked to
+look, never whether its yes counts.
+
+**L5 — THE ABSENCE IS TYPED.** A component that cannot run reports a named
+gap and the run continues. It never silently becomes a no-op arm that then
+reads as "no lift".
+
+**The retirement clause** — the ratchet (eoreader7's own README) applied to
+learned parts: when a mechanical organ is later measured to separate from
+control at the same reach, the learned component is WITHDRAWN from that
+slot. Earning a slot is not owning it.
+
+**Two corollaries this repo had already been obeying without stating.**
+A learned component never multiplies corroboration: two sources read through
+one embedder or one model are ONE instrument (`independentReadings`, P40;
+Ladha's effective sample size, corroboration.js's own header) — which is why
+a `testimony:` vote's independence is the SOURCE's and never the model's.
+And a learned component is not a way of knowing: read against
+THE-WAYS-OF-KNOWING's nine spokes, an embedder can only accelerate OSTENSION
+(knowing-where). It supplies no TESTIMONY (it has no giver), spends no
+PERTURBATION (it has no null of its own), and grants no COMPOSITION (it
+holds no license). So it is admissible exactly where the question is *where
+should I look*, and nowhere the question is *is this so*.
+
+**Measured?** Not yet. The run that would spend this rule on real material
+(`eoreader7/native/eval/the-fold/ranke-slicers.mjs`, the 162 object-missing
+partials of the Apollo 11 backwards walk) was launched twice and finished
+neither time — the second pass died with the container that ran it. The
+driver, the seam, and the tests are landed and green; the verdict is not
+taken, and this entry claims none. `slicer-licensing-RESULTS.md` states
+exactly what is established and what is not.
+
+**And the fault that entry records against this one, kept because it is the
+sharpest illustration of the rule:** the pass queued 2,592 model calls
+without a budget argument, on the same day and in the same breath as this
+policy. The minimum design that answers the licensing question is the
+confound control plus ONE candidate slicer over a declared sample — 480
+calls, five times cheaper. P9 exists to force that argument BEFORE the run,
+and it was not made. A rule about not spending calls where they cannot move
+a standing is worth exactly as much as the budget declared under it.

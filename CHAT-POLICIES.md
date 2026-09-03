@@ -323,3 +323,18 @@ third.
    header row naming its source) is real, unattempted future work — each
    would need its own real, addressable provenance, not a guess dressed
    as one.
+
+## Amendment 2026-09-03 — the ledger block discloses, and reaches from-memory turns (P84)
+
+Two changes to what a turn is handed, both `holon.js`. The ledger block
+(what the conversation has READ so far, from the hyperlexicon) no longer
+withholds notes that lack a second source: corroborated notes come first
+("stated in more than one place"), then single-witness notes that share
+vocabulary with the question ("stated once so far, nowhere else yet"),
+five lines in all; a note a cited primary states says so. And the block
+now rides the MATERIALLESS chat branches — it had only ever reached the
+material path, so the turn with nothing attached, the one that has only
+the ledger to stand on, never saw it. Wording is "stated", never
+"confirmed": the ledger maps claims, not truth. The `primary` switch
+(Ranke, default off) and `/ranke` are the only ways a turn spends fetches
+on cited sources; a grounded turn on its own never does.

@@ -35,8 +35,8 @@
 // one turn without re-checking anything.
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
-import { distinctSources } from "./corroboration.js";
-import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grounding.js";
+import { distinctSources, proposeCandidates, textFeatures } from "./corroboration.js";
+import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -966,6 +966,13 @@ export async function runPart({
   // it actually built; a ledger created here without one carries the gap
   // by name (`frameOf` → no_frame), never an invented standing.
   hyperlexiconFrame = null,
+  // The frame's recipe id (kernel/notes.js::recipeId over hyperlexiconFrame),
+  // carried on every witness this part lands as `<ref>~<recipe>` so two
+  // sources read by ONE reader count as one instrument (corroboration.js::
+  // independentReadings) — and the ledger's frame is redeclared when it has
+  // moved since birth. `null` (every existing caller) leaves witnesses bare
+  // and undeclared, exactly as before.
+  hyperlexiconRecipe = null,
   // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
   // — asymmetric, P56: a settled non-verb connector is refused with its
   // giver, an out-of-vocabulary word admits). Threaded, never built here:
@@ -1098,13 +1105,19 @@ export async function runPart({
         // moved off the legacy names.
         .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
       if (!edges.length) continue;
+      let ledger = beliefNotes ?? hyperlexicon.createHyperlexicon(hyperlexiconFrame ? { frame: hyperlexiconFrame } : undefined);
+      // The frame in force follows the reader, not the ledger's birthday: a
+      // prior that loaded since is redeclared (SUPERSEDE, the past kept),
+      // so every hearing's seq falls under the frame that actually read it.
+      if (hyperlexiconFrame && hyperlexicon.redeclareFrame) ledger = hyperlexicon.redeclareFrame(ledger, hyperlexiconFrame);
+      const witness = p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null;
       const admitted = hyperlexicon.admit(
-        beliefNotes ?? hyperlexicon.createHyperlexicon(hyperlexiconFrame ? { frame: hyperlexiconFrame } : undefined),
+        ledger,
         edges,
         // minShare stays the door's own declared default — no second number
         // is introduced here; classifyConnector null = the gate does not
         // run, admit's own disclosed behaviour.
-        { witness: p.ref ?? null, classifyConnector },
+        { witness, classifyConnector },
       );
       beliefNotes = admitted.log;
       // Refusals are returned, never read-and-discarded (P57: turnedAway
@@ -1126,34 +1139,71 @@ export async function runPart({
   // that never reaches this line is unaffected.
   const factBlock = relations ? buildFactBlock(relations, passages, question) : null;
 
-  // The ledger's own standing beyond what this part just read — notes
-  // corroborated across MORE THAN ONE witness (`foldHyperlexicon` sorts
-  // most-witnessed first), from earlier parts or earlier turns this part's
-  // own reading did not happen to touch again. Deduped against `factBlock`'s
-  // own fresh lines so nothing doubles. Firewall-clean (firewall.js's
-  // `APPARATUS_TERMS`): no "passage"/"retrieved"/"this turn" — "read in N
-  // places" is the same natural-corroboration phrasing this repo's own
-  // proof-seeking tier already uses ("stated by N of M pages").
+  // The ledger's own standing beyond what this part just read — every
+  // note is DISCLOSED with its standing, never withheld for lacking one.
+  // Until 2026-09-02 this block admitted only notes at >=2 distinct
+  // sources and rendered EMPTY on nearly everything the reader had heard:
+  // a whole real book corroborates 1 note in 60 asks (P83 — fiction
+  // re-mentions referents, not propositions), two encyclopedia pages 1 in
+  // 30. The gate was chosen when the door admitted junk (P73); the door is
+  // clean now (P74, P82), and a note with a verified address, real ends
+  // and a real label is a CLAIM SOMEONE MADE, addressed — what it lacks is
+  // restatement elsewhere, which is said on the line, not used to hide the
+  // line. Nothing here is a claim about what is true: the ledger is the
+  // richest map of what claims are made, and by whom, about the truth.
+  // Two tiers inside one declared budget: corroborated notes first
+  // (kernel standingOf — DISTINCT SOURCES, never witness-list length;
+  // a sighting and a testimony vote from one page are one perspective),
+  // then single-witness notes ranked by shared vocabulary with THIS
+  // part's own question (proposeCandidates — the same ranker the witness
+  // walk proposes from), so what reaches the model is what bears on what
+  // was asked. A note a PRIMARY source states (ranke.js — the chase
+  // through a citing page to the sources it cites) is named as such: the
+  // model reads "a source it cites states it", not a bare count.
+  // Firewall-clean (firewall.js's APPARATUS_TERMS): "read in N places",
+  // "read once", "a source it cites" — natural-frequency phrasing, no
+  // "passage"/"retrieved"/"this turn". Deduped against factBlock's own
+  // fresh lines so nothing doubles.
   const HYPERLEXICON_LEDGER_LINES = 5;
   const ledgerBlock = (() => {
     if (!hyperlexicon || !beliefNotes) return null;
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
-    const standing = hyperlexicon
-      .foldHyperlexicon(beliefNotes)
-      // DISTINCT SOURCES, not witness-list length (corroboration.js's own
-      // independence rule, NEXT-PASSES Pass 4): a mechanical sighting on
-      // page A plus a testimony vote FROM page A is ONE source wearing two
-      // costumes, and `witnesses.length >= 2` read it as two — Ladha's
-      // correlated-witnesses cap, enforced at the one gate that feeds the
-      // model. One implementation, imported: corroboration.js is pure.
-      .filter((n) => distinctSources(n.witnesses).size >= 2)
-      .filter((n) => !shown.has(`${n.subject} — ${n.verb}→ ${n.object}`.toLowerCase()))
-      .slice(0, HYPERLEXICON_LEDGER_LINES);
-    if (!standing.length) return null;
-    return (
-      `From earlier reading, confirmed independently in more than one place:\n` +
-      standing.map((n) => `- ${n.subject} — ${n.verb}→ ${n.object} (read in ${distinctSources(n.witnesses).size} places)`).join("\n")
-    );
+    const line = (n) => `${n.subject} — ${n.verb}→ ${n.object}`;
+    const all = (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} })))
+      .filter((n) => !shown.has(line(n).toLowerCase()));
+    // BOTH tiers are ranked by the question. Measured (gate-proof.mjs,
+    // 2026-09-03): with the corroborated tier unranked, 21 corroborated
+    // notes filled the five-line budget on every question — the asked
+    // single-witness note reached the model on 1 of 8 questions, and a
+    // question about nothing the ledger holds still got a block of
+    // unrelated notes. Shared vocabulary with the question first, then
+    // standing as the tiebreak; a note sharing nothing is not shown, and
+    // a question the ledger has nothing on gets no block at all.
+    // The question's own interrogative furniture is not vocabulary: "what"
+    // is a feature of every question and of any note that quotes one, so
+    // a control question about a committee no ledger holds still drew a
+    // block on "what" alone (gate-proof.mjs run 2). grounding.js's
+    // CLAIM_STOPWORDS is the received list that already carries the
+    // interrogatives; the note side is untouched.
+    const questionFeatures = (q) => new Set([...textFeatures(q)].filter((w) => !CLAIM_STOPWORDS.has(w)));
+    const ranked = proposeCandidates(all, String(question ?? ""), { limit: all.length, featuresOfSource: questionFeatures })
+      .sort((a, b) => b.shared - a.shared || (b.note.sources ?? 0) - (a.note.sources ?? 0))
+      .slice(0, HYPERLEXICON_LEDGER_LINES)
+      .map((c) => c.note);
+    const corroborated = ranked.filter((n) => n.sources >= 2);
+    const single = ranked.filter((n) => n.sources < 2);
+    if (!corroborated.length && !single.length) return null;
+    const phrase = (n) => {
+      const primaries = n.kinds?.primary ?? 0;
+      if (primaries && n.sources >= 2) return `read in ${n.sources} places, one of them a source the account itself cites`;
+      if (n.sources >= 2) return `read in ${n.sources} places`;
+      return "stated once so far, nowhere else yet";
+    };
+    const render = (list) => list.map((n) => `- ${line(n)} (${phrase(n)})`).join("\n");
+    return [
+      corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
+      single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
+    ].filter(Boolean).join("\n\n");
   })();
 
   // The salience gate's other half (fact-block.js's own header): the raw
@@ -1691,6 +1741,13 @@ export async function runPart({
   const draftMaterial = factBlock
     ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
     : [ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+  // A turn with nothing attached is exactly the turn that should stand on
+  // what was read BEFORE — until 2026-09-03 the ledger block reached only
+  // the material branches, so a from-memory question never saw the ledger
+  // at all (found by the P84 pin: the materialless path sent none of it).
+  // It rides the system message as a fact the model receives (P55's
+  // posture), never as an instruction about the apparatus.
+  const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
   const executeMessages = passages.length
     ? flat
       ? [
@@ -1707,12 +1764,12 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${ledgerSuffix}` },
           { role: "user", content: `${task}${chatContext}` },
         ];
   onProgress?.("execute", part, {
@@ -2392,6 +2449,13 @@ export async function runHolonicTask({
   hyperlexicon = null,
   hyperlexiconLog = null,
   hyperlexiconFrame = null,
+  // The frame's recipe id (kernel/notes.js::recipeId over hyperlexiconFrame),
+  // carried on every witness this part lands as `<ref>~<recipe>` so two
+  // sources read by ONE reader count as one instrument (corroboration.js::
+  // independentReadings) — and the ledger's frame is redeclared when it has
+  // moved since birth. `null` (every existing caller) leaves witnesses bare
+  // and undeclared, exactly as before.
+  hyperlexiconRecipe = null,
   classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -2512,6 +2576,7 @@ export async function runHolonicTask({
       hyperlexicon,
       hyperlexiconLog: sharedHyperlexiconLog,
       hyperlexiconFrame,
+      hyperlexiconRecipe,
       classifyConnector,
     });
     seenRefs.push(...result.refs);

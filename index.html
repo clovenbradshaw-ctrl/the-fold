@@ -1927,6 +1927,11 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <input type="checkbox" id="use-web" checked />
               <span class="track" aria-hidden="true"></span>
             </label>
+            <label class="switch" title="Ranke — chase notes read off a fetched page to the sources that page cites (any outbound link) or quotes without a source. Off by default: each run is fetches and searches. Explicit: /ranke <maxFetches> [maxSearches].">
+              <span class="switch-label">primary</span>
+              <input type="checkbox" id="use-ranke" />
+              <span class="track" aria-hidden="true"></span>
+            </label>
             <button type="submit" class="primary" id="send" disabled>Send</button>
           </div>
         </form>

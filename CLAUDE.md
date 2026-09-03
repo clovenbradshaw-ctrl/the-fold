@@ -7220,3 +7220,74 @@ any consumer reading `.subject` off a stored ENTRY (not a fold row) breaks —
 provider to native when the legacy submodule is absent, `ENGINE=legacy` still
 pins it; `hypergraph.test.mjs` is 58/58 native, so Pass 7's "settle the
 supersession first" note is spent.
+
+## The frame follows the reader; the diet door is refused (added 2026-09-02) — pointer
+
+POLICIES.md **P81** is the law here; eoreader7 **S43** its pair;
+`eoreader7/native/eval/the-fold/results/diet-boundary-RESULTS.md` the
+numbers. Short map: `holon.js` redeclares the ledger's frame every grounded
+turn and lands every witness as `<ref>~<recipe>` (app.js mints the recipe
+per frame), so one reader over many pages is one instrument to
+`independentReadings`. **Do not rebuild a furniture gate on surprise** —
+the tail-run door was measured and refuted (misses wrappers and the
+Gutenberg licence, fires on closing lists); the kernel keeps it as a
+diagnostic with the refutation in its header. The "most surprising
+hearings are the furniture" line in P80's pointer above was a floor
+artifact and is withdrawn. What did survive its control: label ORDER
+transfers between two English pages (0.2–0.3 bits/hearing, 20/20), ends
+do not — the first cross-source number.
+
+## Floor 2 for floor 5: subject walls (added 2026-09-02) — pointer
+
+POLICIES.md **P82**; eoreader7 **S44**; `subject-wall-RESULTS.md` there. No
+code here changed — the production reader inherits the walls through the
+moved extractor. The one lesson to carry: the first cut's tally looked
+right and its rewrite list did not; diff every rewritten subject against
+the old one before trusting a debris count.
+
+## Floor 5 ran live, and the gate is the question (added 2026-09-02) — pointer
+
+POLICIES.md **P83**; eoreader7 **S45**; `dracula-witness-walk-RESULTS.md`
+there. Ollama runs on CPU in the container (gemma2:2b, ~3s a read). Two
+things to carry: `distinctSources` counted CHUNKS as sources until today —
+every ≥2-source number computed off chunk-addressed witnesses was
+inflated, and the fix is in eoreader7's `corroboration.js`; and the
+corrected floor-5 number (1 in 60 on a novel, 1 in 30 on a page pair, zero
+lies) is not a weak witness but the material — so the next decision is the
+ledger block's ≥2 gate in `holon.js`, not another corroboration lever.
+
+## Ranke — the claim is chased to the document its account cites (added 2026-09-03) — pointer
+
+POLICIES.md **P84**; eoreader7 **S46**; `eoreader7/native/eval/the-fold/
+results/ranke-walk-RESULTS.md` the numbers. The agent is named after
+Leopold von Ranke by user direction (an earlier name, Seymour, was
+withdrawn the same hour). Four things to carry, each earned by running:
+**a page that cites nothing chases nothing** (the structural gate — a
+novel's dialogue never opens a hunt); **a link sharing no word with the
+claim is not a lead for it**; **containment is a lead, never a landing** —
+the redealt control attested six notes to the real ledger's one, so only
+the witness tier's own "states" lands `primary:<host>#a-b~ranke-v1`; and
+**an account and the document it cites are two KINDS of witness** (kernel
+`standingOf.kinds`), never summed. The ledger block now DISCLOSES standing
+("stated in more than one place" / "stated once so far") instead of
+withholding on it, and reaches the materialless chat branches it had
+never reached. The `primary` switch is default OFF; `/ranke <maxFetches>
+[maxSearches]` is the door. Wording rule, from the user: nothing here
+claims what is true — the ledger is the richest map of what claims are
+made about the truth, and by whom.
+
+**Amended 2026-09-03 — worked backwards on Apollo 11** (`ranke-backwards-
+RESULTS.md` in eoreader7; P84's second amendment; S46's amendment). Four
+runs earned three rules in `ranke.js` — the footnote is the lead (a
+marker in the prose is an in-page link to one numbered note), a marker at
+a span's start is the previous sentence's, and a cited address is not the
+cited document (title-word identity, then the archive copy) — and one
+environment fact worth not re-finding: Node's fetch ignores `HTTPS_PROXY`
+without `NODE_USE_ENV_PROXY=1`, and Wayback 403s the direct path, so a
+run that reads no archive copies has measured a route. The wall that
+remains is paraphrase: containment is at parity with its control at every
+grain (twice), and 162 of 226 partial notes are missing the object. The
+witness crossed one such gap for real (Safire's memo, through the note's
+own footnote). Next rung: the witness on footnote-bound partials with the
+window chosen by referent activation, not word containment — never a
+tenth matcher.

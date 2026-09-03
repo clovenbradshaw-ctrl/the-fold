@@ -60,6 +60,7 @@ import {
 // the claim-ordered ranking, the verbatim snip, the counted fold) — the
 // route below owns only the crossings
 import { extractCitations, rankPrimary, snipClaim, foldPrimary, PRIMARY_SOURCES_CONSULTED, PRIMARY_SNIPS_KEPT } from "./primary.js";
+import { chaseLedger as rankeChaseLedger, RANKE } from "../eoreader7/native/organs/ranke.js";
 // the reference-library tier's pure half (provenance frontmatter, mechanical
 // candidate ordering, the snip check, the counted fold) — the route below
 // owns only the reads, confined to the corpus root
@@ -577,6 +578,39 @@ async function verifySnapshot(archiveUrl) {
  * the archive setting is honoured — exactly what /api/web/fetch always did.
  * Returns { url, entry, fold, text } or { url, gap } with the gap typed.
  */
+// ── the one search: both DuckDuckGo faces, in order, typed refusals ─────
+// Factored out of the /api/web/search route (2026-09-03) so Ranke's quote
+// chase (/api/ranke) runs the SAME search the omnibox runs — one
+// implementation, never a second endpoint list to drift.
+async function searchWeb(query) {
+  const endpoints = [
+    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+    `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`,
+  ];
+  let blocked = false;
+  let results = null;
+  let failure = null;
+  for (const ep of endpoints) {
+    try {
+      const { res: r, buf } = await fetchCapped(ep);
+      const parsed = parseSearchResults(buf.toString("utf8"));
+      if (parsed.blocked) {
+        blocked = true;
+        continue;
+      }
+      if (parsed.offEndpoint || r.status >= 400) {
+        failure = `the endpoint answered ${r.status} with something other than its results page`;
+        continue;
+      }
+      results = parsed.results;
+      break;
+    } catch (e) {
+      failure = e.message;
+    }
+  }
+  return { results, blocked, failure };
+}
+
 async function fetchAndKeep(url, { forceArchive = false } = {}) {
   const retrievedAt = new Date().toISOString();
   let fetched;
@@ -1713,31 +1747,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const query = String(body.query ?? "").trim();
       if (!query) return send(res, 400, { error: "query (string) is required" });
-      const endpoints = [
-        `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-        `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`,
-      ];
-      let blocked = false;
-      let results = null;
-      let failure = null;
-      for (const ep of endpoints) {
-        try {
-          const { res: r, buf } = await fetchCapped(ep);
-          const parsed = parseSearchResults(buf.toString("utf8"));
-          if (parsed.blocked) {
-            blocked = true;
-            continue;
-          }
-          if (parsed.offEndpoint || r.status >= 400) {
-            failure = `the endpoint answered ${r.status} with something other than its results page`;
-            continue;
-          }
-          results = parsed.results;
-          break;
-        } catch (e) {
-          failure = e.message;
-        }
-      }
+      const { results, blocked, failure } = await searchWeb(query);
       if (!results) {
         const gap = blocked
           ? { silence: "refused-upstream", detail: "the search endpoint answered with its bot-challenge page — it declined this machine; the organ did not fail and the query was not silently empty" }
@@ -2014,6 +2024,48 @@ function mergeRelatingLedger(left, nominations) {
       } catch (e) {
         return send(res, 200, { gap: { type: "giver_refused", detail: String(e?.message ?? e) }, steps });
       }
+    }
+
+    // ---- Ranke: chase notes read off citing pages to the sources those
+    // pages cite (links) or quote without a source (searched). The organ is
+    // pure (eoreader7 native/organs/ranke.js); this route owns the two
+    // crossings — fetchAndKeep for every face (kept content-addressed, on
+    // history, on the record like any page) and searchWeb for every quote —
+    // and hands back what the browser lands on ITS ledger (attest), never a
+    // log this server keeps. Budgets are the request's own (P9). The gate
+    // lives in the organ: a page that cites nothing chases nothing.
+    if (req.method === "POST" && p === "/api/ranke") {
+      const body = await readJsonBody(req);
+      const maxFetches = Number(body.maxFetches);
+      const maxSearches = Number(body.maxSearches ?? 0);
+      if (!Number.isInteger(maxFetches) || maxFetches < 0 || !Number.isInteger(maxSearches) || maxSearches < 0)
+        return send(res, 400, { error: "maxFetches and maxSearches are declared by the caller (P9)" });
+      const notes = Array.isArray(body.notes) ? body.notes : [];
+      const pages = [];
+      for (const pg of Array.isArray(body.pages) ? body.pages : []) {
+        const raw = pg.rawPath ? confine(String(pg.rawPath)) : null;
+        const txt = pg.textPath ? confine(String(pg.textPath)) : null;
+        if (!raw || !raw.startsWith(WEB_PAGES_DIR + path.sep) || !existsSync(raw)) continue; // only pages this store kept
+        pages.push({ ref: String(pg.ref), html: readFileSync(raw, "utf8"), text: txt && txt.startsWith(WEB_PAGES_DIR + path.sep) && existsSync(txt) ? readFileSync(txt, "utf8") : "", host: pg.host ?? null, url: pg.url ?? null });
+      }
+      const landed = [];
+      const door = {
+        foldHyperlexicon: () => notes,
+        attest: (log, id, { witness, span, because }) => { landed.push({ id, witness, span, because }); return { log, refused: null }; },
+      };
+      const fetchFace = async (url, archiveUrl) => {
+        let got = await fetchAndKeep(url);
+        if (got.gap && archiveUrl) got = await fetchAndKeep(archiveUrl);
+        if (got.gap) return { gap: got.gap };
+        let host = null;
+        try { host = new URL(got.entry.finalUrl || url).hostname.replace(/^www\./, ""); } catch { host = null; }
+        if (got.text == null) return { text: null, url: got.entry.finalUrl, host, path: got.entry.rawPath };
+        return { text: got.text, url: got.entry.finalUrl, host, path: got.entry.textPath };
+      };
+      const search = maxSearches > 0 ? async (q) => (await searchWeb(`"${q}"`)).results ?? [] : null;
+      const r = await rankeChaseLedger(null, door, pages, { fetchFace, search, maxFetches, maxSearches, consult: Number.isInteger(body.consult) ? body.consult : PRIMARY_SOURCES_CONSULTED });
+      record("ranke", { pages: pages.length, notes: notes.length, considered: r.notesConsidered, attested: r.notesAttested, fetches: r.fetches, searches: r.searches, refusedPages: r.pagesRefused.length, budget: { maxFetches, maxSearches } });
+      return send(res, 200, { agent: RANKE, landed, chased: r.chased, fetches: r.fetches, searches: r.searches, pagesRefused: r.pagesRefused, notesConsidered: r.notesConsidered, notesAttested: r.notesAttested, faces: r.faces });
     }
 
     if (req.method === "POST" && p === "/api/web/primary") {

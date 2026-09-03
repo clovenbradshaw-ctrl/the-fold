@@ -10550,3 +10550,58 @@ confound control plus ONE candidate slicer over a declared sample — 480
 calls, five times cheaper. P9 exists to force that argument BEFORE the run,
 and it was not made. A rule about not spending calls where they cannot move
 a standing is worth exactly as much as the budget declared under it.
+
+## P86 — A bridge can be witnessed, and witnessing it cannot create corroboration that string identity never found (2026-09-03)
+
+**Generality:** universal.
+
+The code is eoreader7's (**S52**, PR #70 — `organs/bridge-witness.js`);
+this entry is the law it earned and the boundary it drew. Nothing in
+the-fold changed.
+
+**What was closed.** S49 recorded referent bridges as their own
+corroboratable objects and named its own gap: a bridge reaches
+`corroborated` only when a SECOND independently-derived content note
+assumes the identical correspondence, so 40 of 43 bridges on real material
+stood `single-witness` with nothing in the mechanism able ever to move
+them. A witness can now be asked directly — select protocol (point, never
+write), armed against a decoy that is a real competing referent from the
+document being read, an unarmed "same" refused exactly as `witnessNote`
+already refuses one, and the ACT (`concede`) kept apart from the DIAGNOSTIC
+(the verdict), `concedeDiet`'s own precedent.
+
+**Measured, with a null, because a bare inequality is not a result.** Live
+`gemma2:2b` over the three fixtures S49 used, through the SAME pipeline
+copied rather than reimplemented: real 8 of 12 vs a mispaired control 2 of
+12, **Fisher exact one-sided p = 0.0180**, α = 0.05 declared before the
+run, twice at temperature 0, identical. The organ discriminates.
+
+**THE LAW THIS PASS ACTUALLY EARNED, and it is a boundary, not a
+capability.** 12 of 12 examined candidates had two faces that were the
+IDENTICAL STRING. A bridge exists only where `hear()`'s exact-triple match
+ALREADY FIRED. A paraphrase never matches the triple, so it never produces
+a join, so it never becomes a bridge candidate, so no witness is ever asked
+about it. **Any mechanism that operates on bridges is downstream of the
+match, and therefore cannot move the ~2% corroboration wall (P74, P83),
+which IS the match that never happened.** Stated generally, so it is not
+re-derived by the next organ built in this neighbourhood: *an organ that
+reads a correspondence can only ever examine correspondences something
+else already proposed — it can make them accountable, it cannot make more
+of them.* The levers that could move corroboration all sit UPSTREAM of
+identity, in what gets extracted at all.
+
+**A landed witness does not raise a standing.** Every witnessed bridge
+still reads `single-witness`: `standingOf` counts distinct SOURCES, and one
+model reading two passages is not a second source. The witness appears in
+`kinds` — counted apart, never summed, P84's own rule for `primary:`
+against account witnesses, applied one register over. A consumer asking
+"was this ever actually checked" reads the kind; one asking "how many
+independent crossings assumed it" reads the standing. Two questions, kept
+two.
+
+**Disclosed.** The control may be easy (a mispaired passage is usually
+off-topic); a same-topic control is named and unbuilt. n = 12, one
+material, one model, no oracle — 4 of 12 real correspondences read
+"different" and nothing adjudicated them. And the organ is unmeasured on
+non-identical faces, because this material produces none: the case bridges
+exist for is the case this material cannot exercise.

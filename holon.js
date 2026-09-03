@@ -1171,11 +1171,20 @@ export async function runPart({
     const line = (n) => `${n.subject} — ${n.verb}→ ${n.object}`;
     const all = (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} })))
       .filter((n) => !shown.has(line(n).toLowerCase()));
-    const corroborated = all.filter((n) => n.sources >= 2).slice(0, HYPERLEXICON_LEDGER_LINES);
-    const room = HYPERLEXICON_LEDGER_LINES - corroborated.length;
-    const single = room > 0
-      ? proposeCandidates(all.filter((n) => n.sources < 2), String(question ?? ""), { limit: room }).map((c) => c.note)
-      : [];
+    // BOTH tiers are ranked by the question. Measured (gate-proof.mjs,
+    // 2026-09-03): with the corroborated tier unranked, 21 corroborated
+    // notes filled the five-line budget on every question — the asked
+    // single-witness note reached the model on 1 of 8 questions, and a
+    // question about nothing the ledger holds still got a block of
+    // unrelated notes. Shared vocabulary with the question first, then
+    // standing as the tiebreak; a note sharing nothing is not shown, and
+    // a question the ledger has nothing on gets no block at all.
+    const ranked = proposeCandidates(all, String(question ?? ""), { limit: all.length })
+      .sort((a, b) => b.shared - a.shared || (b.note.sources ?? 0) - (a.note.sources ?? 0))
+      .slice(0, HYPERLEXICON_LEDGER_LINES)
+      .map((c) => c.note);
+    const corroborated = ranked.filter((n) => n.sources >= 2);
+    const single = ranked.filter((n) => n.sources < 2);
     if (!corroborated.length && !single.length) return null;
     const phrase = (n) => {
       const primaries = n.kinds?.primary ?? 0;

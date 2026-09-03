@@ -7291,3 +7291,59 @@ witness crossed one such gap for real (Safire's memo, through the note's
 own footnote). Next rung: the witness on footnote-bound partials with the
 window chosen by referent activation, not word containment — never a
 tenth matcher.
+
+## The module census — every verb, held against the cube (added 2026-09-03) — pointer
+
+`eoreader7/native/docs/THE-MODULE-CENSUS.md` is the document; standing:
+nomination, same register as `THE-27-CELLS.md` (its own companion —
+read the other direction: module-first, not cell-first). The ask was
+literal: a pass of every module's verb against the 27 positions, going
+past `capacities.js`'s own curated ~29 entries to the roughly 220
+substantive modules across both repos. Nine parallel reads plus one
+direct gap-fill (an off-by-one had skipped `void-loop.js`/
+`void-narration.js`/`void-shape.js`; caught and filled rather than left
+silent) produced ~370 verb-rows, cross-checked against `cube.js`'s real
+domain lock rather than trusted from prose.
+
+**The headline finding is stronger than 27/27.** Every one of the 27
+cells now carries a SECOND organ found independently of the curated
+registry — including the two that had exactly one example before
+(`INS·Ground`: `adapters/text/revision.js` self-declares admitting a raw
+occurrence, beside `proof.js`'s web search; `REC·Ground`:
+`kernel/temporal-reference.js` self-declares re-zeroing the narrative's
+"now," beside `source.js`'s atmosphere regime). The algebra is not a
+curated fit to 29 hand-picked examples — unrelated organs, across text,
+audio, and MIDI, keep landing on the same cells for unrelated reasons.
+
+**A real structural finding, not assumed:** tallying all ~262
+single-cell rows by grain gives Figure 56%, Pattern 27%, Ground 17% —
+the Ground row is thin everywhere in this codebase, not only in the
+three cells that happened to read zero in the curated set. By mode,
+Relate is 47% of everything (this is overwhelmingly a checking/binding
+instrument) and Generate is 21% (composing new wholes is comparatively
+rare). The single densest cell by a wide margin is `CON·Figure` (Link,
+Binding — 14.5% of all rows), converging from `hypergraph.js`'s relation
+reader down to `contest.js::adjudicate` (self-declared identically by
+four separate kernel callers) to `overtones.js::overtoneOverlap` (audio)
+landing on the exact cell `memory/activation.js` self-declares — the
+concrete specimen `THE-THREE-MATHEMATICS.md` §VIII.1 asks for.
+
+**One real, disclosed discrepancy, not fixed here:** `kernel/
+scoped-kind.js`'s own header claims its mint/resolve pair lands on
+"Existence·Pattern, Kind," but its own code calls `cellOf("SYN",
+"Pattern")`/`cellOf("CON","Pattern")` — both Structure-domain operators,
+which mechanically compute `Network`, never `Kind`. Internally
+consistent with itself, not with its own stated intent — named for the
+next pass that touches that file, the same posture `capacities.js`'s own
+header already models for its `skill`/`build` catches. Also named,
+correctly NOT flagged as a bug: `grid.js`'s composed acts may declare a
+terrain diverging from the operator's domain lock, by the terminal
+language's own documented "medium-blind terrain" convention (CLAUDE.md,
+above) — a second, deliberate convention, kept apart from the strict
+registry's domain lock rather than reported as contradicting it.
+
+The document also names ~14 unregistered candidates sitting cleanly on
+real cells (never registered there — that admission bar is
+`capacities.js`'s own, not this census's) and states its own limits
+plainly: one AI-assisted pass, large files skimmed not fully read, no
+generality gate run, coherence never correctness.

@@ -35,8 +35,8 @@
 // one turn without re-checking anything.
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
-import { distinctSources, proposeCandidates } from "./corroboration.js";
-import { checkGrounding, extractCheckableAtoms, unsupportedClaims } from "./grounding.js";
+import { distinctSources, proposeCandidates, textFeatures } from "./corroboration.js";
+import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -1179,7 +1179,14 @@ export async function runPart({
     // unrelated notes. Shared vocabulary with the question first, then
     // standing as the tiebreak; a note sharing nothing is not shown, and
     // a question the ledger has nothing on gets no block at all.
-    const ranked = proposeCandidates(all, String(question ?? ""), { limit: all.length })
+    // The question's own interrogative furniture is not vocabulary: "what"
+    // is a feature of every question and of any note that quotes one, so
+    // a control question about a committee no ledger holds still drew a
+    // block on "what" alone (gate-proof.mjs run 2). grounding.js's
+    // CLAIM_STOPWORDS is the received list that already carries the
+    // interrogatives; the note side is untouched.
+    const questionFeatures = (q) => new Set([...textFeatures(q)].filter((w) => !CLAIM_STOPWORDS.has(w)));
+    const ranked = proposeCandidates(all, String(question ?? ""), { limit: all.length, featuresOfSource: questionFeatures })
       .sort((a, b) => b.shared - a.shared || (b.note.sources ?? 0) - (a.note.sources ?? 0))
       .slice(0, HYPERLEXICON_LEDGER_LINES)
       .map((c) => c.note);

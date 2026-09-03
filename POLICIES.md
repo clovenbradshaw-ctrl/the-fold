@@ -10421,3 +10421,29 @@ books; said plainly in `ranke-walk-RESULTS.md`, not smoothed.
 **Enforced:** `holon.test.mjs` (+1), `ranke.test.mjs` (6, eoreader7),
 `notes.test.js` (+2). Full the-fold suite: failure names identical to HEAD
 before and after (67 environment names), zero regressions.
+
+**Amended 2026-09-03 (same day) — measured against a real model, and two
+leaks in the block closed.** `eval/the-fold/gate-proof.mjs` (eoreader7)
+runs the REAL `runHolonicTask` headlessly on gemma2:2b, every question a
+materialless turn, under two arms that differ only in what the door
+projects (old gate: >=2 sources; disclosed: every note). Two new
+materials: the Austerlitz/Third-Coalition ledger (605 notes) and *Pride and
+Prejudice* (522 notes, a book this project had not read). **Result:** on
+the book the old gate showed the model NOTHING on 8 of 8 questions and hit
+0; disclosed, the asked note reached the model on 6/8 and the answer
+carried its words on 4/8. On the pages, after the first fix below: asked
+note shown 7/8 vs 3/8, hits 6/8 vs 2/8. Two leaks the runs found, both in
+`holon.js`: (1) the corroborated tier was not ranked by the question, so
+21 corroborated notes filled the five lines on every question and the
+single tier never ran — both tiers are ranked by shared vocabulary now,
+standing as the tiebreak; (2) the question's own interrogative ("what")
+counted as shared vocabulary, so a control question about a committee no
+ledger holds still drew a block — the question side is filtered through
+`grounding.js`'s received `CLAIM_STOPWORDS` before ranking, and the
+control is withheld on both materials in a mechanical rerun (no model,
+same pipeline). Full tables and the honest caveat that hits measure
+restatement, never truth: `gate-proof-RESULTS.md`. A headless Chromium
+load of the real page was byte-identical in outcome to HEAD (the same
+`/engine/emergence/tiers.js` 404 leaves the not-served banner up in this
+checkout with or without this pass; the `primary` switch renders,
+unchecked; zero exceptions either way).

@@ -7405,3 +7405,34 @@ claims, and cannot make a thin ledger read as a confident account — its
 reach is whatever corroboration the reading holds (~2%, P83; and P86 showed
 the identity-side levers cannot move that). **Model-free long-form
 rendering was never the scarce thing; checked claims worth rendering are.**
+
+## The chorus roster, checked against its own values (added 2026-09-04) — pointer
+
+POLICIES.md **P93** is the law; `chorus-roster-ethics-review.md` is the
+full research (every claim checked against live sources this pass, not
+recalled). The user's ask: research who this repo's review-chorus and
+"giver" citations actually name, confirm they hold up, and find where
+women and non-binary scholars belong. Result: mostly clean — no concern
+manufactured where none exists — with two real flags (Feynman's memoir
+and an unadjudicated 1956 allegation; Fisher's institutional eugenics
+leadership, separate from the exact test's own validity) and two
+identities the repo had never actually stated in full, disambiguated
+(Holmes: almost certainly fictional, low risk; Marshall: almost certainly
+John Marshall, whose slaveholding and *Johnson v. M'Intosh* sit in real
+tension with an otherwise sharp "checks conformance to the founding
+document" fit). `verification.js`'s `PERSONAS` moved two seats — Entity:
+Holmes → **Barbara Grosz** (Centering Theory is the actual coreference
+mechanism this cell checks, not an analogy); Atmosphere: a
+never-confirmed seat → **Barbara McClintock** (evidence-forced ground
+concession, closer than the placeholder it fills rather than replaces).
+`CHORUS-LOG.md`'s own roster note (not a logged review — the log's past
+entries stay exactly as recorded, append-only) adds meta: Marshall →
+**Helen Longino**, whose objectivity-as-communal-practice thesis fits what
+that seat audits more precisely than the Marbury parallel it moved from.
+Feynman keeps his seat, disclosed rather than silently replaced: no
+researched alternative exists, and swapping him for an unresearched name
+would repeat the exact failure this review exists to correct. Muriel
+Bristol (the real scientist whose claim IS the "lady tasting tea"
+experiment) and Ruqaiya Hasan (full co-author of *Cohesion in English*)
+are recorded as citation corrections alongside Fisher and Halliday, not
+threaded into every past dated paragraph naming either man.

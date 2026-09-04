@@ -1,12 +1,16 @@
 # The chorus roster, and where women and non-binary scholars belong in it
 
-A proposal, not a disposal (VI.2) — nothing in `verification.js` or
-`CHORUS-LOG.md` is changed by this file. It does two things the user asked
-for directly: checks that the people this repo has named review-personas
-and "givers" after actually hold up against the project's own values
-(honesty, rigor, non-fabrication, giving credit, epistemic humility), and
-names specific women and non-binary scholars who have earned a place in
-this roster, with the real work backing each name.
+Started as a proposal (VI.2 — propose without disposing); the user then
+directed "rename as needed," so the recommendations below marked **▶
+applied** are now live in `verification.js`/`CHORUS-LOG.md`/CLAUDE.md's
+own pointer convention (POLICIES.md P93 is the law for the decision;
+this file remains the law for the research behind it). This document
+does two things the user asked for directly: checks that the people this
+repo has named review-personas and "givers" after actually hold up
+against the project's own values (honesty, rigor, non-fabrication,
+giving credit, epistemic humility), and names specific women and
+non-binary scholars who have earned a place in this roster, with the
+real work backing each name.
 
 Every claim below was checked against live sources this pass, not recalled
 from memory alone — the same discipline this repo asks of everything else
@@ -36,20 +40,24 @@ Two different practices, worth keeping apart:
 | Diaconis | NUL | Persi Diaconis, Stanford statistician & former magician | man | clean |
 | Feynman | DEF / Lens | Richard Feynman, physicist | man | **flag — see below** |
 | Dijkstra | SEG / Field | Edsger Dijkstra, computer scientist | man | clean |
-| Simon | (suggested, unconfirmed) Atmosphere/REC | Herbert Simon, economist & AI pioneer | man | clean, but placement was never confirmed |
+| ~~Simon (unconfirmed)~~ → **McClintock** | Atmosphere/REC | Barbara McClintock, geneticist | **woman** | ▶ applied — was never confirmed, now is |
 | Frankfurt | INS / Kind | Harry Frankfurt, philosopher | man | clean |
 | Ostrom | CON / Link | Elinor Ostrom, political economist | **woman** | clean |
-| Holmes | SIG / Entity | almost certainly Sherlock Holmes (fictional) | — | clean, but see disambiguation |
+| ~~Holmes~~ → **Grosz** | SIG / Entity | Barbara Grosz, computer scientist | **woman** | ▶ applied |
 | Pearl | EVA / Paradigm | Judea Pearl, computer scientist | man | clean |
 | Alexander | SYN / Network | Christopher Alexander, architect | man | clean |
 | Chekhov | residual | Anton Chekhov, playwright/physician | man | clean |
-| Marshall | meta | almost certainly John Marshall, Chief Justice | man | **flag — see below** |
+| ~~Marshall~~ → **Longino** | meta | Helen Longino, philosopher of science | **woman** | ▶ applied |
 
-**Composition, stated plainly:** as the roster stands today, that is ten
-men, one woman (Ostrom), zero non-binary people, and one open seat
-(Atmosphere/REC — `verification.js`'s own comment: *"Atmosphere/REC has no
-confirmed entry in CHORUS-LOG.md (checked directly, zero hits)"*). That
-imbalance is the reason Part 3 exists.
+**Composition, stated plainly:** as the roster stood before this pass,
+that was ten men, one woman (Ostrom), zero non-binary people, and one
+open seat (Atmosphere/REC — `verification.js`'s own comment: *"Atmosphere/
+REC has no confirmed entry in CHORUS-LOG.md (checked directly, zero
+hits)"*). That imbalance is the reason Part 3 exists, and three of its
+recommendations are now applied (Part 3, items 1–3): the roster is seven
+men, four women (Ostrom, Grosz, McClintock, Longino), zero non-binary
+people. Still worth stating plainly rather than declaring solved — see
+"On non-binary representation, stated honestly" below.
 
 ### The two real flags
 
@@ -96,9 +104,10 @@ doctrine. He used judicial review; John Marshall invented it. If the name
 is ever confirmed as intentionally Thurgood Marshall, there is no flag at
 all.)*
 
-### One disambiguation worth settling, even though it turned out low-risk
+### One disambiguation that was settled, even though it turned out low-risk
 
-**Holmes (SIG).** Also never given a full name in the repo. Three
+**Holmes (SIG) — resolved by replacement, not by picking a reading.**
+Never given a full name in the repo. Three
 candidates were checked: Sherlock Holmes (fictional detective — "you see,
 but you do not observe," the closest real match to "identity/
 surface-overlap" deduction); Oliver Wendell Holmes Jr. (Justice, but
@@ -111,7 +120,9 @@ fit either way). Given that Chekhov sits on the same roster named for a
 real Holmes is specifically known for identity-deduction work, the
 fictional detective is the better-supported reading. Low risk either way,
 but worth stating plainly which one this is, since the wrong reading
-carries the worst single flag of anyone considered in this review.
+carried the worst single flag of anyone considered in this review — which
+is exactly why the seat now names Barbara Grosz instead of resolving the
+ambiguity in favor of either Holmes (Part 3, item 2).
 [Buck v. Bell](https://en.wikipedia.org/wiki/Buck_v._Bell)
 
 ### Everyone else: clean
@@ -178,7 +189,7 @@ Four concrete placements, each backed by real, checked work — not a
 quota exercise. One open seat, one weak seat, one contested seat, and two
 citation corrections.
 
-### 1. Atmosphere / REC — genuinely open, fill it with **Barbara McClintock**
+### 1. ▶ Applied — Atmosphere / REC, filled with **Barbara McClintock**
 
 `verification.js`'s own comment says this seat has no confirmed occupant:
 *"Simon is carried here as a disclosed SUGGESTION, not a confirmed
@@ -212,13 +223,14 @@ omission.*
 [Margulis, NSF](https://www.nsf.gov/honorary-awards/national-medal-science/recipients/lynn-margulis) ·
 [on the HIV/9-11 positions](https://gizmodo.com/carl-sagans-son-is-a-9-11-truther-1690715187)
 
-### 2. SIG / Entity — if a real person is ever wanted instead of Sherlock Holmes: **Barbara Grosz**
+### 2. ▶ Applied — SIG / Entity, Holmes replaced with **Barbara Grosz**
 
-Holmes checks out as low-risk fiction (Part 1), so there's no obligation
-to replace it. But if the project ever wants a real scholar standing for
-"does this surface form refer to the same entity as an earlier one" —
-which is literally what the SIG/Entity cell checks — Barbara Grosz is a
-better technical match than either real Holmes candidate. She
+Holmes checked out as low-risk fiction (Part 1) — there was no ethical
+obligation to replace it. It was replaced anyway, because a real scholar
+whose actual research answers "does this surface form refer to the same
+entity as an earlier one" — which is literally what the SIG/Entity cell
+checks — is a better match on the merits than a fictional analogy, not
+only a safer one. She
 co-developed Centering Theory (with Aravind Joshi and Scott Weinstein),
 the foundational framework for exactly this question in computational
 linguistics: tracking which discourse entity is in focus so pronouns and
@@ -229,7 +241,7 @@ found.
 [Grosz, Harvard SEAS](https://seas.harvard.edu/news/barbara-j-grosz-wins-acmaaai-allen-newell-award) ·
 [Centering Theory (1995)](https://aclanthology.org/J95-2003/)
 
-### 3. meta — if John Marshall's record (Part 1) is disqualifying: **Helen Longino**
+### 3. ▶ Applied — meta, Marshall replaced with **Helen Longino**
 
 This is the sharpest conceptual match found in the whole review, stronger
 even than the Marbury v. Madison parallel. Longino's research program —
@@ -255,7 +267,13 @@ argued ten cases before the Supreme Court and won nine. Meticulous
 constitutional draftsmanship is her actual signature, which is close to
 what "meta" checks for.*
 
-### 4. The citation record itself — two corrections, no removals
+### 4. ▶ Recorded — two citation corrections, no removals
+
+(Checked: neither Fisher nor Halliday is cited by name in this repo's own
+code — both citations live in CLAUDE.md prose. There was no code-level
+"giver:" line to edit, so the correction below is recorded in POLICIES.md
+P93 and here, the same register the original citations were made in,
+rather than invented as a code comment with nothing to attach to.)
 
 - **Muriel Bristol**, wherever Fisher's exact test is cited (this repo's
   `kind-standing.js`/`fold-gate.js`, and eoreader7's bridge-witness work).
@@ -310,11 +328,27 @@ anachronism. The honest fix is to keep looking toward living scholars as
 the work continues, not to force a single pass to solve it.
 [Costanza-Chock, Design Justice](https://en.wikipedia.org/wiki/Sasha_Costanza-Chock)
 
-## What this document does not do
+## What was applied, and what was deliberately left alone
 
-It does not edit `verification.js`'s `PERSONAS`, `CHORUS-LOG.md`, or any
-citation text in CLAUDE.md/POLICIES.md/code comments. Every name above is
-a researched, sourced recommendation, not an applied change — consistent
-with this repo's own VI.2 discipline ("propose without disposing") and
-with the fact that whose name stands for a review discipline is a
-values decision, not a code fix.
+**Applied** (POLICIES.md P93 is the law; `verification.js`'s `PERSONAS`
+and `CHORUS-LOG.md`'s new roster note are the code): Entity/SIG → Barbara
+Grosz; Atmosphere/REC → Barbara McClintock (a seat that was never
+confirmed, not one that was replaced); meta → Helen Longino. The
+Bristol/Hasan citation corrections are recorded in POLICIES.md P93 and
+this file, since neither Fisher nor Halliday had a code-level citation
+line to edit.
+
+**Left alone, on purpose, not by default:** every historical entry in
+`CHORUS-LOG.md` — the log is append-only, and a past review's recorded
+reviewer name is a fact about what happened, not a live label; rewriting
+it would be exactly the kind of quiet history-edit this repo refuses
+everywhere else. Feynman keeps his seat — the concern is real and now
+disclosed in three places (here, `CHORUS-LOG.md`'s roster note, POLICIES
+P93), but no replacement was researched, and swapping him for an
+unresearched name would repeat the failure this whole review exists to
+correct. Russell's and Fisher's underlying citations (the logic, the
+exact test) stand — the documented concern in each case is biographical,
+not mathematical, and no alternative was found carrying the same
+technical content. None of this is quietly declared "solved"; the
+non-binary seat named in the section above is a name kept in mind, not a
+seat filled, and is disclosed as exactly that rather than padded out.

@@ -9,6 +9,19 @@ CAPACITY-DEVELOPMENT-PLAN.md (the cell map). Standing: a PLAN — every
 pass names its measurement and its control built to fail (II.23), and a
 pass whose gate fails is closed, not forced.*
 
+*Reconciliation note, added 2026-09-03: several Tier 3/4 items below were
+built and closed on 2026-09-02 without this document being re-edited at
+the time — a real staleness gap, caught by a cross-repo survey that
+checked commit history and both repos' actual file trees against this
+text. Status notes are appended in place at each affected item rather
+than rewriting the original prescriptive text, so the plan's own history
+stays legible and a reader can see what was asked for versus what
+shipped. Nothing in Tier 1, Tier 2 or the refused list was found stale.
+The gate-on-the-plan section read current at the moment of this survey and
+was CLOSED by P84 later the same day — see its own entry below, which
+records that it too stood stale for a day. A survey is a reading at a
+cursor, not a standing guarantee; it is dated for exactly that reason.*
+
 ## The ordering principle
 
 The canonical chain — **NUL SIG INS SEG CON SYN DEF EVA REC**, per
@@ -227,6 +240,24 @@ axis earned a point; if a from-scratch design succeeds where the derived
 one fails, §VIII.2 is broken and the document says so. Either outcome
 pays capability debt.
 
+**Status note, added 2026-09-03 (reconciliation pass).** Built, as
+`native/organs/frame.js` (+`frame.test.mjs`) — DEF·Ground, derived from
+its two depth-siblings (NUL·Ground's declaration gate, SEG·Ground's
+extent-and-units) exactly as the pass prescribes: a declaration gate
+with typed refusals, verdicts stamped with content-addressed frame ids,
+a cross-frame comparison wall. Verified live against the two real
+hypergraph providers (legacy vs. native) as two declared frames over one
+material. The depth axis earned one point; see
+`native/docs/def-ground-derivation.md` and the-fold's CLAUDE.md, "DEF·
+Ground built from its depth-siblings." The remaining two Ground-row
+cells were filled the same day rather than deferred further: CON·Ground
+as `field` (`fold.js::advanceSummaryFold`, the running summary's
+maintenance act) and INS·Ground as `preflight`
+(`proof.js::preflightQuery`, P23's one-search-before-drafting). The
+capability registry now reads **27/27, nine full stances, zero illegal
+cells** — see the-fold's CLAUDE.md, "The map at 27/27, and a second
+judge shuffled." Closed.
+
 **Pass 9 — one domain-transfer test (§VIII.1).** Pick the Binding stance
 (full first): specify what "the same organ, different adapter" means
 across two mathematics for compare-to-bound, attempt the port, and
@@ -234,15 +265,60 @@ record the result as the first real evidence on the isomorphism
 hypothesis — currently untested, since the contest.js precedent is
 media, a different axis.
 
+**Status note, added 2026-09-03 (reconciliation pass).** Attempted and
+recorded, as `native/organs/binding-core.js` (+`binding-transfer.test.mjs`,
+5 cases): the Binding stance's algebra extracted once, domain-blind (a
+figure seeks its counterpart in a field; declared criterion scores;
+unique clearing winner or typed refusal; an optional foil probe), then
+three thin adapters reproduce the REAL decisions of three existing
+Binding organs on real material (mention→referent against the real
+referent index, claim→edge against the real relation reader — both
+bound and not-bound cases, testimony→verdict against the armed select
+protocol). Zero core edits between domains. Scope is stated honestly:
+agreement on specimens, not proven behavioral equivalence, and one
+refinement surfaced — margin is domain-owned, not core (geometry's exact
+tie of fully-clearing edges reads as corroboration; arithmetic's tie
+reads as genuine ambiguity). One earned point toward §VIII.1, not a
+closed law; broader stance coverage beyond Binding is still real,
+unattempted work. See the-fold's CLAUDE.md, "§VIII.1 tested: Binding
+transfers across the three mathematics." Closed as a first trial;
+extending to other stances remains open (folded into Tier 4 below).
+
 ## Tier 4 — deferred, named, in order
 
 10. **`kind-standing`'s caller** — the live cast still folds Castle
     Dracula into Count Dracula; `foldPermitted` exists and nothing calls
     it. Small, gated by its own existing 12 tests.
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Built —
+    `native/organs/fold-gate.js` (+`fold-gate.test.mjs`): review-not-
+    prevention over `discoverReferents`' own reported merges, judged
+    against a declared kind plus the cast as population (kind-standing's
+    own null needs the rest-of-material — found by the first live run
+    refusing `no_population`). Measured live against real Dracula bytes:
+    the {Count Dracula ← Castle Dracula} merge is VETOED by the live
+    gate. Closed.
+
 11. **The speaker boundary** — epistolary "I" bound to its section's
     declared author via segmentation claims + a heading detector; also
     unlocks per-narrator testimony in the crown (a journal's "I" is a
     WITNESS with a name).
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Built —
+    `native/organs/speaker.js` (+`speaker.test.mjs`): declared-speaker
+    sections as a binding table beside immutable text (offsets into the
+    text as given, P5.2-verified), a structural heading gate
+    (underscore-wrapped or all-caps — prose containing "journal" is
+    never a heading), possessive/from-phrase/letter-comma author
+    detection, kind-only boundaries typed speakerless. Measured on the
+    whole real Dracula text: 110 sections read like the novel's own
+    contents (Seward's 29 diary entries, the firms, Sister Agatha, Van
+    Helsing with his degrees). Consumed the same day by
+    `capacity-runner.js`'s `speakerWho` — a reading's `who` now names
+    the section's speaker (e.g. `dracula.txt:DR. SEWARD`) rather than
+    only the source, additive and typed-absent where a source declares
+    no speakers. Closed.
+
 12. **Floor 4½ — nesting** (`claim:` in an end slot). **OPENED
     2026-09-01** — the gate (Pass 1 slice lever, Pass 2 both witness
     protocols calibrated) was met, so the door was opened rather than
@@ -261,10 +337,33 @@ media, a different axis.
     by any caller** — the natural first one is `mergeTestimony`, which
     would replace its self-witness special case with the general
     mechanism.
+
+    **Correction, added 2026-09-03 (reconciliation pass).** The line
+    directly above ("not yet consumed by any caller") is stale.
+    `nesting.js` was consumed the SAME day (2026-09-01) by
+    `mergeTestimony`, via a structural `readsNothing` check: an
+    unaddressed hold is an outer note, which subsumes the earlier
+    `self:model`-only special case (a namespace-based exclusion attempt
+    was tried first and refuted by a pre-existing pin — `self:ledger`
+    reads addressed bytes and is a genuine source read — before the
+    structural fix landed). See the-fold's CLAUDE.md, "Floor 4½ opened:
+    nesting, and the wall that makes it worth having." Closed.
+
 13. **The obligation ledger** — long instruction sets admitted at the
     door, clause standings typed
     (satisfied/violated/waived/not-yet-visited), coverage as enumeration
     not relevance. The pieces exist; the ledger between them doesn't.
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Built —
+    `native/organs/obligation.js` (+`obligation.test.mjs`): declared
+    enumeration admitted at a door (prose refused, boundaries never
+    invented), four typed standings with not-yet-visited its own
+    standing, append-only entries carrying `because`+`refs` (a violation
+    later satisfied keeps its road), waivers requiring both a reason and
+    a name, coverage as ENUMERATION — the unvisited named, complete only
+    when nothing is unvisited and nothing stands violated. Consumed the
+    same day via the-fold's `/must` chat door (blob-staged). Closed.
+
 14. **Non-text adapters above floor 0** — STARTED (2026-09-01,
     `eval/omnimodal-pipeline.mjs` + results doc): real WAV and real MP4
     decoded to event streams, the SAME kind-discovery organs unmodified
@@ -275,6 +374,24 @@ media, a different axis.
     media, and the shared-instrument independence fix (a false music
     kind corroborated at "2 distinct sources" because both decodes
     share one tracker — recipeId belongs in the witness string).
+
+    **Status note, added 2026-09-03 (reconciliation pass).** Both
+    remaining pieces shipped the same week. F2 arrangements:
+    `native/organs/event-arrangements.js` (+`event-arrangements.test.mjs`)
+    — recurrence-gated adjacency with declared labels and event-ordinal
+    addresses (coordinate space declared, P5.2 self-verified), landing as
+    ordinary hyperlexicon notes with `~recipe`-tagged witnesses; the e2e
+    puts the turbulence ejection-sweep grammar on the real ledger at 2
+    distinct sources × 2 distinct instruments. The shared-instrument
+    independence fix: `corroboration.js` gained `independentReadings`/
+    `distinctRecipes`, counting (source, recipe) pairs rather than
+    sources alone, with witnesses now carrying `<source>~<recipe>` (P68
+    recipe identity) so two decodes sharing one tracker no longer
+    corroborate each other — proven on the original music failure (the
+    false shared-tracker kind stays at 1 instrument and is refused; a
+    second, genuinely different tracker lifts the two true kinds to 2
+    sources × 2 instruments). See the-fold's CLAUDE.md, "Music and video
+    through the pipeline" and "Turbulence through the pipeline." Closed.
 
 ## The refused list — measured dead ends, do not retry
 
@@ -311,6 +428,28 @@ on the ledger block (`holon.js`) withholds a book's whole reading from the
 model to guard against a diet the door no longer admits. Next pass: a
 single-witness note with a verified address reaches the model with its
 corroboration DISCLOSED, measured live against the current gate.
+
+**CLOSED 2026-09-03 by P84 (the Ranke pass), and this entry was stale for a
+day — corrected here rather than left pointing at finished work, because a
+plan of record that names a done thing as next is worse than one that names
+nothing.** The gate is gone: `holon.js` (the `ledgerBlock` construction)
+now ranks BOTH tiers by shared vocabulary with the question and uses
+standing only as the TIEBREAK, so a single-witness note reaches the model on
+its own relevance and its corroboration is disclosed rather than withheld
+("stated in more than one place" / "stated once so far"). A question the
+ledger holds nothing on gets no block at all — measured by
+`eval/the-fold/gate-proof.mjs`, which also caught the reason the first cut
+failed: with the corroborated tier unranked, 21 corroborated notes filled
+the five-line budget on every question and the asked single-witness note
+reached the model on 1 of 8.
+
+So the gate fired, the design was re-examined, and the re-examination
+landed. What it did NOT do is raise clean-votes-per-ask — that number is
+still the plan's open gate, and the remaining lever is named in
+`reading-recall-finding.md`: identity is REFUTED (0 joins on real pages;
+`sameLemma("withdraws","retreated")` is false), so what is left of the ~2%
+wall is PARAPHRASE, and the licensed tool for paraphrase is P32's witness
+tier. That is Pass 12 step 4.
 
 Every pass above ships with a control built to fail, and the week's
 record is why: the controls caught the engine's basin null, the redeal
@@ -365,6 +504,19 @@ injected organ, which it already nearly is; `store.js`/`store-sql.js`/
 `proof.js`/`web-claim.js`/`web-hunt.js`/`primary` sit behind P13's egress
 and must cross with their consent posture intact.
 
+**Status note, added 2026-09-03 (reconciliation pass).** This list has
+NOT been re-verified against current file trees in this pass (the
+reconciliation was scoped to Tier 3/Tier 4 status text, which is
+authoritative and independently gated). A quick cross-check while
+reconciling found `capacity-runner.js`, `hypergraph.js`, `testimony.js`,
+`experiencer.js`, `primary.js`, `source.js`, `web.js`, `cite.js`,
+`cast.js`, `grounding.js`, `quotes.js`, `asserted.js` and `measure.js`
+already present in `eoreader7/native/organs/` as of today (per P80's own
+closure), consistent with several files above being past-tense
+candidates rather than current ones; a fresh Phase 4 pass should
+re-derive this list from the actual current the-fold file tree rather
+than trust it standing.
+
 ## Pass 11 — Ranke: the primary-source chase, gated and witnessed (added 2026-09-03)
 
 The gate on the plan (above) fired and was closed by P84: the ledger block
@@ -382,3 +534,227 @@ cited primaries are catalogues and books. Next, named there: address rules
 for full-text faces with givers; the witness at book scale; quote leads on
 an engine that answers. The switch is default OFF and every run is
 budgeted — this is a door, not a per-turn cost.
+
+**Status note, added 2026-09-03 (reconciliation pass).** Extended twice
+more the same day: S46 amended (containment 1 real / 6 redealt on a
+larger run; gate-proof measured on gemma2:2b) and a "worked backwards"
+run over Apollo 11 (`ranke-backwards.mjs`) that earned three more rules
+(a footnote marker is a lead; a marker at a span's start belongs to the
+previous sentence; a cited address is not the cited document until its
+face carries the citation's own title words or an archive copy). The
+named next-work list from this pass is still open and is where Pass 12
+picks up: more address rules, book-scale runs, a real answering search
+engine, and — explicitly, per the second amendment — pointing the
+witness at the 162 of 226 "partial" (object-missing) notes via the cited
+face's own referent activation rather than word containment. See
+eoreader7's `native/READING-SPEC.md` S46 and its two amendments.
+
+## Pass 12 — two universes, and the bridge between them (added 2026-09-03)
+
+**The finding this starts from, which is a defect and not a plan.**
+`hear()` unions two sources' witnesses onto one note when their
+`(end1, label, end2)` triple matches exactly. That single string comparison
+is doing TWO jobs: asserting the two propositions are the same, and
+asserting the two documents' referents are the same. The second is a
+BRIDGE between two readings, and today it is never established, never
+recorded, and cannot be conceded. It is usually right, and silently
+catastrophic when it is not: two different Smiths, two different
+commissions, one note, two witnesses, no way to find out.
+
+So P83's corroboration rarity reads differently now. The measured ~2% was
+not only paraphrase. It was also that **string identity is the only bridge
+this system has**, and it is an unrecorded one — which means the rare
+firings are as unexamined as the common misses.
+
+**The reframe (user, 2026-09-03), and why "lens" was the wrong word.** A
+lens is one reader over one material. What two readings produce is two
+UNIVERSES of referents, each existing only relative to the reading that
+established it. `frame` is already taken, correctly, for HOW a reading was
+made; a universe is WHAT it produced. `frame.js` already refuses to compare
+readings taken under different frames, which is the right default and
+exactly where a licensed door belongs: a bridge is what makes that
+comparison legal, and it must be earned per crossing rather than assumed by
+a matching string.
+
+**The load-bearing clause, verbatim: "it is the same set of operations,
+just at another level."** Nothing new is needed operationally.
+Individuating a referent from mentions and individuating a correspondence
+from two referents are the same act one level up — SIG then INS to
+establish, EVA to test it against a ground, REC to concede it when
+refuted. The nine operators already cover this; what is missing is the
+object they act on.
+
+**Two more rules from the same conversation, both about not throwing
+information away.**
+
+*Never sever a proposition from its reading.* Notes keep spans and
+witnesses, so provenance to the source survives. What does not survive is
+the READING STATE — which referents were live, and how strongly, when this
+proposition was heard. That is a handful of ids and values per note. It is
+PROVENANCE, never prompt material (P55). Its absence is why the slicer pass
+existed at all: three slicers reconstructing, from cold text, something the
+reader had for free at extraction. `ranke-slicers.mjs`'s activation arm
+literally rebuilt an activation state over the face because the real one
+was gone.
+
+*Checks run where they are needed, in context.* A batch sweep over 162
+notes is out of context by construction, and it spends calls on
+propositions nobody is using. Checking at point of use keeps the reader
+standing there with its activation live, and is the same efficiency law
+P30 already states. The eval corollary: an eval must stay repeatable and
+offline, so its correct form is to RECORD AND REPLAY the activation, never
+to re-derive it.
+
+**The order, and it matters — each step is worthless before the one above
+it.**
+
+1. **Separate the two jobs `hear()` conflates.** Proposition identity and
+   referent identity become distinct, separately recorded claims. A union
+   today asserts both; after this it asserts one and NAMES the other as
+   assumed, so the assumption is at least visible. Control built to fail: a
+   fixture with two documents using one name for genuinely different
+   referents — the union must be refused or flagged, and a run over real
+   material must report how many existing unions rested on an unestablished
+   bridge. If that count is near zero, this pass is smaller than it looks
+   and the plan should say so.
+2. **Bridges as recorded objects.** A correspondence between universes
+   carries a witness, provenance, a standing, and a path to concession
+   (REC), exactly as any other claim does. Defeasible, corroboratable,
+   never assumed.
+3. **Read the cited document with the same apparatus.** Today the article
+   gets the full pipeline and the cited source gets a regex window and a
+   prompt — an asymmetry that is the entire reason a slicer existed. Read
+   both and the candidate set stops being eight heuristic sentences and
+   becomes the other reading's own propositions; the witness's question
+   shrinks from "read this page and tell me if it says X" to "are these two
+   notes the same act", which is the pointing question the select protocol
+   is actually good at. Cost: the extraction pipeline per cited document,
+   which is real compute and ZERO model calls.
+4. **Only then does witnessed paraphrase have somewhere to land** — as a
+   bridge at the proposition level, with its own provenance, rather than
+   another string match. P84's own next-step note is this, correctly framed.
+
+**What this does not do, said now so it is not claimed later.** It does not
+dissolve paraphrase. It reduces it to "same act?" between two structured
+notes, which is still the synonymy question that measured flat under every
+mechanical identity tried (reading-recall-finding, P74). It makes that
+question askable with both sides structured, and makes its answer
+recordable. That is all.
+
+**The gate on this pass.** Do not build step 2 before step 1 has been
+measured on real material. If unexamined bridges turn out to be rare and
+harmless, the honest outcome is a disclosure on `hear()` and a much smaller
+pass — and P85's retirement clause is the shape of that: an apparatus
+earns its place against a control, or it does not get built.
+
+**Also standing, from Pass 11's own handoff:** the slicer licensing
+measurement is unrun (`slicer-licensing-RESULTS.md`,
+`slicer-licensing-HANDOFF.md`). It should be run AFTER step 3, not before —
+step 3 may remove the model from that slot entirely, at which point the
+licensing question answers itself and the 480 calls are never spent. The
+cheap pre-check named in the handoff, candidate recall with no model calls,
+still applies and still comes first.
+
+**Step 1 status (2026-09-03): built, measured, honest.** eoreader7 S48
+(companion PR clovenbradshaw-ctrl/eoreader7#63): `hear()`'s exact-triple
+union is split into proposition identity (unchanged) and referent identity
+(now a recorded, refusable `join`). Gate measurement on real material: 22
+of 22 corroborated notes rest on an assumed bridge, common, not rare, so
+step 2 is warranted on that finding alone. A zero-model probe (do the two
+sources' own `discoverReferents` universes independently name the joined
+ends the same way) was built and its first cut refuted itself — false
+disagreements from using a stricter identity rule than `namesCorefer`
+already licenses elsewhere in this codebase, fixed at the source. Even
+corrected, a seeded II.23 control matches the real suspect rate exactly
+(4.3%): **the probe cannot separate real bridges from random ones at this
+sample size.** Reported as a power problem, not a clearance — see
+`eoreader7/native/eval/the-fold/results/bridge-audit-RESULTS.md` for the
+full account, including that 57% of crossings are unexaminable by this
+method at all (a joined end is often a definite description the extractor
+never names as a referent).
+
+**What this licenses, and what it does not.** Step 2 (bridges as recorded
+objects with witness/provenance/standing/concession) may proceed — the
+`join` shape already carries most of what step 2 needs (source, basis,
+standing), so step 2 is closer to formalizing it than building it fresh.
+What it must NOT do is claim the 22 measured bridges are safe; that
+question is still open, and a stronger probe (more material, or one that
+can examine non-named ends) is the honest way to close it, not an
+assumption that "common" implies "fine".
+
+**Step 2 landed (2026-09-03): eoreader7 S49 / PR #65.** `organs/bridges.js`
+— bridges as recorded objects on their own ledger, corroborated when two
+independently-derived content notes assume the same correspondence. 46
+arrangements from 22 joined notes collapsing to 43 distinct objects, 3
+corroborated. 40 stood `single-witness` with nothing able to move them,
+which is what step 4 went after.
+
+**Step 4 landed, and it refutes the hope that motivated it (2026-09-03):
+eoreader7 S52 / PR #70.** `organs/bridge-witness.js` asks a witness whether
+a single-witness bridge is real — select protocol, armed against a decoy
+drawn from a sibling bridge candidate, an unarmed "same" refused, the act
+(`concede`) kept apart from the diagnostic. Measured live on the same three
+fixtures: real correspondences landed "same" 8 of 12, the mispaired control
+2 of 12, **Fisher exact one-sided p = 0.0180** at a declared α = 0.05, run
+twice at temperature 0 with identical results. The organ discriminates.
+
+**And it cannot reach the wall this plan was aiming at. 12 of 12 examined
+candidates have two faces that are the IDENTICAL string.** A bridge exists
+only where `hear()`'s exact-triple match already fired, so a paraphrased
+restatement never produces a join, never becomes a bridge candidate, and is
+never put to a witness. **Witnessing bridges cannot touch the ~2%
+corroboration wall** — that wall is the match that never happened, and this
+organ runs strictly downstream of it. Step 4 makes bridges ACCOUNTABLE; it
+does not make more of them.
+
+**What that leaves for the plan.** Step 3 (read the cited document through
+the full extraction apparatus, replacing the regex-window slicer) is
+STILL the only named step that could move corroboration, because it is the
+only one that operates UPSTREAM of the match — it changes what gets
+extracted before identity is ever asked. Ranke already does most of its
+shape (footnote-bound leads, document-identity verification, containment as
+a lead only, the witness as the verdict), so step 3 is now better read as
+"give Ranke's witness two STRUCTURED notes to compare instead of a claim
+against raw prose" than as new machinery. Unstarted.
+
+And the standing gate on the whole plan is unchanged and unmet: none of
+this raised clean-votes-per-ask. Step 4's honest contribution to that
+number is zero, by construction, and it says so.
+
+**And step 3's premise was measured before building it (2026-09-03):
+eoreader7 S53 / PR #70.** P85's licensing run — unrun since it died with
+its container twice — was taken: **no slicer earns a license.** The
+proposed better candidate-selector (referent activation, the one meant to
+see "the crew", "it", "the module") could not offer candidates on 24 of 40
+notes and landed real and control at the SAME rate — refused by its own
+control. Containment separated on the count (9 vs 1) and then dissolved on
+inspecting the sample: 8 of its 9 landings are page furniture signed as
+testimony («Support the Museum», «Visit the Apollo Journals Website», a
+video caption), and under the decider-company wall it reads 1 vs 0.
+
+**The structural finding that reshapes step 3.** P85's L4 names the
+decider-company wall as one of the non-learned organs bounding a slicer's
+authority. It is not below the select path at all — it runs only on the
+generate path — and it CANNOT be switched on there, because it requires
+each end's own words while the seam exists precisely to reach cases where
+an end's words are absent (implemented, measured, reverted: it breaks
+`corroboration.test.mjs`'s own pinned "end2 never fires literally" test).
+
+So step 3 is not "give the witness better candidates" — that was measured
+and it does not help. The unguarded thing is RELATEDNESS on injected
+candidates, and the only shapes that could guard it without forbidding
+paraphrase are referent-identity ones: resolve the end (`makeReferentIndex`
+— "the crew" to the crew, not letter-matching) and ask about the referent,
+and draw the arm's sibling pool from the reader's referent state rather
+than from capitalized surfaces. Named, unmeasured, and now the actual
+content of step 3.
+
+**Superseding the reconciliation pass's own status note (2026-09-03).** That
+note read: *"Step 1 is the most recent landed work in either repo as of this
+reconciliation (eoreader7 PR #63, merged; the-fold PR #125, merged). Steps 2-4
+above are the standing next engineering work - not started as of this note."*
+It was true when written and is false now: steps 2 and 4 landed the same day
+(eoreader7 S49/PR #65 and S52/PR #70), and step 3's premise was measured
+(S53/PR #70). Recorded rather than deleted, because two passes writing the
+same day from different branches is exactly how a plan of record acquires a
+line that points at finished work as though it were next.

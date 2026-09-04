@@ -7291,3 +7291,117 @@ witness crossed one such gap for real (Safire's memo, through the note's
 own footnote). Next rung: the witness on footnote-bound partials with the
 window chosen by referent activation, not word containment — never a
 tenth matcher.
+
+## The module census — every verb, held against the cube (added 2026-09-03) — pointer
+
+`eoreader7/native/docs/THE-MODULE-CENSUS.md` is the document; standing:
+nomination, same register as `THE-27-CELLS.md` (its own companion —
+read the other direction: module-first, not cell-first). The ask was
+literal: a pass of every module's verb against the 27 positions, going
+past `capacities.js`'s own curated ~29 entries to the roughly 220
+substantive modules across both repos. Nine parallel reads plus one
+direct gap-fill (an off-by-one had skipped `void-loop.js`/
+`void-narration.js`/`void-shape.js`; caught and filled rather than left
+silent) produced ~370 verb-rows, cross-checked against `cube.js`'s real
+domain lock rather than trusted from prose.
+
+**The headline finding is stronger than 27/27.** Every one of the 27
+cells now carries a SECOND organ found independently of the curated
+registry — including the two that had exactly one example before
+(`INS·Ground`: `adapters/text/revision.js` self-declares admitting a raw
+occurrence, beside `proof.js`'s web search; `REC·Ground`:
+`kernel/temporal-reference.js` self-declares re-zeroing the narrative's
+"now," beside `source.js`'s atmosphere regime). The algebra is not a
+curated fit to 29 hand-picked examples — unrelated organs, across text,
+audio, and MIDI, keep landing on the same cells for unrelated reasons.
+
+**A real structural finding, not assumed:** tallying all ~262
+single-cell rows by grain gives Figure 56%, Pattern 27%, Ground 17% —
+the Ground row is thin everywhere in this codebase, not only in the
+three cells that happened to read zero in the curated set. By mode,
+Relate is 47% of everything (this is overwhelmingly a checking/binding
+instrument) and Generate is 21% (composing new wholes is comparatively
+rare). The single densest cell by a wide margin is `CON·Figure` (Link,
+Binding — 14.5% of all rows), converging from `hypergraph.js`'s relation
+reader down to `contest.js::adjudicate` (self-declared identically by
+four separate kernel callers) to `overtones.js::overtoneOverlap` (audio)
+landing on the exact cell `memory/activation.js` self-declares — the
+concrete specimen `THE-THREE-MATHEMATICS.md` §VIII.1 asks for.
+
+**One real, disclosed discrepancy, not fixed here:** `kernel/
+scoped-kind.js`'s own header claims its mint/resolve pair lands on
+"Existence·Pattern, Kind," but its own code calls `cellOf("SYN",
+"Pattern")`/`cellOf("CON","Pattern")` — both Structure-domain operators,
+which mechanically compute `Network`, never `Kind`. Internally
+consistent with itself, not with its own stated intent — named for the
+next pass that touches that file, the same posture `capacities.js`'s own
+header already models for its `skill`/`build` catches. Also named,
+correctly NOT flagged as a bug: `grid.js`'s composed acts may declare a
+terrain diverging from the operator's domain lock, by the terminal
+language's own documented "medium-blind terrain" convention (CLAUDE.md,
+above) — a second, deliberate convention, kept apart from the strict
+registry's domain lock rather than reported as contradicting it.
+
+The document also names ~14 unregistered candidates sitting cleanly on
+real cells (never registered there — that admission bar is
+`capacities.js`'s own, not this census's) and states its own limits
+plainly: one AI-assisted pass, large files skimmed not fully read, no
+generality gate run, coherence never correctness.
+
+## A bridge can be witnessed; witnessing cannot make more bridges (added 2026-09-03) — pointer
+
+POLICIES.md **P86** is the law here; eoreader7 **S52** (PR #70) is the code;
+`eoreader7/native/eval/the-fold/results/bridge-witness-RESULTS.md` the
+numbers. Nothing in this repo changed.
+
+S49 left 40 of 43 referent bridges standing `single-witness` with nothing
+able to move them. `organs/bridge-witness.js` asks a witness directly —
+select protocol, armed against a decoy drawn from a sibling bridge
+candidate, an unarmed "same" refused, and the concede kept apart from the
+verdict (`concedeDiet`'s precedent). Measured live: real 8 of 12 vs a
+mispaired control 2 of 12, **Fisher exact p = 0.0180** at a declared α,
+twice at temperature 0, identical. It discriminates.
+
+**And it is bounded by the match that made it: 12 of 12 candidates had two
+faces that were the IDENTICAL string.** A bridge only exists where
+`hear()`'s exact-triple match already fired, so a paraphrase never becomes
+a candidate and no witness is ever asked about it. **Witnessing bridges
+cannot touch the ~2% corroboration wall** — that wall is the match that
+never happened. The general form, so the next organ built here does not
+re-derive it: *an organ that reads a correspondence can only examine
+correspondences something else already proposed.* The levers that move
+corroboration are all UPSTREAM of identity.
+
+A landed witness does NOT raise `standing` (one model reading two passages
+is not a second source) — it lands in `kinds`, counted apart, never summed.
+
+**Also noted, not resolved:** eoreader7 PR #16 (`codex/…`, open, 9,649
+additions on a pre-S48 base) independently develops "earned identity at the
+shared bridge" in a wholly separate file set. No file-level conflict with
+S49/S52 — thematically convergent, reconciliation named and unattempted.
+
+## Composing a passage from checked claims (added 2026-09-03) — pointer
+
+POLICIES.md **P87** is the law. `compose.js` + `compose.test.mjs` (11 cases,
+real `renderCrown`, real `mergeTestimony`).
+
+`crown.js` rendered one merged testimony as one sentence, model-free, with
+a trace rule making fabrication structurally impossible. `compose.js` joins
+many into a passage and adds exactly three things: **an order the caller
+declares** (its absence is a REFUSAL, never a fallback to fold order — a
+guessed order is an argument nobody made), **a closed transition table**
+addressed by structure (shared end, standing drop, contested), never by
+meaning, and **a coverage report** naming what was withheld and why. An
+`UNDETERMINED` merge is never asserted; a renderer's `verified: false`
+fallback is never carried. Both walls mutation-checked.
+
+Real output, no model anywhere: *"Lincoln appointed Hamlin. But sources
+disagree on whether Lincoln dismissed Seward. Backing it: lincoln.txt.
+Denying it: almanac.txt. Still, according to almanac.txt, Hamlin chaired
+the Senate."* — composed 3 of 4, 1 withheld (undetermined).
+
+**The bound:** it is a renderer. It does not select, order, or check
+claims, and cannot make a thin ledger read as a confident account — its
+reach is whatever corroboration the reading holds (~2%, P83; and P86 showed
+the identity-side levers cannot move that). **Model-free long-form
+rendering was never the scarce thing; checked claims worth rendering are.**

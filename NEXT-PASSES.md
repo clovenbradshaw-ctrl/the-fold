@@ -682,9 +682,79 @@ question is still open, and a stronger probe (more material, or one that
 can examine non-named ends) is the honest way to close it, not an
 assumption that "common" implies "fine".
 
-**Status note, added 2026-09-03 (reconciliation pass; this pass is same-
-day, not stale, kept here to record where the next engineering session
-should pick up).** Step 1 is the most recent landed work in either repo
-as of this reconciliation (eoreader7 PR #63, merged; the-fold PR #125,
-merged). Steps 2–4 above are the standing next engineering work — not
-started as of this note.
+**Step 2 landed (2026-09-03): eoreader7 S49 / PR #65.** `organs/bridges.js`
+— bridges as recorded objects on their own ledger, corroborated when two
+independently-derived content notes assume the same correspondence. 46
+arrangements from 22 joined notes collapsing to 43 distinct objects, 3
+corroborated. 40 stood `single-witness` with nothing able to move them,
+which is what step 4 went after.
+
+**Step 4 landed, and it refutes the hope that motivated it (2026-09-03):
+eoreader7 S52 / PR #70.** `organs/bridge-witness.js` asks a witness whether
+a single-witness bridge is real — select protocol, armed against a decoy
+drawn from a sibling bridge candidate, an unarmed "same" refused, the act
+(`concede`) kept apart from the diagnostic. Measured live on the same three
+fixtures: real correspondences landed "same" 8 of 12, the mispaired control
+2 of 12, **Fisher exact one-sided p = 0.0180** at a declared α = 0.05, run
+twice at temperature 0 with identical results. The organ discriminates.
+
+**And it cannot reach the wall this plan was aiming at. 12 of 12 examined
+candidates have two faces that are the IDENTICAL string.** A bridge exists
+only where `hear()`'s exact-triple match already fired, so a paraphrased
+restatement never produces a join, never becomes a bridge candidate, and is
+never put to a witness. **Witnessing bridges cannot touch the ~2%
+corroboration wall** — that wall is the match that never happened, and this
+organ runs strictly downstream of it. Step 4 makes bridges ACCOUNTABLE; it
+does not make more of them.
+
+**What that leaves for the plan.** Step 3 (read the cited document through
+the full extraction apparatus, replacing the regex-window slicer) is
+STILL the only named step that could move corroboration, because it is the
+only one that operates UPSTREAM of the match — it changes what gets
+extracted before identity is ever asked. Ranke already does most of its
+shape (footnote-bound leads, document-identity verification, containment as
+a lead only, the witness as the verdict), so step 3 is now better read as
+"give Ranke's witness two STRUCTURED notes to compare instead of a claim
+against raw prose" than as new machinery. Unstarted.
+
+And the standing gate on the whole plan is unchanged and unmet: none of
+this raised clean-votes-per-ask. Step 4's honest contribution to that
+number is zero, by construction, and it says so.
+
+**And step 3's premise was measured before building it (2026-09-03):
+eoreader7 S53 / PR #70.** P85's licensing run — unrun since it died with
+its container twice — was taken: **no slicer earns a license.** The
+proposed better candidate-selector (referent activation, the one meant to
+see "the crew", "it", "the module") could not offer candidates on 24 of 40
+notes and landed real and control at the SAME rate — refused by its own
+control. Containment separated on the count (9 vs 1) and then dissolved on
+inspecting the sample: 8 of its 9 landings are page furniture signed as
+testimony («Support the Museum», «Visit the Apollo Journals Website», a
+video caption), and under the decider-company wall it reads 1 vs 0.
+
+**The structural finding that reshapes step 3.** P85's L4 names the
+decider-company wall as one of the non-learned organs bounding a slicer's
+authority. It is not below the select path at all — it runs only on the
+generate path — and it CANNOT be switched on there, because it requires
+each end's own words while the seam exists precisely to reach cases where
+an end's words are absent (implemented, measured, reverted: it breaks
+`corroboration.test.mjs`'s own pinned "end2 never fires literally" test).
+
+So step 3 is not "give the witness better candidates" — that was measured
+and it does not help. The unguarded thing is RELATEDNESS on injected
+candidates, and the only shapes that could guard it without forbidding
+paraphrase are referent-identity ones: resolve the end (`makeReferentIndex`
+— "the crew" to the crew, not letter-matching) and ask about the referent,
+and draw the arm's sibling pool from the reader's referent state rather
+than from capitalized surfaces. Named, unmeasured, and now the actual
+content of step 3.
+
+**Superseding the reconciliation pass's own status note (2026-09-03).** That
+note read: *"Step 1 is the most recent landed work in either repo as of this
+reconciliation (eoreader7 PR #63, merged; the-fold PR #125, merged). Steps 2-4
+above are the standing next engineering work - not started as of this note."*
+It was true when written and is false now: steps 2 and 4 landed the same day
+(eoreader7 S49/PR #65 and S52/PR #70), and step 3's premise was measured
+(S53/PR #70). Recorded rather than deleted, because two passes writing the
+same day from different branches is exactly how a plan of record acquires a
+line that points at finished work as though it were next.

@@ -10550,3 +10550,124 @@ confound control plus ONE candidate slicer over a declared sample — 480
 calls, five times cheaper. P9 exists to force that argument BEFORE the run,
 and it was not made. A rule about not spending calls where they cannot move
 a standing is worth exactly as much as the budget declared under it.
+
+## P86 — A bridge can be witnessed, and witnessing it cannot create corroboration that string identity never found (2026-09-03)
+
+**Generality:** universal.
+
+The code is eoreader7's (**S52**, PR #70 — `organs/bridge-witness.js`);
+this entry is the law it earned and the boundary it drew. Nothing in
+the-fold changed.
+
+**What was closed.** S49 recorded referent bridges as their own
+corroboratable objects and named its own gap: a bridge reaches
+`corroborated` only when a SECOND independently-derived content note
+assumes the identical correspondence, so 40 of 43 bridges on real material
+stood `single-witness` with nothing in the mechanism able ever to move
+them. A witness can now be asked directly — select protocol (point, never
+write), armed against a decoy that is a real competing referent from the
+document being read, an unarmed "same" refused exactly as `witnessNote`
+already refuses one, and the ACT (`concede`) kept apart from the DIAGNOSTIC
+(the verdict), `concedeDiet`'s own precedent.
+
+**Measured, with a null, because a bare inequality is not a result.** Live
+`gemma2:2b` over the three fixtures S49 used, through the SAME pipeline
+copied rather than reimplemented: real 8 of 12 vs a mispaired control 2 of
+12, **Fisher exact one-sided p = 0.0180**, α = 0.05 declared before the
+run, twice at temperature 0, identical. The organ discriminates.
+
+**THE LAW THIS PASS ACTUALLY EARNED, and it is a boundary, not a
+capability.** 12 of 12 examined candidates had two faces that were the
+IDENTICAL STRING. A bridge exists only where `hear()`'s exact-triple match
+ALREADY FIRED. A paraphrase never matches the triple, so it never produces
+a join, so it never becomes a bridge candidate, so no witness is ever asked
+about it. **Any mechanism that operates on bridges is downstream of the
+match, and therefore cannot move the ~2% corroboration wall (P74, P83),
+which IS the match that never happened.** Stated generally, so it is not
+re-derived by the next organ built in this neighbourhood: *an organ that
+reads a correspondence can only ever examine correspondences something
+else already proposed — it can make them accountable, it cannot make more
+of them.* The levers that could move corroboration all sit UPSTREAM of
+identity, in what gets extracted at all.
+
+**A landed witness does not raise a standing.** Every witnessed bridge
+still reads `single-witness`: `standingOf` counts distinct SOURCES, and one
+model reading two passages is not a second source. The witness appears in
+`kinds` — counted apart, never summed, P84's own rule for `primary:`
+against account witnesses, applied one register over. A consumer asking
+"was this ever actually checked" reads the kind; one asking "how many
+independent crossings assumed it" reads the standing. Two questions, kept
+two.
+
+**Disclosed.** The control may be easy (a mispaired passage is usually
+off-topic); a same-topic control is named and unbuilt. n = 12, one
+material, one model, no oracle — 4 of 12 real correspondences read
+"different" and nothing adjudicated them. And the organ is unmeasured on
+non-identical faces, because this material produces none: the case bridges
+exist for is the case this material cannot exercise.
+
+## P87 — A passage composed from checked claims: the order is declared, the connectives are closed, and what could not be said is named (2026-09-03)
+
+**Generality:** universal.
+
+`crown.js` (P39's BUILD-4) renders ONE merged testimony as ONE sentence,
+with a trace rule that makes fabrication structurally impossible: every
+token traces to exactly one origin — a claim's own words, a named witness,
+or one declared connective. That has been the whole of this instrument's
+model-free rendering. Anything longer has always been a model drafting
+prose with the apparatus checking it afterward. `compose.js` assembles many
+such sentences into one passage, and adds exactly three things.
+
+**1. THE ORDER IS THE CALLER'S, DECLARED, AND ITS ABSENCE IS A REFUSAL.**
+`compose` does not know what order claims belong in and does not guess —
+a guessed order is an argument nobody made, and a ledger's fold order is
+not a narrative. Without a declared comparator it emits NO passage and
+returns `no_declared_order` with every claim named as withheld. This is the
+load-bearing wall (mutation-checked: making it fall back to input order
+fails the suite). Callers have real orders available where it matters —
+succession-shaped material orders itself (P61's sequence type IS the
+order), a chronology by its dates, a document's claims by their spans.
+
+**2. THE TRANSITION VOCABULARY IS CLOSED AND STRUCTURALLY ADDRESSED.**
+`TRANSITIONS` is the whole of what compose may write beyond a rendered
+sentence — crown.js's own `KNOWN_CONNECTIVES` move one level up. Which
+transition applies is computed from STRUCTURE (do the two claims share a
+first end, did the standing drop to single, did the case become
+contested), never from what the claims mean. Pinned by a test that
+reconstructs every composed sentence as exactly *declared connective +
+renderer's own text*: a word from anywhere else fails.
+
+**3. WHAT COULD NOT BE SAID IS NAMED.** An `UNDETERMINED` merge is never
+rendered as an assertion and never silently dropped — it is withheld with
+its reason, and `coverageLine` reports composed-of-given in natural
+frequencies with the reasons counted. **A renderer's UNVERIFIED output is
+also withheld**: crown.js's trace veto firing means it produced a fallback
+rather than an assertion, and a passage may not carry that as one
+(mutation-checked — letting it through fails the suite).
+
+**What a real passage reads like**, composed from real `mergeTestimony`
+verdicts through the real `renderCrown`, no model anywhere:
+
+> Lincoln appointed Hamlin. But sources disagree on whether Lincoln
+> dismissed Seward. Backing it: lincoln.txt. Denying it: almanac.txt.
+> Still, according to almanac.txt, Hamlin chaired the Senate.
+> — *composed 3 of 4 claim(s); 1 withheld (1 undetermined)*
+
+Corroborated claims assert plainly; a contested one names both sides; a
+single-witness one keeps its "according to"; the undetermined one does not
+appear and is counted.
+
+**THE BOUND, stated because the headline would otherwise read wider than
+it is.** This is a RENDERER. It does not decide what a passage is about
+(the caller selects the claims), does not order them, does not check them,
+and cannot make a thinly-corroborated ledger read as a confident account.
+A passage over single-witness claims renders as a passage of "according
+to X" sentences, because that is what those claims are. Its reach is
+bounded by the corroboration the reading actually holds — measured at ~2%
+on real prose (P83), and P86 established that the levers on the identity
+side cannot move that number. **Long-form model-free rendering was never
+the scarce thing; checked claims worth rendering are.**
+
+**Files.** `compose.js` (pure, `renderClaim` injected — no template of its
+own) + `compose.test.mjs` (11 cases against the REAL `renderCrown` and the
+REAL `mergeTestimony`, including two controls built to fail).

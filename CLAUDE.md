@@ -7347,3 +7347,61 @@ real cells (never registered there — that admission bar is
 `capacities.js`'s own, not this census's) and states its own limits
 plainly: one AI-assisted pass, large files skimmed not fully read, no
 generality gate run, coherence never correctness.
+
+## A bridge can be witnessed; witnessing cannot make more bridges (added 2026-09-03) — pointer
+
+POLICIES.md **P86** is the law here; eoreader7 **S52** (PR #70) is the code;
+`eoreader7/native/eval/the-fold/results/bridge-witness-RESULTS.md` the
+numbers. Nothing in this repo changed.
+
+S49 left 40 of 43 referent bridges standing `single-witness` with nothing
+able to move them. `organs/bridge-witness.js` asks a witness directly —
+select protocol, armed against a decoy drawn from a sibling bridge
+candidate, an unarmed "same" refused, and the concede kept apart from the
+verdict (`concedeDiet`'s precedent). Measured live: real 8 of 12 vs a
+mispaired control 2 of 12, **Fisher exact p = 0.0180** at a declared α,
+twice at temperature 0, identical. It discriminates.
+
+**And it is bounded by the match that made it: 12 of 12 candidates had two
+faces that were the IDENTICAL string.** A bridge only exists where
+`hear()`'s exact-triple match already fired, so a paraphrase never becomes
+a candidate and no witness is ever asked about it. **Witnessing bridges
+cannot touch the ~2% corroboration wall** — that wall is the match that
+never happened. The general form, so the next organ built here does not
+re-derive it: *an organ that reads a correspondence can only examine
+correspondences something else already proposed.* The levers that move
+corroboration are all UPSTREAM of identity.
+
+A landed witness does NOT raise `standing` (one model reading two passages
+is not a second source) — it lands in `kinds`, counted apart, never summed.
+
+**Also noted, not resolved:** eoreader7 PR #16 (`codex/…`, open, 9,649
+additions on a pre-S48 base) independently develops "earned identity at the
+shared bridge" in a wholly separate file set. No file-level conflict with
+S49/S52 — thematically convergent, reconciliation named and unattempted.
+
+## Composing a passage from checked claims (added 2026-09-03) — pointer
+
+POLICIES.md **P87** is the law. `compose.js` + `compose.test.mjs` (11 cases,
+real `renderCrown`, real `mergeTestimony`).
+
+`crown.js` rendered one merged testimony as one sentence, model-free, with
+a trace rule making fabrication structurally impossible. `compose.js` joins
+many into a passage and adds exactly three things: **an order the caller
+declares** (its absence is a REFUSAL, never a fallback to fold order — a
+guessed order is an argument nobody made), **a closed transition table**
+addressed by structure (shared end, standing drop, contested), never by
+meaning, and **a coverage report** naming what was withheld and why. An
+`UNDETERMINED` merge is never asserted; a renderer's `verified: false`
+fallback is never carried. Both walls mutation-checked.
+
+Real output, no model anywhere: *"Lincoln appointed Hamlin. But sources
+disagree on whether Lincoln dismissed Seward. Backing it: lincoln.txt.
+Denying it: almanac.txt. Still, according to almanac.txt, Hamlin chaired
+the Senate."* — composed 3 of 4, 1 withheld (undetermined).
+
+**The bound:** it is a renderer. It does not select, order, or check
+claims, and cannot make a thin ledger read as a confident account — its
+reach is whatever corroboration the reading holds (~2%, P83; and P86 showed
+the identity-side levers cannot move that). **Model-free long-form
+rendering was never the scarce thing; checked claims worth rendering are.**

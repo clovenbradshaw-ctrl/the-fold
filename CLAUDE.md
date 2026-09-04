@@ -7405,3 +7405,58 @@ claims, and cannot make a thin ledger read as a confident account — its
 reach is whatever corroboration the reading holds (~2%, P83; and P86 showed
 the identity-side levers cannot move that). **Model-free long-form
 rendering was never the scarce thing; checked claims worth rendering are.**
+
+## The chorus roster, checked against its own values (added 2026-09-04) — pointer
+
+POLICIES.md **P93** is the law; `chorus-roster-ethics-review.md` is the
+full research (every claim checked against live sources this pass, not
+recalled). The user's ask: research who this repo's review-chorus and
+"giver" citations actually name, confirm they hold up, and find where
+women and non-binary scholars belong. Result: mostly clean — no concern
+manufactured where none exists — with two real flags (Feynman's memoir
+and an unadjudicated 1956 allegation; Fisher's institutional eugenics
+leadership, separate from the exact test's own validity) and two
+identities the repo had never actually stated in full, disambiguated
+(Holmes: almost certainly fictional, low risk; Marshall: almost certainly
+John Marshall, whose slaveholding and *Johnson v. M'Intosh* sit in real
+tension with an otherwise sharp "checks conformance to the founding
+document" fit). `verification.js`'s `PERSONAS` moved two seats — Entity:
+Holmes → **Barbara Grosz** (Centering Theory is the actual coreference
+mechanism this cell checks, not an analogy); Atmosphere: a
+never-confirmed seat → **Barbara McClintock** (evidence-forced ground
+concession, closer than the placeholder it fills rather than replaces).
+`CHORUS-LOG.md`'s own roster note (not a logged review — the log's past
+entries stay exactly as recorded, append-only) adds meta: Marshall →
+**Helen Longino**, whose objectivity-as-communal-practice thesis fits what
+that seat audits more precisely than the Marbury parallel it moved from.
+Feynman keeps his seat, disclosed rather than silently replaced: no
+researched alternative exists, and swapping him for an unresearched name
+would repeat the exact failure this review exists to correct. Muriel
+Bristol (the real scientist whose claim IS the "lady tasting tea"
+experiment) and Ruqaiya Hasan (full co-author of *Cohesion in English*)
+are recorded as citation corrections alongside Fisher and Halliday, not
+threaded into every past dated paragraph naming either man.
+
+## The chorus stops being remembered, becomes an auditor (added 2026-09-04) — pointer
+
+POLICIES.md **P94** is the law; this is the pointer. Direct follow-on to
+P93: "they need to become auditors that run whenever there are changes
+made to organs." `organ-audit.js` (pure, tested against the REAL
+`capacities.js`/`verification.js` registries, zero LLM, zero network)
+decides who a diff implicates; `.github/workflows/chorus-audit.yml` is
+the thin wiring that actually calls them, on every PR that touches a
+REGISTERED organ. Scoped to `capacities.js`'s 29-entry table, not the
+whole repo — a changed script outside it is named `unregistered`, never
+silently guessed onto a cell. Chekhov and Longino stand outside the
+per-cell mapping and ride any organ change. The automated run's own
+write access is technically capped at one file
+(`--allowedTools "...,Edit(/CHORUS-LOG.md)"`, verified against Claude
+Code's real permission syntax) and one verb (append, per the log's own
+"append-only" header) — deliberately narrower than the historical
+human-run passes, which sometimes pushed fixes directly. **Needs a repo
+secret this session cannot add** (`ANTHROPIC_API_KEY` or
+`CLAUDE_CODE_OAUTH_TOKEN`); missing it, the job fails loudly rather than
+silently skipping. Not run live — this environment can't trigger a real
+GitHub Actions run, so the workflow is verified as far as YAML syntax,
+the real action's confirmed input names, and organ-audit.js's own 14
+passing tests can go, and disclosed as exactly that, not implied proven.

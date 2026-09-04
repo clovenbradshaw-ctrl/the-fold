@@ -11110,3 +11110,165 @@ What is enforceable is the map's own integrity, and that is already
 covered — `capability-coverage.mjs::assertGeometry` proves the 27 cells
 and the three 9-way projections, and `grid.test.mjs` proves every registry
 row resolves to a real module and a legal cell.
+
+## P93 — The chorus roster is a values claim too, and two seats moved (2026-09-04)
+
+The user's ask, directly: research the people this repo names organs and
+review-personas after, confirm they hold up against the project's own
+values, and find where women and non-binary scholars deserve a place in
+that roster. `chorus-roster-ethics-review.md` is the full research — every
+claim checked against live sources this pass, not recalled — and is the
+law for every fact cited here; this entry is the decision made from it.
+
+**The finding.** `CHORUS-LOG.md`'s eleven-persona roster and this file's
+own "giver" citations (Firth, Bateson, Halliday, Fisher, Russell, and
+others) mostly hold up clean — no fabricated concern was manufactured
+where none exists, the same discipline this repo already applies to every
+other claim it makes. Two real, well-documented ethical concerns surfaced
+(Feynman's own memoir plus an unadjudicated 1956 domestic-violence
+allegation; Fisher's sustained institutional eugenics leadership, separate
+from the validity of Fisher's exact test, which this repo cites narrowly
+for the math alone). Two identities the repo had never actually stated in
+full needed disambiguating: Holmes (best reading: the fictional Sherlock
+Holmes, low risk) and Marshall (best reading: John Marshall — a strong
+conceptual fit for "checks conformance to the founding document," since
+he invented judicial review, but also a lifelong slaveholder and author
+of *Johnson v. M'Intosh*, the opinion underpinning the Doctrine of
+Discovery in U.S. law). And the roster's own composition was itself a
+finding: ten men, one woman (Ostrom), zero non-binary people, with one
+seat (Atmosphere/REC) the code's own comment admitted had never been
+confirmed.
+
+**What moved, and why each move earns its seat rather than filling a
+quota.** Entity/SIG: Holmes → **Barbara Grosz**, whose Centering Theory
+(with Joshi and Weinstein, 1995) is the actual technical foundation for
+what this cell checks — coreference, not a fictional-detective analogy.
+Atmosphere/REC: confirmed as **Barbara McClintock** — a disclosed-open
+seat filled, not a confirmed one replaced — whose transposon discovery,
+dismissed roughly three decades before an unshared 1983 Nobel, is a
+closer match for "evidence forces a ground conceded, a new one admitted"
+than the placeholder it replaces ever was. Meta: Marshall → **Helen
+Longino**, whose research program (objectivity as a community's
+transparent, criticizable practice) is a sharper conceptual match for
+auditing whether the *other* reviewers hold each other to a shared
+written standard than the Marbury parallel, without that parallel's
+record.
+
+**What did NOT move, and why leaving it is the honest call, not an
+oversight.** Feynman (DEF/Lens) keeps his seat: the physics and the
+falsifiability discipline cited are uncontested, the concern is real and
+now disclosed in both `CHORUS-LOG.md` and the review document, but no
+replacement was researched — swapping him for an unresearched name would
+repeat exactly the failure mode this whole review exists to correct
+(a claim entering without its own checking). Russell's presupposition-
+logic citation and Fisher's exact-test citation are left in place for the
+same reason: the specific thing cited is the mathematics/logic, which the
+documented concern does not touch, and no alternative was found for
+either that carries the same technical content. Two citation corrections
+— naming Muriel Bristol (the real scientist whose claim is the actual
+origin of the "lady tasting tea" experiment Fisher designed) alongside
+Fisher, and Ruqaiya Hasan (full co-author of *Cohesion in English*, 1976)
+alongside Halliday — are recorded in the review document rather than
+threaded through every historical CLAUDE.md paragraph that names either
+man, since those paragraphs are dated records of past decisions and this
+repo does not rewrite those; the correction is on the record, not buried.
+
+**What this does not do.** It does not touch `GIVERS` in `verification.js`
+(which names an organ, not a person) or any historical entry in
+`CHORUS-LOG.md` — every past review's actual reviewer name stays exactly
+as recorded, because the log is append-only and a rewritten history is a
+lie about what happened, the same rule this repo enforces on every other
+append-only record it keeps (the reflex ledger, the hyperlexicon, the
+build log). `PERSONAS` in `verification.js` is not that kind of record —
+it is a live label, and moved for exactly that reason.
+
+**Generality:** not applicable — this is a values decision about who
+this repo names things after, not a claim about how the system reads.
+
+## P94 — The chorus stops being remembered and becomes an auditor (2026-09-04)
+
+The user's direction, verbatim, right after P93 landed: "they need to
+become auditors that run whenever there are changes made to organs."
+Every prior chorus review — every entry in `CHORUS-LOG.md`, including the
+eleven-persona run P93 itself grew out of researching — was run because a
+person remembered to invoke it. This closes that gap: `organ-audit.js` +
+`.github/workflows/chorus-audit.yml`.
+
+**The split, and why it is split exactly there.** `organ-audit.js` is
+pure, offline, no LLM, no network — it answers ONE mechanical question
+(given a diff's changed files, which registered organs did it touch, and
+which chorus seat reviews each) and is tested against the REAL registries
+(`organ-audit.test.mjs`, 14 cases, no fixtures — `capacities.js`'s own
+CAPACITIES and `verification.js`'s own VERIFICATION_GRID, the same
+"against the real engine organs, not stubs" discipline `hypergraph.test.mjs`
+already holds). The workflow is only wiring: it computes the diff, asks
+`organ-audit.js` who is implicated, and — only when at least one
+REGISTERED organ changed — actually runs them. This mirrors the
+`runMeasurement`/measure.js split exactly: a pure decision, a thin
+crossing that acts on it.
+
+**Scoped to the registry, disclosed as narrower than the whole repo.**
+`capacities.js`'s CAPACITIES table is 29 entries, not the ~220 modules
+THE-MODULE-CENSUS.md counts across both repos — it is the one mapping in
+this codebase that is mechanically verified
+(`capability-coverage.mjs::assertGeometry`), so it is what this audit
+trusts. A changed `.js`/`.mjs` file outside that table is reported as
+`unregistered` — named, never silently dropped and never silently
+guessed onto the nearest cell (`findCapacity`'s own stated reason for
+refusing fuzzy matches, applied here without alteration). Six organs
+elsewhere self-declare a `CELL` export (`relations.js`, `spans.js`,
+`pronouns.js`, `surfaces.js`, `segments.js`, `activation.js`, all in
+eoreader7) that this pass does not read — widening to them needs
+`cellOf(op, grain)` resolved through `cube.js`, and is named future work,
+not attempted here.
+
+**Two seats stand outside the cell mapping and ride every organ change,
+not a specific one** — Chekhov (residual/reachability, across the whole
+diff) and Longino (meta — do the OTHER seats' findings here actually cite
+what they claim to), matching how `CHORUS-LOG.md`'s own historical
+entries already used both.
+
+**Scope of what the automated run may DO, decided deliberately and
+enforced technically, not merely asked for.** The audit job's own
+`claude_args` reads `--allowedTools "Read,Grep,Glob,Edit(/CHORUS-LOG.md)"`
+— confirmed against Claude Code's real permission-rule syntax (not
+guessed): an `Edit` rule governs every built-in file-writing tool, so
+this run cannot touch any file other than `CHORUS-LOG.md`, full stop.
+Within that one file, only an APPEND is asked for — the log's own header
+("append-only, one entry per lint run") is the enforcement an unattended
+run gets against rewriting a past entry, the identical trust the format
+already asked of every human-run pass before it. The historical practice
+sometimes pushed FIXES directly (`CHORUS-LOG.md`'s own "Verified fixed"
+entries) — deliberately not carried into the automated version yet: an
+agent editing arbitrary code, unattended, on every PR, is a materially
+bigger trust step than one appending a review, and is not taken without
+the project owner watching this run clean a few times first.
+
+**What this needs that could not be added from here, disclosed rather
+than silently assumed working.** The audit job requires a repo secret —
+`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` — that only the project
+owner can add (Settings > Secrets and variables > Actions); this session
+has no path to GitHub repo-secret configuration. Missing either, the job
+fails LOUDLY with a named error rather than silently skipping, so a green
+check here can never be mistaken for "reviewed" when it actually means
+"nobody configured the reviewer." On a PR opened from a fork, GitHub's
+own `pull_request`-event token restrictions mean the job can comment but
+not push the log entry — a platform security boundary, not a bug here.
+`anthropics/claude-code-action@v1`'s exact input names
+(`anthropic_api_key`, `claude_code_oauth_token`, `prompt`, `claude_args`,
+`base_branch`) and the `Edit(path)` permission syntax were both confirmed
+by fetching the action's real `action.yml` and Claude Code's own current
+permissions reference this pass, not recalled — the same "checked against
+live sources, not assumed" discipline P93's own research held.
+
+**Not run live.** This session cannot trigger a real GitHub Actions run
+or add the secret it needs, so the workflow is verified as far as this
+environment allows (YAML parses; `organ-audit.js`'s own logic is fully
+tested against the real registries; every action input name and the
+permission syntax were checked against current, fetched documentation)
+and no further — the first real PR that touches a registered organ, once
+the secret exists, is the actual test. Disclosed as exactly that, not
+implied proven.
+
+**Generality:** not applicable — a decision about when this repo's own
+review practice runs, not a claim about how the system reads.

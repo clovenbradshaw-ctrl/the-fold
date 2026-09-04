@@ -121,7 +121,7 @@ const GIVERS = Object.freeze({
 });
 
 // A label, not a mechanism: CHORUS-LOG.md's own persona↔cell roster
-// (Diaconis/NUL, Holmes/SIG, Frankfurt/INS, Dijkstra/SEG, Ostrom/CON,
+// (Diaconis/NUL, Grosz/SIG, Frankfurt/INS, Dijkstra/SEG, Ostrom/CON,
 // Alexander/SYN, Feynman/DEF, Pearl/EVA — each confirmed against real
 // logged reviews), carried onto this grid so a reader sees "who is
 // checking this" the same way a code-review chorus entry already does.
@@ -130,17 +130,29 @@ const GIVERS = Object.freeze({
 // real reviewing agent would multiply S2's cost per claim for no measured
 // gain — the same efficiency argument P30 (echo/novel) already makes
 // against re-spending compute on what a mechanical check already settles.
-// Atmosphere/REC has no confirmed entry in CHORUS-LOG.md (checked
-// directly, zero hits) — Simon is carried here as a disclosed SUGGESTION,
-// not a confirmed reuse, matching how the cell itself is disclosed absent.
+//
+// Amended P93 (chorus-roster-ethics-review.md): two seats moved, giver
+// named for both, neither a silent swap. Entity was "Holmes" — the repo
+// never stated a full name, and the best-supported reading (a fictional
+// detective, next to no thematic tie to identity/coreference beyond the
+// analogy) was replaced with Barbara Grosz, whose Centering Theory
+// (Grosz/Joshi/Weinstein, 1995) is the actual technical foundation for
+// "does this surface form corefer with that one" — the real discipline
+// this cell checks, not a resemblance. Atmosphere/REC had NO confirmed
+// entry (Simon sat here only as a disclosed, never-confirmed suggestion,
+// per the line this replaces) — now confirmed as Barbara McClintock,
+// whose transposon discovery (dismissed ~30 years, then vindicated with
+// an unshared 1983 Nobel) is a closer match for "evidence forces a
+// ground conceded, a genuinely new one admitted" than an unconfirmed
+// placeholder ever was.
 const PERSONAS = Object.freeze({
   Void: "Diaconis",
-  Entity: "Holmes",
+  Entity: "Grosz",
   Kind: "Frankfurt",
   Field: "Dijkstra",
   Link: "Ostrom",
   Network: "Alexander",
-  Atmosphere: "Simon (suggested, not confirmed in CHORUS-LOG.md)",
+  Atmosphere: "McClintock",
   Lens: "Feynman",
   Paradigm: "Pearl",
 });

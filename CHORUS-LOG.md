@@ -1,5 +1,59 @@
 # Chorus log — append-only, one entry per lint run
 
+## Roster (amended 2026-09-04, chorus-roster-ethics-review.md)
+
+This section is a standing note, not a logged review — it does not
+record a lint run, and every entry below it stays exactly as it was
+recorded (append-only means the log, not the roster it once used).
+
+`verification.js`'s `PERSONAS` is the live roster; two seats moved there,
+both researched and sourced in `chorus-roster-ethics-review.md`. Neither
+change rewrites a historical entry below: every past "Holmes" and
+"Marshall" row in this file recorded who actually ran that review, and
+stays as recorded.
+
+- **Entity/SIG: Holmes → Barbara Grosz.** Holmes was never given a full
+  name in this file, and the best-supported reading (Sherlock Holmes,
+  fictional) had no real thematic tie to identity/coreference beyond an
+  analogy. Grosz co-developed Centering Theory (Grosz/Joshi/Weinstein,
+  1995) — the actual technical foundation for whether a surface form
+  corefers with an earlier one, which is what this cell checks.
+- **Atmosphere/REC: confirmed as Barbara McClintock.** This seat carried
+  no confirmed entry — `verification.js`'s own prior comment said so in
+  as many words. McClintock's transposon discovery, dismissed for roughly
+  three decades before an unshared 1983 Nobel, is a closer match for
+  "evidence forces an old ground conceded, a new one admitted" than an
+  unconfirmed placeholder.
+- **Meta: Marshall → Helen Longino.** "Marshall" was never given a full
+  name either; the best-supported reading (John Marshall — a strong
+  thematic fit, since *Marbury v. Madison* invented the very kind of
+  founding-document conformance-checking this seat does) carries a real,
+  documented ethical record (a lifelong slaveholder, and author of
+  *Johnson v. M'Intosh*, the opinion that gave U.S. law its Doctrine-of-
+  Discovery basis for Native land dispossession). Longino's research
+  program — objectivity as a community's transparent, criticizable
+  practice — is a closer conceptual match for what this seat actually
+  audits (whether the *other* reviewers are holding each other to the
+  written standard) than the Marbury parallel, without that record.
+
+**Left as is, disclosed rather than silently kept:** Feynman (DEF/Lens) —
+his physics and the falsifiability discipline cited here are uncontested,
+but his own memoir's treatment of women, and a credible-but-unadjudicated
+allegation from his 1956 divorce filing, are real and worth knowing; no
+researched replacement exists yet, so nothing was swapped in without one.
+Full sourcing for every claim above, and for this one, is in
+`chorus-roster-ethics-review.md`.
+
+**How entries get here, as of 2026-09-04 (POLICIES.md P94):** every entry
+above this note was run because a person remembered to invoke it. A
+`.github/workflows/chorus-audit.yml` now runs the implicated seats
+automatically on a PR that touches a registered organ
+(`capacities.js`'s own CAPACITIES table; `organ-audit.js` decides who) —
+scoped to appending one entry to this file and nothing else, technically
+capped there, not merely asked. Needs a repo secret this repo's own
+sessions cannot add themselves; until one exists, that job fails loudly
+rather than silently no-op.
+
 ## 2026-08-18 — dialogue-narration echo guard (holon.js, provenance.js, holon.test.mjs)
 
 Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: `isFraming` gains a third echo shape (subject-names-a-dialogue-participant + carries-a-dialogue-act-verb), catching drafts like "The user is waiting for more information about the weather." that neither the question-word-coverage test nor WH_CLAUSE could see.

@@ -10749,9 +10749,48 @@ earlier 17.4%-vs-39.3%-median result, and the difference is the assembly —
 this run goes through the ledger path, that one did not. Neither number is
 licensed until the discrepancy is chased.
 
+**WIDE, and the ladder goes higher** (`CORPUS=wide` — the 2-hop crawl,
+158 entities, 617 offered assertions → 458 notes across 46 offices; the
+oracle widens with it and its independence is unchanged, the fixture's own
+header: "the oracle reads P580/P582 only; the derivation reads P1365/P1366
+and tenure indices only". This driver never reads a date at all, which is
+`derivation-precision.mjs`'s E' control made structural).
+
+| | real | null median | null range | verdict |
+|---|---|---|---|---|
+| derived facts (`carry:true`) | **289** | 12 | 5–24 | LICENSED |
+| TRUE per the independent oracle | **142** | 0 | 0–2 | LICENSED |
+| derived facts (the shipped gate) | **0** | 0 | 0–0 | at the edge |
+| max composition depth | **4** | — | — | material-bound |
+
+**Every note in the wide corpus is single-source** (one retrieval), so the
+shipped gate admits nothing at all: 0 premises of 458. With `carry` the
+layer holds 289 facts, 142 of them confirmed by an oracle reading different
+properties — against a shuffle that reaches 24 and 2. Depth rises with the
+corpus and with nothing else: 23 seeds settle at depth 2, 158 entities at
+depth 4, and both are QUIESCENT — `maxSteps` 2, 4, 6, 12, 25 all give the
+identical result, so the reaction settles rather than running out of
+budget. **Depth is a property of the corpus, not of the engine.**
+
+**A METHOD RETRACTION, and it is the useful part.** The fragility numbers
+are not merely unlicensed, they are NOT COMPARABLE, which is the stronger
+statement. `worstConcessionShare` is a SHARE of the derived layer, and the
+real layer holds 289 facts where the shuffle's holds 5–24. Nineteen
+percent of 289 and twenty-one percent of twelve are not the same quantity,
+so the comparison was never made — it cannot be. This is the aggregate-level
+trap one register over: a number that is real and also irrelevant, because
+the comparison it invites is invalid. It explains a discrepancy that had
+been sitting unreconciled — `premise-levels.mjs`'s 17.4%-vs-39.3%, the
+narrow run's 33.3%, and the wide run's 19.0% do not disagree with each
+other; **none of them was measured against a layer-size-matched null**, and
+until one exists no fragility claim in this project is licensed. The
+resolution driver now carries `layerSize` beside those rows and scores them
+`NOT COMPARABLE` rather than `RETRACTED`, so the confound is visible in the
+artifact instead of inferred from it.
+
 **And a finding about the gate itself, in the essay's own shape.** The
 shipped `>=2 sources` gate derives **0 facts on the real material and 0 on
-every shuffle**. It does not trade recall for precision. It emits the same
+every shuffle, at both corpus sizes** (0 of 25 notes, 0 of 458). It does not trade recall for precision. It emits the same
 output whichever world it is in — a likelihood ratio of 1, arrived at the
 trivial way, by never firing. A gate that cannot be reached is a
 decoration, one register up from the guard P86 found in the test file.

@@ -428,6 +428,13 @@ fetch("/priors-data/pos-prior-eng.json")
   .then((j) => {
     posPriorCache = j;
     if (j) connectorLens = makeGrammarLens({ classifyWord, dominantClass, posPrior: j, posPriorMeta: POS_PRIOR_META, thraxMeta: THRAX_META });
+    // S50 (eoreader7): the POS prior's verb-dominant forms join the verb
+    // vocabulary beside UniMorph's — UniMorph English is a 10k-form sample
+    // that lacks "placed", "retrieved", "launched"; UD English-EWT attests
+    // them. The share floor is the app's own consumer contract
+    // (dominantClass, minShare 0.5 — the same floor connectorLens uses),
+    // never a second number. Same MUTATED Set as below, same reason.
+    if (j?.forms) for (const w of Object.keys(j.forms)) { const d = dominantClass(classifyWord(w, { posPrior: j }), { minShare: 0.5 }); if (d && (d.upos === "VERB" || d.upos === "AUX")) unimorphVerbForms.add(w.toLowerCase()); }
   })
   .catch(() => {});
 
@@ -491,6 +498,18 @@ const relationsFor = makeRelationReader({
   // ledger: preposition-led subjects 6 → 1. The extractor's own option,
   // forwarded on every read (material and answer side) since 9ea3c30.
   nounPhraseSubjects: true,
+  // S50 (eoreader7): "the hypergraph should be this rich ALWAYS" (user,
+  // 2026-09-02). The auxiliary chain rides in the act (DR5), a form a
+  // received prior attests as a verb is an act on its first arrival, and
+  // acts compare by lemma. The lemmatizer organ is the same one
+  // sameFormOrgan below loads; hypergraph.js builds sameAct once at
+  // factory time, so this wrapper defers to whatever is loaded when a
+  // comparison is actually made — exact match until the prior arrives,
+  // byte-identical to before, no boot delay.
+  phrasalPredicates: true,
+  attestedVerbs: true,
+  createLemmatizer: () => ({ sameAct: (a, b) => (sameFormOrgan ? sameFormOrgan(a, b) : String(a).toLowerCase() === String(b).toLowerCase()) }),
+  morphologyIndex: {},
   // Two RECEIVED closed classes, both from the engine's own prior register
   // (perceiver/text/priors.js, giver "lang/en" — the same `enginePriors`
   // namespace this file already imports), turned ON here rather than left

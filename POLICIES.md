@@ -10671,3 +10671,390 @@ the scarce thing; checked claims worth rendering are.**
 **Files.** `compose.js` (pure, `renderClaim` injected — no template of its
 own) + `compose.test.mjs` (11 cases against the REAL `renderCrown` and the
 REAL `mergeTestimony`, including two controls built to fail).
+
+## P88 — Contest is written to the record, not reported and dropped: CON·Figure·CONTESTED (2026-09-04)
+
+*(Renumbered from P86–P89 on merge — concurrent PRs landed a different
+P86 (bridge witnessing) and P87 (composed passage) first. The numbers
+moved, nothing about the policies themselves did.)*
+
+**Generality:** universal (the act, the walls, the separation of settling
+from conceding); specimen-scoped (the numbers quoted from the essay).
+
+**User direction:** "close the contest loop", against the essay's own
+statement of the gap — "The cascade is complete, and tested, and has no
+input. Because a contradiction, when the system encounters one, is heard,
+tallied, reported to the screen, and then thrown away. The record is only
+ever written in the agreement branch."
+
+**What was wrong.** `corroboration.js` held its contradictions in a Map
+built fresh each call, commented `// THIS RUN`, and returned a `contests`
+structure whose only reader was its own test. `askValue` ranked a
+contested note highest — value 2, the highest-information ask available —
+but only within the run that heard the contradiction. On the next run the
+Map was empty, the note read `thin`, and the third source that would have
+settled it was never sought. Corroboration accumulated across sessions;
+contest evaporated at the end of every one.
+
+**Why the old behaviour had a real reason, and where the reason stopped.**
+Lamport: at n=2 you see the disagreement but not who is wrong. Landing "the
+note is false" would convict on evidence that cannot convict, and that
+restraint is the same one keeping the false-statement count low everywhere
+else. It licenses NOT CONVICTING. It does not license FORGETTING. That two
+sources disagree is true whichever way it settles — a durable fact about
+the record, and precisely the fact a third source would settle.
+
+**The act was placed, not invented.** The old header refused to land a
+contradiction because "the door has no contradiction field, and inventing
+one here would be a silent schema widening." The limit was real; the
+remedy was wrong. `OPERATOR_BASIS.CONTESTED` had been declared in
+`kernel/task-log.js` since the kernel was written and — audited across the
+whole tree — was written by NOTHING on disk. The empty chair was already
+at the table.
+
+**What shipped** (`native/kernel/notes.js`, `organs/hyperlexicon.js`,
+`organs/corroboration.js`, `native/tests/dispute.test.js`):
+
+* `dispute(log, id, {source, because, span})` — EVIDENCE · CON · Figure,
+  basis CONTESTED. Refuses an unattributed contest and a bare vote with no
+  decider; refuses a source that already witnesses the note (one
+  perspective does not testify on both sides); a second dispute from the
+  same source is a no-op (Ladha).
+* `settleDispute(log, disputeId, {trigger, outcome})` — `upheld` or
+  `conceded`, both declared. **A settlement never concedes.** It hands back
+  a ready `concession` so the withdrawal stays a separate recorded act
+  performed by `derivation.js::concedePremise`, which is what cascades.
+  bridge-witness.js's posture, and the reason a settlement cannot quietly
+  become a conviction.
+* `disputesOf` / `disputedIds` / `disputeHistory` — live contests, and the
+  whole history with how each closed. Nothing is deleted.
+* `contestedSearch(log, door, sources, {limit, kinds})` — reads the
+  standing contests off the ledger and ranks a third source, excluding
+  every source that already spoke on either side. `thirdSourceCandidates`
+  could always answer "where would a further vote come from for THIS
+  note"; what it never had was a caller that knew which notes needed one.
+* `exposure(log, premise)` — the cascade as a QUERY. What would fall,
+  with nothing falling; the same transitive walk `withdrawDerived`
+  performs, so the dry run IS the cascade rather than an estimate of it.
+
+**THE WALL, tested as a leak assay rather than promised.** A dispute
+appends no witness, removes none, moves no span, and concedes nothing:
+witnesses, spans and `standingOf` are byte-identical across it, the note
+stays live, and it stays premise-eligible. A ledger that has heard no
+disagreement folds byte-identically to how it folded before the act
+existed — `disputedBy` rides only when a contest is live, the same rule
+`joins` and `unbridged` already follow.
+
+**The control built to fail** (`dispute.test.js`, and again at walk level
+in `corroboration.test.mjs`): a reader that never saw the run reads the
+contest back off the log alone and `askValue` returns
+`{value: 2, reason: "contested"}`; the same note with the old empty Map
+returns `{value: 1, reason: "thin"}`. The old behaviour is kept in the
+suite as the thing being fixed.
+
+**THE CONTEST CARRIES ITS KIND, AND UNTYPED IS NOT ROUTED.** The first cut
+of this shipped a defect its own prior measurement had already named:
+`contestedSearch` routed every live dispute to the third-source seeker.
+`contradiction-kinds.mjs` (2026-09-04) had found that "contradicted" is not
+one thing — **individuation** (one referent standing for two things),
+**provenance** (one material under two refs), **force** (an *ought* against
+an *is*) and **grain** (Figure against Pattern) are all decidable at n=1;
+only a genuine **contest** (same referents, same grain, same force) is
+Lamport's undecidable n=2. Measured on real succession material, BOTH
+apparent contradictions were individuation — one person, one office,
+disjoint tenures, both sides from the same file — so a seeker routed on "is
+it disputed" would have been sent twice and could have settled neither.
+
+So `dispute` takes a `kind` from a closed set, defaulting to `untyped` —
+the honest landing for a model witness, which cannot type what it produced
+— and `contestedSearch` requires the caller to DECLARE which kinds it is
+seeking for (`door.NEEDS_THIRD_SOURCE` is the engine's own answer,
+`["contest"]`). Everything else comes back in `unrouted` with a reason,
+visible rather than silently skipped: an unrouted disagreement needs
+TYPING, not a source. Typing does not convict — the control does not
+separate real individuation from a fabricated adjacency, and that limit
+stays on the record. What typing earns is the routing decision.
+
+**Caught in passing.** The existing contradiction test guarded its
+assertions behind `if (out.contradicted.length)` — the shape the essay's
+own Part Seven names, a guard that passes forever if it is never reached.
+It IS reached (verified: the arm call receives an object, so the script's
+regex misses it and the swap answers yes), so the assertions are now
+unconditional and a change that stops producing contradictions fails there
+instead of skipping quietly.
+
+## P89 — Two regimes, one ledger: corroboration is a label that rides, never a permission that gates (2026-09-04)
+
+**Generality:** universal.
+
+**User direction:** "recognizing you have two different kinds of claim
+sharing one ledger, doing two different epistemic jobs, and the old rule
+made them share a gate" — and, earlier, "build high on one source, carry
+the fragility."
+
+**The conflation.** `premisesOf`'s floor answered two different questions
+with one number:
+
+* **Base testimony** — what a source says happened — is token-level
+  evidentiary reasoning, the domain courts and historians work in and the
+  domain Bayesian evidence was built for. Its correct form is not a COUNT
+  of witnesses but a SUM of calibrated log-odds, in which a witness at
+  LR = 1 contributes exactly zero however many of it you collect. That is
+  the mathematical statement of what was measured by hand: 25 real / 25
+  fabricated, 2 states in each arm, LR = 1.0.
+* **Derived structure** — what floor 6 builds on top of those claims — is
+  synthesised, generalising, theory-shaped. That is Popper's register.
+  Nothing there is ever "confirmed": a product earns its place by being
+  refutable and by having somewhere to land when it falls.
+
+Popper and Bayesian confirmation are usually posed as rivals because
+Popper denied that evidence raises the probability of a universal theory.
+That objection is about laws, not tokens. Both regimes are right, in
+different registers, and the old gate made them share one.
+
+**Why no log-odds gate shipped.** The one calibration this engine has says
+the available witness carries no information. Inventing likelihood ratios
+to sum would be worse than admitting that (II.10 — an uncalibrated ratio
+is a change of units that fails invisibly). What the count still
+legitimately is, is a label.
+
+**What shipped.** `premisesOf(notes, {floor, carry})` and
+`derive(log, {..., carry})`, with `carry` a declared boolean, never
+inferred:
+
+* `carry: true` ADMITS below-floor notes as premises and names every one
+  of them in `carried` with its level and the floor it fell short of.
+  Nothing is refused; nothing is hidden.
+* every product records `restsOn: {sources, instruments, contested,
+  grounds}` — **the MIN across its transitive grounds, never the mean.**
+  An average would let a strong premise launder a single-source one, which
+  is the same laundering the two-witness gate existed to stop.
+* `contested` counts grounds carrying a live dispute. It is a label and
+  blocks nothing: a live dispute must not disqualify a premise, because at
+  n=2 that would convict on evidence that cannot convict.
+
+**Measured, and it is the whole argument.** On a single-source ledger the
+old gate does not make floor 6 sparse — it makes it EMPTY: 0 premises, 0
+derived, 4 notes stopped. With `carry: true` the same ledger derives, and
+every product reads `restsOn.sources: 1`. What licenses building on n=1 is
+not the count: it is that the tower still falls. Tested end to end —
+dispute the single-source premise, `exposure` says what would fall BEFORE
+anything is decided, settle it against the note, and `concedePremise`
+takes down exactly that set, each withdrawal naming what it cascaded from.
+
+**ON REAL MATERIAL, through the ledger path, with a null**
+(`native/eval/the-fold/contest-ladder.mjs` + `-resolution.mjs`, 40 redeals,
+**0 model calls**; the Wikidata succession corpus and the SAME independent
+oracle derivation-precision.mjs uses — the derivation reads P1365/P1366,
+the oracle reads P580/P582, so it cannot agree by construction). This is
+the first run of `premisesOf`/`derive` on real material at all: 26 offered
+assertions → 25 notes across 7 offices, **24 of 25 single-source (96%)**.
+
+| | real | null median | null range | verdict |
+|---|---|---|---|---|
+| derived facts (`carry:true`) | **9** | 3.5 | 1–8 | LICENSED |
+| TRUE per the independent oracle | **5** | 1 | 0–4 | LICENSED |
+| derived facts (the shipped gate) | **0** | 0 | 0–0 | at the edge |
+| precision on decided | 1.000 | 1.000 | 1–1 | **RETRACTED** |
+| worst single concession (share) | 0.333 | 0.55 | 0.2–1 | **RETRACTED** |
+| mean concession share | 0.084 | 0.08 | 0.077–0.09 | **RETRACTED** |
+
+**The ladder moves, and the movement survives the null: 0 → 9 derived, 5
+of them confirmed by an oracle built from different properties, both
+outside every one of 40 shuffles.**
+
+**What the null takes back, said plainly.** Precision 1.000 is worth
+nothing — the shuffle scores 1.000 too, exactly the trap
+`derivation-precision-resolution.mjs` already caught once on this judge, so
+the COUNT of confirmed facts is the evidence and the RATIO is not. The
+fragility numbers claim nothing here either: 9 of 40 draws match or beat
+the 33.3% worst concession. That does NOT reproduce `premise-levels.mjs`'s
+earlier 17.4%-vs-39.3%-median result, and the difference is the assembly —
+this run goes through the ledger path, that one did not. Neither number is
+licensed until the discrepancy is chased.
+
+**WIDE, and the ladder goes higher** (`CORPUS=wide` — the 2-hop crawl,
+158 entities, 617 offered assertions → 458 notes across 46 offices; the
+oracle widens with it and its independence is unchanged, the fixture's own
+header: "the oracle reads P580/P582 only; the derivation reads P1365/P1366
+and tenure indices only". This driver never reads a date at all, which is
+`derivation-precision.mjs`'s E' control made structural).
+
+| | real | null median | null range | verdict |
+|---|---|---|---|---|
+| derived facts (`carry:true`) | **289** | 12 | 5–24 | LICENSED |
+| TRUE per the independent oracle | **142** | 0 | 0–2 | LICENSED |
+| derived facts (the shipped gate) | **0** | 0 | 0–0 | at the edge |
+| max composition depth | **4** | — | — | material-bound |
+
+**Every note in the wide corpus is single-source** (one retrieval), so the
+shipped gate admits nothing at all: 0 premises of 458. With `carry` the
+layer holds 289 facts, 142 of them confirmed by an oracle reading different
+properties — against a shuffle that reaches 24 and 2. Depth rises with the
+corpus and with nothing else: 23 seeds settle at depth 2, 158 entities at
+depth 4, and both are QUIESCENT — `maxSteps` 2, 4, 6, 12, 25 all give the
+identical result, so the reaction settles rather than running out of
+budget. **Depth is a property of the corpus, not of the engine.**
+
+**A METHOD RETRACTION, and it is the useful part.** The fragility numbers
+are not merely unlicensed, they are NOT COMPARABLE, which is the stronger
+statement. `worstConcessionShare` is a SHARE of the derived layer, and the
+real layer holds 289 facts where the shuffle's holds 5–24. Nineteen
+percent of 289 and twenty-one percent of twelve are not the same quantity,
+so the comparison was never made — it cannot be. This is the aggregate-level
+trap one register over: a number that is real and also irrelevant, because
+the comparison it invites is invalid. It explains a discrepancy that had
+been sitting unreconciled — `premise-levels.mjs`'s 17.4%-vs-39.3%, the
+narrow run's 33.3%, and the wide run's 19.0% do not disagree with each
+other; **none of them was measured against a layer-size-matched null**, and
+until one exists no fragility claim in this project is licensed. The
+resolution driver now carries `layerSize` beside those rows and scores them
+`NOT COMPARABLE` rather than `RETRACTED`, so the confound is visible in the
+artifact instead of inferred from it.
+
+**And a finding about the gate itself, in the essay's own shape.** The
+shipped `>=2 sources` gate derives **0 facts on the real material and 0 on
+every shuffle, at both corpus sizes** (0 of 25 notes, 0 of 458). It does not trade recall for precision. It emits the same
+output whichever world it is in — a likelihood ratio of 1, arrived at the
+trivial way, by never firing. A gate that cannot be reached is a
+decoration, one register up from the guard P88 found in the test file.
+
+This is P83's standing ("a single-source note is evidence, and the gate
+that withholds it is guarding a diet that no longer arrives") and P84's
+rule ("disclose a note's standing, never withhold on it") carried up one
+floor, from what reaches the model to what may be built on.
+
+
+## P90 — Until the reader's configuration is on the record, a reading measures the instrument (2026-09-04)
+
+**Generality:** universal.
+
+**What happened.** A day of measurement concluded that Rashomon-shaped
+prose cannot host a contest — that the shared relation vocabulary between
+two accounts of Borodino is all copulas, that no functional relation
+survives, that the wall sits upstream of the witness. Every number was real
+arithmetic on a real run, with a correctly size-matched null. Every
+conclusion was withdrawn the same day.
+
+The driver built its ledger with `hl.admit(log, edges, { witness })`.
+**No gate.** `admit` builds its connector gate only `if (classifyConnector)`,
+so with none injected the door stands open and every extraction artifact
+enters carrying the standing of a real assertion. Three opt-in extraction
+levers were also off. The run then reported
+`and | was | mortally wounded while leading this counter-attack` as
+evidence about Tolstoy.
+
+**The law.** *No claim about material is valid until the reader is shown to
+be in the configuration whose results are on the record.* A driver states
+its reader's configuration — gate, walls, levers, identity organs — or its
+numbers are about the harness. This is not a code-review preference; it is
+the same discipline P41 already holds one register over (*a cell reports
+what it checked, or says it did not: the absence of a refusal is never a
+check*), applied to the reader instead of the cell.
+
+**Why it is the project's characteristic failure, twice over.** P88 found a
+guard that could not be reached, passing forever and reading as rigour from
+outside. This is its mirror: a door left open, admitting everything, and
+reading as *the material being poor*. Both are **the instrument's own state
+mistaken for a fact about the world**, and neither is visible without
+asking what the instrument was set to. A careful-looking number and a
+correct number are indistinguishable until the configuration is stated.
+
+**The checks, in the order they would have caught this.**
+
+1. **Was the door gated?** `admit` without `classifyConnector` is an open
+   door. P57's own dump (`complete list —is→ given above`) is what an open
+   door produces, and P82's received walls are what closes it — measured,
+   debris subjects 96 → 30 while referent subjects held 83 → 78.
+2. **Was identity resolved by the cast organs?** P11 forbids a local notion
+   of "the same name" by name. A `toLowerCase()` comparison across sources
+   is the orthographic slice of referent identity, not identity, and the
+   policy records the exact failure it produces (Bezúkhov flagged invented
+   over a diacritic). This run reproduced it with Kutúzov and misdiagnosed
+   it as coreference pool scope.
+3. **Is the test measuring the material or its own strictness?** An
+   exact-structural-match verdict measures strictness. P29 is written about
+   this: nine vocabulary configurations chased it before the finding landed
+   that the same graph scored 80% under an entailment rubric.
+4. **Does the organ already exist?** It did — `hypergraph.js`'s `unbound`
+   verdict carries `competing` (this exact verb+object bound to one and
+   only one OTHER subject), gated on the object resolving to a referent and
+   on there being exactly one rival, because *a slot filled by two+
+   different subjects proves nothing*. The hand-rolled replacement had
+   neither guard, which is precisely why it fell below its own null.
+5. **Does the policy doc already contain the finding?** It did. P76 records
+   that `relations.js` slot-finding is positional, **and closes the wrong
+   next step this run then proposed anyway** — *"building a SECOND,
+   case-marking strategy that still recovers 'subject' and 'object' by a
+   different signal is the same borrowed category surviving through a
+   different mechanism, not removed."* Deriving a recorded finding from
+   scratch is not merely wasted work: it arrives without the correction
+   that was attached to it.
+
+**The cheapest form of the check, for a driver author.** Print the reader's
+configuration in the driver's own output, beside the numbers — gate on or
+off, walls on or off, levers, which identity organ resolved ends. A run
+whose header cannot say what the reader was set to is not reporting a
+measurement of the material, and the header saying so is what makes the
+difference visible instead of ambient.
+
+**Priced.** One retracted results document
+(`results/rashomon-probe-RESULTS.md`, retracted in place, in these words),
+one commit whose message asserts a withdrawn finding, and a day. What
+survives: `fixtures/tolstoy-borodino.txt` (real, public-domain material),
+`lib/borodino-ledger.mjs`'s `pages` parameter (backwards-compatible,
+verified byte-identical on the default pair), and the open question, which
+was never answered.
+
+
+## P91 — DISAGREE reaches the record: mergeTestimony wired to the contest act (2026-09-04)
+
+**Generality:** universal.
+
+**The third one.** P88 found the concession cascade complete, tested, and
+with no input, and corroboration.js's `contests` dying in a return value.
+Audited the same week, `capacity-runner.js::mergeTestimony` — which has
+always produced a typed `DISAGREE` naming `holds` and `refused`, per claim —
+is called from exactly one eval driver and one registry string. **Nothing
+landed it.** Three organs, one shape. P57's law is the standing answer: a
+finding is admitted and projected, never re-derived per turn and discarded.
+
+**Why this input, and why a string comparison was not.** These readings are
+verdicts on ONE claim_id. Same claim, same arrangement, same polarity
+question, judged separately per source. So the disagreement is `contest` in
+P88's taxonomy **by construction** — individuation and grain are excluded
+because it is one claim, force because it is one claim — and the kind is
+EARNED by the claim-id spine rather than guessed. A detector comparing
+subject/verb/object strings across sources cannot earn that; P11 forbids the
+comparison outright, and P90 records the day it was made anyway.
+
+**`landContest(notesLog, door, merged, { textAt })`**, beside `landAct` and
+`landSelfAssertion`. Four walls, each a typed refusal rather than a silent
+skip:
+
+* **self-witness** — a `self:model` reading may NEVER dispute. The model
+  refusing the material is not a source disagreeing; it is the mouth
+  convicting the record, which P2 forbids. `mergeTestimony` already refuses
+  to let a self-witness co-sign corroboration alone (BUILD-4); this is that
+  wall pointed the other way, and P2 makes it the more dangerous direction —
+  **a model that can dispute can convict.**
+* **read nothing** — an unaddressed refusal is an assertion, not a reading
+  (floor 4½'s wall, the same `readsNothing` already applied to holds).
+* **no bytes** — the decider is the SOURCE'S OWN BYTES at the address it
+  read (P17). `textAt` is injected; no text for the address, no dispute.
+* **not a contest** — AGREE / SINGLE / UNDETERMINED land nothing.
+
+**And it never convicts.** CONTRADICTED — every determining source refuses,
+none holds — is the settled case, and `landContest` still only DISPUTES it,
+reporting `unanimous: true` so a caller holding that authority decides about
+conceding. `mergeTestimony`'s own header refuses to resolve DISAGREE
+mechanically toward CONTRADICTED because that "would smuggle in" a
+conviction; landing a concession here would smuggle in the same one, one
+register down. Diagnostic and act stay apart: `mergeTestimony` is untouched
+and still writes nothing.
+
+**Enforced:** `native/tests/dispute.test.js`, seven cases — the wire, the
+self-witness wall, the unaddressed refusal, the missing bytes, the three
+non-contest cases, unanimous-but-not-conceded, and the leak assay repeated
+at the wire (witnesses, spans and `standingOf` byte-identical across a
+landed contest). 1019/1020 native + conformance, zero regressions.

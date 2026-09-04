@@ -11058,3 +11058,55 @@ self-witness wall, the unaddressed refusal, the missing bytes, the three
 non-contest cases, unanimous-but-not-conceded, and the leak assay repeated
 at the wire (witnesses, spans and `standingOf` byte-identical across a
 landed contest). 1019/1020 native + conformance, zero regressions.
+
+## P92 — Resolve the move to its cube cell and read the registry BEFORE writing an organ (2026-09-04)
+
+**The failure, three times in one session.** A contradiction detector was
+hand-rolled that `hypergraph.js`'s `unbound.competing` already did better
+(P90). A judge-calibration arm was hand-rolled that
+`kernel/contest.js::nullAdjudicate` already did better — with its null,
+its seed and its alpha all declared rather than invented. A substitution
+baseline was hand-rolled with a `0.5` cutoff typed straight into the
+source, in a repo whose own standing rule is that a threshold is measured
+or it is not used. Each time the organ existed. Each time it was found
+*after* the wrong one was written and run.
+
+**Why grepping does not prevent it.** The searches were for the thing
+being built — "contradiction", "substitution", "discrimination" — and the
+organ that already did the work is not named for the problem. It is named
+for its CELL. `mergeTestimony` is not called `compareSources`; it is
+registered as `standing` at EVA·Paradigm. `nullAdjudicate` is not called
+`calibrateJudge`; it is CON's co-presence machine. A keyword search over
+a vocabulary the author chose ten minutes ago cannot find a name the
+algebra chose two years ago.
+
+**The rule.** Before writing an organ, a scorer, a detector or a
+comparison, name the MOVE, resolve it through `cellOf(op, grain)`, and
+read `CAPACITIES` — 29 typed entries, `organs/capacities.js`, one line
+each, giver named. `capability-coverage.mjs` prints the whole map with
+`moves.coverage(CAPACITIES)`. Only an empty cell licenses a new organ,
+and an empty cell is a LEAD, never a verdict (capability-coverage.mjs's
+own law: registry debt and real incapacity read identically as zero).
+
+**What the cube caught that prose did not.** The Rashomon run compared
+subject-verb-object edges across sources to answer "do these accounts
+disagree." Run the two moves through the algebra:
+
+```
+the question asked   EVA·Pattern  -> Paradigm  Tracing   Relate/Interpretation
+the organ used       CON·Figure   -> Link      Binding   Relate/Structure
+```
+
+Different domain and different grain. That is why `end.toLowerCase()`
+felt available at all: at Figure grain the object of comparison IS a
+string, and at Paradigm grain it is a whole reading whose identity can
+only come from `cast`. P11's ban on surface comparison and P90's
+retraction both fall out of one cell mismatch, and the mismatch is
+computable in one call.
+
+**Enforced by habit, not by test, and that is stated rather than hidden:**
+no assertion can require a lookup that happens before code is written.
+What is enforceable is the map's own integrity, and that is already
+covered — `capability-coverage.mjs::assertGeometry` proves the 27 cells
+and the three 9-way projections, and `grid.test.mjs` proves every registry
+row resolves to a real module and a legal cell.

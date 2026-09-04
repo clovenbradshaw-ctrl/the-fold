@@ -10799,3 +10799,138 @@ This is P83's standing ("a single-source note is evidence, and the gate
 that withholds it is guarding a diet that no longer arrives") and P84's
 rule ("disclose a note's standing, never withhold on it") carried up one
 floor, from what reaches the model to what may be built on.
+
+
+## P88 — Until the reader's configuration is on the record, a reading measures the instrument (2026-09-04)
+
+**Generality:** universal.
+
+**What happened.** A day of measurement concluded that Rashomon-shaped
+prose cannot host a contest — that the shared relation vocabulary between
+two accounts of Borodino is all copulas, that no functional relation
+survives, that the wall sits upstream of the witness. Every number was real
+arithmetic on a real run, with a correctly size-matched null. Every
+conclusion was withdrawn the same day.
+
+The driver built its ledger with `hl.admit(log, edges, { witness })`.
+**No gate.** `admit` builds its connector gate only `if (classifyConnector)`,
+so with none injected the door stands open and every extraction artifact
+enters carrying the standing of a real assertion. Three opt-in extraction
+levers were also off. The run then reported
+`and | was | mortally wounded while leading this counter-attack` as
+evidence about Tolstoy.
+
+**The law.** *No claim about material is valid until the reader is shown to
+be in the configuration whose results are on the record.* A driver states
+its reader's configuration — gate, walls, levers, identity organs — or its
+numbers are about the harness. This is not a code-review preference; it is
+the same discipline P41 already holds one register over (*a cell reports
+what it checked, or says it did not: the absence of a refusal is never a
+check*), applied to the reader instead of the cell.
+
+**Why it is the project's characteristic failure, twice over.** P86 found a
+guard that could not be reached, passing forever and reading as rigour from
+outside. This is its mirror: a door left open, admitting everything, and
+reading as *the material being poor*. Both are **the instrument's own state
+mistaken for a fact about the world**, and neither is visible without
+asking what the instrument was set to. A careful-looking number and a
+correct number are indistinguishable until the configuration is stated.
+
+**The checks, in the order they would have caught this.**
+
+1. **Was the door gated?** `admit` without `classifyConnector` is an open
+   door. P57's own dump (`complete list —is→ given above`) is what an open
+   door produces, and P82's received walls are what closes it — measured,
+   debris subjects 96 → 30 while referent subjects held 83 → 78.
+2. **Was identity resolved by the cast organs?** P11 forbids a local notion
+   of "the same name" by name. A `toLowerCase()` comparison across sources
+   is the orthographic slice of referent identity, not identity, and the
+   policy records the exact failure it produces (Bezúkhov flagged invented
+   over a diacritic). This run reproduced it with Kutúzov and misdiagnosed
+   it as coreference pool scope.
+3. **Is the test measuring the material or its own strictness?** An
+   exact-structural-match verdict measures strictness. P29 is written about
+   this: nine vocabulary configurations chased it before the finding landed
+   that the same graph scored 80% under an entailment rubric.
+4. **Does the organ already exist?** It did — `hypergraph.js`'s `unbound`
+   verdict carries `competing` (this exact verb+object bound to one and
+   only one OTHER subject), gated on the object resolving to a referent and
+   on there being exactly one rival, because *a slot filled by two+
+   different subjects proves nothing*. The hand-rolled replacement had
+   neither guard, which is precisely why it fell below its own null.
+5. **Does the policy doc already contain the finding?** It did. P76 records
+   that `relations.js` slot-finding is positional, **and closes the wrong
+   next step this run then proposed anyway** — *"building a SECOND,
+   case-marking strategy that still recovers 'subject' and 'object' by a
+   different signal is the same borrowed category surviving through a
+   different mechanism, not removed."* Deriving a recorded finding from
+   scratch is not merely wasted work: it arrives without the correction
+   that was attached to it.
+
+**The cheapest form of the check, for a driver author.** Print the reader's
+configuration in the driver's own output, beside the numbers — gate on or
+off, walls on or off, levers, which identity organ resolved ends. A run
+whose header cannot say what the reader was set to is not reporting a
+measurement of the material, and the header saying so is what makes the
+difference visible instead of ambient.
+
+**Priced.** One retracted results document
+(`results/rashomon-probe-RESULTS.md`, retracted in place, in these words),
+one commit whose message asserts a withdrawn finding, and a day. What
+survives: `fixtures/tolstoy-borodino.txt` (real, public-domain material),
+`lib/borodino-ledger.mjs`'s `pages` parameter (backwards-compatible,
+verified byte-identical on the default pair), and the open question, which
+was never answered.
+
+
+## P89 — DISAGREE reaches the record: mergeTestimony wired to the contest act (2026-09-04)
+
+**Generality:** universal.
+
+**The third one.** P86 found the concession cascade complete, tested, and
+with no input, and corroboration.js's `contests` dying in a return value.
+Audited the same week, `capacity-runner.js::mergeTestimony` — which has
+always produced a typed `DISAGREE` naming `holds` and `refused`, per claim —
+is called from exactly one eval driver and one registry string. **Nothing
+landed it.** Three organs, one shape. P57's law is the standing answer: a
+finding is admitted and projected, never re-derived per turn and discarded.
+
+**Why this input, and why a string comparison was not.** These readings are
+verdicts on ONE claim_id. Same claim, same arrangement, same polarity
+question, judged separately per source. So the disagreement is `contest` in
+P86's taxonomy **by construction** — individuation and grain are excluded
+because it is one claim, force because it is one claim — and the kind is
+EARNED by the claim-id spine rather than guessed. A detector comparing
+subject/verb/object strings across sources cannot earn that; P11 forbids the
+comparison outright, and P88 records the day it was made anyway.
+
+**`landContest(notesLog, door, merged, { textAt })`**, beside `landAct` and
+`landSelfAssertion`. Four walls, each a typed refusal rather than a silent
+skip:
+
+* **self-witness** — a `self:model` reading may NEVER dispute. The model
+  refusing the material is not a source disagreeing; it is the mouth
+  convicting the record, which P2 forbids. `mergeTestimony` already refuses
+  to let a self-witness co-sign corroboration alone (BUILD-4); this is that
+  wall pointed the other way, and P2 makes it the more dangerous direction —
+  **a model that can dispute can convict.**
+* **read nothing** — an unaddressed refusal is an assertion, not a reading
+  (floor 4½'s wall, the same `readsNothing` already applied to holds).
+* **no bytes** — the decider is the SOURCE'S OWN BYTES at the address it
+  read (P17). `textAt` is injected; no text for the address, no dispute.
+* **not a contest** — AGREE / SINGLE / UNDETERMINED land nothing.
+
+**And it never convicts.** CONTRADICTED — every determining source refuses,
+none holds — is the settled case, and `landContest` still only DISPUTES it,
+reporting `unanimous: true` so a caller holding that authority decides about
+conceding. `mergeTestimony`'s own header refuses to resolve DISAGREE
+mechanically toward CONTRADICTED because that "would smuggle in" a
+conviction; landing a concession here would smuggle in the same one, one
+register down. Diagnostic and act stay apart: `mergeTestimony` is untouched
+and still writes nothing.
+
+**Enforced:** `native/tests/dispute.test.js`, seven cases — the wire, the
+self-witness wall, the unaddressed refusal, the missing bytes, the three
+non-contest cases, unanimous-but-not-conceded, and the leak assay repeated
+at the wire (witnesses, spans and `standingOf` byte-identical across a
+landed contest). 1019/1020 native + conformance, zero regressions.

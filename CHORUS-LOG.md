@@ -44,6 +44,16 @@ researched replacement exists yet, so nothing was swapped in without one.
 Full sourcing for every claim above, and for this one, is in
 `chorus-roster-ethics-review.md`.
 
+**How entries get here, as of 2026-09-04 (POLICIES.md P94):** every entry
+above this note was run because a person remembered to invoke it. A
+`.github/workflows/chorus-audit.yml` now runs the implicated seats
+automatically on a PR that touches a registered organ
+(`capacities.js`'s own CAPACITIES table; `organ-audit.js` decides who) —
+scoped to appending one entry to this file and nothing else, technically
+capped there, not merely asked. Needs a repo secret this repo's own
+sessions cannot add themselves; until one exists, that job fails loudly
+rather than silently no-op.
+
 ## 2026-08-18 — dialogue-narration echo guard (holon.js, provenance.js, holon.test.mjs)
 
 Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: `isFraming` gains a third echo shape (subject-names-a-dialogue-participant + carries-a-dialogue-act-verb), catching drafts like "The user is waiting for more information about the weather." that neither the question-word-coverage test nor WH_CLAUSE could see.

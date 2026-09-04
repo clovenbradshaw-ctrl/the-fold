@@ -1,0 +1,176 @@
+name: Chorus audit
+
+# Runs the chorus review automatically when a PR touches a REGISTERED
+# organ (capacities.js's own CAPACITIES table — the same tested,
+# mechanically-verified module→cell mapping capability-coverage.mjs
+# proves the shape of), instead of relying on someone to remember to run
+# it by hand the way every CHORUS-LOG.md entry before this one was run.
+# `organ-audit.js` (this repo) decides WHO gets called — pure, offline,
+# no LLM, no network, tested against the real registries
+# (organ-audit.test.mjs). This workflow is only the wiring around it: it
+# computes the diff, asks organ-audit which seats are implicated, and —
+# only if at least one real organ changed — actually runs them.
+#
+# SCOPE, DECIDED DELIBERATELY, NOT BY DEFAULT: this job is READ + APPEND
+# ONLY, and that is a TECHNICAL restriction, not merely a prompted one —
+# `--allowedTools "Read,Grep,Glob,Edit(/CHORUS-LOG.md)"` is Claude Code's
+# own real permission-rule syntax (confirmed against its docs, not
+# guessed): the `Edit` rule governs every built-in file-writing tool
+# (Write, NotebookEdit, MultiEdit all read Edit's rule, per Claude Code's
+# own permissions reference), so this run cannot touch any file other
+# than CHORUS-LOG.md, and can only APPEND there — the prompt asks for an
+# append and the log's own header ("append-only, one entry per lint run")
+# is the only enforcement an LLM call gets against rewriting a past entry,
+# same as every human-run pass before it. The historical, human-run
+# chorus passes sometimes pushed fixes directly (see CHORUS-LOG.md's own
+# "Verified fixed" entries) — that is a materially bigger trust step for
+# something that now fires unattended on every PR, and is not taken here
+# without the project owner watching it run clean a few times first.
+#
+# REQUIRES a repo secret this workflow cannot add itself: either
+# ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN (anthropics/claude-code-
+# action's own two supported auth modes). Until one exists, the
+# "audit" job below fails loudly with a named error rather than silently
+# skipping — a green check here must mean "reviewed," never "the secret
+# was missing and nobody noticed."
+#
+# KNOWN LIMIT, disclosed rather than assumed away: on a PR opened FROM A
+# FORK, GitHub itself restricts the default token's write permission for
+# the `pull_request` event — this job will then be able to comment but
+# not push the log entry. That is a GitHub Actions security boundary,
+# not a bug in this workflow.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: chorus-audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      auditors: ${{ steps.detect.outputs.auditors }}
+      summary: ${{ steps.detect.outputs.summary }}
+    steps:
+      - name: Checkout the-fold (full history, for the diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout eoreader7 (capacities.js's own organs live there)
+        uses: actions/checkout@v4
+        with:
+          repository: clovenbradshaw-ctrl/eoreader7
+          path: _detect-eoreader7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: eoreader7 as a real sibling checkout
+        run: |
+          set -e
+          mkdir -p ..
+          rm -rf ../eoreader7
+          mv _detect-eoreader7 ../eoreader7
+
+      - name: Run organ-audit against this PR's diff
+        id: detect
+        run: |
+          set -e
+          RESULT="$(node scripts/organ-audit-cli.mjs "origin/${{ github.event.pull_request.base.ref }}" "HEAD")"
+          echo "raw: $RESULT"
+          AUDITORS="$(node -e "console.log(JSON.parse(process.argv[1]).auditors.join(','))" "$RESULT")"
+          SUMMARY="$(node -e "console.log(JSON.stringify(JSON.parse(process.argv[1])))" "$RESULT")"
+          echo "auditors=$AUDITORS" >> "$GITHUB_OUTPUT"
+          {
+            echo "summary<<CHORUS_EOF"
+            echo "$SUMMARY"
+            echo "CHORUS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report
+        run: |
+          if [ -z "${{ steps.detect.outputs.auditors }}" ]; then
+            echo "No registered organ changed in this PR — chorus audit has nothing to run."
+          else
+            echo "Organs changed. Auditors implicated: ${{ steps.detect.outputs.auditors }}"
+          fi
+
+  audit:
+    needs: detect
+    if: needs.detect.outputs.auditors != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+
+      - name: Fail loudly if no auth secret is configured
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ] && [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "::error::chorus-audit needs ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN as a repo secret — add one under Settings > Secrets and variables > Actions. Organs changed (${{ needs.detect.outputs.auditors }}) but no reviewer could run." >&2
+            exit 1
+          fi
+
+      - name: Run the chorus review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          base_branch: ${{ github.event.pull_request.base.ref }}
+          claude_args: |
+            --max-turns 25
+            --allowedTools "Read,Grep,Glob,Edit(/CHORUS-LOG.md)"
+          prompt: |
+            Run an adversarial chorus review of this PR's diff, in the-fold
+            repo, at PR #${{ github.event.pull_request.number }}.
+
+            Only these auditors are implicated by what actually changed —
+            organ-audit.js computed this mechanically, do not second-guess
+            which seats to run: ${{ needs.detect.outputs.auditors }}
+
+            Machine-readable detail (file → capacity → terrain/op → persona):
+            ${{ needs.detect.outputs.summary }}
+
+            Read CHORUS-LOG.md's own recent entries first for the exact
+            table format and citation discipline this practice already
+            uses (persona | cell | citation | file:line | verdict |
+            summary), and FOLD-CONSTITUTION.md / POLICIES.md / CLAUDE.md
+            for what to cite findings against — every finding must quote a
+            real article/policy number, the same rule every past entry in
+            that file already holds itself to.
+
+            For each auditor listed above, review ONLY the diff of this PR
+            against their own cell's discipline (chorus-roster-ethics-
+            review.md names who each persona is and what they check, if
+            you need it — Chekhov and Longino are standing seats and
+            always run: Chekhov for residual/reachability across the whole
+            diff, Longino for whether the OTHER auditors' findings here
+            actually cite what they claim to).
+
+            You may ONLY edit CHORUS-LOG.md, and only by APPENDING one new
+            dated entry (the file's own header: "append-only, one entry
+            per lint run") — never rewrite an existing entry. Do not touch
+            any other file; do not attempt to fix what you find. A finding
+            with real teeth (something that should change) gets marked
+            "noted, not fixed" with the reason, exactly as this repo's own
+            past entries already do for deferred findings — fixing is a
+            separate, human-authorized step.
+
+            Commit the new entry with a clear message, push it to this
+            PR's branch, and leave a short PR comment: which auditors ran,
+            how many findings, and a one-line pointer to the new
+            CHORUS-LOG.md entry. If every auditor comes back clean, say so
+            plainly — a clean pass is a real result, not nothing to report.

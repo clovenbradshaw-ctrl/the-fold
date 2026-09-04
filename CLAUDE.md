@@ -7436,3 +7436,27 @@ Bristol (the real scientist whose claim IS the "lady tasting tea"
 experiment) and Ruqaiya Hasan (full co-author of *Cohesion in English*)
 are recorded as citation corrections alongside Fisher and Halliday, not
 threaded into every past dated paragraph naming either man.
+
+## The chorus stops being remembered, becomes an auditor (added 2026-09-04) — pointer
+
+POLICIES.md **P94** is the law; this is the pointer. Direct follow-on to
+P93: "they need to become auditors that run whenever there are changes
+made to organs." `organ-audit.js` (pure, tested against the REAL
+`capacities.js`/`verification.js` registries, zero LLM, zero network)
+decides who a diff implicates; `.github/workflows/chorus-audit.yml` is
+the thin wiring that actually calls them, on every PR that touches a
+REGISTERED organ. Scoped to `capacities.js`'s 29-entry table, not the
+whole repo — a changed script outside it is named `unregistered`, never
+silently guessed onto a cell. Chekhov and Longino stand outside the
+per-cell mapping and ride any organ change. The automated run's own
+write access is technically capped at one file
+(`--allowedTools "...,Edit(/CHORUS-LOG.md)"`, verified against Claude
+Code's real permission syntax) and one verb (append, per the log's own
+"append-only" header) — deliberately narrower than the historical
+human-run passes, which sometimes pushed fixes directly. **Needs a repo
+secret this session cannot add** (`ANTHROPIC_API_KEY` or
+`CLAUDE_CODE_OAUTH_TOKEN`); missing it, the job fails loudly rather than
+silently skipping. Not run live — this environment can't trigger a real
+GitHub Actions run, so the workflow is verified as far as YAML syntax,
+the real action's confirmed input names, and organ-audit.js's own 14
+passing tests can go, and disclosed as exactly that, not implied proven.

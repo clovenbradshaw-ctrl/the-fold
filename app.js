@@ -311,12 +311,23 @@ import {
   parseBound,
 } from "./bound.js";
 
+// blankFurniture, here too (2026-09-04): cast.js reads a passage's
+// page-scoped `.blanked` copy ONLY when this caller opts in by passing the
+// organ — the SAME "reader's own organ is authoritative" rule
+// hypergraph.js's `readSentenceText` already enforces (source-page-
+// blanking.test.mjs: "a reader that never asked for blanking does not get
+// it from the chunker"). Declared identically to `relationsFor`'s own
+// blankFurniture further down, so the two never silently disagree about
+// what counts as furniture.
+const castBlankFurniture = (text) => blankLabelRows(text, { minRun: 4, maxCell: 60 });
+
 const castFor = makeCastResolver({
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
   namesCorefer,
   diaNorm,
+  blankFurniture: castBlankFurniture,
 });
 
 // Same organ bundle as castFor above, one level less collapsed — the
@@ -329,6 +340,7 @@ const referentIndexFor = makeReferentIndex({
   discoverReferents,
   namesCorefer,
   diaNorm,
+  blankFurniture: castBlankFurniture,
 });
 // `skillLibrary`/`callModel`/`relationsFor` are live accessors, not values
 // captured now — `state`, `complete`, and `relationsFor` itself are all
@@ -353,6 +365,7 @@ const handlesFor = makeCastHandles({
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
+  blankFurniture: castBlankFurniture,
 });
 
 // POSPrior@1 — real Universal Dependencies treebank evidence
@@ -7211,6 +7224,9 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       chunks.push(
         ...chunkSource(sourceName, text, {
           identity: { ...identifyMaterial(url, text), retrievedAt: f.entry.retrievedAt ?? null },
+          // Same fix, same reason as addSource — a fetched page's cast
+          // deserves the identical furniture wall a pasted one now gets.
+          blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
         }),
       );
       // Kept for audit, not for retrieval: any address cited into this page
@@ -8343,9 +8359,19 @@ function addSource(name, text) {
   // passes through, so this needs no per-caller change to reach any of
   // them (identifyMaterial, source.js).
   const identity = identifyMaterial(name, text);
+  // blankFurniture was already wired into `relationsFor` (above) on the
+  // belief that it protected every reader of this text — measured
+  // 2026-09-04 (rashomon-contrast-RESULTS.md) that it did not protect the
+  // CAST: `chunk.blanked` (source.js's own page-aware furniture field) was
+  // simply never produced here, because this the real choke-point every
+  // source passes through never asked chunkSource for it. Wired now, same
+  // declared numbers as `relationsFor`'s own blankFurniture two screens up.
   state.chunks = state.chunks
     .filter((c) => c.source !== name)
-    .concat(chunkSource(name, text, { boundaries: discoverBoundaries(text), identity }));
+    .concat(chunkSource(name, text, {
+      boundaries: discoverBoundaries(text), identity,
+      blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+    }));
   renderSources();
   // Persist to OPFS so the source survives a reload.
   persistSource(name, text, { passages: countFor(name) });

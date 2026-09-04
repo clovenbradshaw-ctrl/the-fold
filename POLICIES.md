@@ -11110,3 +11110,72 @@ What is enforceable is the map's own integrity, and that is already
 covered — `capability-coverage.mjs::assertGeometry` proves the 27 cells
 and the three 9-way projections, and `grid.test.mjs` proves every registry
 row resolves to a real module and a legal cell.
+
+## P93 — Cross-document identity was already the design; the cast's own furniture wall was still open; a referent's reality-kind is instantiated, not discovered (2026-09-04)
+
+**Generality:** specimen-scoped. The cast furniture-wall fix itself is
+universal; the reality-kind capacity's own measured precision, and the
+generic-token refinement's measured net cost, are both about this
+material and are not claimed to generalize further.
+
+The full account is eoreader7's own **S63**; this is the pointer. User
+direction: cross-document referent identity "is the same thing as when we
+instantiate an entity... a different type of being-hood, because this is
+a cross document entity" — and kind induction should organically
+discover, per referent, that some are real, some fictional, some a
+fictionalization of a real one, naming Borodino (the real battle,
+Tolstoy's own account of it) as the specimen.
+
+**The cross-document half was already built.** `eoreader7/native/organs/
+bridges.js` states the user's own intuition almost verbatim in its own
+header ("it is the same set of operations, just at another level") — a
+referent bridge is heard onto its own ledger through the identical
+`hear()`/`concede()` machinery a within-document entity uses, and
+`bridge-witness.js` (P86) can even ask a model to confirm one. Its real,
+measured ceiling: a bridge exists only where an exact SVO triple matched
+across documents, so a paraphrase never becomes a candidate.
+
+**Building the reality-kind half found a live production bug, not only a
+missing feature.** The most recent related work (`rashomon-contrast.mjs`,
+the corrected successor to a retracted Rashomon run) had already named the
+next step — "a furniture wall on the cast" — after finding real people
+merged with Wikipedia navbox debris. Tracing it found `source.js` already
+computes a page-aware `chunk.blanked` field whenever `blankFurniture` is
+wired into `chunkSource` (P82); `cast.js` simply never read it, so every
+caller believing it had protected the cast this way — including this
+repo's own PRODUCTION `addSource` (the one choke-point every attachment
+passes through) and its web-fetch path, neither of which even wired
+`blankFurniture` into `chunkSource` at all — got no benefit. Both gaps
+are now closed: `app.js`'s two `chunkSource` calls and all three of its
+`cast.js` construction sites are fixed.
+
+**The naive version of the cast fix broke a real, already-tested
+architectural rule** ("a reader that never asked for blanking does not
+get it from the chunker," `source-page-blanking.test.mjs`) — caught by
+running eoreader7's own full suite, not assumed safe. `cast.js` now takes
+an opt-in `blankFurniture` parameter, exactly mirroring how
+`hypergraph.js`'s own `readSentenceText` already gates the same field —
+and needed zero changes there, since `hypergraph.js` was already threading
+its whole `organs` bundle into `makeReferentIndex(organs)`.
+
+**The reality-kind capacity** (`organs/reality-kind.js`, registered as
+`realityKind`, INS·Kind) classifies a referent as real / fictionalized-
+real / fictional from a caller-declared source genre plus a name-level
+cross-source correspondence — deliberately not routed through `bridges.js`
+itself, whose exact-triple requirement would answer "fictional" for
+Napoleon too. Verified against the user's own falsifiable prediction on
+the real Borodino fixtures already in this repo: Napoleon and Kutuzov
+correspond and read fictionalized-real; Bezukhov, Bolkonsky, and Rostova
+never do. A spot-checked (not merely counted) sample found real, honest
+noise — generic military-rank words admitted as referents at all, one
+likely collision with an unrelated same-named person — and a proposed fix
+for it (`genericTokens`, already built for a different purpose) was
+measured to cost more than it buys on this material (it also refuses the
+correct Napoleon/Kutuzov match, for an unrelated pre-existing coreference-
+fragmentation reason) and ships opt-in, off by default, disclosed rather
+than silently defaulted either way.
+
+Full suites, failure names diffed rather than counted: the-fold
+1025/958/67 before and after this pass (zero regressions); eoreader7 core
+555/543/10 and organs 441→449/437/11 (the 8 new reality-kind cases the
+only count change, the same 11 pre-existing failures both times).

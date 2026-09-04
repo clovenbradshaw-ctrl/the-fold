@@ -7405,3 +7405,51 @@ claims, and cannot make a thin ledger read as a confident account — its
 reach is whatever corroboration the reading holds (~2%, P83; and P86 showed
 the identity-side levers cannot move that). **Model-free long-form
 rendering was never the scarce thing; checked claims worth rendering are.**
+
+## Cross-document identity was already the design; the cast's own furniture wall was still open (added 2026-09-04) — pointer
+
+POLICIES.md **P93** is the law; eoreader7 **S63** the full account. Two
+things asked together — "cross-document referent identity is the same
+thing as instantiating an entity, just a different type of being-hood"
+and kind-induce a referent's REAL/fictional/fictionalized-real status,
+Borodino named as the specimen — turned out to be, respectively, already
+the design and a genuinely new capacity blocked by a live production bug.
+
+**`bridges.js`'s own header already says the first thing almost
+verbatim** ("it is the same set of operations, just at another level") —
+a referent bridge is heard onto its own ledger through the SAME
+`hear()`/`concede()` machinery a within-document entity uses. Its real
+ceiling (P86): only an exact cross-document triple match becomes a
+bridge; a paraphrase never does.
+
+**Chasing the second thing found that `cast.js` never read the furniture-
+blanked copy `chunkSource` already computes** — not because the organ was
+missing, but because `cast.js` read `p.text` unconditionally while
+`chunkSource`'s own `blankFurniture` option produces a SEPARATE
+`chunk.blanked` field (P82, to keep every address reading back true).
+This repo's own production `addSource` (the one choke-point every
+attachment/paste/upload/library pull passes through) and its web-fetch
+path never even wired `blankFurniture` into `chunkSource` in the first
+place — fixed, both of them, alongside `cast.js`'s own read. The naive
+fix (read `.blanked` whenever present) broke a real, already-tested rule
+one screen over in `hypergraph.js` ("a reader that never asked for
+blanking does not get it from the chunker") — caught by running the full
+suite, not assumed safe — so `cast.js` now takes the same opt-in
+`blankFurniture` parameter `hypergraph.js` already gates its own reading
+behind, and needed no change there at all.
+
+**`reality-kind.js`** (new, eoreader7, registered `realityKind` at
+INS·Kind) instantiates real/fictionalized-real/fictional per referent
+from a caller-declared source genre and a name-level cross-source match —
+not routed through `bridges.js` itself, whose exact-triple requirement
+would call Napoleon fictional too. Verified on the real Borodino
+Wikipedia article and Tolstoy's own excerpt already in this repo:
+Napoleon and Kutuzov correspond and read fictionalized-real; Bezukhov,
+Bolkonsky, and Rostova never do. A spot-check (not just a count) found
+real noise (generic rank-words admitted as referents; one likely
+same-name collision), and a proposed statistical fix for it
+(`genericTokens`) was measured and found to cost more than it buys on
+this material — it also refuses the correct Napoleon/Kutuzov match, for
+an unrelated pre-existing coreference-fragmentation reason — so it ships
+opt-in, off by default. Full numbers, every disclosed limit, and the
+files touched: POLICIES.md P93 / eoreader7 READING-SPEC.md S63.

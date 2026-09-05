@@ -796,7 +796,7 @@ PRIOR-ART-INVENTORY's own rule (S8: grep the inventory, the engine and the
 attempt log before building) the first instruction of this plan, not the
 last.
 
-### What the Nashville walk measured, held against the law
+### What the pilot walk measured, held against the law
 
 The walk was asked for as a test of the system's ability, and it should be
 read as one. What it proved: the fold researches with the model as mouth
@@ -830,7 +830,7 @@ code (P14). Each pass names its control and its P71 tag.
 
 **13.1 — Null the selector, then read the six.** Two things, both cheap.
 (a) Print WHICH six control propositions were attested —
-`nashville-partnership.mjs` phase 6 holds `control.attested` with the
+`civic-research-walk.mjs` phase 6 holds `control.attested` with the
 swapped triple and its address; print end1 / label / swapped object and
 the sentence the witness pointed at. The inspection decides the reading: a
 swap that happens to make a TRUE statement (the material says the subject
@@ -904,31 +904,25 @@ BEFORE an organ is written. Nominations — P92 decides, not this list:
   absent). An alias is a declared correspondence between two surfaces of
   one referent — nominated beside `cast` (SIG+INS · Entity). P92 governs.
 
-**Control**, each: the driver's own measured case (the Catholic newsletter,
-Huffman coding for a CBID vote, the generic Downtown article's 105
-propositions, the five discarded attestations) pinned as a regression,
+**Control**, each: the driver's own measured cases (an aggregator's
+recirculation link, an off-topic feed result for a real funding vote, a
+generic encyclopedia article's off-subject propositions, the discarded
+attestations) pinned as regressions,
 plus one case from material the discovery never saw (P71's third leg).
 **Generality:** universal for the presence rung, the cache laws and the
 kinds-apart rendering; specimen-scoped for `carries`, the anchor floor and
 the debris cut until replayed.
 
-**13.4 — The currency, for investigative research.** WHERE-WE-ARE's
-falsifier is written for a single work; on news material it has a second
-reason to fire: outlets syndicate, so "stated by three pages" is one
-perspective — P13 already caps the phrasing at "N of M pages, K distinct
-hosts" for that reason. P84 supplies the currency that survives
-syndication: the KIND of witness (an account, versus the document it
-cites) and the depth of the chase to it. For this subject the documents
-are public and reachable where the press is not: the Metro Council's
-legislative record and the CBID budget ordinances (nashville.gov), the
-Metro Auditor's reports, the Partnership's own IRS filings (Form 990, via
-ProPublica's Nonprofit Explorer), the CBID annual reports. Declaring those
-as seed SOURCES is a process change, not output — the fold still derives
-the questions and the model still only points. Ranke found zero
-containment leads because news pages cite in prose, not in links
-(S46/S59); so the chase starts from the document class and asks the
-accounts which documents they NAME — the footnote-is-the-lead rule
-inverted: an ordinance number, a case number, an audit's title is a lead.
+**13.4 — WITHDRAWN, superseded below.** [The original draft here proposed
+declaring specific public-record document classes for a specific subject
+as seed sources. Refused by direct user correction — see the amendment's
+own "On 13.4" paragraph for the standing rule this became: nothing is
+ever seeded; discovery, not declaration, is how the walk finds documents.
+The general shape worth keeping is P84's own point, independent of any
+one subject: outlets syndicate, so "stated by three pages" is one
+perspective, and the currency that survives syndication is the KIND of
+witness (an account, versus the document it cites) and the depth of the
+chase to it — a chase the walk must run itself, never one seeded for it.]
 §3 of the document then reports kinds apart: stated by an account / stated
 by a document / both. **Control:** the same chase from a redealt document
 set (documents about a different Metro body) must land nothing on the
@@ -972,7 +966,7 @@ P71's first leg. `eviction-overwatch` is in this session's scope and is
 the natural corpus: public dockets with addresses, a different domain, the
 same shape (accounts citing documents). The walk, unmodified, over that
 material, with the same control. If the six rules hold there they earn
-universal; if not, they are Nashville-shaped and the plan says so. Gated on
+universal; if not, they are shaped to this one pilot and the plan says so. Gated on
 the user — their repo, their data.
 
 **13.8 — Housekeeping.** eoreader7 PR #80's body was stale on two facts
@@ -993,7 +987,7 @@ the whole test stood on the model doing very little, and it held.
 
 ### The gate on Pass 13
 
-Clean votes per ask on the Nashville material with a clean control, real >
+Clean votes per ask on the pilot material with a clean control, real >
 control at the exact binomial. If 13.1's selector swap does not separate
 the arms, WHERE-WE-ARE's falsifier has fired on research material too, and
 13.4 is the design re-examination — not a tuning of 13.1. And the ordering
@@ -1015,9 +1009,10 @@ material. Any future Assembly@1 declaration of this walk's regimes (13.2)
 must record ITS OWN dials, never a copy of a prior run's fetched material.
 
 **On 13.4, directly: *"im not telling you the answer, it should discover
-than [sic]."*** 13.4 as drafted above proposed declaring seed sources
-(nashville.gov, ProPublica, the Metro Auditor) — refused. **13.4 is
-withdrawn as drafted.** The corrected form: nothing is seeded, ever; the
+than [sic]."*** 13.4 as drafted above proposed declaring seed sources —
+specific public-record document classes and specific real websites for
+the pilot's specific subject — refused. **13.4 is withdrawn as drafted.**
+The corrected form: nothing is seeded, ever; the
 fold's TASK is now the only place a human names the subject (env-
 overridable, `eoreader7`'s S64 amendment), and which documents answer a
 question remains entirely the walk's own discovery, through the same

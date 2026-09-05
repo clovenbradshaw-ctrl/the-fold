@@ -644,6 +644,12 @@ const RELATION_READER_OPTIONS = {
   // byte-identical to before, no boot delay.
   phrasalPredicates: true,
   attestedVerbs: true,
+  // P36's object-specificity rule, at the reader (Pass 19, P100): a draft
+  // claim binds only to an edge that states EVERY content token of its
+  // object — the product assay's wall 6 ("the Royal Society in 1887" bound
+  // on `in 1887` alone) closed where every consumer of this reader inherits
+  // it: the draft checker, the arrival read, the assay.
+  objectSpecificity: true,
   createLemmatizer: () => ({ sameAct: (a, b) => (sameFormOrgan ? sameFormOrgan(a, b) : String(a).toLowerCase() === String(b).toLowerCase()) }),
   morphologyIndex: {},
   // Two RECEIVED closed classes, both from the engine's own prior register

@@ -11329,3 +11329,13 @@ only count change, the same 11 pre-existing failures both times).
 **One finding, handed forward.** A derived sentence has no ground mark of its own: `attribute` chips it to the passage whose words it shares, the relation tier reads it `unbound`, and the sentence witness says ∅. Two grounds were the design (material / model); a derived fact is a third — resting on the record, stated by no source — and needs its own mark and its own phrase in the answer, not a chip and a refusal side by side. Named for Pass 22's terminal wording and the next pass that touches `provenance.js`.
 
 **Suites.** the-fold 1,604 tests, 0 fail; the contract test reads the new import.
+
+## P103 — The terminal assay, first run: eight of eleven conditions held, three not, each with its mechanism named (2026-09-05)
+
+**Generality:** not-applicable (a dated record of one run through the real page; the conditions are the product bar's own and the walls that enforce them are the assay's, P97).
+
+`eoreader7/native/eval/the-fold/results/terminal-assay-RESULTS.md` is the record. The walk (attach, read on arrival, the stated / implied / disputed questions, reload, concede, a second model) and every condition's state with its evidence are there. **Held:** exact-byte addresses; the single-witness claim disclosed and answered from after a reload; the implied answer with its premise path and weakest premise; concession withdrawing it transitively and durably; unread extents typed; the reader's frame, recipe, source and constitution identities recorded; the record byte-identical across reloads; zero fabricated drafts bound at the reader. **Not held:** the disagreement as a live open contest (the reader reads a denial as `unbound`, P43 — the record side holds and P101's wire is live); the AnswerRecord's claims identical across models (restated in P100: the record is the invariant, the mouth's additions are marked and counted); only wording changing across models (both small mouths add unbacked sentences, marked).
+
+**What this run is not.** It is not the product completion claim. It is the first time the bar was run as one object over one session, and the first time the three misses were the same three the walls had already named — which is what the assay is for. The next levers are on the reader (a denial read as contradicted; a derived sentence's own ground mark; a bounded pool for the arrival read) and are named in NEXT-PASSES, not tuned here.
+
+**Suites.** the-fold 1,604 tests, 0 fail; eoreader7 native 626 / 625 / 1 todo, organs 449 / 449.

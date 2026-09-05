@@ -952,6 +952,17 @@ premises, the prompt carried it, the concession withdrew it, and it stayed
 withdrawn after a reload. Handed forward: a derived sentence needs its
 own ground mark (today: a material chip beside a witness ∅). POLICIES.md
 **P102**.
+
+## Pass 22 — the terminal assay, first run (added 2026-09-05, RUN, 8 of 11 held)
+
+`eoreader7/native/eval/the-fold/results/terminal-assay-RESULTS.md`; POLICIES.md
+**P103**. Not held: a live open contest (the reader reads a denial as
+unbound, P43); claims identical across models (restated, P100); only
+wording changing (both mouths add marked unbacked sentences). Next levers,
+all on the reader: read a denial as contradicted; a derived sentence's own
+ground mark; a bounded pool for the arrival read. Passes 23–25 (the
+grain-leak script, the documents reconciled, the unwired ratchet) remain
+open.
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions

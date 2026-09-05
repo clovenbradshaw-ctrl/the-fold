@@ -7601,3 +7601,13 @@ ledger block tells the mouth a derived fact as derived, never settled.
 Verified live end to end, including across a reload. A derived sentence
 still lacks its own ground mark — named, not fixed.
 
+## Pass 22 — the terminal assay, first run (added 2026-09-05) — pointer
+
+POLICIES.md **P103**; the record is eoreader7's
+`results/terminal-assay-RESULTS.md`. Eight of eleven conditions held on
+the first run through the real page; the three that did not are the
+reader's (a denial read as unbound), the mouth's (unbacked sentences,
+marked and counted), and the wording of one condition (restated in P100).
+Not a completion claim. Before claiming any of these, run the assay and
+the model-swap diff and read their walls.
+

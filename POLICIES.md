@@ -11375,3 +11375,11 @@ only count change, the same 11 pre-existing failures both times).
 **Verified live.** "Who was the Northgate Observatory's director?" → *"The text doesn't say who the Northgate Observatory's director was."* wearing `∅ open gap on the record: Northgate Observatory —director→ ?`, titled `void:northgate observatory|director|* — declared by the reader over 5 source(s), 48 of 48 parts read`. The first live run before the question was carried showed the same sentence with the bare ∅ — "the director" points at the anchor anaphorically — which is why the question names the first end.
 
 **Suites.** the-fold 1,605 / 0 fail. Pass 28 (the mouth's absence leak across models) is the model arm of this record and is unrun.
+
+## P107 — The absence leak measured, and P106's measure corrected: an absence is a sentence the witness refused, never the instrument's own finding string (2026-09-05)
+
+**Generality:** universal for the correction (the AnswerRecord's `absences` are witness-refused sentences only; `unbacked` claims are counted apart — the first cut counted the instrument's "the material never says …" strings as the mouth's absences and every absence cited none by construction); not-applicable for the numbers (one question, two small models, one dated run — eoreader7 S73, `results/absence-leak-RESULTS.md`). Pass 28 of the null experiments.
+
+**The run.** "Who directed the Northgate Observatory?" with a declared void in scope, the void tier IN the ledger block vs WITHHELD: gemma2:2b dodged with the tier withheld (restated the founding) and with it in said *"The person who directed the Northgate Observatory is unknown. The sources do not provide this information."*; llama3.2 with the tier withheld invented a Seattle observatory and a director (7 unbacked claims), with it in 2. **Named, not fixed:** `voidInScope` matches the label exactly (`directed` vs "director") — fold the label through the morphology organ next; and "citing none" counts every witness-refused sentence no gap licenses, absence-shaped or not.
+
+**Suites.** the-fold 1,605 / 0 fail (`answer-record.test.mjs` repinned to the corrected measure).

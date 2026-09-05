@@ -24,7 +24,7 @@ test("a record carries what was handed, what was said with its verdict and addre
   assert.deepEqual(r.unsupported, ["She founded a bakery."]);
   assert.deepEqual(r.unread, [{ name: "b.txt", read: 2, total: 44 }]);
   assert.equal(r.answer.chars, 26);
-  assert.match(answerRecordLine(r), /2 claim\(s\) \(1 bound, 1 unbound\) · 1 unsupported · 1 unbacked · absences 1 \(0 cite a declared gap, 1 cite none\) · retrieved 1 · recipe r1 · still reading b.txt 2\/44/);
+  assert.match(answerRecordLine(r), /2 claim\(s\) \(1 bound, 1 unbound\) · 1 unsupported · 1 unbacked · absences 0 \(0 cite a declared gap, 0 cite none\) · retrieved 1 · recipe r1 · still reading b.txt 2\/44/);
 });
 
 test("claimKey folds the SVO and neutral vocabularies onto one identity", () => {
@@ -54,13 +54,14 @@ test("every ∅ cites its void (P106): an absence with a declared void in scope 
   assert.equal(voidInScope("The sources don't say who the director was.", voids), null, "without the question, the anchor is unnamed");
   assert.equal(voidInScope("The sources don't say who the director was.", voids, { question: "Who was the Northgate Observatory's director?" })?.id, voids[0].id, "the question names the anchor the sentence points at");
   assert.equal(voidInScope("There is no mention of anything else.", voids, { question: "Who was the Northgate Observatory's director?" }), null, "the label must be in the sentence itself");
-  const abs = absencesOf({ witness: [{ sentence: "The Northgate Observatory's director is not named.", witness: "refused", why: "x" }, { sentence: "It opened in 1889.", witness: "stated" }], unbacked: ["There is no mention of anything else.", "The Northgate Observatory's director is not named."], voids });
-  assert.deepEqual(abs.map((a) => [a.how, a.void]), [["witness-refused", voids[0].id], ["unbacked", null]], "deduplicated by sentence; the leak carries no void");
+  const abs = absencesOf({ witness: [{ sentence: "The Northgate Observatory's director is not named.", witness: "refused", why: "x" }, { sentence: "It opened in 1889.", witness: "stated" }, { sentence: "There is no mention of anything else.", witness: "refused", why: "y" }, { sentence: "The Northgate Observatory's director is not named.", witness: "refused" }], voids });
+  assert.deepEqual(abs.map((a) => [a.how, a.void]), [["witness-refused", voids[0].id], ["witness-refused", null]], "deduplicated by sentence; a stated sentence is no absence; the leak carries no void");
   assert.deepEqual(abs[0].scope, { sources: 2, read: 5, total: 5 });
-  const r = answerRecord({ unbacked: ["There is no mention of anything else."], witness: [{ sentence: "The Northgate Observatory's director is not named.", witness: "refused" }], voids });
+  const r = answerRecord({ unbacked: ["Carl Keeler directed it."], witness: [{ sentence: "There is no mention of anything else.", witness: "refused" }, { sentence: "The Northgate Observatory's director is not named.", witness: "refused" }], voids });
   assert.deepEqual(r.absenceTally, { citingVoid: 1, citingNone: 1 });
+  assert.equal(r.unbacked.length, 1, "an unbacked claim is counted apart — content nothing backs is not an absence");
   assert.equal(r.voidsOpen, 1);
-  assert.match(answerRecordLine(r), /absences 2 \(1 cite a declared gap, 1 cite none\)/);
-  const none = answerRecord({ unbacked: ["The Northgate Observatory's director is not named."], voids: [] });
+  assert.match(answerRecordLine(r), /1 unbacked · absences 2 \(1 cite a declared gap, 1 cite none\)/);
+  const none = answerRecord({ witness: [{ sentence: "The Northgate Observatory's director is not named.", witness: "refused" }], voids: [] });
   assert.deepEqual(none.absenceTally, { citingVoid: 0, citingNone: 1 }, "a planted absence with no void declared is a leak — the control fails as built");
 });

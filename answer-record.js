@@ -42,8 +42,17 @@ export function voidInScope(sentence, voids = [], { question = "" } = {}) {
   }
   return null;
 }
-/** Absences with their citation: each unbacked or witness-refused sentence, and the declared void in scope for it, if any. */
-export function absencesOf({ unbacked = [], witness = [], voids = [], question = "" } = {}) {
+/**
+ * Absences with their citation: each sentence the WITNESS refused — asked
+ * whether any passage states it, and none was pointed at — and the declared
+ * void in scope for it, if any. Only the witness's refusal makes an absence:
+ * an `unbacked` claim is content nothing backs (a different leak, counted
+ * apart as `unbacked`), and the instrument's own finding strings ("the
+ * material never says …") are not the mouth's sentences — measured
+ * (absence-leak.mjs, 2026-09-05): counting them here made every absence
+ * "cite none" by construction.
+ */
+export function absencesOf({ witness = [], voids = [], question = "" } = {}) {
   const seen = new Set();
   const out = [];
   const add = (sentence, how) => {
@@ -54,7 +63,6 @@ export function absencesOf({ unbacked = [], witness = [], voids = [], question =
     out.push({ sentence: s, how, void: v ? (v.id ?? null) : null, ...(v?.scope ? { scope: { sources: v.scope.sources?.length ?? null, read: v.scope.read ?? null, total: v.scope.total ?? null } } : {}) });
   };
   for (const w of witness ?? []) if (w?.witness === "refused") add(w.sentence, "witness-refused");
-  for (const u of unbacked ?? []) add(u, "unbacked");
   return out;
 }
 
@@ -83,7 +91,7 @@ export function answerRecord({ question, answer = "", model = null, frame = null
   }
   const tally = {};
   for (const c of claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
-  const absences = absencesOf({ unbacked, witness, voids, question });
+  const absences = absencesOf({ witness, voids, question });
   return {
     schema: ANSWER_RECORD_SCHEMA,
     cursor,

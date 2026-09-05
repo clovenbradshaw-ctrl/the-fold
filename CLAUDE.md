@@ -7542,3 +7542,15 @@ reader), and one shared object token binds a fabrication below
 with `MODEL=` for the dated mouth arm. Rule: a wall that breaches is
 reported with its mechanism, never tuned until it holds.
 
+## Pass 17 — one durable reading record (added 2026-09-05) — pointer
+
+POLICIES.md **P98**. The three kernel logs this surface holds
+(hyperlexicon, grid, metacognition) persist to OPFS as append-only JSONL
+(`record-store.js`) and replay on boot through the kernel's own `append`
+(`record-log.js`), so the accumulated reading no longer ends at reload:
+verified live — reload, attachments off, and the model answered from the
+restored ledger block alone. Identity is over VALUES in canonical key
+order, never over a serializer's key order; a hole, a bad line or a
+missing source is a typed gap. `syncRecords()` follows every assignment
+of one of the three logs; a new site that assigns one must call it.
+

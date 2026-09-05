@@ -4,8 +4,20 @@
     {
       "name": "fold-webllm",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["serve.mjs", "8899"],
+      "runtimeArgs": [
+        "serve.mjs",
+        "8899"
+      ],
       "port": 8899
+    },
+    {
+      "name": "the-fold-8815",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "8815"
+      ],
+      "port": 8815
     }
   ]
 }

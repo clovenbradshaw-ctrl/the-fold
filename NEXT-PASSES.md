@@ -894,7 +894,17 @@ inversion; the record is ready, the reader is not) and one shared object
 token binds a fabricated draft (sub-floor `tokensShare`). The model arm ran
 once (gemma2:2b, 13 calls) and fabricated a founder — the passages, not the
 record, reached the mouth. POLICIES.md **P97** / S67. Handed forward to
-Pass 19: the two draft-side walls. Then Pass 17 (one durable record), 18 (read on arrival), 19
+Pass 19: the two draft-side walls.
+
+## Pass 17 — one durable reading record (added 2026-09-05, CLOSED same day)
+
+`record-log.js` (pure) + `record-store.js` (OPFS) + nine `syncRecords()`
+sites and a boot `restoreRecords()` in app.js. Pinned: replay is
+byte-identical by value, a mutated entry is not (the control fails as
+built), a hole is typed. Verified live: attach → ask → reload → `record
+restored: hyperlexicon 5` → attachments off → ask → the prompt carries
+"From earlier reading … opened→ in 1889 (stated once so far)" and the
+model answers 1889 from the record alone. POLICIES.md **P98**. Then Pass 17 (one durable record), 18 (read on arrival), 19
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions

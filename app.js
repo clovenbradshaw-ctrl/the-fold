@@ -104,6 +104,11 @@ import { classifySentences } from "./provenance.js";
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
 
 import { persistSource, unpersistSource, loadSources } from "./sources-store.js";
+// One durable reading record (Pass 17, P98): the three kernel logs this app
+// holds persist to OPFS as append-only JSONL and replay on boot through the
+// kernel's own `append`, so the accumulated reading no longer ends at reload.
+import { serializeRecord, replayRecord } from "./record-log.js";
+import { appendRecord, loadRecord } from "./record-store.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -275,6 +280,45 @@ const store = makeStore(nativeTaskLog);
 const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
 const metaLedger = makeMetacognition(nativeTaskLog);
+
+// ── the durable record: three logs, one mechanism ─────────────────────────
+// `syncRecords()` appends to OPFS every entry whose seq is beyond what was
+// last persisted, per log — O(new entries), never a rewrite (record-store.js
+// seeks to the end). Called after every site that assigns one of the three
+// logs; fire-and-forget, a failure is a console line, never a broken turn.
+// Boot replays the three files through `replayRecord` (record-log.js) into
+// the SAME kernel shape the live code appends to, and a hole or a bad line is
+// a typed gap logged by name, never a silently shorter reading.
+const RECORDS = { hyperlexicon: 0, grid: 0, meta: 0 };
+let recordSyncChain = Promise.resolve();
+function syncRecords() {
+  const jobs = [];
+  const take = (name, log) => {
+    if (!log || !Array.isArray(log.entries)) return;
+    const lines = serializeRecord(log, RECORDS[name]);
+    if (!lines.length) return;
+    const upto = log.nextSeq;
+    jobs.push(async () => { const r = await appendRecord(name, lines); if (r.appended === lines.length) RECORDS[name] = upto; });
+  };
+  take("hyperlexicon", state.hyperlexiconLog);
+  take("grid", state.gridLog);
+  take("meta", state.metaLedger);
+  if (!jobs.length) return recordSyncChain;
+  recordSyncChain = recordSyncChain.then(async () => { for (const j of jobs) await j(); }).catch((e) => console.warn("record sync:", e?.message ?? e));
+  return recordSyncChain;
+}
+async function restoreRecords() {
+  const bundle = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append };
+  const restored = {};
+  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null]]) {
+    const lines = await loadRecord(name);
+    if (!lines.length) continue;
+    const r = replayRecord(lines, { ...bundle, admits });
+    if (r.gap) console.warn(`record ${name}: ${r.gap.type} — ${r.gap.detail} (${r.replayed} replayed, the rest not read)`);
+    if (r.replayed) { restored[name] = r.log; RECORDS[name] = r.log.nextSeq; }
+  }
+  return restored;
+}
 
 // The widget router (widget.js): does a code-bearing turn point at a build
 // that already exists, or introduce a new one? Decided from the operator's
@@ -597,11 +641,10 @@ const relationsFor = makeRelationReader(RELATION_READER_OPTIONS);
 // `consequence.js::adaptTaskLog` (the exact wiring
 // hyperlexicon-stance.test.mjs already proves against the real organ).
 // `hyperlexiconFor` is the organ passed to `runHolonicTask`; the mutable
-// log itself lives on `state.hyperlexiconLog`, right beside `state.gridLog`
-// and under its own documented posture: app-wide, never per-conversation,
-// never persisted to disk (a fresh page load is a fresh ledger — see
-// state.gridLog's own comment for why that is the deliberate choice, not
-// an oversight).
+// log itself lives on `state.hyperlexiconLog`, right beside `state.gridLog`:
+// app-wide, never per-conversation, and — since Pass 17 (P98) — PERSISTED
+// to OPFS as an append-only record and replayed on boot (`restoreRecords`),
+// so the accumulated reading no longer ends at reload.
 const hyperlexiconFor = makeHyperlexicon({
   ...adaptTaskLog({
     createTaskLog: nativeTaskLog.createTaskLog,
@@ -1628,6 +1671,7 @@ async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null })
   r.notesAttested = (r.chased ?? []).filter((c) => c.attested.length).length;
   r.witness = { reads, ...verdicts };
   state.hyperlexiconLog = next;
+  syncRecords();
   mirrorTermRecord("ranke", { notes: notes.length, pages: pages.length, considered: r.notesConsidered, attested: r.notesAttested, landed: landedCount, fetches: r.fetches, searches: r.searches, refusedPages: (r.pagesRefused ?? []).length, budget: { maxFetches, maxSearches }, via: "chat" });
   logAct("checked", { text: `ranke: ${r.notesAttested} of ${r.notesConsidered} chased notes attested by a primary (${r.fetches} fetches, ${r.searches} searches)` });
   if (show) show(r);
@@ -1704,6 +1748,7 @@ async function corroborateTurn(argstr, typed) {
     return;
   }
   state.hyperlexiconLog = report.log ?? log;
+  syncRecords();
 
   // The render is corroboration-report.js (pure, tested against the organ's
   // real return shape): `standings` is KEYED, and a contradiction has been a
@@ -1734,7 +1779,7 @@ async function actTurn(argstr, typed) {
     mirrorTermRecord("term-act-refused", { line: actLine.slice(0, 2000), refusal: landed.refusal.type, detail: landed.refusal.detail, via: "chat" });
     return usageTurn(typed, `refused (${landed.refusal.type}): ${landed.refusal.detail}`);
   }
-  state.gridLog = landed.log;
+  state.gridLog = landed.log; syncRecords();
   mirrorTermRecord("term-act", {
     verb: landed.event.verb,
     ops: landed.event.ops,
@@ -5102,6 +5147,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // off turn (`result.hyperlexiconLog` null) never clobbers what an
     // earlier checked turn already admitted.
     if (result.hyperlexiconLog) state.hyperlexiconLog = result.hyperlexiconLog;
+    syncRecords();
     // Ranke's switch: chase what this turn heard off citing pages, under
     // the standing budgets, never awaited — the answer is already on screen
     // and the primary witnesses land on the ledger for the NEXT turn's
@@ -5239,6 +5285,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const s2Passages = result.sections.flatMap((s) => s.passages ?? []);
     const agreement = assessAgreement(opts.priorPass, { question: task, s2Passages, relationEdges: relationClaims });
     state.metaLedger = metaLedger.observe(state.metaLedger, { cell: "s1-draft", delta: agreement.counts });
+    syncRecords();
     forceRefresh = forcesFoldRefresh(agreement);
   }
   await refreshSummary(fold, arrivals, sentCalls, { forceRefresh });
@@ -5562,7 +5609,7 @@ async function crownTestimony(node, relationClaims) {
       // a skipped source, so the log keeps this landing only when the
       // parsed event names exactly what was meant.
       if (landed.ok && landed.event.ground === name && landed.event.object === claimText) {
-        state.gridLog = landed.log;
+        state.gridLog = landed.log; syncRecords();
       } else {
         disclose(`testimony: ${name} skipped — the act grammar could not carry this claim/source pair verbatim`);
       }
@@ -6926,6 +6973,7 @@ initTerminal({
   gridLog: () => state.gridLog,
   setGridLog: (log) => {
     state.gridLog = log;
+    syncRecords();
   },
   // The database fold (P25): term.js diffs a mutating sql statement's real
   // effect (store-sql.js, over term-sql-worker.js's before/after
@@ -8983,6 +9031,17 @@ $("not-served")?.remove();
     }
   } catch {}
   renderSources();
+  // The reading record survives the reload the sources do (Pass 17, P98):
+  // replayed through the kernel's own append, each log restored only when it
+  // replayed something, a gap named in the console rather than closed.
+  try {
+    const restored = await restoreRecords();
+    if (restored.hyperlexicon) state.hyperlexiconLog = restored.hyperlexicon;
+    if (restored.grid) state.gridLog = restored.grid;
+    if (restored.meta) state.metaLedger = restored.meta;
+    const n = Object.keys(restored).length;
+    if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
+  } catch (e) { console.warn("record restore:", e?.message ?? e); }
 })();
 
 // Sources panel: search filters the list live.

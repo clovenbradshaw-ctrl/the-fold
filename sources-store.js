@@ -62,10 +62,20 @@ export async function persistSource(name, text, meta = {}) {
 
     const entries = await readIndex();
     const existing = entries.findIndex((e) => e.name === name);
+    // The source's content identity rides the index (Pass 17, P98): a record
+    // whose addresses name this source can say which BYTES it named, and a
+    // source re-added with different bytes is a different source by hash,
+    // never silently the same one.
+    let sha256 = null;
+    try {
+      const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      sha256 = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {}
     const entry = {
       name,
       fileName: `${fname}.txt`,
       size: text.length,
+      sha256,
       addedAt: existing >= 0 ? entries[existing].addedAt : Date.now(),
       ...meta,
     };

@@ -2092,7 +2092,8 @@ async function exportLastPiece(node = null) {
   for (const [name, text] of Object.entries(state.sources)) if (!passages.has(name)) passages.set(name, { text });
   const fold = (t) => String(t ?? "").toLowerCase();
   const sections = piece.sections.map((s) => {
-    const sents = engineSentences(String(s.text ?? "")).map((x) => x.trim()).filter(Boolean);
+    // The engine's splitter returns { text, offset } rows; the strings are what the ladder and the export read.
+    const sents = engineSentences(String(s.text ?? "")).map((x) => String(x?.text ?? x ?? "").trim()).filter(Boolean);
     const claims = (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => fold(x).includes(fold(c.end1 ?? c.subject).split(" ")[0] ?? "") && fold(x).includes(fold(c.label ?? c.verb))) ?? null }));
     return { label: s.part?.label ?? s.label ?? "", sentences: sents.map((text) => {
       const own = claims.filter((c) => c.sentence === text);

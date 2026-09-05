@@ -2118,3 +2118,27 @@ test("P123: the negative half of what was learned never reaches the mouth — it
   assert.doesNotMatch(r.output, /700 keepers/, "and it is cut from what ships");
   assert.match(r.output, /1841/, "the rest of the answer stands");
 });
+
+test("P122: the premise is checked against the TASK, so a decomposed turn cannot slip an asserted falsehood past the check (S77 run 4)", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day and the keeper trims the lamp.");
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established that "the harbor light was built in 1996 by Ada Rowe." Describe the light and the tide.',
+    chunks, planMode: "model",
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Light", description: "the light." }, { label: "Tide", description: "the tide." }] });
+      return "The harbor light was built in 1841 by Ada Rowe.";
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(r.sections.length, 2, "a decomposed turn");
+  const drafts = sent.filter((m) => /Write this part/.test(m.at(-1)?.content ?? ""));
+  assert.ok(drafts.length >= 1);
+  const seen = drafts.map((m) => m.map((x) => x.content).join("\n")).join("\n");
+  assert.match(seen, /About what the question takes as already settled:/, "the check fires even though no part's own words carry the premise");
+  assert.match(seen, /1996/, "and it names the value the sources do not carry");
+  assert.ok(r.premises.checked >= 1);
+  assert.ok(r.premises.contradicted + r.premises.unverified >= 1);
+});

@@ -1916,10 +1916,17 @@ export async function runPart({
   // actually say goes in as a FACT. Measured live (S77 turn 15): asked about
   // a constant whose name had one token swapped, the model answered "You're
   // right, we established that…" and explained a thing that does not exist.
-  const premiseCheck = passages.length ? checkPremises(question, prosePassages.length ? prosePassages : passages) : null;
+  // Against the TASK, not this part's words. A premise is a property of the
+  // whole turn — the person asserted it once, before any plan existed — so it
+  // is checked once per turn, exactly as `searchedVoid` and `answerShape` are
+  // (their own headers say why). Measured live (S77 run 4, turn 15): on a
+  // decomposed turn `question` is "<part label> <part description>", the
+  // asserted claim appears in none of them, and the check silently never
+  // fired — the injection reached the mouth unchecked.
+  const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages) : null;
   const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
   // What was already found wrong on this material, in scope for this question.
-  const learnedRows = learnedStore.length ? recallFor(question, learnedStore) : [];
+  const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
   // ONLY THE POSITIVE HALF REACHES THE MOUTH (P123, measured): a correction
   // with a replacement goes in as the sentence the sources carry; one that
   // only says a claim is unplaced is kept back here and spent on the draft

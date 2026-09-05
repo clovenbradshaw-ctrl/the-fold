@@ -1937,7 +1937,15 @@ function longFormTurn(lf, typed) {
   return holonicTurn(longFormTask(lf), typed, "model", {
     label: lf.kind ?? "piece",
     longForm: lf,
-    piece: { topic: lf.topic, pages: lf.pages, words: LONGFORM_WORDS_PER_SECTION },
+    piece: {
+      topic: lf.topic, pages: lf.pages, words: LONGFORM_WORDS_PER_SECTION,
+      // Entities: the cast the section's own passages establish (P110).
+      referentIndexFor,
+      // The per-section hunt (P110): the section's own words as the query,
+      // through the same crossing the preflight uses, under the same
+      // standing consent; a small leash per section.
+      huntFor: state.webProof ? async (q) => { const r = await gatherPreflightMaterial(q, "", null, { pagesConsulted: LONGFORM_SECTION_PAGES, query: q }); return r.chunks ?? []; } : null,
+    },
     maxParts: lf.sections,
     executeMaxTokens: LONGFORM_PART_TOKENS,
     planMaxTokens: 60 * lf.sections + 120,
@@ -5752,7 +5760,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   renderFold(node, { sent: sentCalls, record: answerRec });
   if (opts.longForm) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
-    mirrorTermRecord("longform-done", { topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length, unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length, via: "chat" });
+    const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
+    const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    mirrorTermRecord("longform-done", {
+      topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
+      unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
+      // P110's own numbers: words per section, obligation coverage, re-asks, meta-talk cut, hunts.
+      sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
+      via: "chat",
+    });
   }
   renderThreads();
   if (!state.grounded) {
@@ -7591,6 +7607,7 @@ async function checkLinkCitation(url) {
 // declared constant the slice below always used, so every caller that
 // passes nothing is byte-identical to before this parameter existed.
 const LONGFORM_PAGES_CONSULTED = 8; // the leash for a piece's hunt (P9): the settling rule decides the spend, this is its ceiling
+const LONGFORM_SECTION_PAGES = 2;   // the leash for one section's own hunt (P110)
 async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pagesConsulted = PREFLIGHT_PAGES_CONSULTED, query: queryOverride = null } = {}) {
   // The anaphor door is the engine's own received closed class (Amendment
   // IV register), injected here the same way widget.js takes it — never a
@@ -7676,6 +7693,12 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
     .filter(Boolean)
     .join("\n");
   if (digest) chunks.push(...chunkSource("web:search-results", digest));
+  // The digest is turn-scoped and was never kept, so a copy-check after the
+  // fact could not compare against it (measured 2026-09-05, the essay's
+  // plagiarism check covered the three fetched pages and not the snippets).
+  // It lands on the record beside the search it came from — bytes, not a
+  // summary — so any later comparison has what the mouth was handed.
+  if (digest) mirrorTermRecord("web-digest", { query, chars: digest.length, text: digest.slice(0, 6000) });
   // The hunt's own stopping rule (P72's third amendment, user direction:
   // "hunt until what we experienced would not be surprising to a degree
   // that is a distinction that makes a difference"). The meter is seeded

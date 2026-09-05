@@ -528,7 +528,41 @@ export function pieceLine(piece) {
   const of = piece.topic ? ` of a ${piece.pages ? `${piece.pages}-page ` : ""}piece on ${piece.topic}` : " of a longer piece";
   const outline = piece.outline?.length ? ` The sections, in order: ${piece.outline.join("; ")}.` : "";
   const prev = piece.previousTail ? ` The previous section ended: "${piece.previousTail}"` : "";
-  return `${where}${of}.${outline}${prev} Write about ${piece.words} words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established.`;
+  // Entities (cast) → what this section should say something about.
+  const must = piece.obligations?.length ? ` This section should say something about: ${piece.obligations.join(", ")}.` : "";
+  // Links (the record) → what the piece has already said, so it is not said again.
+  const said = piece.alreadySaid?.length ? ` Earlier sections already said: ${piece.alreadySaid.join("; ")}.` : "";
+  // Paradigm (contests, voids) → what a conclusion is made of.
+  const facts = piece.facts ? `${piece.facts.disagreements?.length ? ` The sources disagree on: ${piece.facts.disagreements.join("; ")}.` : ""}${piece.facts.gaps?.length ? ` Nothing read says: ${piece.facts.gaps.join("; ")}.` : ""}` : "";
+  return `${where}${of}.${outline}${prev}${must}${said}${facts} Write about ${piece.words} words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established.`;
+}
+/** The continuation ask, one place, so the meta-talk cut below knows its words. */
+export const continueAsk = (more) => `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.`;
+/** The cast's top referents in a set of passages, as plain names — the section's obligations (P110). */
+export function obligationsFrom(index, { limit = 5 } = {}) {
+  if (!index?.referents) return [];
+  const counts = new Map();
+  for (const e of index.events ?? []) { const id = e?.referent ?? e?.id ?? null; if (id != null) counts.set(id, (counts.get(id) ?? 0) + 1); }
+  const nameOf = (id) => { const r = index.represent?.(id); const n = typeof r === "string" ? r : (r?.display ?? r?.name ?? r?.surface ?? (typeof id === "string" ? id : null)); return n ? String(n).trim() : null; };
+  return [...index.referents].map((id) => ({ id, n: counts.get(id) ?? 0, name: nameOf(id) })).filter((r) => r.name && /\p{L}/u.test(r.name)).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)).slice(0, limit).map((r) => r.name);
+}
+/** Which obligations a draft mentions (folded containment of the name, or its last word). */
+export function coverageOf(text, obligations = []) {
+  const t = fold(String(text ?? ""));
+  const hit = (name) => { const f = fold(name); return f && (t.includes(f) || t.includes(f.split(" ").at(-1))); };
+  const covered = obligations.filter(hit);
+  return { covered, missed: obligations.filter((o) => !covered.includes(o)), share: obligations.length ? covered.length / obligations.length : null };
+}
+const fold = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+/** Sentences that echo the instrument's own asks: words of the piece line / continuation ask / system prompt that the material never uses. Two of them in one sentence is the mouth talking about the writing, not writing (measured 2026-09-05: "There is no need to restate the question", "Let me know if you'd like me to continue writing this"). */
+export function cutMetaTalk(text, { instructionText, materialText, splitSentences }) {
+  const material = new Set(fold(materialText).split(" ").filter(Boolean));
+  const apparatus = new Set(fold(instructionText).split(" ").filter((w) => w.length > 2 && !material.has(w)));
+  if (!apparatus.size) return { text, cut: [] };
+  const sentences = splitSentences(String(text ?? "")).map((s) => s.trim()).filter(Boolean);
+  const cut = [];
+  const kept = sentences.filter((sent) => { const hits = fold(sent).split(" ").filter((w) => apparatus.has(w)).length; if (hits >= 2) { cut.push(sent); return false; } return true; });
+  return { text: cut.length ? kept.join(" ") : text, cut };
 }
 
 export function buildExecutePrompt(part, sourceBlock, discourse = "", piece = null) {
@@ -1079,7 +1113,23 @@ export async function runPart({
   // tie-break decides the answer. Cost is one extra passage per part,
   // bounded and cheap, and it is additive: retrieval's own picks are
   // untouched, so nothing that used to reach the model stops reaching it.
-  const digestChunk = live.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
+  // A PIECE's section whose own retrieval came back thin declares its gap
+  // and hunts for it (P110: the per-section void, filled by a search on the
+  // section's own words) — once, bounded by the caller's leash, and the
+  // hunted pages join this part's pool so retrieval can pick from them.
+  let hunted = null;
+  let livePool = live;
+  if (piece?.huntFor && passages.filter((p) => !String(p?.ref ?? "").startsWith("web:search-results")).length < passagesPerPart) {
+    try {
+      const found = await piece.huntFor(`${part.label} ${piece.topic ?? ""}`.trim());
+      if (Array.isArray(found) && found.length) {
+        livePool = [...live, ...found];
+        passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
+        hunted = { query: `${part.label} ${piece.topic ?? ""}`.trim(), chunks: found.length, passages: passages.length };
+      } else hunted = { query: `${part.label} ${piece.topic ?? ""}`.trim(), chunks: 0, passages: passages.length };
+    } catch (e) { hunted = { query: part.label, error: String(e?.message ?? e) }; }
+  }
+  const digestChunk = livePool.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
   if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
     passages = [digestChunk, ...passages];
   }
@@ -1107,7 +1157,10 @@ export async function runPart({
   // own edges from this part's passages, the closed-class measure from the
   // live corpus. Injected — this module stays pure and the page supplies
   // the engine's organs.
-  const relations = passages.length ? makeRelationReader?.(passages, { pool: live }) ?? null : null;
+  const relations = passages.length ? makeRelationReader?.(passages, { pool: livePool }) ?? null : null;
+  // Obligations (P110): the cast the section's own passages establish.
+  const obligations = piece?.referentIndexFor && passages.length ? obligationsFrom(piece.referentIndexFor(passages)) : [];
+  if (piece && obligations.length) piece = { ...piece, obligations };
 
   // hyperlexicon.js (P57): admit this part's own bound claims into the
   // shared, cross-turn ledger — accumulation, not re-derivation on every
@@ -2151,7 +2204,7 @@ export async function runPart({
       const cont = await call([
         ...executeMessages,
         { role: "assistant", content: rawDraft },
-        { role: "user", content: `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.` },
+        { role: "user", content: continueAsk(more) },
       ], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
       const joined = `${rawDraft.trimEnd()}\n\n${String(cont ?? "").trim()}`;
       continued = { from: have, to: wordCount(clean(joined)), target: piece.words };
@@ -2189,7 +2242,12 @@ export async function runPart({
             : c.unsupported.length
               ? "unsupported"
               : null;
-  let mode = modeOf(verdict, check);
+  // A PIECE (P110) marks what it cannot back and keeps its prose: the
+  // rewrite modes built for a paragraph-length answer shredded 600-word
+  // sections to summaries (run 2: fourteen of eighteen sections under 120
+  // words). Copying and echo are still corrected — those are not prose.
+  const pieceMode = (m) => (piece && (m === "unsupported" || m === "incomplete" || m === "narrated") ? null : m);
+  let mode = pieceMode(modeOf(verdict, check));
 
   // A correction budget spent per FAILURE MODE, not per call: without this,
   // the loop's one shot went to whichever failure the priority order named
@@ -2283,7 +2341,7 @@ export async function runPart({
     draft = clean(rawCorrected);
     check = inspect(draft);
     verdict = verdictOf(draft, check);
-    mode = modeOf(verdict, check);
+    mode = pieceMode(modeOf(verdict, check));
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction
@@ -2400,7 +2458,36 @@ export async function runPart({
   // Now just a call to stripFraming (2026-08-20, defined above alongside
   // contentSentencesOf/isFraming): same cut, same result, but no longer the
   // only place it runs — see stripFraming's own header for why.
-  const text = stripFraming(draft);
+  // THE PIECE'S OWN CHECKS (P110), each one bounded call, before the text
+  // is fixed: a section whose bound claims are all already in the piece's
+  // claim set is asked once for something new (the record remembers what
+  // was said); a section that names none of its obligations is asked once
+  // for them. Both asks carry the draft as the assistant's own turn.
+  let reasked = [];
+  if (piece && passages.length && !mechanical) {
+    const claimKeys = (c) => (c?.relations?.claims ?? []).filter((x) => x.verdict === "bound").map((x) => `${x.end1 ?? x.subject}|${x.label ?? x.verb}|${x.end2 ?? x.object}`.toLowerCase());
+    const keys = claimKeys(check);
+    const allSaid = keys.length > 0 && piece.claimSet instanceof Set && keys.every((k) => piece.claimSet.has(k));
+    if (allSaid) {
+      const again = await call([...executeMessages, { role: "assistant", content: draft }, { role: "user", content: `Every claim here was made in an earlier section. Write this section again about what the sources establish that those sections did not, about ${piece.words} words, continuous prose.` }], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+      const next = clean(again);
+      if (wordCount(next) >= wordCount(draft) * 0.5) { draft = next; check = inspect(draft); reasked.push("duplicate"); }
+    }
+    const cov = coverageOf(draft, piece.obligations ?? []);
+    if ((piece.obligations?.length ?? 0) >= 2 && cov.covered.length === 0) {
+      const again = await call([...executeMessages, { role: "assistant", content: draft }, { role: "user", content: `This section says nothing about ${piece.obligations.join(", ")}. Keep what it says and add what the sources establish about them, in the same prose.` }], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+      const next = clean(again);
+      if (wordCount(next) >= wordCount(draft) * 0.5) { draft = next; check = inspect(draft); reasked.push("coverage"); }
+    }
+  }
+  let text = stripFraming(draft);
+  let metaCut = [];
+  if (piece) {
+    const instruction = `${EXECUTE_SYSTEM_PROMPT} ${pieceLine(piece)} ${continueAsk(100)}`;
+    const r = cutMetaTalk(text, { instructionText: instruction, materialText: passages.map((p) => p.text ?? "").join(" "), splitSentences });
+    if (r.cut.length) { text = r.text; metaCut = r.cut; check = inspect(text); }
+  }
+  const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.
@@ -2460,6 +2547,7 @@ export async function runPart({
     passages,
     corrections,
     ...(continued ? { continued } : {}),
+    ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text) } } : {}),
     ...check,
     quoteCorrections,
     links: linkReport,
@@ -2629,6 +2717,10 @@ export async function runHolonicTask({
   // seenRefs accumulates — returned whole so no boundary reads them and
   // discards them (P57).
   const sharedHyperlexiconTurnedAway = [];
+  // The piece's own memory (P110): every bound claim a finished section made,
+  // as keys for the duplicate veto and as short sentences for the next ask.
+  const pieceClaims = new Set();
+  const pieceSaid = [];
   const runLive = async (t) => {
     const part = {
       id: t.part_id,
@@ -2644,7 +2736,18 @@ export async function runHolonicTask({
       const live = foldPlan(log).parts;
       const idx = live.findIndex((p) => p.id === t.part_id);
       const before = live.slice(0, Math.max(0, idx)).map((p) => sectionsById.get(p.id)).filter((s) => s?.text).at(-1);
-      pieceContext = { ...piece, index: idx + 1, count: live.length, outline: live.map((p) => p.label ?? p.id), previousTail: before ? tailWords(before.text) : null };
+      // The last section is told what the record holds that no page states:
+      // the open contests and the declared gaps (the paradigm layer, P110).
+      let facts = null;
+      if (idx === live.length - 1 && hyperlexicon && sharedHyperlexiconLog) {
+        try {
+          const byId = new Map(hyperlexicon.foldHyperlexicon(sharedHyperlexiconLog).map((n) => [n.id, n]));
+          const disagreements = [...hyperlexicon.disputesOf(sharedHyperlexiconLog).entries()].map(([id, ds]) => { const n = byId.get(id); return n ? `${n.subject} ${n.verb} ${n.object} (${[...new Set(ds.map((d) => d.source))].join(", ")} says otherwise)` : null; }).filter(Boolean).slice(0, 5);
+          const gaps = (hyperlexiconVoids ?? []).slice(0, 5).map((v) => `${v.verb} of ${v.subject}`);
+          facts = { disagreements, gaps };
+        } catch { facts = null; }
+      }
+      pieceContext = { ...piece, index: idx + 1, count: live.length, outline: live.map((p) => p.label ?? p.id), previousTail: before ? tailWords(before.text) : null, alreadySaid: pieceSaid.slice(-12), claimSet: pieceClaims, facts };
     }
     const result = await runPart({
       part,
@@ -2690,6 +2793,7 @@ export async function runHolonicTask({
       classifyConnector,
     });
     seenRefs.push(...result.refs);
+    if (piece) for (const c of result.relations?.claims ?? []) if (c.verdict === "bound") { const k = `${c.end1 ?? c.subject}|${c.label ?? c.verb}|${c.end2 ?? c.object}`.toLowerCase(); if (!pieceClaims.has(k)) { pieceClaims.add(k); pieceSaid.push(`${c.end1 ?? c.subject} ${c.label ?? c.verb} ${c.end2 ?? c.object}`); } }
     sharedGridLog = result.gridLog;
     sharedHyperlexiconLog = result.hyperlexiconLog;
     sharedHyperlexiconTurnedAway.push(...(result.hyperlexiconTurnedAway ?? []));

@@ -37,7 +37,11 @@ test("the markdown reads as prose with numbered footnotes of verbatim spans and 
   assert.match(r.html, /<span class="s tier-bound" data-i="0" data-tier="bound" data-cell="CON·Figure" data-address="web:en\.wikipedia\.org-0#100-260" data-start="0" data-end="93"/);
   assert.match(r.html, /<a class="cite" href="https:\/\/en\.wikipedia\.org\/wiki\/The_X-Files#:~:text=[^"]+" target="_blank" rel="noopener">1<\/a>/);
   assert.match(r.html, /<sup class="self" title="gemma2:2b's own testimony — the witness was asked and no passage states it">r<\/sup>/);
-  assert.doesNotMatch(r.html, /<script|https?:\/\/(?!en\.wikipedia\.org)/, "no script, no remote resource but the sources' own links");
+  assert.doesNotMatch(r.html, /<script[^>]+src=|https?:\/\/(?!en\.wikipedia\.org)/, "no remote script, no remote resource but the sources' own links");
+  assert.match(r.html, /<template id="p1" data-ref="web:en\.wikipedia\.org-0#100-260" data-source="web:en\.wikipedia\.org-0" data-url="https:\/\/en\.wikipedia\.org\/wiki\/The_X-Files">The X-Files is an American science fiction drama television series created by Chris Carter\. It premiered in 1993\.<\/template>/, "the cited passage rides inside the html");
+  assert.match(r.html, /data-spans="\[\{&quot;p&quot;:&quot;p1&quot;,&quot;ref&quot;:&quot;web:en\.wikipedia\.org-0#100-260&quot;,&quot;start&quot;:0,&quot;end&quot;:93/, "a sentence carries its spans as data for the click");
+  assert.match(r.html, /<aside id="snip" hidden>/); assert.match(r.html, /<script>\(function\(\)\{/, "the snip panel's script is inline");
+  assert.ok(r.json.passages.find((p) => p.ref === "web:en.wikipedia.org-0#100-260")?.text, "the sidecar carries the cited passage's text");
   assert.equal(r.json.schema, "EOPieceExport@1");
   assert.deepEqual(r.json.tally, { bound: 1, witnessed: 1, self: 2 });
   assert.equal(r.json.sections[0].sentences[1].spans[0].start, 92);

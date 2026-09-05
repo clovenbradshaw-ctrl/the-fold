@@ -2356,7 +2356,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
     <dialog id="matrix-login">
       <div class="sheet-head">
         <div>
-          <h3>Sign in to a homeserver</h3>
+          <h3 id="matrix-login-title">Sign in to a homeserver</h3>
           <p class="sub" id="matrix-login-sub">Any Matrix homeserver you trust — your own, a friend's, a public one. The page names none.</p>
         </div>
         <button type="button" class="sheet-close" id="matrix-login-x" title="close" aria-label="close">
@@ -2368,11 +2368,11 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <label class="field">homeserver<input id="mx-hs" type="text" autocomplete="url" spellcheck="false" placeholder="the homeserver's address" required /></label>
           <label class="field">user name<input id="mx-user" type="text" autocomplete="username" spellcheck="false" placeholder="the name, without the @ and the server" required /></label>
           <label class="field">password<input id="mx-pass" type="password" autocomplete="current-password" required /></label>
-          <p class="pool-note">What that server will hold of your chats: who is in a room, the size and time of each sealed block, public keys. Never a turn.</p>
+          <p class="pool-note" id="matrix-login-note">What that server will hold of your chats: who is in a room, the size and time of each sealed block, public keys. Never a turn.</p>
         </div>
         <div class="sheet-foot">
           <button type="button" id="matrix-login-cancel">Cancel</button>
-          <button value="login" class="primary">Sign in</button>
+          <button value="login" class="primary" id="matrix-login-submit">Sign in</button>
         </div>
       </form>
     </dialog>

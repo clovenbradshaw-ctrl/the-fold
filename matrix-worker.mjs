@@ -7,7 +7,8 @@
 // are answered here by Ollama on localhost, and go back sealed; the
 // homeserver sees an address, an id, a seal and a size.
 //
-//   node matrix-worker.mjs <share link> [--user NAME] [--homeserver URL] [--models a,b]
+//   node matrix-worker.mjs <share link> [--user NAME] [--homeserver URL]
+//                           [--models a,b] [--words "the words"]
 //
 // The share link carries the room and its key in the fragment. The homeserver
 // is the link's unless --homeserver says otherwise; the user name is asked
@@ -73,8 +74,12 @@ try {
     const st = await fm.login(hs, user, password);
     console.log(`signed in as ${st.user} on ${st.hs}; session kept in ${file}`);
   } else console.log(`session: ${fm.session.user_id} on ${fm.session.hs} (from ${file})`);
-  const joined = await fm.joinFromLink(link);
+  if (shared.kind === "bound" && shared.to !== fm.session.user_id) { console.error(`this link is for ${shared.to}; this worker is signed in as ${fm.session.user_id}`); process.exit(1); }
+  const passphrase = shared.kind === "passphrase" ? (opt("--words") ?? (await askLine("the words for this link: "))) : null;
+  console.log(`this worker's key: ${await fm.myFingerprint()}`);
+  const joined = await fm.joinFromLink(link, { passphrase, waitMs: 120_000, onWait: ({ ms }) => { if (ms % 15000 < 3100) console.log(`  waiting for a member to grant this key… ${Math.round(ms / 1000)}s`); } });
   if (!joined.joined) { console.error(`cannot join ${shared.room}: ${joined.gap}`); process.exit(1); }
+  if (joined.awaiting) { console.error(`joined, but no member granted this key yet: ${joined.gaps.join("; ")}`); process.exit(1); }
   console.log(`room ${shared.name ? `"${shared.name}" ` : ""}${shared.room}: ${joined.entries.length} preserved entr${joined.entries.length === 1 ? "y" : "ies"} readable here`);
   const models = opt("--models")?.split(",").map((s) => s.trim()).filter(Boolean) ?? (await ollamaModels());
   if (!models.length) { console.error("Ollama offers no models here — pull one first"); process.exit(1); }
@@ -82,6 +87,9 @@ try {
   const stop = () => { console.log("\nwithdrawing the offer…"); controller.abort(); };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   console.log(`serving ${models.join(", ")} from ${OLLAMA} — members pick "room:${fm.session.user_id} <model>"; ctrl-c withdraws`);
+  // While this worker is up it also grants the bound invites this account
+  // issued, so someone opening a link does not wait on a browser tab.
+  void fm.watchInvites(shared.room, { signal: controller.signal, onGrant: (g) => { for (const x of g.granted) console.log(`  granted the chat key to ${x.user} (key ${x.fingerprint})`); } });
   const r = await fm.serve(shared.room, { complete, models, home: "terminal", signal: controller.signal, onJob: ({ from, model, messages }) => console.log(`  job from ${from}: ${model}, ${messages} message(s)`) });
   console.log(`served ${r.served} job(s)`);
 } catch (e) {

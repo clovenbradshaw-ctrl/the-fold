@@ -75,6 +75,11 @@
 | Preserve and share a chat | none | **built** — blocks AES-256-GCM under a chat key the server never holds; share link's fragment carries the key; `matrix.test.mjs` + `matrix-client.test.mjs` (24) prove nothing readable reaches an adversarial homeserver, three ways |
 | Use other machines for inference; pool them | none | **built** — `/serve`, `matrix-worker.mjs`, a member's models as picker rungs, sealed jobs spread by in-flight count; the pool sheet |
 | A default homeserver | — | **none, by decision** — the page names and prefers no homeserver; the sign-in sheet's placeholder is generic |
+| A share link was a bearer key with no revocation | whoever held it read the room forever | **fixed (P120)** — `/share @who:server` carries no key: one-shot secret, HMAC proof only that account can publish, granter wraps to that key alone; open links say they are a magic key |
+| A homeserver could substitute a member's published key | the grant was wrapped on sight | **fixed** — an unproved key is never granted automatically; it is listed with a fingerprint to compare aloud; the swap is exercised in the suite |
+| One key per room forever | no revocation | **fixed** — key epochs; `/matrix remove` kicks and rotates; blocks name the epoch that opens them |
+| Session and keys in plain localStorage | readable by anything with that origin | **fixed, opt-in** — `/matrix lock` (PBKDF2, 600k rounds); every door is a typed gap until unlock |
+| Browser history holds an opened link | — | **partly** — the fragment is stripped at boot, but the original visit may be in history; a bound or passphrase link makes that harmless |
 | Room power | first cut flattened viewers to −1 | **fixed** — every member at 100 (`users_default`), by decision |
 | `<dialog>` `close` never fires in Chromium 148 (browser pane) | the paste sheet attached nothing there; the sign-in sheet's first cut did nothing | **fixed** — both act on the form's `submit`; verify on a release Chrome before launch |
 | A real homeserver | not exercised from here | **open** — the person's first sign-in; proofs are against the fixture, which implements the routes used and the auth rules leaned on |

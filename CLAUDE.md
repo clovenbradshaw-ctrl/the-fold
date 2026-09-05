@@ -7494,3 +7494,19 @@ unaudited and named in P94; the two walk-based drivers now disclose the
 fixtures they skip. The audit's own first finding: eight of the thirteen
 docs are transcriptions of stdout, so a `git diff` of `results/` enforces
 nothing for them. `NEXT-PASSES.md` carries the continuation.
+
+## The audit, finished — refuse what the checkout lacks; enforce a transcription by reading its computation (added 2026-09-05) — pointer
+
+POLICIES.md **P95** is the law; eoreader7 **S65** the mechanism. The
+fixture rule is decided: a walk-based driver REFUSES (typed `fixture_absent`,
+exit 2) when the walk names faces the checkout lacks; the two docs on
+`ranke-backwards.json` are "reproducible only where the walk's fixtures
+exist". The nine unaudited drivers ran with no cap: four reproduce (one
+while printing `undefined` for every edge — S64's wiped-field read in a
+second driver), three drifted with their finding intact, two are
+unreproducible by construction — `object-boundary` because this repo's own
+P80 removed the `boundedObjects` opt-in its verdict kept, the day after the
+doc. Each transcription doc now has a `lib/` function and a `node --test`
+reader in eoreader7; `audit-results.sh` names print-only drivers instead
+of a vacuous diff. Handed forward: a Cyrillic closed-class connector
+(`Война —и→ мир`) the door admits and the English prior cannot see.

@@ -124,6 +124,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // nothing backs, and the reader's identity.
 import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource, inScope, headingsOf } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
+import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 import { editLine } from "./piece-edit.js";
 import { groundOf, groundLine } from "./ground-ladder.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
@@ -1956,7 +1957,8 @@ async function runBuildOnce(entry) {
   renderBuilds(entry.n);
   return { ok: outcome.code === 0 && !outcome.timedOut, outcome, summary: autoRunSummary(outcome) };
 }
-const CODE_PIECE_SEED_TOKENS = 1200;
+const CODE_PIECE_BODY_TOKENS = 700;   // one function body per ask (P117)
+const CODE_PIECE_FIXES = 1;           // one fix per failing function, named by the traceback
 async function codePieceTurn(cp, typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
@@ -1966,53 +1968,106 @@ async function codePieceTurn(cp, typed) {
   const say = (l) => { lines.push(l); body.textContent = lines.join("\n"); };
   const sentCalls = [];
   const call = async (messages, opts = {}) => { sentCalls.push({ n: sentCalls.length + 1, messages }); return complete(messages, { ...opts, model: state.model }); };
-  // 1. the plan: one feature per part, in build order — the shape held by the decoder's grammar
-  const task = `Write a ${cp.lang} program that ${cp.spec}. Plan the features to build, one per part, in the order they must be built.`;
-  let planRaw = "";
-  try { planRaw = await call([{ role: "system", content: PLAN_SYSTEM_PROMPT }, { role: "user", content: buildPlanPrompt(task, cp.parts) }], { maxTokens: PLAN_MAX_TOKENS, json: PLAN_SCHEMA }); } catch {}
-  const plan = parsePlan(planRaw, task, cp.parts);
-  const parts = plan.parts.length >= 2 ? plan.parts : cp.features.map((f, i) => ({ id: `p${i + 1}`, label: f, description: f }));
-  say(`plan: ${parts.length} feature(s) — ${parts.map((p) => p.label).join(" · ")}${plan.degraded ? " (the plan did not parse; the spec's own clauses are the parts)" : ""}`);
-  mirrorTermRecord("codepiece-plan", { lang: cp.lang, spec: cp.spec, parts: parts.map((p) => p.label), via: "chat" });
-  // 2. the seed: the first feature alone, as one fenced program
-  const seedAsk = `Write a ${cp.lang} program that does only this for now: ${parts[0].label} — ${parts[0].description}. It will grow feature by feature; keep it small and runnable, with a main entry that runs when the file runs. Reply with one fenced \`\`\`${cp.lang} block and nothing else.`;
-  let seedReply = "";
-  try { seedReply = await call([{ role: "user", content: seedAsk }], { maxTokens: CODE_PIECE_SEED_TOKENS }); } catch (e) { say(`the seed could not be asked for: ${e?.message ?? e}`); releaseBusy(); return; }
-  const seg = parseSegments(seedReply).find((x) => x.type === "code" && x.code?.trim());
-  if (!seg) { say("the seed reply carried no code block — nothing to build on (typed gap, not a retry)."); mirrorTermRecord("codepiece-done", { lang: cp.lang, gap: "no_seed", via: "chat" }); renderFold(node, { sent: sentCalls }); releaseBusy(); return; }
-  seg.lang = seg.lang || cp.lang;
-  publishBuild(seg, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
+  if (!CODE_RUNTIMES.includes(cp.lang)) { say(`no skeleton for ${cp.lang} yet — the code piece builds ${CODE_RUNTIMES.join(" and ")} programs; the ordinary /run and /fold doors still take ${cp.lang}.`); releaseBusy(); return; }
+  // NUL → SIG → INS → CON → SYN, all mechanical: the spec's clauses in their own order are the dependency order; names off the clauses; the skeleton born as a build with a pipeline main.
+  const sk = skeletonFor(cp.lang, cp.spec, cp.features);
+  publishBuild({ type: "code", lang: cp.lang, code: sk.code }, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
   const entry = state.builds.at(-1);
   const n = entry.n;
-  const runs = [];
+  say(`fold ${n} born as a skeleton, no model: ${sk.names.length} function(s) — ${sk.names.join(" → ")} — wired in order into main (${sk.code.length} chars, the instrument's)`);
+  mirrorTermRecord("codepiece-plan", { lang: cp.lang, spec: cp.spec, parts: sk.names, via: "chat" });
   let r0 = await runBuildOnce(entry);
-  runs.push({ part: parts[0].label, ...r0 });
-  say(`fold ${n} born with "${parts[0].label}" — ${r0.summary ?? r0.skipped}`);
-  // 3. every later feature: a patch through the complaint door, then the run as the witness, one repair on a failed run
-  for (const p of parts.slice(1)) {
-    await foldTurn(n, `Add ${p.label}: ${p.description}`, `add ${p.label}`, { quiet: true, autoRun: false });
-    let r = await runBuildOnce(entry);
-    if (r.ok === false) {
-      const last = (r.outcome?.stderr || "").trim().split("\n").filter(Boolean).pop() ?? "it failed";
-      await foldTurn(n, `Running it failed with: ${last.slice(0, 160)}. Fix that.`, `fix the run`, { quiet: true, autoRun: false });
-      r = await runBuildOnce(entry);
-      r.repaired = true;
+  say(`skeleton run: ${r0.summary ?? r0.skipped} (the first stub refusing is the expected witness)`);
+  // SEG → EVA → REC, one function at a time: the snip is all the model sees; the run is the witness; the traceback names what to fix.
+  let refusals = 0, fixes = 0, okRuns = 0, helpers = 0;
+  const filledNames = [];
+  let witnessed = {};
+  const clauseOf = new Map(sk.names.map((nm, i) => [nm, cp.features[i]]));
+  const land = (code, reason) => { entry.log = buildLog.reviseBuild(entry.log, { code, reason }); entry.cursor = null; mirrorBuild(entry, entry.log.entries.length - 1); persistBuilds(); renderBuilds(entry.n); };
+  const fillOne = async (name, clause, { note = "", prev = null, next = null } = {}) => {
+    const cur = buildFold(entry, null)?.code ?? "";
+    const snip = snipFor(cp.lang, cur, name, clause, { previousClause: prev ? clauseOf.get(prev) ?? null : null, previousValue: prev ? witnessed[prev] ?? null : null, nextClause: next ? clauseOf.get(next) ?? null : null });
+    if (!snip) return { refused: { type: "no_region" } };
+    const reply = await call([{ role: "user", content: snip.ask + note }], { maxTokens: CODE_PIECE_BODY_TOKENS });
+    const sp = spliceFunction(cp.lang, cur, name, reply);
+    if (sp.refused) return { refused: sp.refused };
+    land(sp.code, `${name}: ${note ? "fix" : "body"} from the model, spliced by the instrument`);
+    if (!filledNames.includes(name)) filledNames.push(name);
+    return { refused: null, chars: sp.modelChars };
+  };
+  const runAndWitness = async () => { const r = await runBuildOnce(entry); witnessed = { ...witnessed, ...stepWitnesses(`${r.outcome?.stdout ?? ""}\n${r.outcome?.stderr ?? ""}`) }; return r; };
+  // REC in dependency order: a run naming a function that fails is asked once for that function; a run naming an UNDEFINED name gets a stub for it (INS) and that stub is filled next (SEG) — the program grows the dependency the model reached for, bounded.
+  const CODE_PIECE_HELPERS = 2;
+  const repair = async (name, r) => {
+    let fixed = false;
+    // Mechanical repairs first, the runtime's own witness deciding, no model:
+    // a near-miss name the traceback itself corrects; an undefined name an
+    // imported module carries (the sandbox is asked which). Each is landed
+    // as its own version with its reason.
+    for (let m = 0; m < 2 && r.ok === false; m += 1) {
+      const stderr = r.outcome?.stderr ?? "";
+      const cur = buildFold(entry, null)?.code ?? "";
+      const dym = didYouMean(stderr);
+      if (dym) { const rn = renameCalls(cur, dym.wrong, dym.right); if (rn.count) { land(rn.code, `${dym.wrong} → ${dym.right}: the traceback's own correction, ${rn.count} call site(s), no model`); say(`${name} called ${dym.wrong}; the run said it meant ${dym.right} — renamed ${rn.count} call(s), no model`); r = await runAndWitness(); continue; } }
+      const missingName = (stderr.match(/NameError: name '([A-Za-z_]\w*)' is not defined/) ?? [])[1] ?? null;
+      if (missingName && cp.lang === "python") {
+        const mods = importedModules(cp.lang, cur);
+        let found = null;
+        try { const probe = await runSandboxed("python", moduleProbe(cp.lang, missingName, mods)); found = (probe.stdout ?? "").trim().split(",").filter(Boolean)[0] ?? null; } catch { found = null; }
+        if (found) { const q = qualifyCalls(cur, missingName, found); if (q.count) { land(q.code, `${missingName} → ${found}.${missingName}: the sandbox found it on an imported module, ${q.count} call site(s), no model`); say(`${name} called ${missingName} bare; the sandbox found it on ${found} — qualified ${q.count} call(s), no model`); r = await runAndWitness(); continue; } }
+      }
+      break;
     }
-    runs.push({ part: p.label, ...r });
-    say(`"${p.label}" landed — ${r.summary ?? r.skipped}${r.repaired ? " (after one repair)" : ""}`);
-    mirrorTermRecord("codepiece-part", { fold: n, part: p.label, ok: r.ok ?? null, repaired: Boolean(r.repaired), via: "chat" });
+    for (let k = 0; k < CODE_PIECE_FIXES && r.ok === false; k += 1) {
+      const stderr = r.outcome?.stderr ?? "";
+      const missing = stubMissing(cp.lang, buildFold(entry, null)?.code ?? "", stderr);
+      if (missing.name && helpers < CODE_PIECE_HELPERS) {
+        helpers += 1;
+        land(missing.code, `${missing.name}: stub added — the run named it as undefined (dependency, INS)`);
+        clauseOf.set(missing.name, `is the helper that ${name} calls as ${missing.name}`);
+        say(`${name} reached for ${missing.name}, which did not exist — stubbed it in dependency order and asking for its body`);
+        const f = await fillOne(missing.name, clauseOf.get(missing.name), { prev: null, next: null });
+        if (f.refused) break;
+        fixes += 1;
+        r = await runAndWitness();
+        continue;
+      }
+      if (failingFunction(cp.lang, stderr, [...sk.names, ...filledNames]) !== name) break;
+      const last = stderr.trim().split("\n").filter(Boolean).pop() ?? "it failed";
+      const f = await fillOne(name, clauseOf.get(name), { note: `\n\nWhen run, it failed with: ${last.slice(0, 160)}` });
+      if (f.refused) break;
+      fixes += 1;
+      r = await runAndWitness();
+    }
+    if (r.ok !== false) fixed = true;
+    return { r, fixed };
+  };
+  for (const [i, name] of sk.names.entries()) {
+    const clause = cp.features[i];
+    const filled = await fillOne(name, clause, { prev: sk.names[i - 1] ?? null, next: sk.names[i + 1] ?? null });
+    if (filled.refused) { refusals += 1; say(`${name}: the reply was not that function (${filled.refused.type}) — stub kept`); mirrorTermRecord("codepiece-part", { fold: n, part: name, refused: filled.refused.type, via: "chat" }); continue; }
+    let r = await runAndWitness();
+    let fixed = false;
+    // DEF, witnessed: a step that returned nothing when a next step consumes
+    // `previous` broke the pipeline's contract — the run's own witness says
+    // so ("NoneType: None"), and the mouth is told that fact once.
+    if (i < sk.names.length - 1 && /^NoneType: None$/.test(witnessed[name] ?? "")) {
+      const f = await fillOne(name, clause, { prev: sk.names[i - 1] ?? null, next: sk.names[i + 1], note: `\n\nWhen run, ${name} returned None, but the next step needs its result as \`previous\`. Return the value instead of only printing it.` });
+      if (!f.refused) { fixes += 1; r = await runAndWitness(); say(`${name} returned nothing; told so, asked once — now ${witnessed[name] ?? "unwitnessed"}`); }
+    }
+    const stubNext = r.ok === false && i < sk.names.length - 1 && new RegExp(`NotImplementedError[^\\n]*${sk.names[i + 1]}|not implemented: ${sk.names[i + 1]}`).test(r.outcome?.stderr ?? "");
+    if (r.ok === false && !stubNext) ({ r, fixed } = await repair(name, r));
+    if (r.ok) okRuns += 1;
+    const w = witnessed[name] ? ` · witnessed: ${witnessed[name].slice(0, 80)}` : "";
+    say(`${name} (${filled.chars} chars from the model) — ${r.summary ?? r.skipped}${fixed ? " (after repair)" : ""}${stubNext ? " — the next stub refusing, as expected" : ""}${w}`);
+    mirrorTermRecord("codepiece-part", { fold: n, part: name, ok: r.ok ?? null, fixed, chars: filled.chars, witnessed: witnessed[name] ?? null, via: "chat" });
   }
-  // 4. coverage and the editor's finding, both mechanical
+  const final = await runAndWitness();
   const code = buildFold(entry, null)?.code ?? "";
-  const decls = cp.lang === "js" ? declaredReferents(code) : [...code.matchAll(/^(?:def|class|function|const|let|var)\s+([A-Za-z_][\w]*)/gm)].map((m) => ({ name: m[1] }));
-  const names = decls.map((d) => d.name.toLowerCase());
-  const covered = parts.filter((p) => tokenize(p.label).some((t) => t.length > 3 && names.some((nm) => nm.includes(t))));
-  const dupes = [...names.reduce((m, nm) => m.set(nm, (m.get(nm) ?? 0) + 1), new Map()).entries()].filter(([, c]) => c > 1).map(([nm]) => nm);
-  if (dupes.length) await foldTurn(n, `The name${dupes.length > 1 ? "s" : ""} ${dupes.join(", ")} ${dupes.length > 1 ? "are" : "is"} declared more than once. Keep one declaration of each.`, `edit: duplicate declarations`, { quiet: true, autoRun: false });
-  const final = await runBuildOnce(entry);
-  const okRuns = runs.filter((x) => x.ok).length;
-  say(`done: fold ${n} · ${parts.length} feature(s) · ${okRuns}/${runs.length} landings ran clean · final run ${final.summary ?? final.skipped} · ${decls.length} declared name(s), ${covered.length}/${parts.length} feature(s) named in the code${dupes.length ? ` · ${dupes.length} duplicate declaration(s) sent back to the fold` : ""}`);
-  mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: parts.length, okRuns, finalOk: final.ok ?? null, declared: decls.length, covered: covered.length, dupes: dupes.length, via: "chat" });
+  const modelChars = modelRegions(cp.lang, code, filledNames);
+  const share = modelShare(modelChars, code.length);
+  say(`done: fold ${n} · ${sk.names.length} function(s) + ${helpers} helper(s) the model reached for, ${refusals} refused · final run ${final.summary ?? final.skipped} · the model wrote ${modelChars} of ${code.length} chars (${Math.round((share ?? 0) * 100)}%); the instrument wrote the rest · ${fixes} fix(es)`);
+  mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: sk.names.length, helpers, refusals, fixes, finalOk: final.ok ?? null, modelChars, totalChars: code.length, modelShare: share, witnessed, via: "chat" });
   state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
   renderFold(node, { sent: sentCalls });
   renderThreads();

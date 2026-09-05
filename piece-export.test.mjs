@@ -48,3 +48,14 @@ test("the markdown reads as prose with numbered footnotes of verbatim spans and 
   assert.equal(r.json.sections[0].prompt, "[user]\nWrite this part");
   assert.equal(r.notes, 2, "one note per distinct span, shared by identical spans");
 });
+
+test("P119: a section's snip check rides the export — a check line under the section in md and html, the object in the sidecar", () => {
+  const passages = new Map([["h.txt#0-60", { ref: "h.txt#0-60", text: "The harbor light was built in 1841 by Ada Rowe." }]]);
+  const sc = { snips: 3, atoms: 4, supported: 3, flagged: 1, asked: true, outcomes: [{ sentence: "x", outcome: "refused", because: "still" }], contradictions: [], after: { flagged: 1, supported: 3, atoms: 4 }, flags: [{ sentence: "The light was built in 1847.", flags: [{ kind: "year", value: "1847", reason: "absent" }], contradiction: { ref: "h.txt#0-60", start: 0, end: 47, snipYears: ["1841"] } }] };
+  const out = exportPiece({ title: "T", model: "gemma2:2b", passages, sections: [{ label: "Light", snipCheck: sc, sentences: [{ text: "The light was built in 1847.", ground: { tier: "self", cell: "self:model", addresses: [] } }] }] });
+  assert.match(out.md, /> Checked against 3 snips: 4 atoms \(numbers, dates, names\), 3 placed in a snip beside the sentence's own words, 1 flagged, one rewrite asked \(1 refused\); 1 still flagged: year "1847" in no snip; the source says 1841 at h\.txt#0-60#0-47\./);
+  assert.match(out.html, /<p class="key check">Checked against 3 snips/);
+  assert.equal(out.json.sections[0].snipCheck.after.flagged, 1);
+  const none = exportPiece({ title: "T", passages, sections: [{ label: "Light", sentences: [{ text: "A.", ground: { tier: "self", cell: "self:model", addresses: [] } }] }] });
+  assert.doesNotMatch(none.md, /Checked against/, "no check, no line");
+});

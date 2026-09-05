@@ -81,7 +81,7 @@ import { checkGrounding, unsupportedClaims, extractCheckableAtoms } from "./grou
 
 import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
-import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT } from "./holon.js";
+import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets } from "./holon.js";
 
 import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel } from "./model-routing.js";
 
@@ -252,6 +252,7 @@ import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
+import { depthLine, DEPTH_NAMES } from "./depth.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
 // metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
 // same "one implementation, injected everywhere" posture.
@@ -391,7 +392,7 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
       updateSourceMeta(name, { readCursor: r.cursor, readRecipe: recipe, readMs: r.ms, readHeard: r.heard, readTurnedAway: r.turnedAway.length });
       console.info(`read on arrival: ${name} — ${r.read} passage(s) in ${r.ms} ms, ${r.heard} note(s) heard, ${r.turnedAway.length} turned away${r.resumed ? " (resumed)" : ""}`);
     }
-    if (state.ready) $("status").textContent = `ready · ${state.model}`;
+    if (state.ready) $("status").textContent = readyLine();
   }).catch((e) => console.warn(`read on arrival: ${name}:`, e?.message ?? e));
   return readQueue;
 }
@@ -942,6 +943,14 @@ const state = {
   grounded: localStorage.getItem("fold-marks") !== "off",
 
   /**
+   * The thinking-depth slider (P120, depth.js): 0 quick · 1 plain (today's
+   * budgets) · 2 careful · 3 deep. Deeper is more bounded passes over the
+   * same material — never more context. Set in the model menu; read per
+   * turn; carried on the record and the export.
+   */
+  depth: (() => { const n = Number(localStorage.getItem("fold-depth")); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1; })(),
+
+  /**
    * The pace ledger and the model's declared window. The ledger is fed by
    * Ollama's own telemetry (real tokens, real durations) on every completed
    * call; the window comes from /api/show at connect. Both are the ground
@@ -1298,7 +1307,7 @@ async function connect() {
   } catch {
     // No window declared is a gap, not a default — nothing will be trimmed.
   }
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   $("send").disabled = false;
   // Connected is the moment the controls stop earning their space, and the
   // moment the chat is what you want to be looking at.
@@ -1579,7 +1588,7 @@ function usageTurn(question, usage) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2075,7 +2084,7 @@ async function codePieceTurn(cp, typed) {
   state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2095,14 +2104,14 @@ async function exportLastPiece(node = null) {
     // The engine's splitter returns { text, offset } rows; the strings are what the ladder and the export read.
     const sents = engineSentences(String(s.text ?? "")).map((x) => String(x?.text ?? x ?? "").trim()).filter(Boolean);
     const claims = (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => fold(x).includes(fold(c.end1 ?? c.subject).split(" ")[0] ?? "") && fold(x).includes(fold(c.label ?? c.verb))) ?? null }));
-    return { label: s.part?.label ?? s.label ?? "", sentences: sents.map((text) => {
+    return { label: s.part?.label ?? s.label ?? "", snipCheck: s.piece?.snipCheck ?? null, sentences: sents.map((text) => {
       const own = claims.filter((c) => c.sentence === text);
       const wrow = (s.witness?.rows ?? []).find((r) => r.sentence === text) ?? null;
       const g = piece.ground ? groundOf(text, { ...piece.ground, claims: own, witness: wrow, model: piece.model }) : { tier: "self", cell: "self:model", addresses: [], phrase: piece.model ?? "the model" };
       return { text, ground: { ...g, claims: own, decider: wrow?.decider ?? null } };
     }) };
   });
-  const out = exportPiece({ title: piece.title, ask: piece.ask, model: piece.model, sections, passages, urls: piece.urls, prompts: piece.prompts, generatedAt: piece.generatedAt, stats: `Tally: ${Object.entries(out0Tally(sections)).map(([k, v]) => `${v} ${k}`).join(", ")}.` });
+  const out = exportPiece({ title: piece.title, ask: piece.ask, model: piece.model, sections, passages, urls: piece.urls, prompts: piece.prompts, generatedAt: piece.generatedAt, stats: `${piece.depthLine ? `${piece.depthLine} ` : ""}Tally: ${Object.entries(out0Tally(sections)).map(([k, v]) => `${v} ${k}`).join(", ")}.` });
   const slug = String(piece.title).slice(0, 40);
   let files = null;
   try {
@@ -2437,7 +2446,7 @@ async function runTurn(runCmd, typed) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2596,7 +2605,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       const blob = await pickAudioFile();
       if (!blob) {
         body.textContent = "no file selected.";
-        $("status").textContent = `ready · ${state.model}`;
+        $("status").textContent = readyLine();
         releaseBusy();
         return;
       }
@@ -2645,7 +2654,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     } catch (e) {
       body.textContent = `transcription failed: ${e.message}`;
     }
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     releaseBusy();
     return;
   }
@@ -2701,7 +2710,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
   } catch (e) {
     body.textContent = `transcription failed: ${e.message}`;
   }
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2876,7 +2885,7 @@ async function mechanicalTurn(question, kind) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2923,7 +2932,7 @@ async function recallTurn(question) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2970,7 +2979,7 @@ async function chartTurn(question) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
@@ -3045,7 +3054,7 @@ async function arithmeticTurn(question, found) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3385,7 +3394,7 @@ async function ingestTurn(repo, typed) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3471,7 +3480,7 @@ async function maybeSeedBuild(question) {
   }
 
   if (!seed) {
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     return false;
   }
 
@@ -3501,7 +3510,7 @@ async function maybeSeedBuild(question) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
   return true;
 }
@@ -3918,7 +3927,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
 
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -4082,7 +4091,7 @@ async function boundTurn(question, typed) {
   await refreshSummary(fold, arrivals, sentCalls);
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -4200,7 +4209,7 @@ async function reflectTurn(question, typed) {
   await refreshSummary(fold, arrivals, sentCalls);
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -4556,7 +4565,7 @@ async function twoPassTurn(question) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { sent });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -5566,7 +5575,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 state.summary = advanceSummaryFold(state.summary, foldLine);
                 renderFold(node, { fold: foldLine, reasoning });
                 renderThreads();
-                $("status").textContent = `ready · ${state.model}`;
+                $("status").textContent = readyLine();
                 releaseBusy();
                 return;
               }
@@ -5589,6 +5598,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
+      depth: state.depth,
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
       // from. Empty unless the seek actually bound something, so a turn
@@ -5811,7 +5821,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     state.summary = advanceSummaryFold(state.summary, fold);
     renderFold(node, { sent: sentCalls });
     renderThreads();
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     state.busy = false;
     $("send").disabled = false;
     drainQueue();
@@ -6032,22 +6042,25 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       const urls = {};
       for (const [name, prov] of Object.entries(state.provenance ?? {})) if (prov?.fields?.url) urls[name] = prov.fields.url;
       Object.assign(urls, state.huntUrls ?? {});
-      state.lastPiece = { title: `${opts.longForm.topic} — ${opts.longForm.pages}-page ${opts.longForm.kind ?? "piece"} asked of The Fold`, ask: typed, model: turnModel, sections: result.sections ?? [], urls, prompts, ground: state.lastGround, generatedAt: new Date().toISOString() };
+      state.lastPiece = { title: `${opts.longForm.topic} — ${opts.longForm.pages}-page ${opts.longForm.kind ?? "piece"} asked of The Fold`, ask: typed, model: turnModel, sections: result.sections ?? [], urls, prompts, ground: state.lastGround, depth: result.depth ?? state.depth, depthLine: result.depthLine ?? null, generatedAt: new Date().toISOString() };
       exportLastPiece(node).catch((e) => console.warn("piece export:", e?.message ?? e));
     } catch (e) { console.warn("piece keep:", e?.message ?? e); }
     mirrorTermRecord("longform-done", {
+      depth: result.depth ?? state.depth,
       topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
       unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
       // P110's own numbers: words per section, obligation coverage, re-asks, meta-talk cut, hunts.
       revisions: Object.fromEntries((result.revisions ?? []).map((r) => r.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       edits: (result.edits ?? []).length, editKinds: Object.fromEntries((result.edits ?? []).map((e) => e.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
+      // P119's own numbers: atoms checked against the snips, flagged before and after the one rewrite, rewrite outcomes, contradiction candidates.
+      snipCheck: (() => { const sc = secs.map((x) => x.snipCheck).filter(Boolean); const sum = (f) => sc.reduce((a, x) => a + (f(x) ?? 0), 0); const oc = {}; for (const x of sc) for (const o of x.outcomes ?? []) oc[o.outcome] = (oc[o.outcome] ?? 0) + 1; return { sections: sc.length, snips: sum((x) => x.snips), atoms: sum((x) => x.atoms), supported: sum((x) => x.supported), flagged: sum((x) => x.flagged), flaggedAfter: sum((x) => x.after?.flagged), asked: sum((x) => (x.asked === true ? 1 : Number(x.asked) || 0)), outcomes: oc, contradictions: sum((x) => x.contradictions?.length) }; })(),
       via: "chat",
     });
   }
   renderThreads();
   if (!state.grounded) {
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     releaseBusy();
     return;
   }
@@ -6072,7 +6085,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   crownTestimony(node, relationClaims).catch((e) => {
     $("status").textContent = `testimony pass failed: ${e?.message ?? e}`;
   });
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -6362,7 +6375,7 @@ async function crownTestimony(node, relationClaims) {
       body.append(p);
     }
   }
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
 }
 
 /** An address, exactly as source.js writes and checkCitations reads it. */
@@ -8807,7 +8820,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
         $("status").textContent = `checking claims online · ${i + 1}/${autorun.length}`;
         await run();
       }
-      $("status").textContent = `ready · ${state.model}`;
+      $("status").textContent = readyLine();
     })();
 }
 
@@ -9859,8 +9872,27 @@ renderBuilds();
 // and the boot path connects on its own when a model is reachable.
 $("model").onchange = () => {
   state.model = $("model").value;
-  if (state.ready) $("status").textContent = `ready · ${state.model}`;
+  if (state.ready) $("status").textContent = readyLine();
 };
+
+/** The status line: the model, and the depth when it is not the plain rung. */
+function readyLine() { return `ready · ${state.model}${state.depth !== 1 ? ` · depth ${state.depth}` : ""}`; }
+/** The slider's legend, in plain words, from the budgets the rung would spend. */
+function renderDepth() {
+  const b = depthBudgets(state.depth);
+  const name = $("depth-name"); if (name) name.textContent = DEPTH_NAMES[b.level] ?? String(b.level);
+  const line = $("depth-line"); if (line) line.textContent = depthLine(b, { piece: true });
+}
+if ($("depth")) {
+  $("depth").value = String(state.depth);
+  renderDepth();
+  $("depth").oninput = () => {
+    state.depth = Number($("depth").value);
+    localStorage.setItem("fold-depth", String(state.depth));
+    renderDepth();
+    if (state.ready) $("status").textContent = readyLine();
+  };
+}
 
 // Material sent over from the Explore pane. The origin check is the whole
 // security model of a message listener — inbound "*" is never trusted, and
@@ -10440,7 +10472,7 @@ const syncChip = () => {
   const s = statusEl.textContent;
   syncModelPick();
   // Working is a fact about the model, so it shows on the model's own control.
-  const working = state.ready && s && !TRANSIENT.test(s) && !s.startsWith(`ready · ${state.model}`);
+  const working = state.ready && s && !TRANSIENT.test(s) && !s.startsWith(readyLine());
   $("model-pick").dataset.working = working ? "yes" : "no";
   const line = $("status-line");
   if (line) {

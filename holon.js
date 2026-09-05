@@ -39,8 +39,10 @@ import { distinctSources, proposeCandidates, textFeatures } from "./corroboratio
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
-import { isCodeSource } from "./longform.js";
-import { revisePiece } from "./piece-revise.js";
+import { isCodeSource, topicTerms } from "./longform.js";
+import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
+import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
+import { budgetsFor, depthLine } from "./depth.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -552,7 +554,7 @@ export function pieceLine(piece) {
 /** The continuation ask, one place, so the meta-talk cut below knows its words. */
 export const continueAsk = (more) => `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.`;
 /** The instrument's own words to the mouth, TEMPLATE ONLY — no topic, outline, obligation or fact (those are the material's words and must never count as apparatus). */
-export const INSTRUCTION_TEMPLATE = `${EXECUTE_SYSTEM_PROMPT} This is section of a piece on. The sections, in order. The previous section ended. This section should say something about. Earlier sections already said. The sources disagree on. Nothing read says. Write about words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established. ${continueAsk(100)} Every claim here was made in an earlier section. Write this section again about what the sources establish that those sections did not. This section says nothing about. Keep what it says and add what the sources establish about them, in the same prose. Let me know if you would like me to continue writing this.`;
+export const INSTRUCTION_TEMPLATE = `${EXECUTE_SYSTEM_PROMPT} This is section of a piece on. The sections, in order. The previous section ended. This section should say something about. Earlier sections already said. The sources disagree on. Nothing read says. Write about words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established. ${continueAsk(100)} Every claim here was made in an earlier section. Write this section again about what the sources establish that those sections did not. This section says nothing about. Keep what it says and add what the sources establish about them, in the same prose. Let me know if you would like me to continue writing this. What the sources say, verbatim, each at its address. These sentences say things the sources you were given do not. Rewrite only those sentences so each says what the sources establish, or drop a sentence the sources cannot support. Reply with the rewritten sentences only, one per line, in the same order.`;
 /** The cast's top referents in a set of passages, as plain names — the section's obligations (P110). */
 export function obligationsFrom(index, { limit = 5 } = {}) {
   if (!index?.referents) return [];
@@ -973,6 +975,14 @@ export async function runPart({
   // ships with the relation tier's own verdict alone, as before.
   witnessSentences = null,
   witnessAsks = WITNESS_ASKS_PER_PART,
+  // THE DEPTH SLIDER'S BUDGETS (P120, depth.js): how many bounded passes a
+  // piece's section gets — the witness asks a piece may spend, the snip
+  // rewrite rounds, the continuations of a short draft, the hunts when
+  // retrieval is thin. Defaults are the plain rung, byte-identical to before.
+  pieceWitnessAsks = PIECE_WITNESS_ASKS,
+  snipRounds = 1,
+  continuations = 1,
+  hunts = 1,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1144,15 +1154,25 @@ export async function runPart({
   // hunted pages join this part's pool so retrieval can pick from them.
   let hunted = null;
   let livePool = live;
-  if (piece?.huntFor && passages.filter((p) => !String(p?.ref ?? "").startsWith("web:search-results")).length < passagesPerPart) {
-    try {
-      const found = await piece.huntFor(`${part.label} ${piece.topic ?? ""}`.trim());
-      if (Array.isArray(found) && found.length) {
-        livePool = [...live, ...found];
-        passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
-        hunted = { query: `${part.label} ${piece.topic ?? ""}`.trim(), chunks: found.length, passages: passages.length };
-      } else hunted = { query: `${part.label} ${piece.topic ?? ""}`.trim(), chunks: 0, passages: passages.length };
-    } catch (e) { hunted = { query: part.label, error: String(e?.message ?? e) }; }
+  // Up to `hunts` rounds (P120): each round a different query off the
+  // section's own words — its label, then its description, then the topic
+  // alone — and the round stops as soon as retrieval is no longer thin.
+  const thin = () => passages.filter((p) => !String(p?.ref ?? "").startsWith("web:search-results")).length < passagesPerPart;
+  if (piece?.huntFor && thin()) {
+    const queries = [...new Set([`${part.label} ${piece.topic ?? ""}`.trim(), `${part.description ?? ""} ${piece.topic ?? ""}`.trim(), String(piece.topic ?? "").trim()].filter(Boolean))];
+    const rounds = [];
+    for (let round = 0; round < hunts && round < queries.length && thin(); round++) {
+      const query = queries[round];
+      try {
+        const found = await piece.huntFor(query);
+        if (Array.isArray(found) && found.length) {
+          livePool = [...livePool, ...found];
+          passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
+          rounds.push({ query, chunks: found.length, passages: passages.length });
+        } else rounds.push({ query, chunks: 0, passages: passages.length });
+      } catch (e) { rounds.push({ query, error: String(e?.message ?? e) }); }
+    }
+    hunted = rounds.length ? { ...rounds[0], rounds } : null;
   }
   const digestChunk = livePool.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
   if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
@@ -1188,6 +1208,11 @@ export async function runPart({
   const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref));
   const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
+  // THE SNIPS (P119): the verbatim, addressed sentences of this section's
+  // prose passages that carry its obligations and its topic — what the
+  // section is handed to write from, and what every number, date and name
+  // it writes is checked against afterwards, with no model.
+  const snips = piece ? snipsFor(prosePassages, { obligations: piece.obligations ?? [], terms: topicTerms(piece.topic ?? "") }) : [];
 
   // hyperlexicon.js (P57): admit this part's own bound claims into the
   // shared, cross-turn ledger — accumulation, not re-derivation on every
@@ -1878,9 +1903,10 @@ export async function runPart({
       ? factBlock.spans.map((sp) => `${sp.ref}:
 "${sp.text}"`).join("\n\n")
       : null;
+  const snipPrefix = piece && snips.length ? snipBlock(snips) : null;
   const draftMaterial = factBlock
-    ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    ? [snipPrefix, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [snipPrefix, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2225,8 +2251,10 @@ export async function runPart({
   // check below reads the whole section. Bounded: one call, declared.
   let continued = null;
   if (piece && Number.isFinite(piece.words) && passages.length) {
-    const have = wordCount(clean(rawDraft));
-    if (have < piece.words * CONTINUE_BELOW) {
+    // Up to `continuations` rounds (P120), each measured before it is asked.
+    for (let round = 0; round < continuations; round++) {
+      const have = wordCount(clean(rawDraft));
+      if (have >= piece.words * CONTINUE_BELOW) break;
       const more = Math.max(50, piece.words - have);
       const cont = await call([
         ...executeMessages,
@@ -2234,7 +2262,9 @@ export async function runPart({
         { role: "user", content: continueAsk(more) },
       ], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
       const joined = `${rawDraft.trimEnd()}\n\n${String(cont ?? "").trim()}`;
-      continued = { from: have, to: wordCount(clean(joined)), target: piece.words };
+      const to = wordCount(clean(joined));
+      continued = { from: continued?.from ?? have, to, target: piece.words, rounds: round + 1 };
+      if (to <= have) break;
       rawDraft = joined;
     }
   }
@@ -2517,6 +2547,45 @@ export async function runPart({
     if (r.cut.length) { text = r.text; metaCut = r.cut; check = inspect(text); }
   }
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
+  // THE ATOMS AGAINST THE SNIPS (P119), no model: every number, date and
+  // name in the section is looked for in a snip beside a word of the
+  // sentence's own (P31's company rule); a flag names what was looked for
+  // and the absence it stands in; a snip sharing the sentence's words and
+  // carrying a different year is a contradiction candidate. One bounded
+  // rewrite ask carries the flags as facts and the snips as the only
+  // ground; a rewritten sentence lands only where its atoms now pass and
+  // it stands on a snip — the mouth's line is never trusted, it is checked
+  // again. A flag the rewrite could not clear stays a flag on the record.
+  let snipCheck = null;
+  if (piece && snips.length) {
+    const before = checkSection(splitSentences(text), snips);
+    let outcomes = [];
+    let asked = 0;
+    // Up to `snipRounds` asks (P120): each round is the flags still standing
+    // after the last; a round that moved nothing ends the loop early.
+    let standing = before.flagged;
+    let lastReply = null;
+    for (let round = 0; round < snipRounds && standing.length && !mechanical; round++) {
+      asked += 1;
+      const again = await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: reviseAsk(standing, snips) }], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+      const applied = applyRewrite(text, standing, again, snips);
+      outcomes.push(...applied.outcomes.map((o) => ({ ...o, round: round + 1 })));
+      const moved = applied.outcomes.some((o) => o.outcome === "rewritten" || o.outcome === "dropped");
+      if (moved && applied.text !== text && applied.text.length > 0) { text = applied.text; check = inspect(text); }
+      standing = checkSection(splitSentences(text), snips).flagged;
+      // A refused round earns another at a deeper rung (the flags are put
+      // again, as facts); a round whose reply repeats the last one ends it.
+      if (String(again ?? "") === lastReply) break;
+      lastReply = String(again ?? "");
+    }
+    const after = checkSection(splitSentences(text), snips);
+    snipCheck = {
+      snips: snips.length, atoms: before.atoms, supported: before.supported, flagged: before.flagged.length, asked, outcomes,
+      contradictions: before.flagged.filter((r) => r.contradiction).map((r) => ({ sentence: r.sentence, says: r.contradiction.sentenceYears, source: r.contradiction.snipYears, ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end })),
+      after: { flagged: after.flagged.length, supported: after.supported, atoms: after.atoms },
+      flags: after.flagged.map((r) => ({ sentence: r.sentence, flags: r.flags.map((f) => ({ kind: f.kind, value: f.value, reason: f.reason })), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end, snipYears: r.contradiction.snipYears } : null })),
+    };
+  }
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.
@@ -2563,7 +2632,13 @@ export async function runPart({
   let witnessReport = null;
   if (witnessSentences && passages.length) {
     try {
-      witnessReport = await witnessSentences(splitSentences(stripFraming(text)), check.relations?.claims ?? [], passages, { maxAsks: piece ? Math.max(witnessAsks, PIECE_WITNESS_ASKS) : witnessAsks });
+      // The witness is spent where a flag stands first (P119): a sentence
+      // the snip check flagged and the rewrite did not clear is asked
+      // before any other; then the rest, under the same declared budget.
+      const allSentences = splitSentences(stripFraming(text));
+      const flaggedSet = new Set((snipCheck?.flags ?? []).map((f) => f.sentence));
+      const ordered = flaggedSet.size ? [...allSentences.filter((x) => flaggedSet.has(x)), ...allSentences.filter((x) => !flaggedSet.has(x))] : allSentences;
+      witnessReport = await witnessSentences(ordered, check.relations?.claims ?? [], passages, { maxAsks: piece ? Math.max(witnessAsks, pieceWitnessAsks) : witnessAsks });
     } catch (e) {
       witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
     }
@@ -2576,7 +2651,7 @@ export async function runPart({
     passages,
     corrections,
     ...(continued ? { continued } : {}),
-    ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text) } } : {}),
+    ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
     ...check,
     quoteCorrections,
     links: linkReport,
@@ -2602,6 +2677,9 @@ export async function runPart({
  * with its shape — which is the entire local-model story: point complete() at
  * Ollama and every model call in here runs on the machine.
  */
+/** The depth slider's budgets over THIS module's declared constants (P120) — one base, restated nowhere. */
+export const depthBudgets = (depth) => budgetsFor(depth, { corrections: MAX_CORRECTIONS, witnessAsks: WITNESS_ASKS_PER_PART, pieceWitnessAsks: PIECE_WITNESS_ASKS, snipRounds: 1, revisionRounds: REVISION_ROUNDS, revisionAsks: REVISION_ASKS, continuations: 1, hunts: 1, linkChecks: LINK_CHECKS_PER_PART });
+
 export async function runHolonicTask({
   task,
   chunks = [],
@@ -2609,7 +2687,13 @@ export async function runHolonicTask({
   foldedRefs = [],
   maxParts = MAX_PARTS,
   passagesPerPart = PASSAGES_PER_PART,
-  maxCorrections = MAX_CORRECTIONS,
+  // null → the depth slider's rung decides (P120); an explicit number wins,
+  // so every existing caller and pin is byte-identical to before.
+  maxCorrections = null,
+  // THE THINKING-DEPTH SLIDER (P120, depth.js): 0 quick · 1 plain (today's
+  // budgets) · 2 careful · 3 deep. More passes over the same bounded
+  // material, never more context.
+  depth = 1,
   // Long-form (P108): a caller writing a PIECE rather than answering a
   // question declares a larger draft budget per part and a plan budget
   // sized to its section count. Defaults are byte-identical to before.
@@ -2627,7 +2711,7 @@ export async function runHolonicTask({
   makeNameResolver = null,
   makeRelationReader = null,
   witnessSentences = null,
-  witnessAsks = WITNESS_ASKS_PER_PART,
+  witnessAsks = null,
   checkLink = null,
   chatHistory = [],
   discourse = "",
@@ -2678,6 +2762,11 @@ export async function runHolonicTask({
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
+  // The rung's budgets, from this module's own declared constants as the
+  // base (depth.js restates nothing). An explicit caller value wins.
+  const budgets = depthBudgets(depth);
+  maxCorrections = maxCorrections ?? budgets.corrections;
+  witnessAsks = witnessAsks ?? budgets.witnessAsks;
 
   // The plan exists as inserts on an append-only log; everything after this
   // point reads the FOLD of the log, never the parse. The log is the
@@ -2798,6 +2887,11 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
+      pieceWitnessAsks: budgets.pieceWitnessAsks,
+      snipRounds: budgets.snipRounds,
+      continuations: budgets.continuations,
+      hunts: budgets.hunts,
+      linkBudget: budgets.linkChecks,
       executeMaxTokens,
       makeNameResolver,
       makeRelationReader,
@@ -2873,7 +2967,7 @@ export async function runHolonicTask({
   // sentence a later reading denies is rewritten once, and a rewrite lands
   // only if it grounds. Bounded asks, bounded rounds, every act returned.
   let revisions = [];
-  if (piece && sections.length > 1 && piece.revise !== false) {
+  if (piece && sections.length > 1 && piece.revise !== false && budgets.revisionRounds > 0) {
     try {
       const seen = new Set();
       const allPassages = sections.flatMap((s) => s.passages ?? []).filter((p) => p?.ref && !seen.has(p.ref) && seen.add(p.ref));
@@ -2885,7 +2979,7 @@ export async function runHolonicTask({
       const ctx = { notes, disputes, derived: hyperlexiconDerived ?? [], passages: allPassages, resolveName: index ? (n) => index.resolve(n) : null };
       // a claim knows its sentence by the sentence that carries its first end and its label
       const anchor = (text, claims) => { const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean); const f = (t) => String(t ?? "").toLowerCase(); return (claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => f(x).includes(f(c.end1 ?? c.subject).split(" ")[0] ?? "") && f(x).includes(f(c.label ?? c.verb))) ?? null })); };
-      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT });
+      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
       revisions = rv.revisions;
       sections = rv.sections.map((e) => ({ ...e._s, text: e.text, ...(e.recited ? { recited: e.recited } : {}) }));
     } catch (e) { revisions = [{ kind: "revision-error", because: String(e?.message ?? e) }]; }
@@ -2915,5 +3009,5 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits, revisions } : {}), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
+    ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

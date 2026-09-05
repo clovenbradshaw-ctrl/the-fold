@@ -975,6 +975,7 @@ export async function runPart({
   // and undeclared, exactly as before.
   hyperlexiconRecipe = null,
   hyperlexiconUnread = [],
+  hyperlexiconDerived = [],
   // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
   // — asymmetric, P56: a settled non-verb connector is refused with its
   // giver, an out-of-vocabulary word admits). Threaded, never built here:
@@ -1178,7 +1179,20 @@ export async function runPart({
       .map((c) => c.note);
     const corroborated = ranked.filter((n) => n.sources >= 2);
     const single = ranked.filter((n) => n.sources < 2);
-    if (!corroborated.length && !single.length) return readingNote;
+    // The DERIVED tier (Pass 21 / P102): facts no source states, composed
+    // under a declared giver from claims already read (derivation.js,
+    // SYN·Pattern·derived). Ranked by the question like the others, and
+    // phrased with their fragility — how many claims each rests on, and
+    // whether the weakest of them was stated once or in more than one place
+    // (restsOn is the MIN, P89) — never as a settled thing.
+    const derivedRows = Array.isArray(hyperlexiconDerived) ? hyperlexiconDerived.filter((d) => d && d.subject && d.verb && d.object) : [];
+    const derived = derivedRows.length
+      ? proposeCandidates(derivedRows, String(question ?? ""), { limit: derivedRows.length, featuresOfSource: questionFeatures })
+          .sort((a, b) => b.shared - a.shared)
+          .slice(0, HYPERLEXICON_LEDGER_LINES)
+          .map((c) => c.note)
+      : [];
+    if (!corroborated.length && !single.length && !derived.length) return readingNote;
     // A note under a live dispute says so (P88's act reaching the mouth,
     // Pass 20 / P101): who denies it, and that it is not settled — the
     // reader is told of the disagreement, never handed a conviction.
@@ -1193,10 +1207,16 @@ export async function runPart({
       return `stated once so far, nowhere else yet${disputed(n)}`;
     };
     const render = (list) => list.map((n) => `- ${line(n)} (${phrase(n)})`).join("\n");
+    const derivedPhrase = (d) => {
+      const n = (d.premises ?? []).length;
+      const weakest = d.restsOn?.sources ?? 0;
+      return `follows from ${n} earlier claim${n === 1 ? "" : "s"}, never stated itself; the weakest of them ${weakest >= 2 ? "read in more than one place" : "stated once so far"}${d.restsOn?.contested ? `; ${d.restsOn.contested} of them disputed` : ""}`;
+    };
     return [
       readingNote,
       corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
       single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
+      derived.length ? `From earlier reading, derived — no source states these; each follows from claims already read, and falls with them:\n${derived.map((d) => `- ${line(d)} (${derivedPhrase(d)})`).join("\n")}` : null,
     ].filter(Boolean).join("\n\n");
   })();
 
@@ -2451,6 +2471,7 @@ export async function runHolonicTask({
   // and undeclared, exactly as before.
   hyperlexiconRecipe = null,
   hyperlexiconUnread = [],
+  hyperlexiconDerived = [],
   classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -2573,6 +2594,7 @@ export async function runHolonicTask({
       hyperlexiconFrame,
       hyperlexiconRecipe,
       hyperlexiconUnread,
+      hyperlexiconDerived,
       classifyConnector,
     });
     seenRefs.push(...result.refs);

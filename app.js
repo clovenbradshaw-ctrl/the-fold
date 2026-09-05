@@ -91,7 +91,12 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxe
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
-import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest } from "../eoreader7/native/organs/index.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
+// The declarations register (Pass 21, P102): what a person has DECLARED
+// about a relation — transitive, or composing into a named product — each
+// with its giver. Chemistry comes from this register and nowhere else
+// (derivation.js), so a derived fact always names who licensed it.
+import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
@@ -298,7 +303,7 @@ const metaLedger = makeMetacognition(nativeTaskLog);
 // Boot replays the three files through `replayRecord` (record-log.js) into
 // the SAME kernel shape the live code appends to, and a hole or a bad line is
 // a typed gap logged by name, never a silently shorter reading.
-const RECORDS = { hyperlexicon: 0, grid: 0, meta: 0 };
+const RECORDS = { hyperlexicon: 0, grid: 0, meta: 0, declarations: 0 };
 let recordSyncChain = Promise.resolve();
 function syncRecords() {
   // The range to append is computed WHEN THE JOB RUNS, after the previous
@@ -309,7 +314,7 @@ function syncRecords() {
   // is how it was found (P99). The log itself is read at run time too, so a
   // job appends whatever the app holds by then, never a stale snapshot.
   const job = async () => {
-    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger]]) {
+    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations]]) {
       const log = get();
       if (!log || !Array.isArray(log.entries)) continue;
       const lines = serializeRecord(log, RECORDS[name]);
@@ -383,7 +388,7 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
 async function restoreRecords() {
   const bundle = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append };
   const restored = {};
-  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null]]) {
+  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null]]) {
     const lines = await loadRecord(name);
     if (!lines.length) continue;
     const r = replayRecord(lines, { ...bundle, admits });
@@ -741,6 +746,16 @@ const hyperlexiconFor = makeHyperlexicon({
   cellOf,
 });
 
+// Derivation over the same ledger (derivation.js, P89/P102): products land
+// on the SAME log as SYN·Pattern·derived with no witnesses of their own —
+// premises carry them, `restsOn` is the min across their grounds, and
+// `concedePremise` withdraws every product resting on a conceded premise.
+const derivationFor = makeDerivation({
+  hl: hyperlexiconFor,
+  taskLog: { append: nativeTaskLog.append, projectTasks: nativeTaskLog.projectTasks, ENTRY_KINDS: nativeTaskLog.ENTRY_KINDS, OPERATOR_BASIS: nativeTaskLog.OPERATOR_BASIS, GRAIN_RANK: nativeTaskLog.GRAIN_RANK, cellOf },
+});
+const derivedNow = () => { try { return state.hyperlexiconLog ? derivationFor.foldDerived(state.hyperlexiconLog) : []; } catch { return []; } };
+
 // NO VIEW FROM NOWHERE (eoreader7 kernel/notes.js; POLICIES.md P80). The
 // ledger is born on the first grounded turn, and its first entry declares
 // what the reader feeding it actually stood on at that moment — the organs
@@ -990,6 +1005,13 @@ const state = {
    * about one conversation, and a fresh page load is a fresh reading.
    */
   metaLedger: metaLedger.createLedger(),
+
+  /**
+   * The declarations register (Pass 21, P102) — app-wide, persisted with the
+   * other logs: what the person declared about relations, each with its
+   * giver. Derivation reads its GIVEN tier and nothing else.
+   */
+  declarations: createDeclarationLog(),
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -1799,6 +1821,82 @@ async function rankeTurn(argstr, typed) {
   renderFold(node, {});
 }
 
+
+// ── /declare · /derive · /concede — derivation and recourse (Pass 21, P102) ─
+const DECLARE_USAGE = "/declare <relation> transitive — or — /declare <relation> composes <product>: declare, as yourself, what a relation does, so the record may derive what follows. Nothing is derived from an undeclared relation, and every derived fact names its giver. Bare /declare lists the register.";
+function declareTurn(argstr, typed) {
+  const arg = (argstr ?? "").trim();
+  const fold = foldDeclarations(state.declarations);
+  if (!arg) {
+    const lines = [
+      `declared (given): ${fold.given.length ? fold.given.map((g) => `${g.rel} ${g.declKind}${g.yields ? ` → ${g.yields}` : ""} — giver ${g.giver}`).join("; ") : "none"}`,
+      `conceded: ${fold.conceded.length}`,
+    ];
+    return usageTurn(typed, lines.join("\n"));
+  }
+  const m = arg.match(/^(\S+)\s+(transitive|composes)(?:\s+(\S+))?$/i);
+  if (!m) return usageTurn(typed, DECLARE_USAGE);
+  const [, rel, kindRaw, yields] = m;
+  const kind = kindRaw.toLowerCase();
+  if (kind === "composes" && !yields) return usageTurn(typed, DECLARE_USAGE);
+  const giver = `person:chat (declared in this conversation, ${new Date().toISOString().slice(0, 10)})`;
+  try {
+    if (fold.given.some((g) => g.rel === rel && g.declKind === kind)) return usageTurn(typed, `already declared: ${rel} ${kind}.`);
+    const proposed = proposeDeclaration(state.declarations, { kind, rel, ...(yields ? { yields } : {}), acquisition: "declared", source: "chat: the person's own declaration" });
+    const promoted = promoteDeclaration(proposed.log, proposed.id, { giver });
+    if (!promoted.ok) return usageTurn(typed, `refused: ${JSON.stringify(promoted.refusal)}`);
+    state.declarations = promoted.log;
+    syncRecords();
+    mirrorTermRecord("declare", { rel, kind, yields: yields ?? null, giver, via: "chat" });
+    return usageTurn(typed, `declared: ${rel} is ${kind}${yields ? ` (composing into ${yields})` : ""} — giver: ${giver}. /derive to see what follows.`);
+  } catch (e) { return usageTurn(typed, `refused: ${e?.message ?? e}`); }
+}
+
+function deriveTurn(argstr, typed) {
+  const maxSteps = Math.max(1, Math.min(25, Number((argstr ?? "").trim()) || 6));
+  const log = state.hyperlexiconLog;
+  if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing has been read yet, so there is nothing to derive from.");
+  const fold = foldDeclarations(state.declarations);
+  if (!fold.given.length) return usageTurn(typed, "nothing is declared — a derivation needs a giver. " + DECLARE_USAGE);
+  let dv;
+  try {
+    // carry: true — a single-source premise is ADMITTED and its fragility
+    // carried (P89); the floor is the honest one for a chat ledger (P89's own
+    // note: live witnesses carry recipes now, so instruments 0 is declared,
+    // never inferred).
+    dv = derivationFor.derive(log, { declarations: state.declarations, floor: { sources: 1, instruments: 0 }, carry: true, maxSteps });
+  } catch (e) { return usageTurn(typed, `derivation refused: ${e?.message ?? e}`); }
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, dv.log, log, { append: nativeTaskLog.append });
+  syncRecords();
+  const rows = derivedNow();
+  const lines = [
+    `derived: ${dv.derived.length} this run (${dv.derived.filter((d) => d.landed === "new").length} new) · ${rows.length} live on the record · premises ${dv.premises.length} (${(dv.carried ?? []).length} below the floor, carried) · withheld ${dv.withheld?.length ?? 0} · vetoed ${dv.vetoed?.length ?? 0} · steps ${dv.quiescent ? "quiescent" : "capped"}`,
+  ];
+  for (const d of rows.slice(0, 12)) lines.push(`  ${d.subject} —${d.verb}→ ${d.object} · depth ${d.depth} · rests on ${d.premises.length} claim(s), weakest at ${d.restsOn?.sources ?? "?"} source(s)${d.restsOn?.contested ? `, ${d.restsOn.contested} disputed` : ""} · giver ${String(d.giver ?? "").slice(0, 40)} · premises: ${d.premises.join(" ; ")}`);
+  if (rows.length > 12) lines.push(`  … ${rows.length - 12} more`);
+  mirrorTermRecord("derive", { derived: dv.derived.length, live: rows.length, premises: dv.premises.length, via: "chat" });
+  return usageTurn(typed, lines.join("\n"));
+}
+
+function concedeTurn(argstr, typed, { perform = false } = {}) {
+  const id = (argstr ?? "").trim();
+  const log = state.hyperlexiconLog;
+  if (!id) return usageTurn(typed, "/concede <note id> shows what would fall if that claim were withdrawn; /concede! <note id> withdraws it, and every derived fact resting on it, on the record — never deleted, always recorded with its reason. Note ids are the ones /derive prints as premises.");
+  if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing to concede.");
+  const exposure = derivationFor.exposure(log, id);
+  if (!perform) {
+    const lines = [`conceding ${id} would withdraw ${exposure.withdrawn.length} derived fact(s)${exposure.depth ? ` (cascade depth ${exposure.depth})` : ""}:`];
+    for (const w of exposure.withdrawn) lines.push(`  ${w.subject} —${w.verb}→ ${w.object} (via ${w.cascadedFrom}, depth ${w.cascadeDepth})`);
+    lines.push(`to do it: /concede! ${id}`);
+    return usageTurn(typed, lines.join("\n"));
+  }
+  const r = derivationFor.concedePremise(log, id, { trigger: `conceded by the person in chat (${new Date().toISOString().slice(0, 10)})` });
+  if (r.refused) return usageTurn(typed, `refused: ${JSON.stringify(r.refused)}`);
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, r.log, log, { append: nativeTaskLog.append });
+  syncRecords();
+  mirrorTermRecord("concede", { id, withdrawn: r.withdrawn.length, via: "chat" });
+  return usageTurn(typed, `conceded ${id}; withdrawn ${r.withdrawn.length} derived fact(s): ${r.withdrawn.map((w) => `${w.subject} —${w.verb}→ ${w.object}`).join("; ") || "none"}. The record kept every entry; the fold no longer carries them.`);
+}
 
 async function corroborateTurn(argstr, typed) {
   const maxAsks = Number((argstr ?? "").trim());
@@ -2767,6 +2865,16 @@ async function send(question) {
 
   const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
   if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
+
+  // Derivation and recourse (Pass 21, P102): a person declares what a
+  // relation does, the record derives what follows, and a premise can be
+  // conceded — with what would fall shown first.
+  const declCmd = question.match(/^\/declare\b\s*(.*)$/s);
+  if (declCmd) return declareTurn(declCmd[1] ?? "", question);
+  const deriveCmd = question.match(/^\/derive\b\s*(.*)$/s);
+  if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
+  const concedeCmd = question.match(/^\/concede(!?)(?:\s+|$)(.*)$/s);
+  if (concedeCmd) return concedeTurn(concedeCmd[2] ?? "", question, { perform: concedeCmd[1] === "!" });
 
   const rankeCmd = question.match(/^\/ranke\b\s*(.*)$/s);
   if (rankeCmd) return rankeTurn(rankeCmd[1] ?? "", question);
@@ -5131,6 +5239,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       hyperlexiconFrame: ledgerFrame,
       hyperlexiconRecipe: ledgerRecipe,
       hyperlexiconUnread: unreadNow(),
+      hyperlexiconDerived: state.grounded ? derivedNow() : [],
       // The door's grammar gate, data-gated (null until the POS prior
       // loads — see connectorLens's own construction comment) and mode-
       // gated with the ledger it guards.
@@ -9189,6 +9298,7 @@ $("not-served")?.remove();
       if (restored.hyperlexicon) state.hyperlexiconLog = restored.hyperlexicon;
       if (restored.grid) state.gridLog = restored.grid;
       if (restored.meta) state.metaLedger = restored.meta;
+      if (restored.declarations) state.declarations = restored.declarations;
       const n = Object.keys(restored).length;
       if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
     } catch (e) { console.warn("record restore:", e?.message ?? e); }

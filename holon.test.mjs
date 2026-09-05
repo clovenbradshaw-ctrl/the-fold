@@ -1804,8 +1804,15 @@ test("the ledger block carries corroborated notes, then question-relevant single
     makeRelationReader: stubReader,
     hyperlexicon: stubHyperlexicon,
     hyperlexiconLog: { entries: [] },
+    hyperlexiconDerived: [
+      { id: "derived:h", subject: "the harbor", verb: "before", object: "the tide", premises: ["b", "d"], restsOn: { sources: 1, instruments: 1, contested: 0, grounds: 2 } },
+      { id: "derived:m", subject: "Mars", verb: "before", object: "Venus", premises: ["c"], restsOn: { sources: 1, instruments: 1, contested: 0, grounds: 1 } },
+    ],
   });
   const text = sent.join("\n");
+  assert.match(text, /derived — no source states these/, "the derived tier is shown (P102)");
+  assert.match(text, /the harbor — before→ the tide \(follows from 2 earlier claims, never stated itself; the weakest of them stated once so far\)/);
+  assert.doesNotMatch(text, /Mars — before→ Venus/, "a derived fact sharing nothing with the question is not shown either");
   assert.match(text, /stated in more than one place/, "the corroborated tier is shown");
   assert.match(text, /Kessington — lies→ on the harbor coast \(read in 2 places, one of them a source the account itself cites\)/, "a primary-backed note is named as such");
   assert.match(text, /the harbor tide — turns→ twice a day \(read in 2 places\)/);

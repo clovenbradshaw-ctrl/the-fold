@@ -7590,3 +7590,14 @@ pin; not yet produced live, because the reader reads a denial as unbound
 (P43) and the corroboration witness skipped the denying pair. The next
 lever is a reader that reads a denial, never a looser wall here.
 
+## Pass 21 — derivation and recourse in the live circuit (added 2026-09-05) — pointer
+
+POLICIES.md **P102**. `/declare <rel> transitive|composes <product>`
+(the person is the giver, recorded), `/derive` (carry: true at the honest
+floor; products land on the ledger with `restsOn`), `/concede <id>`
+(exposure first) and `/concede! <id>` (the act, recorded with its
+trigger). The declarations register is the fourth persisted log. The
+ledger block tells the mouth a derived fact as derived, never settled.
+Verified live end to end, including across a reload. A derived sentence
+still lacks its own ground mark — named, not fixed.
+

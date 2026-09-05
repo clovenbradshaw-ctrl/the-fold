@@ -941,6 +941,17 @@ reader build (bound the pool). POLICIES.md **P100**.
 (pinned). No live contest yet: the spine cannot read a denial as
 `contradicted` (P43, assay wall 4a) and the `/corroborate` witness skipped
 the denying pair at the co-presence gate. POLICIES.md **P101**.
+
+## Pass 21 — derivation and recourse in the live circuit (added 2026-09-05, CLOSED same day)
+
+A declarations register (fourth persisted log), `/declare`, `/derive`
+(carry: true, the honest floor), `/concede` (exposure first) and
+`/concede!`; the ledger block's derived tier (pinned). Live: declared
+"preceded transitive", derived Rowan → Owen resting on two single-source
+premises, the prompt carried it, the concession withdrew it, and it stayed
+withdrawn after a reload. Handed forward: a derived sentence needs its
+own ground mark (today: a material chip beside a witness ∅). POLICIES.md
+**P102**.
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions

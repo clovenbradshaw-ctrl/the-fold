@@ -59,7 +59,8 @@
         "/engine-v7/adapters/text/relations.js",
         "/engine-v7/adapters/text/priors.js",
         "/engine-v7/adapters/text/wordclass.js",
-        "/engine-v7/adapters/text/morphology.js"
+        "/engine-v7/adapters/text/morphology.js",
+        "/engine-v7/interpretation/declarations.js"
       ]
     }
   },

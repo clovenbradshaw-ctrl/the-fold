@@ -46,6 +46,7 @@ test("scope (P114): a source is in a piece's scope only when it carries every co
   assert.equal(inScope("the Battle of Borodino", "Tolstoy wrote of the battle at Borodino."), true);
   assert.equal(inScope("the Battle of Borodino", "The X-Files aired on Fox."), false);
   assert.equal(inScope("the x files", "The X-Files is a series."), true, "a hyphenated name folds to its words");
-  const h = headingsOf("The X-Files\n\nIntro text here.\n\nProduction\n\nIt was filmed in Vancouver.\n\nSee also\n\nCasting and characters\n\nDuchovny was cast.\n\nThis is a long sentence that ends with a period.\n");
-  assert.deepEqual(h, ["The X-Files", "Production", "Casting and characters"]);
+  const para = "It was filmed in Vancouver for its first five seasons before moving to Los Angeles, a change the producers made for the leads and the studio noted at the time in press.";
+  const h = headingsOf(`The X-Files\n\n${para}\n\nProduction\n\n${para}\n\nSee also\n\n- Michael W. Watkins\n\nLowry 1995 , p. 257\n\nMain article: List of episodes\n\nCasting and characters\n\n${para}\n\nInfobox row\n\nShort next line.\n`);
+  assert.deepEqual(h, ["The X-Files", "Production", "Casting and characters"], "a heading heads a paragraph; list items, citations and infobox rows are not headings");
 });

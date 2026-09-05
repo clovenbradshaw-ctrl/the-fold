@@ -101,6 +101,19 @@ export function headingsOf(text, { max = 40 } = {}) {
     const nextBlank = i === lines.length - 1 || !lines[i + 1].trim();
     if (!(prevBlank && nextBlank)) continue;
     if (/^(references|external links|see also|notes|contents|navigation|edit|jump to)$/i.test(l)) continue;
+    // A heading heads PROSE: the next non-blank line is a paragraph, not
+    // another short line (an infobox row, a list item, a citation). Found
+    // by running (2026-09-05): the Wikipedia face's "- Michael W. Watkins",
+    // "Lowry 1995 , p. 257" and "Main article: …" all passed as headings and
+    // the planner, handed them, collapsed to one part.
+    if (/^[-*•]\s|^(main article|further information|see also):/i.test(l) || /\[\s*\d+\s*\]|\bpp?\.\s*\d/.test(l)) continue;
+    let k = i + 1; while (k < lines.length && !lines[k].trim()) k += 1;
+    const next = k < lines.length ? lines[k].trim() : "";
+    // A saved wiki face marks each section heading with its own "[ edit ]"
+    // line right after it — a structural marker of that face, not a word.
+    const editMarked = /^\[\s*edit\s*\]$/i.test(next);
+    if (/^\[\s*edit\s*\]$/i.test(l)) continue;
+    if (!editMarked && next.length < 120) continue;
     if (!out.includes(l)) out.push(l);
     if (out.length >= max) break;
   }

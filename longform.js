@@ -48,3 +48,28 @@ export function longFormTask({ pages, sections, kind, topic }) {
   const piece = kind ?? "piece";
   return `Write a ${pages}-page ${piece} on ${topic}. Plan it as exactly ${sections} sections in reading order — an introduction first, a conclusion last, and between them the distinct movements of one argument; each section is a few words of label and one sentence of what it must establish. Each section is then written as continuous prose of about ${WORDS_PER_SECTION} words, in its own voice, without lists or headings inside it.`;
 }
+
+// ---------------------------------------------------------------------
+// A PROGRAM ASKED FOR BY ITS SHAPE (Pass 30). The counted property here is
+// the spec: a building verb, a runtime the terminal's own registry names
+// (the caller passes `runtimes` — term.js's ROSTER keys, a declared
+// registry, never a list typed here), and the features the ask enumerates
+// after "that"/"which"/":" — each clause a part to build.
+const BUILD_RE = /\b(write|build|make|create|code|implement|program)\b/i;
+const ALIASES = Object.freeze({ javascript: "js", node: "js", py: "python", python3: "python", sqlite: "sql", rb: "ruby" });
+
+export function detectCodePiece(question, { runtimes = [] } = {}) {
+  const q = String(question ?? "").trim();
+  if (!q || q.startsWith("/")) return null;
+  if (!BUILD_RE.test(q)) return null;
+  const known = new Set(runtimes.map((r) => String(r).toLowerCase()));
+  let lang = null;
+  for (const w of q.toLowerCase().match(/[a-z][a-z0-9+#]*/g) ?? []) { const c = ALIASES[w] ?? w; if (known.has(c) && c !== "fold") { lang = c; break; } }
+  if (!lang) return null;
+  const specMatch = q.match(/\b(?:that|which|to|:)\s+(.+)$/is) ?? q.match(/:\s*(.+)$/s);
+  const spec = (specMatch ? specMatch[1] : "").trim().replace(/[.!?\s]+$/g, "");
+  if (!spec) return null;
+  const features = spec.split(/\s*(?:;|,\s*(?:and\s+|then\s+)?|\band then\b|\band\b)\s*/i).map((f) => f.trim()).filter((f) => f.split(/\s+/).length >= 2);
+  if (!features.length) return null;
+  return { lang, spec, features, parts: Math.max(2, Math.min(10, features.length)) };
+}

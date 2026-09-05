@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectLongForm, longFormTask, WORDS_PER_PAGE } from "./longform.js";
+import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece } from "./longform.js";
 
 test("a writing ask with a stated length is long-form; the size comes from the number, the topic from the ask's own 'on'/'about'", () => {
   const lf = detectLongForm("write me a 30 page essay on the x files");
@@ -21,4 +21,15 @@ test("no length, no writing verb, or a typed door → not long-form", () => {
 test("the task restates the size as a number the planner is bound by", () => {
   const t = longFormTask(detectLongForm("write me a 30 page essay on the x files"));
   assert.match(t, /^Write a 30-page essay on the x files\. Plan it as exactly 23 sections/);
+});
+
+test("a program asked for by its shape: a building verb, a runtime the registry names, and the features the ask enumerates", () => {
+  const cp = detectCodePiece("write me a python program that simulates 100 dice rolls, counts each face, and prints a histogram", { runtimes: ["fold", "js", "python", "sql"] });
+  assert.equal(cp.lang, "python");
+  assert.deepEqual(cp.features, ["simulates 100 dice rolls", "counts each face", "prints a histogram"]);
+  assert.equal(cp.parts, 3);
+  assert.equal(detectCodePiece("build a javascript widget that shows a clock", { runtimes: ["js"] }).lang, "js", "an alias resolves to the registry's name");
+  assert.equal(detectCodePiece("write me a 30 page essay on the x files", { runtimes: ["js", "python"] }), null, "no runtime named → not a program");
+  assert.equal(detectCodePiece("what does the python program print?", { runtimes: ["python"] }), null, "no spec → not a build");
+  assert.equal(detectCodePiece("/run python\nprint(1)", { runtimes: ["python"] }), null);
 });

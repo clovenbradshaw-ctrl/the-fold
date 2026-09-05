@@ -7528,3 +7528,17 @@ a second declaration (P90). Rule worth keeping: a caller's render of an
 organ's return is tested against that organ's real return, never against
 the shape the caller remembers.
 
+## Pass 16 — the finish line, executable (added 2026-09-05) — pointer
+
+POLICIES.md **P97**; eoreader7 S67 and `eval/the-fold/lib/product-assay.mjs`.
+The product bar is now a runnable object: one AnswerRecord per question
+(byte-addressed claims, standing phrased, derived facts with `restsOn`,
+open contests, frame + recipe, source and constitution hashes) built by the
+production organs BEFORE any mouth speaks, twelve walls, ten read by a test
+on every run. Two breach by mechanism and are handed to Pass 19: a negated
+denial never yields a `contradicted` verdict (P43's inversion at the
+reader), and one shared object token binds a fabrication below
+`CORPUS_MINIMUM`. Run `node eval/the-fold/product-assay.mjs` (0 calls) or
+with `MODEL=` for the dated mouth arm. Rule: a wall that breaches is
+reported with its mechanism, never tuned until it holds.
+

@@ -883,11 +883,18 @@ left the set are the two EOReader-contract tests (one real drift, one
 harness regex) and the SELF/MATERIAL block test (a banner P80 retired).
 eoreader7 native 619 → 619 (1 todo), organs 449 → 449. POLICIES.md **P96**.
 
-## Pass 16 — the finish line, executable (next)
+## Pass 16 — the finish line, executable (added 2026-09-05, CLOSED same day)
 
-The product assay harness on `gate-proof.mjs`'s shape, its 0-call arm pinned
-by a test, the AnswerRecord shape, and the constitutions pinned by content
-identity. Then Pass 17 (one durable record), 18 (read on arrival), 19
+`eoreader7/native/eval/the-fold/lib/product-assay.mjs` + driver + `tests/
+product-assay.test.js`: twelve walls over a built corpus, ten held on the
+first run, one was the fold not the circuit (`foldDerived` omitted
+`restsOn` — projected now), two breach by named mechanism and are logged
+not pinned: the per-source spine cannot see a negated denial (P43's own
+inversion; the record is ready, the reader is not) and one shared object
+token binds a fabricated draft (sub-floor `tokensShare`). The model arm ran
+once (gemma2:2b, 13 calls) and fabricated a founder — the passages, not the
+record, reached the mouth. POLICIES.md **P97** / S67. Handed forward to
+Pass 19: the two draft-side walls. Then Pass 17 (one durable record), 18 (read on arrival), 19
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions

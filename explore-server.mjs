@@ -68,11 +68,13 @@ import { parseFrontmatter, readPriorDocument, rankPriorCandidates, checkPrior, f
 // the GitHub organ's pure half (device-flow shapes, Contents API payloads,
 // base64, the repo-path convention for skills/history sync) — the routes
 // below own only the crossings: github.com's device/token endpoints have no
-// CORS headers, so even the device flow is relayed server-side via n8n.
+// CORS headers, so the device flow crosses from THIS server (no third-party
+// relay — the maintainer's n8n relay was removed 2026-09-05; nothing about a
+// user's login passes anyone but GitHub).
 import {
   GITHUB_APP_CLIENT_ID,
-  GITHUB_DEVICE_CODE_RELAY_URL,
-  GITHUB_ACCESS_TOKEN_RELAY_URL,
+  GITHUB_DEVICE_CODE_URL,
+  GITHUB_ACCESS_TOKEN_URL,
   buildDeviceCodeBody,
   buildAccessTokenBody,
   contentsUrl,
@@ -890,7 +892,19 @@ function readJsonBody(req) {
 
 function serveStatic(req, res, pathname) {
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  let file = rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
+  // The same two aliases serve.mjs carries (its own comment: "two aliases,
+  // no new roots"): a the-fold shim importing "../eoreader7/native/organs/x.js"
+  // resolves in the browser to "/eoreader7/native/…" — the tree /engine-v7
+  // already serves — and the seam's re-exports of "../../../the-fold/x.js"
+  // resolve to "/the-fold/…", this directory. Found 2026-09-05: without them
+  // explore.html's own shims (source.js, grounding.js, primary.js) 404ed on
+  // this server and the page showed its "needs its local server" banner over
+  // a half-booted Explore — on every checkout, not just a fresh one.
+  let file = rel.startsWith("/eoreader7/native/") || rel.startsWith("eoreader7/native/")
+    ? path.join(ENGINE_V7, rel.replace(/^\/?eoreader7\/native\//, ""))
+    : rel.startsWith("/the-fold/") || rel.startsWith("the-fold/")
+      ? path.join(ROOT, rel.replace(/^\/?the-fold\//, ""))
+    : rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
     ? path.join(ENGINE_V7, rel.replace(/^\/?engine-v7\//, ""))
     : rel.startsWith("/engine/") || rel.startsWith("engine/")
       ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
@@ -2197,9 +2211,10 @@ function mergeRelatingLedger(left, nominations) {
       return send(res, 200, { cleared: victims.length, files: removed.size, bytes, remaining: kept.length });
     }
 
-    // ---- the GitHub organ. Device flow relayed via n8n (github.com's token
-    // endpoint has no CORS headers, so even a server-to-server proxy is the
-    // only browser-reachable shape); Contents API read/write server-side so
+    // ---- the GitHub organ. Device flow from this server straight to
+    // github.com (its endpoints have no CORS headers, so a browser cannot
+    // call them; a node process on the user's own machine can — no relay,
+    // no third party, since 2026-09-05); Contents API read/write server-side so
     // the access token never appears in a URL the browser holds in history.
     // The token travels in the POST body from client to this server — the
     // same posture the priors/library routes already take with their own
@@ -2207,7 +2222,7 @@ function mergeRelatingLedger(left, nominations) {
     // (localStorage, github-pane.js's concern).
     if (req.method === "POST" && p === "/api/github/device-code") {
       try {
-        const r = await fetch(GITHUB_DEVICE_CODE_RELAY_URL, {
+        const r = await fetch(GITHUB_DEVICE_CODE_URL, {
           method: "POST",
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify(buildDeviceCodeBody()),
@@ -2224,7 +2239,7 @@ function mergeRelatingLedger(left, nominations) {
       const body = await readJsonBody(req);
       if (!body.device_code) return send(res, 400, { error: "device_code is required" });
       try {
-        const r = await fetch(GITHUB_ACCESS_TOKEN_RELAY_URL, {
+        const r = await fetch(GITHUB_ACCESS_TOKEN_URL, {
           method: "POST",
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify(buildAccessTokenBody(body.device_code)),

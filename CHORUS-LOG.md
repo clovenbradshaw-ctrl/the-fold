@@ -120,3 +120,17 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Dijkstra | III.3 | arithmetic.js:224 `unitWord` | noted | `toLowerCase` on unit words is ASCII-safe for mathjs's own unit names; `°c`/`°f` are mapped by hand — a non-Latin unit word falls to the engine, which refuses it as unknown (typed gap), never a wrong number |
 | Marshall | IV.1/IV.2; P71 | POLICIES.md P108, CLAUDE.md, NEXT-PASSES Pass 30 | upheld — compliant | a policy entry with its Generality line (generality-gate 16/16), enforcement in the same diff (arithmetic.test, shape.test, eoreader7 frontier-25.test), no constitution edit; the deleted first-cut modules are named in the entry |
 clean: nothing struck; the standing P19/S17 duplicates remain the activation-rule carry (renumber in their own commit).
+
+## 2026-09-05 — P109: the in-tab roster wired, the launch pass, the phone layout (branch `frontier-25`, second batch)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1 (`chorus-fast.sh --working`): law ok; routed Dijkstra · Marshall · Simon/Chekhov; suites the-fold full + rung 41/41 + constitution.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | II.13 (no non-local host the page can reach) | webllm-rung.js roster | fixed | the first cut carried model-card URLs (huggingface.co) in a page-loaded module; the rung's own test caught it; the cards moved to P109 |
+| Simon | P10 / the mirror gate | models/fetch-webllm.sh | fixed | OLMo 2 ships only tensor-cache.json and names vocab.json/merges.txt; the script reads the manifest that exists and every tokenizer file the config names — the rung test's shard walk refused the half mirror |
+| Chekhov | III.5 (prose may not claim wiring) | app.js fillModels/connect/completeOnce; explore-server.mjs serveStatic | fixed | the WebLLM rung had shipped unwired since P21; the Explore page's shims had no server alias — both measured in a browser |
+| Feynman | P41 (a check that did not run never reports a pass) | webllm-rung.test.mjs mirror walks | upheld | absence skips TYPED, presence with drift fails |
+| Alexander | SYN — the cascade | index.html / explore.css phone blocks | fixed | a phone block placed above the base rules lost at equal specificity; kept LAST on purpose, said so in the sheet |
+| Marshall | IV.1/IV.2; P71 | POLICIES P109, README, CLAUDE.md, MVP-LAUNCH-CHECKLIST.md | upheld — compliant | Generality line present; enforcement in the same diff; the checklist's decisions (web toggle default, LICENSE) are proposed, not disposed |
+clean: nothing struck.

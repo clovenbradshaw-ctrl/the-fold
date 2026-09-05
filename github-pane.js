@@ -4,7 +4,7 @@
 //
 // Everything here talks ONLY to this app's own /api/github/* and
 // /api/skills* routes (localhost, same-origin-or-explicit-fallback like
-// log-pane.js's fetchRecordTail) — github.com and the n8n relays are never
+// log-pane.js's fetchRecordTail) — github.com is never
 // touched from the browser (POLICIES P13's boundary; the crossings live in
 // explore-server.mjs). The pure shapes (device-flow parsing, base64, the
 // repo-path convention, the pull-merge set differences) come from github.js.

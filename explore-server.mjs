@@ -2424,8 +2424,14 @@ function mergeRelatingLedger(left, nominations) {
       // term- prefix rule and silently dropped by the page's fire-and-forget
       // mirror — the chat's opens never reached the record at all. A
       // declared allowlist beside the prefix, never an open door.
-      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe"]);
-      if (typeof body.event !== "string" || !(body.event.startsWith("term-") || CHAT_MIRRORED.has(body.event))) return send(res, 400, { error: 'event (string) is required: "term-"-prefixed, or one of source-open / fold-open / transcribe' });
+      // The chat's own doors, each named (2026-09-05: seven of them —
+      // corroborate, derive, declare, concede, void-concede, ranke, the
+      // obligation doors — had been mirroring for days and refused 400 here,
+      // silently; a declared allowlist is only a wall if it is kept). The
+      // long-form events (P108) carry a piece's progress so a reader — or a
+      // driver — can follow a 30-page run off the record rather than the DOM.
+      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done"]);
+      if (typeof body.event !== "string" || !(body.event.startsWith("term-") || CHAT_MIRRORED.has(body.event))) return send(res, 400, { error: `event (string) is required: "term-"-prefixed, or one of ${[...CHAT_MIRRORED].join(" / ")}` });
       const { event, ...fields } = body;
       record(event, fields);
       return send(res, 200, { ok: true });

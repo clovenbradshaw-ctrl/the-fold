@@ -758,3 +758,245 @@ It was true when written and is false now: steps 2 and 4 landed the same day
 (S53/PR #70). Recorded rather than deleted, because two passes writing the
 same day from different branches is exactly how a plan of record acquires a
 line that points at finished work as though it were next.
+
+## Pass 13 — what the whole law says to do next (added 2026-09-05)
+
+**How this was written.** Every standing document was read end to end
+before a line of this was drafted: the-fold `POLICIES.md` P1–P92 (P1–P35
+and P78–P92 in full, P35–P77 by their heads), eoreader7 `READING-SPEC.md`
+S1–S64, live_priors LP1–LP15, the four reassemblies (CHAT / REASONING /
+GENERATION / CAPABILITY), WHERE-WE-ARE, THE-WAYS-OF-KNOWING,
+THE-CORE-MECHANISM, LEVELS, THE-THREE-MATHEMATICS, PRIOR-ART-INVENTORY,
+ASSEMBLIES-AND-ARTIFACTS, WHAT-IS-BEING-BORN, `constitution.js`'s
+ENFORCEMENT map, and the S64 walk this session ran. Not on disk in this
+checkout and known only through their pointers: READING-POLICY, SEED, CUBE,
+FOLD-CONSTITUTION and eo-constitution (dangling symlinks into the
+uninitialised legacy submodule; the constitution repo is outside this
+session's GitHub scope). This is a plan, not a policy: nothing here is law
+until it lands with its test.
+
+### The reading, in four sentences
+
+The measurement law is ahead of the mechanism. Breadth is closed (27/27),
+depth is measured (stage 13 on text), floors 0–4 are built to the
+material's own ceiling, and the project has learned to spend nothing
+without a control built to fail — with the consequence that its last five
+corroboration levers were refuted BY their controls (identity folding,
+bridge witnessing, every slicer, distributional company, the ends-only
+proposer). What is left of floor 5 is a SELECTOR problem the law already
+names (S62: null the free stage before buying the paid one; the reader's
+resolved referent face is the one selector that separates, p≈0.048, where
+co-presence does not, p≈0.905) and a CURRENCY problem the law already
+suspects (WHERE-WE-ARE's falsifier: if cross-source corroboration cannot be
+moved, it is the wrong currency for the material). And a large part of what
+the next passes need is already built, tested and unconsumed — the hunt
+meter, the void loop, `whatWouldSettle`, Assembly@1, `compose.js`'s
+contested transition, three unwired constitution articles — which makes
+PRIOR-ART-INVENTORY's own rule (S8: grep the inventory, the engine and the
+attempt log before building) the first instruction of this plan, not the
+last.
+
+### What the Nashville walk measured, held against the law
+
+The walk was asked for as a test of the system's ability, and it should be
+read as one. What it proved: the fold researches with the model as mouth
+only (91 calls, every one an index pick, nothing it wrote in the document);
+every span self-verifies against bytes (29/29); every proposition carries
+its witness and its frame; the material taught the reader its own aliases
+at addresses; six process defects were found by running and fixed in the
+process, never in the output; and the control, on its third construction,
+reached the model. What it did NOT prove: corroboration. The gate-surviving
+control attested 6 of 89 (0.067 per ask) against the real arm's 6 of 74
+(0.081 per ask). By II.23 the walk is measuring topic overlap on this
+material, and §3.1 may not be read as "stated by more than one source" —
+the document says so itself, in its own §5.
+
+Three things bound that verdict, and they are facts about the run, not the
+instrument: the material is 4–7 short pages, so every recurrence statistic
+is at excerpt scale (S2 — a prefix is a different material); the three
+largest local outlets are absent (403/429, and the archive replay path
+answers 403 here even where the availability API reports a snapshot); and
+the user's own material was never attached, so the ledger maps the public
+record only. And one thing is a fact about the process: the walk spent 74
+paid asks through the co-presence selector that S62 had already measured
+dead (p≈0.905). The free stage was not nulled before the paid one. That is
+the first thing to fix, and it costs no new organ.
+
+### The passes, in the law's own order
+
+The order is the canonical chain applied per claim (units → edges →
+integral), the null-before-judge rule (S62), and work-done-twice-becomes-
+code (P14). Each pass names its control and its P71 tag.
+
+**13.1 — Null the selector, then read the six.** Two things, both cheap.
+(a) Print WHICH six control propositions were attested —
+`nashville-partnership.mjs` phase 6 holds `control.attested` with the
+swapped triple and its address; print end1 / label / swapped object and
+the sentence the witness pointed at. The inspection decides the reading: a
+swap that happens to make a TRUE statement (the material says the subject
+also did the swapped thing) is a LEAKY CONTROL, fixed by drawing the swap
+pool against the ledger (exclude any object the subject is already joined
+to under any label); a false statement the witness nonetheless attested is
+a FOOLED MODEL at excerpt scale, and the protocol needs the referent-
+resolved arm that Pass 12 step 3 already names as its content. (b) Replace
+`endsCopresentWindow` as the candidate proposer with the reader's resolved
+referent face — S62's one separating selector — and rerun both arms on the
+same page set under the same budget. Read the wall at zero calls first
+(S60): how many pairs each selector proposes and how many the door refuses
+before a single ask. **Control:** the same redeal through the new selector;
+success is real > control at the exact binomial (S37) on the real arm's own
+asks; parity again means the selector was not the wall on this material,
+and that is a result, not a failure. Cost: ~150 model calls on CPU, zero
+new organs. **Generality:** universal — the rule is S62's, measured here on
+a different material.
+
+**13.2 — The walk becomes an Assembly, and its dials become regimes.** The
+driver carries some twenty hand-picked constants (MAXQ 10, MAXF 16, MAXTRY
+40, RESULTS 8, WALK_ASKS 40, CHASE_F 10, CHASE_S 4, MAX_END_CHARS 60,
+MIN_FACE_CHARS 400, ANCHOR_MIN 2, ALIAS_MIN_USES 2, NAME_ROUNDS 4,
+SHARED_SENTENCE_CHARS 40, SHARED_SENTENCES_MIN 2, PREFLIGHT_OVERLAP 0.3,
+SECOND_SOURCE_OVERLAP 0.6, ARCHIVE_PROBE_LIMIT 3, SEARCH_PAUSE_MS 4000,
+ALIAS_MIN_CONFIRM 0.3, ALIAS_MIN_FIRES 100). S16: every dial is a prior
+awaiting the material's measurement; II.11 stands `partial` in the
+ENFORCEMENT map for exactly this reason, and P90 says a reading whose
+configuration is not on the record measures the instrument. Declare the
+walk as `Assembly@1` (ASSEMBLIES-AND-ARTIFACTS): the cells it occupies,
+each regime with its giver or basis, `stagesNotRun` named (the archive
+route, the paywalled outlets, the primary chase's zero containment leads).
+Then, for each GATING floor (PREFLIGHT_OVERLAP, SECOND_SOURCE_OVERLAP,
+MIN_FACE_CHARS, ANCHOR_MIN, the SHARED_* pair), measure whether it MOVES —
+refusals under the real floor against a redealt one — and delete any that
+never fires (R17: a wall nothing can trigger is a comment). The counts
+(MAXQ, MAXF, WALK_ASKS) stay, as LEASHES; the stopping rule becomes the
+hunt meter (P72's `makeHuntMeter`/`huntSettled`: stop on a measured
+settle, never on a count, never on a gap). **Control:** replaying the
+assembly from its own record reproduces the run (LP1–LP5); a run under the
+meter must stop below the leash on a converging stream and run to it on a
+moving one — the metacognition-hunt test's own two cases, on this
+material. **Generality:** universal for the assembly shape; every regime
+VALUE is specimen-scoped until measured.
+
+**13.3 — Work done twice becomes code.** The six defects are fixed in the
+driver. P14 says the *how* becomes code the instrument calls, and P92 says
+each move is resolved to its cube cell and checked against the registry
+BEFORE an organ is written. Nominations — P92 decides, not this list:
+
+- *"a page that never NAMES the subject is kept, addressable, not read"* —
+  this is `clearance.js`'s own `no_presence` rung (NUL·Figure), applied to
+  a page against a declared subject. Consume it; do not rewrite it.
+- *"a result must carry the question's own content words before it earns a
+  fetch"* (`carries`) — a floor on a search result against the question,
+  the ends-must-be-present shape of `preflight` (INS·Ground) or a wall
+  beside it.
+- *"a refusal is never cached as an answer"* and *"the cache prevents a
+  re-fetch, not a re-read"* — laws of the web organ; they land in `web.js`
+  and the search cache with tests and no cell (storage discipline, LP4).
+- *"the anchor floor gates SPENDING and ordering, never admission"* —
+  spend ordering beside `settle` (SIG·Ground, `whatWouldSettle`).
+- `MAX_END_CHARS` — a debris cut that S44's subject walls may already cover
+  upstream. Measure the overlap; delete the driver's copy or move the wall
+  into the extractor. Never both.
+- *"a reading counts whether its evidence was found by containment or
+  attested by the witness, and says which"* — this is `standingOf.kinds`
+  (P84) consumed by the document renderer: kinds apart in §3, never
+  summed.
+- Register `organs/aliases.js` in `organs/capacities.js` (29 rows; aliases
+  absent). An alias is a declared correspondence between two surfaces of
+  one referent — nominated beside `cast` (SIG+INS · Entity). P92 governs.
+
+**Control**, each: the driver's own measured case (the Catholic newsletter,
+Huffman coding for a CBID vote, the generic Downtown article's 105
+propositions, the five discarded attestations) pinned as a regression,
+plus one case from material the discovery never saw (P71's third leg).
+**Generality:** universal for the presence rung, the cache laws and the
+kinds-apart rendering; specimen-scoped for `carries`, the anchor floor and
+the debris cut until replayed.
+
+**13.4 — The currency, for investigative research.** WHERE-WE-ARE's
+falsifier is written for a single work; on news material it has a second
+reason to fire: outlets syndicate, so "stated by three pages" is one
+perspective — P13 already caps the phrasing at "N of M pages, K distinct
+hosts" for that reason. P84 supplies the currency that survives
+syndication: the KIND of witness (an account, versus the document it
+cites) and the depth of the chase to it. For this subject the documents
+are public and reachable where the press is not: the Metro Council's
+legislative record and the CBID budget ordinances (nashville.gov), the
+Metro Auditor's reports, the Partnership's own IRS filings (Form 990, via
+ProPublica's Nonprofit Explorer), the CBID annual reports. Declaring those
+as seed SOURCES is a process change, not output — the fold still derives
+the questions and the model still only points. Ranke found zero
+containment leads because news pages cite in prose, not in links
+(S46/S59); so the chase starts from the document class and asks the
+accounts which documents they NAME — the footnote-is-the-lead rule
+inverted: an ordinance number, a case number, an audit's title is a lead.
+§3 of the document then reports kinds apart: stated by an account / stated
+by a document / both. **Control:** the same chase from a redealt document
+set (documents about a different Metro body) must land nothing on the
+Partnership's notes. **Generality:** universal for the kinds rule;
+specimen-scoped seeds.
+
+**13.5 — The user's material is the missing ground.** The run reads the
+public record because nothing else was attached. The material the ask
+names should enter as SOURCES with addresses, and the walk's TASK should
+be DERIVED from it — the void's own NUL/SIG/SEG declaration over the
+attached material (P53/P54), not the hand-written sentence the driver
+carries at its line 153 — so the questions the fold asks are the
+material's own. The model still only points. What changes is that the
+reader has a ground to check accounts against: an account echoing the
+user's own document is echo, not novel (P30's given-context index); an
+account contradicting it lands CONTESTED on the record (P88/P91). Nothing
+asserts wrongdoing: the ledger maps what is claimed, by whom, against
+which document. Blocked on the material being supplied; nothing above it
+is.
+
+**13.6 — Three constitution articles are unwired, and the code for two of
+them exists.** `constitution.js`'s ENFORCEMENT map lists III.1 (anchor —
+the default view is a claim), III.4 (opposite — the strongest contrary
+slice is rendered) and III.5 (prediction — the reader states expectations
+before results) as `enforced: null`. III.5's shape is already live in the
+void (P53/P54 declare what would satisfy BEFORE the draft) and in every
+pre-registered eval (def-ground-derivation, the spatial run's five fixed
+predictions); the map has not caught up — audit it and either wire the
+article to `voidBriefFor` or correct the map, never leave a wired thing
+listed as unwired. III.4's machinery exists and is unconsumed:
+`compose.js`'s `contested` transition, `nesting.js`'s `disagreement`,
+P88's CON·Figure·CONTESTED on the record. The research document should
+render, per claim, the strongest contrary slice the ledger holds — for
+investigative material that IS the deliverable. III.1 is the smallest and
+comes last. **Control:** a ledger with a planted contradiction must render
+its contrary slice; one without must render none — never a manufactured
+"however". **Generality:** universal.
+
+**13.7 — Cross-domain replay before any "universal" tag on the walk.**
+P71's first leg. `eviction-overwatch` is in this session's scope and is
+the natural corpus: public dockets with addresses, a different domain, the
+same shape (accounts citing documents). The walk, unmodified, over that
+material, with the same control. If the six rules hold there they earn
+universal; if not, they are Nashville-shaped and the plan says so. Gated on
+the user — their repo, their data.
+
+**13.8 — Housekeeping.** eoreader7 PR #80's body was stale on two facts
+(S63 → S64; "the redealt control spends 0 asks" → the third control reached
+the model and attested at parity) — corrected this pass. Both PRs stay
+draft. The concurrent session's untracked `eval/` files stay untouched.
+`organs/aliases.js`'s registration rides 13.3.
+
+### What this plan refuses
+
+A tenth vocabulary configuration (the MINE-1 plateau is paraphrase
+tolerance, not vocabulary). Deriving an initialism (a rule that derives a
+name can invent one — S64). Tuning `MIN_FACE_CHARS` or any floor so a
+particular face passes (II.23; tune nothing against the answer). Reading
+§3.1 as corroboration before 13.1 has been read. Building a slicer (no
+slicer earns a license — S55). Handing the model any content-writing slot:
+the whole test stood on the model doing very little, and it held.
+
+### The gate on Pass 13
+
+Clean votes per ask on the Nashville material with a clean control, real >
+control at the exact binomial. If 13.1's selector swap does not separate
+the arms, WHERE-WE-ARE's falsifier has fired on research material too, and
+13.4 is the design re-examination — not a tuning of 13.1. And the ordering
+rule that produced this plan binds it: nothing in 13.2–13.7 is spent before
+13.1 has been read, because every one of them is more expensive than
+nulling a selector.

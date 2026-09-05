@@ -147,3 +147,16 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Feynman | P41 | explore-server.mjs fetchThroughGateways | clean | a Wayback snapshot over the byte cap is a typed refusal on the record (bloomberg.com), not a silent skip |
 | Marshall | IV.1/IV.2; P71 | POLICIES P117, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; enforcement (web-gateways.test.js, constitution scan) in the same diff; the maintainer's-proxy question is recorded as a decision with its reasons |
 clean: nothing struck.
+
+## 2026-09-05 — P118: three homes, one page (branch `frontier-25`, fourth batch)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon/Chekhov · Marshall; suites the-fold full + build-site/routes/rung 30/30.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 (a wrong path, silently) | deploy/build-site.mjs rewriteMounts | clean | the rewrite is prefix-exact on quoted literals and per-file depth; `/api/` is not a mount and is left absolute so it fails visibly; the assay builds for real and scans for leftovers |
+| Simon | P10 (unverified dependency) | .github/workflows/deploy-pages.yml | fixed | the old workflow's engine checkout was eoreader6.1 while the page imports eoreader7; now the build's own assay runs before the build |
+| Chekhov | III.5 | webllm-client.js chooseWeights | clean | the ladder is walked and its choice stated; measured: the first rung (own models/) answered on the static host |
+| Ostrom | II.9 | routes.js whereAmI | noted | a localhost static host reads as "terminal"; the api probe is what distinguishes it — the summary says `/run off`, which is the fact that matters |
+| Marshall | IV.1; P71 | POLICIES P118, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; enforcement in the same diff; the extension is stated as built-not-run, Pages as not-deployed-from-here |
+clean: nothing struck.

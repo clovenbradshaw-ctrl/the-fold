@@ -1,20 +1,19 @@
 name: Deploy Pages
 
-# Publishes the static, chat-only build of The Fold to GitHub Pages.
+# Publishes the static build of The Fold to GitHub Pages (POLICIES.md P118).
 #
-# GitHub Pages serves static files only — it cannot run serve.mjs or
-# explore-server.mjs, so every /api/* route (web search, priors toggles,
-# builds API, terminal proxy, saved-page history) is unavailable on this
-# deployment. Chat itself works: the in-tab WebLLM rung (webllm-rung.js)
-# exists exactly for this case and loads its weights from the model
-# publisher's own CDN on any non-localhost origin, never from this repo.
+# The build is deploy/build-site.mjs — the same build a terminal user, an
+# archive.org pin or the browser extension use — so this workflow carries no
+# path rewriting of its own. GitHub Pages serves static files only: every
+# /api/* route (the record, the web organ, priors, GitHub, /run) is
+# unavailable here and the page says so at boot (routes.js); chat works
+# through the in-tab WebLLM rung, whose weights come from a mirror the site
+# names (WEIGHTS_MIRROR below, an archive.org pin) or, failing that, from
+# the model publisher — never from this repository: the shards are ~100 MB
+# each and Pages holds a site under 1 GB.
 #
-# /engine and /nul are normally served by mounting the sibling eoreader6.1
-# repo from disk (serve.mjs). Pages has no server to do that mounting at
-# request time, so this workflow copies those two directories in as plain
-# static files at build time instead. Same for the vendored node_modules
-# packages the page loads directly (monaco-editor, pyodide, sql.js) — they
-# are fetched fresh by `npm ci` on every run rather than committed here.
+# The engine is eoreader7 (its native tree, plus the frozen 6.1 cut it pins
+# as a submodule), checked out beside the-fold exactly as ./fold lays it out.
 
 on:
   push:
@@ -30,97 +29,55 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  # A weights mirror the page tries before the publisher (models/MIRRORS.json).
+  # Leave empty to go straight to the publisher.
+  WEIGHTS_MIRROR: ""
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the-fold
         uses: actions/checkout@v4
+        with:
+          path: the-fold
 
-      - name: Checkout eoreader6.1 (engine + nul, used not copied at dev time — vendored here for Pages only)
+      - name: Checkout eoreader7 beside it (native tree + the frozen 6.1 submodule)
         uses: actions/checkout@v4
         with:
-          repository: clovenbradshaw-ctrl/eoreader6.1
-          path: _eoreader6.1
+          repository: clovenbradshaw-ctrl/eoreader7
+          path: eoreader7
+          submodules: recursive
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      - name: Install vendored packages (monaco-editor, pyodide, sql.js)
-        run: npm ci
+      - name: Install the vendored packages the page loads
+        working-directory: the-fold
+        run: npm ci --ignore-scripts
 
       - name: Fetch pyodide's numpy/matplotlib/pandas wheels
+        working-directory: the-fold
         run: sh scripts/fetch-pyodide-packages.sh
 
-      - name: Assemble static site
+      - name: Assay the build first
+        working-directory: the-fold
+        run: node --test build-site.test.mjs routes.test.mjs webllm-rung.test.mjs
+
+      - name: Build the static site
+        working-directory: the-fold
         run: |
           set -e
-          mkdir -p _site
-          rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='node_modules' \
-            --exclude='_eoreader6.1' \
-            --exclude='_site' \
-            --exclude='*.test.mjs' \
-            --exclude='eval' \
-            --exclude='record' \
-            --exclude='materials' \
-            --exclude='web' \
-            --exclude='library' \
-            --exclude='priors' \
-            --exclude='mnpd' \
-            --exclude='models' \
-            --exclude='skills-demo' \
-            --exclude='.venv' \
-            ./ _site/
-
-          mkdir -p _site/engine _site/nul
-          cp -r _eoreader6.1/packages/engine/. _site/engine/
-          cp -r _eoreader6.1/nul/. _site/nul/
-
-          mkdir -p _site/node_modules
-          cp -r node_modules/monaco-editor _site/node_modules/
-          cp -r node_modules/pyodide _site/node_modules/
-          cp -r node_modules/sql.js _site/node_modules/
-          cp -r node_modules/@mlc-ai _site/node_modules/
-
-      - name: Rewrite root-absolute paths for the /the-fold/ project-page subpath
-        # This is a project page (clovenbradshaw-ctrl.github.io/the-fold/), not
-        # a domain root, but the app hardcodes root-absolute specifiers like
-        # "/engine/..." and "/node_modules/..." (they are real server mount
-        # points in dev, via serve.mjs). Left as-is those resolve to the
-        # github.io domain ROOT on Pages, not this site, and the page dies at
-        # import time. /api/* is deliberately left unrewritten — there is no
-        # server here to point it at, and it should keep failing visibly.
-        #
-        # Separately: several engine files reach the /nul mount through a
-        # RELATIVE import ("../../../nul/index.js" and similar, depth varies
-        # by file), written assuming /engine is mounted at the domain root
-        # (as it is in dev). Under the /the-fold/ prefix that relative climb
-        # eats the "the-fold" segment itself and lands on the real domain
-        # root's /nul/, which doesn't exist on Pages. Rewritten to the same
-        # absolute /the-fold/nul/ path regardless of how many "../" the
-        # original had, matching where nul actually landed above.
-        run: |
-          set -e
-          find _site -type f \( -name '*.html' -o -name '*.js' -o -name '*.mjs' \) -print0 \
-            | xargs -0 sed -i \
-                -e 's#"/engine/#"/the-fold/engine/#g' \
-                -e "s#'/engine/#'/the-fold/engine/#g" \
-                -e 's#"/nul/#"/the-fold/nul/#g' \
-                -e "s#'/nul/#'/the-fold/nul/#g" \
-                -e 's#"/node_modules/#"/the-fold/node_modules/#g' \
-                -e "s#'/node_modules/#'/the-fold/node_modules/#g" \
-                -e 's#"\(\.\./\)*nul/index\.js#"/the-fold/nul/index.js#g' \
-                -e "s#'\(\.\./\)*nul/index\.js#'/the-fold/nul/index.js#g"
+          if [ -n "$WEIGHTS_MIRROR" ]; then node deploy/build-site.mjs --out _site --mirror "$WEIGHTS_MIRROR"; else node deploy/build-site.mjs --out _site; fi
+          cat _site/BUILD.json
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: the-fold/_site
 
   deploy:
     needs: build

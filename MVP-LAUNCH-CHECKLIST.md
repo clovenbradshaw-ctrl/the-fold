@@ -57,6 +57,17 @@
 | Explore page | a 270px rail beside a 105px stage; targets 18–32px | **fixed** — rail as a drawer above the stage; 38–48px targets |
 | Explore server | the page could not boot at all (row in §2) | **fixed** |
 
+## 4b. Three homes
+
+| item | found | status |
+|---|---|---|
+| Static hosts died at import time | root-absolute mount paths (`/engine-v7/`, `/engine/`, `/nul/`, `/node_modules/`) only a server maps | **fixed** — `deploy/build-site.mjs` rewrites exactly those to relative paths; assayed by `build-site.test.mjs`; measured on a plain static host at a subpath |
+| The Pages workflow checked out the old engine and sed'ed one subpath | the deployed site was broken twice over | **fixed** — the workflow runs the same build, eoreader7 beside the-fold with its submodule |
+| A pinned copy could not be self-contained | the rung read `models/` only on localhost | **fixed** — the weights ladder: own `models/`, then named mirrors, then the publisher; the chosen base is stated |
+| The page assumed its home | — | **fixed** — routes probed at boot, said on the chip, `/routes` for the table; every gap typed |
+| Chrome extension | none | **built, not run** — `--extension` writes an MV3 manifest and background; loading it is a maintainer step |
+| Pages deployment | none from here | **open** — push to main runs the workflow; set `WEIGHTS_MIRROR` to the archive.org pin once it exists |
+
 ## 5. Suites and what they prove
 
 | suite | at this commit |

@@ -130,25 +130,64 @@ export function localWasmName(entry) {
  * that lacks it — mirroring the layout means the SAME code path serves both
  * origins, rather than a second path invented for localhost.
  */
-export function appConfigFor(prebuilt, pageHref, ids = WEBLLM_IDS) {
+export function appConfigFor(prebuilt, pageHref, ids = WEBLLM_IDS, { base = null } = {}) {
   const local = isLocalPage(pageHref);
+  // A weights base decided by the ladder (weightsBases + a probe) wins;
+  // without one, a localhost page reads its own models/ (P1) and any other
+  // origin the library's own catalog entry — the publisher.
+  const siteBase = base ?? (local ? new URL("models/", pageHref).href : null);
   const records = ids.map((id) => {
     const entry = prebuiltEntryFor(prebuilt, id);
-    return local
+    return siteBase
       ? {
           ...entry,
-          model: new URL(`models/${entry.model_id}/resolve/main/`, pageHref).href,
-          model_lib: new URL(`models/libs/${localWasmName(entry)}`, pageHref).href,
+          model: `${siteBase}${entry.model_id}/resolve/main/`,
+          model_lib: `${siteBase}libs/${localWasmName(entry)}`,
         }
       : { ...entry };
   });
   return {
     appConfig: { model_list: records },
-    weights: local ? "this disk" : "the model's publisher, cached in this browser after the first load",
+    weights: siteBase ? (local && !base ? "this disk" : siteBase) : "the model's publisher, cached in this browser after the first load",
     // the DEFAULT rung's window; contextWindows answers for every id
     contextWindow: records[0]?.overrides?.context_window_size ?? null,
     contextWindows: Object.fromEntries(records.map((r) => [r.model_id, r.overrides?.context_window_size ?? null])),
   };
+}
+
+/**
+ * The weights ladder (2026-09-05, the three homes): the bases the page tries,
+ * in order, for a rung's bytes — its own models/ first on ANY origin (a
+ * pinned copy that carries the weights is self-contained), then each mirror
+ * the site names (models/MIRRORS.json — an archive.org pin, say), then the
+ * publisher through the library's own catalog entry. The client probes each
+ * base's mlc-chat-config.json for the rung and takes the first that answers;
+ * what answered is what the status line says. Pure: the probe is the
+ * client's.
+ */
+export function weightsBases(pageHref, mirrors = []) {
+  const own = new URL("models/", pageHref).href;
+  const out = [{ route: "this site's own models/", base: own }];
+  for (const m of mirrors ?? []) {
+    const base = String(m).replace(/\/?$/, "/");
+    if (base !== own) out.push({ route: `a mirror the site names (${new URL(base).hostname})`, base });
+  }
+  out.push({ route: "the model's publisher (the library's own catalog entry)", base: null });
+  return out;
+}
+/** models/MIRRORS.json's shape, read defensively: an array of https bases. */
+export function readMirrors(json) {
+  try {
+    const j = typeof json === "string" ? JSON.parse(json) : json;
+    const list = Array.isArray(j) ? j : Array.isArray(j?.mirrors) ? j.mirrors : [];
+    return list.filter((m) => /^https?:\/\//.test(String(m)));
+  } catch {
+    return [];
+  }
+}
+/** The probe address for one rung under one base. */
+export function weightsProbeUrl(base, id) {
+  return `${String(base).replace(/\/?$/, "/")}${id}/resolve/main/mlc-chat-config.json`;
 }
 
 /** The declared window of one rung, off the library's own entry. */

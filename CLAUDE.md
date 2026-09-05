@@ -7650,3 +7650,7 @@ POLICIES.md **P116**; MVP-LAUNCH-CHECKLIST.md is the audited list. The WebLLM ru
 ## Public gateways, learned (2026-09-05)
 
 POLICIES.md **P117**. A refused direct fetch (401/403/407/429/451/503, a challenge shell, an empty text face, no answer) tries public gateways in an order folded off the record's own `web-gateway` lines (`native/organs/web.js`: GATEWAYS, blockedShape, readGatewayBody, foldGateways, rankGateways; `explore-server.mjs::fetchThroughGateways`); the entry carries `via`; `/gateways` shows the table and `/gateways probe` measures which are open and which forward the person's address through an echo. Measured 2026-09-05: one of six open (Wayback). The maintainer's proxy is not a route; the question of hiding it behind relays is answered in P117 (only OHTTP has that property).
+
+## Three homes (2026-09-05)
+
+POLICIES.md **P118**. `deploy/build-site.mjs` is the one static build (site, archive.org pin, extension); it rewrites only the five mount prefixes (`MOUNT_TARGETS`) to relative paths per file depth — `/api/*` stays absolute on purpose. `routes.js` (`whereAmI`, `describeRoutes`) + app.js `probeRoutes` say what is reachable at boot; `/routes` re-probes. `webllm-rung.js::weightsBases` + `webllm-client.js::chooseWeights` are the weights ladder. The Pages workflow runs the same build. A localhost static host reads as the "terminal" home — the api probe (`HEAD serve.mjs`) is what tells `./fold` from a plain host.

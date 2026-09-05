@@ -27,6 +27,9 @@ import {
   WEBLLM_MODEL_ID,
   isWebLLMModel,
   appConfigFor,
+  weightsBases,
+  readMirrors,
+  weightsProbeUrl,
   classifyWebLLMFailure,
   isLocalPage,
   toWebLLMRequest,
@@ -64,14 +67,46 @@ class WebLLMClient {
     this._loadingId = null;
     const { appConfig, weights, contextWindow, contextWindows } = appConfigFor(prebuiltAppConfig, location.href);
     this.appConfig = appConfig;
-    /** Stated by the page when this rung connects: where the bytes come from. */
+    /** Stated by the page when this rung connects: where the bytes come from —
+     * revised by chooseWeights() to what the ladder actually found. */
     this.weights = weights;
+    this.weightsRoute = null;
     /** The default rung's declared window; contextWindowFor(id) for any rung. */
     this.contextWindow = contextWindow;
     this.contextWindows = contextWindows;
   }
   contextWindowFor(id) {
     return this.contextWindows?.[id] ?? null;
+  }
+  /**
+   * The weights ladder, walked once per page: this site's own models/, then
+   * each mirror models/MIRRORS.json names, then the publisher. A base is
+   * taken when its mlc-chat-config.json for the rung answers; the choice is
+   * remembered and stated. Same-origin and mirror probes are one small GET
+   * each; the publisher is never probed (the library's own entry stands).
+   */
+  async chooseWeights(modelId) {
+    if (this.weightsRoute) return this.weightsRoute;
+    let mirrors = [];
+    try {
+      const r = await fetch(new URL("models/MIRRORS.json", location.href), { cache: "no-store" });
+      if (r.ok) mirrors = readMirrors(await r.text());
+    } catch { /* no MIRRORS.json — no mirrors */ }
+    const tried = [];
+    for (const step of weightsBases(location.href, mirrors)) {
+      if (!step.base) { this.weightsRoute = { ...step, tried }; break; }
+      try {
+        const r = await fetch(weightsProbeUrl(step.base, modelId), { method: "GET", cache: "no-store" });
+        tried.push({ base: step.base, status: r.status });
+        if (r.ok) { this.weightsRoute = { ...step, tried }; break; }
+      } catch (e) {
+        tried.push({ base: step.base, status: null, detail: e.message });
+      }
+    }
+    const chosen = appConfigFor(prebuiltAppConfig, location.href, undefined, { base: this.weightsRoute?.base ?? null });
+    this.appConfig = chosen.appConfig;
+    this.weights = this.weightsRoute?.route ?? chosen.weights;
+    return this.weightsRoute;
   }
 
   get ready() {
@@ -106,6 +141,8 @@ class WebLLMClient {
   }
 
   async _load(onProgress, modelId) {
+    await this.chooseWeights(modelId);
+    onProgress?.(`weights: ${this.weights}`, 0);
     // Weight bytes about to land in this origin's storage should survive
     // cache pressure. Best-effort and remote-only: a localhost page reloads
     // them from this disk in seconds, so eviction costs nothing there.

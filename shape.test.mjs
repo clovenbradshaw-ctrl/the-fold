@@ -139,3 +139,41 @@ test("a failing call refuses typed and never breaks the turn", async () => {
 test("askShape owns no transport — it refuses a caller that hands it none", async () => {
   await assert.rejects(() => askShape("q", null), TypeError);
 });
+
+// ── the declared form, checked mechanically (added 2026-09-05) ─────────────
+import { declaredForm, checkForm, draftText, formLine } from "./shape.js";
+
+test("declaredForm reads a task's own constraints and names what it cannot check", () => {
+  const d = declaredForm("Write a four-line acrostic poem spelling FOLD about dawn, without the letter z, and include the word ash.");
+  assert.deepEqual(d.form, { lines: 4, acrostic: "FOLD", noLetter: "z", mustInclude: ["ash"] });
+  const h = declaredForm("Write a haiku with exactly 3 lines that includes the word river and never uses the word the.");
+  assert.equal(h.form.lines, 3);
+  assert.deepEqual(h.form.mustInclude, ["river"]);
+  assert.deepEqual(h.form.mustExclude, ["the"]);
+  assert.deepEqual(h.unexamined, ["haiku"]);
+  assert.deepEqual(declaredForm("Who was Lincoln's vice president?").declared, []);
+});
+
+test("checkForm: the acrostic that spells nothing fails with its letters; the one that spells FOLD holds", () => {
+  const form = declaredForm("Write a four-line acrostic spelling FOLD.");
+  const bad = checkForm(draftText("Here is your acrostic:\nA dawn\nB comes\nC softly\nD now"), form);
+  assert.equal(bad.ok, false);
+  assert.equal(bad.failures[0].kind, "acrostic");
+  assert.match(bad.failures[0].detail, /"ABCD"/);
+  const short = checkForm("Fires low\nOver ash", form);
+  assert.match(short.failures[0].detail, /expected 4 lines, got 2 \(unfilled: 3–5\)/);
+  const good = checkForm(draftText("Sure! Here it is:\nFires low\nOver ash\nLight returns\nDawn again"), form);
+  assert.equal(good.ok, true);
+  assert.deepEqual(good.examined, ["lines", "acrostic"]);
+});
+
+test("checkForm: lipogram, word bounds, one sentence, and a form with nothing declared never passes", () => {
+  const lip = checkForm("A calm wind drifts by; low, soft, slow and kind, until dark.", declaredForm("Write one sentence of at least 10 words without the letter e."));
+  assert.equal(lip.ok, true);
+  const leak = checkForm("The wind blew.", declaredForm("Write one sentence without the letter e."));
+  assert.equal(leak.ok, false);
+  assert.match(leak.failures[0].detail, /The|blew/);
+  const none = checkForm("anything", declaredForm("Say something."));
+  assert.equal(none.ok, false);
+  assert.equal(formLine(none), "form: nothing examined");
+});

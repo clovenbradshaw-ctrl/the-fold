@@ -7636,3 +7636,7 @@ POLICIES.md **P105**; eoreader7 **S70**. A void the reader declares carries its 
 ## Pass 25 — every ∅ cites its void (added 2026-09-05) — pointer
 
 POLICIES.md **P106**. An absence the answer asserts cites the declared void in scope for it (`answer-record.js::voidInScope`, question-anchored) on the ∅ badge and in the AnswerRecord's `absenceTally`; one citing none is a counted leak (P54's shape, now a number). Live: the director question's ∅ reads "open gap on the record: Northgate Observatory —director→ ?" with the void's scope.
+
+## Frontier-25: a task is an organ's or a witness's before it is the mouth's (2026-09-05)
+
+POLICIES.md **P108** / eoreader7 **S75**. Twenty-five "frontier" tasks in eoreader7 `eval/the-fold/lib/frontier-25.mjs`, each naming the organ that claims it (arithmetic.js's pure door, shaped questions and calendar; the product assay's reader; the void) or witnesses it (skill-runner's admission check, the recorded `/api/run`, csvTable + sql.js, shape.js's declared form, claimedValue against the engine). `arithmetic.js::checkQuantity` and `shape.js::declaredForm/checkForm` are the extensions; the media perceivers crossed to eoreader7 and the measuring door reads decoded media. Rule: before writing an organ for a task, run `node eval/the-fold/frontier-25.mjs` and read which existing organ already claims or witnesses it.

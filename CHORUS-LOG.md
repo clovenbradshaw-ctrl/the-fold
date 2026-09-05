@@ -108,3 +108,15 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Revi
 | Alexander | SYN | — | P95 / S65 / NEXT-PASSES Pass 14 / CLAUDE.md pointer | clean | counts and file names agree across the four documents and with the eoreader7 diff |
 | Marshall | meta | POLICIES.md Generality discipline (P≥71); IV.1 | POLICIES.md P95 | upheld — compliant | Generality line present and read by `generality-gate.test.mjs`; enforcement ships in the paired eoreader7 diff |
 | others | — | — | — | clean | no code in this repo's diff |
+
+## 2026-09-05 — P108: frontier-25, arithmetic's shaped questions and calendar, shape.js's declared form (branch `frontier-25`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1 (`chorus-fast.sh --working`): law ok (8 citations resolve; P19/S17 pre-existing duplicates warned), routed Diaconis · Feynman · Dijkstra · Marshall; suites the-fold 1,605 pass / 3 fail (`webllm-rung.test.mjs`'s mirrored-weights walls — the gitignored mirror is absent in this worktree, present in the main checkout; not this diff's) · arithmetic 23/23 · shape 17/17 · generality-gate + constitution 16/16.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Diaconis | II.23; P4 | POLICIES.md P108 "The eval" | clean | the only null in the diff is the measuring door's own (burstiness/shuffle, draws 200); the video pairing's collapse is reported as `degenerate_ground`, a fact about the pairing, and the fixture pins that verdict rather than a cut claim |
+| Feynman | P4 (no hand-set thresholds) | arithmetic.js:238 `nums.length < 2` | clean | a statistic "of" one number is not a list — structural, not tuned; the mouth arm's arithmetic witness compares at the organ's own precision (a rounded "8.05 km" reads as failed) and the results doc says so |
+| Dijkstra | III.3 | arithmetic.js:224 `unitWord` | noted | `toLowerCase` on unit words is ASCII-safe for mathjs's own unit names; `°c`/`°f` are mapped by hand — a non-Latin unit word falls to the engine, which refuses it as unknown (typed gap), never a wrong number |
+| Marshall | IV.1/IV.2; P71 | POLICIES.md P108, CLAUDE.md, NEXT-PASSES Pass 30 | upheld — compliant | a policy entry with its Generality line (generality-gate 16/16), enforcement in the same diff (arithmetic.test, shape.test, eoreader7 frontier-25.test), no constitution edit; the deleted first-cut modules are named in the entry |
+clean: nothing struck; the standing P19/S17 duplicates remain the activation-rule carry (renumber in their own commit).

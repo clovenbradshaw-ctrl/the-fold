@@ -130,3 +130,48 @@ test("claimedValue: the LAST bare number in a draft is read as the answer, not t
   assert.equal(claimedValue("372"), 372);
   assert.equal(claimedValue("no numbers here"), null);
 });
+
+// ── the shaped questions and the calendar (added 2026-09-05) ────────────────
+import { checkShaped, checkCalendar, checkQuantity, detectShaped, readDate } from "./arithmetic.js";
+
+test("shaped: unit conversion is the engine's own unit arithmetic, spelled the engine's way", () => {
+  const r = checkShaped("Convert 5 miles to km", { math });
+  assert.equal(r.kind, "units");
+  assert.equal(r.value, 8.04672);
+  assert.equal(checkShaped("How many kilometers are in 5 miles?", { math }).value, 8.04672);
+  assert.equal(Math.round(checkShaped("What is 72 fahrenheit in celsius?", { math }).value * 100) / 100, 22.22);
+});
+
+test("shaped: choose, factorial, statistics, derivative-at, linear and quadratic equations", () => {
+  assert.equal(checkShaped("What is 10 choose 3?", { math }).value, 120);
+  assert.equal(checkShaped("What is 12 factorial?", { math }).value, 479001600);
+  assert.equal(checkShaped("What is the median of 3, 9, 1, 7, 5?", { math }).value, 5);
+  assert.equal(checkShaped("mean of 2, 4, 9", { math }).value, 5);
+  assert.equal(Math.round(checkShaped("standard deviation of 2, 4, 4, 4, 5, 5, 7, 9", { math }).value * 1000) / 1000, 2.138);
+  assert.equal(checkShaped("What is the derivative of x^3 + 2x at x = 2?", { math }).value, 14);
+  assert.equal(checkShaped("Solve 3x + 5 = 20", { math }).value, 5);
+  assert.deepEqual(checkShaped("solve x^2 - 5x + 6 = 0", { math }).value, [2, 3]);
+});
+
+test("shaped: a question about the world, and a pure expression, are never this door's", () => {
+  assert.equal(detectShaped("Who is the mayor of Nashville?", { math }), null);
+  assert.equal(detectShaped("What is 17 times 24?", { math }), null);
+  assert.equal(checkShaped("Solve x + y = 3", { math }), null); // two unknowns
+});
+
+test("calendar: days between, weekday, offset; an impossible date is null, a relative date bails", () => {
+  assert.equal(checkCalendar("How many days are there between 2026-01-01 and 2026-09-05?").value, 247);
+  assert.equal(checkCalendar("How many days between January 1, 2026 and September 5, 2026 inclusive?").value, 248);
+  assert.equal(checkCalendar("What day of the week was July 4, 1776?").value, "Thursday");
+  assert.equal(checkCalendar("What day of the week is 2026-09-05?").value, "Saturday");
+  assert.equal(checkCalendar("What date is 100 days after 2026-09-05?").value, "2026-12-14");
+  assert.equal(readDate("2026-02-30"), null);
+  assert.equal(checkCalendar("What day is next Tuesday?"), null);
+});
+
+test("checkQuantity: the pure door first, byte-identical, then the shapes, then the calendar", () => {
+  assert.equal(checkQuantity("What is 17 times 24?", { math }).value, 408);
+  assert.equal(checkQuantity("What is 10 choose 3?", { math }).value, 120);
+  assert.equal(checkQuantity("What day of the week is 2026-09-05?", { math }).value, "Saturday");
+  assert.equal(checkQuantity("Who founded the observatory?", { math }), null);
+});

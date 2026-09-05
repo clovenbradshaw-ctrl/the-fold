@@ -209,6 +209,32 @@ runs at a domain root, under a subpath, from an archive.org item, or from an
 extension origin. `SHA256SUMS` and `BUILD.json` record every byte and the
 commit.
 
+## Preserve, share, and borrow a machine — through a homeserver you name
+
+A chat can be preserved to a Matrix room, shared by a link, and answered by a
+model on another member's machine — with nothing readable ever leaving the
+page (POLICIES.md P119). The page names no homeserver: `/matrix login` opens
+a sheet and you type yours — your own, a friend's, a public one. What that
+server holds is ciphertext under a chat key it never sees, pointers, and
+public keys; the tests prove it against a homeserver built to keep and read
+everything.
+
+```
+/matrix                 where you stand, and what the server can see
+/preserve [name]        seal this chat's turns into blocks (new turns only, each time)
+/share [@who:server]    invite someone; print the link whose #fragment carries the key
+/join <link>            open a shared chat: every block read back and decrypted here
+/serve                  answer the room's sealed prompts with this machine's models
+/pool                   the devices offering a mouth, and what each has answered
+```
+
+A member who runs `/serve` (or `node matrix-worker.mjs <link>` on a headless
+machine with Ollama) shows up in every member's model picker as
+`room:@who:server model`; a turn under that rung goes to them sealed and comes
+back sealed. The pool sheet counts what your own jobs measured — latency,
+tokens per second, the device — never a guess. Every member of a room holds
+full power.
+
 ## Run it from a website
 
 The page does not need Ollama. Serve this directory (plus `models/`, see

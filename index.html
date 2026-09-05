@@ -1750,6 +1750,18 @@
       .sheet-close:hover { color: var(--fg); background: var(--accent-soft); }
       .sheet-body { padding: 14px 16px; }
       .sheet-body.flush { padding: 0; }
+      /* A labelled field in a sheet (the homeserver sign-in). */
+      .field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+      .field input { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+      .field input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+      /* The pool: who offers a mouth through the room, and what each one measured. */
+      .pool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .pool-table th, .pool-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      .pool-table th { color: var(--muted); font-weight: 500; }
+      .pool-table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+      .pool-table tr.withdrawn td { color: var(--muted); }
+      .pool-note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+      #pool-serve.on { color: var(--accent); }
       .sheet-foot {
         display: flex;
         gap: 8px;
@@ -2176,8 +2188,9 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <div class="sheet-head">
         <div>
           <h3>Model</h3>
-          <p class="sub">Ollama, on this machine. There is no hosted path.</p>
+          <p class="sub">Ollama or the in-tab rung on this machine — or a room member's machine, sealed through the room. There is no hosted path.</p>
         </div>
+        <button type="button" class="sheet-close" id="model-menu-pool" title="Pooled devices — who offers a mouth through the room, and what each one answered" style="font-size:12px">pool</button>
         <button type="button" class="sheet-close" id="model-menu-x" title="close" aria-label="close">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
         </button>
@@ -2333,6 +2346,60 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <form method="dialog"><button>✕ close</button></form>
       </div>
       <div id="fold-view-body"></div>
+    </dialog>
+
+    <!-- The homeserver sign-in (P119). The password goes from this field to
+         the homeserver the person named, in Matrix's own login call, and
+         nowhere else: never through the composer, the transcript, or the
+         record. No homeserver is named or preferred here — the person names
+         theirs. -->
+    <dialog id="matrix-login">
+      <div class="sheet-head">
+        <div>
+          <h3>Sign in to a homeserver</h3>
+          <p class="sub" id="matrix-login-sub">Any Matrix homeserver you trust — your own, a friend's, a public one. The page names none.</p>
+        </div>
+        <button type="button" class="sheet-close" id="matrix-login-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <form method="dialog" id="matrix-login-form">
+        <div class="sheet-body">
+          <label class="field">homeserver<input id="mx-hs" type="text" autocomplete="url" spellcheck="false" placeholder="the homeserver's address" required /></label>
+          <label class="field">user name<input id="mx-user" type="text" autocomplete="username" spellcheck="false" placeholder="the name, without the @ and the server" required /></label>
+          <label class="field">password<input id="mx-pass" type="password" autocomplete="current-password" required /></label>
+          <p class="pool-note">What that server will hold of your chats: who is in a room, the size and time of each sealed block, public keys. Never a turn.</p>
+        </div>
+        <div class="sheet-foot">
+          <button type="button" id="matrix-login-cancel">Cancel</button>
+          <button value="login" class="primary">Sign in</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- The pool: every device that offers a mouth through the open room,
+         and what this page has measured of each — counts, latency, tokens,
+         the device's own label. Computed from the room's state and this
+         page's own jobs; nothing here is guessed. -->
+    <dialog id="pool">
+      <div class="sheet-head">
+        <div>
+          <h3>Pooled devices</h3>
+          <p class="sub" id="pool-sub">who offers a mouth through the room, and what each one has answered</p>
+        </div>
+        <button type="button" class="sheet-close" id="pool-refresh" title="re-read the room's offers" style="font-size:12px">refresh</button>
+        <button type="button" class="sheet-close" id="pool-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <div class="table-wrap"><table class="pool-table" id="pool-table"></table></div>
+        <p class="pool-note" id="pool-this"></p>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Close</button>
+        <button type="button" id="pool-serve" class="primary">Serve from this machine</button>
+      </form>
     </dialog>
 
     <!-- mathjs, vendored (P1: no CDN), for arithmetic.js's checkArithmetic —

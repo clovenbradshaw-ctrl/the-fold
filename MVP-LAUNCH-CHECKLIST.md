@@ -68,6 +68,18 @@
 | Chrome extension | none | **built, not run** — `--extension` writes an MV3 manifest and background; loading it is a maintainer step |
 | Pages deployment | none from here | **open** — push to main runs the workflow; set `WEIGHTS_MIRROR` to the archive.org pin once it exists |
 
+## 4c. The room (P119)
+
+| item | found | status |
+|---|---|---|
+| Preserve and share a chat | none | **built** — blocks AES-256-GCM under a chat key the server never holds; share link's fragment carries the key; `matrix.test.mjs` + `matrix-client.test.mjs` (24) prove nothing readable reaches an adversarial homeserver, three ways |
+| Use other machines for inference; pool them | none | **built** — `/serve`, `matrix-worker.mjs`, a member's models as picker rungs, sealed jobs spread by in-flight count; the pool sheet |
+| A default homeserver | — | **none, by decision** — the page names and prefers no homeserver; the sign-in sheet's placeholder is generic |
+| Room power | first cut flattened viewers to −1 | **fixed** — every member at 100 (`users_default`), by decision |
+| `<dialog>` `close` never fires in Chromium 148 (browser pane) | the paste sheet attached nothing there; the sign-in sheet's first cut did nothing | **fixed** — both act on the form's `submit`; verify on a release Chrome before launch |
+| A real homeserver | not exercised from here | **open** — the person's first sign-in; proofs are against the fixture, which implements the routes used and the auth rules leaned on |
+| Identity survives a wipe | no | **open, said** — a wiped browser reads again from the link or a member's next `/share`; eopm's account-key backing is the next step |
+
 ## 5. Suites and what they prove
 
 | suite | at this commit |

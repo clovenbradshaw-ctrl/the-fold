@@ -73,3 +73,6 @@ export function detectCodePiece(question, { runtimes = [] } = {}) {
   if (!features.length) return null;
   return { lang, spec, features, parts: Math.max(2, Math.min(10, features.length)) };
 }
+
+/** A source that is CODE, by its name (P113): read by the sandbox and the declaration scout, never by the prose reader — a `.js` file read as English yields `Arokin —is→ …` notes and a cast of identifiers (measured 2026-09-05, the self-review). */
+export const isCodeSource = (name) => /\.(m?js|cjs|ts|tsx|jsx|py|rb|php|r|sql|json|css|html?|sh|yml|yaml|toml)$/i.test(String(name ?? "").split("#")[0]);

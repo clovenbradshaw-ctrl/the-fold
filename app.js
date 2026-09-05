@@ -122,7 +122,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
-import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece } from "./longform.js";
+import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
 import { editLine } from "./piece-edit.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
@@ -349,13 +349,17 @@ const yieldMacrotask = (() => {
 })();
 let readQueue = Promise.resolve();
 function unreadNow() {
-  return [...READING.entries()].map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+  return [...READING.entries()].filter(([, r]) => !r.skipped).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
 }
 function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
   readQueue = readQueue.then(async () => {
     await priorsSettled();
     const passages = state.chunks.filter((c) => c.source === name);
     if (!passages.length || !state.sources[name]) return;
+    // A code file is not prose (P113): retrievable, runnable, scouted for
+    // its declarations — never read into the ledger as English. The skip is
+    // typed on the reading map, not silent, and it is not an unread extent.
+    if (isCodeSource(name)) { READING.set(name, { cursor: 0, total: passages.length, recipe: null, running: false, skipped: "code" }); return; }
     const frame = readerFrame();
     const recipe = await readerRecipe(frame);
     const cursor = savedRecipe === recipe ? savedCursor : 0;

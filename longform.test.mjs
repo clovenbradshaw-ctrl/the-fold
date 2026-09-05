@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece } from "./longform.js";
+import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece, isCodeSource } from "./longform.js";
 
 test("a writing ask with a stated length is long-form; the size comes from the number, the topic from the ask's own 'on'/'about'", () => {
   const lf = detectLongForm("write me a 30 page essay on the x files");
@@ -32,4 +32,11 @@ test("a program asked for by its shape: a building verb, a runtime the registry 
   assert.equal(detectCodePiece("write me a 30 page essay on the x files", { runtimes: ["js", "python"] }), null, "no runtime named → not a program");
   assert.equal(detectCodePiece("what does the python program print?", { runtimes: ["python"] }), null, "no spec → not a build");
   assert.equal(detectCodePiece("/run python\nprint(1)", { runtimes: ["python"] }), null);
+});
+
+test("a code source is known by its name, never read as prose (P113)", () => {
+  assert.equal(isCodeSource("holon.js"), true);
+  assert.equal(isCodeSource("notes.js#0-400"), true);
+  assert.equal(isCodeSource("THE-NULL-STATES.md"), false);
+  assert.equal(isCodeSource("web:en.wikipedia.org-0"), false);
 });

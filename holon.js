@@ -39,6 +39,7 @@ import { distinctSources, proposeCandidates, textFeatures } from "./corroboratio
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
+import { isCodeSource } from "./longform.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
@@ -1167,7 +1168,9 @@ export async function runPart({
   // the engine's organs.
   const relations = passages.length ? makeRelationReader?.(passages, { pool: livePool }) ?? null : null;
   // Obligations (P110): the cast the section's own passages establish.
-  const obligations = piece?.referentIndexFor && passages.length ? obligationsFrom(piece.referentIndexFor(passages)) : [];
+  // Prose passages only: a code file's "cast" is its identifiers (P113).
+  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref));
+  const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
 
   // hyperlexicon.js (P57): admit this part's own bound claims into the
@@ -1189,7 +1192,7 @@ export async function runPart({
     // loop that lived here moved there verbatim (ledger born on the first
     // bound edge, frame redeclared on drift, witness `<ref>~<recipe>`,
     // refusals returned never discarded).
-    const admitted = admitPassages(hyperlexicon, beliefNotes, passages, {
+    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref)), {
       read: (text) => relations.read(text),
       witnessFor: (p) => (p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null),
       classifyConnector,

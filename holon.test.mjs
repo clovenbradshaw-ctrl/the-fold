@@ -1808,6 +1808,10 @@ test("the ledger block carries corroborated notes, then question-relevant single
       { id: "derived:h", subject: "the harbor", verb: "before", object: "the tide", premises: ["b", "d"], restsOn: { sources: 1, instruments: 1, contested: 0, grounds: 2 } },
       { id: "derived:m", subject: "Mars", verb: "before", object: "Venus", premises: ["c"], restsOn: { sources: 1, instruments: 1, contested: 0, grounds: 1 } },
     ],
+    hyperlexiconVoids: [
+      { id: "void:the harbor|closed|*", subject: "the harbor", verb: "closed", object: null, scope: { sources: ["a.txt", "b.txt"], read: 3, total: 5 }, reached: false, declaredAt: 9 },
+      { id: "void:mars|orbits|*", subject: "Mars", verb: "orbits", object: null, scope: { sources: ["a.txt"], read: 5, total: 5 }, reached: true, declaredAt: 10 },
+    ],
   });
   const text = sent.join("\n");
   assert.match(text, /derived — no source states these/, "the derived tier is shown (P102)");
@@ -1820,6 +1824,9 @@ test("the ledger block carries corroborated notes, then question-relevant single
   assert.match(text, /stated once so far and bearing on this question/, "the single-witness tier is disclosed, not withheld");
   assert.match(text, /the harbor — opened→ in 1811 \(stated once so far, nowhere else yet; disputed by t.txt — not settled\)/, "a live dispute is said to the mouth, never a conviction (P101)");
   assert.doesNotMatch(text, /Mars — orbits/, "a single-witness note sharing nothing with the question never reaches the model");
+  assert.match(text, /Looked for and not found so far — say these are open, never that they are false/, "the void tier is relayed as a declared gap (P105)");
+  assert.match(text, /the harbor — closed→ \? \(looked for in 2 sources, 3 of 5 parts read so far; an open gap, not a finding that it is false\)/, "a void carries its scope — how many sources, how far read");
+  assert.doesNotMatch(text, /Mars — orbits→ \?/, "a void sharing nothing with the question is not shown either");
   const { apparatusMentions } = await import("./firewall.js");
   const block = text.match(/From earlier reading[^"]*/g) ?? [];
   assert.ok(block.length, "the block was sent");

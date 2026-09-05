@@ -972,7 +972,26 @@ are P96's.
 
 P104 / S69. The reader's miss from Pass 22 (a denial read as unbound) is closed by giving the denial its own cell: SEG·Figure, a cut apart from the link, contest at the door, `negationTimeline` for the reading through time. Product assay 12/12. **The user's standing instruction for everything in this family: track negation and void through time** — never a state read off the present fold; every act with its seq.
 
-## Pass 23 — the void through time (added 2026-09-05, NOT started)
+## Pass 23 — the void through time (added 2026-09-05, CLOSED same day)
+
+P105 / S70. Built to the entry below: `declareVoid` with scope, the door's re-zero on one arrival, `rezeroVoid` for a face's own filling, `/void` + `/void!`, the fourth ledger tier, assay wall 9 (13/13), live on the real page. Residue: slot-shaped voids fill live only through the brief's filler organ.
+
+## The null experiments — Passes 24–29 (proposed 2026-09-05, user direction: "keep building but have experiments in mind that leverage our ability to rezero, cite types of void, etc.")
+
+Each names its measurement, the test that reads it (P94), the control built to fail (II.23), the gate and the cost. Zero-call first.
+
+**Pass 24 — Re-zero under a stream (0 calls).** Declare N act-shaped voids BEFORE reading (questions before material), stream the corpus one passage at a time through the door, and record the cursor at which each void fills. Claims: a void fills at the first passage stating its arrangement and never on a denial; the fill cursor is order-dependent but the FINAL open set is order-invariant (prefix invariance, P99's own rule read at the void); a void over ends the corpus never states stays open with `reached: true` — a finding, not a failure to look. Control: the object-deranged corpus fills a different set; a void declared over a never-stated arrangement must stay open on every order. Driver `eval/the-fold/void-rezero-stream.mjs`, lib + test.
+
+**Pass 25 — Every ∅ cites its void (0 calls for the record arm, model arm dated).** Today the answer surface marks "∅ no passage states this" from the witness's refusal; the mark should CITE a declared void id and its scope when one is open over the sentence's ends, and count every ∅ that cites none. Claim: after wiring, the P54 leak ("there is no mention of anything else") is countable as ∅-without-void; the model-swap diff reports it per mouth. Control: a planted ∅ with no void in scope must be counted, never absorbed.
+
+**Pass 26 — A census of nulls through time (0 calls).** On a real read (the Dracula walk, the War and Peace slice), log every typed null's lifetime — `unread_extent`, `unheard`, `beyond-reach`, `unbound`, cut, void — declared-at and closed-at cursors. Claim under test: nulls compose downward (THE-NULL-STATES law 5): when an `unread_extent` closes, the `unbound` verdicts over that extent move; when a Ground void fills, its Figure voids close with it. Control: shuffled passage order must change closing cursors, not the final census.
+
+**Pass 27 — Settlement by arrival (0 calls; seeker arm dated).** A cut meets its link (contest open); a THIRD source arrives. Claim: `contestedSearch` with declared kinds routes the contest to the seeker and a `settleDispute` lands with its outcome and trigger; `negationTimeline` reads link → cut → contest → settled. Control: a third source that restates the link must not settle (corroboration is a label, never a gate, P89); a third source silent on the pair must leave the contest open.
+
+**Pass 28 — The mouth's absence leak, measured (model arm).** Across the model-swap diff, count sentences asserting absence ("no mention", "not stated", "unknown") that stand where no void is open in scope. Claim: with the void tier in the prompt the count falls; with the tier withheld (control) it does not. Cost: the diff's own two-model budget.
+
+**Pass 29 — Re-zero as a surprise to the fold (0 calls for the gate).** A void filling is REC·Ground — the ground moved. Claim: gating the summary refresh on "a void filled this turn" refreshes exactly where the P34 pivot case went stale and carries elsewhere. Control: gating on a random filling must not improve staleness. Gate: Pass 24's stream driver.
+
 
 DEF·Ground, the other empty cell in THE-NULL-STATES. A void is a declared emptiness over an extent WITH scope (what was looked at: passages read, cursor, pool), an event with a cursor, re-zeroed by one arrival — another event. The three verdict strings and the badge that stand in for it today (`searchedVoid`, the witness's ∅, "no passage states this") become one object on the record with a `voidTimeline` on the shape of `negationTimeline`. Measurement: the arrival read declares the void for a question's extent before the mouth speaks; one arriving passage re-zeros it and the timeline shows both events; the control built to fail: a void with no scope is refused, and a void over an extent the reader never reached is a fact about the reader (`unread_extent`), never a void. Gate: Pass 22b. Refused-check: not a corroboration lever.
 

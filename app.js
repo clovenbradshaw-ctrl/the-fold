@@ -755,6 +755,29 @@ const derivationFor = makeDerivation({
   taskLog: { append: nativeTaskLog.append, projectTasks: nativeTaskLog.projectTasks, ENTRY_KINDS: nativeTaskLog.ENTRY_KINDS, OPERATOR_BASIS: nativeTaskLog.OPERATOR_BASIS, GRAIN_RANK: nativeTaskLog.GRAIN_RANK, cellOf },
 });
 const derivedNow = () => { try { return state.hyperlexiconLog ? derivationFor.foldDerived(state.hyperlexiconLog) : []; } catch { return []; } };
+// The voids the reader has declared and no arrival has yet filled (Pass 23 /
+// P105; kernel/notes.js S70) — read off the ledger, never off a turn's memory.
+const voidsNow = () => { try { return state.hyperlexiconLog && hyperlexiconFor.foldVoids ? hyperlexiconFor.foldVoids(state.hyperlexiconLog) : []; } catch { return []; } };
+// declareVoidOnLedger — the void-brief's finding, landed on the record as a
+// DEF·Ground event WITH its scope (which sources, how far read, the ledger's
+// cursor), so the next arrival that fills it re-zeros it at the door and
+// `voidTimeline` reads both. Refusals are the kernel's own (`no_scope`,
+// `not_empty`) and are disclosed in the thinking panel, never swallowed.
+function declareVoidOnLedger(brief, { because = null } = {}) {
+  if (!state.hyperlexiconLog || !hyperlexiconFor.declareVoid || !brief) return null;
+  const anchor = brief.declaration?.cells?.find((c) => c.field === "anchor")?.declared ?? null;
+  const label = brief.headPhrase ?? null;
+  if (!anchor || !label) return null;
+  const sources = liveSources().map((s) => s.name);
+  let read = 0, total = 0;
+  for (const [name, r] of READING.entries()) { if (!sources.includes(name)) continue; read += Number(r.cursor ?? 0); total += Number(r.total ?? 0); }
+  const scope = { sources, read, total, cursor: state.hyperlexiconLog.nextSeq };
+  const r = hyperlexiconFor.declareVoid(state.hyperlexiconLog, { end1: anchor, label, end2: null, scope, because });
+  if (r.refused) return { refused: r.refused, anchor, label };
+  state.hyperlexiconLog = r.log;
+  syncRecords();
+  return { id: r.id, anchor, label, scope, redeclared: Boolean(r.redeclared) };
+}
 
 // NO VIEW FROM NOWHERE (eoreader7 kernel/notes.js; POLICIES.md P80). The
 // ledger is born on the first grounded turn, and its first entry declares
@@ -1852,6 +1875,36 @@ function declareTurn(argstr, typed) {
   } catch (e) { return usageTurn(typed, `refused: ${e?.message ?? e}`); }
 }
 
+// /void — the voids the reader declared, each with its scope and its
+// timeline (declared / filled / conceded, at its seq); `/void! <id>` takes
+// one back with a recorded trigger (REC), the same act `/concede!` performs
+// on a premise. A void is never deleted: a conceded void stays in the
+// timeline with its concession after it.
+function voidTurn(argstr, typed, { perform = false } = {}) {
+  const log = state.hyperlexiconLog;
+  if (!log || !hyperlexiconFor.foldVoids) return usageTurn(typed, "the hyperlexicon is empty — nothing has been read yet, so no gap has been declared over it.");
+  const id = (argstr ?? "").trim();
+  if (id) {
+    const t = hyperlexiconFor.voidTimeline(log, id);
+    if (t.standing === "undeclared") return usageTurn(typed, `no such gap on the record: ${id}`);
+    if (perform) {
+      const r = hyperlexiconFor.concede(log, id, { trigger: `withdrawn in this conversation: ${typed}` });
+      if (r.refused) return usageTurn(typed, `not withdrawn: ${r.refused.type} — ${r.refused.detail ?? ""}`);
+      state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, r.log, log, { append: nativeTaskLog.append });
+      syncRecords();
+      mirrorTermRecord("void-concede", { id, via: "chat" });
+      return usageTurn(typed, `withdrawn: ${id} · timeline ${hyperlexiconFor.voidTimeline(state.hyperlexiconLog, id).events.map((e) => `${e.act}@${e.at}`).join(" → ")}`);
+    }
+    return usageTurn(typed, `${id} · standing ${t.standing} · timeline ${t.events.map((e) => `${e.act}@${e.at}${e.by ? ` by ${e.by}` : ""}`).join(" → ")}`);
+  }
+  const rows = voidsNow();
+  if (!rows.length) return usageTurn(typed, "no open gap on the record — every declared void has been filled or withdrawn, or none was declared.");
+  const lines = [`${rows.length} open gap(s) on the record — declared by the reader with its scope, cancelled by the first arrival that fills one:`];
+  for (const v of rows.slice(0, 20)) lines.push(`  ${v.id} · ${v.subject} —${v.verb}→ ? · looked for in ${v.scope?.sources?.length ?? "?"} source(s), ${v.scope?.read ?? "?"} of ${v.scope?.total ?? "?"} parts read · reached ${v.reached} · declared@${v.declaredAt}`);
+  lines.push("`/void <id>` shows one gap's timeline; `/void! <id>` withdraws it with a recorded trigger.");
+  return usageTurn(typed, lines.join("\n"));
+}
+
 function deriveTurn(argstr, typed) {
   const maxSteps = Math.max(1, Math.min(25, Number((argstr ?? "").trim()) || 6));
   const log = state.hyperlexiconLog;
@@ -2875,6 +2928,8 @@ async function send(question) {
   if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
   const concedeCmd = question.match(/^\/concede(!?)(?:\s+|$)(.*)$/s);
   if (concedeCmd) return concedeTurn(concedeCmd[2] ?? "", question, { perform: concedeCmd[1] === "!" });
+  const voidCmd = question.match(/^\/void(!?)(?:\s+|$)(.*)$/s);
+  if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
 
   const rankeCmd = question.match(/^\/ranke\b\s*(.*)$/s);
   if (rankeCmd) return rankeTurn(rankeCmd[1] ?? "", question);
@@ -4558,6 +4613,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // and the turn continues, exactly as the post-hoc block already did.
   let voidBrief = null;
   let voidDigest = null;
+  let voidDeclaredThisTurn = false;
   const narrateTheVoid = (texts, phase, observed = []) => {
     if (!state.grounded) return;
     try {
@@ -4574,6 +4630,44 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       }
       voidBrief = b;
       const said = narrateVoid(b, { phase, previous: voidDigest });
+      // Once material is in hand and the slot is still empty, the void is
+      // an EVENT on the record (Pass 23 / P105): declared with its scope,
+      // before the model drafts, cancelled by the first arrival that fills
+      // it. A `not_empty` refusal is the ledger saying it already holds
+      // the filling — said, not hidden.
+      if (phase === "material" && !voidDeclaredThisTurn) {
+        // Only a DECLARED extent with a hole in it is a void. "unbounded"
+        // is the space refusing to be declared (SEG·Ground — no extent),
+        // which THE-NULL-STATES keeps apart from a measured emptiness: a
+        // nothing with no denominator is not landed. And a head phrase
+        // that collapsed onto the anchor names no slot at all.
+        const anchor = b.declaration?.cells?.find((c) => c.field === "anchor")?.declared ?? null;
+        const headIsAnchor = anchor && b.headPhrase && String(b.headPhrase).toLowerCase() === String(anchor).toLowerCase();
+        // A void's SCOPE is what was read (sources, how far) — that is the
+        // denominator THE-NULL-STATES requires, and it is always in hand
+        // here. The brief's year-extent is a second dimension: with it, a
+        // hole in it is the void; without it ("unbounded"), the void is the
+        // whole read — still a measured emptiness, over a declared scope.
+        const empty = !(b.fillers?.length) && !headIsAnchor && ((b.standing?.voids?.length ?? 0) > 0 || b.standing?.standing === "unbounded");
+        // The other direction (Pass 23): the brief's own filler organ found
+        // what an OPEN void on the record was empty of — that is the one
+        // arrival that re-zeros it, landed by name with the filler's witness.
+        if (b.fillers?.length && anchor && b.headPhrase && !headIsAnchor && state.hyperlexiconLog && hyperlexiconFor.rezeroVoid) {
+          const open = voidsNow().find((v) => String(v.subject).toLowerCase() === String(anchor).toLowerCase() && String(v.verb).toLowerCase() === String(b.headPhrase).toLowerCase());
+          if (open) {
+            const f = b.fillers[0];
+            const by = String(f?.filler ?? f?.name ?? f ?? "").trim();
+            const rz = hyperlexiconFor.rezeroVoid(state.hyperlexiconLog, open.id, { by: by || "a filler the reader found", witness: f?.ref ?? f?.witness ?? null });
+            if (!rz.refused) { state.hyperlexiconLog = rz.log; syncRecords(); think(`Filled: "${open.verb}" of ${open.subject} — ${by || "a filler"} arrived; the gap declared earlier is cancelled on the record.`); }
+          }
+        }
+        if (empty) {
+          voidDeclaredThisTurn = true;
+          const v = declareVoidOnLedger(b, { because: b.standing?.reason ?? null });
+          if (v?.id) think(`On the record: nothing read so far fills "${v.label}" of ${v.anchor} — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read${v.redeclared ? " (declared again)" : ""}. The first arrival that fills it will cancel this.`);
+          else if (v?.refused) think(`Not declared as a gap: ${v.refused.type === "not_empty" ? `the record already holds something for "${v.label}" of ${v.anchor}` : v.refused.detail ?? v.refused.type}.`);
+        }
+      }
       if (!said) return;
       voidDigest = said.digest;
       think(said.text);
@@ -5240,6 +5334,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       hyperlexiconRecipe: ledgerRecipe,
       hyperlexiconUnread: unreadNow(),
       hyperlexiconDerived: state.grounded ? derivedNow() : [],
+      hyperlexiconVoids: state.grounded ? voidsNow() : [],
       // The door's grammar gate, data-gated (null until the POS prior
       // loads — see connectorLens's own construction comment) and mode-
       // gated with the ledger it guards.

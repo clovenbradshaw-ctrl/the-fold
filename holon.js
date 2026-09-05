@@ -976,6 +976,10 @@ export async function runPart({
   hyperlexiconRecipe = null,
   hyperlexiconUnread = [],
   hyperlexiconDerived = [],
+  // The voids the reader declared (S70 / P105): typed emptiness over an
+  // extent WITH its scope, relayed to the mouth as a declared gap — never
+  // as "false", never as the mouth's own finding.
+  hyperlexiconVoids = [],
   // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
   // — asymmetric, P56: a settled non-verb connector is refused with its
   // giver, an out-of-vocabulary word admits). Threaded, never built here:
@@ -1192,7 +1196,24 @@ export async function runPart({
           .slice(0, HYPERLEXICON_LEDGER_LINES)
           .map((c) => c.note)
       : [];
-    if (!corroborated.length && !single.length && !derived.length) return readingNote;
+    // The VOID tier (Pass 23 / P105): what the reader looked for and did not
+    // find, said with its scope — how many sources, how far read — as an
+    // open gap the first arrival cancels. The mouth relays a declared void;
+    // it never declares one (THE-NULL-STATES, law 6).
+    const voidRows = Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids.filter((v) => v && v.subject && v.verb).map((v) => ({ ...v, object: v.object ?? "?" })) : [];
+    const voids = voidRows.length
+      ? proposeCandidates(voidRows, String(question ?? ""), { limit: voidRows.length, featuresOfSource: questionFeatures })
+          .sort((a, b) => b.shared - a.shared)
+          .slice(0, HYPERLEXICON_LEDGER_LINES)
+          .map((c) => c.note)
+      : [];
+    const voidPhrase = (v) => {
+      const sc = v.scope ?? {};
+      const over = Array.isArray(sc.sources) && sc.sources.length ? `looked for in ${sc.sources.length} source${sc.sources.length === 1 ? "" : "s"}` : "looked for in what was read";
+      const far = Number.isFinite(sc.read) && Number.isFinite(sc.total) ? (sc.read >= sc.total ? ", all of it read" : `, ${sc.read} of ${sc.total} parts read so far`) : "";
+      return `${over}${far}; an open gap, not a finding that it is false`;
+    };
+    if (!corroborated.length && !single.length && !derived.length && !voids.length) return readingNote;
     // A note under a live dispute says so (P88's act reaching the mouth,
     // Pass 20 / P101): who denies it, and that it is not settled — the
     // reader is told of the disagreement, never handed a conviction.
@@ -1217,6 +1238,7 @@ export async function runPart({
       corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
       single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
       derived.length ? `From earlier reading, derived — no source states these; each follows from claims already read, and falls with them:\n${derived.map((d) => `- ${line(d)} (${derivedPhrase(d)})`).join("\n")}` : null,
+      voids.length ? `Looked for and not found so far — say these are open, never that they are false:\n${voids.map((v) => `- ${v.subject} — ${v.verb}→ ? (${voidPhrase(v)})`).join("\n")}` : null,
     ].filter(Boolean).join("\n\n");
   })();
 
@@ -2472,6 +2494,10 @@ export async function runHolonicTask({
   hyperlexiconRecipe = null,
   hyperlexiconUnread = [],
   hyperlexiconDerived = [],
+  // The voids the reader declared (S70 / P105): typed emptiness over an
+  // extent WITH its scope, relayed to the mouth as a declared gap — never
+  // as "false", never as the mouth's own finding.
+  hyperlexiconVoids = [],
   classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -2595,6 +2621,7 @@ export async function runHolonicTask({
       hyperlexiconRecipe,
       hyperlexiconUnread,
       hyperlexiconDerived,
+      hyperlexiconVoids,
       classifyConnector,
     });
     seenRefs.push(...result.refs);

@@ -7615,3 +7615,20 @@ the model-swap diff and read their walls.
 ## Pass 22b — negation is a cut, tracked through time (added 2026-09-05) — pointer
 
 POLICIES.md **P104**; eoreader7 **S69**; `eoreader7/native/docs/THE-NULL-STATES.md` the nomination. A denial is a SEG·Figure cut with the link's ends and never its id — a denying source is never a witness of the link, and a cut meeting its link lands CON·Figure·CONTESTED at the door with the denying bytes as decider. `negationTimeline(log, linkId)` is the reading of a denial through time (link, cut, contest, settled, conceded — each at its seq). The void (DEF·Ground) is next, on the same shape. Product assay 12/12. Standing rule from the user: **track negation and void through time.**
+
+## Before committing: the two-tier chorus (2026-09-05)
+
+Run `~/.claude/skills/chorus-lint/chorus-fast.sh` from the repo root. In
+seconds it checks the law files (duplicate P/S headers, citations that
+resolve, Generality on new P entries), runs only the tests that import a
+changed file plus the standing gates, and names which persona lenses the
+diff touches with a `file:line` pointer each. Read only those lenses,
+against the context file it writes (cited entries only). The eleven-persona
+form is `chorus full`, for audits and PR reviews, not per commit. The
+skill's `SKILL.md` carries the lens questions and the log format;
+the-fold's POLICIES.md P35 is the authority that a chorus is a label, not
+eleven agent calls.
+
+## Pass 23 — the void, live (added 2026-09-05) — pointer
+
+POLICIES.md **P105**; eoreader7 **S70**. A void the reader declares carries its scope and lands on the record before the mouth drafts; the ledger block relays it as "looked for and not found so far … an open gap, not a finding that it is false"; `/void`, `/void <id>`, `/void! <id>`. Slot-shaped voids fill live only through the brief's filler organ (residue). The null experiments (Passes 24–29) are the plan of record in NEXT-PASSES.md.

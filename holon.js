@@ -40,6 +40,8 @@ import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWOR
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
 import { isCodeSource } from "./longform.js";
+import { revisePiece } from "./piece-revise.js";
+import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
@@ -2865,6 +2867,30 @@ export async function runHolonicTask({
     sections = edited.sections.map((e) => ({ ...e._section, text: e.text, edited: true }));
   }
 
+  // THE PIECE REVISES ITSELF (P116): once every section is written, edited
+  // and checked, each sentence is read again against the WHOLE piece's
+  // material and record — a sentence whose ground rose is re-cited, a
+  // sentence a later reading denies is rewritten once, and a rewrite lands
+  // only if it grounds. Bounded asks, bounded rounds, every act returned.
+  let revisions = [];
+  if (piece && sections.length > 1 && piece.revise !== false) {
+    try {
+      const seen = new Set();
+      const allPassages = sections.flatMap((s) => s.passages ?? []).filter((p) => p?.ref && !seen.has(p.ref) && seen.add(p.ref));
+      const reader = allPassages.length && makeRelationReader ? makeRelationReader(allPassages, { pool: allPassages }) : null;
+      const readAgainst = (sent) => (reader ? (reader.read(sent)?.claims ?? []) : []);
+      const notes = hyperlexicon && sharedHyperlexiconLog && hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(sharedHyperlexiconLog) : [];
+      const disputes = hyperlexicon?.disputesOf && sharedHyperlexiconLog ? hyperlexicon.disputesOf(sharedHyperlexiconLog) : null;
+      const index = piece.referentIndexFor && allPassages.length ? piece.referentIndexFor(allPassages) : null;
+      const ctx = { notes, disputes, derived: hyperlexiconDerived ?? [], passages: allPassages, resolveName: index ? (n) => index.resolve(n) : null };
+      // a claim knows its sentence by the sentence that carries its first end and its label
+      const anchor = (text, claims) => { const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean); const f = (t) => String(t ?? "").toLowerCase(); return (claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => f(x).includes(f(c.end1 ?? c.subject).split(" ")[0] ?? "") && f(x).includes(f(c.label ?? c.verb))) ?? null })); };
+      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT });
+      revisions = rv.revisions;
+      sections = rv.sections.map((e) => ({ ...e._s, text: e.text, ...(e.recited ? { recited: e.recited } : {}) }));
+    } catch (e) { revisions = [{ kind: "revision-error", because: String(e?.message ?? e) }]; }
+  }
+
   const output = sections
     .map((s) => {
       // An empty part is a typed gap (recorded above); the assembly says so
@@ -2889,5 +2915,5 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits } : {}), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
+    ...(piece ? { edits, revisions } : {}), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

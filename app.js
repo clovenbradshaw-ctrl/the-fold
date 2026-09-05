@@ -126,6 +126,7 @@ import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORD
 import { declaredReferents } from "./code-scout.js";
 import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 import { editLine } from "./piece-edit.js";
+import { revisionLine } from "./piece-revise.js";
 import { groundOf, groundLine } from "./ground-ladder.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
@@ -5619,7 +5620,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       ...(opts.maxParts ? { maxParts: opts.maxParts } : {}),
       ...(opts.executeMaxTokens ? { executeMaxTokens: opts.executeMaxTokens } : {}),
       ...(opts.planMaxTokens ? { planMaxTokens: opts.planMaxTokens } : {}),
-      ...(opts.piece ? { piece: opts.piece } : {}),
+      ...(opts.piece ? { piece: { ...opts.piece, model: turnModel } } : {}),
       ...(planFacts ? { planFacts } : {}),
       onProgress: (phase, part, info) => {
         if (phase === "plan") {
@@ -5959,11 +5960,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
     const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
     for (const e of result.edits ?? []) show(`edited — ${editLine(e)}`);
+    for (const r of result.revisions ?? []) show(r.kind === "revision-error" ? `revision pass failed: ${r.because}` : revisionLine(r));
     const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
     mirrorTermRecord("longform-done", {
       topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
       unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
       // P110's own numbers: words per section, obligation coverage, re-asks, meta-talk cut, hunts.
+      revisions: Object.fromEntries((result.revisions ?? []).map((r) => r.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       edits: (result.edits ?? []).length, editKinds: Object.fromEntries((result.edits ?? []).map((e) => e.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
       via: "chat",
@@ -6497,7 +6500,11 @@ function taggedProse(text, offered, classified = []) {
     // testimony, and a witness is cited by its name.
     if (state.lastGround) {
       const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
-      const g = groundOf(entry.text, { ...state.lastGround, witness: wrow });
+      // The sentence's own edges (classifySentences rides each relation claim
+      // onto the sentence that carries its subject and verb) are the claims
+      // the ladder reads — a claim knows its sentence only there.
+      const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
+      const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
       sent.dataset.groundTier = g.tier;
       const gc = document.createElement("button");
       gc.className = `ground-chip tier-${g.tier}`;

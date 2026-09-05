@@ -1921,3 +1921,15 @@ test("P111: the unconscious edits the mouth — a section that restates an earli
   assert.equal((r.output.match(/## /g) ?? []).length <= 1 || !/## Again/.test(r.output) || true, true);
   assert.equal(r.output.split("where the coast begins").length - 1, 1, "the restated section's prose appears once in the shipped piece");
 });
+
+test("P116: a piece returns its revisions — an array, empty when nothing later changed anything", async () => {
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
+  const r = await runHolonicTask({
+    task: "write about the harbor", chunks,
+    call: async (messages) => { const u = messages.at(-1)?.content ?? ""; if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Tides", description: "the tide." }, { label: "Coast", description: "the coast." }] }); return /Coast/.test(u) ? "A light stands where the coast begins." : "Tides come to this harbor twice each day."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    planMode: "model", piece: { topic: "the harbor", pages: 1, words: 10 },
+  });
+  assert.ok(Array.isArray(r.revisions));
+  assert.equal(r.revisions.filter((x) => x.kind === "revision-error").length, 0, "the revision pass ran without error");
+});

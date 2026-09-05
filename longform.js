@@ -76,3 +76,33 @@ export function detectCodePiece(question, { runtimes = [] } = {}) {
 
 /** A source that is CODE, by its name (P113): read by the sandbox and the declaration scout, never by the prose reader — a `.js` file read as English yields `Arokin —is→ …` notes and a cast of identifiers (measured 2026-09-05, the self-review). */
 export const isCodeSource = (name) => /\.(m?js|cjs|ts|tsx|jsx|py|rb|php|r|sql|json|css|html?|sh|yml|yaml|toml)$/i.test(String(name ?? "").split("#")[0]);
+
+const foldT = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+/** The topic's content words, folded: every one must appear in a source for it to be in a piece's scope (P114). */
+export const topicTerms = (topic) => [...new Set(foldT(topic).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !/^(the|and|for|with|from|about|into|over)$/.test(w)))];
+/** In scope: a source whose text carries every content word of the topic. Material attached for something else never reaches a piece (measured 2026-09-05: the self-review drew a Borodino prose poem from a War and Peace slice attached hours earlier). */
+export function inScope(topic, text) {
+  const terms = topicTerms(topic);
+  if (!terms.length) return true;
+  const f = foldT(text);
+  return terms.every((t) => f.includes(t));
+}
+/** The sources' own section headings: short lines with no terminal punctuation, standing alone — the outline the material already has, handed to the planner as a fact (P114). */
+export function headingsOf(text, { max = 40 } = {}) {
+  const out = [];
+  const lines = String(text ?? "").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const l = lines[i].replace(/^#+\s*/, "").trim();
+    if (!l || l.length > 60) continue;
+    const words = l.split(/\s+/);
+    if (words.length < 1 || words.length > 7) continue;
+    if (/[.!?:;,]$/.test(l) || /^\d+$/.test(l)) continue;
+    const prevBlank = i === 0 || !lines[i - 1].trim();
+    const nextBlank = i === lines.length - 1 || !lines[i + 1].trim();
+    if (!(prevBlank && nextBlank)) continue;
+    if (/^(references|external links|see also|notes|contents|navigation|edit|jump to)$/i.test(l)) continue;
+    if (!out.includes(l)) out.push(l);
+    if (out.length >= max) break;
+  }
+  return out;
+}

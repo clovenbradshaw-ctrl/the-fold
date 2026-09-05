@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece, isCodeSource } from "./longform.js";
+import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece, isCodeSource, inScope, headingsOf, topicTerms } from "./longform.js";
 
 test("a writing ask with a stated length is long-form; the size comes from the number, the topic from the ask's own 'on'/'about'", () => {
   const lf = detectLongForm("write me a 30 page essay on the x files");
@@ -39,4 +39,13 @@ test("a code source is known by its name, never read as prose (P113)", () => {
   assert.equal(isCodeSource("notes.js#0-400"), true);
   assert.equal(isCodeSource("THE-NULL-STATES.md"), false);
   assert.equal(isCodeSource("web:en.wikipedia.org-0"), false);
+});
+
+test("scope (P114): a source is in a piece's scope only when it carries every content word of the topic; the sources' own headings are read as an outline", () => {
+  assert.deepEqual(topicTerms("the Battle of Borodino"), ["battle", "borodino"]);
+  assert.equal(inScope("the Battle of Borodino", "Tolstoy wrote of the battle at Borodino."), true);
+  assert.equal(inScope("the Battle of Borodino", "The X-Files aired on Fox."), false);
+  assert.equal(inScope("the x files", "The X-Files is a series."), true, "a hyphenated name folds to its words");
+  const h = headingsOf("The X-Files\n\nIntro text here.\n\nProduction\n\nIt was filmed in Vancouver.\n\nSee also\n\nCasting and characters\n\nDuchovny was cast.\n\nThis is a long sentence that ends with a period.\n");
+  assert.deepEqual(h, ["The X-Files", "Production", "Casting and characters"]);
 });

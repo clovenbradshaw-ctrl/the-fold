@@ -122,7 +122,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
-import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource } from "./longform.js";
+import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource, inScope, headingsOf } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
 import { editLine } from "./piece-edit.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
@@ -2032,6 +2032,7 @@ function longFormTurn(lf, typed) {
     longForm: lf,
     piece: {
       topic: lf.topic, pages: lf.pages, words: LONGFORM_WORDS_PER_SECTION,
+      register: "Written for a university reader: an argument with specifics drawn from the sources, not a summary of them.",
       // Entities: the cast the section's own passages establish (P110).
       referentIndexFor,
       // The per-section hunt (P110): the section's own words as the query,
@@ -4610,6 +4611,23 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   let live = liveChunks();
+  // A PIECE stands only on material in its scope (P114): sources whose text
+  // carries every content word of the topic, plus what its own hunt finds.
+  // Attached-for-something-else never reaches it, and what it stands on is
+  // said. The sources' own headings become the planner's facts.
+  let planFacts = null;
+  let scopeNote = null;
+  if (opts.longForm) {
+    const topic = opts.longForm.topic;
+    const inScopeNames = new Set(Object.entries(state.sources).filter(([name, text]) => !isCodeSource(name) && inScope(topic, text)).map(([name]) => name));
+    const before = live.length;
+    live = live.filter((c) => inScopeNames.has(c.source));
+    // `show` is declared further down this function; the scope line is
+    // kept and said once the ticker exists.
+    scopeNote = "standing on " + inScopeNames.size + " attached source(s) in scope of \u201c" + topic + "\u201d" + (inScopeNames.size ? ": " + [...inScopeNames].join(", ") : "") + (before - live.length ? " \u2014 " + (before - live.length) + " passage(s) of other material set aside" : "");
+    const heads = [...new Set([...inScopeNames].flatMap((name) => headingsOf(state.sources[name] ?? "")))].slice(0, 30);
+    if (heads.length) planFacts = "The sources are organized under these headings of their own: " + heads.join("; ") + ". Plan the piece's sections as an argument that draws on them, not as a copy of them.";
+  }
 
   // The run narrates itself while it works — the thinking, live, in three
   // layers: the log lines (what the turn decided and found), a ticker (what
@@ -4669,6 +4687,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     logBlock.textContent += (logBlock.textContent ? "\n" : "") + line;
     node.scrollIntoView({ block: "end" });
   };
+  if (scopeNote) show(scopeNote);
 
   /** One passage of thinking. Split on blank lines so each paragraph is its
    * own element — a single pre-wrap blob is exactly the undifferentiated
@@ -5055,6 +5074,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         // preflight only ever runs with nothing attached, so `live` is empty
         // there and the union is the same assignment.
         live = longFormHunt ? [...live, ...preflight.chunks] : preflight.chunks;
+        // The hunted pages' own headings join the planner's facts (P114):
+        // they are the material the piece stands on, and their sections are
+        // the outline the subject already has.
+        if (longFormHunt) {
+          const bySource = new Map();
+          for (const c of preflight.chunks) if (!String(c.ref ?? "").startsWith("web:search-results")) bySource.set(c.source, (bySource.get(c.source) ?? "") + "\n\n" + (c.text ?? ""));
+          const heads = [...new Set([...bySource.values()].flatMap((t) => headingsOf(t)))].slice(0, 30);
+          if (heads.length) planFacts = "The sources are organized under these headings of their own: " + heads.join("; ") + ". Plan the piece's sections as an argument that draws on them, not as a copy of them.";
+        }
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
       } else {
         const voidDetail = preflight.gap?.detail ? `checked the web: ${preflight.gap.detail}` : "checked the web — nothing usable came back";
@@ -5536,6 +5564,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       ...(opts.executeMaxTokens ? { executeMaxTokens: opts.executeMaxTokens } : {}),
       ...(opts.planMaxTokens ? { planMaxTokens: opts.planMaxTokens } : {}),
       ...(opts.piece ? { piece: opts.piece } : {}),
+      ...(planFacts ? { planFacts } : {}),
       onProgress: (phase, part, info) => {
         if (phase === "plan") {
           setPhase("planning");

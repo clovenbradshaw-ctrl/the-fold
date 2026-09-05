@@ -536,7 +536,11 @@ export function pieceLine(piece) {
   const said = piece.alreadySaid?.length ? ` Earlier sections already said: ${piece.alreadySaid.join("; ")}.` : "";
   // Paradigm (contests, voids) → what a conclusion is made of.
   const facts = piece.facts ? `${piece.facts.disagreements?.length ? ` The sources disagree on: ${piece.facts.disagreements.join("; ")}.` : ""}${piece.facts.gaps?.length ? ` Nothing read says: ${piece.facts.gaps.join("; ")}.` : ""}` : "";
-  return `${where}${of}.${outline}${prev}${must}${said}${facts} Write about ${piece.words} words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established.`;
+  // The register is the caller's (a university reader; an argument, not a
+  // summary; specifics from the sources) — a fact about the audience the
+  // mouth receives, never a compliance rule the instrument trusts.
+  const register = piece.register ? ` ${piece.register}` : "";
+  return `${where}${of}.${outline}${prev}${must}${said}${facts}${register} Write about ${piece.words} words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established.`;
 }
 /** The continuation ask, one place, so the meta-talk cut below knows its words. */
 export const continueAsk = (more) => `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.`;
@@ -943,6 +947,11 @@ export async function runPart({
   // Long-form (P108): the section's place in a piece and its word target;
   // a short draft gets ONE measured continuation before any check runs.
   piece = null,
+  // What the material itself is organized as — the sources' own section
+  // headings — handed to the planner as facts (P114), so the outline is
+  // drawn from the material rather than from the model's sense of what a
+  // piece on any subject contains.
+  planFacts = null,
   makeNameResolver = null,
   makeRelationReader = null,
   // The link tier (links.js): an async function url => fetched-shape result,
@@ -2603,6 +2612,11 @@ export async function runHolonicTask({
   // place in the piece, the outline, how the previous section ended, and
   // its word target; a short section is continued once, measured.
   piece = null,
+  // What the material itself is organized as — the sources' own section
+  // headings — handed to the planner as facts (P114), so the outline is
+  // drawn from the material rather than from the model's sense of what a
+  // piece on any subject contains.
+  planFacts = null,
   makeNameResolver = null,
   makeRelationReader = null,
   witnessSentences = null,
@@ -2687,7 +2701,7 @@ export async function runHolonicTask({
       planRaw = await call(
         [
           { role: "system", content: PLAN_SYSTEM_PROMPT },
-          { role: "user", content: buildPlanPrompt(task, maxParts) },
+          { role: "user", content: buildPlanPrompt(task, maxParts) + (planFacts ? `\n\n${planFacts}` : "") },
         ],
         // The shape is grammar, not a request: a runtime that can take a
         // schema constrains decoding to the parts array; one that can't

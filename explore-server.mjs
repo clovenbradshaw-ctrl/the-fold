@@ -2430,7 +2430,7 @@ function mergeRelatingLedger(left, nominations) {
       // silently; a declared allowlist is only a wall if it is kept). The
       // long-form events (P108) carry a piece's progress so a reader — or a
       // driver — can follow a 30-page run off the record rather than the DOM.
-      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done"]);
+      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done", "web-digest", "codepiece-plan", "codepiece-part", "codepiece-done"]);
       if (typeof body.event !== "string" || !(body.event.startsWith("term-") || CHAT_MIRRORED.has(body.event))) return send(res, 400, { error: `event (string) is required: "term-"-prefixed, or one of ${[...CHAT_MIRRORED].join(" / ")}` });
       const { event, ...fields } = body;
       record(event, fields);

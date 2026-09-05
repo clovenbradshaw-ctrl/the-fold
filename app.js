@@ -81,13 +81,13 @@ import { checkGrounding, unsupportedClaims, extractCheckableAtoms } from "./grou
 
 import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
-import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT } from "./holon.js";
+import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT } from "./holon.js";
 
 import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
-import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxed } from "./term.js";
+import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, runSandboxed } from "./term.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
@@ -122,7 +122,9 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
-import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION } from "./longform.js";
+import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource, inScope, headingsOf } from "./longform.js";
+import { declaredReferents } from "./code-scout.js";
+import { editLine } from "./piece-edit.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
@@ -347,13 +349,17 @@ const yieldMacrotask = (() => {
 })();
 let readQueue = Promise.resolve();
 function unreadNow() {
-  return [...READING.entries()].map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+  return [...READING.entries()].filter(([, r]) => !r.skipped).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
 }
 function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
   readQueue = readQueue.then(async () => {
     await priorsSettled();
     const passages = state.chunks.filter((c) => c.source === name);
     if (!passages.length || !state.sources[name]) return;
+    // A code file is not prose (P113): retrievable, runnable, scouted for
+    // its declarations — never read into the ledger as English. The skip is
+    // typed on the reading map, not silent, and it is not an unread extent.
+    if (isCodeSource(name)) { READING.set(name, { cursor: 0, total: passages.length, recipe: null, running: false, skipped: "code" }); return; }
     const frame = readerFrame();
     const recipe = await readerRecipe(frame);
     const cursor = savedRecipe === recipe ? savedCursor : 0;
@@ -1926,6 +1932,93 @@ function essayTurn(argstr, typed) {
   if (!lf) return usageTurn(typed, "could not read a length and a topic from that.");
   return longFormTurn(lf, typed);
 }
+// ── A PROGRAM asked for by its shape (Pass 30 / P112) ─────────────────────
+// The piece machinery pointed at code. One build, born from the first
+// feature; every later feature lands as a PATCH through the same door a
+// complaint uses (`foldTurn` — scout, smallest edit, witness gate, record);
+// after every landing the sandbox runs the whole and the OUTCOME is the
+// witness (never the model's say-so); a failed run is said back once as a
+// fact with the run's own last line; coverage is measured against the
+// spec's own features by the code's declared names; the editor's finding
+// (a name declared twice) is one more instruction. Every step is on the
+// record.
+async function runBuildOnce(entry) {
+  const fold = buildFold(entry, null);
+  const lang = fold?.seg?.lang;
+  if (!autoRunnable(lang)) return { skipped: `no sandbox runtime for ${lang ?? "this"}` };
+  const before = entry.log.entries.length;
+  const outcome = await runSandboxed(lang, fold.code ?? "");
+  entry.log = buildLog.attachRun(entry.log, { params: { lang, timeoutMs: null, maxOutput: KEEP_PER_EXEC, sandboxed: true }, outcome: { ok: outcome.code === 0 && !outcome.timedOut, data: outcome } });
+  entry.cursor = null;
+  mirrorBuild(entry, before);
+  persistBuilds();
+  renderBuilds(entry.n);
+  return { ok: outcome.code === 0 && !outcome.timedOut, outcome, summary: autoRunSummary(outcome) };
+}
+const CODE_PIECE_SEED_TOKENS = 1200;
+async function codePieceTurn(cp, typed) {
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  node.querySelector(".who").textContent = "program";
+  const body = node.querySelector(".body");
+  const lines = [];
+  const say = (l) => { lines.push(l); body.textContent = lines.join("\n"); };
+  const sentCalls = [];
+  const call = async (messages, opts = {}) => { sentCalls.push({ n: sentCalls.length + 1, messages }); return complete(messages, { ...opts, model: state.model }); };
+  // 1. the plan: one feature per part, in build order — the shape held by the decoder's grammar
+  const task = `Write a ${cp.lang} program that ${cp.spec}. Plan the features to build, one per part, in the order they must be built.`;
+  let planRaw = "";
+  try { planRaw = await call([{ role: "system", content: PLAN_SYSTEM_PROMPT }, { role: "user", content: buildPlanPrompt(task, cp.parts) }], { maxTokens: PLAN_MAX_TOKENS, json: PLAN_SCHEMA }); } catch {}
+  const plan = parsePlan(planRaw, task, cp.parts);
+  const parts = plan.parts.length >= 2 ? plan.parts : cp.features.map((f, i) => ({ id: `p${i + 1}`, label: f, description: f }));
+  say(`plan: ${parts.length} feature(s) — ${parts.map((p) => p.label).join(" · ")}${plan.degraded ? " (the plan did not parse; the spec's own clauses are the parts)" : ""}`);
+  mirrorTermRecord("codepiece-plan", { lang: cp.lang, spec: cp.spec, parts: parts.map((p) => p.label), via: "chat" });
+  // 2. the seed: the first feature alone, as one fenced program
+  const seedAsk = `Write a ${cp.lang} program that does only this for now: ${parts[0].label} — ${parts[0].description}. It will grow feature by feature; keep it small and runnable, with a main entry that runs when the file runs. Reply with one fenced \`\`\`${cp.lang} block and nothing else.`;
+  let seedReply = "";
+  try { seedReply = await call([{ role: "user", content: seedAsk }], { maxTokens: CODE_PIECE_SEED_TOKENS }); } catch (e) { say(`the seed could not be asked for: ${e?.message ?? e}`); releaseBusy(); return; }
+  const seg = parseSegments(seedReply).find((x) => x.type === "code" && x.code?.trim());
+  if (!seg) { say("the seed reply carried no code block — nothing to build on (typed gap, not a retry)."); mirrorTermRecord("codepiece-done", { lang: cp.lang, gap: "no_seed", via: "chat" }); renderFold(node, { sent: sentCalls }); releaseBusy(); return; }
+  seg.lang = seg.lang || cp.lang;
+  publishBuild(seg, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
+  const entry = state.builds.at(-1);
+  const n = entry.n;
+  const runs = [];
+  let r0 = await runBuildOnce(entry);
+  runs.push({ part: parts[0].label, ...r0 });
+  say(`fold ${n} born with "${parts[0].label}" — ${r0.summary ?? r0.skipped}`);
+  // 3. every later feature: a patch through the complaint door, then the run as the witness, one repair on a failed run
+  for (const p of parts.slice(1)) {
+    await foldTurn(n, `Add ${p.label}: ${p.description}`, `add ${p.label}`, { quiet: true, autoRun: false });
+    let r = await runBuildOnce(entry);
+    if (r.ok === false) {
+      const last = (r.outcome?.stderr || "").trim().split("\n").filter(Boolean).pop() ?? "it failed";
+      await foldTurn(n, `Running it failed with: ${last.slice(0, 160)}. Fix that.`, `fix the run`, { quiet: true, autoRun: false });
+      r = await runBuildOnce(entry);
+      r.repaired = true;
+    }
+    runs.push({ part: p.label, ...r });
+    say(`"${p.label}" landed — ${r.summary ?? r.skipped}${r.repaired ? " (after one repair)" : ""}`);
+    mirrorTermRecord("codepiece-part", { fold: n, part: p.label, ok: r.ok ?? null, repaired: Boolean(r.repaired), via: "chat" });
+  }
+  // 4. coverage and the editor's finding, both mechanical
+  const code = buildFold(entry, null)?.code ?? "";
+  const decls = cp.lang === "js" ? declaredReferents(code) : [...code.matchAll(/^(?:def|class|function|const|let|var)\s+([A-Za-z_][\w]*)/gm)].map((m) => ({ name: m[1] }));
+  const names = decls.map((d) => d.name.toLowerCase());
+  const covered = parts.filter((p) => tokenize(p.label).some((t) => t.length > 3 && names.some((nm) => nm.includes(t))));
+  const dupes = [...names.reduce((m, nm) => m.set(nm, (m.get(nm) ?? 0) + 1), new Map()).entries()].filter(([, c]) => c > 1).map(([nm]) => nm);
+  if (dupes.length) await foldTurn(n, `The name${dupes.length > 1 ? "s" : ""} ${dupes.join(", ")} ${dupes.length > 1 ? "are" : "is"} declared more than once. Keep one declaration of each.`, `edit: duplicate declarations`, { quiet: true, autoRun: false });
+  const final = await runBuildOnce(entry);
+  const okRuns = runs.filter((x) => x.ok).length;
+  say(`done: fold ${n} · ${parts.length} feature(s) · ${okRuns}/${runs.length} landings ran clean · final run ${final.summary ?? final.skipped} · ${decls.length} declared name(s), ${covered.length}/${parts.length} feature(s) named in the code${dupes.length ? ` · ${dupes.length} duplicate declaration(s) sent back to the fold` : ""}`);
+  mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: parts.length, okRuns, finalOk: final.ok ?? null, declared: decls.length, covered: covered.length, dupes: dupes.length, via: "chat" });
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
+  renderFold(node, { sent: sentCalls });
+  renderThreads();
+  $("status").textContent = `ready · ${state.model}`;
+  releaseBusy();
+}
+
 // longFormTurn — the same holonic turn every checked answer runs (plan,
 // then one part at a time, each part retrieving over the material and
 // checked by the same ladder), with the numbers a PIECE needs declared:
@@ -1937,7 +2030,16 @@ function longFormTurn(lf, typed) {
   return holonicTurn(longFormTask(lf), typed, "model", {
     label: lf.kind ?? "piece",
     longForm: lf,
-    piece: { topic: lf.topic, pages: lf.pages, words: LONGFORM_WORDS_PER_SECTION },
+    piece: {
+      topic: lf.topic, pages: lf.pages, words: LONGFORM_WORDS_PER_SECTION,
+      register: "Written for a university reader: an argument with specifics drawn from the sources, not a summary of them.",
+      // Entities: the cast the section's own passages establish (P110).
+      referentIndexFor,
+      // The per-section hunt (P110): the section's own words as the query,
+      // through the same crossing the preflight uses, under the same
+      // standing consent; a small leash per section.
+      huntFor: state.webProof ? async (q) => { const r = await gatherPreflightMaterial(q, "", null, { pagesConsulted: LONGFORM_SECTION_PAGES, query: q }); return r.chunks ?? []; } : null,
+    },
     maxParts: lf.sections,
     executeMaxTokens: LONGFORM_PART_TOKENS,
     planMaxTokens: 60 * lf.sections + 120,
@@ -3019,6 +3121,11 @@ async function send(question) {
   // A PIECE asked for by its length (P108): "write me a 30-page essay on
   // …" is work with a declared size, not a question — routed before every
   // material detector so the size, not appetite, plans it.
+  // A PROGRAM asked for by its shape (Pass 30 / P112): a runtime the
+  // terminal's own registry names and an enumerated spec — one build, one
+  // feature per part, the sandbox run as the witness after every landing.
+  const codePiece = detectCodePiece(question, { runtimes: Object.keys(ROSTER) });
+  if (codePiece) return codePieceTurn(codePiece, question);
   const longForm = detectLongForm(question);
   if (longForm) return longFormTurn(longForm, question);
   const wanted = detectTable(question);
@@ -3360,7 +3467,7 @@ function parseOps(text) {
  * trigger) rather than a revision — a judgment concedes a ground, an
  * instruction compiles a new whole. Same machine, two landings.
  */
-async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null, matchedOn = null } = {}) {
+async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null, matchedOn = null, quiet = false, autoRun = true } = {}) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -3378,7 +3485,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
     return usageTurn(typed, `fold ${n} is a database fold — it is populated by SQL execution (the terminal's sql runtime, or chat's \`/run sql\` door), not by \`/fold\`'s text revision. Its current projection is in the Folds panel.`);
   }
 
-  addMessage("user", typed);
+  if (!quiet) addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
 
@@ -3689,7 +3796,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
     document.getElementById(`build-${n}`)?.scrollIntoView({ block: "start" });
   };
   body.append(chip);
-  autoRunAndDisclose(entry, chip);
+  if (autoRun) autoRunAndDisclose(entry, chip);
 
   // The turn on the conversation's own record. The fold line is mechanical —
   // the landing note says everything later turns need — so the summary
@@ -4033,14 +4140,15 @@ async function reflectTurn(question, typed) {
 // more call in that same turn when it fires, so it is appended to the same
 // array rather than left to vanish as a call the turn's own disclosure never
 // knew happened.
-async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false } = {}) {
+async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false, because = null } = {}) {
   state.turnFolds.push(fold);
   const heldGround = Boolean(arrivals) && exchangeHeldGround(arrivals);
   if (heldGround && forceRefresh) {
     // The override is itself an act, never silent — the same discipline
     // the ordinary `carried` skip below already holds for the opposite
-    // decision.
-    logAct("forcedRefresh", { because: "S1/S2 disagreement (metacognition.js)" });
+    // decision. The reason is the caller's (P109: a filled void is a
+    // second reason beside the S1/S2 disagreement).
+    logAct("forcedRefresh", { because: because ?? "S1/S2 disagreement (metacognition.js)" });
   }
   if (heldGround && !forceRefresh && state.heldFolds < MAX_FOLDS_IN_PROMPT - 1) {
     logAct("carried", { streak: state.heldFolds + 1 });
@@ -4481,6 +4589,9 @@ async function seekWhatWeRead(anchorTerm, slotTerm, chunks) {
 // what's selected. Every existing caller passes no opts and is byte-
 // identical to before this existed.
 async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
+  // Where the ledger stood when this turn began (Pass 29 / P109): a void
+  // filled at or after this seq is a re-zero of the ground THIS turn moved.
+  const turnStartSeq = state.hyperlexiconLog?.nextSeq ?? 0;
   if (!opts.skipUserMessage) addMessage("user", typed);
   const node = addMessage("assistant", "");
   if (opts.label) node.querySelector(".who").textContent = opts.label;
@@ -4500,6 +4611,23 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   let live = liveChunks();
+  // A PIECE stands only on material in its scope (P114): sources whose text
+  // carries every content word of the topic, plus what its own hunt finds.
+  // Attached-for-something-else never reaches it, and what it stands on is
+  // said. The sources' own headings become the planner's facts.
+  let planFacts = null;
+  let scopeNote = null;
+  if (opts.longForm) {
+    const topic = opts.longForm.topic;
+    const inScopeNames = new Set(Object.entries(state.sources).filter(([name, text]) => !isCodeSource(name) && inScope(topic, text)).map(([name]) => name));
+    const before = live.length;
+    live = live.filter((c) => inScopeNames.has(c.source));
+    // `show` is declared further down this function; the scope line is
+    // kept and said once the ticker exists.
+    scopeNote = "standing on " + inScopeNames.size + " attached source(s) in scope of \u201c" + topic + "\u201d" + (inScopeNames.size ? ": " + [...inScopeNames].join(", ") : "") + (before - live.length ? " \u2014 " + (before - live.length) + " passage(s) of other material set aside" : "");
+    const heads = [...new Set([...inScopeNames].flatMap((name) => headingsOf(state.sources[name] ?? "")))].slice(0, 30);
+    if (heads.length) planFacts = "The sources are organized under these headings of their own: " + heads.join("; ") + ". Plan the piece's sections as an argument that draws on them, not as a copy of them.";
+  }
 
   // The run narrates itself while it works — the thinking, live, in three
   // layers: the log lines (what the turn decided and found), a ticker (what
@@ -4559,6 +4687,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     logBlock.textContent += (logBlock.textContent ? "\n" : "") + line;
     node.scrollIntoView({ block: "end" });
   };
+  if (scopeNote) show(scopeNote);
 
   /** One passage of thinking. Split on blank lines so each paragraph is its
    * own element — a single pre-wrap blob is exactly the undifferentiated
@@ -4945,6 +5074,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         // preflight only ever runs with nothing attached, so `live` is empty
         // there and the union is the same assignment.
         live = longFormHunt ? [...live, ...preflight.chunks] : preflight.chunks;
+        // The hunted pages' own headings join the planner's facts (P114):
+        // they are the material the piece stands on, and their sections are
+        // the outline the subject already has.
+        if (longFormHunt) {
+          const bySource = new Map();
+          for (const c of preflight.chunks) if (!String(c.ref ?? "").startsWith("web:search-results")) bySource.set(c.source, (bySource.get(c.source) ?? "") + "\n\n" + (c.text ?? ""));
+          const heads = [...new Set([...bySource.values()].flatMap((t) => headingsOf(t)))].slice(0, 30);
+          if (heads.length) planFacts = "The sources are organized under these headings of their own: " + heads.join("; ") + ". Plan the piece's sections as an argument that draws on them, not as a copy of them.";
+        }
         show(`found ${preflight.pages.length} page(s) · ${preflight.chunks.length} passage(s) to answer from`);
       } else {
         const voidDetail = preflight.gap?.detail ? `checked the web: ${preflight.gap.detail}` : "checked the web — nothing usable came back";
@@ -5426,6 +5564,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       ...(opts.executeMaxTokens ? { executeMaxTokens: opts.executeMaxTokens } : {}),
       ...(opts.planMaxTokens ? { planMaxTokens: opts.planMaxTokens } : {}),
       ...(opts.piece ? { piece: opts.piece } : {}),
+      ...(planFacts ? { planFacts } : {}),
       onProgress: (phase, part, info) => {
         if (phase === "plan") {
           setPhase("planning");
@@ -5666,7 +5805,20 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     syncRecords();
     forceRefresh = forcesFoldRefresh(agreement);
   }
-  await refreshSummary(fold, arrivals, sentCalls, { forceRefresh });
+  // RE-ZERO AS A SURPRISE TO THE FOLD (Pass 29 / P109): a void filled this
+  // turn — by the arrival read, by a filler the brief found, by the door —
+  // is REC·Ground: the ground moved. The running summary refreshes on it
+  // rather than being carried, and the override is an act on the ledger.
+  // Whether this refreshes exactly where the summary would have gone stale
+  // is the named, unrun measurement; the wire is what makes it measurable.
+  let forceBecause = forceRefresh ? "S1/S2 disagreement (metacognition.js)" : null;
+  const filledThisTurn = state.grounded && state.hyperlexiconLog && hyperlexiconFor.fillingsSince ? hyperlexiconFor.fillingsSince(state.hyperlexiconLog, turnStartSeq) : [];
+  if (filledThisTurn.length) {
+    logAct("rezeroed", { voids: filledThisTurn.map((f) => f.void), by: filledThisTurn.map((f) => f.by) });
+    forceRefresh = true;
+    forceBecause = `${filledThisTurn.length} void(s) filled this turn (REC·Ground)`;
+  }
+  await refreshSummary(fold, arrivals, sentCalls, { forceRefresh, because: forceBecause });
   // MOMENT 3: everything the turn held, retrieved passages INCLUDED.
   //
   // THE UNION IS LOAD-BEARING AND WAS FOUND LIVE. This pass used to declare
@@ -5735,7 +5887,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   renderFold(node, { sent: sentCalls, record: answerRec });
   if (opts.longForm) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
-    mirrorTermRecord("longform-done", { topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length, unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length, via: "chat" });
+    const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
+    for (const e of result.edits ?? []) show(`edited — ${editLine(e)}`);
+    const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    mirrorTermRecord("longform-done", {
+      topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
+      unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
+      // P110's own numbers: words per section, obligation coverage, re-asks, meta-talk cut, hunts.
+      edits: (result.edits ?? []).length, editKinds: Object.fromEntries((result.edits ?? []).map((e) => e.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
+      sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
+      via: "chat",
+    });
   }
   renderThreads();
   if (!state.grounded) {
@@ -7574,6 +7736,7 @@ async function checkLinkCitation(url) {
 // declared constant the slice below always used, so every caller that
 // passes nothing is byte-identical to before this parameter existed.
 const LONGFORM_PAGES_CONSULTED = 8; // the leash for a piece's hunt (P9): the settling rule decides the spend, this is its ceiling
+const LONGFORM_SECTION_PAGES = 2;   // the leash for one section's own hunt (P110)
 async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pagesConsulted = PREFLIGHT_PAGES_CONSULTED, query: queryOverride = null } = {}) {
   // The anaphor door is the engine's own received closed class (Amendment
   // IV register), injected here the same way widget.js takes it — never a
@@ -7659,6 +7822,12 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
     .filter(Boolean)
     .join("\n");
   if (digest) chunks.push(...chunkSource("web:search-results", digest));
+  // The digest is turn-scoped and was never kept, so a copy-check after the
+  // fact could not compare against it (measured 2026-09-05, the essay's
+  // plagiarism check covered the three fetched pages and not the snippets).
+  // It lands on the record beside the search it came from — bytes, not a
+  // summary — so any later comparison has what the mouth was handed.
+  if (digest) mirrorTermRecord("web-digest", { query, chars: digest.length, text: digest.slice(0, 6000) });
   // The hunt's own stopping rule (P72's third amendment, user direction:
   // "hunt until what we experienced would not be surprising to a degree
   // that is a distinction that makes a difference"). The meter is seeded

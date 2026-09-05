@@ -125,6 +125,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource, inScope, headingsOf } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
 import { editLine } from "./piece-edit.js";
+import { groundOf, groundLine } from "./ground-ladder.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
@@ -5766,6 +5767,20 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // the sentence witness's rows, read by renderAnswer's badge pass by sentence text
   state.lastAsked = typeof task === "string" ? task : (state.lastAsked ?? "");
   state.lastWitness = result.sections.flatMap((s) => s.witness?.rows ?? []);
+  // The whole cube, for the ground ladder (P115): every section's claims,
+  // passages and witness rows, the ledger's notes, the derived facts and the
+  // live disputes, plus the turn's model — so each sentence is placed on
+  // its highest rung when it is drawn.
+  state.lastGround = (() => {
+    try {
+      const claims = result.sections.flatMap((s) => s.relations?.claims ?? []);
+      const passages = result.sections.flatMap((s) => s.passages ?? []);
+      const notes = state.hyperlexiconLog && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : [];
+      const disputes = state.hyperlexiconLog && hyperlexiconFor.disputesOf ? hyperlexiconFor.disputesOf(state.hyperlexiconLog) : null;
+      const index = passages.length ? referentIndexFor(passages) : null;
+      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: turnModel };
+    } catch (e) { console.warn("ground ladder:", e?.message ?? e); return null; }
+  })();
   // The instruction is the model's own plan — task + plan parts, mechanically
   // assembled. It goes into the build log's PROPOSE entries (build-log.js)
   // so the code is always projected from the instruction that produced it.
@@ -6421,6 +6436,21 @@ function taggedProse(text, offered, classified = []) {
       sent.onclick = () => groundHunt(entry.text);
     }
     sent.append(...refNodes(matched, known));
+    // THE GROUND, off the whole cube (P115): one chip per sentence naming
+    // the highest rung that placed it and its addresses — or, at the bottom,
+    // the model by name: a sentence nothing read places is the mouth's own
+    // testimony, and a witness is cited by its name.
+    if (state.lastGround) {
+      const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
+      const g = groundOf(entry.text, { ...state.lastGround, witness: wrow });
+      sent.dataset.groundTier = g.tier;
+      const gc = document.createElement("button");
+      gc.className = `ground-chip tier-${g.tier}`;
+      gc.textContent = `◎ ${groundLine(g)}`;
+      gc.title = `${g.detail}${g.addresses?.length ? ` — ${g.addresses.join(", ")}` : ""}. Press to search the material.`;
+      gc.onclick = () => groundHunt(entry.text);
+      sent.append(gc);
+    }
 
     // Where this app attached the address itself, say so in the tag. A
     // citation the model wrote and one this app measured are different

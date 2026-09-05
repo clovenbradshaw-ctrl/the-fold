@@ -321,6 +321,16 @@
          badge — readable without a click, clickable for the passage the
          material does bind. Bound edges stay quiet; only contradiction and
          never-bound are news. */
+      /* The ground chip (P115): one per sentence, the highest rung of the
+         cube that placed it, or the model by name. Quiet by default; the
+         marks toggle hides it with the rest of the apparatus. */
+      .ground-chip { font: inherit; font-size: 0.72em; padding: 0 0.4em; margin-left: 0.3em; border: 1px solid var(--line, #ccc); border-radius: 0.6em; background: transparent; color: var(--muted, #666); cursor: pointer; vertical-align: baseline; }
+      .ground-chip.tier-bound, .ground-chip.tier-witnessed, .ground-chip.tier-recorded { border-color: #4a9; color: #287; }
+      .ground-chip.tier-derived { border-style: dashed; }
+      .ground-chip.tier-contested { border-color: #c73; color: #a52; }
+      .ground-chip.tier-named { border-style: dotted; }
+      .ground-chip.tier-self { border-color: #b8b; color: #857; }
+      .msg .body.marks-off .ground-chip, body.marks-off .msg .body .ground-chip { display: none; }
       .edge-badge {
         font-family: var(--mono);
         font-size: 10.5px;

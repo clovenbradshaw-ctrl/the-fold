@@ -283,6 +283,11 @@ const foldDigest = (log) => canon(projectParts(log).map(({ first_seq, last_seq, 
 // Declared budget per part (P9), with its reason: a flat answer is two to
 // six sentences, each ask one small-model call plus its arm.
 export const WITNESS_ASKS_PER_PART = 6;
+// A PIECE's section is long and its citations are the deliverable (P115):
+// the witness is asked about every sentence the relation tier left open,
+// up to this declared budget — ~3 s an ask on the small mouth, so a
+// 30-page piece spends minutes here, said on the record.
+export const PIECE_WITNESS_ASKS = 24;
 export const MAX_PRODUCE_STEPS = 3;
 
 /**
@@ -2556,7 +2561,7 @@ export async function runPart({
   let witnessReport = null;
   if (witnessSentences && passages.length) {
     try {
-      witnessReport = await witnessSentences(splitSentences(stripFraming(text)), check.relations?.claims ?? [], passages, { maxAsks: witnessAsks });
+      witnessReport = await witnessSentences(splitSentences(stripFraming(text)), check.relations?.claims ?? [], passages, { maxAsks: piece ? Math.max(witnessAsks, PIECE_WITNESS_ASKS) : witnessAsks });
     } catch (e) {
       witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
     }

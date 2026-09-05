@@ -45,6 +45,7 @@ import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
+import { admitPassages } from "./read-on-arrival.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -973,6 +974,7 @@ export async function runPart({
   // moved since birth. `null` (every existing caller) leaves witnesses bare
   // and undeclared, exactly as before.
   hyperlexiconRecipe = null,
+  hyperlexiconUnread = [],
   // The door's own grammar gate (hyperlexicon.js::admit's classifyConnector
   // — asymmetric, P56: a settled non-verb connector is refused with its
   // giver, an out-of-vocabulary word admits). Threaded, never built here:
@@ -1092,41 +1094,19 @@ export async function runPart({
   // (incomplete edges, unaddressed spans), exactly as admit types them.
   const hyperlexiconTurnedAway = [];
   if (hyperlexicon && relations) {
-    for (const p of passages) {
-      const text = String(p?.text ?? "");
-      if (!text.trim()) continue;
-      const claims = relations.read(text)?.claims ?? [];
-      const edges = claims
-        .filter((c) => c.verdict === "bound")
-        // Read off the claim's neutral arrangement (P72); hyperlexicon.js's
-        // own admit() still requires subject/verb/object as ITS OWN field
-        // contract (P57's independent ledger vocabulary, not this claim's),
-        // so the destination keys stay as they are — only the source read
-        // moved off the legacy names.
-        .map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
-      if (!edges.length) continue;
-      let ledger = beliefNotes ?? hyperlexicon.createHyperlexicon(hyperlexiconFrame ? { frame: hyperlexiconFrame } : undefined);
-      // The frame in force follows the reader, not the ledger's birthday: a
-      // prior that loaded since is redeclared (SUPERSEDE, the past kept),
-      // so every hearing's seq falls under the frame that actually read it.
-      if (hyperlexiconFrame && hyperlexicon.redeclareFrame) ledger = hyperlexicon.redeclareFrame(ledger, hyperlexiconFrame);
-      const witness = p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null;
-      const admitted = hyperlexicon.admit(
-        ledger,
-        edges,
-        // minShare stays the door's own declared default — no second number
-        // is introduced here; classifyConnector null = the gate does not
-        // run, admit's own disclosed behaviour.
-        { witness, classifyConnector },
-      );
-      beliefNotes = admitted.log;
-      // Refusals are returned, never read-and-discarded (P57: turnedAway
-      // is not optional) — accumulated per part and threaded out through
-      // runHolonicTask as hyperlexiconTurnedAway (P74).
-      for (const t of admitted.turnedAway) {
-        hyperlexiconTurnedAway.push({ witness: p.ref ?? null, reason: t.reason, detail: t.detail, verb: t.edge?.verb ?? null });
-      }
-    }
+    // ONE implementation with the arrival reader (read-on-arrival.js, P99):
+    // the per-turn path admits exactly as the background read does — the
+    // loop that lived here moved there verbatim (ledger born on the first
+    // bound edge, frame redeclared on drift, witness `<ref>~<recipe>`,
+    // refusals returned never discarded).
+    const admitted = admitPassages(hyperlexicon, beliefNotes, passages, {
+      read: (text) => relations.read(text),
+      witnessFor: (p) => (p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null),
+      classifyConnector,
+      frame: hyperlexiconFrame,
+    });
+    beliefNotes = admitted.log;
+    hyperlexiconTurnedAway.push(...admitted.turnedAway);
   }
 
   // HYPERGRAPH-FIRST-GENERATION.md, Phase 2: the material's own extracted
@@ -1165,8 +1145,14 @@ export async function runPart({
   // "passage"/"retrieved"/"this turn". Deduped against factBlock's own
   // fresh lines so nothing doubles.
   const HYPERLEXICON_LEDGER_LINES = 5;
+  // A question asked mid-read is told what has not been read yet (P99): a
+  // typed extent, phrased as a fact about the reader's progress, never as
+  // "the material says nothing".
+  const readingNote = (Array.isArray(hyperlexiconUnread) && hyperlexiconUnread.length)
+    ? `Still reading: ${hyperlexiconUnread.map((u) => `${u.name} — ${u.read} of ${u.total} passages so far`).join("; ")}. What follows is from the part already read.`
+    : null;
   const ledgerBlock = (() => {
-    if (!hyperlexicon || !beliefNotes) return null;
+    if (!hyperlexicon || !beliefNotes) return readingNote;
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
     const line = (n) => `${n.subject} — ${n.verb}→ ${n.object}`;
     const all = (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} })))
@@ -1192,7 +1178,7 @@ export async function runPart({
       .map((c) => c.note);
     const corroborated = ranked.filter((n) => n.sources >= 2);
     const single = ranked.filter((n) => n.sources < 2);
-    if (!corroborated.length && !single.length) return null;
+    if (!corroborated.length && !single.length) return readingNote;
     const phrase = (n) => {
       const primaries = n.kinds?.primary ?? 0;
       if (primaries && n.sources >= 2) return `read in ${n.sources} places, one of them a source the account itself cites`;
@@ -1201,6 +1187,7 @@ export async function runPart({
     };
     const render = (list) => list.map((n) => `- ${line(n)} (${phrase(n)})`).join("\n");
     return [
+      readingNote,
       corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
       single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
     ].filter(Boolean).join("\n\n");
@@ -2456,6 +2443,7 @@ export async function runHolonicTask({
   // moved since birth. `null` (every existing caller) leaves witnesses bare
   // and undeclared, exactly as before.
   hyperlexiconRecipe = null,
+  hyperlexiconUnread = [],
   classifyConnector = null,
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
@@ -2577,6 +2565,7 @@ export async function runHolonicTask({
       hyperlexiconLog: sharedHyperlexiconLog,
       hyperlexiconFrame,
       hyperlexiconRecipe,
+      hyperlexiconUnread,
       classifyConnector,
     });
     seenRefs.push(...result.refs);

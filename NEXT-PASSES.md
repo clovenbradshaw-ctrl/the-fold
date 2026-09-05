@@ -905,8 +905,59 @@ built), a hole is typed. Verified live: attach → ask → reload → `record
 restored: hyperlexicon 5` → attachments off → ask → the prompt carries
 "From earlier reading … opened→ in 1889 (stated once so far)" and the
 model answers 1889 from the record alone. POLICIES.md **P98**. Then Pass 17 (one durable record), 18 (read on arrival), 19
+
+## Pass 18 — read when material arrives (added 2026-09-05, CLOSED same day)
+
+`read-on-arrival.js` (`admitPassages` — holon's loop moved out verbatim and
+called from there; `readOnArrival` — resumable, one passage per macrotask,
+ledger of the moment; `unreadExtent`), wired into `addSource` and boot with
+a per-source cursor and recipe; the turn is told what is still unread and
+its ledger block says so; write-backs merge (`mergeAppendOnly`). Live: a
+143 KB slice read in 31.3 s (44 passages, 698 notes), the cursor honored on
+reload, the mid-read disclosure in the prompt. Two rules earned by running:
+a hidden tab clamps setTimeout (yield by MessageChannel); serialize at job
+time (replay's typed gap found the duplicated stretch). POLICIES.md
+**P99**.
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions
 are P96's.
+
+## Composition track — Passes 26–32 (proposed 2026-09-05, NOT started)
+
+Relayed by the user from another agent; recorded here as a named future
+track, gated and refused-checked in its own words, so it is not re-derived.
+It slots after Pass 25 and is a new capability (long-form composition), not
+part of the Q&A/contest/derivation program. Hard prerequisites: Pass 18
+(read on arrival) and Pass 19 (claims before prose).
+
+- **26 — scope the number** (0 calls): a declared word band; the arithmetic
+  against the ledger's own measured density (~2% corroboration, P83/P86;
+  Dracula 11,624 single / 260 corroborated; `compose.js`'s words-per-claim)
+  → how many source pages fill the band at the disclosed-standing bar.
+- **27 — hierarchical outline from evidence** (0 calls): extend
+  `eochat/server/longform.js::outlineFromEvidence` to two levels by
+  recursion; port to eoreader7 (P69). Control: shuffled evidence must split
+  differently.
+- **28 — an append-only essay log, projected like code**: `build-log.js`'s
+  PROPOSE/SUPERSEDE/RESULT reused for prose; `foldEssay(log, atCursor)`.
+  Control: the regenerate-every-turn arm, `longform-code.mjs`'s own table.
+- **29 — section drafting ported and re-measured**: eochat's
+  draft/re-read/revise loop onto the current checking apparatus; FIRST
+  diagnose `essay-golden.md`'s 0/1 yield before any scaling. Control: a
+  no-revision arm.
+- **30 — chapters fed from deep reading** (needs Pass 18): evidence pools
+  drawn from the growing ledger; measure whether depth moves 26's number
+  or the ~2% ceiling binds regardless.
+- **31 — disclosed standing, not a gate** (P84): a section may rest on
+  single-witness claims and says so, via `compose.js`'s coverage report.
+- **32 — the 60-page run**, dated and budgeted: the table shape of
+  `longform-code.mjs` plus the coverage report; "there" = the band reached,
+  every claim addressed, every section's standing disclosed, drops named,
+  cost stated, reproducible from the repos. Proves honest assembly, never
+  good writing.
+
+Refused by the track: no bigger model for 29's yield before the
+diagnostic; no raising `maxSections` past 27's derived structure; no
+single-witness content dressed as settled.
 

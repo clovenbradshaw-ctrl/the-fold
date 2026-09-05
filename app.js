@@ -109,6 +109,11 @@ import { persistSource, unpersistSource, loadSources } from "./sources-store.js"
 // kernel's own `append`, so the accumulated reading no longer ends at reload.
 import { serializeRecord, replayRecord } from "./record-log.js";
 import { appendRecord, loadRecord } from "./record-store.js";
+import { mergeAppendOnly } from "./record-log.js";
+import { updateSourceMeta } from "./sources-store.js";
+// Read when material arrives (Pass 18, P99): the reader loop and the typed
+// unread extent a question asked mid-read is told about.
+import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -292,21 +297,85 @@ const metaLedger = makeMetacognition(nativeTaskLog);
 const RECORDS = { hyperlexicon: 0, grid: 0, meta: 0 };
 let recordSyncChain = Promise.resolve();
 function syncRecords() {
-  const jobs = [];
-  const take = (name, log) => {
-    if (!log || !Array.isArray(log.entries)) return;
-    const lines = serializeRecord(log, RECORDS[name]);
-    if (!lines.length) return;
-    const upto = log.nextSeq;
-    jobs.push(async () => { const r = await appendRecord(name, lines); if (r.appended === lines.length) RECORDS[name] = upto; });
+  // The range to append is computed WHEN THE JOB RUNS, after the previous
+  // job has advanced the cursor — not when syncRecords is called. The first
+  // cut serialized at call time, so two calls issued before the first append
+  // finished both captured the same seqs and the file held a duplicated
+  // stretch; replay reported it as a typed `record_gap` at line 703, which
+  // is how it was found (P99). The log itself is read at run time too, so a
+  // job appends whatever the app holds by then, never a stale snapshot.
+  const job = async () => {
+    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger]]) {
+      const log = get();
+      if (!log || !Array.isArray(log.entries)) continue;
+      const lines = serializeRecord(log, RECORDS[name]);
+      if (!lines.length) continue;
+      const upto = log.nextSeq;
+      const r = await appendRecord(name, lines);
+      if (r.appended === lines.length) RECORDS[name] = upto;
+    }
   };
-  take("hyperlexicon", state.hyperlexiconLog);
-  take("grid", state.gridLog);
-  take("meta", state.metaLedger);
-  if (!jobs.length) return recordSyncChain;
-  recordSyncChain = recordSyncChain.then(async () => { for (const j of jobs) await j(); }).catch((e) => console.warn("record sync:", e?.message ?? e));
+  recordSyncChain = recordSyncChain.then(job).catch((e) => console.warn("record sync:", e?.message ?? e));
   return recordSyncChain;
 }
+// ── read when material arrives (Pass 18, P99) ────────────────────────────
+// One read per source, ordered, resumable, one passage per macrotask so a
+// long book never freezes the page. The reader is the production one
+// (`relationsFor`, its pool the source's own passages); the door, frame and
+// recipe are the same a turn uses; each passage builds on the ledger OF THE
+// MOMENT (`ledgerRef`) so a turn landing mid-read is never overwritten. The
+// cursor (passages admitted under this recipe) persists in the source's own
+// index row; a reload resumes from it, and a reader whose recipe changed
+// reads again under its own witness string (a second instrument, P68).
+const READING = new Map(); // name → { cursor, total, recipe, running }
+const yieldMacrotask = (() => {
+  if (typeof MessageChannel === "undefined") return () => new Promise((r) => setTimeout(r));
+  const ch = new MessageChannel();
+  const waiters = [];
+  ch.port1.onmessage = () => { const w = waiters.shift(); if (w) w(); };
+  return () => new Promise((r) => { waiters.push(r); ch.port2.postMessage(null); });
+})();
+let readQueue = Promise.resolve();
+function unreadNow() {
+  return [...READING.entries()].map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+}
+function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
+  readQueue = readQueue.then(async () => {
+    await priorsSettled();
+    const passages = state.chunks.filter((c) => c.source === name);
+    if (!passages.length || !state.sources[name]) return;
+    const frame = readerFrame();
+    const recipe = await readerRecipe(frame);
+    const cursor = savedRecipe === recipe ? savedCursor : 0;
+    if (savedRecipe && savedRecipe !== recipe && savedCursor > 0) console.info(`read on arrival: ${name} was read under recipe ${String(savedRecipe).slice(0, 12)}; the reader's recipe is now ${recipe.slice(0, 12)} — reading again as a second instrument`);
+    READING.set(name, { cursor, total: passages.length, recipe, running: true });
+    let lastSync = 0;
+    const r = await readOnArrival({
+      name, passages, relationsFor, hyperlexicon: hyperlexiconFor,
+      ledgerRef: { get: () => state.hyperlexiconLog, set: (log) => { state.hyperlexiconLog = log; } },
+      frame, recipe, classifyConnector: state.grounded ? connectorLens : null, cursor,
+      // A MessageChannel macrotask, not setTimeout: a hidden tab clamps
+      // timers to ~1/s (and to 1/min after five minutes), which turned a
+      // 44-passage read into a crawl the first time this ran live. Message
+      // events are not clamped, and the page still repaints between them.
+      yieldFn: yieldMacrotask,
+      onProgress: (p) => {
+        READING.set(name, { cursor: p.read, total: p.total, recipe, running: p.read < p.total });
+        if (p.read - lastSync >= 25 || p.read === p.total) { lastSync = p.read; syncRecords(); updateSourceMeta(name, { readCursor: p.read, readRecipe: recipe }); }
+        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = `reading ${name} · ${p.read}/${p.total}`;
+      },
+    });
+    READING.set(name, { cursor: r.cursor, total: passages.length, recipe, running: false });
+    if (r.read) {
+      syncRecords();
+      updateSourceMeta(name, { readCursor: r.cursor, readRecipe: recipe, readMs: r.ms, readHeard: r.heard, readTurnedAway: r.turnedAway.length });
+      console.info(`read on arrival: ${name} — ${r.read} passage(s) in ${r.ms} ms, ${r.heard} note(s) heard, ${r.turnedAway.length} turned away${r.resumed ? " (resumed)" : ""}`);
+    }
+    if (state.ready) $("status").textContent = `ready · ${state.model}`;
+  }).catch((e) => console.warn(`read on arrival: ${name}:`, e?.message ?? e));
+  return readQueue;
+}
+
 async function restoreRecords() {
   const bundle = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append };
   const restored = {};
@@ -467,11 +536,16 @@ let posPriorCache = null;
 // same object after the fetch resolves is picked up with no re-construction.
 // Empty until then — and an empty Set adds no words, which is byte-identical
 // to today's behaviour, so nothing here may delay boot either.
+// The received priors arrive after boot. A read on arrival waits for them
+// (`priorsSettled`) so the recipe it reads under is the reader's settled
+// configuration, not a boot-time frame that would differ on the next load.
+const PRIOR_LOADS = [];
+const priorsSettled = () => Promise.allSettled(PRIOR_LOADS);
 const unimorphVerbForms = new Set();
-fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
+PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
   .then((r) => (r.ok ? r.json() : null))
   .then((forms) => { if (Array.isArray(forms)) for (const f of forms) unimorphVerbForms.add(f); })
-  .catch(() => {});
+  .catch(() => {}));
 
 // The door's grammar gate is DATA-GATED, never code-gated (P73): the lens
 // exists only once the POS prior actually loads, so a checkout without
@@ -482,7 +556,7 @@ fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") /
 // scripts/build-pos-prior.mjs; givers ride every classification via
 // POS_PRIOR_META/THRAX_META).
 let connectorLens = null;
-fetch("/priors-data/pos-prior-eng.json")
+PRIOR_LOADS.push(fetch("/priors-data/pos-prior-eng.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => {
     posPriorCache = j;
@@ -495,7 +569,7 @@ fetch("/priors-data/pos-prior-eng.json")
     // never a second number. Same MUTATED Set as below, same reason.
     if (j?.forms) for (const w of Object.keys(j.forms)) { const d = dominantClass(classifyWord(w, { posPrior: j }), { minShare: 0.5 }); if (d && (d.upos === "VERB" || d.upos === "AUX")) unimorphVerbForms.add(w.toLowerCase()); }
   })
-  .catch(() => {});
+  .catch(() => {}));
 
 // The relation reader's factory — one per passage set, pool = the live
 // corpus (the closed-class measure needs the corpus's scale, not the
@@ -1593,10 +1667,10 @@ function mustTurn(argstr, typed) {
 // match — byte-identical to before this existed (the fetch is data-gated,
 // never code-gated, P73's posture).
 let sameFormOrgan = null;
-fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-morphology-prior.json")
+PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-morphology-prior.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((raw) => { if (raw) { const prior = morphologyFromPrior(raw); sameFormOrgan = nativeLemmatizer(prior.forms, { language: prior.language }).sameAct; } })
-  .catch(() => {});
+  .catch(() => {}));
 const witnessTestimony = () => ({ witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect, ...(sameFormOrgan ? { sameForm: sameFormOrgan } : {}) });
 
 const witnessAskOrgan = async (s, slice) =>
@@ -1670,7 +1744,7 @@ async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null })
   }
   r.notesAttested = (r.chased ?? []).filter((c) => c.attested.length).length;
   r.witness = { reads, ...verdicts };
-  state.hyperlexiconLog = next;
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, next, log, { append: nativeTaskLog.append });
   syncRecords();
   mirrorTermRecord("ranke", { notes: notes.length, pages: pages.length, considered: r.notesConsidered, attested: r.notesAttested, landed: landedCount, fetches: r.fetches, searches: r.searches, refusedPages: (r.pagesRefused ?? []).length, budget: { maxFetches, maxSearches }, via: "chat" });
   logAct("checked", { text: `ranke: ${r.notesAttested} of ${r.notesConsidered} chased notes attested by a primary (${r.fetches} fetches, ${r.searches} searches)` });
@@ -1747,7 +1821,7 @@ async function corroborateTurn(argstr, typed) {
     body.textContent = `corroboration failed: ${err?.message ?? err}`;
     return;
   }
-  state.hyperlexiconLog = report.log ?? log;
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, report.log ?? log, log, { append: nativeTaskLog.append });
   syncRecords();
 
   // The render is corroboration-report.js (pure, tested against the organ's
@@ -4968,6 +5042,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const ledgerFrame = state.grounded ? readerFrame() : null;
     const ledgerRecipe = ledgerFrame ? await readerRecipe(ledgerFrame) : null;
 
+    const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
@@ -5030,6 +5105,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // when hyperlexiconLog is null) — declared here, where the reader was built.
       hyperlexiconFrame: ledgerFrame,
       hyperlexiconRecipe: ledgerRecipe,
+      hyperlexiconUnread: unreadNow(),
       // The door's grammar gate, data-gated (null until the POS prior
       // loads — see connectorLens's own construction comment) and mode-
       // gated with the ledger it guards.
@@ -5146,7 +5222,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // Same discipline: only a real, updated ledger overwrites — a checking-
     // off turn (`result.hyperlexiconLog` null) never clobbers what an
     // earlier checked turn already admitted.
-    if (result.hyperlexiconLog) state.hyperlexiconLog = result.hyperlexiconLog;
+    // MERGED, never overwritten (P99): a read on arrival may have admitted
+    // passages while this turn ran; both chains started from `ledgerBase`.
+    if (result.hyperlexiconLog) state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, result.hyperlexiconLog, ledgerBase, { append: nativeTaskLog.append });
     syncRecords();
     // Ranke's switch: chase what this turn heard off citing pages, under
     // the standing budgets, never awaited — the answer is already on screen
@@ -8395,7 +8473,7 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
-function addSource(name, text) {
+function addSource(name, text, { fromBoot = false } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
   // would make a self address ambiguous about which plane it names — the
@@ -8424,8 +8502,12 @@ function addSource(name, text) {
       blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
     }));
   renderSources();
-  // Persist to OPFS so the source survives a reload.
-  persistSource(name, text, { passages: countFor(name) });
+  // Persist to OPFS so the source survives a reload — not on boot, where
+  // it came FROM OPFS and a rewrite would race the reading cursor's own row.
+  if (!fromBoot) persistSource(name, text, { passages: countFor(name) });
+  // Read it now (Pass 18, P99) — a book attached is a book read, before any
+  // question. Boot resumes from the saved cursor instead (below).
+  if (!fromBoot) readSourceOnArrival(name);
 }
 
 /**
@@ -9027,21 +9109,23 @@ $("not-served")?.remove();
   try {
     const saved = await loadSources();
     for (const { name, text } of saved) {
-      if (!state.sources[name]) addSource(name, text);
+      if (!state.sources[name]) addSource(name, text, { fromBoot: true });
+    }
+    // The record first, then the reads resume from their saved cursors on
+    // top of it (a read that started before the restore would fork the log).
+    try {
+      const restored = await restoreRecords();
+      if (restored.hyperlexicon) state.hyperlexiconLog = restored.hyperlexicon;
+      if (restored.grid) state.gridLog = restored.grid;
+      if (restored.meta) state.metaLedger = restored.meta;
+      const n = Object.keys(restored).length;
+      if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
+    } catch (e) { console.warn("record restore:", e?.message ?? e); }
+    for (const { name, meta } of saved) {
+      if (state.sources[name]) readSourceOnArrival(name, { savedCursor: meta?.readCursor ?? 0, savedRecipe: meta?.readRecipe ?? null });
     }
   } catch {}
   renderSources();
-  // The reading record survives the reload the sources do (Pass 17, P98):
-  // replayed through the kernel's own append, each log restored only when it
-  // replayed something, a gap named in the console rather than closed.
-  try {
-    const restored = await restoreRecords();
-    if (restored.hyperlexicon) state.hyperlexiconLog = restored.hyperlexicon;
-    if (restored.grid) state.gridLog = restored.grid;
-    if (restored.meta) state.metaLedger = restored.meta;
-    const n = Object.keys(restored).length;
-    if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
-  } catch (e) { console.warn("record restore:", e?.message ?? e); }
 })();
 
 // Sources panel: search filters the list live.

@@ -7554,3 +7554,16 @@ order, never over a serializer's key order; a hole, a bad line or a
 missing source is a typed gap. `syncRecords()` follows every assignment
 of one of the three logs; a new site that assigns one must call it.
 
+## Pass 18 — read when material arrives (added 2026-09-05) — pointer
+
+POLICIES.md **P99**. A source is read the moment it is attached, through
+the same door a turn admits into — `read-on-arrival.js::admitPassages` is
+holon.js's admission loop moved out verbatim, and holon calls it. The read
+is ordered, resumable (a per-source cursor and recipe in the OPFS index),
+one passage per MessageChannel macrotask (a hidden tab clamps setTimeout),
+onto the ledger of the moment; the turn's write-back MERGES
+(`mergeAppendOnly`), never overwrites; a question asked mid-read is told
+"Still reading: … k of n passages so far". Two rules from the live run:
+serialize a record at job time, never at call time (replay's typed gap is
+what found the duplicated stretch); boot never re-persists what it loaded.
+

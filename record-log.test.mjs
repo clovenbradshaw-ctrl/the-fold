@@ -85,3 +85,34 @@ test("the grid's admitted operator set survives a replay when it is passed in", 
   const r = replayRecord([], { createTaskLog: TL.createTaskLog, append: TL.append, admits });
   assert.deepEqual([...r.log.admits], [...empty.admits]);
 });
+
+test("two writers from one base merge without loss: a turn's entries and a background read's entries both survive, and a note heard by both is one note", async () => {
+  const { mergeAppendOnly } = await import("./record-log.js");
+  const base = liveLedger();
+  const turn = hl.hear(base, { subject: "Owen Blythe", verb: "repaired", object: "the refractor", witness: "a.txt#80-110~r1", spans: [] });
+  let read = hl.hear(base, { subject: "Marta Quill", verb: "preceded", object: "Owen Blythe", witness: "b.txt#40-70~r1", spans: [] });
+  read = hl.hear(read, { subject: "Owen Blythe", verb: "repaired", object: "the refractor", witness: "a.txt#80-110~r1", spans: [] });
+  const merged = mergeAppendOnly(read, turn, base, { append: TL.append });
+  const ids = new Set(hl.foldHyperlexicon(merged).map((n) => n.id));
+  assert.ok(ids.has("owen blythe|repaired|the refractor"));
+  assert.ok(ids.has("marta quill|preceded|owen blythe"));
+  assert.equal(hl.foldHyperlexicon(merged).filter((n) => n.id === "owen blythe|repaired|the refractor").length, 1, "heard by both, one note");
+  assert.equal(mergeAppendOnly(base, turn, base, { append: TL.append }), turn, "current unchanged since base → theirs");
+  assert.equal(mergeAppendOnly(read, base, base, { append: TL.append }), read, "theirs unchanged since base → current");
+  assert.equal(mergeAppendOnly(null, turn, base, { append: TL.append }), turn);
+});
+
+test("a repeated stretch (an appender that wrote twice) is counted and skipped, never a hole; a repeat with different bytes is a typed conflict", () => {
+  const lines = serializeRecord(liveLedger(), 0);
+  const doubled = [...lines, ...lines.slice(1, 3)];
+  const r = replayRecord(doubled, { createTaskLog: TL.createTaskLog, append: TL.append });
+  assert.equal(r.gap, null);
+  assert.equal(r.duplicates, 2);
+  assert.equal(r.replayed, lines.length);
+  assert.equal(fold(r.log), fold(liveLedger()));
+  const conflict = [...lines, lines[1].replaceAll("Amelia Hartley", "Amelia Hartly")];
+  const c = replayRecord(conflict, { createTaskLog: TL.createTaskLog, append: TL.append });
+  assert.equal(c.gap?.type, "record_conflict");
+  assert.equal(c.gap.seq, 1);
+});
+

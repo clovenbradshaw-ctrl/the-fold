@@ -64,23 +64,34 @@ export function replayRecord(lines, { createTaskLog, append, admits = null } = {
   if (typeof createTaskLog !== "function" || typeof append !== "function") throw new TypeError("replayRecord: the task-log bundle is injected — createTaskLog and append");
   let log = admits ? createTaskLog({ admits }) : createTaskLog();
   let replayed = 0;
+  let duplicates = 0;
   for (let i = 0; i < (lines ?? []).length; i += 1) {
     const raw = lines[i];
     if (!raw || !String(raw).trim()) continue;
     let entry;
     try { entry = JSON.parse(raw); } catch (err) {
-      return { log, replayed, gap: { type: "record_unparseable", line: i, detail: `line ${i} is not JSON: ${err.message}` } };
+      return { log, replayed, duplicates, gap: { type: "record_unparseable", line: i, detail: `line ${i} is not JSON: ${err.message}` } };
+    }
+    // A line that REPEATS an entry already replayed — same seq, same bytes
+    // in canonical form — is an appender that wrote twice, not a hole: the
+    // record is append-only and a repeat changes nothing, so it is counted
+    // and skipped. A line at an old seq with DIFFERENT bytes is a real
+    // conflict and stays a gap.
+    if (entry.seq < log.nextSeq) {
+      const prior = log.entries[entry.seq];
+      if (prior && JSON.stringify(canonical(prior)) === JSON.stringify(canonical(entry))) { duplicates += 1; continue; }
+      return { log, replayed, duplicates, gap: { type: "record_conflict", line: i, seq: entry.seq, detail: `line ${i} carries seq ${entry.seq} with different bytes from the entry already at that seq` } };
     }
     if (entry.seq !== log.nextSeq) {
-      return { log, replayed, gap: { type: "record_gap", line: i, expected: log.nextSeq, found: entry.seq, detail: `the record skips from seq ${log.nextSeq} to ${entry.seq} at line ${i}; a hole is reported, never closed` } };
+      return { log, replayed, duplicates, gap: { type: "record_gap", line: i, expected: log.nextSeq, found: entry.seq, detail: `the record skips from seq ${log.nextSeq} to ${entry.seq} at line ${i}; a hole is reported, never closed` } };
     }
     const { seq, ...body } = entry;
     try { log = append(log, body); } catch (err) {
-      return { log, replayed, gap: { type: "record_refused", line: i, detail: err.message } };
+      return { log, replayed, duplicates, gap: { type: "record_refused", line: i, detail: err.message } };
     }
     replayed += 1;
   }
-  return { log, replayed, gap: null };
+  return { log, replayed, duplicates, gap: null };
 }
 
 /** The byte identity of a record: sha256 over its sealed entries in seq order (WebCrypto, the same digest grid.js/builds.js already use). */
@@ -102,3 +113,30 @@ export function resolveAddress(at, sources) {
   if (end > text.length) return { ok: false, gap: { type: "address_beyond_source", at, source: name, length: text.length } };
   return { ok: true, source: name, start, end, text: text.slice(start, end) };
 }
+
+/**
+ * Two append-only chains from one base, merged: `current` (what the app holds
+ * now) plus every entry `theirs` appended beyond `base` — re-appended through
+ * the kernel's own `append`, so seqs are re-sealed and a note heard twice is
+ * the door's own idempotent no-op. A background read and a chat turn both
+ * start from the ledger of the moment and write back later; without this the
+ * later writer silently dropped the earlier one's entries (Pass 18, P99).
+ * Neither chain is ever truncated: the result carries everything both held.
+ */
+export function mergeAppendOnly(current, theirs, base, { append } = {}) {
+  if (typeof append !== "function") throw new TypeError("mergeAppendOnly: the kernel's append is injected");
+  if (!theirs) return current ?? null;
+  if (!current) return theirs;
+  if (current === theirs) return current;
+  const from = base?.nextSeq ?? 0;
+  if (current === base) return theirs;
+  if (theirs === base) return current;
+  let log = current;
+  for (const e of theirs.entries) {
+    if (e.seq < from) continue;
+    const { seq, ...body } = e;
+    log = append(log, body);
+  }
+  return log;
+}
+

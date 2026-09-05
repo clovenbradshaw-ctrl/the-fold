@@ -29,4 +29,6 @@ test("the ladder places a sentence on its highest rung and names the cell backst
 
 test("names in a sentence are capitalised runs, never sentence-initial function words", () => {
   assert.deepEqual(namesIn("The X-Files was created by Chris Carter and aired on Fox."), ["X-Files", "Chris Carter", "Fox"]);
+  assert.deepEqual(namesIn("Some viewers loved \"I Want to Believe\" and its tagline Trust No One, said Chris Carter."), ["Trust No One", "Chris Carter"], "a lone capitalised word at the sentence's start or inside a quoted title is capitalisation, not a name; a multi-word run still counts");
+  assert.deepEqual(namesIn("Despite these successes, Mulder returned."), ["Mulder"], "a lone name mid-sentence counts");
 });

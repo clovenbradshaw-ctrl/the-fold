@@ -31,8 +31,8 @@ test("the markdown reads as prose with numbered footnotes of verbatim spans and 
   ] }];
   const r = exportPiece({ title: "T", ask: "write", model: "gemma2:2b", sections, passages, urls, prompts: { Opening: "[user]\nWrite this part" }, generatedAt: "2026-09-05" });
   assert.match(r.md, /^# T\n\n## Opening\n\nThe series was created by Chris Carter\.\[\^1\] It began in 1993\.\[\^2\] Everyone loved it\.\[\^r\] It was a hit\.\[\^m\]\n/);
-  assert.match(r.md, /\[\^1\]: “The X-Files is an American science fiction drama television series created by Chris Carter\.” — web:en\.wikipedia\.org-0 bytes 0–93 \[open at the span\]\(https:\/\/en\.wikipedia\.org\/wiki\/The_X-Files#:~:text=/);
-  assert.match(r.md, /\[\^2\]: “It premiered in 1993\.” — web:en\.wikipedia\.org-0 bytes 92–113/);
+  assert.match(r.md, /\[\^1\]: “The X-Files is an American science fiction drama television series created by Chris Carter\.” — web:en\.wikipedia\.org-0 bytes 0–93 of that passage \[open at the span\]\(https:\/\/en\.wikipedia\.org\/wiki\/The_X-Files#:~:text=/);
+  assert.match(r.md, /\[\^2\]: “It premiered in 1993\.” — web:en\.wikipedia\.org-0 bytes 92–113 of that passage/);
   assert.match(r.md, /\[\^m\]: gemma2:2b's own testimony — nothing read places it\./);
   assert.match(r.html, /<span class="s tier-bound" data-i="0" data-tier="bound" data-cell="CON·Figure" data-address="web:en\.wikipedia\.org-0#100-260" data-start="0" data-end="93"/);
   assert.match(r.html, /<a class="cite" href="https:\/\/en\.wikipedia\.org\/wiki\/The_X-Files#:~:text=[^"]+" target="_blank" rel="noopener">1<\/a>/);

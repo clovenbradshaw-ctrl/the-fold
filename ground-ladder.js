@@ -31,10 +31,25 @@ export const CELL_OF = Object.freeze({ bound: "CON·Figure", witnessed: "EVA·Fi
 /** Capitalised runs in a sentence — the names it uses (never a referent by itself; resolution is the index's). */
 export function namesIn(sentence) {
   const out = [];
-  for (const m of String(sentence ?? "").matchAll(/(?:^|[^\p{L}])((?:\p{Lu}[\p{L}\p{N}'’.-]*)(?:\s+(?:of|the|de|von|van|and|&)?\s*\p{Lu}[\p{L}\p{N}'’.-]*)*)/gu)) {
+  const text = String(sentence ?? "");
+  for (const m of text.matchAll(/(?:^|[^\p{L}])((?:\p{Lu}[\p{L}\p{N}'’.-]*)(?:\s+(?:of|the|de|von|van|and|&)?\s*\p{Lu}[\p{L}\p{N}'’.-]*)*)/gu)) {
     // a sentence-initial function word is not part of the name it precedes
     const n = m[1].trim().replace(/[.,;:]+$/, "").replace(/^(?:The|This|That|These|Those|It|In|On|At|By|For|From|With|As|A|An|And|But|Or|So|If|When|While|Their|Its|His|Her|They|He|She|We|You|I)\s+/, "");
-    if (n.length > 2 && !/^(The|This|That|These|Those|It|In|On|At|By|For|From|With|As|A|An|And|But|Or|So|If|When|While|Their|Its|His|Her|They|He|She|We|You|I)$/.test(n)) out.push(n);
+    if (!(n.length > 2) || /^(The|This|That|These|Those|It|In|On|At|By|For|From|With|As|A|An|And|But|Or|So|If|When|While|Their|Its|His|Her|They|He|She|We|You|I)$/.test(n)) continue;
+    // ONE capitalised word at the start of a sentence, or inside a quoted
+    // title, is capitalisation — not evidence of a name (L2: capitalisation
+    // is a differentiator, never the primary signal). Measured 2026-09-05:
+    // "Some", "Trust", "Want", "Believe" reached the footnotes as names.
+    // A single-token name counts only mid-sentence and outside quotes.
+    if (!/\s/.test(n)) {
+      const at = m.index + m[0].indexOf(n);
+      const before = text.slice(0, at);
+      const sentenceInitial = /(^|[.!?]\s*["“”']*\s*)$/.test(before);
+      // inside quotes when an odd number of quote marks precede it
+      const quotedTitle = ((before.match(/["“”]/g) ?? []).length % 2) === 1;
+      if (sentenceInitial || quotedTitle) continue;
+    }
+    out.push(n);
   }
   return [...new Set(out)];
 }

@@ -761,6 +761,11 @@ line that points at finished work as though it were next.
 
 ## Pass 13 — the reproducibility audit, continued (added 2026-09-05)
 
+**Closed 2026-09-05 — POLICIES.md P95 / eoreader7 S65.** Decided: refuse.
+All nine run with no cap and classified; four transcription docs enforced
+by `lib/` + `tests/`; `audit-results.sh` kept with the map; the MHC
+one-material refusal typed. What it handed forward is Pass 14.
+
 POLICIES.md **P94** / eoreader7 **S64** are the law; this is the handoff.
 The audit of committed eval results ran **3 of 13** wipe-exposed drivers
 before the session wrapped. Established: `admission-gate` drifted by one
@@ -805,16 +810,64 @@ Also carried: the MHC battery picks its control from the run set, so a
 one-material invocation reports "none readable" for want of a control —
 worth a typed refusal in `main()` rather than a misleading stage.
 
-## Pass 14 — what the whole law says to do next (added 2026-09-05)
+## Pass 14 — what the finished audit handed forward (added 2026-09-05)
+
+P95 / S65 closed Pass 13. Five things it found and deliberately did not fix,
+each a fact on the record with a named file, in the order they matter:
+
+1. **The door admits a closed-class connector in a script the prior does
+   not cover.** `hyperlexicon-door-probe` arm C now carries `Война —и→ мир`
+   and `Война —и→ миръ` — Cyrillic "and" from the article's Russian title,
+   invisible to the probe's English hand list and absent from the English
+   POS prior. Same shape as the labels P73 closed for English, one script
+   over. The probe reports "labels the prior has no entry for" beside the
+   hand-list count (`lib/door-probe.mjs`); the fix is a received prior for
+   the script, or a wall that refuses a label the prior cannot classify at
+   all — measure which, and what the second costs on English ("discusses"
+   sits in the same column).
+2. **`boundedObjects` is gone and two files still point at it.**
+   `object-boundary.mjs` (refuses, typed) and `lib/borodino-ledger.mjs`'s
+   `BOUNDED` flag both name an opt-in this repo's P80 removed. Either the
+   referent-aware trim the object-boundary doc pointed at instead ("cut
+   after an earned face only when nothing earned follows", at
+   `hypergraph.js::endpoint`) is built and measured on the same Dracula
+   slice, or the flag comes out. Not both left standing. When it is
+   re-measured, the marginal pairing key (`spans[0].at` start + label +
+   end1) collides where one sentence yields two edges on one subject and
+   verb — the source of the "moved by the cut: 53" artifact even on
+   identical arms — and needs the edge's own id or full span before any
+   "moved" count is trusted.
+3. **Two docs are enforced by nothing and are named as such** in
+   `audit-results.sh`: `admission-gate` (drifted by one note in P94, still
+   print-only) and `rashomon-contrast` (its slot-level table — 1537/15/14,
+   251/7/7, 117/15/15 — was never computed by its driver). The rashomon
+   next step P92 named (the contrast at slot grain through
+   `cardinality.fillers` and `contest.js::adjudicate`, with a null) would
+   make that table a driver output before it is made a test.
+4. **A results doc that prints its own wall-clock never diffs to zero.**
+   `asserted-eval.md` reproduced except for "armed at 200 draws in 32.6s".
+   Move timing to stderr or a separate untracked line in that driver and
+   any other that writes elapsed seconds into a tracked artifact.
+5. **The wiped SVO names are still read somewhere.** S64 found 47 sites in
+   one driver; P95 found the same in `reasoning-e2e-no-llm`. Before any
+   driver's display is trusted: `grep -n "\.subject\|\.verb\|\.object" native/eval/the-fold/*.mjs`
+   and check each hit against an edge that carries `end1/label/end2`.
+   On 2026-09-05 that grep hits 14 drivers; several are legitimate
+   (`e.end2 ?? e.object` fallbacks, the MHC `edgesOf` seam, `queryFillers`
+   results), so each hit is read, not counted.
+   `queryFillers` still returns `{subject, object}` by design; that is the
+   one legitimate reader of the old names.
+
+## Pass 15 — what the whole law says to do next (added 2026-09-05)
 
 **How this was written.** Every standing document was read end to end
 before a line of this was drafted: the-fold `POLICIES.md` P1–P92 (P1–P35
 and P78–P92 in full, P35–P77 by their heads), eoreader7 `READING-SPEC.md`
-S1–S65, live_priors LP1–LP15, the four reassemblies (CHAT / REASONING /
+S1–S66, live_priors LP1–LP15, the four reassemblies (CHAT / REASONING /
 GENERATION / CAPABILITY), WHERE-WE-ARE, THE-WAYS-OF-KNOWING,
 THE-CORE-MECHANISM, LEVELS, THE-THREE-MATHEMATICS, PRIOR-ART-INVENTORY,
 ASSEMBLIES-AND-ARTIFACTS, WHAT-IS-BEING-BORN, `constitution.js`'s
-ENFORCEMENT map, and the S65 walk this session ran. Not on disk in this
+ENFORCEMENT map, and the S66 walk this session ran. Not on disk in this
 checkout and known only through their pointers: READING-POLICY, SEED, CUBE,
 FOLD-CONSTITUTION and eo-constitution (dangling symlinks into the
 uninitialised legacy submodule; the constitution repo is outside this
@@ -874,7 +927,7 @@ The order is the canonical chain applied per claim (units → edges →
 integral), the null-before-judge rule (S62), and work-done-twice-becomes-
 code (P14). Each pass names its control and its P71 tag.
 
-**14.1 — Null the selector, then read the six.** Two things, both cheap.
+**15.1 — Null the selector, then read the six.** Two things, both cheap.
 (a) Print WHICH six control propositions were attested —
 `civic-research-walk.mjs` phase 6 holds `control.attested` with the
 swapped triple and its address; print end1 / label / swapped object and
@@ -896,7 +949,7 @@ and that is a result, not a failure. Cost: ~150 model calls on CPU, zero
 new organs. **Generality:** universal — the rule is S62's, measured here on
 a different material.
 
-**14.2 — The walk becomes an Assembly, and its dials become regimes.** The
+**15.2 — The walk becomes an Assembly, and its dials become regimes.** The
 driver carries some twenty hand-picked constants (MAXQ 10, MAXF 16, MAXTRY
 40, RESULTS 8, WALK_ASKS 40, CHASE_F 10, CHASE_S 4, MAX_END_CHARS 60,
 MIN_FACE_CHARS 400, ANCHOR_MIN 2, ALIAS_MIN_USES 2, NAME_ROUNDS 4,
@@ -922,7 +975,7 @@ moving one — the metacognition-hunt test's own two cases, on this
 material. **Generality:** universal for the assembly shape; every regime
 VALUE is specimen-scoped until measured.
 
-**14.3 — Work done twice becomes code.** The six defects are fixed in the
+**15.3 — Work done twice becomes code.** The six defects are fixed in the
 driver. P14 says the *how* becomes code the instrument calls, and P92 says
 each move is resolved to its cube cell and checked against the registry
 BEFORE an organ is written. Nominations — P92 decides, not this list:
@@ -959,10 +1012,10 @@ plus one case from material the discovery never saw (P71's third leg).
 kinds-apart rendering; specimen-scoped for `carries`, the anchor floor and
 the debris cut until replayed.
 
-**14.4 — WITHDRAWN, superseded below.** [The original draft here proposed
+**15.4 — WITHDRAWN, superseded below.** [The original draft here proposed
 declaring specific public-record document classes for a specific subject
 as seed sources. Refused by direct user correction — see the amendment's
-own "On 14.4" paragraph for the standing rule this became: nothing is
+own "On 15.4" paragraph for the standing rule this became: nothing is
 ever seeded; discovery, not declaration, is how the walk finds documents.
 The general shape worth keeping is P84's own point, independent of any
 one subject: outlets syndicate, so "stated by three pages" is one
@@ -975,7 +1028,7 @@ set (documents about a different Metro body) must land nothing on the
 Partnership's notes. **Generality:** universal for the kinds rule;
 specimen-scoped seeds.
 
-**14.5 — The user's material is the missing ground.** The run reads the
+**15.5 — The user's material is the missing ground.** The run reads the
 public record because nothing else was attached. The material the ask
 names should enter as SOURCES with addresses, and the walk's TASK should
 be DERIVED from it — the void's own NUL/SIG/SEG declaration over the
@@ -989,7 +1042,7 @@ asserts wrongdoing: the ledger maps what is claimed, by whom, against
 which document. Blocked on the material being supplied; nothing above it
 is.
 
-**14.6 — Three constitution articles are unwired, and the code for two of
+**15.6 — Three constitution articles are unwired, and the code for two of
 them exists.** `constitution.js`'s ENFORCEMENT map lists III.1 (anchor —
 the default view is a claim), III.4 (opposite — the strongest contrary
 slice is rendered) and III.5 (prediction — the reader states expectations
@@ -1007,7 +1060,7 @@ comes last. **Control:** a ledger with a planted contradiction must render
 its contrary slice; one without must render none — never a manufactured
 "however". **Generality:** universal.
 
-**14.7 — Cross-domain replay before any "universal" tag on the walk.**
+**15.7 — Cross-domain replay before any "universal" tag on the walk.**
 P71's first leg. `eviction-overwatch` is in this session's scope and is
 the natural corpus: public dockets with addresses, a different domain, the
 same shape (accounts citing documents). The walk, unmodified, over that
@@ -1015,58 +1068,61 @@ material, with the same control. If the six rules hold there they earn
 universal; if not, they are shaped to this one pilot and the plan says so. Gated on
 the user — their repo, their data.
 
-**14.8 — Housekeeping.** eoreader7 PR #80's body was stale on two facts
-(S63 → S64; "the redealt control spends 0 asks" → the third control reached
-the model and attested at parity) — corrected this pass. That S64 was
-itself a collision, found only at actual merge time: PR #79 landed BOTH
-S63 and S64 in `READING-SPEC.md`, so this pass's own entry moved a second
-time, to S65 — and this whole pass, for the identical reason, moved from
-"Pass 13" to "Pass 14" (PR #133 landed its own unrelated "Pass 13" in this
-same file first). Both renumbers are applied throughout this pass rather
-than left as a dangling note. Both PRs stay draft. The concurrent
-session's untracked `eval/` files stay untouched. `organs/aliases.js`'s
-registration rides 14.3.
+**15.8 — Housekeeping.** eoreader7 PR #80's body was stale on a fact
+corrected this pass ("the redealt control spends 0 asks" → the third
+control reached the model and attested at parity). This pass's own two
+numbers moved repeatedly across three separate merges with concurrent,
+unrelated work landing in the same repos under the same numbering
+sequences — `READING-SPEC.md`'s entry from S64 through S65 to its final
+**S66**, and this file's own pass from "Pass 13" through "Pass 14" to its
+final **Pass 15** — each collision found only at actual merge time, never
+predicted, and each resolved the same way this project's own convention
+already states: the later-merging branch takes the next free number.
+Every reference throughout this pass reads its final number; the
+intermediate ones are not tracked here beyond this note. Both PRs stay
+draft. The concurrent sessions' untracked `eval/` files stay untouched.
+`organs/aliases.js`'s registration rides 15.3.
 
 ### What this plan refuses
 
 A tenth vocabulary configuration (the MINE-1 plateau is paraphrase
 tolerance, not vocabulary). Deriving an initialism (a rule that derives a
-name can invent one — S65). Tuning `MIN_FACE_CHARS` or any floor so a
+name can invent one — S66). Tuning `MIN_FACE_CHARS` or any floor so a
 particular face passes (II.23; tune nothing against the answer). Reading
-§3.1 as corroboration before 14.1 has been read. Building a slicer (no
+§3.1 as corroboration before 15.1 has been read. Building a slicer (no
 slicer earns a license — S55). Handing the model any content-writing slot:
 the whole test stood on the model doing very little, and it held.
 
-### The gate on Pass 14
+### The gate on Pass 15
 
 Clean votes per ask on the pilot material with a clean control, real >
-control at the exact binomial. If 14.1's selector swap does not separate
+control at the exact binomial. If 15.1's selector swap does not separate
 the arms, WHERE-WE-ARE's falsifier has fired on research material too, and
-14.4 is the design re-examination — not a tuning of 14.1. And the ordering
-rule that produced this plan binds it: nothing in 14.2–14.7 is spent before
-14.1 has been read, because every one of them is more expensive than
+15.4 is the design re-examination — not a tuning of 15.1. And the ordering
+rule that produced this plan binds it: nothing in 15.2–15.7 is spent before
+15.1 has been read, because every one of them is more expensive than
 nulling a selector.
 
-### Amended 2026-09-05 — the plan corrected against direction, and 14.1's ground built
+### Amended 2026-09-05 — the plan corrected against direction, and 15.1's ground built
 
 Four answers from the user, same day, each changing a numbered item above.
 
-**On saving (bears on 14.2's Assembly regimes and every future run of this
+**On saving (bears on 15.2's Assembly regimes and every future run of this
 driver):** *"priors are only so the reader doesn't start fresh. but it
 shouldn't be saving these test documents."* Un-saving is done: the fetched
 pages and the produced reading are gitignored and were deleted from local
 disk; priors (the alias-declaration prior) stay, because they are a
 measured artifact of a different, permanent corpus, not this run's own
-material. Any future Assembly@1 declaration of this walk's regimes (14.2)
+material. Any future Assembly@1 declaration of this walk's regimes (15.2)
 must record ITS OWN dials, never a copy of a prior run's fetched material.
 
-**On 14.4, directly: *"im not telling you the answer, it should discover
-than [sic]."*** 14.4 as drafted above proposed declaring seed sources —
+**On 15.4, directly: *"im not telling you the answer, it should discover
+than [sic]."*** 15.4 as drafted above proposed declaring seed sources —
 specific public-record document classes and specific real websites for
-the pilot's specific subject — refused. **14.4 is withdrawn as drafted.**
+the pilot's specific subject — refused. **15.4 is withdrawn as drafted.**
 The corrected form: nothing is seeded, ever; the
 fold's TASK is now the only place a human names the subject (env-
-overridable, `eoreader7`'s S65 amendment), and which documents answer a
+overridable, `eoreader7`'s S66 amendment), and which documents answer a
 question remains entirely the walk's own discovery, through the same
 mechanisms (`preflightQuery`/`proofQuery` over the ledger's own thin
 notes, Ranke's chase to what an account itself cites). A currency that
@@ -1077,27 +1133,27 @@ READING-SPEC.md's own amendment, same day: "a reader may be told what is
 being asked; it may not be told where to look."
 
 **On where the next run happens: *"prep this and we'll run locally."***
-Confirmed for both 14.1 (start now?) and the run generally — "same
+Confirmed for both 15.1 (start now?) and the run generally — "same
 answer." Nothing was executed this pass; the ground for a local run was
 built instead: portable sibling-repo paths (env-overridable), a `CHECK=1`
 preflight (verified against both a working and a deliberately broken
 path, catching a real exit-code bug in the process), and the driver's
 header comment rewritten as full run instructions.
 
-**On 14.7 (cross-domain replay over eviction-overwatch): "no."** 14.7 is
+**On 15.7 (cross-domain replay over eviction-overwatch): "no."** 15.7 is
 REFUSED. No replay of this walk over eviction-overwatch will run absent a
 later, separate ask. P71's cross-domain leg for this walk's rules
 therefore stays unmet, and any future "universal" tag on them should say
 so rather than assume it.
 
-**14.1's ground, built rather than run.** `corroboration.js::facesReachable`
+**15.1's ground, built rather than run.** `corroboration.js::facesReachable`
 (the referent-face selector) and `corroborateLedger`'s `reachable` override
 are real, tested, and wired behind `SELECTOR=referent-face`; every attested
 control proposition now prints with a mechanical leaky-swap check against
 the real ledger. Neither arm was re-run — that happens on the user's
 machine, against their own material, next.
 
-**14.3's registration item, done in the same pass:** `aliases.js` was
+**15.3's registration item, done in the same pass:** `aliases.js` was
 never actually unregistered from a cell registry — `capacities.js` moved
 to `eoreader7/native/organs/` (Phase 2 of the organ migration) before this
 plan was written, and the-fold's own copy is now a one-line shim. The
@@ -1106,7 +1162,7 @@ and under which cell) is real and still open, but it is eoreader7's
 registry to extend, not the-fold's — corrected here so the next pass does
 not look for a file that moved.
 
-Everything else in Pass 14 (14.2's Assembly framing, 14.3's other five
-rule-nominations, 14.5's material-as-ground, 14.6's constitution articles,
-14.8) stands as written, unstarted, gated on the same order: nothing
-after 14.1 until 14.1's real run is read.
+Everything else in Pass 15 (15.2's Assembly framing, 15.3's other five
+rule-nominations, 15.5's material-as-ground, 15.6's constitution articles,
+15.8) stands as written, unstarted, gated on the same order: nothing
+after 15.1 until 15.1's real run is read.

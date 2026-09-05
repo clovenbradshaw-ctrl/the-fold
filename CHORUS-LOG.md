@@ -134,3 +134,16 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Alexander | SYN — the cascade | index.html / explore.css phone blocks | fixed | a phone block placed above the base rules lost at equal specificity; kept LAST on purpose, said so in the sheet |
 | Marshall | IV.1/IV.2; P71 | POLICIES P109, README, CLAUDE.md, MVP-LAUNCH-CHECKLIST.md | upheld — compliant | Generality line present; enforcement in the same diff; the checklist's decisions (web toggle default, LICENSE) are proposed, not disposed |
 clean: nothing struck.
+
+## 2026-09-05 — P110: public gateways as the learned fall-through (branch `frontier-25`, third batch)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Diaconis · Dijkstra · Ostrom · Marshall; suites the-fold full, native web-gateways 5/5, constitution + seam + contract 20/20.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Diaconis | II.23; P4 (no hand-set threshold) | web.js rankGateways | upheld | natural frequency, untried-before-failed, no cut-off; the roster is never pruned; "open" is only ever the last try |
+| Dijkstra | II.13; III.3 | web.js GATEWAYS (six hosts in a page-loaded module) | clean | covered by the standing web.js allowance (address builders, zero egress calls) — constitution.test.mjs 12/12 |
+| Ostrom | II.9 (property of the instrument vs the material) | P110 "Measured" | fixed (wording) | the leak probe decided nothing because no relay was open; the table says "not measurable while closed", never "safe" |
+| Feynman | P41 | explore-server.mjs fetchThroughGateways | clean | a Wayback snapshot over the byte cap is a typed refusal on the record (bloomberg.com), not a silent skip |
+| Marshall | IV.1/IV.2; P71 | POLICIES P110, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; enforcement (web-gateways.test.js, constitution scan) in the same diff; the maintainer's-proxy question is recorded as a decision with its reasons |
+clean: nothing struck.

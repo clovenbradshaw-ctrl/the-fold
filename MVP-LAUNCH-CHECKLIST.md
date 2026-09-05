@@ -11,7 +11,9 @@
 | Telemetry / analytics | none (gtag, sentry, posthog, plausible, sendBeacon: no hits) | clean |
 | The local record | `record/*.jsonl` (build runs, explore, folds, skills, transcriptions) — on the user's disk only, gitignored; the Log pane reads the same file | clean |
 | Consented egress | web search / page fetch (DuckDuckGo, archive.org save) when the `web` toggle is on; `pip install` from pyodide's mirror; GitHub when a repo is connected; Whisper weights on first transcription | disclosed in README ("what leaves only when you act") |
-| `web` toggle default ON | a material-less question runs a DuckDuckGo search before the model drafts (P23's preflight) — the query leaves the machine by default, disclosed in the turn's THINKING line | **decision** — keep P23's default, or default off for the website build |
+| `web` toggle default ON | a material-less question runs a DuckDuckGo search before the model drafts (P23's preflight) — the query leaves the machine by default, disclosed in the turn's THINKING line | **decided 2026-09-05: stays on** (the maintainer's call; README says what leaves) |
+| A site refuses the direct fetch | before: a typed gap and nothing else | **fixed** — public gateways tried in an order learned off the record, every try recorded, the route disclosed on the page; `/gateways` shows what is open and what each forwards about you (P110) |
+| "Can the maintainer's proxy be hidden behind public relays so nobody can tell who requests what?" | a relay hides who only if it strips the address (measurable per relay); nothing hides what — every target lands in the proxy's log | **decided: the maintainer's proxy stays out of the loop**; Oblivious HTTP is the design with that property, named in P110 |
 | The in-tab models' bytes | served from the site's own origin (`models/`), never from the publisher at runtime on localhost; README says a site must mirror | **fixed** (roster + mirror script) |
 
 ## 2. First run, fresh machine

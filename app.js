@@ -1684,6 +1684,38 @@ async function measureTurn(question) {
 }
 
 /**
+ * `/gateways` — which public gateways this instrument has found open, off
+ * its own record (P110); `/gateways probe [url]` tries each one, recorded.
+ * A gateway is a third party the reader reaches only when a direct fetch
+ * was refused and the web toggle is on; the table says what each one sees.
+ */
+async function gatewaysTurn(arg, question) {
+  const probe = /^probe\b/.test(arg);
+  const target = probe ? arg.replace(/^probe\s*/, "").trim() : "";
+  try {
+    const res = probe
+      ? await fetch(`${EXPLORE_BASE}/api/web/gateways`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(target ? { url: target } : {}) })
+      : await fetch(`${EXPLORE_BASE}/api/web/gateways`);
+    if (!res.ok) return usageTurn(question, `the explore server answered ${res.status} — /gateways needs explore-server.mjs on ${EXPLORE_BASE}`, { what: "gateways" });
+    const got = await res.json();
+    const head = probe
+      ? `probed ${got.results.length} public gateways with ${got.target} — ${got.results.filter((r) => r.ok).length} answered (each try is on the record):`
+      : `public gateways, as this instrument has found them (off the record; a direct fetch that is refused tries them in this order):`;
+    const rows = probe
+      ? [
+          ...got.results.map((r) => `  ${r.ok ? "open  " : "closed"} ${r.gateway} · ${r.status ?? "no answer"} · ${r.ms} ms${r.ok ? ` · ${r.chars.toLocaleString()} chars` : ` · ${r.detail}`}`),
+          `what each relay or reader forwards about you${got.ownIpKnown ? "" : " (your own address could not be read, so nothing is decided)"}:`,
+          ...(got.leaks ?? []).map((l) => `  ${l.gateway} · ${l.forwardsAddress === true ? `forwards your address (${l.carriers.map((c) => c.name).join(", ")})` : l.forwardsAddress === false ? "does not forward your address" : l.echoed ? "unreadable" : "not measurable while closed"}`),
+        ]
+      : got.lines.map((l) => `  ${l}`);
+    const tail = probe ? `\nlearned order now: ${got.order.join(" → ")}` : `\norder: ${got.order.join(" → ")}\n/gateways probe [url] — try each one now, recorded`;
+    return usageTurn(question, `${head}\n${rows.join("\n")}${tail}\n— computed from the record, not generated`, { what: "gateways" });
+  } catch (e) {
+    return usageTurn(question, `/gateways: ${e.message} — is explore-server.mjs running on ${EXPLORE_BASE}?`, { what: "gateways" });
+  }
+}
+
+/**
  * Fire-and-forget mirror onto the SAME durable record every terminal-typed
  * act already lands on (explore-server.mjs's `POST /api/term-record` →
  * its one `record(event, fields)` function, `record/explore-record.jsonl`)
@@ -3021,6 +3053,12 @@ async function send(question) {
   const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
   if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
 
+  // The public gateways (P110): bare, the learned table off the record — no
+  // egress; `probe`, one recorded fetch of a canonical page through each
+  // gateway so the table has something to learn from. Mechanical either way.
+  const gatewaysCmd = question.match(/^\/gateways\b\s*(.*)$/s);
+  if (gatewaysCmd) return gatewaysTurn(gatewaysCmd[1]?.trim() ?? "", question);
+
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
   // composer, landing on the SAME log the sandboxed terminal's own `act`/
@@ -3205,7 +3243,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/fold", "/ingest", "/learn", "/measure", "/must", "/priors", "/ranke", "/reflect", "/reopen", "/run", "/self", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/fold", "/gateways", "/ingest", "/learn", "/measure", "/must", "/priors", "/ranke", "/reflect", "/reopen", "/run", "/self", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -4878,7 +4916,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
           fields: { url: f.entry.finalUrl ?? url },
         };
-        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested`);
+        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested${f.entry.via ? ` — via ${f.entry.via.gateway} (the direct fetch was ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       } catch (e) {
         show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
       }
@@ -7787,8 +7825,8 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
       rememberPageFace(sourceName, url, f.entry);
-      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
-      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, ...(f.entry.via ? { via: f.entry.via.gateway } : {}) });
+      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept${f.entry.via ? ` — via ${f.entry.via.gateway} (direct fetch ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       const arrived = huntMeter.arrive(hunt, text);
       if (arrived.settled) {
         huntStop = "settled";

@@ -219,5 +219,11 @@ What a page load reaches: its own origin, and `localhost:11434` if Ollama is
 there. What leaves only when you act: a web search or page fetch when the
 `web` toggle is on (through the local explore server), `/transcribe`'s
 one-time Whisper download from huggingface.co (said before it starts),
-`pip install` from pyodide's mirror, and GitHub when you connect a repo —
-straight to github.com from the local server, through no one's relay.
+`pip install` from pyodide's mirror, GitHub when you connect a repo —
+straight to github.com from the local server, through no one's relay —
+and, when a site refuses the direct fetch and the `web` toggle is on, a
+public gateway (the Wayback Machine, a reader or relay service) that then
+sees the address; which gateways are open and what each forwards about you
+is learned from your own record, shown by `/gateways`, and every page read
+that way says so (POLICIES.md P110). Nothing about you reaches this
+project's maintainer by any route.

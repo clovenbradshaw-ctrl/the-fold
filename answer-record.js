@@ -16,6 +16,48 @@
 
 export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
 
+// EVERY ∅ CITES ITS VOID (Pass 25 of the null experiments, P106). A sentence
+// the answer asserts and nothing backs is an ABSENCE; an absence is honest
+// when a void the reader DECLARED (kernel/notes.js S70 — scope, cursor,
+// reached) is in scope for it, and a leak (P54: "there is no mention of
+// anything else") when none is. The match is mechanical and token-level:
+// every token of the void's first end and of its label appears in the
+// sentence, folded. Nothing here reads meaning; a void in scope is a fact
+// about the record, not a verdict on the sentence.
+const fold = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f\u0591-\u05c7\u064b-\u0652]/g, "").toLowerCase();
+const toks = (t) => new Set(fold(t).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1));
+/** The open void in scope for a sentence, or null. `voids` are foldVoids rows (SVO or neutral names). */
+export function voidInScope(sentence, voids = [], { question = "" } = {}) {
+  const st = toks(sentence);
+  if (!st.size) return null;
+  // The first end may be named by the QUESTION the sentence answers — an
+  // absence written back to "who was X's director?" says "the director"
+  // and points at X anaphorically. The label must be in the sentence itself.
+  const qt = toks(question);
+  for (const v of voids ?? []) {
+    const e1 = [...toks(v.end1 ?? v.subject)], lb = [...toks(v.label ?? v.verb)];
+    if (!e1.length || !lb.length) continue;
+    const anchored = e1.every((w) => st.has(w)) || (qt.size > 0 && e1.every((w) => qt.has(w)));
+    if (anchored && lb.every((w) => st.has(w))) return v;
+  }
+  return null;
+}
+/** Absences with their citation: each unbacked or witness-refused sentence, and the declared void in scope for it, if any. */
+export function absencesOf({ unbacked = [], witness = [], voids = [], question = "" } = {}) {
+  const seen = new Set();
+  const out = [];
+  const add = (sentence, how) => {
+    const s = typeof sentence === "string" ? sentence : (sentence?.sentence ?? sentence?.text ?? "");
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    const v = voidInScope(s, voids, { question });
+    out.push({ sentence: s, how, void: v ? (v.id ?? null) : null, ...(v?.scope ? { scope: { sources: v.scope.sources?.length ?? null, read: v.scope.read ?? null, total: v.scope.total ?? null } } : {}) });
+  };
+  for (const w of witness ?? []) if (w?.witness === "refused") add(w.sentence, "witness-refused");
+  for (const u of unbacked ?? []) add(u, "unbacked");
+  return out;
+}
+
 /** The identity a claim is compared on across models: its neutral arrangement, folded. */
 export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase().trim()}|${String(c.label ?? c.verb ?? "").toLowerCase().trim()}|${String(c.end2 ?? c.object ?? "").toLowerCase().trim()}`;
 
@@ -23,7 +65,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [] } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -41,6 +83,7 @@ export function answerRecord({ question, answer = "", model = null, frame = null
   }
   const tally = {};
   for (const c of claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
+  const absences = absencesOf({ unbacked, witness, voids, question });
   return {
     schema: ANSWER_RECORD_SCHEMA,
     cursor,
@@ -53,6 +96,12 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     unsupported: (unsupported ?? []).map((u) => (typeof u === "string" ? u : (u?.sentence ?? u?.text ?? JSON.stringify(u)))).slice(0, 50),
     unbacked: (unbacked ?? []).map((u) => (typeof u === "string" ? u : (u?.sentence ?? u?.text ?? JSON.stringify(u)))).slice(0, 50),
     sources: (sources ?? []).map((s) => ({ name: s.name, sha256: s.sha256 ?? null, bytes: s.bytes ?? null })),
+    // Absences and their citations (P106): an absence citing a declared void
+    // is honest; one citing none is the mouth declaring emptiness — counted,
+    // never absorbed.
+    absences: absences.slice(0, 50),
+    absenceTally: { citingVoid: absences.filter((a) => a.void).length, citingNone: absences.filter((a) => !a.void).length },
+    voidsOpen: (voids ?? []).length,
     constitution,
     answer: { chars: String(answer ?? "").length },
   };
@@ -83,5 +132,6 @@ export function diffRecords(a, b) {
 export function answerRecordLine(r) {
   const t = r?.tally ?? {};
   const bits = Object.entries(t).map(([v, n]) => `${n} ${v}`);
-  return `answer record · ${r.claims.length} claim(s)${bits.length ? ` (${bits.join(", ")})` : ""} · ${r.unsupported.length} unsupported · ${r.unbacked.length} unbacked · retrieved ${r.retrieved.length} · recipe ${String(r.recipe ?? "none").slice(0, 12)}${r.unread?.length ? ` · still reading ${r.unread.map((u) => `${u.name} ${u.read}/${u.total}`).join(", ")}` : ""}`;
+  const abs = r.absenceTally ? ` · absences ${r.absenceTally.citingVoid + r.absenceTally.citingNone} (${r.absenceTally.citingVoid} cite a declared gap, ${r.absenceTally.citingNone} cite none)` : "";
+  return `answer record · ${r.claims.length} claim(s)${bits.length ? ` (${bits.join(", ")})` : ""} · ${r.unsupported.length} unsupported · ${r.unbacked.length} unbacked${abs} · retrieved ${r.retrieved.length} · recipe ${String(r.recipe ?? "none").slice(0, 12)}${r.unread?.length ? ` · still reading ${r.unread.map((u) => `${u.name} ${u.read}/${u.total}`).join(", ")}` : ""}`;
 }

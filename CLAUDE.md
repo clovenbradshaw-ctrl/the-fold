@@ -7632,3 +7632,7 @@ eleven agent calls.
 ## Pass 23 — the void, live (added 2026-09-05) — pointer
 
 POLICIES.md **P105**; eoreader7 **S70**. A void the reader declares carries its scope and lands on the record before the mouth drafts; the ledger block relays it as "looked for and not found so far … an open gap, not a finding that it is false"; `/void`, `/void <id>`, `/void! <id>`. Slot-shaped voids fill live only through the brief's filler organ (residue). The null experiments (Passes 24–29) are the plan of record in NEXT-PASSES.md.
+
+## Pass 25 — every ∅ cites its void (added 2026-09-05) — pointer
+
+POLICIES.md **P106**. An absence the answer asserts cites the declared void in scope for it (`answer-record.js::voidInScope`, question-anchored) on the ∅ badge and in the AnswerRecord's `absenceTally`; one citing none is a counted leak (P54's shape, now a number). Live: the director question's ∅ reads "open gap on the record: Northgate Observatory —director→ ?" with the void's scope.

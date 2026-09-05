@@ -122,7 +122,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
-import { answerRecord, answerRecordLine } from "./answer-record.js";
+import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -5555,6 +5555,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
   const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
   // the sentence witness's rows, read by renderAnswer's badge pass by sentence text
+  state.lastAsked = typeof task === "string" ? task : (state.lastAsked ?? "");
   state.lastWitness = result.sections.flatMap((s) => s.witness?.rows ?? []);
   // The instruction is the model's own plan — task + plan parts, mechanically
   // assembled. It goes into the build log's PROPOSE entries (build-log.js)
@@ -5652,6 +5653,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
       unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      // Every ∅ cites its void (P106): the open voids at the moment of the
+      // record, and the sentence witness's rows, so each absence is either
+      // an honest citation of a declared gap or a counted leak.
+      voids: state.grounded ? voidsNow() : [], witness: state.lastWitness ?? [],
       sources: Object.keys(state.sources).map((name) => ({ name, bytes: state.sources[name]?.length ?? null })),
       constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
     });
@@ -6213,8 +6218,18 @@ function taggedProse(text, offered, classified = []) {
     if (wit?.witness === "refused") {
       const badge = document.createElement("button");
       badge.className = "edge-badge unbound witness-refused";
-      badge.textContent = "∅ no passage states this";
-      badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction. Press to search the material.`;
+      // Every ∅ cites its void (P106): when a gap the reader DECLARED is in
+      // scope for this sentence, the mark names it — with its scope — so an
+      // honest absence reads differently from the mouth's own "no mention".
+      const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "" });
+      if (gap) {
+        badge.classList.add("cites-void");
+        badge.textContent = `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`;
+        badge.title = `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it. Press to search the material.`;
+      } else {
+        badge.textContent = "∅ no passage states this";
+        badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction — and no declared gap is in scope for it. Press to search the material.`;
+      }
       badge.onclick = () => groundHunt(entry.text);
       sent.append(badge);
     }

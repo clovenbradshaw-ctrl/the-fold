@@ -4674,9 +4674,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // said. The sources' own headings become the planner's facts.
   let planFacts = null;
   let scopeNote = null;
+  let inScopeNames = null;
   if (opts.longForm) {
     const topic = opts.longForm.topic;
-    const inScopeNames = new Set(Object.entries(state.sources).filter(([name, text]) => !isCodeSource(name) && inScope(topic, text)).map(([name]) => name));
+    inScopeNames = new Set(Object.entries(state.sources).filter(([name, text]) => !isCodeSource(name) && inScope(topic, text)).map(([name]) => name));
     const before = live.length;
     live = live.filter((c) => inScopeNames.has(c.source));
     // `show` is declared further down this function; the scope line is
@@ -4978,6 +4979,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       }
     }
     live = liveChunks();
+    // The named-source block re-reads the WHOLE pool (a page just attached
+    // must join it), which silently undid a piece's scope — measured, run
+    // 8: seven `holon.js` passages and two of the plan of record reached
+    // sections about a television series. The scope is re-applied here,
+    // and a page this very ask named is in scope by construction.
+    if (inScopeNames) {
+      for (const name of Object.keys(state.sources)) if (name.startsWith("web:") && !inScopeNames.has(name) && !isCodeSource(name) && inScope(opts.longForm.topic, state.sources[name] ?? "")) inScopeNames.add(name);
+      live = live.filter((c) => inScopeNames.has(c.source));
+    }
   }
 
   // Every messages array actually sent to the model this turn, verbatim —

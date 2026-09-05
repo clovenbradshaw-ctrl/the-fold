@@ -160,3 +160,16 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Ostrom | II.9 | routes.js whereAmI | noted | a localhost static host reads as "terminal"; the api probe is what distinguishes it — the summary says `/run off`, which is the fact that matters |
 | Marshall | IV.1; P71 | POLICIES P118, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; enforcement in the same diff; the extension is stated as built-not-run, Pages as not-deployed-from-here |
 clean: nothing struck.
+
+## 2026-09-05 — P119: the room (branch `matrix-rooms`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok after two catches (II.13 flagged a doc comment naming a public homeserver, then a `https://${s}` template — both removed); routed Dijkstra · Simon · Chekhov · Ostrom · Marshall; suites matrix 24/24, the-fold full green.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | matrix.js forRecord / SecretSet | clean | one instrument on both sides: the app refuses a leaking record line with the same code the tests run over the adversary's disk; its positive controls prove it sees what is there |
+| Simon | P10 | matrix-fake-homeserver.mjs | noted | the adversary implements the routes the crossing uses and the auth rules leaned on; a real homeserver is the person's first sign-in and is said as not exercised |
+| Chekhov | III.5 | matrix-client.js ask/serve | clean | every ask is addressed and counted; a gone mouth, an unoffered model and a mouthless room are typed gaps that count against the worker; abort is immediate on both sides |
+| Ostrom | II.9 | createRoomBody | upheld — by decision | users_default 100: a room of equals; the viewer level of the first cut is gone |
+| Marshall | IV.1; P71 | POLICIES P119, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; measured numbers from the pane; not-claimed list carries the real homeserver, identity-after-wipe, sources, localStorage at rest |
+clean: nothing struck.

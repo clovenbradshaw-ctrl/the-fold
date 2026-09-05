@@ -7654,3 +7654,7 @@ POLICIES.md **P117**. A refused direct fetch (401/403/407/429/451/503, a challen
 ## Three homes (2026-09-05)
 
 POLICIES.md **P118**. `deploy/build-site.mjs` is the one static build (site, archive.org pin, extension); it rewrites only the five mount prefixes (`MOUNT_TARGETS`) to relative paths per file depth — `/api/*` stays absolute on purpose. `routes.js` (`whereAmI`, `describeRoutes`) + app.js `probeRoutes` say what is reachable at boot; `/routes` re-probes. `webllm-rung.js::weightsBases` + `webllm-client.js::chooseWeights` are the weights ladder. The Pages workflow runs the same build. A localhost static host reads as the "terminal" home — the api probe (`HEAD serve.mjs`) is what tells `./fold` from a plain host.
+
+## The room (2026-09-05)
+
+POLICIES.md **P119**. `matrix.js` is the pure half (envelope, wrap, blocks, shapes, share link, seal, `SecretSet`, `forRecord`); `matrix-client.js` the crossing (`MatrixHttp`, `FoldMatrix`); `matrix-fake-homeserver.mjs` the adversary for tests and the browser rehearsal (never in the page graph); `matrix-worker.mjs` the headless Ollama worker. Rules: every record line through `forRecord`; no homeserver literal anywhere the page loads (II.13 catches even a doc comment); rooms at full power; a member's mouth is `room:@who:server model` and routes inside `completeOnce`. Dialog sheets act on their form's `submit`, not the dialog's `close` (dead in Chromium 148). Rehearse with `node matrix-fake-homeserver.mjs 8448` and two origins (localhost / 127.0.0.1) for two people.

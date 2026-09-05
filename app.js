@@ -114,6 +114,10 @@ import { updateSourceMeta } from "./sources-store.js";
 // Read when material arrives (Pass 18, P99): the reader loop and the typed
 // unread extent a question asked mid-read is told about.
 import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
+// The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
+// shown first in the thinking panel — what was handed, what was said, what
+// nothing backs, and the reader's identity.
+import { answerRecord, answerRecordLine } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -813,6 +817,15 @@ import {
 // code, not the model; constitution.js carries the article→organ map and the
 // assay walks it.
 import { CONSTITUTION_PROMPT as BASE_PROMPT } from "./constitution.js";
+// The folded constitution's content identity, carried on every answer
+// record (P100) so a record says which constitution was in force.
+const CONSTITUTION_SHA = (async () => {
+  try {
+    const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(BASE_PROMPT));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch { return null; }
+})();
+let ANSWER_CURSOR = 0;
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 const OLLAMA = "http://localhost:11434";
@@ -4047,7 +4060,13 @@ async function runFastPass(question, model) {
     body.textContent = `(fast pass failed: ${e?.message ?? e})`;
     return { node, text: "", sent };
   }
-  body.textContent = text || "(no reply)";
+  // Classified like every other turn (P100): nothing was handed to S1, so
+  // every sentence is model-ground and wears the dotted underline — a
+  // fast-pass answer no longer ships unclassified.
+  if (text) {
+    try { body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], []))); }
+    catch { body.textContent = text; }
+  } else body.textContent = "(no reply)";
   return { node, text, sent };
 }
 
@@ -5415,7 +5434,26 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     "material",
     observedFillers(voidBrief?.declaration?.slot, voidBrief?.declaration?.cells?.find((c) => c.op === "SIG")?.declared, relationClaims),
   );
-  renderFold(node, { sent: sentCalls });
+  // The AnswerRecord (P100): built from the turn's own sections — what was
+  // retrieved, every claim the answer made with the verdict the material
+  // gave it, what nothing backs — with the reader's identity; appended to
+  // the durable record (`records/answers.jsonl`) and shown first.
+  let answerRec = null;
+  try {
+    // The frame and recipe are re-derived here (the turn's own `ledgerFrame`
+    // is scoped to the call above); the reader has not changed since.
+    const recFrame = state.grounded ? readerFrame() : null;
+    const recRecipe = recFrame ? await readerRecipe(recFrame) : null;
+    answerRec = answerRecord({
+      question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
+      sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
+      unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      sources: Object.keys(state.sources).map((name) => ({ name, bytes: state.sources[name]?.length ?? null })),
+      constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
+    });
+    appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
+  } catch (e) { console.warn("answer record:", e?.message ?? e); }
+  renderFold(node, { sent: sentCalls, record: answerRec });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
@@ -8292,7 +8330,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
  * turn? `sent` is every messages array this turn actually sent to a model,
  * captured verbatim at the call boundary — this is the whole of it now.
  */
-function renderFold(node, { sent } = {}) {
+function renderFold(node, { sent, record = null } = {}) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -8319,6 +8357,17 @@ function renderFold(node, { sent } = {}) {
   }
   const out = box.querySelector("p");
   out.textContent = "";
+
+  // The AnswerRecord first (P100): the claims before the prose, verbatim.
+  if (record) {
+    const pre = document.createElement("pre");
+    pre.className = "block";
+    const role = document.createElement("span");
+    role.className = "role";
+    role.textContent = answerRecordLine(record);
+    pre.append(role, document.createTextNode("\n" + JSON.stringify(record, null, 2)));
+    out.append(pre);
+  }
 
   if (!sent?.length) {
     // Honest absence, not a blank box: a turn can genuinely spend no model
@@ -9466,7 +9515,12 @@ bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
 // rule to `.msg .body`. "For now" is the user's own word for it — this is a
 // deliberately blunt switch to be handed back to a control when there is one
 // worth designing, not a claim that per-turn painting was wrong.
-document.body.classList.add("marks-off");
+// Amended 2026-09-05 (Pass 19, P100): the standing suppression is lifted.
+// The marks — an address chip, a ground underline, a relation badge, the
+// witness's ∅ — are the product bar's own item (1), and a checked turn
+// paints them unless the person turned marks off. `fold-marks=off` still
+// hides them; nothing else does.
+if (localStorage.getItem("fold-marks") === "off") document.body.classList.add("marks-off");
 {
   const btn = $("marks-toggle");
   const apply = (on) => {

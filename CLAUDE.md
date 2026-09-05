@@ -7567,3 +7567,16 @@ onto the ledger of the moment; the turn's write-back MERGES
 serialize a record at job time, never at call time (replay's typed gap is
 what found the duplicated stretch); boot never re-persists what it loaded.
 
+## Pass 19 — claims before prose (added 2026-09-05) — pointer
+
+POLICIES.md **P100**; eoreader7 S68. Every grounded turn writes an
+AnswerRecord (`answer-record.js`) to `records/answers.jsonl` and shows it
+first in the thinking panel: what was handed, what was said with the
+material's verdict, what nothing backs, the reader's identity. The reader
+runs with `objectSpecificity` on (one shared object token no longer
+binds a fabrication). The marks paint again. Bar item 5 was measured
+across two small models and restated: the RECORD is model-independent;
+the mouth's additions are marked and counted, never assumed absent.
+Handed forward: term-hit retrieval prefers long passages; the whole-book
+arrival read needs a bounded reader pool.
+

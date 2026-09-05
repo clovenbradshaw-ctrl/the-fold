@@ -918,6 +918,20 @@ reload, the mid-read disclosure in the prompt. Two rules earned by running:
 a hidden tab clamps setTimeout (yield by MessageChannel); serialize at job
 time (replay's typed gap found the duplicated stretch). POLICIES.md
 **P99**.
+
+## Pass 19 — claims before prose (added 2026-09-05, CLOSED same day)
+
+`objectSpecificity` at the reader's judge (S68; the assay's wall 6 holds
+4/4); `answer-record.js` — one AnswerRecord per grounded turn, appended to
+`records/answers.jsonl` and shown first in the thinking panel; the marks
+painted again; the fast pass classified. `model-swap-diff.mjs` measured
+bar item 5 and it breaches as first written: both small mouths add
+unbacked sentences and their record-backed sets differ 3/3 — restated in
+P100 (the record is model-independent; the mouth's additions are marked
+and counted). Handed forward: retrieval by term hits prefers long
+passages (a 3 KB War and Peace passage outranked the 174-byte source that
+held the answer); the whole-book arrival read is blocked on a superlinear
+reader build (bound the pool). POLICIES.md **P100**.
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions

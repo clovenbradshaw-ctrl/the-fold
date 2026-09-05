@@ -7510,3 +7510,24 @@ doc. Each transcription doc now has a `lib/` function and a `node --test`
 reader in eoreader7; `audit-results.sh` names print-only drivers instead
 of a vacuous diff. Handed forward: a Cyrillic closed-class connector
 (`Война —и→ мир`) the door admits and the English prior cannot see.
+
+## Before committing: the two-tier chorus (2026-09-05)
+
+Run `~/.claude/skills/chorus-lint/chorus-fast.sh` from the repo root. In
+seconds it checks the law files (duplicate P/S headers, citations that
+resolve, Generality on new P entries), runs only the tests that import a
+changed file plus the standing gates, and names which persona lenses the
+diff touches with a `file:line` pointer each. Read only those lenses,
+against the context file it writes (cited entries only). The eleven-persona
+form is `chorus full`, for audits and PR reviews, not per commit. The
+skill's `SKILL.md` carries the lens questions and the log format;
+the-fold's POLICIES.md P35 is the authority that a chorus is a label, not
+eleven agent calls.
+
+## Pass 23 — the void, live (added 2026-09-05) — pointer
+
+POLICIES.md **P105**; eoreader7 **S70**. A void the reader declares carries its scope and lands on the record before the mouth drafts; the ledger block relays it as "looked for and not found so far … an open gap, not a finding that it is false"; `/void`, `/void <id>`, `/void! <id>`. Slot-shaped voids fill live only through the brief's filler organ (residue). The null experiments (Passes 24–29) are the plan of record in NEXT-PASSES.md.
+
+## Pass 25 — every ∅ cites its void (added 2026-09-05) — pointer
+
+POLICIES.md **P106**. An absence the answer asserts cites the declared void in scope for it (`answer-record.js::voidInScope`, question-anchored) on the ∅ badge and in the AnswerRecord's `absenceTally`; one citing none is a counted leak (P54's shape, now a number). Live: the director question's ∅ reads "open gap on the record: Northgate Observatory —director→ ?" with the void's scope.

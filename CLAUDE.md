@@ -7511,6 +7511,111 @@ reader in eoreader7; `audit-results.sh` names print-only drivers instead
 of a vacuous diff. Handed forward: a Cyrillic closed-class connector
 (`Война —и→ мир`) the door admits and the English prior cannot see.
 
+## Pass 15 — zero-call hygiene before the circuit (added 2026-09-05) — pointer
+
+POLICIES.md **P96**. The program after Pass 14 is one thing: make the
+existing machinery one functional Fold (the plan of record names Passes
+15–25 and the terminal assay that defines "there"). Pass 15 is its
+zero-call floor: both suites green (three failures named and closed — a
+real contract drift, a harness regex that read for weeks as drift, and a
+test asserting a banner the code retired), the `/corroborate` door's
+render rebuilt as `corroboration-report.js` against the organ's REAL
+return shape (it threw right after landing the first live dispute), the
+Pass 14 SVO grep read hit by hit with three drivers migrated at one seam,
+and the reader's frame DERIVED from `RELATION_READER_OPTIONS` by
+`reader-frame.js` so a lever handed to the reader is on the record without
+a second declaration (P90). Rule worth keeping: a caller's render of an
+organ's return is tested against that organ's real return, never against
+the shape the caller remembers.
+
+## Pass 16 — the finish line, executable (added 2026-09-05) — pointer
+
+POLICIES.md **P97**; eoreader7 S67 and `eval/the-fold/lib/product-assay.mjs`.
+The product bar is now a runnable object: one AnswerRecord per question
+(byte-addressed claims, standing phrased, derived facts with `restsOn`,
+open contests, frame + recipe, source and constitution hashes) built by the
+production organs BEFORE any mouth speaks, twelve walls, ten read by a test
+on every run. Two breach by mechanism and are handed to Pass 19: a negated
+denial never yields a `contradicted` verdict (P43's inversion at the
+reader), and one shared object token binds a fabrication below
+`CORPUS_MINIMUM`. Run `node eval/the-fold/product-assay.mjs` (0 calls) or
+with `MODEL=` for the dated mouth arm. Rule: a wall that breaches is
+reported with its mechanism, never tuned until it holds.
+
+## Pass 17 — one durable reading record (added 2026-09-05) — pointer
+
+POLICIES.md **P98**. The three kernel logs this surface holds
+(hyperlexicon, grid, metacognition) persist to OPFS as append-only JSONL
+(`record-store.js`) and replay on boot through the kernel's own `append`
+(`record-log.js`), so the accumulated reading no longer ends at reload:
+verified live — reload, attachments off, and the model answered from the
+restored ledger block alone. Identity is over VALUES in canonical key
+order, never over a serializer's key order; a hole, a bad line or a
+missing source is a typed gap. `syncRecords()` follows every assignment
+of one of the three logs; a new site that assigns one must call it.
+
+## Pass 18 — read when material arrives (added 2026-09-05) — pointer
+
+POLICIES.md **P99**. A source is read the moment it is attached, through
+the same door a turn admits into — `read-on-arrival.js::admitPassages` is
+holon.js's admission loop moved out verbatim, and holon calls it. The read
+is ordered, resumable (a per-source cursor and recipe in the OPFS index),
+one passage per MessageChannel macrotask (a hidden tab clamps setTimeout),
+onto the ledger of the moment; the turn's write-back MERGES
+(`mergeAppendOnly`), never overwrites; a question asked mid-read is told
+"Still reading: … k of n passages so far". Two rules from the live run:
+serialize a record at job time, never at call time (replay's typed gap is
+what found the duplicated stretch); boot never re-persists what it loaded.
+
+## Pass 19 — claims before prose (added 2026-09-05) — pointer
+
+POLICIES.md **P100**; eoreader7 S68. Every grounded turn writes an
+AnswerRecord (`answer-record.js`) to `records/answers.jsonl` and shows it
+first in the thinking panel: what was handed, what was said with the
+material's verdict, what nothing backs, the reader's identity. The reader
+runs with `objectSpecificity` on (one shared object token no longer
+binds a fabrication). The marks paint again. Bar item 5 was measured
+across two small models and restated: the RECORD is model-independent;
+the mouth's additions are marked and counted, never assumed absent.
+Handed forward: term-hit retrieval prefers long passages; the whole-book
+arrival read needs a bounded reader pool.
+
+## Pass 20 — contest in the live circuit (added 2026-09-05) — pointer
+
+POLICIES.md **P101**. `crownTestimony` now lands a DISAGREE or
+CONTRADICTED merge on the record through `landContest` — the wire P91
+named — and the ledger block says a disputed note is "disputed by X — not
+settled". Proven on the record by the assay and at the mouth by the holon
+pin; not yet produced live, because the reader reads a denial as unbound
+(P43) and the corroboration witness skipped the denying pair. The next
+lever is a reader that reads a denial, never a looser wall here.
+
+## Pass 21 — derivation and recourse in the live circuit (added 2026-09-05) — pointer
+
+POLICIES.md **P102**. `/declare <rel> transitive|composes <product>`
+(the person is the giver, recorded), `/derive` (carry: true at the honest
+floor; products land on the ledger with `restsOn`), `/concede <id>`
+(exposure first) and `/concede! <id>` (the act, recorded with its
+trigger). The declarations register is the fourth persisted log. The
+ledger block tells the mouth a derived fact as derived, never settled.
+Verified live end to end, including across a reload. A derived sentence
+still lacks its own ground mark — named, not fixed.
+
+## Pass 22 — the terminal assay, first run (added 2026-09-05) — pointer
+
+POLICIES.md **P103**; the record is eoreader7's
+`results/terminal-assay-RESULTS.md`. Eight of eleven conditions held on
+the first run through the real page; the three that did not are the
+reader's (a denial read as unbound), the mouth's (unbacked sentences,
+marked and counted), and the wording of one condition (restated in P100).
+Not a completion claim. Before claiming any of these, run the assay and
+the model-swap diff and read their walls.
+
+
+## Pass 22b — negation is a cut, tracked through time (added 2026-09-05) — pointer
+
+POLICIES.md **P104**; eoreader7 **S69**; `eoreader7/native/docs/THE-NULL-STATES.md` the nomination. A denial is a SEG·Figure cut with the link's ends and never its id — a denying source is never a witness of the link, and a cut meeting its link lands CON·Figure·CONTESTED at the door with the denying bytes as decider. `negationTimeline(log, linkId)` is the reading of a denial through time (link, cut, contest, settled, conceded — each at its seq). The void (DEF·Ground) is next, on the same shape. Product assay 12/12. Standing rule from the user: **track negation and void through time.**
+
 ## Before committing: the two-tier chorus (2026-09-05)
 
 Run `~/.claude/skills/chorus-lint/chorus-fast.sh` from the repo root. In

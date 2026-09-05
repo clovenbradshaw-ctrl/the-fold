@@ -91,7 +91,12 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxe
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
-import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "../eoreader7/native/organs/index.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
+// The declarations register (Pass 21, P102): what a person has DECLARED
+// about a relation — transitive, or composing into a named product — each
+// with its giver. Chemistry comes from this register and nowhere else
+// (derivation.js), so a derived fact always names who licensed it.
+import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
@@ -104,6 +109,20 @@ import { classifySentences } from "./provenance.js";
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
 
 import { persistSource, unpersistSource, loadSources } from "./sources-store.js";
+// One durable reading record (Pass 17, P98): the three kernel logs this app
+// holds persist to OPFS as append-only JSONL and replay on boot through the
+// kernel's own `append`, so the accumulated reading no longer ends at reload.
+import { serializeRecord, replayRecord } from "./record-log.js";
+import { appendRecord, loadRecord } from "./record-store.js";
+import { mergeAppendOnly } from "./record-log.js";
+import { updateSourceMeta } from "./sources-store.js";
+// Read when material arrives (Pass 18, P99): the reader loop and the typed
+// unread extent a question asked mid-read is told about.
+import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
+// The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
+// shown first in the thinking panel — what was handed, what was said, what
+// nothing backs, and the reader's identity.
+import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -200,7 +219,9 @@ import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice, witnessSentences } from "../eoreader7/native/organs/index.js";
-import { corroborateLedger, distinctSources as distinctWitnessSources, witnessNote } from "../eoreader7/native/organs/index.js";
+import { corroborateLedger, witnessNote } from "../eoreader7/native/organs/index.js";
+import { corroborationLines } from "./corroboration-report.js";
+import { readerFrame as frameOfReader } from "./reader-frame.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
@@ -273,6 +294,109 @@ const store = makeStore(nativeTaskLog);
 const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
 const metaLedger = makeMetacognition(nativeTaskLog);
+
+// ── the durable record: three logs, one mechanism ─────────────────────────
+// `syncRecords()` appends to OPFS every entry whose seq is beyond what was
+// last persisted, per log — O(new entries), never a rewrite (record-store.js
+// seeks to the end). Called after every site that assigns one of the three
+// logs; fire-and-forget, a failure is a console line, never a broken turn.
+// Boot replays the three files through `replayRecord` (record-log.js) into
+// the SAME kernel shape the live code appends to, and a hole or a bad line is
+// a typed gap logged by name, never a silently shorter reading.
+const RECORDS = { hyperlexicon: 0, grid: 0, meta: 0, declarations: 0 };
+let recordSyncChain = Promise.resolve();
+function syncRecords() {
+  // The range to append is computed WHEN THE JOB RUNS, after the previous
+  // job has advanced the cursor — not when syncRecords is called. The first
+  // cut serialized at call time, so two calls issued before the first append
+  // finished both captured the same seqs and the file held a duplicated
+  // stretch; replay reported it as a typed `record_gap` at line 703, which
+  // is how it was found (P99). The log itself is read at run time too, so a
+  // job appends whatever the app holds by then, never a stale snapshot.
+  const job = async () => {
+    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations]]) {
+      const log = get();
+      if (!log || !Array.isArray(log.entries)) continue;
+      const lines = serializeRecord(log, RECORDS[name]);
+      if (!lines.length) continue;
+      const upto = log.nextSeq;
+      const r = await appendRecord(name, lines);
+      if (r.appended === lines.length) RECORDS[name] = upto;
+    }
+  };
+  recordSyncChain = recordSyncChain.then(job).catch((e) => console.warn("record sync:", e?.message ?? e));
+  return recordSyncChain;
+}
+// ── read when material arrives (Pass 18, P99) ────────────────────────────
+// One read per source, ordered, resumable, one passage per macrotask so a
+// long book never freezes the page. The reader is the production one
+// (`relationsFor`, its pool the source's own passages); the door, frame and
+// recipe are the same a turn uses; each passage builds on the ledger OF THE
+// MOMENT (`ledgerRef`) so a turn landing mid-read is never overwritten. The
+// cursor (passages admitted under this recipe) persists in the source's own
+// index row; a reload resumes from it, and a reader whose recipe changed
+// reads again under its own witness string (a second instrument, P68).
+const READING = new Map(); // name → { cursor, total, recipe, running }
+const yieldMacrotask = (() => {
+  if (typeof MessageChannel === "undefined") return () => new Promise((r) => setTimeout(r));
+  const ch = new MessageChannel();
+  const waiters = [];
+  ch.port1.onmessage = () => { const w = waiters.shift(); if (w) w(); };
+  return () => new Promise((r) => { waiters.push(r); ch.port2.postMessage(null); });
+})();
+let readQueue = Promise.resolve();
+function unreadNow() {
+  return [...READING.entries()].map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+}
+function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
+  readQueue = readQueue.then(async () => {
+    await priorsSettled();
+    const passages = state.chunks.filter((c) => c.source === name);
+    if (!passages.length || !state.sources[name]) return;
+    const frame = readerFrame();
+    const recipe = await readerRecipe(frame);
+    const cursor = savedRecipe === recipe ? savedCursor : 0;
+    if (savedRecipe && savedRecipe !== recipe && savedCursor > 0) console.info(`read on arrival: ${name} was read under recipe ${String(savedRecipe).slice(0, 12)}; the reader's recipe is now ${recipe.slice(0, 12)} — reading again as a second instrument`);
+    READING.set(name, { cursor, total: passages.length, recipe, running: true });
+    let lastSync = 0;
+    const r = await readOnArrival({
+      name, passages, relationsFor, hyperlexicon: hyperlexiconFor,
+      ledgerRef: { get: () => state.hyperlexiconLog, set: (log) => { state.hyperlexiconLog = log; } },
+      frame, recipe, classifyConnector: state.grounded ? connectorLens : null, cursor,
+      // A MessageChannel macrotask, not setTimeout: a hidden tab clamps
+      // timers to ~1/s (and to 1/min after five minutes), which turned a
+      // 44-passage read into a crawl the first time this ran live. Message
+      // events are not clamped, and the page still repaints between them.
+      yieldFn: yieldMacrotask,
+      onProgress: (p) => {
+        READING.set(name, { cursor: p.read, total: p.total, recipe, running: p.read < p.total });
+        if (p.read - lastSync >= 25 || p.read === p.total) { lastSync = p.read; syncRecords(); updateSourceMeta(name, { readCursor: p.read, readRecipe: recipe }); }
+        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = `reading ${name} · ${p.read}/${p.total}`;
+      },
+    });
+    READING.set(name, { cursor: r.cursor, total: passages.length, recipe, running: false });
+    if (r.read) {
+      syncRecords();
+      updateSourceMeta(name, { readCursor: r.cursor, readRecipe: recipe, readMs: r.ms, readHeard: r.heard, readTurnedAway: r.turnedAway.length });
+      console.info(`read on arrival: ${name} — ${r.read} passage(s) in ${r.ms} ms, ${r.heard} note(s) heard, ${r.turnedAway.length} turned away${r.resumed ? " (resumed)" : ""}`);
+    }
+    if (state.ready) $("status").textContent = `ready · ${state.model}`;
+  }).catch((e) => console.warn(`read on arrival: ${name}:`, e?.message ?? e));
+  return readQueue;
+}
+
+async function restoreRecords() {
+  const bundle = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append };
+  const restored = {};
+  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null]]) {
+    const lines = await loadRecord(name);
+    if (!lines.length) continue;
+    const r = replayRecord(lines, { ...bundle, admits });
+    if (r.gap) console.warn(`record ${name}: ${r.gap.type} — ${r.gap.detail} (${r.replayed} replayed, the rest not read)`);
+    if (r.replayed) { restored[name] = r.log; RECORDS[name] = r.log.nextSeq; }
+  }
+  return restored;
+}
 
 // The widget router (widget.js): does a code-bearing turn point at a build
 // that already exists, or introduce a new one? Decided from the operator's
@@ -421,11 +545,16 @@ let posPriorCache = null;
 // same object after the fetch resolves is picked up with no re-construction.
 // Empty until then — and an empty Set adds no words, which is byte-identical
 // to today's behaviour, so nothing here may delay boot either.
+// The received priors arrive after boot. A read on arrival waits for them
+// (`priorsSettled`) so the recipe it reads under is the reader's settled
+// configuration, not a boot-time frame that would differ on the next load.
+const PRIOR_LOADS = [];
+const priorsSettled = () => Promise.allSettled(PRIOR_LOADS);
 const unimorphVerbForms = new Set();
-fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
+PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
   .then((r) => (r.ok ? r.json() : null))
   .then((forms) => { if (Array.isArray(forms)) for (const f of forms) unimorphVerbForms.add(f); })
-  .catch(() => {});
+  .catch(() => {}));
 
 // The door's grammar gate is DATA-GATED, never code-gated (P73): the lens
 // exists only once the POS prior actually loads, so a checkout without
@@ -436,7 +565,7 @@ fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") /
 // scripts/build-pos-prior.mjs; givers ride every classification via
 // POS_PRIOR_META/THRAX_META).
 let connectorLens = null;
-fetch("/priors-data/pos-prior-eng.json")
+PRIOR_LOADS.push(fetch("/priors-data/pos-prior-eng.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => {
     posPriorCache = j;
@@ -449,12 +578,15 @@ fetch("/priors-data/pos-prior-eng.json")
     // never a second number. Same MUTATED Set as below, same reason.
     if (j?.forms) for (const w of Object.keys(j.forms)) { const d = dominantClass(classifyWord(w, { posPrior: j }), { minShare: 0.5 }); if (d && (d.upos === "VERB" || d.upos === "AUX")) unimorphVerbForms.add(w.toLowerCase()); }
   })
-  .catch(() => {});
+  .catch(() => {}));
 
 // The relation reader's factory — one per passage set, pool = the live
 // corpus (the closed-class measure needs the corpus's scale, not the
 // turn's; hypergraph.js says why).
-const relationsFor = makeRelationReader({
+// The options object is NAMED so the reader's frame (reader-frame.js, P90)
+// is derived from the very object the reader was built with — every key here
+// reaches the ledger's frame and its recipe id without a second declaration.
+const RELATION_READER_OPTIONS = {
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
@@ -521,6 +653,12 @@ const relationsFor = makeRelationReader({
   // byte-identical to before, no boot delay.
   phrasalPredicates: true,
   attestedVerbs: true,
+  // P36's object-specificity rule, at the reader (Pass 19, P100): a draft
+  // claim binds only to an edge that states EVERY content token of its
+  // object — the product assay's wall 6 ("the Royal Society in 1887" bound
+  // on `in 1887` alone) closed where every consumer of this reader inherits
+  // it: the draft checker, the arrival read, the assay.
+  objectSpecificity: true,
   createLemmatizer: () => ({ sameAct: (a, b) => (sameFormOrgan ? sameFormOrgan(a, b) : String(a).toLowerCase() === String(b).toLowerCase()) }),
   morphologyIndex: {},
   // Two RECEIVED closed classes, both from the engine's own prior register
@@ -583,7 +721,8 @@ const relationsFor = makeRelationReader({
   // mirroring the identical posture `classifyConnector`/`minShare`
   // (grammar-lens.js, two organs up in this file's own history) already
   // holds for the same reason.
-});
+};
+const relationsFor = makeRelationReader(RELATION_READER_OPTIONS);
 
 // The typed-note ledger (hyperlexicon.js, P57), built once — the SAME
 // native cube.js `cellOf` two lines above already gives this file, plus
@@ -591,11 +730,10 @@ const relationsFor = makeRelationReader({
 // `consequence.js::adaptTaskLog` (the exact wiring
 // hyperlexicon-stance.test.mjs already proves against the real organ).
 // `hyperlexiconFor` is the organ passed to `runHolonicTask`; the mutable
-// log itself lives on `state.hyperlexiconLog`, right beside `state.gridLog`
-// and under its own documented posture: app-wide, never per-conversation,
-// never persisted to disk (a fresh page load is a fresh ledger — see
-// state.gridLog's own comment for why that is the deliberate choice, not
-// an oversight).
+// log itself lives on `state.hyperlexiconLog`, right beside `state.gridLog`:
+// app-wide, never per-conversation, and — since Pass 17 (P98) — PERSISTED
+// to OPFS as an append-only record and replayed on boot (`restoreRecords`),
+// so the accumulated reading no longer ends at reload.
 const hyperlexiconFor = makeHyperlexicon({
   ...adaptTaskLog({
     createTaskLog: nativeTaskLog.createTaskLog,
@@ -608,6 +746,39 @@ const hyperlexiconFor = makeHyperlexicon({
   cellOf,
 });
 
+// Derivation over the same ledger (derivation.js, P89/P102): products land
+// on the SAME log as SYN·Pattern·derived with no witnesses of their own —
+// premises carry them, `restsOn` is the min across their grounds, and
+// `concedePremise` withdraws every product resting on a conceded premise.
+const derivationFor = makeDerivation({
+  hl: hyperlexiconFor,
+  taskLog: { append: nativeTaskLog.append, projectTasks: nativeTaskLog.projectTasks, ENTRY_KINDS: nativeTaskLog.ENTRY_KINDS, OPERATOR_BASIS: nativeTaskLog.OPERATOR_BASIS, GRAIN_RANK: nativeTaskLog.GRAIN_RANK, cellOf },
+});
+const derivedNow = () => { try { return state.hyperlexiconLog ? derivationFor.foldDerived(state.hyperlexiconLog) : []; } catch { return []; } };
+// The voids the reader has declared and no arrival has yet filled (Pass 23 /
+// P105; kernel/notes.js S70) — read off the ledger, never off a turn's memory.
+const voidsNow = () => { try { return state.hyperlexiconLog && hyperlexiconFor.foldVoids ? hyperlexiconFor.foldVoids(state.hyperlexiconLog) : []; } catch { return []; } };
+// declareVoidOnLedger — the void-brief's finding, landed on the record as a
+// DEF·Ground event WITH its scope (which sources, how far read, the ledger's
+// cursor), so the next arrival that fills it re-zeros it at the door and
+// `voidTimeline` reads both. Refusals are the kernel's own (`no_scope`,
+// `not_empty`) and are disclosed in the thinking panel, never swallowed.
+function declareVoidOnLedger(brief, { because = null } = {}) {
+  if (!state.hyperlexiconLog || !hyperlexiconFor.declareVoid || !brief) return null;
+  const anchor = brief.declaration?.cells?.find((c) => c.field === "anchor")?.declared ?? null;
+  const label = brief.headPhrase ?? null;
+  if (!anchor || !label) return null;
+  const sources = liveSources().map((s) => s.name);
+  let read = 0, total = 0;
+  for (const [name, r] of READING.entries()) { if (!sources.includes(name)) continue; read += Number(r.cursor ?? 0); total += Number(r.total ?? 0); }
+  const scope = { sources, read, total, cursor: state.hyperlexiconLog.nextSeq };
+  const r = hyperlexiconFor.declareVoid(state.hyperlexiconLog, { end1: anchor, label, end2: null, scope, because });
+  if (r.refused) return { refused: r.refused, anchor, label };
+  state.hyperlexiconLog = r.log;
+  syncRecords();
+  return { id: r.id, anchor, label, scope, redeclared: Boolean(r.redeclared) };
+}
+
 // NO VIEW FROM NOWHERE (eoreader7 kernel/notes.js; POLICIES.md P80). The
 // ledger is born on the first grounded turn, and its first entry declares
 // what the reader feeding it actually stood on at that moment — the organs
@@ -617,20 +788,23 @@ const hyperlexiconFor = makeHyperlexicon({
 // about that reading, never a promise about a later one), and what is
 // deliberately absent. Read back with `hyperlexiconFor.frameOf(log)`; a
 // ledger with no frame reports `no_frame` rather than an invented one.
-const readerFrame = () => ({
-  reader: "makeRelationReader",
-  organs: {
-    splitSentences: "native", surfaces: "native", relations: "native", pronouns: "native/en",
-    blankFurniture: "blankLabelRows{minRun:4,maxCell:60}", determiners: "priors.js/en", negation: "priors.js/en",
-  },
+// DERIVED, not restated (reader-frame.js): organs and levers come from
+// RELATION_READER_OPTIONS itself, so attestedVerbs, phrasalPredicates (DR5),
+// the vocabulary gate and every future option are on the record the moment
+// they are handed to the reader. What the options object cannot know is
+// passed in: the LOADED state of the received priors at this moment, and the
+// identity organ (castFor, built from cast.js) that resolves ends — with
+// noteIdentity named as the deliberate omission it still is.
+const readerFrame = () => frameOfReader({
+  options: RELATION_READER_OPTIONS,
   priors: {
     posPrior: posPriorCache ? "POSPrior@1" : null,
+    posGate: posPriorCache ? "on (type-level vocabulary gate over POSPrior@1)" : "off (prior not loaded)",
     verbForms: unimorphVerbForms.size ? `UniMorph eng verb forms (${unimorphVerbForms.size})` : null,
     morphology: sameFormOrgan ? "UniMorph morphology prior (sameAct)" : null,
     connectorLens: connectorLens ? "grammar-lens over POSPrior@1 (asymmetric, P56)" : null,
   },
-  options: { nounPhraseSubjects: true, oovLexicon: unimorphVerbForms.size > 0 },
-  omitted: ["noteIdentity"],
+  identity: { ends: "makeCastResolver (cast.js)", noteIdentity: null },
   model: state.model ?? null,
 });
 
@@ -681,6 +855,15 @@ import {
 // code, not the model; constitution.js carries the article→organ map and the
 // assay walks it.
 import { CONSTITUTION_PROMPT as BASE_PROMPT } from "./constitution.js";
+// The folded constitution's content identity, carried on every answer
+// record (P100) so a record says which constitution was in force.
+const CONSTITUTION_SHA = (async () => {
+  try {
+    const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(BASE_PROMPT));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch { return null; }
+})();
+let ANSWER_CURSOR = 0;
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 const OLLAMA = "http://localhost:11434";
@@ -845,6 +1028,13 @@ const state = {
    * about one conversation, and a fresh page load is a fresh reading.
    */
   metaLedger: metaLedger.createLedger(),
+
+  /**
+   * The declarations register (Pass 21, P102) — app-wide, persisted with the
+   * other logs: what the person declared about relations, each with its
+   * giver. Derivation reads its GIVEN tier and nothing else.
+   */
+  declarations: createDeclarationLog(),
 
   /**
    * The self plane, per conversation: the act ledger (append-only — what
@@ -1541,10 +1731,10 @@ function mustTurn(argstr, typed) {
 // match — byte-identical to before this existed (the fetch is data-gated,
 // never code-gated, P73's posture).
 let sameFormOrgan = null;
-fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-morphology-prior.json")
+PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-morphology-prior.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((raw) => { if (raw) { const prior = morphologyFromPrior(raw); sameFormOrgan = nativeLemmatizer(prior.forms, { language: prior.language }).sameAct; } })
-  .catch(() => {});
+  .catch(() => {}));
 const witnessTestimony = () => ({ witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect, ...(sameFormOrgan ? { sameForm: sameFormOrgan } : {}) });
 
 const witnessAskOrgan = async (s, slice) =>
@@ -1618,7 +1808,8 @@ async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null })
   }
   r.notesAttested = (r.chased ?? []).filter((c) => c.attested.length).length;
   r.witness = { reads, ...verdicts };
-  state.hyperlexiconLog = next;
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, next, log, { append: nativeTaskLog.append });
+  syncRecords();
   mirrorTermRecord("ranke", { notes: notes.length, pages: pages.length, considered: r.notesConsidered, attested: r.notesAttested, landed: landedCount, fetches: r.fetches, searches: r.searches, refusedPages: (r.pagesRefused ?? []).length, budget: { maxFetches, maxSearches }, via: "chat" });
   logAct("checked", { text: `ranke: ${r.notesAttested} of ${r.notesConsidered} chased notes attested by a primary (${r.fetches} fetches, ${r.searches} searches)` });
   if (show) show(r);
@@ -1654,10 +1845,116 @@ async function rankeTurn(argstr, typed) {
 }
 
 
+// ── /declare · /derive · /concede — derivation and recourse (Pass 21, P102) ─
+const DECLARE_USAGE = "/declare <relation> transitive — or — /declare <relation> composes <product>: declare, as yourself, what a relation does, so the record may derive what follows. Nothing is derived from an undeclared relation, and every derived fact names its giver. Bare /declare lists the register.";
+function declareTurn(argstr, typed) {
+  const arg = (argstr ?? "").trim();
+  const fold = foldDeclarations(state.declarations);
+  if (!arg) {
+    const lines = [
+      `declared (given): ${fold.given.length ? fold.given.map((g) => `${g.rel} ${g.declKind}${g.yields ? ` → ${g.yields}` : ""} — giver ${g.giver}`).join("; ") : "none"}`,
+      `conceded: ${fold.conceded.length}`,
+    ];
+    return usageTurn(typed, lines.join("\n"));
+  }
+  const m = arg.match(/^(\S+)\s+(transitive|composes)(?:\s+(\S+))?$/i);
+  if (!m) return usageTurn(typed, DECLARE_USAGE);
+  const [, rel, kindRaw, yields] = m;
+  const kind = kindRaw.toLowerCase();
+  if (kind === "composes" && !yields) return usageTurn(typed, DECLARE_USAGE);
+  const giver = `person:chat (declared in this conversation, ${new Date().toISOString().slice(0, 10)})`;
+  try {
+    if (fold.given.some((g) => g.rel === rel && g.declKind === kind)) return usageTurn(typed, `already declared: ${rel} ${kind}.`);
+    const proposed = proposeDeclaration(state.declarations, { kind, rel, ...(yields ? { yields } : {}), acquisition: "declared", source: "chat: the person's own declaration" });
+    const promoted = promoteDeclaration(proposed.log, proposed.id, { giver });
+    if (!promoted.ok) return usageTurn(typed, `refused: ${JSON.stringify(promoted.refusal)}`);
+    state.declarations = promoted.log;
+    syncRecords();
+    mirrorTermRecord("declare", { rel, kind, yields: yields ?? null, giver, via: "chat" });
+    return usageTurn(typed, `declared: ${rel} is ${kind}${yields ? ` (composing into ${yields})` : ""} — giver: ${giver}. /derive to see what follows.`);
+  } catch (e) { return usageTurn(typed, `refused: ${e?.message ?? e}`); }
+}
+
+// /void — the voids the reader declared, each with its scope and its
+// timeline (declared / filled / conceded, at its seq); `/void! <id>` takes
+// one back with a recorded trigger (REC), the same act `/concede!` performs
+// on a premise. A void is never deleted: a conceded void stays in the
+// timeline with its concession after it.
+function voidTurn(argstr, typed, { perform = false } = {}) {
+  const log = state.hyperlexiconLog;
+  if (!log || !hyperlexiconFor.foldVoids) return usageTurn(typed, "the hyperlexicon is empty — nothing has been read yet, so no gap has been declared over it.");
+  const id = (argstr ?? "").trim();
+  if (id) {
+    const t = hyperlexiconFor.voidTimeline(log, id);
+    if (t.standing === "undeclared") return usageTurn(typed, `no such gap on the record: ${id}`);
+    if (perform) {
+      const r = hyperlexiconFor.concede(log, id, { trigger: `withdrawn in this conversation: ${typed}` });
+      if (r.refused) return usageTurn(typed, `not withdrawn: ${r.refused.type} — ${r.refused.detail ?? ""}`);
+      state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, r.log, log, { append: nativeTaskLog.append });
+      syncRecords();
+      mirrorTermRecord("void-concede", { id, via: "chat" });
+      return usageTurn(typed, `withdrawn: ${id} · timeline ${hyperlexiconFor.voidTimeline(state.hyperlexiconLog, id).events.map((e) => `${e.act}@${e.at}`).join(" → ")}`);
+    }
+    return usageTurn(typed, `${id} · standing ${t.standing} · timeline ${t.events.map((e) => `${e.act}@${e.at}${e.by ? ` by ${e.by}` : ""}`).join(" → ")}`);
+  }
+  const rows = voidsNow();
+  if (!rows.length) return usageTurn(typed, "no open gap on the record — every declared void has been filled or withdrawn, or none was declared.");
+  const lines = [`${rows.length} open gap(s) on the record — declared by the reader with its scope, cancelled by the first arrival that fills one:`];
+  for (const v of rows.slice(0, 20)) lines.push(`  ${v.id} · ${v.subject} —${v.verb}→ ? · looked for in ${v.scope?.sources?.length ?? "?"} source(s), ${v.scope?.read ?? "?"} of ${v.scope?.total ?? "?"} parts read · reached ${v.reached} · declared@${v.declaredAt}`);
+  lines.push("`/void <id>` shows one gap's timeline; `/void! <id>` withdraws it with a recorded trigger.");
+  return usageTurn(typed, lines.join("\n"));
+}
+
+function deriveTurn(argstr, typed) {
+  const maxSteps = Math.max(1, Math.min(25, Number((argstr ?? "").trim()) || 6));
+  const log = state.hyperlexiconLog;
+  if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing has been read yet, so there is nothing to derive from.");
+  const fold = foldDeclarations(state.declarations);
+  if (!fold.given.length) return usageTurn(typed, "nothing is declared — a derivation needs a giver. " + DECLARE_USAGE);
+  let dv;
+  try {
+    // carry: true — a single-source premise is ADMITTED and its fragility
+    // carried (P89); the floor is the honest one for a chat ledger (P89's own
+    // note: live witnesses carry recipes now, so instruments 0 is declared,
+    // never inferred).
+    dv = derivationFor.derive(log, { declarations: state.declarations, floor: { sources: 1, instruments: 0 }, carry: true, maxSteps });
+  } catch (e) { return usageTurn(typed, `derivation refused: ${e?.message ?? e}`); }
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, dv.log, log, { append: nativeTaskLog.append });
+  syncRecords();
+  const rows = derivedNow();
+  const lines = [
+    `derived: ${dv.derived.length} this run (${dv.derived.filter((d) => d.landed === "new").length} new) · ${rows.length} live on the record · premises ${dv.premises.length} (${(dv.carried ?? []).length} below the floor, carried) · withheld ${dv.withheld?.length ?? 0} · vetoed ${dv.vetoed?.length ?? 0} · steps ${dv.quiescent ? "quiescent" : "capped"}`,
+  ];
+  for (const d of rows.slice(0, 12)) lines.push(`  ${d.subject} —${d.verb}→ ${d.object} · depth ${d.depth} · rests on ${d.premises.length} claim(s), weakest at ${d.restsOn?.sources ?? "?"} source(s)${d.restsOn?.contested ? `, ${d.restsOn.contested} disputed` : ""} · giver ${String(d.giver ?? "").slice(0, 40)} · premises: ${d.premises.join(" ; ")}`);
+  if (rows.length > 12) lines.push(`  … ${rows.length - 12} more`);
+  mirrorTermRecord("derive", { derived: dv.derived.length, live: rows.length, premises: dv.premises.length, via: "chat" });
+  return usageTurn(typed, lines.join("\n"));
+}
+
+function concedeTurn(argstr, typed, { perform = false } = {}) {
+  const id = (argstr ?? "").trim();
+  const log = state.hyperlexiconLog;
+  if (!id) return usageTurn(typed, "/concede <note id> shows what would fall if that claim were withdrawn; /concede! <note id> withdraws it, and every derived fact resting on it, on the record — never deleted, always recorded with its reason. Note ids are the ones /derive prints as premises.");
+  if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing to concede.");
+  const exposure = derivationFor.exposure(log, id);
+  if (!perform) {
+    const lines = [`conceding ${id} would withdraw ${exposure.withdrawn.length} derived fact(s)${exposure.depth ? ` (cascade depth ${exposure.depth})` : ""}:`];
+    for (const w of exposure.withdrawn) lines.push(`  ${w.subject} —${w.verb}→ ${w.object} (via ${w.cascadedFrom}, depth ${w.cascadeDepth})`);
+    lines.push(`to do it: /concede! ${id}`);
+    return usageTurn(typed, lines.join("\n"));
+  }
+  const r = derivationFor.concedePremise(log, id, { trigger: `conceded by the person in chat (${new Date().toISOString().slice(0, 10)})` });
+  if (r.refused) return usageTurn(typed, `refused: ${JSON.stringify(r.refused)}`);
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, r.log, log, { append: nativeTaskLog.append });
+  syncRecords();
+  mirrorTermRecord("concede", { id, withdrawn: r.withdrawn.length, via: "chat" });
+  return usageTurn(typed, `conceded ${id}; withdrawn ${r.withdrawn.length} derived fact(s): ${r.withdrawn.map((w) => `${w.subject} —${w.verb}→ ${w.object}`).join("; ") || "none"}. The record kept every entry; the fold no longer carries them.`);
+}
+
 async function corroborateTurn(argstr, typed) {
   const maxAsks = Number((argstr ?? "").trim());
   if (!Number.isInteger(maxAsks) || maxAsks < 1)
-    return usageTurn(typed, "/corroborate <maxAsks> — walk this conversation's own hyperlexicon against the loaded sources with the witness protocol, so accumulated notes can earn second, independent votes. <maxAsks> is the model-call budget and is YOURS to declare (P9) — e.g. /corroborate 20. Notes with two distinct sources reach the ledger block the model actually sees (holon.js's own gate).");
+    return usageTurn(typed, "/corroborate <maxAsks> — walk this conversation's own hyperlexicon against the loaded sources with the witness protocol, so accumulated notes can earn second, independent votes, and so a source that denies a note lands that denial as a typed dispute. <maxAsks> is the model-call budget and is YOURS to declare (P9) — e.g. /corroborate 20. Every note already reaches the ledger block the model sees, ranked by relevance with its standing disclosed (P84); this walk changes what that standing says.");
   if (!state.ready) return usageTurn(typed, "no model connected — corroboration asks a witness, and there is nobody to ask.");
   const log = state.hyperlexiconLog;
   const notes = log ? hyperlexiconFor.foldHyperlexicon(log) : [];
@@ -1694,26 +1991,21 @@ async function corroborateTurn(argstr, typed) {
     body.textContent = `corroboration failed: ${err?.message ?? err}`;
     return;
   }
-  state.hyperlexiconLog = report.log ?? log;
+  state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, report.log ?? log, log, { append: nativeTaskLog.append });
+  syncRecords();
 
-  const settled = (report.standings ?? []).filter((s) => distinctWitnessSources(s.witnesses ?? []).size >= 2);
-  const lines = [
-    `corroboration: ${report.asks} of ${maxAsks} ask(s) spent across ${sources.length} source(s).`,
-    `attested: ${report.attested.length} · contradicted (reported, never landed): ${report.contradicted.length} · skipped without an ask (no co-presence): ${report.skippedNoCopresence}.`,
-    settled.length
-      ? `notes now at >=2 DISTINCT sources — the ledger block's own gate: ${settled.length}.`
-      : `no note reached two distinct sources this walk — a measured outcome, not a failure to walk.`,
-  ];
-  for (const a of (report.attested ?? []).slice(0, 6))
-    lines.push(`  ✓ ${a.noteId} — witnessed by ${a.ref}`);
-  for (const c of (report.contests ?? []).slice(0, 4))
-    lines.push(`  ⇄ contested: ${c.noteId} (stating: ${c.stating.join(", ") || "—"} · contradicting: ${c.contradicting.join(", ") || "—"})`);
-  body.textContent = lines.join("\n");
+  // The render is corroboration-report.js (pure, tested against the organ's
+  // real return shape): `standings` is KEYED, and a contradiction has been a
+  // LANDED dispute since P88 — the previous render filtered a keyed object and
+  // threw right after the ledger was written back (Pass 15).
+  const shown = corroborationLines(report, { maxAsks, sourceCount: sources.length });
+  body.textContent = shown.lines.join("\n");
   renderFold(node, {});
   mirrorTermRecord("corroborate", {
     asks: report.asks, budget: maxAsks, attested: report.attested.length,
-    contradicted: report.contradicted.length, skipped: report.skippedNoCopresence,
-    settled: settled.length, notes: notes.length, sources: sources.length, via: "chat",
+    contradicted: report.contradicted.length, landed: shown.landed, refused: shown.refused,
+    skipped: report.skippedNoCopresence,
+    settled: shown.settled, notes: notes.length, sources: sources.length, via: "chat",
   });
   logAct("checked", { text: `corroborate: ${report.attested.length} attested of ${report.asks} asks` });
 }
@@ -1731,7 +2023,7 @@ async function actTurn(argstr, typed) {
     mirrorTermRecord("term-act-refused", { line: actLine.slice(0, 2000), refusal: landed.refusal.type, detail: landed.refusal.detail, via: "chat" });
     return usageTurn(typed, `refused (${landed.refusal.type}): ${landed.refusal.detail}`);
   }
-  state.gridLog = landed.log;
+  state.gridLog = landed.log; syncRecords();
   mirrorTermRecord("term-act", {
     verb: landed.event.verb,
     ops: landed.event.ops,
@@ -2626,6 +2918,18 @@ async function send(question) {
 
   const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
   if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
+
+  // Derivation and recourse (Pass 21, P102): a person declares what a
+  // relation does, the record derives what follows, and a premise can be
+  // conceded — with what would fall shown first.
+  const declCmd = question.match(/^\/declare\b\s*(.*)$/s);
+  if (declCmd) return declareTurn(declCmd[1] ?? "", question);
+  const deriveCmd = question.match(/^\/derive\b\s*(.*)$/s);
+  if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
+  const concedeCmd = question.match(/^\/concede(!?)(?:\s+|$)(.*)$/s);
+  if (concedeCmd) return concedeTurn(concedeCmd[2] ?? "", question, { perform: concedeCmd[1] === "!" });
+  const voidCmd = question.match(/^\/void(!?)(?:\s+|$)(.*)$/s);
+  if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
 
   const rankeCmd = question.match(/^\/ranke\b\s*(.*)$/s);
   if (rankeCmd) return rankeTurn(rankeCmd[1] ?? "", question);
@@ -3919,7 +4223,13 @@ async function runFastPass(question, model) {
     body.textContent = `(fast pass failed: ${e?.message ?? e})`;
     return { node, text: "", sent };
   }
-  body.textContent = text || "(no reply)";
+  // Classified like every other turn (P100): nothing was handed to S1, so
+  // every sentence is model-ground and wears the dotted underline — a
+  // fast-pass answer no longer ships unclassified.
+  if (text) {
+    try { body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], []))); }
+    catch { body.textContent = text; }
+  } else body.textContent = "(no reply)";
   return { node, text, sent };
 }
 
@@ -4303,6 +4613,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // and the turn continues, exactly as the post-hoc block already did.
   let voidBrief = null;
   let voidDigest = null;
+  let voidDeclaredThisTurn = false;
   const narrateTheVoid = (texts, phase, observed = []) => {
     if (!state.grounded) return;
     try {
@@ -4319,6 +4630,44 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       }
       voidBrief = b;
       const said = narrateVoid(b, { phase, previous: voidDigest });
+      // Once material is in hand and the slot is still empty, the void is
+      // an EVENT on the record (Pass 23 / P105): declared with its scope,
+      // before the model drafts, cancelled by the first arrival that fills
+      // it. A `not_empty` refusal is the ledger saying it already holds
+      // the filling — said, not hidden.
+      if (phase === "material" && !voidDeclaredThisTurn) {
+        // Only a DECLARED extent with a hole in it is a void. "unbounded"
+        // is the space refusing to be declared (SEG·Ground — no extent),
+        // which THE-NULL-STATES keeps apart from a measured emptiness: a
+        // nothing with no denominator is not landed. And a head phrase
+        // that collapsed onto the anchor names no slot at all.
+        const anchor = b.declaration?.cells?.find((c) => c.field === "anchor")?.declared ?? null;
+        const headIsAnchor = anchor && b.headPhrase && String(b.headPhrase).toLowerCase() === String(anchor).toLowerCase();
+        // A void's SCOPE is what was read (sources, how far) — that is the
+        // denominator THE-NULL-STATES requires, and it is always in hand
+        // here. The brief's year-extent is a second dimension: with it, a
+        // hole in it is the void; without it ("unbounded"), the void is the
+        // whole read — still a measured emptiness, over a declared scope.
+        const empty = !(b.fillers?.length) && !headIsAnchor && ((b.standing?.voids?.length ?? 0) > 0 || b.standing?.standing === "unbounded");
+        // The other direction (Pass 23): the brief's own filler organ found
+        // what an OPEN void on the record was empty of — that is the one
+        // arrival that re-zeros it, landed by name with the filler's witness.
+        if (b.fillers?.length && anchor && b.headPhrase && !headIsAnchor && state.hyperlexiconLog && hyperlexiconFor.rezeroVoid) {
+          const open = voidsNow().find((v) => String(v.subject).toLowerCase() === String(anchor).toLowerCase() && String(v.verb).toLowerCase() === String(b.headPhrase).toLowerCase());
+          if (open) {
+            const f = b.fillers[0];
+            const by = String(f?.filler ?? f?.name ?? f ?? "").trim();
+            const rz = hyperlexiconFor.rezeroVoid(state.hyperlexiconLog, open.id, { by: by || "a filler the reader found", witness: f?.ref ?? f?.witness ?? null });
+            if (!rz.refused) { state.hyperlexiconLog = rz.log; syncRecords(); think(`Filled: "${open.verb}" of ${open.subject} — ${by || "a filler"} arrived; the gap declared earlier is cancelled on the record.`); }
+          }
+        }
+        if (empty) {
+          voidDeclaredThisTurn = true;
+          const v = declareVoidOnLedger(b, { because: b.standing?.reason ?? null });
+          if (v?.id) think(`On the record: nothing read so far fills "${v.label}" of ${v.anchor} — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read${v.redeclared ? " (declared again)" : ""}. The first arrival that fills it will cancel this.`);
+          else if (v?.refused) think(`Not declared as a gap: ${v.refused.type === "not_empty" ? `the record already holds something for "${v.label}" of ${v.anchor}` : v.refused.detail ?? v.refused.type}.`);
+        }
+      }
       if (!said) return;
       voidDigest = said.digest;
       think(said.text);
@@ -4920,6 +5269,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const ledgerFrame = state.grounded ? readerFrame() : null;
     const ledgerRecipe = ledgerFrame ? await readerRecipe(ledgerFrame) : null;
 
+    const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
@@ -4982,6 +5332,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // when hyperlexiconLog is null) — declared here, where the reader was built.
       hyperlexiconFrame: ledgerFrame,
       hyperlexiconRecipe: ledgerRecipe,
+      hyperlexiconUnread: unreadNow(),
+      hyperlexiconDerived: state.grounded ? derivedNow() : [],
+      hyperlexiconVoids: state.grounded ? voidsNow() : [],
       // The door's grammar gate, data-gated (null until the POS prior
       // loads — see connectorLens's own construction comment) and mode-
       // gated with the ledger it guards.
@@ -5098,7 +5451,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // Same discipline: only a real, updated ledger overwrites — a checking-
     // off turn (`result.hyperlexiconLog` null) never clobbers what an
     // earlier checked turn already admitted.
-    if (result.hyperlexiconLog) state.hyperlexiconLog = result.hyperlexiconLog;
+    // MERGED, never overwritten (P99): a read on arrival may have admitted
+    // passages while this turn ran; both chains started from `ledgerBase`.
+    if (result.hyperlexiconLog) state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, result.hyperlexiconLog, ledgerBase, { append: nativeTaskLog.append });
+    syncRecords();
     // Ranke's switch: chase what this turn heard off citing pages, under
     // the standing budgets, never awaited — the answer is already on screen
     // and the primary witnesses land on the ledger for the NEXT turn's
@@ -5199,6 +5555,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const findings = result.sections.flatMap((s) => s.grounding?.findings ?? []);
   const relationClaims = result.sections.flatMap((s) => s.relations?.claims ?? []);
   // the sentence witness's rows, read by renderAnswer's badge pass by sentence text
+  state.lastAsked = typeof task === "string" ? task : (state.lastAsked ?? "");
   state.lastWitness = result.sections.flatMap((s) => s.witness?.rows ?? []);
   // The instruction is the model's own plan — task + plan parts, mechanically
   // assembled. It goes into the build log's PROPOSE entries (build-log.js)
@@ -5236,6 +5593,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const s2Passages = result.sections.flatMap((s) => s.passages ?? []);
     const agreement = assessAgreement(opts.priorPass, { question: task, s2Passages, relationEdges: relationClaims });
     state.metaLedger = metaLedger.observe(state.metaLedger, { cell: "s1-draft", delta: agreement.counts });
+    syncRecords();
     forceRefresh = forcesFoldRefresh(agreement);
   }
   await refreshSummary(fold, arrivals, sentCalls, { forceRefresh });
@@ -5281,7 +5639,30 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     "material",
     observedFillers(voidBrief?.declaration?.slot, voidBrief?.declaration?.cells?.find((c) => c.op === "SIG")?.declared, relationClaims),
   );
-  renderFold(node, { sent: sentCalls });
+  // The AnswerRecord (P100): built from the turn's own sections — what was
+  // retrieved, every claim the answer made with the verdict the material
+  // gave it, what nothing backs — with the reader's identity; appended to
+  // the durable record (`records/answers.jsonl`) and shown first.
+  let answerRec = null;
+  try {
+    // The frame and recipe are re-derived here (the turn's own `ledgerFrame`
+    // is scoped to the call above); the reader has not changed since.
+    const recFrame = state.grounded ? readerFrame() : null;
+    const recRecipe = recFrame ? await readerRecipe(recFrame) : null;
+    answerRec = answerRecord({
+      question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
+      sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
+      unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      // Every ∅ cites its void (P106): the open voids at the moment of the
+      // record, and the sentence witness's rows, so each absence is either
+      // an honest citation of a declared gap or a counted leak.
+      voids: state.grounded ? voidsNow() : [], witness: state.lastWitness ?? [], sameForm: sameFormOrgan,
+      sources: Object.keys(state.sources).map((name) => ({ name, bytes: state.sources[name]?.length ?? null })),
+      constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
+    });
+    appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
+  } catch (e) { console.warn("answer record:", e?.message ?? e); }
+  renderFold(node, { sent: sentCalls, record: answerRec });
   renderThreads();
   if (!state.grounded) {
     $("status").textContent = `ready · ${state.model}`;
@@ -5559,7 +5940,7 @@ async function crownTestimony(node, relationClaims) {
       // a skipped source, so the log keeps this landing only when the
       // parsed event names exactly what was meant.
       if (landed.ok && landed.event.ground === name && landed.event.object === claimText) {
-        state.gridLog = landed.log;
+        state.gridLog = landed.log; syncRecords();
       } else {
         disclose(`testimony: ${name} skipped — the act grammar could not carry this claim/source pair verbatim`);
       }
@@ -5567,11 +5948,27 @@ async function crownTestimony(node, relationClaims) {
     }
     const readings = perSourceReadings(grid, state.gridLog, claimId);
     const merged = mergeTestimony(readings);
+    // THE WIRE (P91 named it, Pass 20 / P101 lands it): a DISAGREE or a
+    // CONTRADICTED merge is written to the record as CON·Figure·CONTESTED
+    // — the refusing source, its own bytes as decider, kind `contest` by
+    // construction — and never convicts. The decider is the passage the
+    // refusing source read, sliced from the source's own bytes.
+    let contested = null;
+    if (merged.case === "DISAGREE" || merged.case === "CONTRADICTED") {
+      try {
+        const textAt = (at) => { const m = String(at).match(/^(.+?)#(\d+)-(\d+)$/); return m && typeof state.sources[m[1]] === "string" ? state.sources[m[1]].slice(Number(m[2]), Number(m[3])) : null; };
+        const base = state.hyperlexiconLog ?? hyperlexiconFor.createHyperlexicon();
+        const landed = landContest(base, hyperlexiconFor, merged, { textAt });
+        if (landed.landed.length) { state.hyperlexiconLog = landed.log; syncRecords(); }
+        contested = landed;
+      } catch (e) { console.warn("contest:", e?.message ?? e); }
+    }
     const crown = renderCrown(merged);
     disclose(
       `testimony · ${merged.case}${merged.standing ? ` (${merged.standing})` : ""} · ${claimId.slice(0, 11)} · ` +
         `witnesses: ${crown.apparatus.sources.length ? crown.apparatus.sources.join(", ") : "none"} · “${crown.text}”` +
-        (crown.verified ? "" : " · render withheld: trace-coverage violation"),
+        (crown.verified ? "" : " · render withheld: trace-coverage violation") +
+        (contested ? ` · contest: ${contested.landed.length} landed on the record${contested.unanimous ? " (unanimous refusal, still only disputed)" : ""}${Object.entries(contested.refusals).filter(([, n]) => n).map(([k, n]) => `, ${n} ${k}`).join("")}` : ""),
     );
     // Only through the verified render — an unverifiable crown already
     // substituted its own withholding sentence, which is exactly what
@@ -5579,7 +5976,7 @@ async function crownTestimony(node, relationClaims) {
     if (merged.case !== "UNDETERMINED" && body) {
       const p = document.createElement("p");
       p.className = `crown-line${merged.case === "DISAGREE" || merged.case === "CONTRADICTED" ? " bad" : ""}`;
-      p.textContent = crown.text;
+      p.textContent = crown.text + (contested?.landed?.length ? ` (recorded as a contest, not settled)` : "");
       body.append(p);
     }
   }
@@ -5821,8 +6218,18 @@ function taggedProse(text, offered, classified = []) {
     if (wit?.witness === "refused") {
       const badge = document.createElement("button");
       badge.className = "edge-badge unbound witness-refused";
-      badge.textContent = "∅ no passage states this";
-      badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction. Press to search the material.`;
+      // Every ∅ cites its void (P106): when a gap the reader DECLARED is in
+      // scope for this sentence, the mark names it — with its scope — so an
+      // honest absence reads differently from the mouth's own "no mention".
+      const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "", sameForm: sameFormOrgan });
+      if (gap) {
+        badge.classList.add("cites-void");
+        badge.textContent = `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`;
+        badge.title = `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it. Press to search the material.`;
+      } else {
+        badge.textContent = "∅ no passage states this";
+        badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction — and no declared gap is in scope for it. Press to search the material.`;
+      }
       badge.onclick = () => groundHunt(entry.text);
       sent.append(badge);
     }
@@ -6923,6 +7330,7 @@ initTerminal({
   gridLog: () => state.gridLog,
   setGridLog: (log) => {
     state.gridLog = log;
+    syncRecords();
   },
   // The database fold (P25): term.js diffs a mutating sql statement's real
   // effect (store-sql.js, over term-sql-worker.js's before/after
@@ -8157,7 +8565,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
  * turn? `sent` is every messages array this turn actually sent to a model,
  * captured verbatim at the call boundary — this is the whole of it now.
  */
-function renderFold(node, { sent } = {}) {
+function renderFold(node, { sent, record = null } = {}) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -8184,6 +8592,17 @@ function renderFold(node, { sent } = {}) {
   }
   const out = box.querySelector("p");
   out.textContent = "";
+
+  // The AnswerRecord first (P100): the claims before the prose, verbatim.
+  if (record) {
+    const pre = document.createElement("pre");
+    pre.className = "block";
+    const role = document.createElement("span");
+    role.className = "role";
+    role.textContent = answerRecordLine(record);
+    pre.append(role, document.createTextNode("\n" + JSON.stringify(record, null, 2)));
+    out.append(pre);
+  }
 
   if (!sent?.length) {
     // Honest absence, not a blank box: a turn can genuinely spend no model
@@ -8344,7 +8763,7 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
-function addSource(name, text) {
+function addSource(name, text, { fromBoot = false } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
   // would make a self address ambiguous about which plane it names — the
@@ -8373,8 +8792,12 @@ function addSource(name, text) {
       blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
     }));
   renderSources();
-  // Persist to OPFS so the source survives a reload.
-  persistSource(name, text, { passages: countFor(name) });
+  // Persist to OPFS so the source survives a reload — not on boot, where
+  // it came FROM OPFS and a rewrite would race the reading cursor's own row.
+  if (!fromBoot) persistSource(name, text, { passages: countFor(name) });
+  // Read it now (Pass 18, P99) — a book attached is a book read, before any
+  // question. Boot resumes from the saved cursor instead (below).
+  if (!fromBoot) readSourceOnArrival(name);
 }
 
 /**
@@ -8976,7 +9399,21 @@ $("not-served")?.remove();
   try {
     const saved = await loadSources();
     for (const { name, text } of saved) {
-      if (!state.sources[name]) addSource(name, text);
+      if (!state.sources[name]) addSource(name, text, { fromBoot: true });
+    }
+    // The record first, then the reads resume from their saved cursors on
+    // top of it (a read that started before the restore would fork the log).
+    try {
+      const restored = await restoreRecords();
+      if (restored.hyperlexicon) state.hyperlexiconLog = restored.hyperlexicon;
+      if (restored.grid) state.gridLog = restored.grid;
+      if (restored.meta) state.metaLedger = restored.meta;
+      if (restored.declarations) state.declarations = restored.declarations;
+      const n = Object.keys(restored).length;
+      if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
+    } catch (e) { console.warn("record restore:", e?.message ?? e); }
+    for (const { name, meta } of saved) {
+      if (state.sources[name]) readSourceOnArrival(name, { savedCursor: meta?.readCursor ?? 0, savedRecipe: meta?.readRecipe ?? null });
     }
   } catch {}
   renderSources();
@@ -9314,7 +9751,12 @@ bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
 // rule to `.msg .body`. "For now" is the user's own word for it — this is a
 // deliberately blunt switch to be handed back to a control when there is one
 // worth designing, not a claim that per-turn painting was wrong.
-document.body.classList.add("marks-off");
+// Amended 2026-09-05 (Pass 19, P100): the standing suppression is lifted.
+// The marks — an address chip, a ground underline, a relation badge, the
+// witness's ∅ — are the product bar's own item (1), and a checked turn
+// paints them unless the person turned marks off. `fold-marks=off` still
+// hides them; nothing else does.
+if (localStorage.getItem("fold-marks") === "off") document.body.classList.add("marks-off");
 {
   const btn = $("marks-toggle");
   const apply = (on) => {

@@ -62,11 +62,27 @@ export async function persistSource(name, text, meta = {}) {
 
     const entries = await readIndex();
     const existing = entries.findIndex((e) => e.name === name);
+    // The source's content identity rides the index (Pass 17, P98): a record
+    // whose addresses name this source can say which BYTES it named, and a
+    // source re-added with different bytes is a different source by hash,
+    // never silently the same one.
+    let sha256 = null;
+    try {
+      const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      sha256 = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {}
+    // A rewrite KEEPS the row's other fields (the reading cursor and recipe,
+    // P99) — a source re-persisted with the same bytes must not forget how
+    // far it was read; a source whose bytes changed starts its reading over.
+    const prior = existing >= 0 ? entries[existing] : null;
+    const sameBytes = prior && prior.sha256 && prior.sha256 === sha256;
     const entry = {
+      ...(sameBytes ? prior : {}),
       name,
       fileName: `${fname}.txt`,
       size: text.length,
-      addedAt: existing >= 0 ? entries[existing].addedAt : Date.now(),
+      sha256,
+      addedAt: prior ? prior.addedAt : Date.now(),
       ...meta,
     };
     if (existing >= 0) entries[existing] = entry;
@@ -119,3 +135,22 @@ export async function loadSources() {
   }
   return results;
 }
+
+/**
+ * Update a source's index row without rewriting its bytes — the reading
+ * cursor and recipe (Pass 18, P99) change often; the text does not.
+ */
+export async function updateSourceMeta(name, meta = {}) {
+  try {
+    const entries = await readIndex();
+    const i = entries.findIndex((e) => e.name === name);
+    if (i < 0) return false;
+    entries[i] = { ...entries[i], ...meta };
+    await writeIndex(entries);
+    return true;
+  } catch (err) {
+    console.warn("sources-store: meta update failed:", err.message);
+    return false;
+  }
+}
+

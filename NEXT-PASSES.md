@@ -858,16 +858,191 @@ each a fact on the record with a named file, in the order they matter:
    `queryFillers` still returns `{subject, object}` by design; that is the
    one legitimate reader of the old names.
 
+**Status, 2026-09-05 (Pass 15).** Items 4 and 5 closed, item 2's flag half
+closed: `asserted-eval` prints its wall-clock to stderr and its doc diffs to
+zero; the SVO grep was READ hit by hit — the cited-source drivers, rashomon,
+copresence and the MHC battery map claims to SVO at their own seam and are
+legitimate, `complicated-reading` reads the ADAPTER's triples (which still
+carry `subject`), and three drivers read the wiped names off organ edges or
+claim rows and were migrated at one seam each: `mine-1-official-graph`
+(as it stood, every node it would write was `undefined`; its committed
+export predates the wipe and was left as the dated record it is), `try-grid-on-transcript` (threw on `e.subject.toLowerCase()`),
+`material-dialogue-stress` (every claim skipped as "empty subject"). The
+`BOUNDED` flag came out of `lib/borodino-ledger.mjs`; the referent-aware
+trim it pointed at is still capability work. Items 1 and 3 are carried to
+Pass 25. POLICIES.md **P96**.
+
+## Pass 15 — zero-call hygiene before the circuit (added 2026-09-05, CLOSED same day)
+
+The first pass of the program that follows Pass 14 (plan of record:
+`/Users/mlacy/.claude/plans/assuming-the-pass-13-joyful-ocean.md`, mirrored
+in P96's own "what follows"). Green suites, the SVO sweep, the crash in the
+`/corroborate` door, and the reader's frame derived rather than restated.
+Measured: the-fold 1,581 tests / 3 fail → 1,588 / 0; the three names that
+left the set are the two EOReader-contract tests (one real drift, one
+harness regex) and the SELF/MATERIAL block test (a banner P80 retired).
+eoreader7 native 619 → 619 (1 todo), organs 449 → 449. POLICIES.md **P96**.
+
+## Pass 16 — the finish line, executable (added 2026-09-05, CLOSED same day)
+
+`eoreader7/native/eval/the-fold/lib/product-assay.mjs` + driver + `tests/
+product-assay.test.js`: twelve walls over a built corpus, ten held on the
+first run, one was the fold not the circuit (`foldDerived` omitted
+`restsOn` — projected now), two breach by named mechanism and are logged
+not pinned: the per-source spine cannot see a negated denial (P43's own
+inversion; the record is ready, the reader is not) and one shared object
+token binds a fabricated draft (sub-floor `tokensShare`). The model arm ran
+once (gemma2:2b, 13 calls) and fabricated a founder — the passages, not the
+record, reached the mouth. POLICIES.md **P97** / S67. Handed forward to
+Pass 19: the two draft-side walls.
+
+## Pass 17 — one durable reading record (added 2026-09-05, CLOSED same day)
+
+`record-log.js` (pure) + `record-store.js` (OPFS) + nine `syncRecords()`
+sites and a boot `restoreRecords()` in app.js. Pinned: replay is
+byte-identical by value, a mutated entry is not (the control fails as
+built), a hole is typed. Verified live: attach → ask → reload → `record
+restored: hyperlexicon 5` → attachments off → ask → the prompt carries
+"From earlier reading … opened→ in 1889 (stated once so far)" and the
+model answers 1889 from the record alone. POLICIES.md **P98**. Then Pass 17 (one durable record), 18 (read on arrival), 19
+
+## Pass 18 — read when material arrives (added 2026-09-05, CLOSED same day)
+
+`read-on-arrival.js` (`admitPassages` — holon's loop moved out verbatim and
+called from there; `readOnArrival` — resumable, one passage per macrotask,
+ledger of the moment; `unreadExtent`), wired into `addSource` and boot with
+a per-source cursor and recipe; the turn is told what is still unread and
+its ledger block says so; write-backs merge (`mergeAppendOnly`). Live: a
+143 KB slice read in 31.3 s (44 passages, 698 notes), the cursor honored on
+reload, the mid-read disclosure in the prompt. Two rules earned by running:
+a hidden tab clamps setTimeout (yield by MessageChannel); serialize at job
+time (replay's typed gap found the duplicated stretch). POLICIES.md
+**P99**.
+
+## Pass 19 — claims before prose (added 2026-09-05, CLOSED same day)
+
+`objectSpecificity` at the reader's judge (S68; the assay's wall 6 holds
+4/4); `answer-record.js` — one AnswerRecord per grounded turn, appended to
+`records/answers.jsonl` and shown first in the thinking panel; the marks
+painted again; the fast pass classified. `model-swap-diff.mjs` measured
+bar item 5 and it breaches as first written: both small mouths add
+unbacked sentences and their record-backed sets differ 3/3 — restated in
+P100 (the record is model-independent; the mouth's additions are marked
+and counted). Handed forward: retrieval by term hits prefers long
+passages (a 3 KB War and Peace passage outranked the 174-byte source that
+held the answer); the whole-book arrival read is blocked on a superlinear
+reader build (bound the pool). POLICIES.md **P100**.
+
+## Pass 20 — contest in the live circuit (added 2026-09-05, CLOSED same day, live contest not yet produced)
+
+`crownTestimony` lands a DISAGREE/CONTRADICTED through `landContest`
+(kind contest, the source's own bytes as decider, never a conviction);
+`ledgerBlock` phrases a disputed note as "disputed by X — not settled"
+(pinned). No live contest yet: the spine cannot read a denial as
+`contradicted` (P43, assay wall 4a) and the `/corroborate` witness skipped
+the denying pair at the co-presence gate. POLICIES.md **P101**.
+
+## Pass 21 — derivation and recourse in the live circuit (added 2026-09-05, CLOSED same day)
+
+A declarations register (fourth persisted log), `/declare`, `/derive`
+(carry: true, the honest floor), `/concede` (exposure first) and
+`/concede!`; the ledger block's derived tier (pinned). Live: declared
+"preceded transitive", derived Rowan → Owen resting on two single-source
+premises, the prompt carried it, the concession withdrew it, and it stayed
+withdrawn after a reload. Handed forward: a derived sentence needs its
+own ground mark (today: a material chip beside a witness ∅). POLICIES.md
+**P102**.
+
+## Pass 22 — the terminal assay, first run (added 2026-09-05, RUN, 8 of 11 held)
+
+`eoreader7/native/eval/the-fold/results/terminal-assay-RESULTS.md`; POLICIES.md
+**P103**. Not held: a live open contest (the reader reads a denial as
+unbound, P43); claims identical across models (restated, P100); only
+wording changing (both mouths add marked unbacked sentences). Next levers,
+all on the reader: read a denial as contradicted; a derived sentence's own
+ground mark; a bounded pool for the arrival read. Passes 23–25 (the
+grain-leak script, the documents reconciled, the unwired ratchet) remain
+open.
+(claims before prose + the model-swap claim diff), 20 (contest live), 21
+(derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
+24 (documents reconciled), 25 (unwired ratchet). The program's exclusions
+are P96's.
+
+## Pass 22b — the cut, and negation through time (added 2026-09-05, CLOSED same day)
+
+P104 / S69. The reader's miss from Pass 22 (a denial read as unbound) is closed by giving the denial its own cell: SEG·Figure, a cut apart from the link, contest at the door, `negationTimeline` for the reading through time. Product assay 12/12. **The user's standing instruction for everything in this family: track negation and void through time** — never a state read off the present fold; every act with its seq.
+
+## Pass 23 — the void through time (added 2026-09-05, CLOSED same day)
+
+P105 / S70. Built to the entry below: `declareVoid` with scope, the door's re-zero on one arrival, `rezeroVoid` for a face's own filling, `/void` + `/void!`, the fourth ledger tier, assay wall 9 (13/13), live on the real page. Residue: slot-shaped voids fill live only through the brief's filler organ.
+
+## The null experiments — Passes 24–29 (proposed 2026-09-05, user direction: "keep building but have experiments in mind that leverage our ability to rezero, cite types of void, etc.")
+
+Each names its measurement, the test that reads it (P94), the control built to fail (II.23), the gate and the cost. Zero-call first.
+
+**Pass 24 — Re-zero under a stream (0 calls). CLOSED 2026-09-05 — eoreader7 S71, 4/4 claims held, both controls failed as built.** Declare N act-shaped voids BEFORE reading (questions before material), stream the corpus one passage at a time through the door, and record the cursor at which each void fills. Claims: a void fills at the first passage stating its arrangement and never on a denial; the fill cursor is order-dependent but the FINAL open set is order-invariant (prefix invariance, P99's own rule read at the void); a void over ends the corpus never states stays open with `reached: true` — a finding, not a failure to look. Control: the object-deranged corpus fills a different set; a void declared over a never-stated arrangement must stay open on every order. Driver `eval/the-fold/void-rezero-stream.mjs`, lib + test.
+
+**Pass 25 — Every ∅ cites its void (0 calls for the record arm, model arm dated). CLOSED 2026-09-05 — P106; the model arm is Pass 28.** Today the answer surface marks "∅ no passage states this" from the witness's refusal; the mark should CITE a declared void id and its scope when one is open over the sentence's ends, and count every ∅ that cites none. Claim: after wiring, the P54 leak ("there is no mention of anything else") is countable as ∅-without-void; the model-swap diff reports it per mouth. Control: a planted ∅ with no void in scope must be counted, never absorbed.
+
+**Pass 26 — A census of nulls through time (0 calls).** On a real read (the Dracula walk, the War and Peace slice), log every typed null's lifetime — `unread_extent`, `unheard`, `beyond-reach`, `unbound`, cut, void — declared-at and closed-at cursors. Claim under test: nulls compose downward (THE-NULL-STATES law 5): when an `unread_extent` closes, the `unbound` verdicts over that extent move; when a Ground void fills, its Figure voids close with it. Control: shuffled passage order must change closing cursors, not the final census.
+
+**Pass 27 — Settlement by arrival (0 calls; seeker arm dated). CLOSED 2026-09-05 (record arm) — eoreader7 S72, 5/5; finding: the seeker's default featurizer is blind to numeric ends; the witness-tier seeker arm is unrun.** A cut meets its link (contest open); a THIRD source arrives. Claim: `contestedSearch` with declared kinds routes the contest to the seeker and a `settleDispute` lands with its outcome and trigger; `negationTimeline` reads link → cut → contest → settled. Control: a third source that restates the link must not settle (corroboration is a label, never a gate, P89); a third source silent on the pair must leave the contest open.
+
+**Pass 28 — The mouth's absence leak, measured (model arm). RUN 2026-09-05 — P107 / S73: one question, two mouths; the tier turned a dodge into a stated gap (gemma) and cut a fabrication 7 → 2 unbacked (llama); label morphology in `voidInScope` is the named next fix.** Across the model-swap diff, count sentences asserting absence ("no mention", "not stated", "unknown") that stand where no void is open in scope. Claim: with the void tier in the prompt the count falls; with the tier withheld (control) it does not. Cost: the diff's own two-model budget.
+
+**Pass 29 — Re-zero as a surprise to the fold (0 calls for the gate).** A void filling is REC·Ground — the ground moved. Claim: gating the summary refresh on "a void filled this turn" refreshes exactly where the P34 pivot case went stale and carries elsewhere. Control: gating on a random filling must not improve staleness. Gate: Pass 24's stream driver.
+
+
+DEF·Ground, the other empty cell in THE-NULL-STATES. A void is a declared emptiness over an extent WITH scope (what was looked at: passages read, cursor, pool), an event with a cursor, re-zeroed by one arrival — another event. The three verdict strings and the badge that stand in for it today (`searchedVoid`, the witness's ∅, "no passage states this") become one object on the record with a `voidTimeline` on the shape of `negationTimeline`. Measurement: the arrival read declares the void for a question's extent before the mouth speaks; one arriving passage re-zeros it and the timeline shows both events; the control built to fail: a void with no scope is refused, and a void over an extent the reader never reached is a fact about the reader (`unread_extent`), never a void. Gate: Pass 22b. Refused-check: not a corroboration lever.
+
+## Composition track — Passes 26–32 (proposed 2026-09-05, NOT started)
+
+Relayed by the user from another agent; recorded here as a named future
+track, gated and refused-checked in its own words, so it is not re-derived.
+It slots after Pass 25 and is a new capability (long-form composition), not
+part of the Q&A/contest/derivation program. Hard prerequisites: Pass 18
+(read on arrival) and Pass 19 (claims before prose).
+
+- **26 — scope the number** (0 calls): a declared word band; the arithmetic
+  against the ledger's own measured density (~2% corroboration, P83/P86;
+  Dracula 11,624 single / 260 corroborated; `compose.js`'s words-per-claim)
+  → how many source pages fill the band at the disclosed-standing bar.
+- **27 — hierarchical outline from evidence** (0 calls): extend
+  `eochat/server/longform.js::outlineFromEvidence` to two levels by
+  recursion; port to eoreader7 (P69). Control: shuffled evidence must split
+  differently.
+- **28 — an append-only essay log, projected like code**: `build-log.js`'s
+  PROPOSE/SUPERSEDE/RESULT reused for prose; `foldEssay(log, atCursor)`.
+  Control: the regenerate-every-turn arm, `longform-code.mjs`'s own table.
+- **29 — section drafting ported and re-measured**: eochat's
+  draft/re-read/revise loop onto the current checking apparatus; FIRST
+  diagnose `essay-golden.md`'s 0/1 yield before any scaling. Control: a
+  no-revision arm.
+- **30 — chapters fed from deep reading** (needs Pass 18): evidence pools
+  drawn from the growing ledger; measure whether depth moves 26's number
+  or the ~2% ceiling binds regardless.
+- **31 — disclosed standing, not a gate** (P84): a section may rest on
+  single-witness claims and says so, via `compose.js`'s coverage report.
+- **32 — the 60-page run**, dated and budgeted: the table shape of
+  `longform-code.mjs` plus the coverage report; "there" = the band reached,
+  every claim addressed, every section's standing disclosed, drops named,
+  cost stated, reproducible from the repos. Proves honest assembly, never
+  good writing.
+
+Refused by the track: no bigger model for 29's yield before the
+diagnostic; no raising `maxSections` past 27's derived structure; no
+single-witness content dressed as settled.
+
 ## Pass 15 — what the whole law says to do next (added 2026-09-05)
 
 **How this was written.** Every standing document was read end to end
 before a line of this was drafted: the-fold `POLICIES.md` P1–P92 (P1–P35
 and P78–P92 in full, P35–P77 by their heads), eoreader7 `READING-SPEC.md`
-S1–S66, live_priors LP1–LP15, the four reassemblies (CHAT / REASONING /
+S1–S65 and S74, live_priors LP1–LP15, the four reassemblies (CHAT / REASONING /
 GENERATION / CAPABILITY), WHERE-WE-ARE, THE-WAYS-OF-KNOWING,
 THE-CORE-MECHANISM, LEVELS, THE-THREE-MATHEMATICS, PRIOR-ART-INVENTORY,
 ASSEMBLIES-AND-ARTIFACTS, WHAT-IS-BEING-BORN, `constitution.js`'s
-ENFORCEMENT map, and the S66 walk this session ran. Not on disk in this
+ENFORCEMENT map, and the S74 walk this session ran. Not on disk in this
 checkout and known only through their pointers: READING-POLICY, SEED, CUBE,
 FOLD-CONSTITUTION and eo-constitution (dangling symlinks into the
 uninitialised legacy submodule; the constitution repo is outside this
@@ -1074,7 +1249,7 @@ control reached the model and attested at parity). This pass's own two
 numbers moved repeatedly across three separate merges with concurrent,
 unrelated work landing in the same repos under the same numbering
 sequences — `READING-SPEC.md`'s entry from S64 through S65 to its final
-**S66**, and this file's own pass from "Pass 13" through "Pass 14" to its
+**S74**, and this file's own pass from "Pass 13" through "Pass 14" to its
 final **Pass 15** — each collision found only at actual merge time, never
 predicted, and each resolved the same way this project's own convention
 already states: the later-merging branch takes the next free number.
@@ -1087,7 +1262,7 @@ draft. The concurrent sessions' untracked `eval/` files stay untouched.
 
 A tenth vocabulary configuration (the MINE-1 plateau is paraphrase
 tolerance, not vocabulary). Deriving an initialism (a rule that derives a
-name can invent one — S66). Tuning `MIN_FACE_CHARS` or any floor so a
+name can invent one — S74). Tuning `MIN_FACE_CHARS` or any floor so a
 particular face passes (II.23; tune nothing against the answer). Reading
 §3.1 as corroboration before 15.1 has been read. Building a slicer (no
 slicer earns a license — S55). Handing the model any content-writing slot:
@@ -1122,7 +1297,7 @@ specific public-record document classes and specific real websites for
 the pilot's specific subject — refused. **15.4 is withdrawn as drafted.**
 The corrected form: nothing is seeded, ever; the
 fold's TASK is now the only place a human names the subject (env-
-overridable, `eoreader7`'s S66 amendment), and which documents answer a
+overridable, `eoreader7`'s S74 amendment), and which documents answer a
 question remains entirely the walk's own discovery, through the same
 mechanisms (`preflightQuery`/`proofQuery` over the ledger's own thin
 notes, Ranke's chase to what an account itself cites). A currency that

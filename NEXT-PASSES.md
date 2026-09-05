@@ -1000,3 +1000,66 @@ the arms, WHERE-WE-ARE's falsifier has fired on research material too, and
 rule that produced this plan binds it: nothing in 13.2–13.7 is spent before
 13.1 has been read, because every one of them is more expensive than
 nulling a selector.
+
+### Amended 2026-09-05 — the plan corrected against direction, and 13.1's ground built
+
+Four answers from the user, same day, each changing a numbered item above.
+
+**On saving (bears on 13.2's Assembly regimes and every future run of this
+driver):** *"priors are only so the reader doesn't start fresh. but it
+shouldn't be saving these test documents."* Un-saving is done: the fetched
+pages and the produced reading are gitignored and were deleted from local
+disk; priors (the alias-declaration prior) stay, because they are a
+measured artifact of a different, permanent corpus, not this run's own
+material. Any future Assembly@1 declaration of this walk's regimes (13.2)
+must record ITS OWN dials, never a copy of a prior run's fetched material.
+
+**On 13.4, directly: *"im not telling you the answer, it should discover
+than [sic]."*** 13.4 as drafted above proposed declaring seed sources
+(nashville.gov, ProPublica, the Metro Auditor) — refused. **13.4 is
+withdrawn as drafted.** The corrected form: nothing is seeded, ever; the
+fold's TASK is now the only place a human names the subject (env-
+overridable, `eoreader7`'s S64 amendment), and which documents answer a
+question remains entirely the walk's own discovery, through the same
+mechanisms (`preflightQuery`/`proofQuery` over the ledger's own thin
+notes, Ranke's chase to what an account itself cites). A currency that
+survives syndication (accounts vs. documents, P84's kind) is still the
+right target; a hand-picked list of WHERE to find documents is not, and
+this correction generalizes past this one pass — see eoreader7
+READING-SPEC.md's own amendment, same day: "a reader may be told what is
+being asked; it may not be told where to look."
+
+**On where the next run happens: *"prep this and we'll run locally."***
+Confirmed for both 13.1 (start now?) and the run generally — "same
+answer." Nothing was executed this pass; the ground for a local run was
+built instead: portable sibling-repo paths (env-overridable), a `CHECK=1`
+preflight (verified against both a working and a deliberately broken
+path, catching a real exit-code bug in the process), and the driver's
+header comment rewritten as full run instructions.
+
+**On 13.7 (cross-domain replay over eviction-overwatch): "no."** 13.7 is
+REFUSED. No replay of this walk over eviction-overwatch will run absent a
+later, separate ask. P71's cross-domain leg for this walk's rules
+therefore stays unmet, and any future "universal" tag on them should say
+so rather than assume it.
+
+**13.1's ground, built rather than run.** `corroboration.js::facesReachable`
+(the referent-face selector) and `corroborateLedger`'s `reachable` override
+are real, tested, and wired behind `SELECTOR=referent-face`; every attested
+control proposition now prints with a mechanical leaky-swap check against
+the real ledger. Neither arm was re-run — that happens on the user's
+machine, against their own material, next.
+
+**13.3's registration item, done in the same pass:** `aliases.js` was
+never actually unregistered from a cell registry — `capacities.js` moved
+to `eoreader7/native/organs/` (Phase 2 of the organ migration) before this
+plan was written, and the-fold's own copy is now a one-line shim. The
+registration question (does `aliases.js` earn a row in the real registry,
+and under which cell) is real and still open, but it is eoreader7's
+registry to extend, not the-fold's — corrected here so the next pass does
+not look for a file that moved.
+
+Everything else in Pass 13 (13.2's Assembly framing, 13.3's other five
+rule-nominations, 13.5's material-as-ground, 13.6's constitution articles,
+13.8) stands as written, unstarted, gated on the same order: nothing
+after 13.1 until 13.1's real run is read.

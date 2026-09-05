@@ -70,7 +70,10 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // engine injected (the cast.js pattern) so this module stays pure; the page
 // hands it window.math, the vendored mathjs UMD bundle (index.html — must
 // load before monaco's loader.js, see that file's comment).
-import { checkArithmetic } from "./arithmetic.js";
+// checkQuantity (P108): the pure door first, byte-identical, then the shaped
+// questions (units, choose, statistics, derivative, an equation) and the
+// calendar — each computed by the engine's own operation, never restated.
+import { checkQuantity } from "./arithmetic.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
 // computed expression as typeset math — mathjs's own toTex(), not a second,
@@ -2993,7 +2996,7 @@ async function send(question) {
   // widget doors below. checkArithmetic itself refuses to claim anything
   // with a free symbol left after normalizing, so a real question about
   // the world (or the material) always falls through untouched.
-  const arithmetic = checkArithmetic(question, { math: window.math });
+  const arithmetic = checkQuantity(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
 
   // Self questions asked in words ("what surprised you most", "how do you

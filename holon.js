@@ -38,6 +38,7 @@ import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrie
 import { distinctSources, proposeCandidates, textFeatures } from "./corroboration.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
+import { editPiece } from "./piece-edit.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
@@ -538,6 +539,8 @@ export function pieceLine(piece) {
 }
 /** The continuation ask, one place, so the meta-talk cut below knows its words. */
 export const continueAsk = (more) => `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.`;
+/** The instrument's own words to the mouth, TEMPLATE ONLY — no topic, outline, obligation or fact (those are the material's words and must never count as apparatus). */
+export const INSTRUCTION_TEMPLATE = `${EXECUTE_SYSTEM_PROMPT} This is section of a piece on. The sections, in order. The previous section ended. This section should say something about. Earlier sections already said. The sources disagree on. Nothing read says. Write about words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established. ${continueAsk(100)} Every claim here was made in an earlier section. Write this section again about what the sources establish that those sections did not. This section says nothing about. Keep what it says and add what the sources establish about them, in the same prose. Let me know if you would like me to continue writing this.`;
 /** The cast's top referents in a set of passages, as plain names — the section's obligations (P110). */
 export function obligationsFrom(index, { limit = 5 } = {}) {
   if (!index?.referents) return [];
@@ -557,11 +560,16 @@ const fold = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,
 /** Sentences that echo the instrument's own asks: words of the piece line / continuation ask / system prompt that the material never uses. Two of them in one sentence is the mouth talking about the writing, not writing (measured 2026-09-05: "There is no need to restate the question", "Let me know if you'd like me to continue writing this"). */
 export function cutMetaTalk(text, { instructionText, materialText, splitSentences }) {
   const material = new Set(fold(materialText).split(" ").filter(Boolean));
-  const apparatus = new Set(fold(instructionText).split(" ").filter((w) => w.length > 2 && !material.has(w)));
+  // Content words only: the received claim stoplist (grounding.js) keeps
+  // "this", "and", "where" from counting as the instrument's own vocabulary.
+  const apparatus = new Set(fold(instructionText).split(" ").filter((w) => w.length > 2 && !material.has(w) && !CLAIM_STOPWORDS.has(w)));
   if (!apparatus.size) return { text, cut: [] };
   const sentences = splitSentences(String(text ?? "")).map((s) => s.trim()).filter(Boolean);
   const cut = [];
-  const kept = sentences.filter((sent) => { const hits = fold(sent).split(" ").filter((w) => apparatus.has(w)).length; if (hits >= 2) { cut.push(sent); return false; } return true; });
+  // Two apparatus words in one sentence, or one apparatus word in a sentence
+  // that carries no word of the material at all — the mouth talking about
+  // the writing, not writing.
+  const kept = sentences.filter((sent) => { const ws = fold(sent).split(" ").filter((w) => w.length > 2); const hits = ws.filter((w) => apparatus.has(w)).length; const grounded = ws.filter((w) => material.has(w) && !CLAIM_STOPWORDS.has(w)).length; if (hits >= 2 || (hits >= 1 && grounded === 0)) { cut.push(sent); return false; } return true; });
   return { text: cut.length ? kept.join(" ") : text, cut };
 }
 
@@ -2483,8 +2491,10 @@ export async function runPart({
   let text = stripFraming(draft);
   let metaCut = [];
   if (piece) {
-    const instruction = `${EXECUTE_SYSTEM_PROMPT} ${pieceLine(piece)} ${continueAsk(100)}`;
-    const r = cutMetaTalk(text, { instructionText: instruction, materialText: passages.map((p) => p.text ?? "").join(" "), splitSentences });
+    // The material's words include the piece's own topic, outline and
+    // obligations — a section titled "Tides" may say "tides".
+    const own = [piece.topic, ...(piece.outline ?? []), ...(piece.obligations ?? []), ...(piece.alreadySaid ?? [])].filter(Boolean).join(" ");
+    const r = cutMetaTalk(text, { instructionText: INSTRUCTION_TEMPLATE, materialText: `${passages.map((p) => p.text ?? "").join(" ")} ${own}`, splitSentences });
     if (r.cut.length) { text = r.text; metaCut = r.cut; check = inspect(text); }
   }
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
@@ -2818,7 +2828,20 @@ export async function runHolonicTask({
 
   // Sections are read off the LIVE fold, so a superseded part's text drops
   // out of the assembly exactly as its entry dropped out of the live set.
-  const sections = plan.parts.map((p) => sectionsById.get(p.id)).filter(Boolean);
+  let sections = plan.parts.map((p) => sectionsById.get(p.id)).filter(Boolean);
+
+  // THE UNCONSCIOUS EDITS THE MOUTH (P111): a finished piece is edited
+  // model-free — restated sentences cut, emptied sections dropped, sections
+  // whose claims were all already said merged away — every edit an act
+  // returned as `edits`, never a silent change. Only for a piece: an
+  // ordinary answer's parts are its own.
+  let edits = [];
+  if (piece && sections.length > 1) {
+    const keyOf = (c) => `${c.end1 ?? c.subject}|${c.label ?? c.verb}|${c.end2 ?? c.object}`.toLowerCase();
+    const edited = editPiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: (s.relations?.claims ?? []).map((c) => ({ key: keyOf(c), verdict: c.verdict })), _section: s })), { splitSentences });
+    edits = edited.edits;
+    sections = edited.sections.map((e) => ({ ...e._section, text: e.text, edited: true }));
+  }
 
   const output = sections
     .map((s) => {
@@ -2843,5 +2866,6 @@ export async function runHolonicTask({
   ];
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
-  return { task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
+  return {
+    ...(piece ? { edits } : {}), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

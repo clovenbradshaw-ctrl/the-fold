@@ -123,6 +123,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
 import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION } from "./longform.js";
+import { editLine } from "./piece-edit.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
@@ -5761,11 +5762,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   if (opts.longForm) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
     const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
+    for (const e of result.edits ?? []) show(`edited — ${editLine(e)}`);
     const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
     mirrorTermRecord("longform-done", {
       topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
       unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
       // P110's own numbers: words per section, obligation coverage, re-asks, meta-talk cut, hunts.
+      edits: (result.edits ?? []).length, editKinds: Object.fromEntries((result.edits ?? []).map((e) => e.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
       via: "chat",
     });

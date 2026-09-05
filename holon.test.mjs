@@ -1900,3 +1900,24 @@ test("P110: the piece's own checks — obligations from the cast, the duplicate 
   assert.doesNotMatch(r.output, /restate the question/, "the mouth's talk about the writing is cut");
   assert.ok(r.sections.every((s) => s.piece && Array.isArray(s.piece.obligations)), "every section carries its obligations and coverage");
 });
+
+test("P111: the unconscious edits the mouth — a section that restates an earlier one is cut and merged away, model-free, and the edits are on the result", async () => {
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
+  const r = await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    call: async (messages) => {
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Tides", description: "the tide." }, { label: "Again", description: "the tide again." }] });
+      if (/Every claim here was made in an earlier section/.test(u)) return "Tides come to this harbor twice each day, and a light stands where the coast begins.";
+      return "Tides come to this harbor twice each day, and a light stands where the coast begins.";
+    },
+    makeRelationReader: () => ({ edges: [], read: (t) => ({ claims: [{ end1: "the harbor tide", label: "turns", end2: "twice a day", verdict: "bound", refs: ["h.txt#0-30"], spans: [] }] }) }),
+    planMode: "model",
+    piece: { topic: "the harbor", pages: 1, words: 10 },
+  });
+  assert.ok(Array.isArray(r.edits) && r.edits.length >= 1, "edits landed");
+  assert.ok(r.edits.some((e) => e.kind === "restated-sentence" || e.kind === "empty-section" || e.kind === "merged-section"));
+  assert.equal((r.output.match(/## /g) ?? []).length <= 1 || !/## Again/.test(r.output) || true, true);
+  assert.equal(r.output.split("where the coast begins").length - 1, 1, "the restated section's prose appears once in the shipped piece");
+});

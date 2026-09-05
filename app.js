@@ -127,6 +127,7 @@ import { declaredReferents } from "./code-scout.js";
 import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 import { editLine } from "./piece-edit.js";
 import { revisionLine } from "./piece-revise.js";
+import { exportPiece } from "./piece-export.js";
 import { groundOf, groundLine } from "./ground-ladder.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
@@ -1028,6 +1029,8 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  huntUrls: {},
+  lastPiece: null,
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
   /**
@@ -2074,6 +2077,51 @@ async function codePieceTurn(cp, typed) {
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
+}
+
+// exportLastPiece — the two faces of the last piece (P118), built from the
+// kept sections: every sentence placed again by the ladder, its verbatim
+// spans sliced from the passages, the markdown with footnotes and text-
+// fragment links, the html with data-anchors, the json sidecar — handed to
+// the explore server to keep under record/pieces/, the links shown.
+async function exportLastPiece(node = null) {
+  const piece = state.lastPiece;
+  if (!piece) return null;
+  const passages = new Map();
+  for (const s of piece.sections) for (const p of s.passages ?? []) if (p?.ref) passages.set(p.ref, { text: p.text ?? "" });
+  for (const [name, text] of Object.entries(state.sources)) if (!passages.has(name)) passages.set(name, { text });
+  const fold = (t) => String(t ?? "").toLowerCase();
+  const sections = piece.sections.map((s) => {
+    const sents = engineSentences(String(s.text ?? "")).map((x) => x.trim()).filter(Boolean);
+    const claims = (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => fold(x).includes(fold(c.end1 ?? c.subject).split(" ")[0] ?? "") && fold(x).includes(fold(c.label ?? c.verb))) ?? null }));
+    return { label: s.part?.label ?? s.label ?? "", sentences: sents.map((text) => {
+      const own = claims.filter((c) => c.sentence === text);
+      const wrow = (s.witness?.rows ?? []).find((r) => r.sentence === text) ?? null;
+      const g = piece.ground ? groundOf(text, { ...piece.ground, claims: own, witness: wrow, model: piece.model }) : { tier: "self", cell: "self:model", addresses: [], phrase: piece.model ?? "the model" };
+      return { text, ground: { ...g, claims: own, decider: wrow?.decider ?? null } };
+    }) };
+  });
+  const out = exportPiece({ title: piece.title, ask: piece.ask, model: piece.model, sections, passages, urls: piece.urls, prompts: piece.prompts, generatedAt: piece.generatedAt, stats: `Tally: ${Object.entries(out0Tally(sections)).map(([k, v]) => `${v} ${k}`).join(", ")}.` });
+  const slug = String(piece.title).slice(0, 40);
+  let files = null;
+  try {
+    const r = await fetch(`${EXPLORE_BASE}/api/piece-export`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slug, md: out.md, html: out.html, json: out.json }) });
+    if (r.ok) files = (await r.json()).files;
+  } catch {}
+  const line = files ? `exported — markdown ${pageFaceUrl(EXPLORE_BASE, files.md)} · html ${pageFaceUrl(EXPLORE_BASE, files.html)} · json ${pageFaceUrl(EXPLORE_BASE, files.json)} · ${out.notes} note(s), ${JSON.stringify(out.tally)}` : `export built (${out.md.length} chars md) — the explore server is not reachable, nothing kept`;
+  if (node) { const p = document.createElement("p"); p.className = "piece-links"; if (files) { for (const [k, v] of Object.entries(files)) { const a = document.createElement("a"); a.href = pageFaceUrl(EXPLORE_BASE, v); a.target = "_blank"; a.rel = "noopener"; a.textContent = `⬇ ${k}`; a.style.marginRight = "0.8em"; p.append(a); } } else p.textContent = line; node.querySelector(".body")?.append(p); }
+  mirrorTermRecord("piece-export-built", { title: piece.title, files, tally: out.tally, notes: out.notes, via: "chat" });
+  return { files, out, line };
+}
+const out0Tally = (sections) => { const t = {}; for (const s of sections) for (const x of s.sentences) t[x.ground?.tier ?? "?"] = (t[x.ground?.tier ?? "?"] ?? 0) + 1; return t; };
+function exportTurn(typed) {
+  if (!state.lastPiece) return usageTurn(typed, "no piece to export yet — ask for one (\"write me a 20 page essay on …\") and it is exported when it lands; `/export` writes the last one again.");
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  node.querySelector(".who").textContent = "export";
+  node.querySelector(".body").textContent = "exporting the last piece…";
+  exportLastPiece(node).then((r) => { node.querySelector(".body").textContent = r?.line ?? "export failed"; }).catch((e) => { node.querySelector(".body").textContent = `export failed: ${e?.message ?? e}`; });
+  return Promise.resolve();
 }
 
 // longFormTurn — the same holonic turn every checked answer runs (plan,
@@ -3131,6 +3179,7 @@ async function send(question) {
   if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
   const essayCmd = question.match(/^\/essay\b\s*(.*)$/s);
   if (essayCmd) return essayTurn(essayCmd[1] ?? "", question);
+  if (/^\/export\b/.test(question)) return exportTurn(question);
 
   const rankeCmd = question.match(/^\/ranke\b\s*(.*)$/s);
   if (rankeCmd) return rankeTurn(rankeCmd[1] ?? "", question);
@@ -5136,6 +5185,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           stop: preflight.hunt.stop,
         });
       }
+      for (const pg of preflight.pages ?? []) if (pg?.name && pg.url) state.huntUrls[pg.name] = pg.url;
       if (preflight.chunks.length) {
         // Long-form UNIONS what was found with what is attached; an ordinary
         // preflight only ever runs with nothing attached, so `live` is empty
@@ -5972,6 +6022,18 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     for (const e of result.edits ?? []) show(`edited — ${editLine(e)}`);
     for (const r of result.revisions ?? []) show(r.kind === "revision-error" ? `revision pass failed: ${r.because}` : revisionLine(r));
     const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    // THE PIECE, KEPT AND EXPORTED (P118): the sections with their claims,
+    // passages and witness rows, the addresses' urls, the prompts — enough
+    // to place every sentence again and write the two faces.
+    try {
+      const prompts = {};
+      for (const c of sentCalls) { const u = (c.messages ?? []).find((x) => x.role === "user")?.content ?? ""; const lab = u.match(/^Write this part: ([^.]+)\./); if (lab && !prompts[lab[1]]) prompts[lab[1]] = (c.messages ?? []).map((x) => `[${x.role}]\n${x.content}`).join("\n\n"); }
+      const urls = {};
+      for (const [name, prov] of Object.entries(state.provenance ?? {})) if (prov?.fields?.url) urls[name] = prov.fields.url;
+      Object.assign(urls, state.huntUrls ?? {});
+      state.lastPiece = { title: `${opts.longForm.topic} — ${opts.longForm.pages}-page ${opts.longForm.kind ?? "piece"} asked of The Fold`, ask: typed, model: turnModel, sections: result.sections ?? [], urls, prompts, ground: state.lastGround, generatedAt: new Date().toISOString() };
+      exportLastPiece(node).catch((e) => console.warn("piece export:", e?.message ?? e));
+    } catch (e) { console.warn("piece keep:", e?.message ?? e); }
     mirrorTermRecord("longform-done", {
       topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
       unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
@@ -7989,7 +8051,7 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
       rememberPageFace(sourceName, url, f.entry);
-      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
+      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, name: sourceName });
       onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
       const arrived = huntMeter.arrive(hunt, text);
       if (arrived.settled) {

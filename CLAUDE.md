@@ -7611,3 +7611,7 @@ marked and counted), and the wording of one condition (restated in P100).
 Not a completion claim. Before claiming any of these, run the assay and
 the model-swap diff and read their walls.
 
+
+## Pass 22b — negation is a cut, tracked through time (added 2026-09-05) — pointer
+
+POLICIES.md **P104**; eoreader7 **S69**; `eoreader7/native/docs/THE-NULL-STATES.md` the nomination. A denial is a SEG·Figure cut with the link's ends and never its id — a denying source is never a witness of the link, and a cut meeting its link lands CON·Figure·CONTESTED at the door with the denying bytes as decider. `negationTimeline(log, linkId)` is the reading of a denial through time (link, cut, contest, settled, conceded — each at its seq). The void (DEF·Ground) is next, on the same shape. Product assay 12/12. Standing rule from the user: **track negation and void through time.**

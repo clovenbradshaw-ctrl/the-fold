@@ -44,7 +44,9 @@ export function admitPassages(hyperlexicon, ledger, passages, { read, witnessFor
     // Read off the claim's neutral arrangement (P72); the door's own admit()
     // still requires subject/verb/object as ITS field contract (P57's
     // independent ledger vocabulary), so the destination keys stay as they are.
-    const edges = claims.filter((c) => c.verdict === "bound").map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, spans: c.spans ?? [] }));
+    // polarity "-" is a CUT at the door (S69) — a denial, never a witness of
+    // the link it denies.
+    const edges = claims.filter((c) => c.verdict === "bound").map((c) => ({ subject: c.end1, verb: c.label, object: c.end2, polarity: c.polarity ?? "+", spans: c.spans ?? [] }));
     if (!edges.length) continue;
     if (!log) log = hyperlexicon.createHyperlexicon(frame ? { frame } : undefined);
     // The frame in force follows the reader, not the ledger's birthday (P81).

@@ -968,6 +968,14 @@ open.
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions
 are P96's.
 
+## Pass 22b — the cut, and negation through time (added 2026-09-05, CLOSED same day)
+
+P104 / S69. The reader's miss from Pass 22 (a denial read as unbound) is closed by giving the denial its own cell: SEG·Figure, a cut apart from the link, contest at the door, `negationTimeline` for the reading through time. Product assay 12/12. **The user's standing instruction for everything in this family: track negation and void through time** — never a state read off the present fold; every act with its seq.
+
+## Pass 23 — the void through time (added 2026-09-05, NOT started)
+
+DEF·Ground, the other empty cell in THE-NULL-STATES. A void is a declared emptiness over an extent WITH scope (what was looked at: passages read, cursor, pool), an event with a cursor, re-zeroed by one arrival — another event. The three verdict strings and the badge that stand in for it today (`searchedVoid`, the witness's ∅, "no passage states this") become one object on the record with a `voidTimeline` on the shape of `negationTimeline`. Measurement: the arrival read declares the void for a question's extent before the mouth speaks; one arriving passage re-zeros it and the timeline shows both events; the control built to fail: a void with no scope is refused, and a void over an extent the reader never reached is a fact about the reader (`unread_extent`), never a void. Gate: Pass 22b. Refused-check: not a corroboration lever.
+
 ## Composition track — Passes 26–32 (proposed 2026-09-05, NOT started)
 
 Relayed by the user from another agent; recorded here as a named future

@@ -7580,3 +7580,13 @@ the mouth's additions are marked and counted, never assumed absent.
 Handed forward: term-hit retrieval prefers long passages; the whole-book
 arrival read needs a bounded reader pool.
 
+## Pass 20 — contest in the live circuit (added 2026-09-05) — pointer
+
+POLICIES.md **P101**. `crownTestimony` now lands a DISAGREE or
+CONTRADICTED merge on the record through `landContest` — the wire P91
+named — and the ledger block says a disputed note is "disputed by X — not
+settled". Proven on the record by the assay and at the mouth by the holon
+pin; not yet produced live, because the reader reads a denial as unbound
+(P43) and the corroboration witness skipped the denying pair. The next
+lever is a reader that reads a denial, never a looser wall here.
+

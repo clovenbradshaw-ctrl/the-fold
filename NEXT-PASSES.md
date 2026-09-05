@@ -932,6 +932,15 @@ and counted). Handed forward: retrieval by term hits prefers long
 passages (a 3 KB War and Peace passage outranked the 174-byte source that
 held the answer); the whole-book arrival read is blocked on a superlinear
 reader build (bound the pool). POLICIES.md **P100**.
+
+## Pass 20 — contest in the live circuit (added 2026-09-05, CLOSED same day, live contest not yet produced)
+
+`crownTestimony` lands a DISAGREE/CONTRADICTED through `landContest`
+(kind contest, the source's own bytes as decider, never a conviction);
+`ledgerBlock` phrases a disputed note as "disputed by X — not settled"
+(pinned). No live contest yet: the spine cannot read a denial as
+`contradicted` (P43, assay wall 4a) and the `/corroborate` witness skipped
+the denying pair at the co-presence gate. POLICIES.md **P101**.
 (claims before prose + the model-swap claim diff), 20 (contest live), 21
 (derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
 24 (documents reconciled), 25 (unwired ratchet). The program's exclusions

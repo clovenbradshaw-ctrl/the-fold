@@ -1784,7 +1784,7 @@ test("the ledger block carries corroborated notes, then question-relevant single
   const sent = [];
   const notes = [
     { id: "a", subject: "Kessington", verb: "lies", object: "on the harbor coast", witnesses: ["k.txt#0-9~r", "primary:archive.org#3-40~ranke-v1"], sources: 2, instruments: 2, standing: "corroborated-independently", kinds: { sighting: 1, primary: 1 } },
-    { id: "b", subject: "the harbor", verb: "opened", object: "in 1811", witnesses: ["k.txt#20-30~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: { sighting: 1 } },
+    { id: "b", subject: "the harbor", verb: "opened", object: "in 1811", witnesses: ["k.txt#20-30~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: { sighting: 1 } , disputedBy: [{ id: "d1", source: "t.txt", because: "the harbor opened in 1812", kind: "contest" }] },
     { id: "c", subject: "Mars", verb: "orbits", object: "the sun", witnesses: ["m.txt#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: { sighting: 1 } },
     { id: "d", subject: "the harbor tide", verb: "turns", object: "twice a day", witnesses: ["k.txt#50-60~r", "t.txt#1-9~r"], sources: 2, instruments: 1, standing: "corroborated", kinds: { sighting: 2 } },
     { id: "e", subject: "the tide", verb: "turns", object: "twice a day", witnesses: ["k.txt#70-80~r", "t.txt#10-19~r"], sources: 2, instruments: 1, standing: "corroborated", kinds: { sighting: 2 } },
@@ -1811,7 +1811,7 @@ test("the ledger block carries corroborated notes, then question-relevant single
   assert.match(text, /the harbor tide — turns→ twice a day \(read in 2 places\)/);
   assert.doesNotMatch(text, /- the tide — turns→/, "a corroborated note sharing nothing with the question is not shown either — both tiers are ranked by the question");
   assert.match(text, /stated once so far and bearing on this question/, "the single-witness tier is disclosed, not withheld");
-  assert.match(text, /the harbor — opened→ in 1811 \(stated once so far, nowhere else yet\)/);
+  assert.match(text, /the harbor — opened→ in 1811 \(stated once so far, nowhere else yet; disputed by t.txt — not settled\)/, "a live dispute is said to the mouth, never a conviction (P101)");
   assert.doesNotMatch(text, /Mars — orbits/, "a single-witness note sharing nothing with the question never reaches the model");
   const { apparatusMentions } = await import("./firewall.js");
   const block = text.match(/From earlier reading[^"]*/g) ?? [];

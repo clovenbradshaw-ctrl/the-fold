@@ -1179,11 +1179,18 @@ export async function runPart({
     const corroborated = ranked.filter((n) => n.sources >= 2);
     const single = ranked.filter((n) => n.sources < 2);
     if (!corroborated.length && !single.length) return readingNote;
+    // A note under a live dispute says so (P88's act reaching the mouth,
+    // Pass 20 / P101): who denies it, and that it is not settled — the
+    // reader is told of the disagreement, never handed a conviction.
+    const disputed = (n) => {
+      const by = (n.disputedBy ?? []).map((d) => (typeof d === "string" ? d : d?.source)).filter(Boolean);
+      return by.length ? `; disputed by ${[...new Set(by)].join(", ")} — not settled` : "";
+    };
     const phrase = (n) => {
       const primaries = n.kinds?.primary ?? 0;
-      if (primaries && n.sources >= 2) return `read in ${n.sources} places, one of them a source the account itself cites`;
-      if (n.sources >= 2) return `read in ${n.sources} places`;
-      return "stated once so far, nowhere else yet";
+      if (primaries && n.sources >= 2) return `read in ${n.sources} places, one of them a source the account itself cites${disputed(n)}`;
+      if (n.sources >= 2) return `read in ${n.sources} places${disputed(n)}`;
+      return `stated once so far, nowhere else yet${disputed(n)}`;
     };
     const render = (list) => list.map((n) => `- ${line(n)} (${phrase(n)})`).join("\n");
     return [

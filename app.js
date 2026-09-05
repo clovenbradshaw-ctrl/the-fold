@@ -91,7 +91,7 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, runSandboxe
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
-import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony } from "../eoreader7/native/organs/index.js";
+import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest } from "../eoreader7/native/organs/index.js";
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
@@ -5739,11 +5739,27 @@ async function crownTestimony(node, relationClaims) {
     }
     const readings = perSourceReadings(grid, state.gridLog, claimId);
     const merged = mergeTestimony(readings);
+    // THE WIRE (P91 named it, Pass 20 / P101 lands it): a DISAGREE or a
+    // CONTRADICTED merge is written to the record as CON·Figure·CONTESTED
+    // — the refusing source, its own bytes as decider, kind `contest` by
+    // construction — and never convicts. The decider is the passage the
+    // refusing source read, sliced from the source's own bytes.
+    let contested = null;
+    if (merged.case === "DISAGREE" || merged.case === "CONTRADICTED") {
+      try {
+        const textAt = (at) => { const m = String(at).match(/^(.+?)#(\d+)-(\d+)$/); return m && typeof state.sources[m[1]] === "string" ? state.sources[m[1]].slice(Number(m[2]), Number(m[3])) : null; };
+        const base = state.hyperlexiconLog ?? hyperlexiconFor.createHyperlexicon();
+        const landed = landContest(base, hyperlexiconFor, merged, { textAt });
+        if (landed.landed.length) { state.hyperlexiconLog = landed.log; syncRecords(); }
+        contested = landed;
+      } catch (e) { console.warn("contest:", e?.message ?? e); }
+    }
     const crown = renderCrown(merged);
     disclose(
       `testimony · ${merged.case}${merged.standing ? ` (${merged.standing})` : ""} · ${claimId.slice(0, 11)} · ` +
         `witnesses: ${crown.apparatus.sources.length ? crown.apparatus.sources.join(", ") : "none"} · “${crown.text}”` +
-        (crown.verified ? "" : " · render withheld: trace-coverage violation"),
+        (crown.verified ? "" : " · render withheld: trace-coverage violation") +
+        (contested ? ` · contest: ${contested.landed.length} landed on the record${contested.unanimous ? " (unanimous refusal, still only disputed)" : ""}${Object.entries(contested.refusals).filter(([, n]) => n).map(([k, n]) => `, ${n} ${k}`).join("")}` : ""),
     );
     // Only through the verified render — an unverifiable crown already
     // substituted its own withholding sentence, which is exactly what
@@ -5751,7 +5767,7 @@ async function crownTestimony(node, relationClaims) {
     if (merged.case !== "UNDETERMINED" && body) {
       const p = document.createElement("p");
       p.className = `crown-line${merged.case === "DISAGREE" || merged.case === "CONTRADICTED" ? " bad" : ""}`;
-      p.textContent = crown.text;
+      p.textContent = crown.text + (contested?.landed?.length ? ` (recorded as a contest, not settled)` : "");
       body.append(p);
     }
   }

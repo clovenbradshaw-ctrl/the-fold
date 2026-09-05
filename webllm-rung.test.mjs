@@ -29,6 +29,9 @@ import {
   LOAD_ATTEMPTS,
   ENGINE_FIRST_LIFE_MS,
   ENGINE_QUIET_MS,
+  weightsBases,
+  readMirrors,
+  weightsProbeUrl,
 } from "./webllm-rung.js";
 import { MODEL_PICKER, ROUTE_KINDS, routeModel } from "./model-routing.js";
 import { emptyPaceLog, recordCall, foldPace } from "./pace.js";
@@ -257,4 +260,39 @@ test("a silent engine is typed like a lost device — the measured hang, never a
   // compile + prefill) is the larger, the between-tokens bound the smaller.
   assert.ok(ENGINE_FIRST_LIFE_MS > ENGINE_QUIET_MS);
   assert.ok(ENGINE_QUIET_MS >= 10_000);
+});
+
+
+// ── the weights ladder (P118): the site's own models/, then its mirrors, then the publisher
+
+test("weightsBases: this site's own models/ first on ANY origin, then each mirror the site names, then the publisher — the own base never repeated", () => {
+  const site = weightsBases("https://example.github.io/the-fold/the-fold/index.html", ["https://archive.org/download/the-fold-pin/models", "https://example.github.io/the-fold/the-fold/models/"]);
+  assert.equal(site[0].base, "https://example.github.io/the-fold/the-fold/models/");
+  assert.equal(site[1].base, "https://archive.org/download/the-fold-pin/models/");
+  assert.match(site[1].route, /archive\.org/);
+  assert.equal(site.length, 3, "the own base named again as a mirror is not a second step");
+  assert.equal(site.at(-1).base, null);
+  assert.match(site.at(-1).route, /publisher/);
+  const ext = weightsBases("chrome-extension://abc/the-fold/index.html", []);
+  assert.equal(ext[0].base, "chrome-extension://abc/the-fold/models/");
+  assert.equal(ext.length, 2);
+});
+
+test("readMirrors reads the file's shape defensively and keeps only https bases; weightsProbeUrl names the rung's own config under a base", () => {
+  assert.deepEqual(readMirrors('{"mirrors":["https://archive.org/download/x/models/","ftp://no","not a url"]}'), ["https://archive.org/download/x/models/"]);
+  assert.deepEqual(readMirrors('["https://a.example/models"]'), ["https://a.example/models"]);
+  assert.deepEqual(readMirrors("<html>"), []);
+  assert.deepEqual(readMirrors(null), []);
+  assert.equal(weightsProbeUrl("https://archive.org/download/x/models", WEBLLM_MODEL_ID), `https://archive.org/download/x/models/${WEBLLM_MODEL_ID}/resolve/main/mlc-chat-config.json`);
+});
+
+test("appConfigFor with a chosen base points every rung at that base and says so; without one a localhost page reads its own disk and any other origin the publisher", () => {
+  const chosen = appConfigFor(prebuiltAppConfig, STATIC_PAGE, undefined, { base: "https://archive.org/download/x/models/" });
+  for (const rec of chosen.appConfig.model_list) {
+    assert.equal(rec.model, `https://archive.org/download/x/models/${rec.model_id}/resolve/main/`);
+    assert.match(rec.model_lib, /^https:\/\/archive\.org\/download\/x\/models\/libs\/.+\.wasm$/);
+  }
+  assert.equal(chosen.weights, "https://archive.org/download/x/models/");
+  assert.equal(appConfigFor(prebuiltAppConfig, LOCAL_PAGE).weights, "this disk");
+  assert.match(appConfigFor(prebuiltAppConfig, STATIC_PAGE).weights, /publisher/);
 });

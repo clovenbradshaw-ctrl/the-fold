@@ -97,6 +97,11 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, run
 // models chosen for what their publishers disclose about the training data.
 import { WEBLLM_MODELS, isWebLLMModel, webllmModelOf, webllmLabelFor, mergeOffered, webgpuBlocker } from "./webllm-rung.js";
 import { webllmClient } from "./webllm-client.js";
+// The three homes (P118): where the page is and what it can reach are probed
+// at boot and said once; /routes prints the table. routes.js decides and
+// phrases; the probes below are the only calls, every one localhost or
+// same-origin.
+import { whereAmI, describeRoutes } from "./routes.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
@@ -1323,7 +1328,7 @@ async function connect() {
     // bytes' origin is decided by where this page is served from (P1).
     state.contextTokens = webllmClient.contextWindowFor(state.model);
     const m = webllmModelOf(state.model);
-    $("status").textContent = `ready · ${webllmLabelFor(state.model)} · weights from ${webllmClient.weights} · ${m?.origin ?? ""}`;
+    $("status").textContent = `ready · ${webllmLabelFor(state.model)} · weights from ${webllmClient.weights} · ${m?.origin ?? ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`;
     $("send").disabled = false;
     openSettings(false);
     showView("chat");
@@ -1342,7 +1347,7 @@ async function connect() {
   } catch {
     // No window declared is a gap, not a default — nothing will be trimmed.
   }
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = `ready · ${state.model}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`;
   $("send").disabled = false;
   // Connected is the moment the controls stop earning their space, and the
   // moment the chat is what you want to be looking at.
@@ -1688,6 +1693,16 @@ async function measureTurn(question) {
   }
   const text = result.kind === "probe" ? result.lines.join("\n") : result.refused ? `refused (${result.refused.type}): ${result.refused.detail}` : measurePhrase(result);
   return usageTurn(question, `${text}\n— computed, not generated`, { what: "measure" });
+}
+
+/** `/routes` — where the page is and what it can reach, probed now. */
+async function routesTurn(question) {
+  try {
+    const r = await probeRoutes();
+    return usageTurn(question, `${r.lines.map((l) => `  ${l}`).join("\n")}\n— probed now, not assumed`, { what: "routes" });
+  } catch (e) {
+    return usageTurn(question, `/routes: ${e.message}`, { what: "routes" });
+  }
 }
 
 /**
@@ -3201,6 +3216,10 @@ async function send(question) {
   const gatewaysCmd = question.match(/^\/gateways\b\s*(.*)$/s);
   if (gatewaysCmd) return gatewaysTurn(gatewaysCmd[1]?.trim() ?? "", question);
 
+  // The routes (P118): where this page is and what it found reachable at
+  // boot, re-probed on request. Mechanical, localhost / same-origin only.
+  if (/^\/routes\b/.test(question)) return routesTurn(question);
+
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
   // composer, landing on the SAME log the sandboxed terminal's own `act`/
@@ -3397,7 +3416,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/ingest", "/learn", "/measure", "/must", "/priors", "/ranke", "/reflect", "/reopen", "/run", "/self", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/ingest", "/learn", "/measure", "/must", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -10435,10 +10454,51 @@ $("model-pick").onclick = () => openSettings(true);
 // only when there is a real choice to make: nothing reachable, or nothing
 // pulled. The picker stays in the chip for anyone who wants a different rung.
 fillModels().then(() => {
-  if (state.ready) return;
-  if (state.offeredModels.length) connect();
-  else openSettings(true);
+  if (!state.ready) {
+    if (state.offeredModels.length) connect();
+    else openSettings(true);
+  }
+  // The routes are probed once the model picker has settled, so Ollama's
+  // answer is what fillModels actually found, not a race with it.
+  probeRoutes().catch(() => {});
 });
+
+/**
+ * The routes, probed. Ollama's answer is what fillModels already found;
+ * WebGPU is the rung's own blocker; the explore server is one light GET on
+ * its lightest route; serve.mjs's API is reachable exactly when the page's
+ * own origin serves serve.mjs itself (a static home never does — the build
+ * carries only what the page loads). The result is said once beside the
+ * status and kept for /routes.
+ */
+state.routes = null;
+async function probeRoutes() {
+  const where = whereAmI(location.href);
+  const probes = {};
+  probes.ollama = state.availableModels?.size ? { ok: true, models: state.availableModels.size - WEBLLM_MODELS.filter((m) => state.availableModels.has(m.id)).length } : { ok: false, detail: "no answer on :11434" };
+  probes.webgpu = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
+  try {
+    const r = await fetch(`${EXPLORE_BASE}/api/skills`, { cache: "no-store" });
+    probes.explore = r.ok ? { ok: true, base: EXPLORE_BASE } : { ok: false, base: EXPLORE_BASE, detail: `answered ${r.status}` };
+  } catch (e) {
+    probes.explore = { ok: false, base: EXPLORE_BASE, detail: e.message };
+  }
+  try {
+    const r = await fetch(new URL("serve.mjs", location.href), { method: "HEAD", cache: "no-store" });
+    probes.api = r.ok ? { ok: true, base: location.origin } : { ok: false, base: location.origin, detail: `answered ${r.status}` };
+  } catch (e) {
+    probes.api = { ok: false, base: location.origin, detail: e.message };
+  }
+  probes.weights = webllmClient.weightsRoute ? { route: webllmClient.weightsRoute.route, base: webllmClient.weightsRoute.base } : null;
+  state.routes = describeRoutes({ where, probes });
+  // Said once, on the status chip the page already keeps (the composer's
+  // status line is the turn loop's and is hidden between turns); the full
+  // table is /routes.
+  const st = $("status");
+  if (st && /^ready · /.test(st.textContent) && !/ · routes: /.test(st.textContent)) st.textContent = `${st.textContent} · routes: ${state.routes.summary}`;
+  return state.routes;
+}
+
 
 // The chip mirrors whatever the status line says, so every existing status
 // update reaches it without threading a setter through the turn loop.

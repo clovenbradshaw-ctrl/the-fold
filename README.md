@@ -185,6 +185,30 @@ The algorithm is ported from `eochatX`'s `app/client/eo-discourse.ts`, which is
 itself a port of `eochat`'s `server/conversation-summary.js`. This repo is that
 mechanism standing on its own, with no framework around it.
 
+## Three homes, one page
+
+The Fold runs from a terminal (`./fold`), from a static site, and — packaged
+by the same build — as a Chrome extension. Which routes are open is never
+assumed from where the page is: at boot it probes Ollama, WebGPU, the local
+explore server and its own server, says what it found on the status chip,
+and `/routes` prints the table (POLICIES.md P118). A Pages visitor who also
+runs `./fold` gets their local record and web organ; a terminal user without
+Ollama gets the in-tab models.
+
+```bash
+node deploy/build-site.mjs --out dist                 # the static site (GitHub Pages serves dist/)
+node deploy/build-site.mjs --out dist --models copy   # a self-contained pin (archive.org item, ~3.6 GB)
+node deploy/build-site.mjs --out dist --extension     # + manifest.json: load dist/ unpacked in chrome://extensions
+node deploy/build-site.mjs --out dist --mirror https://archive.org/download/<item>/models
+```
+
+The build carries exactly what the page loads (derived from `page-graph.mjs`)
+laid out as the repos already sit — `the-fold/`, `eoreader7/`, `node_modules/`
+— with the five server mount-point paths rewritten to relative ones, so it
+runs at a domain root, under a subpath, from an archive.org item, or from an
+extension origin. `SHA256SUMS` and `BUILD.json` record every byte and the
+commit.
+
 ## Run it from a website
 
 The page does not need Ollama. Serve this directory (plus `models/`, see
@@ -200,8 +224,12 @@ publishers disclose about the training data (POLICIES.md P116):
 | SmolLM2 1.7B · in this tab | Hugging Face, Apache-2.0 | pretraining mixture and instruction data published |
 | RedPajama-INCITE 3B · in this tab | Together, Apache-2.0 | RedPajama-1T, the open reproduction of the LLaMA data |
 
-Mirror them once, so the site (and a localhost page) serves every byte
-itself:
+Weights climb a ladder: the site's own `models/` first on any origin (a pinned
+copy that carries them is self-contained), then each mirror the site names in
+`models/MIRRORS.json`, then the publisher; the status line says which one
+answered. GitHub Pages cannot hold the shards (~100 MB each), so a Pages build
+names a mirror or lets the publisher serve them. Mirror them once, so a local
+page or a pin serves every byte itself:
 
 ```bash
 sh models/fetch-webllm.sh

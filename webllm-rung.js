@@ -43,7 +43,7 @@
  * `state.model` carry — never ambiguous with an Ollama tag); `label` is what
  * the picker shows; `origin` is what the PUBLISHER discloses about the
  * training data, stated where the model is picked, with the licence. The
- * model cards are cited in POLICIES.md (P109), never here: this module is
+ * model cards are cited in POLICIES.md (P116), never here: this module is
  * loaded by the page, and the constitution's host scan (II.13) keeps every
  * non-local address out of anything the page can reach. */
 export const WEBLLM_MODELS = Object.freeze([

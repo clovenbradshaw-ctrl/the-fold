@@ -613,7 +613,7 @@ async function searchWeb(query) {
   return { results, blocked, failure };
 }
 
-// ── public gateways (P110): the fall-through when the direct fetch is refused
+// ── public gateways (P117): the fall-through when the direct fetch is refused
 // The record's own `web-gateway` lines are the instrument's memory of which
 // gateways answered; the order to try is folded off them (web.js
 // rankGateways), never asserted. Every try is recorded, answered or not.
@@ -1877,7 +1877,7 @@ const server = http.createServer(async (req, res) => {
     // its retrieval date — a browser history that actually holds the pages.
     // With the archive setting on, Save Page Now runs deferred and patches
     // the entry when the snapshot has a name.
-    // ---- public gateways (P110). GET is the learned table off the record —
+    // ---- public gateways (P117). GET is the learned table off the record —
     // no egress. POST probes every gateway with one canonical page so the
     // table has something to learn from before a blocked fetch needs it;
     // each probe is a recorded egress like any fetch.

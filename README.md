@@ -192,7 +192,7 @@ below) from any static host over https, and the model runs **in the
 visitor's own tab** on WebGPU — nothing leaves their machine, and nothing
 about them reaches the site's owner: the site serves bytes, the browser does
 the reading. Three in-tab models are offered, chosen for what their
-publishers disclose about the training data (POLICIES.md P109):
+publishers disclose about the training data (POLICIES.md P116):
 
 | picker | publisher, licence | training data |
 |---|---|---|
@@ -225,5 +225,5 @@ and, when a site refuses the direct fetch and the `web` toggle is on, a
 public gateway (the Wayback Machine, a reader or relay service) that then
 sees the address; which gateways are open and what each forwards about you
 is learned from your own record, shown by `/gateways`, and every page read
-that way says so (POLICIES.md P110). Nothing about you reaches this
+that way says so (POLICIES.md P117). Nothing about you reaches this
 project's maintainer by any route.

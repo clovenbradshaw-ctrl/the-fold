@@ -70,7 +70,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // engine injected (the cast.js pattern) so this module stays pure; the page
 // hands it window.math, the vendored mathjs UMD bundle (index.html — must
 // load before monaco's loader.js, see that file's comment).
-// checkQuantity (P108): the pure door first, byte-identical, then the shaped
+// checkQuantity (P115): the pure door first, byte-identical, then the shaped
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity } from "./arithmetic.js";
@@ -1657,7 +1657,7 @@ function usageTurn(question, usage, { what = "usage" } = {}) {
  * Mechanical from end to end — no model call — and every media pill has
  * advertised this door since the materials panel was folded into the pills;
  * until 2026-09-05 nothing routed it, so the words went to the model.
- * Decoded image/video measurement (S75) is node-side today; in the page a
+ * Decoded image/video measurement (S76) is node-side today; in the page a
  * png or mp4 frames as bytes and the probe says so.
  */
 async function measureTurn(question) {
@@ -1685,7 +1685,7 @@ async function measureTurn(question) {
 
 /**
  * `/gateways` — which public gateways this instrument has found open, off
- * its own record (P110); `/gateways probe [url]` tries each one, recorded.
+ * its own record (P117); `/gateways probe [url]` tries each one, recorded.
  * A gateway is a third party the reader reaches only when a direct fetch
  * was refused and the web toggle is on; the table says what each one sees.
  */
@@ -3053,7 +3053,7 @@ async function send(question) {
   const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
   if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
 
-  // The public gateways (P110): bare, the learned table off the record — no
+  // The public gateways (P117): bare, the learned table off the record — no
   // egress; `probe`, one recorded fetch of a canonical page through each
   // gateway so the table has something to learn from. Mechanical either way.
   const gatewaysCmd = question.match(/^\/gateways\b\s*(.*)$/s);

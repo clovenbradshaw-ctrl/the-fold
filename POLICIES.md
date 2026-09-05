@@ -11386,7 +11386,7 @@ only count change, the same 11 pre-existing failures both times).
 
 **Amended same day — the label folds through morphology.** `voidInScope` takes an injected `sameForm` (app.js hands it the engine's own `sameAct` from the UniMorph prior, the same organ the sentence witness's company wall uses; exact match until the prior resolves; an organ that throws is exact match, never a crash). "The director of the Northgate Observatory is unknown" now cites a void labelled `directed`; a different act still cites none. Pinned in `answer-record.test.mjs`.
 
-## P108 — Twenty-five "frontier" tasks, claimed or witnessed by organs this instrument already had: a task is an organ's or a witness's, never the mouth's alone (2026-09-05)
+## P115 — Twenty-five "frontier" tasks, claimed or witnessed by organs this instrument already had: a task is an organ's or a witness's, never the mouth's alone (2026-09-05)
 
 **Generality:** universal for the rule (a task the instrument takes on is either CLAIMED by an organ that computes, reads, or declares its answer with no model, or WITNESSED by an organ whose verdict can fail — a control the reference passes and the wrong answer fails — before any mouth's draft is shipped); specimen-scoped for the twenty-five tasks and the two mouths measured.
 
@@ -11403,7 +11403,7 @@ only count change, the same 11 pre-existing failures both times).
 
 **Rules worth keeping.** A task the instrument answers is an organ's before it is a mouth's; a witness that has not been shown to fail is not a witness; a wrong expectation in a fixture is found by the organ, not papered over (the tone's silence starts at frame 40, 2.0 s — the door read it, the fixture said 41).
 
-## P109 — The in-tab rung is a roster of three, chosen for what their publishers disclose about the training data, mirrored same-origin so a website can serve them; the launch pass: the relay is gone, nothing leaves on page load, a throwing door frees the composer, a slash no door claims is refused, the Explore page boots on every checkout, and the phone layout is a first-class view (2026-09-05)
+## P116 — The in-tab rung is a roster of three, chosen for what their publishers disclose about the training data, mirrored same-origin so a website can serve them; the launch pass: the relay is gone, nothing leaves on page load, a throwing door frees the composer, a slash no door claims is refused, the Explore page boots on every checkout, and the phone layout is a first-class view (2026-09-05)
 
 **Generality:** universal for the rules (a model offered in the page is named with its publisher, licence and what is disclosed about its training data; every byte the page loads is same-origin on localhost and on the site that serves it; a page load reaches no host but its own origin and, when Ollama is present, localhost:11434; a thrown door is a typed line, never a dead composer; a slash the dispatch does not claim is a typed refusal, never a model prompt; every control is reachable by touch at 44px and no affordance is hover-only); specimen-scoped for the three models and the browser presets they were measured in.
 
@@ -11427,7 +11427,7 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 
 **The phone layout.** Measured at 375×812 and 768×1024. The narrow layout already made the chat one tab among the panels; what was missing was reach: targets under 36px, 15px inputs (an iOS field under 16px zooms the page on focus), a composer bar whose one-row rule squeezed the model's name to nothing, sheets that overran the viewport, a hover-only reveal on the sources' actions, and on the Explore page a 270px rail beside a 105px stage. The phone blocks (`index.html`, `explore/explore.css`, each kept LAST in its sheet so it wins the cascade — the first cut lost to the base rules above it) set 44–48px targets, 16px inputs, a two-row composer bar with the model named, bottom sheets capped at 88dvh that scroll inside themselves, the safe-area inset on the bottom tab bar, the rail as a drawer above the stage, and `hover: none` fallbacks. Behaviour unchanged.
 
-## P110 — Public gateways as the fall-through when a direct fetch is refused: which ones are open, and what each forwards about the person, are learned off the record, never asserted; the maintainer's proxy stays out of the loop (2026-09-05)
+## P117 — Public gateways as the fall-through when a direct fetch is refused: which ones are open, and what each forwards about the person, are learned off the record, never asserted; the maintainer's proxy stays out of the loop (2026-09-05)
 
 **Generality:** universal for the rules (a direct fetch refused by its address — a 401/403/407/429/451/503, a bot-challenge shell, a 200 whose readable face is empty, a timeout or reset — may be retried through a public gateway only when the web toggle is on; every try lands on the record with its status and timing; the order gateways are tried in is folded off those lines; the page says which route a page came by and what that gateway saw; a gateway's forwarding of the person's address is measured through an echo, never assumed; no route passes the maintainer); specimen-scoped for the six gateways and the day they were measured.
 

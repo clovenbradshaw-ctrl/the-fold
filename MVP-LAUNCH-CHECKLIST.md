@@ -12,8 +12,8 @@
 | The local record | `record/*.jsonl` (build runs, explore, folds, skills, transcriptions) — on the user's disk only, gitignored; the Log pane reads the same file | clean |
 | Consented egress | web search / page fetch (DuckDuckGo, archive.org save) when the `web` toggle is on; `pip install` from pyodide's mirror; GitHub when a repo is connected; Whisper weights on first transcription | disclosed in README ("what leaves only when you act") |
 | `web` toggle default ON | a material-less question runs a DuckDuckGo search before the model drafts (P23's preflight) — the query leaves the machine by default, disclosed in the turn's THINKING line | **decided 2026-09-05: stays on** (the maintainer's call; README says what leaves) |
-| A site refuses the direct fetch | before: a typed gap and nothing else | **fixed** — public gateways tried in an order learned off the record, every try recorded, the route disclosed on the page; `/gateways` shows what is open and what each forwards about you (P110) |
-| "Can the maintainer's proxy be hidden behind public relays so nobody can tell who requests what?" | a relay hides who only if it strips the address (measurable per relay); nothing hides what — every target lands in the proxy's log | **decided: the maintainer's proxy stays out of the loop**; Oblivious HTTP is the design with that property, named in P110 |
+| A site refuses the direct fetch | before: a typed gap and nothing else | **fixed** — public gateways tried in an order learned off the record, every try recorded, the route disclosed on the page; `/gateways` shows what is open and what each forwards about you (P117) |
+| "Can the maintainer's proxy be hidden behind public relays so nobody can tell who requests what?" | a relay hides who only if it strips the address (measurable per relay); nothing hides what — every target lands in the proxy's log | **decided: the maintainer's proxy stays out of the loop**; Oblivious HTTP is the design with that property, named in P117 |
 | The in-tab models' bytes | served from the site's own origin (`models/`), never from the publisher at runtime on localhost; README says a site must mirror | **fixed** (roster + mirror script) |
 
 ## 2. First run, fresh machine
@@ -33,14 +33,14 @@
 
 | surface | what a person sees | status |
 |---|---|---|
-| A computed answer (arithmetic, units, an equation, a date) | `5 mile to km = 8.04672 km — computed, not generated`; zero model calls (measured: no `/api/chat` request) | clean — extended to shaped questions and the calendar (P108) |
+| A computed answer (arithmetic, units, an equation, a date) | `5 mile to km = 8.04672 km — computed, not generated`; zero model calls (measured: no `/api/chat` request) | clean — extended to shaped questions and the calendar (P115) |
 | A model answer | the answer, then THINKING: what was attached, whether the web was checked, pages and passages found, the plan, each part's retrieval; refs click back to bytes; unsupported and open items listed | clean |
 | The measuring door | `/measure` teaches its own grammar; `/measure <file>` probes what is measurable; a placement names statistic, null, draws, seed, window and verdict, or a typed refusal | **fixed** — advertised on every media pill, routed nowhere |
 | A slash no door claims | before: sent to the model as a question (and to a search) | **fixed** — `no door named /x — the doors: …` |
 | A door that throws | before: the composer went dead (`state.busy` never released) | **fixed** — `guardedSend` lands a typed line and frees the composer |
 | The in-tab model | the picker names publisher and licence; the option's title carries what the publisher discloses; the status line says where the weights come from | **fixed** |
-| A creative task's declared form | `shape.js::declaredForm/checkForm` (P108) is not yet run by the chat's creative turn | **open** (NEXT-PASSES Pass 30, item 3) |
-| Media beyond wav in the page | `/measure` on a dropped png or mp4 frames the container's bytes; the probe says the decoder is node-side | **open** (Pass 30, item 2) |
+| A creative task's declared form | `shape.js::declaredForm/checkForm` (P115) is not yet run by the chat's creative turn | **open** (NEXT-PASSES Pass 31, item 3) |
+| Media beyond wav in the page | `/measure` on a dropped png or mp4 frames the container's bytes; the probe says the decoder is node-side | **open** (Pass 31, item 2) |
 | The ledger the mouth was handed | the void tier and the ledger block (P105–P107), visible in THINKING | clean |
 
 ## 4. On a phone

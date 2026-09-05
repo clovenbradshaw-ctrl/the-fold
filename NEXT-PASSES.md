@@ -758,3 +758,49 @@ It was true when written and is false now: steps 2 and 4 landed the same day
 (S53/PR #70). Recorded rather than deleted, because two passes writing the
 same day from different branches is exactly how a plan of record acquires a
 line that points at finished work as though it were next.
+
+## Pass 13 — the reproducibility audit, continued (added 2026-09-05)
+
+POLICIES.md **P94** / eoreader7 **S64** are the law; this is the handoff.
+The audit of committed eval results ran **3 of 13** wipe-exposed drivers
+before the session wrapped. Established: `admission-gate` drifted by one
+`the`-labeled note in its blind arm (the finding stands, the defect arm
+moved); `asserted-eval` cannot run here (frozen-provider path into an
+uninitialized submodule); `cited-source-null` and `ordered-read-reach`
+are unreproducible since `5541af4` — 86 of the 106 faces their walk names
+were untracked 32 minutes after the docs landed, and both drivers
+narrowed their pool to the 20 that remained without saying so (they say
+so now). Take the rest in this order:
+
+1. **Decide the fixture rule before re-running anything.** Two options:
+   commit the faces a results doc stands on (content-addressed, hundreds
+   of KB), or make every walk-based driver REFUSE — a typed gap and a
+   non-zero exit — when the walk names faces the checkout lacks, and mark
+   the two docs "reproducible only where the walk's fixtures exist."
+   Recommendation: refuse. A null over a silently narrowed pool is the
+   worst of the three outcomes, and the docs are already dated records of
+   one run, not claims about the repo.
+2. **Run the nine unrun drivers locally** (the user's "then we'll run
+   local"): `full-circuit`, `hyperlexicon-door-probe`, `mechanical-
+   reasoning`, `object-boundary`, `pruning-timeline`, `rashomon-contrast`,
+   `reasoning-e2e-no-llm`, `subject-wall`, `vendored-prior-eval`. For the
+   five that write a tracked file, `git diff -- results/` is the measure.
+   For the four transcription docs (`full-circuit`, `hyperlexicon-door-
+   probe`, `object-boundary`, `reasoning-e2e-no-llm`) compare stdout to
+   the doc's numbers by hand — the audit script's diff was vacuous for
+   them, which was the audit's own first finding. No 600 s cap: a
+   20-draw null needs ~12 min.
+3. **Make the transcription docs enforceable** the way P94 made
+   `mhc-RESULTS.md` enforceable: the driver's computation moves into a
+   `lib/` function that a `node --test` file reads on every run
+   (`lib/coref-agreement.mjs` + `mhc-order5-precision.test.js` is the
+   template). One pattern, nine docs; the numbers a test does not read
+   are reports.
+4. **The audit runner** was scratch (`/tmp/audit-run.sh`, not committed).
+   If it is kept, it lives at `eoreader7/native/eval/the-fold/
+   audit-results.sh`, carries P94's driver→artifact map, and classifies a
+   print-only driver as such instead of reporting `diff lines: 0`.
+
+Also carried: the MHC battery picks its control from the run set, so a
+one-material invocation reports "none readable" for want of a control —
+worth a typed refusal in `main()` rather than a misleading stage.

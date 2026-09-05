@@ -7453,3 +7453,44 @@ this material — it also refuses the correct Napoleon/Kutuzov match, for
 an unrelated pre-existing coreference-fragmentation reason — so it ships
 opt-in, off by default. Full numbers, every disclosed limit, and the
 files touched: POLICIES.md P93 / eoreader7 READING-SPEC.md S63.
+
+## The stale stage — a committed eval result is not enforcement until a test reads it (added 2026-09-05) — pointer
+
+POLICIES.md **P94** is the law; eoreader7 **S64** the mechanism. The short
+map: "stage 13 on War and Peace" was recited from `mhc-RESULTS.md` and,
+re-run live, read "none readable." Three silent drifts after the last real
+run (2026-08-30): the same-day `WORKING_PASSAGES` widening exposed two organ
+defects on the article's back matter (a letterless "&" not breaking a
+capitalised run — "Pierre The Great Comet", a surface the text never
+contains; two sub-phrases of one anchor both folding into it — "Oxford
+University" / "University Press"); the 09-01 `readsNothing` wall made the
+battery's address-less order-13 readings uncountable; the 09-02 SVO wipe
+left the driver reading `e.subject` at 47 sites — `undefined`, reported as
+"this material offers no edge" (P41, in the instrument that measures the
+instrument).
+
+**Three things to carry.** (1) A number in a results doc is a report of one
+run; it is enforced only when a test reads it — the order-5 computation now
+lives in `lib/coref-agreement.mjs` and `mhc-order5-precision.test.js` reads
+it on every suite run. (2) "Organ unreachable" must be typed as a fact
+about the driver or the material, never let the one wear the other's face
+— the migrated driver refuses an unknown edge vocabulary loudly. (3) Two
+symptoms are not one cascade until measured apart: the stage collapse and
+the 6–13 blackout had different causes, and the check (`clean-shaped: 0`
+at both caps) was run before the fix was designed.
+
+After: stage 13 again, standing on order 5 at 11/11 withheld with exactly
+one fragment refused by name; Borodino at its real order-7 ceiling;
+`surfaces.js`'s overlap rule keeps disjoint fragments merging (pinned) and
+refuses the Ilya/Rostov shape it cannot tell from the publisher case
+(pinned as the cost). Do not read 13 as anything but what it is: a
+cascade-gated number that will move when the pool moves.
+
+The audit of the other committed results was stopped partway at wrap-up:
+3 of 13 drivers run — one drifted by a note, two unreproducible-by-
+construction (one because its fetched fixtures were untracked 32 minutes
+after its doc landed, and the driver narrowed its pool silently) — nine
+unaudited and named in P94; the two walk-based drivers now disclose the
+fixtures they skip. The audit's own first finding: eight of the thirteen
+docs are transcriptions of stdout, so a `git diff` of `results/` enforces
+nothing for them. `NEXT-PASSES.md` carries the continuation.

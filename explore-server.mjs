@@ -55,7 +55,7 @@ import {
   WEB_SEARCH_MAX_RESULTS,
   WEB_ARCHIVE_TIMEOUT_MS,
   WEB_UA,
-} from "./web.js";
+  GATEWAYS, gatewayOf, blockedShape, readGatewayBody, foldGateways, rankGateways, gatewayLines, ECHO_HEADERS_URL, ECHO_IP_URL, parseEchoHeaders, parseEchoIp, leakVerdict } from "./web.js";
 // the primary-source walk's pure half (citations out of a saved wiki face,
 // the claim-ordered ranking, the verbatim snip, the counted fold) — the
 // route below owns only the crossings
@@ -68,11 +68,13 @@ import { parseFrontmatter, readPriorDocument, rankPriorCandidates, checkPrior, f
 // the GitHub organ's pure half (device-flow shapes, Contents API payloads,
 // base64, the repo-path convention for skills/history sync) — the routes
 // below own only the crossings: github.com's device/token endpoints have no
-// CORS headers, so even the device flow is relayed server-side via n8n.
+// CORS headers, so the device flow crosses from THIS server (no third-party
+// relay — the maintainer's n8n relay was removed 2026-09-05; nothing about a
+// user's login passes anyone but GitHub).
 import {
   GITHUB_APP_CLIENT_ID,
-  GITHUB_DEVICE_CODE_RELAY_URL,
-  GITHUB_ACCESS_TOKEN_RELAY_URL,
+  GITHUB_DEVICE_CODE_URL,
+  GITHUB_ACCESS_TOKEN_URL,
   buildDeviceCodeBody,
   buildAccessTokenBody,
   contentsUrl,
@@ -611,17 +613,104 @@ async function searchWeb(query) {
   return { results, blocked, failure };
 }
 
+// ── public gateways (P117): the fall-through when the direct fetch is refused
+// The record's own `web-gateway` lines are the instrument's memory of which
+// gateways answered; the order to try is folded off them (web.js
+// rankGateways), never asserted. Every try is recorded, answered or not.
+function gatewayEvents() {
+  try {
+    return readFileSync(RECORD_PATH, "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((e) => e?.event === "web-gateway" || e?.event === "web-gateway-leak");
+  } catch {
+    return [];
+  }
+}
+function gatewayFold() {
+  return foldGateways(gatewayEvents());
+}
+/**
+ * Try the gateways in learned order until one yields the page. Returns
+ * {res-like, buf, via} or {tried} when none answered. Each try lands on the
+ * record with its own status and timing — that record is what the next
+ * ranking is folded from.
+ */
+async function fetchThroughGateways(url, why) {
+  const order = rankGateways(gatewayFold());
+  const tried = [];
+  for (const id of order) {
+    const g = gatewayOf(id);
+    const started = Date.now();
+    const at = new Date().toISOString();
+    try {
+      let { res, buf } = await fetchCapped(g.address(url));
+      let got = readGatewayBody(g.read, { status: res.status, contentType: res.headers.get("content-type") ?? "", body: buf.toString("utf8") });
+      if (got.ok && got.next) {
+        // the archive's second hop: the snapshot's raw face
+        ({ res, buf } = await fetchCapped(got.next));
+        got = readGatewayBody("raw", { status: res.status, contentType: res.headers.get("content-type") ?? "", body: buf.toString("utf8") });
+        if (got.ok) got.snapshot = got.next ?? null;
+      }
+      const ms = Date.now() - started;
+      if (!got.ok) {
+        record("web-gateway", { gateway: id, url, ok: false, status: res.status, ms, detail: got.detail, why });
+        tried.push({ gateway: id, ok: false, status: res.status, detail: got.detail });
+        continue;
+      }
+      record("web-gateway", { gateway: id, url, ok: true, status: res.status, ms, why });
+      tried.push({ gateway: id, ok: true, status: res.status, ms });
+      const body = got.html ?? got.text ?? "";
+      return {
+        res: { status: res.status, url: res.url, headers: { get: (k) => (k.toLowerCase() === "content-type" ? got.contentType : res.headers.get(k)) } },
+        buf: Buffer.from(body, "utf8"),
+        via: { gateway: id, kind: g.kind, sees: g.sees, why, address: g.address(url), ...(got.title ? { title: got.title } : {}), ...(got.snapshot ? { snapshot: got.snapshot } : {}) },
+        tried,
+      };
+    } catch (e) {
+      const ms = Date.now() - started;
+      record("web-gateway", { gateway: id, url, ok: false, status: null, ms, detail: e.message, why, at });
+      tried.push({ gateway: id, ok: false, status: null, detail: e.message });
+    }
+  }
+  return { tried };
+}
+
 async function fetchAndKeep(url, { forceArchive = false } = {}) {
   const retrievedAt = new Date().toISOString();
   let fetched;
+  let via = null;
+  let gatewaysTried = null;
   try {
     fetched = await fetchCapped(url);
   } catch (e) {
     record("web-fetch-error", { url, error: e.message });
-    const gap = e.code === "CENSORED_ABOVE"
-      ? { silence: "censored-above", detail: `${e.message} — giver: web.js WEB_FETCH_MAX_BYTES, engineering starting point` }
-      : { silence: "not-present", detail: e.message };
-    return { url, gap };
+    if (e.code === "CENSORED_ABOVE") return { url, gap: { silence: "censored-above", detail: `${e.message} — giver: web.js WEB_FETCH_MAX_BYTES, engineering starting point` } };
+    // A direct fetch that got no answer (a timeout, a reset) may still be
+    // readable through a gateway; a DNS failure is not — the address is
+    // absent everywhere, and the gateways are not asked.
+    const why = blockedShape({ error: e.message });
+    if (!why) return { url, gap: { silence: "not-present", detail: e.message } };
+    const g = await fetchThroughGateways(url, why);
+    if (!g.via) return { url, gap: { silence: "refused-upstream", detail: `${e.message}; ${g.tried.length} public gateway(s) tried, none answered — ${g.tried.map((t) => `${t.gateway}: ${t.detail ?? t.status}`).join("; ")}`, gatewaysTried: g.tried } };
+    fetched = g; via = g.via; gatewaysTried = g.tried;
+  }
+  // The direct fetch answered — but with a refusal shape a gateway can get
+  // around? A 403/429/challenge is the address refusing THIS reader, not
+  // the page being absent; the gateways are tried in the record's own
+  // order, and the page says which route it came by.
+  if (!via) {
+    const ctDirect = fetched.res.headers.get("content-type") ?? "";
+    const isHtml = /html|xhtml/i.test(ctDirect);
+    const probe = isHtml || fetched.res.status >= 400 ? extractReadable(fetched.buf.toString("utf8")) : null;
+    const why = blockedShape({
+      status: fetched.res.status,
+      challenge: probe ? looksLikeChallenge({ title: probe.title, textChars: probe.text?.length ?? 0 }) : false,
+      html: isHtml,
+      textChars: probe ? (probe.text?.trim().length ?? 0) : null,
+    });
+    if (why) {
+      const g = await fetchThroughGateways(url, why);
+      if (g.via) { fetched = g; via = g.via; }
+      gatewaysTried = g.tried;
+    }
   }
   const { res: r, buf } = fetched;
   const contentType = r.headers.get("content-type") ?? "";
@@ -688,10 +777,12 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
     rawPath: relOf(rawFile),
     textPath: textFile ? relOf(textFile) : null,
     ...(looksLikeChallenge({ title, textChars: text?.length }) ? { challenge: true } : {}),
+    ...(via ? { via } : {}),
+    ...(gatewaysTried && !via ? { gatewaysTried } : {}),
     archive: willArchive ? { status: "pending", askedAt: retrievedAt } : null,
   };
   appendWebHistory(entry);
-  record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: willArchive });
+  record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: willArchive, ...(via ? { via: via.gateway, why: via.why } : {}) });
   if (willArchive) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
   return { url, entry, fold, text };
 }
@@ -890,7 +981,19 @@ function readJsonBody(req) {
 
 function serveStatic(req, res, pathname) {
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  let file = rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
+  // The same two aliases serve.mjs carries (its own comment: "two aliases,
+  // no new roots"): a the-fold shim importing "../eoreader7/native/organs/x.js"
+  // resolves in the browser to "/eoreader7/native/…" — the tree /engine-v7
+  // already serves — and the seam's re-exports of "../../../the-fold/x.js"
+  // resolve to "/the-fold/…", this directory. Found 2026-09-05: without them
+  // explore.html's own shims (source.js, grounding.js, primary.js) 404ed on
+  // this server and the page showed its "needs its local server" banner over
+  // a half-booted Explore — on every checkout, not just a fresh one.
+  let file = rel.startsWith("/eoreader7/native/") || rel.startsWith("eoreader7/native/")
+    ? path.join(ENGINE_V7, rel.replace(/^\/?eoreader7\/native\//, ""))
+    : rel.startsWith("/the-fold/") || rel.startsWith("the-fold/")
+      ? path.join(ROOT, rel.replace(/^\/?the-fold\//, ""))
+    : rel.startsWith("/engine-v7/") || rel.startsWith("engine-v7/")
     ? path.join(ENGINE_V7, rel.replace(/^\/?engine-v7\//, ""))
     : rel.startsWith("/engine/") || rel.startsWith("engine/")
       ? path.join(ENGINE, rel.replace(/^\/?engine\//, ""))
@@ -1774,6 +1877,69 @@ const server = http.createServer(async (req, res) => {
     // its retrieval date — a browser history that actually holds the pages.
     // With the archive setting on, Save Page Now runs deferred and patches
     // the entry when the snapshot has a name.
+    // ---- public gateways (P117). GET is the learned table off the record —
+    // no egress. POST probes every gateway with one canonical page so the
+    // table has something to learn from before a blocked fetch needs it;
+    // each probe is a recorded egress like any fetch.
+    if (req.method === "GET" && p === "/api/web/gateways") {
+      const fold = gatewayFold();
+      return send(res, 200, { gateways: fold, order: rankGateways(fold), lines: gatewayLines(fold), roster: GATEWAYS.map((g) => ({ id: g.id, kind: g.kind, sees: g.sees })) });
+    }
+    if (req.method === "POST" && p === "/api/web/gateways") {
+      const body = await readJsonBody(req);
+      const target = normalizeUrl(body.url) || "https://example.com/";
+      const results = [];
+      for (const g of GATEWAYS) {
+        const started = Date.now();
+        try {
+          let { res: r, buf } = await fetchCapped(g.address(target));
+          let got = readGatewayBody(g.read, { status: r.status, contentType: r.headers.get("content-type") ?? "", body: buf.toString("utf8") });
+          if (got.ok && got.next) {
+            ({ res: r, buf } = await fetchCapped(got.next));
+            got = readGatewayBody("raw", { status: r.status, contentType: r.headers.get("content-type") ?? "", body: buf.toString("utf8") });
+          }
+          const ms = Date.now() - started;
+          record("web-gateway", { gateway: g.id, url: target, ok: Boolean(got.ok), status: r.status, ms, detail: got.ok ? null : got.detail, why: "probe" });
+          results.push({ gateway: g.id, ok: Boolean(got.ok), status: r.status, ms, detail: got.ok ? null : got.detail, chars: got.ok ? (got.html ?? got.text ?? "").length : 0 });
+        } catch (e) {
+          const ms = Date.now() - started;
+          record("web-gateway", { gateway: g.id, url: target, ok: false, status: null, ms, detail: e.message, why: "probe" });
+          results.push({ gateway: g.id, ok: false, status: null, ms, detail: e.message, chars: 0 });
+        }
+      }
+      // What each relay or reader FORWARDS about the person: the echo
+      // endpoint read directly gives this machine's own address; read
+      // through the gateway it gives the headers the gateway sent. Both
+      // crossings are recorded like any fetch; an archive is not probed
+      // (the far side never hears from the person through a snapshot).
+      let ownIp = null;
+      try {
+        const { buf } = await fetchCapped(ECHO_IP_URL, { timeoutMs: 15_000 });
+        ownIp = parseEchoIp(buf.toString("utf8"));
+        record("web-gateway-echo", { url: ECHO_IP_URL, ok: Boolean(ownIp) });
+      } catch (e) {
+        record("web-gateway-echo", { url: ECHO_IP_URL, ok: false, detail: e.message });
+      }
+      const leaks = [];
+      for (const g of GATEWAYS) {
+        if (g.kind === "archive") continue;
+        const at = new Date().toISOString();
+        try {
+          const { res: r, buf } = await fetchCapped(g.address(ECHO_HEADERS_URL), { timeoutMs: 15_000 });
+          const got = readGatewayBody(g.read, { status: r.status, contentType: r.headers.get("content-type") ?? "", body: buf.toString("utf8") });
+          const headers = got.ok ? parseEchoHeaders(got.html ?? got.text ?? "") : null;
+          const verdict = leakVerdict(headers, ownIp);
+          record("web-gateway-leak", { gateway: g.id, ok: Boolean(headers), forwardsAddress: verdict.forwardsAddress, carriers: verdict.carriers, ownIpKnown: Boolean(ownIp), at });
+          leaks.push({ gateway: g.id, echoed: Boolean(headers), forwardsAddress: verdict.forwardsAddress, carriers: verdict.carriers });
+        } catch (e) {
+          record("web-gateway-leak", { gateway: g.id, ok: false, forwardsAddress: null, carriers: [], detail: e.message, at });
+          leaks.push({ gateway: g.id, echoed: false, forwardsAddress: null, carriers: [], detail: e.message });
+        }
+      }
+      const fold = gatewayFold();
+      return send(res, 200, { target, results, leaks, ownIpKnown: Boolean(ownIp), gateways: fold, order: rankGateways(fold), lines: gatewayLines(fold) });
+    }
+
     if (req.method === "POST" && p === "/api/web/fetch") {
       const body = await readJsonBody(req);
       const url = normalizeUrl(body.url);
@@ -2197,9 +2363,10 @@ function mergeRelatingLedger(left, nominations) {
       return send(res, 200, { cleared: victims.length, files: removed.size, bytes, remaining: kept.length });
     }
 
-    // ---- the GitHub organ. Device flow relayed via n8n (github.com's token
-    // endpoint has no CORS headers, so even a server-to-server proxy is the
-    // only browser-reachable shape); Contents API read/write server-side so
+    // ---- the GitHub organ. Device flow from this server straight to
+    // github.com (its endpoints have no CORS headers, so a browser cannot
+    // call them; a node process on the user's own machine can — no relay,
+    // no third party, since 2026-09-05); Contents API read/write server-side so
     // the access token never appears in a URL the browser holds in history.
     // The token travels in the POST body from client to this server — the
     // same posture the priors/library routes already take with their own
@@ -2207,7 +2374,7 @@ function mergeRelatingLedger(left, nominations) {
     // (localStorage, github-pane.js's concern).
     if (req.method === "POST" && p === "/api/github/device-code") {
       try {
-        const r = await fetch(GITHUB_DEVICE_CODE_RELAY_URL, {
+        const r = await fetch(GITHUB_DEVICE_CODE_URL, {
           method: "POST",
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify(buildDeviceCodeBody()),
@@ -2224,7 +2391,7 @@ function mergeRelatingLedger(left, nominations) {
       const body = await readJsonBody(req);
       if (!body.device_code) return send(res, 400, { error: "device_code is required" });
       try {
-        const r = await fetch(GITHUB_ACCESS_TOKEN_RELAY_URL, {
+        const r = await fetch(GITHUB_ACCESS_TOKEN_URL, {
           method: "POST",
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify(buildAccessTokenBody(body.device_code)),

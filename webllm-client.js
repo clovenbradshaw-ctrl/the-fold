@@ -25,6 +25,7 @@
 import { CreateWebWorkerMLCEngine, prebuiltAppConfig } from "/node_modules/@mlc-ai/web-llm/lib/index.js";
 import {
   WEBLLM_MODEL_ID,
+  isWebLLMModel,
   appConfigFor,
   classifyWebLLMFailure,
   isLocalPage,
@@ -58,13 +59,19 @@ class WebLLMClient {
   constructor() {
     this.engine = null;
     this.worker = null;
+    this.modelId = null; // the id the live engine holds; a different id unloads it
     this._loading = null; // in-flight ensure(), shared by concurrent callers
-    const { appConfig, weights, contextWindow } = appConfigFor(prebuiltAppConfig, location.href);
+    this._loadingId = null;
+    const { appConfig, weights, contextWindow, contextWindows } = appConfigFor(prebuiltAppConfig, location.href);
     this.appConfig = appConfig;
     /** Stated by the page when this rung connects: where the bytes come from. */
     this.weights = weights;
-    /** The config's own declared window — connect()'s contextTokens. */
+    /** The default rung's declared window; contextWindowFor(id) for any rung. */
     this.contextWindow = contextWindow;
+    this.contextWindows = contextWindows;
+  }
+  contextWindowFor(id) {
+    return this.contextWindows?.[id] ?? null;
   }
 
   get ready() {
@@ -85,14 +92,20 @@ class WebLLMClient {
    * cache reads and shader compilation after — into whatever line the caller
    * owns. Throws the typed failure text after LOAD_ATTEMPTS.
    */
-  async ensure(onProgress) {
-    if (this.engine) return this.engine;
-    if (this._loading) return this._loading;
-    this._loading = this._load(onProgress).finally(() => { this._loading = null; });
+  async ensure(onProgress, modelId = WEBLLM_MODEL_ID) {
+    if (!isWebLLMModel(modelId)) throw new Error(`${modelId} is not an in-tab rung`);
+    if (this.engine && this.modelId === modelId) return this.engine;
+    if (this._loading && this._loadingId === modelId) return this._loading;
+    // One engine at a time: a different rung tears the live one down (its
+    // worker, its GPU buffers) before the next loads — two 1–3GB models on
+    // one device is exactly the reclaimed-device failure this file guards.
+    if (this.engine || this._loading) await this.unload();
+    this._loadingId = modelId;
+    this._loading = this._load(onProgress, modelId).finally(() => { this._loading = null; this._loadingId = null; });
     return this._loading;
   }
 
-  async _load(onProgress) {
+  async _load(onProgress, modelId) {
     // Weight bytes about to land in this origin's storage should survive
     // cache pressure. Best-effort and remote-only: a localhost page reloads
     // them from this disk in seconds, so eviction costs nothing there.
@@ -118,7 +131,7 @@ class WebLLMClient {
               reject(engineStalledError(Date.now() - lastLife, "loading the model"));
             }
           }, 5000);
-          CreateWebWorkerMLCEngine(this.worker, WEBLLM_MODEL_ID, {
+          CreateWebWorkerMLCEngine(this.worker, modelId, {
             appConfig: this.appConfig,
             initProgressCallback: (report) => {
               lastLife = Date.now();
@@ -130,6 +143,7 @@ class WebLLMClient {
           );
         });
         this.engine = engine;
+        this.modelId = modelId;
         return engine;
       } catch (err) {
         lastErr = err;
@@ -159,10 +173,10 @@ class WebLLMClient {
    * same request; the caller's onDelta sees the replay as a rewritten draft
    * (the accumulated text starts over), which is what actually happened.
    */
-  async stream(messages, { maxTokens, json, onDelta, onUsage, onProgress } = {}) {
+  async stream(messages, { maxTokens, json, temperature, model = WEBLLM_MODEL_ID, onDelta, onUsage, onProgress } = {}) {
     for (let round = 0; ; round++) {
-      await this.ensure(onProgress);
-      const request = toWebLLMRequest(messages, { maxTokens, json });
+      await this.ensure(onProgress, model);
+      const request = toWebLLMRequest(messages, { maxTokens, json, temperature });
       let out = "";
       try {
         // Every await below runs under the watchdog: a reclaimed WebGPU
@@ -178,7 +192,7 @@ class WebLLMClient {
             first ? "grammar compile and prefill" : "between tokens",
           );
           if (done) return out;
-          if (chunk.usage) onUsage?.(paceRecordFromUsage(WEBLLM_MODEL_ID, messages, chunk.usage));
+          if (chunk.usage) onUsage?.(paceRecordFromUsage(model, messages, chunk.usage));
           const delta = chunk.choices?.[0]?.delta?.content ?? "";
           if (!delta) continue;
           out += delta;
@@ -206,6 +220,7 @@ class WebLLMClient {
       try { await this.engine.unload(); } catch { /* best effort */ }
     }
     this._terminateWorker();
+    this.modelId = null;
   }
 }
 

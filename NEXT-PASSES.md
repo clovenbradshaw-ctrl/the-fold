@@ -1347,3 +1347,7 @@ Everything else in Pass 15 (15.2's Assembly framing, 15.3's other five
 rule-nominations, 15.5's material-as-ground, 15.6's constitution articles,
 15.8) stands as written, unstarted, gated on the same order: nothing
 after 15.1 until 15.1's real run is read.
+
+## Pass 31 — twenty-five "frontier" tasks, and the perceivers' seat (added 2026-09-05, RUN same day)
+
+POLICIES.md **P115** / eoreader7 **S76**. Zero-call arm 13/13 claimed, 11/11 witnesses able to fail, media 5/5 through the door; mouth arm a dated record in eoreader7 `eval/the-fold/results/frontier-25-RESULTS.md`. Open after it, in order: (1) a line of reading out of a frame — the essay's third step, over the crossed perceivers' units, with the reading-lines grammar; (2) the page-side decoder for the measuring door (canvas for an image, a `<video>` frame walk, `decodeAudioData` for compressed audio) so `/measure` on a dropped png reads scanlines in the browser as it now does headless; (3) the form witness on the app's own creative turn (shape.js::declaredForm is wired nowhere in app.js yet — the eval is its only caller).

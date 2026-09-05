@@ -1,19 +1,22 @@
 // github.js — the GitHub organ's pure half: device-flow shapes, Contents API
 // payload building/parsing, base64, and the repo-path convention for syncing
 // skills and history. This file OWNS NO NETWORK — same discipline as
-// web.js: every github.com and n8n crossing lives in explore-server.mjs,
+// web.js: every github.com crossing lives in explore-server.mjs,
 // which is what makes this half testable offline and keeps the browser page
 // itself free of any non-localhost network call (POLICIES P13's boundary).
 //
-// The device flow needs a public GitHub App and two n8n relays because
-// github.com's device-flow token endpoint has no CORS headers — ported from
-// eoWebLLM's github-auth.ts / github-sync.ts, reusing that app (client id
-// below) rather than registering a second one. See CLAUDE.md's GitHub organ
-// section for why.
+// The device flow needs a public GitHub App and a SERVER in the loop because
+// github.com's device-flow endpoints have no CORS headers — a browser cannot
+// call them, a node process can. Until 2026-09-05 the server relayed through
+// the maintainer's own n8n; that relay is gone (CLAUDE.md, the GitHub organ
+// section, amended): explore-server.mjs on the user's machine calls
+// github.com directly, so nothing about a user's login passes anyone but
+// GitHub. Ported from eoWebLLM's github-auth.ts / github-sync.ts, reusing
+// that public app (client id below) rather than registering a second one.
 
 export const GITHUB_APP_CLIENT_ID = "Iv23livftc7ZekSCjCvL";
-export const GITHUB_DEVICE_CODE_RELAY_URL = "https://n8n.intelechia.com/webhook/github-device-code";
-export const GITHUB_ACCESS_TOKEN_RELAY_URL = "https://n8n.intelechia.com/webhook/github-access-token";
+export const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code";
+export const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 export const GITHUB_API = "https://api.github.com";
 
 export const MAX_CONFLICT_RETRIES = 3;

@@ -59,6 +59,14 @@ const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // rather than an untangling. Used, never copied — the same discipline
 // /engine and /nul already hold.
 const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
+// Boot check (2026-09-05): a missing mount used to surface as every engine
+// import 404ing behind a blank page. Name the path and the repair here.
+for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/legacy-eoreader6.1/packages/engine", ENGINE], ["../eoreader7/legacy-eoreader6.1/nul", NUL]]) {
+  if (!existsSync(dir)) {
+    console.error(`serve.mjs: ${name} is missing (${dir}).\n  The Fold reads the engine from ../eoreader7 — run ./fold, or: git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git ${resolve(ROOT, "..", "eoreader7")}`);
+    process.exit(2);
+  }
+}
 // Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
 // output) — never a fact this repo derives or vendors a stale copy of.
 // scripts/corpus/ is eoreader6.1's OWN gitignored, locally-reproducible

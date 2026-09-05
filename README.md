@@ -12,8 +12,9 @@ cd the-fold
 ```
 
 One command, from nothing. `./fold` installs Node.js and Ollama if they're
-missing, clones the two sibling repos it needs (`eoreader6.1` for the
-reading engine, `live_priors` for the priors organ's corpus), installs this
+missing, clones the two sibling repos it needs (`eoreader7` — the reading
+engine, with the frozen 6.1 cut it pins as a submodule — and `live_priors`
+for the priors organ's corpus), installs this
 repo's own dependencies, pulls a starter model if none is pulled yet, and
 opens the browser once everything is up. What each step does, and how to run
 the pieces by hand, is in [Running it](#running-it) below.
@@ -119,8 +120,8 @@ pins that at 400 turns.
 
 See [Quickstart](#quickstart) above for the one-command path. In full,
 `./fold` installs Node.js if missing (Homebrew on macOS), clones
-`eoreader6.1` next to this repo if it isn't there (the engine both servers
-mount), clones `live_priors` next to this repo if it isn't there (the priors
+`eoreader7` next to this repo if it isn't there (the engine both servers
+mount: its `native/` kernel and the frozen 6.1 cut it pins as a submodule), clones `live_priors` next to this repo if it isn't there (the priors
 organ's corpus — soft dependency, explore-server.mjs shows a typed gap
 without it, so this is best-effort and never blocks the rest of the launch),
 installs `node_modules`, installs Ollama if missing and starts it if it
@@ -140,7 +141,8 @@ node the-fold/serve.mjs 8811
 ```
 
 (The chat server must be `serve.mjs`, not a generic static server: it mounts
-eoreader6.1's engine at `/engine` and serves everything no-store.)
+eoreader7's frozen 6.1 engine at `/engine`, its native kernel at `/engine-v7`,
+and serves everything no-store.)
 
 Two model calls per ordinary turn: the answer, and the summary refresh. The
 refresh runs constrained to JSON at a 300-token cap — it is bookkeeping over
@@ -182,3 +184,46 @@ that the address still resolves after the paraphrase has forgotten.
 The algorithm is ported from `eochatX`'s `app/client/eo-discourse.ts`, which is
 itself a port of `eochat`'s `server/conversation-summary.js`. This repo is that
 mechanism standing on its own, with no framework around it.
+
+## Run it from a website
+
+The page does not need Ollama. Serve this directory (plus `models/`, see
+below) from any static host over https, and the model runs **in the
+visitor's own tab** on WebGPU — nothing leaves their machine, and nothing
+about them reaches the site's owner: the site serves bytes, the browser does
+the reading. Three in-tab models are offered, chosen for what their
+publishers disclose about the training data (POLICIES.md P116):
+
+| picker | publisher, licence | training data |
+|---|---|---|
+| OLMo 2 1B · in this tab | Ai2, Apache-2.0 | data, code, weights and logs all published |
+| SmolLM2 1.7B · in this tab | Hugging Face, Apache-2.0 | pretraining mixture and instruction data published |
+| RedPajama-INCITE 3B · in this tab | Together, Apache-2.0 | RedPajama-1T, the open reproduction of the LLaMA data |
+
+Mirror them once, so the site (and a localhost page) serves every byte
+itself:
+
+```bash
+sh models/fetch-webllm.sh
+```
+
+That fetches ~3.3 GB from the publishers into `models/` (md5-verified,
+resumable; one model: `sh models/fetch-webllm.sh <id>`). WebGPU needs a
+secure origin (https:// or localhost) and a Chrome- or Edge-shaped browser
+with hardware acceleration; the page says which of those is missing rather
+than offering a model that would fail. The page is laid out for a phone
+as well as a desk: on a narrow screen the chat is one tab among the panels,
+every control is reachable by touch, and the in-tab models run the same way.
+
+What a page load reaches: its own origin, and `localhost:11434` if Ollama is
+there. What leaves only when you act: a web search or page fetch when the
+`web` toggle is on (through the local explore server), `/transcribe`'s
+one-time Whisper download from huggingface.co (said before it starts),
+`pip install` from pyodide's mirror, GitHub when you connect a repo —
+straight to github.com from the local server, through no one's relay —
+and, when a site refuses the direct fetch and the `web` toggle is on, a
+public gateway (the Wayback Machine, a reader or relay service) that then
+sees the address; which gateways are open and what each forwards about you
+is learned from your own record, shown by `/gateways`, and every page read
+that way says so (POLICIES.md P117). Nothing about you reaches this
+project's maintainer by any route.

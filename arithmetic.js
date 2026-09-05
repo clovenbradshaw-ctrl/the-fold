@@ -183,3 +183,215 @@ export function claimedValue(text) {
   );
   return nums.length ? nums[nums.length - 1] : null;
 }
+
+// ── THE SHAPED QUESTIONS (added 2026-09-05) ──────────────────────────────────
+//
+// The pure-expression door above bails on "5 miles to km", "10 choose 3",
+// "the median of 3, 9, 1", "the derivative of x^3 + 2x at x = 2", "solve
+// 3x + 5 = 20" and "how many days between 2026-01-01 and 2026-09-05" — each
+// a computation, each measured on the app's own 2b mouth as a number
+// generated rather than computed. They join this organ rather than a new
+// one because they are the same law at the same seam: detection is
+// structural (one whole-question regex per shape after the same wrapper
+// strip; the engine must parse the capture with no free symbol beyond the
+// declared unknown; anything else is null), computation is the injected
+// engine's OWN operation (math.unit, combinations, factorial, mean/median/
+// std, derivative, rationalize's polynomial coefficients — the quadratic
+// root is `math.evaluate` over the formula as a string), and the mouth is
+// never asked to restate the result. No operator is hand-rolled here; the
+// calendar's engine is the host's proleptic-Gregorian Date.UTC, declared as
+// such, the way mathjs is declared for numbers.
+//
+// `checkArithmetic` is unchanged for every question it already answered:
+// the shapes are tried only after the pure door returns null, and each
+// shape needs a word the pure door never accepts.
+
+const SHAPE_WRAPPER_RE = /^\s*(?:please\s+)?(?:what'?s|what\s+is|what\s+are|what\s+was|calculate|compute|solve|evaluate|find|work\s+out|tell\s+me|how\s+much\s+is)\s*:?\s*(?:the\s+)?/i;
+const SHAPE_TAIL_RE = /[?!.]+\s*$/;
+const SHAPE_NUM = "-?\\d[\\d,]*(?:\\.\\d+)?";
+const shapeClean = (q) => stripThousands(String(q ?? "")).replace(SHAPE_WRAPPER_RE, "").replace(SHAPE_TAIL_RE, "").trim();
+
+const UNIT_CONVERT_RE = new RegExp(`^(?:convert\\s+)?(${SHAPE_NUM})\\s*([A-Za-z°/^\\d]+(?:\\s+per\\s+[A-Za-z]+)?)\\s+(?:to|in|into|as)\\s+([A-Za-z°/^\\d]+(?:\\s+per\\s+[A-Za-z]+)?)$`, "i");
+const HOW_MANY_UNITS_RE = new RegExp(`^how\\s+many\\s+([A-Za-z]+)\\s+(?:are|is)\\s+(?:there\\s+)?in\\s+(${SHAPE_NUM})\\s*([A-Za-z]+)$`, "i");
+const DERIVATIVE_RE = /^(?:the\s+)?derivative\s+of\s+(.+?)(?:\s+with\s+respect\s+to\s+([a-z]))?(?:\s+at\s+([a-z])\s*=\s*(-?\d+(?:\.\d+)?))?$/i;
+const CHOOSE_RE = new RegExp(`^(${SHAPE_NUM})\\s+choose\\s+(${SHAPE_NUM})$`, "i");
+const COMBINATIONS_RE = new RegExp(`^(?:number\\s+of\\s+)?(?:ways\\s+to\\s+choose|combinations\\s+of)\\s+(${SHAPE_NUM})\\s+(?:items?\\s+)?(?:from|out\\s+of)\\s+(${SHAPE_NUM})`, "i");
+const FACTORIAL_RE = new RegExp(`^(${SHAPE_NUM})\\s*(?:!|factorial)$`, "i");
+const STATISTIC_RE = /^(mean|average|median|standard\s+deviation|std|sum|total|variance|max|maximum|min|minimum)\s+of\s*:?\s*(.+)$/i;
+const STATISTIC_FN = Object.freeze({ mean: "mean", average: "mean", median: "median", "standard deviation": "std", std: "std", sum: "sum", total: "sum", variance: "variance", max: "max", maximum: "max", min: "min", minimum: "min" });
+const SOLVE_RE = /^(?:solve\s+)?(?:for\s+([a-z])\s*[:,]?\s*)?([^=]+)=([^=]+?)(?:\s+for\s+([a-z]))?$/i;
+const SOLVE_ALPHABET_RE = /^[\d\sxyz+\-*/^().=]+$/i;
+
+// mathjs spells a few everyday units its own way. This maps the WORD to
+// the engine's spelling; the conversion itself stays the engine's.
+const UNIT_SPELLING = Object.freeze({ miles: "mile", mile: "mile", km: "km", kilometers: "km", kilometres: "km", kilometer: "km", kilometre: "km", meters: "m", metres: "m", meter: "m", metre: "m", feet: "ft", foot: "ft", inches: "inch", inch: "inch", pounds: "lb", pound: "lb", lbs: "lb", kilograms: "kg", kilogram: "kg", kg: "kg", grams: "g", gram: "g", ounces: "oz", ounce: "oz", celsius: "degC", fahrenheit: "degF", kelvin: "K", "°c": "degC", "°f": "degF", liters: "L", litres: "L", liter: "L", litre: "L", gallons: "gal", gallon: "gal", hours: "hour", hour: "hour", minutes: "minute", minute: "minute", seconds: "second", second: "second", days: "day", day: "day", mph: "mi/h", kph: "km/h" });
+const unitWord = (w) => { const k = String(w).trim().toLowerCase().replace(/\s+per\s+/, "/"); return UNIT_SPELLING[k] ?? k; };
+
+/** Detect one of the shaped questions and read its parts. No computation. */
+export function detectShaped(question, { math } = {}) {
+  if (typeof question !== "string" || !question.trim()) return null;
+  const q = shapeClean(question);
+  let m;
+  if ((m = HOW_MANY_UNITS_RE.exec(q))) return { kind: "units", value: m[2], from: m[3], to: m[1] };
+  if ((m = UNIT_CONVERT_RE.exec(q))) return { kind: "units", value: m[1], from: m[2], to: m[3] };
+  if ((m = DERIVATIVE_RE.exec(q))) return { kind: "derivative", expression: m[1].trim(), variable: (m[2] ?? m[3] ?? "x").toLowerCase(), at: m[4] != null ? Number(m[4]) : null };
+  if ((m = CHOOSE_RE.exec(q))) return { kind: "combinations", n: m[1], k: m[2] };
+  if ((m = COMBINATIONS_RE.exec(q))) return { kind: "combinations", n: m[2], k: m[1] };
+  if ((m = FACTORIAL_RE.exec(q))) return { kind: "factorial", n: m[1] };
+  if ((m = STATISTIC_RE.exec(q))) {
+    const nums = m[2].split(/[\s,;]+(?:and\s+)?/).filter(Boolean);
+    if (nums.length < 2 || !nums.every((n) => /^-?\d+(?:\.\d+)?$/.test(n))) return null;
+    return { kind: "statistic", statistic: m[1].toLowerCase().replace(/\s+/g, " "), values: nums.map(Number) };
+  }
+  if ((m = SOLVE_RE.exec(q)) && SOLVE_ALPHABET_RE.test(q.replace(/\bfor\s+[a-z]\b/i, "").replace(/^solve\s+/i, ""))) {
+    const lhs = m[2].trim();
+    const rhs = m[3].trim();
+    const vars = new Set((lhs + rhs).match(/[a-z]/gi) ?? []);
+    const declared = (m[1] ?? m[4] ?? "").toLowerCase();
+    if (vars.size !== 1) return null;
+    const variable = [...vars][0].toLowerCase();
+    if (declared && declared !== variable) return null;
+    if (math?.parse) { try { math.parse(lhs); math.parse(rhs); } catch { return null; } }
+    return { kind: "solve", lhs, rhs, variable };
+  }
+  return null;
+}
+
+const roundNoise = (v) => Math.round(v * 1e9) / 1e9;
+const fmtValue = (v) => (typeof v === "number" ? String(roundNoise(v)) : String(v));
+const texOf = (math, expression) => { try { return typeof math?.parse === "function" ? math.parse(expression).toTex() : null; } catch { return null; } };
+
+/** Compute a detected shape with the engine's own operation; {kind, expression, value, display, tex} or a typed gap. */
+export function checkShaped(question, { math } = {}) {
+  const found = detectShaped(question, { math });
+  if (!found) return null;
+  if (!math || typeof math.evaluate !== "function") return { ...found, expression: found.expression ?? null, gap: "the arithmetic engine is not available" };
+  try {
+    switch (found.kind) {
+      case "units": {
+        const expression = `${found.value} ${unitWord(found.from)} to ${unitWord(found.to)}`;
+        const u = math.evaluate(expression);
+        if (!u || typeof u.toNumber !== "function") return { ...found, expression, gap: "the engine did not read that as a unit conversion" };
+        const value = roundNoise(u.toNumber(unitWord(found.to)));
+        return { ...found, expression, value, display: `${value} ${unitWord(found.to)}`, tex: null };
+      }
+      case "solve": {
+        const poly = `(${found.lhs}) - (${found.rhs})`;
+        const expression = `${found.lhs} = ${found.rhs}`;
+        const c = math.rationalize(poly, {}, true)?.coefficients;
+        if (!c || c.length < 2) return { ...found, expression, gap: "the engine found no polynomial in the unknown" };
+        if (c.length === 2) {
+          const value = roundNoise(math.evaluate(`-(${c[0]}) / (${c[1]})`));
+          return { ...found, expression, value, display: `${found.variable} = ${value}`, tex: null };
+        }
+        if (c.length === 3) {
+          const [c0, c1, c2] = c;
+          const disc = math.evaluate(`(${c1})^2 - 4*(${c2})*(${c0})`);
+          if (disc < 0) return { ...found, expression, gap: "no real root: the discriminant is negative" };
+          const r1 = roundNoise(math.evaluate(`(-(${c1}) + sqrt(${disc})) / (2*(${c2}))`));
+          const r2 = roundNoise(math.evaluate(`(-(${c1}) - sqrt(${disc})) / (2*(${c2}))`));
+          const value = r1 === r2 ? [r1] : [r2, r1].sort((a, b) => a - b);
+          return { ...found, expression, value, display: `${found.variable} = ${value.join(" or ")}`, tex: null };
+        }
+        return { ...found, expression, gap: `degree ${c.length - 1}: the engine's coefficients are not rooted here beyond a quadratic` };
+      }
+      case "derivative": {
+        const d = math.derivative(found.expression, found.variable);
+        const expression = `d/d${found.variable} (${found.expression})`;
+        if (found.at == null) return { ...found, expression, value: d.toString(), display: d.toString(), tex: null };
+        const value = roundNoise(d.evaluate({ [found.variable]: found.at }));
+        return { ...found, expression: `${expression} at ${found.variable} = ${found.at}`, value, display: `${d.toString()} → ${value}`, tex: null };
+      }
+      case "combinations": {
+        const expression = `combinations(${found.n}, ${found.k})`;
+        const value = math.evaluate(expression);
+        return { ...found, expression, value, display: fmtValue(value), tex: texOf(math, expression) };
+      }
+      case "factorial": {
+        const expression = `factorial(${found.n})`;
+        const value = math.evaluate(expression);
+        return { ...found, expression, value, display: fmtValue(value), tex: texOf(math, expression) };
+      }
+      case "statistic": {
+        const expression = `${STATISTIC_FN[found.statistic]}(${found.values.join(", ")})`;
+        const value = roundNoise(math.evaluate(expression));
+        return { ...found, expression, value, display: fmtValue(value), tex: texOf(math, expression) };
+      }
+      default:
+        return null;
+    }
+  } catch (e) {
+    return { ...found, expression: found.expression ?? null, gap: e.message };
+  }
+}
+
+// ── THE CALENDAR: the host's Date.UTC is the engine, declared ─────────────────
+// ISO (2026-09-05), Month D, YYYY and D Month YYYY are read exactly; "next
+// Tuesday", "today" and "last month" are relative to a now this module is
+// not handed, so they bail. A day count is the difference (exclusive of the
+// start) unless the question says "inclusive".
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTH_RE = MONTHS.map((m) => m.slice(0, 3) + "[a-z]*").join("|");
+const DATE_RE = `(?:(\\d{4})-(\\d{2})-(\\d{2})|(${MONTH_RE})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})|(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH_RE})\\.?,?\\s+(\\d{4}))`;
+const DATE_ALONE_RE = new RegExp(`^\\s*${DATE_RE}\\s*$`, "i");
+const monthIndex = (w) => MONTHS.findIndex((m) => m.startsWith(String(w).toLowerCase().slice(0, 3)));
+const DAY_MS = 86_400_000;
+
+/** A date this module reads exactly, as {y, m, d, iso, utc} — or null (Feb 30 is null, not March 2). */
+export function readDate(s) {
+  const m = DATE_ALONE_RE.exec(String(s ?? ""));
+  if (!m) return null;
+  let y, mo, d;
+  if (m[1]) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+  else if (m[4]) { mo = monthIndex(m[4]) + 1; d = +m[5]; y = +m[6]; }
+  else { d = +m[7]; mo = monthIndex(m[8]) + 1; y = +m[9]; }
+  if (!(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) return null;
+  const utc = Date.UTC(y, mo - 1, d);
+  const back = new Date(utc);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
+  return { y, m: mo, d, iso: `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`, utc };
+}
+const BETWEEN_RE = new RegExp(`^how\\s+many\\s+days\\s+(?:are\\s+there\\s+|are\\s+|is\\s+it\\s+)?(?:between|from)\\s+(${DATE_RE})\\s+(?:and|to|until)\\s+(${DATE_RE})(\\s+inclusive)?$`, "i");
+const WEEKDAY_RE = new RegExp(`^(?:what\\s+)?(?:day\\s+of\\s+the\\s+week|weekday|day)\\s+(?:is|was|will\\s+be|does|did)?\\s*(?:it\\s+)?(?:on\\s+)?(${DATE_RE})(?:\\s+fall\\s+on)?$`, "i");
+const OFFSET_RE = new RegExp(`^(?:what\\s+)?date\\s+(?:is|was|will\\s+be|falls)\\s+(\\d+)\\s+days\\s+(after|before|from)\\s+(${DATE_RE})$`, "i");
+
+export function detectCalendar(question) {
+  const q = String(question ?? "").replace(SHAPE_WRAPPER_RE, "").replace(SHAPE_TAIL_RE, "").trim();
+  let m;
+  if ((m = BETWEEN_RE.exec(q))) {
+    const from = readDate(m[1]);
+    const to = readDate(m[11]);
+    return from && to ? { kind: "calendar", op: "between", from, to, inclusive: !!m[21] } : null;
+  }
+  if ((m = WEEKDAY_RE.exec(q))) { const date = readDate(m[1]); return date ? { kind: "calendar", op: "weekday", date } : null; }
+  if ((m = OFFSET_RE.exec(q))) { const date = readDate(m[3]); return date ? { kind: "calendar", op: "offset", days: +m[1], direction: m[2].toLowerCase() === "before" ? -1 : 1, date } : null; }
+  return null;
+}
+
+export function checkCalendar(question) {
+  const found = detectCalendar(question);
+  if (!found) return null;
+  if (found.op === "between") {
+    const diff = Math.abs(Math.round((found.to.utc - found.from.utc) / DAY_MS));
+    const value = found.inclusive ? diff + 1 : diff;
+    return { ...found, expression: `days(${found.from.iso} → ${found.to.iso})${found.inclusive ? " inclusive" : ""}`, value, display: `${value} days`, tex: null };
+  }
+  if (found.op === "weekday") {
+    const value = WEEKDAYS[new Date(found.date.utc).getUTCDay()];
+    return { ...found, expression: `weekday(${found.date.iso})`, value, display: value, tex: null };
+  }
+  const t = new Date(found.date.utc + found.direction * found.days * DAY_MS);
+  const value = t.toISOString().slice(0, 10);
+  return { ...found, expression: `${found.date.iso} ${found.direction > 0 ? "+" : "−"} ${found.days} days`, value, display: `${value} (${WEEKDAYS[t.getUTCDay()]})`, tex: null };
+}
+
+/**
+ * Every computed answer this organ can give, in order of how little it
+ * reads into the question: the pure expression first (unchanged), then the
+ * shaped questions, then the calendar. Null when none claims it — the
+ * question is not this organ's to answer.
+ */
+export function checkQuantity(question, { math } = {}) {
+  return checkArithmetic(question, { math }) ?? checkShaped(question, { math }) ?? checkCalendar(question);
+}

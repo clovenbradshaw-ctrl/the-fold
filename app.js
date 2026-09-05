@@ -70,7 +70,10 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // engine injected (the cast.js pattern) so this module stays pure; the page
 // hands it window.math, the vendored mathjs UMD bundle (index.html — must
 // load before monaco's loader.js, see that file's comment).
-import { checkArithmetic } from "./arithmetic.js";
+// checkQuantity (P115): the pure door first, byte-identical, then the shaped
+// questions (units, choose, statistics, derivative, an equation) and the
+// calendar — each computed by the engine's own operation, never restated.
+import { checkQuantity } from "./arithmetic.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
 // computed expression as typeset math — mathjs's own toTex(), not a second,
@@ -88,10 +91,22 @@ import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamed
 import { renderBlocksInto } from "./render.js";
 
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, runSandboxed } from "./term.js";
+// The in-tab rung (P21's WebLLM rung, wired into the page 2026-09-05 — its
+// modules and tests had shipped unwired). The decisions are webllm-rung.js's;
+// webllm-client.js is the worker + the streaming call; the roster is three
+// models chosen for what their publishers disclose about the training data.
+import { WEBLLM_MODELS, isWebLLMModel, webllmModelOf, webllmLabelFor, mergeOffered, webgpuBlocker } from "./webllm-rung.js";
+import { webllmClient } from "./webllm-client.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
+// The measuring door (P19), routed from the chat since 2026-09-05: the organ
+// is eoreader7's measure.js (the-fold/measure.js is its shim); the null is
+// the engine's own /nul mount; the audio reduce is the crossed pure half.
+import { parseMeasure, runMeasurement, sniffContainer, MEASURE_phrase as measurePhrase, usage as measureUsage } from "../eoreader7/native/organs/index.js";
+import * as nul from "/nul/index.js";
+import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce.js";
 // The declarations register (Pass 21, P102): what a person has DECLARED
 // about a relation — transitive, or composing into a named product — each
 // with its giver. Chemistry comes from this register and nowhere else
@@ -99,7 +114,7 @@ import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landCon
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 
-import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
+import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
 import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
@@ -1265,21 +1280,56 @@ async function fillModels() {
     sel.value = state.offeredModels[0] ?? MODEL_PICKER[0];
     if (!offered.length) $("status").textContent = "ollama has no models pulled";
   } catch {
+    state.availableModels = state.availableModels ?? new Set();
+    state.offeredModels = [];
     $("status").textContent = "ollama not reachable on :11434";
+  }
+  // The in-tab rungs, appended LAST (mergeOffered's own order: a native rung
+  // is the faster summary rung where Ollama answers; where it does not, the
+  // in-tab rung is offered[0] and every kind routes there). Offered only
+  // where WebGPU can actually run them — the blocker names its own fix in
+  // the status line, never a picker entry that would fail on use.
+  const blocker = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
+  if (!blocker) {
+    state.offeredModels = mergeOffered(state.offeredModels, true);
+    for (const m of WEBLLM_MODELS) {
+      state.availableModels.add(m.id);
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = `${m.label} · ${m.publisher}, ${m.license}`;
+      opt.title = m.origin;
+      sel.append(opt);
+    }
+    if (!sel.value || !state.offeredModels.includes(sel.value)) sel.value = state.offeredModels[0];
+    if (!state.offeredModels.some((n) => !isWebLLMModel(n))) $("status").textContent = `no Ollama here — the in-tab models are offered (weights from ${webllmClient.weights})`;
+  } else if (!state.offeredModels.length) {
+    $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${blocker}`;
   }
 }
 
 async function connect() {
   state.model = $("model").value;
   state.ready = true;
-  // Pre-warm the Whisper model download in the background so by the time
-  // someone types /transcribe, the (large, one-time) download is already
-  // done or well underway. Never blocks boot — a failed pre-warm retries
-  // on the real call.
-  prewarmTranscription().catch(() => {});
+  // No pre-warm of the Whisper weights here (removed 2026-09-05): a page load
+  // must not reach huggingface.co on its own. The weights are fetched on the
+  // FIRST /transcribe, and that turn says so before it starts — the one
+  // egress this page causes that is not a localhost call, disclosed at the
+  // moment it happens, never in the background.
   // The model's declared window, from the runtime's own mouth. The one
   // non-arbitrary meaning of "this prompt is too long" is this number.
   state.contextTokens = null;
+  if (isWebLLMModel(state.model)) {
+    // The window is the library's own declared context for this rung; the
+    // bytes' origin is decided by where this page is served from (P1).
+    state.contextTokens = webllmClient.contextWindowFor(state.model);
+    const m = webllmModelOf(state.model);
+    $("status").textContent = `ready · ${webllmLabelFor(state.model)} · weights from ${webllmClient.weights} · ${m?.origin ?? ""}`;
+    $("send").disabled = false;
+    openSettings(false);
+    showView("chat");
+    $("input").focus();
+    return;
+  }
   try {
     const res = await fetch(`${OLLAMA}/api/show`, {
       method: "POST",
@@ -1319,6 +1369,35 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
   // bound, reflect) spends the model the user chose. Whatever it is, the
   // request, the pace ledger, and the status line all name the SAME model.
   const modelName = model ?? state.model;
+  if (isWebLLMModel(modelName)) {
+    // Same contract as the Ollama branch below — {text, thinking, doneReason},
+    // the pace ledger fed from the engine's own telemetry, the status line
+    // naming the same model — through the worker engine, one model at a
+    // time. A load's progress (a first download, cache reads, shader
+    // compilation) narrates into the status line; a typed failure is thrown
+    // to the caller like any Ollama error.
+    let cancelled = false;
+    const text = await webllmClient.stream(messages, {
+      maxTokens: maxTokens ?? MAX_TOKENS,
+      json,
+      temperature,
+      model: modelName,
+      onProgress: (line, pct) => { $("status").textContent = `${webllmLabelFor(modelName)} · ${line}${pct ? ` ${pct}%` : ""}`; },
+      onUsage: (rec) => {
+        state.paceLog = recordCall(state.paceLog, rec);
+        tokensSeen.in += rec.promptTokens ?? 0;
+        tokensSeen.out += rec.outTokens ?? 0;
+        tokensSeen.calls += 1;
+        const pace = foldPace(state.paceLog, modelName);
+        $("status").textContent = `ready · ${webllmLabelFor(modelName)}${pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : ""}`;
+      },
+      onDelta: (out) => {
+        if (onDelta?.(out) === true) { cancelled = true; return true; }
+        return false;
+      },
+    });
+    return { text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
+  }
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1558,7 +1637,7 @@ function stripComputedCaption(text) {
 /** A command that arrived without its argument gets its usage line back — a
  * turn with no model in it, folded like any other so the exchange is on the
  * conversation's own record. */
-function usageTurn(question, usage) {
+function usageTurn(question, usage, { what = "usage" } = {}) {
   addMessage("user", question);
   const node = addMessage("assistant", usage);
   state.history.push(
@@ -1566,7 +1645,7 @@ function usageTurn(question, usage) {
     { role: "assistant", content: stripComputedCaption(usage) },
   );
   const turn = state.summary.turnCount + 1;
-  logAct("answered-from-state", { what: "usage" });
+  logAct("answered-from-state", { what });
   observeExchange(turn, question, usage);
   const fold = mechanicalFoldLine(question, usage);
   state.turnFolds.push(fold);
@@ -1575,6 +1654,72 @@ function usageTurn(question, usage) {
   renderThreads();
   $("status").textContent = `ready · ${state.model}`;
   releaseBusy();
+}
+
+/**
+ * The measuring door (P19), from the chat: `/measure` teaches the
+ * declaration; `/measure <media>` probes the file's own measurable surface;
+ * `/measure <media> channel:… frame:… as:… broken:… draws:… window:…` places
+ * one statistic against a Born-constructed null and phrases the placement.
+ * Mechanical from end to end — no model call — and every media pill has
+ * advertised this door since the materials panel was folded into the pills;
+ * until 2026-09-05 nothing routed it, so the words went to the model.
+ * Decoded image/video measurement (S76) is node-side today; in the page a
+ * png or mp4 frames as bytes and the probe says so.
+ */
+async function measureTurn(question) {
+  const parsed = parseMeasure(question);
+  if (!parsed || parsed.usage) return usageTurn(question, `${measureUsage(nul)}\n— the door's own usage, computed`, { what: "measure" });
+  if (parsed.refused) return usageTurn(question, `refused (${parsed.refused.type}): ${parsed.refused.detail}`, { what: "measure" });
+  const decl = parsed.decl;
+  const names = Object.keys(state.media);
+  const m = decl.file ? state.media[decl.file] : null;
+  if (!m) return usageTurn(question, `no media named "${decl.file ?? ""}" is attached — /measure reads the media pills${names.length ? `: ${names.join(", ")}` : " (none attached; drop an audio, image or video file first)"}.`, { what: "measure" });
+  const bytes = new Uint8Array(await m.blob.arrayBuffer());
+  const kind = sniffContainer(bytes) ?? "bytes";
+  let result;
+  try {
+    // bindLinks is the pairs: door over a TABLE's columns; a media file has no
+    // columns and the organ refuses pairs: on binary material by name, so no
+    // /engine module is widened onto the page for a branch it cannot reach.
+    result = runMeasurement(decl, { kind, bytes }, { nul, bindLinks: null, reduce: audioReduce });
+  } catch (e) {
+    return usageTurn(question, `the measuring door threw: ${e.message}`, { what: "measure" });
+  }
+  const text = result.kind === "probe" ? result.lines.join("\n") : result.refused ? `refused (${result.refused.type}): ${result.refused.detail}` : measurePhrase(result);
+  return usageTurn(question, `${text}\n— computed, not generated`, { what: "measure" });
+}
+
+/**
+ * `/gateways` — which public gateways this instrument has found open, off
+ * its own record (P117); `/gateways probe [url]` tries each one, recorded.
+ * A gateway is a third party the reader reaches only when a direct fetch
+ * was refused and the web toggle is on; the table says what each one sees.
+ */
+async function gatewaysTurn(arg, question) {
+  const probe = /^probe\b/.test(arg);
+  const target = probe ? arg.replace(/^probe\s*/, "").trim() : "";
+  try {
+    const res = probe
+      ? await fetch(`${EXPLORE_BASE}/api/web/gateways`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(target ? { url: target } : {}) })
+      : await fetch(`${EXPLORE_BASE}/api/web/gateways`);
+    if (!res.ok) return usageTurn(question, `the explore server answered ${res.status} — /gateways needs explore-server.mjs on ${EXPLORE_BASE}`, { what: "gateways" });
+    const got = await res.json();
+    const head = probe
+      ? `probed ${got.results.length} public gateways with ${got.target} — ${got.results.filter((r) => r.ok).length} answered (each try is on the record):`
+      : `public gateways, as this instrument has found them (off the record; a direct fetch that is refused tries them in this order):`;
+    const rows = probe
+      ? [
+          ...got.results.map((r) => `  ${r.ok ? "open  " : "closed"} ${r.gateway} · ${r.status ?? "no answer"} · ${r.ms} ms${r.ok ? ` · ${r.chars.toLocaleString()} chars` : ` · ${r.detail}`}`),
+          `what each relay or reader forwards about you${got.ownIpKnown ? "" : " (your own address could not be read, so nothing is decided)"}:`,
+          ...(got.leaks ?? []).map((l) => `  ${l.gateway} · ${l.forwardsAddress === true ? `forwards your address (${l.carriers.map((c) => c.name).join(", ")})` : l.forwardsAddress === false ? "does not forward your address" : l.echoed ? "unreadable" : "not measurable while closed"}`),
+        ]
+      : got.lines.map((l) => `  ${l}`);
+    const tail = probe ? `\nlearned order now: ${got.order.join(" → ")}` : `\norder: ${got.order.join(" → ")}\n/gateways probe [url] — try each one now, recorded`;
+    return usageTurn(question, `${head}\n${rows.join("\n")}${tail}\n— computed from the record, not generated`, { what: "gateways" });
+  } catch (e) {
+    return usageTurn(question, `/gateways: ${e.message} — is explore-server.mjs running on ${EXPLORE_BASE}?`, { what: "gateways" });
+  }
 }
 
 /**
@@ -2494,7 +2639,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
         releaseBusy();
         return;
       }
-      statusP.textContent = "transcribing with Whisper…";
+      statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
       $("status").textContent = "transcribing…";
       const { text, duration } = await transcribeBlob(blob, {
         onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
@@ -2550,7 +2695,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
 
   try {
     const { blob, title } = await fetchAudioFromUrl(arg);
-    statusP.textContent = "transcribing with Whisper…";
+    statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
     $("status").textContent = "transcribing…";
     const { text, duration } = await transcribeBlob(blob, {
       onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
@@ -2950,7 +3095,7 @@ function drainQueue() {
   // real one through the turn function's own addMessage.
   const placeholder = document.querySelector(".msg.queued");
   if (placeholder) placeholder.remove();
-  send(next);
+  guardedSend(next);
 }
 
 function releaseBusy() {
@@ -2958,6 +3103,26 @@ function releaseBusy() {
   $("send").disabled = false;
   $("input").focus();
   drainQueue();
+}
+
+/**
+ * A door that throws must never leave the composer busy (2026-09-05, found
+ * live: an exception inside a mechanical door left `state.busy` set, so
+ * every later message silently queued behind a turn that would never end).
+ * The throw becomes a typed assistant line — the promise the page makes is
+ * that it shows its work, and "this door threw, nothing was answered" is
+ * work shown; a dead composer is not.
+ */
+function guardedSend(question) {
+  let p;
+  try { p = send(question); } catch (e) { p = Promise.reject(e); }
+  return Promise.resolve(p).catch((e) => {
+    const node = addMessage("assistant", `this turn threw before answering: ${e?.message ?? e} — nothing was recorded as an answer; the composer is free.`);
+    node.classList.add("door-failed");
+    console.error("turn failed", e);
+    $("status").textContent = `ready · ${state.model}`;
+    releaseBusy();
+  });
 }
 
 async function send(question) {
@@ -2990,6 +3155,9 @@ async function send(question) {
   if (ingestCmd) return ingestTurn(ingestCmd.repo, question);
   if (/^\/ingest\b/.test(question))
     return usageTurn(question, "/ingest <owner/name or github url> — fetches the repo's admissible files through the recorded egress and lands each as a fold carrying its provenance (source, license, retrieval date) forever.");
+
+  // The measuring door (P19): typed, mechanical, no model — see measureTurn.
+  if (/^\/measure\b/.test(question)) return measureTurn(question);
 
   const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
   if (task) return holonicTurn(task, question, "model");
@@ -3026,6 +3194,12 @@ async function send(question) {
   // on disk, not a thing to phrase.
   const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
   if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
+
+  // The public gateways (P117): bare, the learned table off the record — no
+  // egress; `probe`, one recorded fetch of a canonical page through each
+  // gateway so the table has something to learn from. Mechanical either way.
+  const gatewaysCmd = question.match(/^\/gateways\b\s*(.*)$/s);
+  if (gatewaysCmd) return gatewaysTurn(gatewaysCmd[1]?.trim() ?? "", question);
 
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
@@ -3147,7 +3321,7 @@ async function send(question) {
   // widget doors below. checkArithmetic itself refuses to claim anything
   // with a free symbol left after normalizing, so a real question about
   // the world (or the material) always falls through untouched.
-  const arithmetic = checkArithmetic(question, { math: window.math });
+  const arithmetic = checkQuantity(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
 
   // Self questions asked in words ("what surprised you most", "how do you
@@ -3212,9 +3386,18 @@ async function send(question) {
   // /task shape, in spirit) — S1/S2 is for the common little question,
   // which is exactly where a naked fast pass either already answers it or
   // visibly earns the deeper, checked pass that follows.
+  // A slash that no door above claimed is a typed refusal, never a model
+  // prompt: until 2026-09-05 an unknown /word reached the model (and, with
+  // the web toggle on, a search) as if it were a question.
+  if (/^\/[a-z][a-z-]*\b/i.test(question))
+    return usageTurn(question, `no door named ${question.split(/\s+/)[0]} — the doors: ${DOORS.join(" ")}`, { what: "no-such-door" });
   if (needsDecomposition(question)) return holonicTurn(question, question, "model");
   return twoPassTurn(question);
 }
+
+/** Every door the composer routes, read off the dispatch above — kept as one
+ * list so the refusal for an unknown slash names all of them. */
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/ingest", "/learn", "/measure", "/must", "/priors", "/ranke", "/reflect", "/reopen", "/run", "/self", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -4915,7 +5098,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
           fields: { url: f.entry.finalUrl ?? url },
         };
-        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested`);
+        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested${f.entry.via ? ` — via ${f.entry.via.gateway} (the direct fetch was ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       } catch (e) {
         show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
       }
@@ -7887,8 +8070,8 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
       rememberPageFace(sourceName, url, f.entry);
-      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null });
-      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, ...(f.entry.via ? { via: f.entry.via.gateway } : {}) });
+      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept${f.entry.via ? ` — via ${f.entry.via.gateway} (direct fetch ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       const arrived = huntMeter.arrive(hunt, text);
       if (arrived.settled) {
         huntStop = "settled";
@@ -10323,7 +10506,7 @@ $("composer").onsubmit = (e) => {
     el.querySelector(".body").append(Object.assign(document.createElement("span"), { className: "queue-tag", textContent: "queued" }));
     return;
   }
-  send(q);
+  guardedSend(q);
 };
 
 $("input").onkeydown = (e) => {

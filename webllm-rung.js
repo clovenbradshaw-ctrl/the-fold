@@ -1,16 +1,32 @@
-// webllm-rung.js — the in-tab model rung: one reliable WebLLM option. Pure,
+// webllm-rung.js — the in-tab model rung: three WebLLM options, one roster. Pure,
 // browser-safe, node-testable; the web-llm module itself is injected (the
 // cast.js pattern), so nothing here reaches for the network, a worker, or a
 // GPU — this file only DECIDES things, and every decision is testable in
 // node against the real vendored library.
 //
-// Why one model and not a catalog: the rung exists so the fold can run where
-// Ollama does not — a static deployment (GitHub Pages) or a machine with
-// nothing pulled — and the failure modes of an in-browser model are all
-// download- and device-shaped. Every additional catalog row multiplies those
-// failure modes by one more set of weights. eochat's measured catalog note
-// stands ("nothing smaller survives a real reading question well", its 3B
-// default): the rung is Llama 3.2 3B, q4f16, and it is the ONLY one.
+// Why three and not one, and not a catalog (amended 2026-09-05): the rung
+// exists so the fold can run where Ollama does not — a static deployment or
+// a machine with nothing pulled — and the failure modes of an in-browser
+// model are all download- and device-shaped, so every row is one more set
+// of weights to mirror and to fail. The roster is bounded at THREE, chosen
+// for what their publishers disclose about the training data (the user's
+// standing ask: origins as ethically sourced as the vendored catalog
+// allows), not for benchmark rank:
+//   OLMo 2 1B (Ai2) — data, code, weights and training logs all published;
+//     Apache-2.0. The most transparent model in the catalog, and already
+//     this instrument's S1 rung under Ollama (model-routing.js).
+//   SmolLM2 1.7B (Hugging Face) — the pretraining mixture and the
+//     instruction data are published; Apache-2.0.
+//   RedPajama-INCITE Chat 3B (Together) — trained on RedPajama-1T, the open
+//     reproduction of the LLaMA data; Apache-2.0. The one 3B in the roster,
+//     because eochat's measured note stands ("nothing smaller survives a
+//     real reading question well"); its context window is 2048.
+// None of the three is trained only on licensed or public-domain text — the
+// Common Corpus / Common Pile family is not in the vendored catalog and
+// would need an MLC compile of its own; that is named, not claimed. Llama
+// 3.2 3B (the rung's original single model) is no longer offered: its
+// training data is undisclosed. Its mirror script stays for the file it
+// names.
 //
 // Where the bytes come from is decided by where the page is served from,
 // mechanically, never by a flag:
@@ -23,15 +39,54 @@
 //     the wasm the installed engine version expects, and upgrading web-llm
 //     re-points both together.
 
-/** The one rung. The id is web-llm's own, and it is what `offered` lists and
- * `state.model` carry — never ambiguous with an Ollama tag. */
-export const WEBLLM_MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+/** The roster. Each id is web-llm's own (what `offered` lists and
+ * `state.model` carry — never ambiguous with an Ollama tag); `label` is what
+ * the picker shows; `origin` is what the PUBLISHER discloses about the
+ * training data, stated where the model is picked, with the licence. The
+ * model cards are cited in POLICIES.md (P116), never here: this module is
+ * loaded by the page, and the constitution's host scan (II.13) keeps every
+ * non-local address out of anything the page can reach. */
+export const WEBLLM_MODELS = Object.freeze([
+  Object.freeze({
+    id: "OLMo-2-0425-1B-Instruct-q4f16_1-MLC",
+    label: "OLMo 2 1B · in this tab",
+    publisher: "Ai2",
+    license: "Apache-2.0",
+    origin: "fully open: the training data (Dolma / OLMo-mix), code, weights and logs are published",
+  }),
+  Object.freeze({
+    id: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
+    label: "SmolLM2 1.7B · in this tab",
+    publisher: "Hugging Face",
+    license: "Apache-2.0",
+    origin: "the pretraining mixture (FineWeb-Edu, DCLM, The Stack, curated math and code) and the instruction data are published",
+  }),
+  Object.freeze({
+    id: "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+    label: "RedPajama-INCITE 3B · in this tab",
+    publisher: "Together",
+    license: "Apache-2.0",
+    origin: "trained on RedPajama-1T, the open reproduction of the LLaMA training data; instruction-tuned on OASST1 and Dolly 2.0",
+  }),
+]);
+export const WEBLLM_IDS = Object.freeze(WEBLLM_MODELS.map((m) => m.id));
 
-/** What the picker shows for it. */
-export const WEBLLM_LABEL = "Llama 3.2 3B · in this tab";
+/** The default rung: the smallest of the three, the same reason the picker
+ * defaults to the smallest Ollama rung — the first connection should cost
+ * the least. */
+export const WEBLLM_MODEL_ID = WEBLLM_IDS[0];
+
+/** What the picker shows for the default. */
+export const WEBLLM_LABEL = WEBLLM_MODELS[0].label;
 
 export function isWebLLMModel(name) {
-  return name === WEBLLM_MODEL_ID;
+  return WEBLLM_IDS.includes(name);
+}
+export function webllmModelOf(name) {
+  return WEBLLM_MODELS.find((m) => m.id === name) ?? null;
+}
+export function webllmLabelFor(name) {
+  return webllmModelOf(name)?.label ?? name;
 }
 
 /** Hostnames that mean "this machine" — the same authorities the
@@ -75,21 +130,30 @@ export function localWasmName(entry) {
  * that lacks it — mirroring the layout means the SAME code path serves both
  * origins, rather than a second path invented for localhost.
  */
-export function appConfigFor(prebuilt, pageHref) {
-  const entry = prebuiltEntryFor(prebuilt);
+export function appConfigFor(prebuilt, pageHref, ids = WEBLLM_IDS) {
   const local = isLocalPage(pageHref);
-  const record = local
-    ? {
-        ...entry,
-        model: new URL(`models/${entry.model_id}/resolve/main/`, pageHref).href,
-        model_lib: new URL(`models/libs/${localWasmName(entry)}`, pageHref).href,
-      }
-    : { ...entry };
+  const records = ids.map((id) => {
+    const entry = prebuiltEntryFor(prebuilt, id);
+    return local
+      ? {
+          ...entry,
+          model: new URL(`models/${entry.model_id}/resolve/main/`, pageHref).href,
+          model_lib: new URL(`models/libs/${localWasmName(entry)}`, pageHref).href,
+        }
+      : { ...entry };
+  });
   return {
-    appConfig: { model_list: [record] },
+    appConfig: { model_list: records },
     weights: local ? "this disk" : "the model's publisher, cached in this browser after the first load",
-    contextWindow: record.overrides?.context_window_size ?? null,
+    // the DEFAULT rung's window; contextWindows answers for every id
+    contextWindow: records[0]?.overrides?.context_window_size ?? null,
+    contextWindows: Object.fromEntries(records.map((r) => [r.model_id, r.overrides?.context_window_size ?? null])),
   };
+}
+
+/** The declared window of one rung, off the library's own entry. */
+export function contextWindowFor(prebuilt, id) {
+  return prebuiltEntryFor(prebuilt, id).overrides?.context_window_size ?? null;
 }
 
 /**
@@ -99,12 +163,13 @@ export function appConfigFor(prebuilt, pageHref) {
  * schema as a STRING, so the object is serialized here, and the shape is
  * physics on this rung exactly as it is on Ollama (P2).
  */
-export function toWebLLMRequest(messages, { maxTokens, json } = {}) {
+export function toWebLLMRequest(messages, { maxTokens, json, temperature } = {}) {
   return {
     messages,
     stream: true,
     stream_options: { include_usage: true },
     ...(Number.isFinite(maxTokens) ? { max_tokens: maxTokens } : {}),
+    ...(Number.isFinite(temperature) ? { temperature } : {}),
     ...(json
       ? {
           response_format:
@@ -146,9 +211,9 @@ export function paceRecordFromUsage(model, messages, usage) {
  * does not, the in-tab rung is offered[0] and routing sends every kind
  * there — the single-model case model-routing.test.mjs already pins.
  */
-export function mergeOffered(ollamaOffered, webllmAvailable) {
+export function mergeOffered(ollamaOffered, webllmAvailable, ids = WEBLLM_IDS) {
   const base = [...(ollamaOffered ?? [])];
-  if (webllmAvailable && !base.includes(WEBLLM_MODEL_ID)) base.push(WEBLLM_MODEL_ID);
+  if (webllmAvailable) for (const id of ids) if (!base.includes(id)) base.push(id);
   return base;
 }
 

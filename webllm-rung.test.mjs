@@ -17,6 +17,7 @@ import {
   isWebLLMModel,
   isLocalPage,
   prebuiltEntryFor,
+  WEBLLM_MODELS,
   localWasmName,
   appConfigFor,
   toWebLLMRequest,
@@ -39,48 +40,75 @@ const STATIC_PAGE = "https://someone.github.io/the-fold/index.html";
 
 // ── the library and the mirror may not drift ────────────────────────────────
 
-test("the installed web-llm ships the rung's entry; an unknown id is a typed error", () => {
-  const entry = prebuiltEntryFor(prebuiltAppConfig);
-  assert.equal(entry.model_id, WEBLLM_MODEL_ID);
-  assert.match(entry.model, /^https:\/\//);
-  assert.match(entry.model_lib, /\.wasm$/);
+test("the installed web-llm ships every roster entry; an unknown id is a typed error", () => {
+  assert.equal(WEBLLM_MODELS.length, 3, "the roster is bounded at three");
+  for (const m of WEBLLM_MODELS) {
+    const entry = prebuiltEntryFor(prebuiltAppConfig, m.id);
+    assert.equal(entry.model_id, m.id);
+    assert.match(entry.model, /^https:\/\//);
+    assert.match(entry.model_lib, /\.wasm$/);
+    assert.ok(m.origin.length > 20 && m.license && m.publisher, `${m.id} states its origin, licence and publisher`);
+  }
+  assert.equal(prebuiltEntryFor(prebuiltAppConfig).model_id, WEBLLM_MODEL_ID);
   assert.throws(() => prebuiltEntryFor(prebuiltAppConfig, "No-Such-Model"), /drifted/);
 });
 
-test("the mirrored wasm on this disk is the exact lib the installed engine expects", () => {
-  const entry = prebuiltEntryFor(prebuiltAppConfig);
-  const wasm = `${ROOT}models/libs/${localWasmName(entry)}`;
-  assert.ok(existsSync(wasm), `models/libs is missing ${localWasmName(entry)} — web-llm was upgraded without re-running models/fetch-llama32-3b.sh`);
-  assert.ok(statSync(wasm).size > 1e6, "the mirrored wasm is not a real engine lib");
-});
+// The mirror walks, per roster model. A model with NO mirror directory on
+// this disk skips typed (a dev checkout need not hold 3.4GB of weights —
+// models/fetch-webllm.sh puts them there); a mirror that IS present must be
+// exactly what the installed engine expects, or the test fails: the library
+// and the mirror may never drift apart silently.
+// tensor-cache.json is what the engine loads by; ndarray-cache.json is the
+// older name some publishers still ship beside it (OLMo 2 ships only the new one).
+const manifestOf = (id) => ["tensor-cache.json", "ndarray-cache.json"].map((f) => `${ROOT}models/${id}/resolve/main/${f}`).find(existsSync) ?? null;
+const mirrored = (id) => manifestOf(id) !== null;
 
-test("every weight shard the manifest names is on this disk at its stated size", () => {
-  const dir = `${ROOT}models/${WEBLLM_MODEL_ID}/resolve/main/`;
-  const manifest = JSON.parse(readFileSync(`${dir}ndarray-cache.json`, "utf8"));
-  assert.ok(manifest.records.length > 0);
-  for (const r of manifest.records) {
-    assert.ok(existsSync(dir + r.dataPath), `missing shard ${r.dataPath}`);
-    assert.equal(statSync(dir + r.dataPath).size, r.nbytes, `${r.dataPath} is not the manifest's size`);
+test("each mirrored model's wasm on this disk is the exact lib the installed engine expects", (t) => {
+  const present = WEBLLM_MODELS.filter((m) => mirrored(m.id));
+  if (!present.length) return t.skip("no in-tab model is mirrored on this checkout — sh models/fetch-webllm.sh");
+  for (const m of present) {
+    const entry = prebuiltEntryFor(prebuiltAppConfig, m.id);
+    const wasm = `${ROOT}models/libs/${localWasmName(entry)}`;
+    assert.ok(existsSync(wasm), `models/libs is missing ${localWasmName(entry)} — web-llm was upgraded without re-running models/fetch-webllm.sh ${m.id}`);
+    assert.ok(statSync(wasm).size > 1e6, "the mirrored wasm is not a real engine lib");
   }
-  const config = JSON.parse(readFileSync(`${dir}mlc-chat-config.json`, "utf8"));
-  for (const t of config.tokenizer_files) assert.ok(existsSync(dir + t), `missing tokenizer file ${t}`);
 });
 
-test("the manifest the installed engine loads by is mirrored, and its records fit the shards", () => {
+test("every weight shard each mirrored manifest names is on this disk at its stated size", (t) => {
+  const present = WEBLLM_MODELS.filter((m) => mirrored(m.id));
+  if (!present.length) return t.skip("no in-tab model is mirrored on this checkout");
+  for (const m of present) {
+    const dir = `${ROOT}models/${m.id}/resolve/main/`;
+    const manifest = JSON.parse(readFileSync(manifestOf(m.id), "utf8"));
+    assert.ok(manifest.records.length > 0);
+    for (const r of manifest.records) {
+      assert.ok(existsSync(dir + r.dataPath), `${m.id}: missing shard ${r.dataPath}`);
+      assert.equal(statSync(dir + r.dataPath).size, r.nbytes, `${m.id}: ${r.dataPath} is not the manifest's size`);
+    }
+    const config = JSON.parse(readFileSync(`${dir}mlc-chat-config.json`, "utf8"));
+    for (const f of config.tokenizer_files) assert.ok(existsSync(dir + f), `${m.id}: missing tokenizer file ${f}`);
+  }
+});
+
+test("the manifest the installed engine loads by is mirrored for each present model, and its records fit the shards", (t) => {
   // web-llm >= 0.2.84 fetches tensor-cache.json, not ndarray-cache.json —
   // measured live: the load died on a 404 for this exact file. Both name the
   // same shard files; this walk holds for whichever the engine asks by.
-  const dir = `${ROOT}models/${WEBLLM_MODEL_ID}/resolve/main/`;
-  const manifest = JSON.parse(readFileSync(`${dir}tensor-cache.json`, "utf8"));
-  assert.ok(manifest.records.length > 0);
-  const need = new Map();
-  for (const r of manifest.records) {
-    const end = (r.byteOffset ?? 0) + r.nbytes;
-    need.set(r.dataPath, Math.max(need.get(r.dataPath) ?? 0, end));
-  }
-  for (const [file, min] of need) {
-    assert.ok(existsSync(dir + file), `missing shard ${file}`);
-    assert.ok(statSync(dir + file).size >= min, `${file} is shorter than the manifest's records`);
+  const present = WEBLLM_MODELS.filter((m) => mirrored(m.id));
+  if (!present.length) return t.skip("no in-tab model is mirrored on this checkout");
+  for (const m of present) {
+    const dir = `${ROOT}models/${m.id}/resolve/main/`;
+    const manifest = JSON.parse(readFileSync(`${dir}tensor-cache.json`, "utf8"));
+    assert.ok(manifest.records.length > 0);
+    const need = new Map();
+    for (const r of manifest.records) {
+      const end = (r.byteOffset ?? 0) + r.nbytes;
+      need.set(r.dataPath, Math.max(need.get(r.dataPath) ?? 0, end));
+    }
+    for (const [file, min] of need) {
+      assert.ok(existsSync(dir + file), `${m.id}: missing shard ${file}`);
+      assert.ok(statSync(dir + file).size >= min, `${m.id}: ${file} is shorter than the manifest's records`);
+    }
   }
 });
 
@@ -93,23 +121,27 @@ test("a localhost page is local; a static one is not; garbage is not", () => {
   assert.equal(isLocalPage("not a url"), false);
 });
 
-test("a localhost page loads every model byte same-origin, publisher layout kept", () => {
-  const { appConfig, weights, contextWindow } = appConfigFor(prebuiltAppConfig, LOCAL_PAGE);
-  assert.equal(appConfig.model_list.length, 1);
-  const [rec] = appConfig.model_list;
-  assert.equal(rec.model, `http://localhost:8811/models/${WEBLLM_MODEL_ID}/resolve/main/`);
-  assert.equal(rec.model_lib, `http://localhost:8811/models/libs/${localWasmName(prebuiltEntryFor(prebuiltAppConfig))}`);
-  assert.ok(rec.model.includes("/resolve/main/"), "the library's URL normalizer needs the publisher layout");
+test("a localhost page loads every roster model's bytes same-origin, publisher layout kept", () => {
+  const { appConfig, weights, contextWindow, contextWindows } = appConfigFor(prebuiltAppConfig, LOCAL_PAGE);
+  assert.equal(appConfig.model_list.length, WEBLLM_MODELS.length);
+  for (const rec of appConfig.model_list) {
+    assert.equal(rec.model, `http://localhost:8811/models/${rec.model_id}/resolve/main/`);
+    assert.equal(rec.model_lib, `http://localhost:8811/models/libs/${localWasmName(prebuiltEntryFor(prebuiltAppConfig, rec.model_id))}`);
+    assert.ok(rec.model.includes("/resolve/main/"), "the library's URL normalizer needs the publisher layout");
+    assert.ok(Number.isFinite(contextWindows[rec.model_id]) && contextWindows[rec.model_id] > 0, `${rec.model_id} declares no window`);
+  }
+  assert.equal(appConfig.model_list[0].model_id, WEBLLM_MODEL_ID, "the default rung is first");
   assert.equal(weights, "this disk");
   assert.ok(Number.isFinite(contextWindow) && contextWindow > 0, "the config declares no window");
 });
 
-test("a static page keeps the library's own catalog entry untouched — no address of ours", () => {
-  const entry = prebuiltEntryFor(prebuiltAppConfig);
+test("a static page keeps the library's own catalog entries untouched — no address of ours", () => {
   const { appConfig, weights } = appConfigFor(prebuiltAppConfig, STATIC_PAGE);
-  const [rec] = appConfig.model_list;
-  assert.equal(rec.model, entry.model);
-  assert.equal(rec.model_lib, entry.model_lib);
+  for (const rec of appConfig.model_list) {
+    const entry = prebuiltEntryFor(prebuiltAppConfig, rec.model_id);
+    assert.equal(rec.model, entry.model);
+    assert.equal(rec.model_lib, entry.model_lib);
+  }
   assert.notEqual(weights, "this disk");
   // The invariant behind the constitution scan staying allowance-free: this
   // repo's own module contains no publisher hostname.
@@ -160,25 +192,30 @@ test("a usage with no rates leaves durations 0 — no measurement, never an esti
 
 // ── the offer, and routing over it ──────────────────────────────────────────
 
-test("with Ollama present the native rungs stay first and the in-tab rung is last", () => {
+test("with Ollama present the native rungs stay first and the in-tab roster is last, in roster order", () => {
   const offered = mergeOffered([...MODEL_PICKER], true);
   assert.deepEqual(offered.slice(0, MODEL_PICKER.length), MODEL_PICKER);
-  assert.equal(offered.at(-1), WEBLLM_MODEL_ID);
+  assert.deepEqual(offered.slice(MODEL_PICKER.length), WEBLLM_MODELS.map((m) => m.id));
   assert.equal(routeModel(ROUTE_KINDS.SUMMARY, { offered, selected: WEBLLM_MODEL_ID }), MODEL_PICKER[0]);
   assert.equal(routeModel(ROUTE_KINDS.DEEP, { offered, selected: WEBLLM_MODEL_ID }), WEBLLM_MODEL_ID);
 });
 
-test("a browser-only machine offers the in-tab rung alone and every kind routes there", () => {
+test("a browser-only machine offers the in-tab roster alone: the summary rung is the smallest, deep work is the one picked", () => {
   const offered = mergeOffered([], true);
-  assert.deepEqual(offered, [WEBLLM_MODEL_ID]);
-  for (const kind of Object.values(ROUTE_KINDS))
-    assert.equal(routeModel(kind, { offered, selected: WEBLLM_MODEL_ID }), WEBLLM_MODEL_ID);
+  assert.deepEqual(offered, WEBLLM_MODELS.map((m) => m.id));
+  assert.equal(offered[0], WEBLLM_MODEL_ID, "the default is the smallest, first");
+  const picked = offered.at(-1);
+  assert.equal(routeModel(ROUTE_KINDS.SUMMARY, { offered, selected: picked }), WEBLLM_MODEL_ID);
+  assert.equal(routeModel(ROUTE_KINDS.DEEP, { offered, selected: picked }), picked);
+  for (const kind of Object.values(ROUTE_KINDS)) assert.ok(isWebLLMModel(routeModel(kind, { offered, selected: picked })));
 });
 
-test("no WebGPU and no Ollama is an empty offer, never a name that would fail", () => {
+test("no WebGPU and no Ollama is an empty offer, never a name that would fail; a rung is never offered twice", () => {
   assert.deepEqual(mergeOffered([], false), []);
   assert.deepEqual(mergeOffered(["gemma2:2b"], false), ["gemma2:2b"]);
-  assert.equal(mergeOffered([WEBLLM_MODEL_ID], true).filter(isWebLLMModel).length, 1, "the rung is never offered twice");
+  const twice = mergeOffered([WEBLLM_MODEL_ID], true);
+  assert.equal(twice.filter(isWebLLMModel).length, WEBLLM_MODELS.length);
+  assert.equal(new Set(twice).size, twice.length);
 });
 
 // ── the failures, typed ─────────────────────────────────────────────────────

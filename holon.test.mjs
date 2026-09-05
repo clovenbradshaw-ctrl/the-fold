@@ -2080,8 +2080,9 @@ test("P123: a correction already learned is handed back on the next turn, and a 
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
   });
   const first = sent[0].map((m) => m.content).join("\n");
-  assert.match(first, /Already found to be wrong on this material, so do not say it again:/);
-  assert.match(first, /"The harbor light was built in 1847\." was said here before/);
+  assert.match(first, /Established here already, from these sources:/);
+  assert.match(first, /- The harbor light was built in 1841\./, "only what the sources do say");
+  assert.doesNotMatch(first, /1847/, "never the error it replaces (P123, measured)");
   assert.deepEqual(r.learnedUsed ?? r.sections[0].learnedUsed, ["c:x"]);
   const bare = [];
   const clean = await runHolonicTask({
@@ -2091,4 +2092,29 @@ test("P123: a correction already learned is handed back on the next turn, and a 
   const b = bare[0].map((m) => m.content).join("\n");
   assert.doesNotMatch(b, /Already found to be wrong|About what the question takes/, "no material, no blocks");
   assert.equal(clean.correction, undefined); assert.equal(clean.learned.length, 0);
+});
+
+test("P123: the negative half of what was learned never reaches the mouth — it cuts the sentence that repeats it, while the positive half goes in as the source's own statement", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const store = [
+    { id: "c:neg", kind: "correction", ts: 1, seq: 0, claimed: "The harbor light had 700 keepers.", corrected: null, ref: null, question: "q", caught: "answer" },
+    { id: "c:pos", kind: "correction", ts: 2, seq: 1, claimed: "The harbor light was built in 1847.", corrected: "The harbor light was built in 1841 by Ada Rowe.", ref: "h.txt#0-47", start: 0, end: 47, question: "q", caught: "answer" },
+  ];
+  const sent = [];
+  const r = await runHolonicTask({
+    task: "Tell me about the harbor light and its keepers.", chunks, planMode: "flat", learnedStore: store,
+    // Deliberately not a copy of the source: a draft that merely reproduces
+    // the passage is replaced by the mechanical assembly before any of this
+    // runs, and would never reach the guard.
+    call: async (messages) => { sent.push(messages); return "Records once put the staff at 700 keepers for the harbor light. Ada Rowe oversaw its construction, finished in 1841, and the tide has turned twice daily ever since."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const prompt = sent[0].map((m) => m.content).join("\n");
+  assert.match(prompt, /Established here already, from these sources:\n- The harbor light was built in 1841 by Ada Rowe\./, "the positive correction goes in as a statement");
+  assert.doesNotMatch(prompt, /1847/, "the error it replaces never reaches the mouth");
+  assert.doesNotMatch(prompt, /700 keepers/, "nor does a claim we only know to be unplaced");
+  assert.equal(r.repeatedKnownFalse?.length, 1, "the draft repeated it and was caught mechanically");
+  assert.match(r.repeatedKnownFalse[0].sentence, /700 keepers/);
+  assert.doesNotMatch(r.output, /700 keepers/, "and it is cut from what ships");
+  assert.match(r.output, /1841/, "the rest of the answer stands");
 });

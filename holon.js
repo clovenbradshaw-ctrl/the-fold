@@ -44,7 +44,7 @@ import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./sn
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, premiseFacts, turnSnipBlock } from "./correction.js";
-import { fromOutcomes, fromPremises, learnedFacts, recallFor } from "./learned.js";
+import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -1920,7 +1920,13 @@ export async function runPart({
   const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
   // What was already found wrong on this material, in scope for this question.
   const learnedRows = learnedStore.length ? recallFor(question, learnedStore) : [];
+  // ONLY THE POSITIVE HALF REACHES THE MOUTH (P123, measured): a correction
+  // with a replacement goes in as the sentence the sources carry; one that
+  // only says a claim is unplaced is kept back here and spent on the draft
+  // below, because naming a falsehood in order to forbid it makes a small
+  // model repeat it.
   const learnedBlock = learnedRows.length ? learnedFacts(learnedRows) : "";
+  const guards = learnedRows.length ? learnedGuard(learnedRows) : [];
   // The snips: a piece stands on its obligations' spans, any other turn on
   // the question's own words. Both are the source's bytes, verbatim, addressed.
   const snipPrefix = piece
@@ -2613,6 +2619,18 @@ export async function runPart({
   // same company rule, same gate — a rewrite lands only when its own atoms
   // clear the check, so the mouth's correction is never trusted, it is
   // checked again. `snipRounds` is the depth slider's rung (P120).
+  // A draft that repeats something this instance already knows is unplaced is
+  // flagged here, mechanically, and the sentence is cut rather than shipped.
+  let repeated = [];
+  if (guards.length && text) {
+    const kept = [];
+    for (const sent of splitSentences(text)) {
+      const hit = repeatsKnownFalse(sent, guards);
+      if (hit) { repeated.push({ sentence: sent, id: hit.id, claimed: hit.claimed }); continue; }
+      kept.push(sent);
+    }
+    if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }
+  }
   let turnCorrection = null;
   if (!piece && passages.length && !mechanical && snipRounds > 0) {
     const pool = prosePassages.length ? prosePassages : passages;
@@ -2699,6 +2717,7 @@ export async function runPart({
     ...(turnCorrection ? { correction: turnCorrection } : {}),
     ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
+    ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
@@ -3083,5 +3102,6 @@ export async function runHolonicTask({
       return { checked: sum((c) => c.checked), unverified: sum((c) => c.unverified), contradicted: sum((c) => c.contradicted), rows: ps.flatMap((c) => c.rows ?? []) };
     })() } : {}),
     ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
+    ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

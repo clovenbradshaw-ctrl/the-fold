@@ -21,6 +21,7 @@
 import {
   TYPES, EVENTS, EVENT_SEAL_MAX_BYTES, b64, unb64, sha256B64, generateChatKey, generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey,
   wrapChatKey, unwrapChatKey, entryId, encodeBlock, decodeBlock, mergeChains, capManifest, manifestEntry, chainIsLinked,
+  generateInviteSecret, INVITE_TTL_MS, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault,
   paths, homeserverBase, loginBody, createRoomBody, memberKeyContent, chatKeyContent, chainContent,
   seal, open, newJobId, mouthContent, jobContent, answerContent, pickMouth, syncFilter, encryptBytes, decryptBytes,
   buildShareLink, parseShareLink, SecretSet, forRecord,
@@ -74,7 +75,8 @@ export class MatrixHttp {
   async createRoom(name) { return (await this.json("POST", paths.createRoom(), { json: createRoomBody(name) })).room_id; }
   async joinedRooms() { return (await this.json("GET", paths.joinedRooms())).joined_rooms ?? []; }
   async join(room) { return (await this.json("POST", paths.join(room), { json: {} })).room_id; }
-  async invite(room, userId) { await this.req("POST", paths.invite(room), { json: { user_id: userId } }); }
+  async invite(room, userId) { try { await this.req("POST", paths.invite(room), { json: { user_id: userId } }); } catch (e) { if (!(e.status === 403 && /already in the room/i.test(e.message))) throw e; } }
+  async kick(room, userId, reason = "removed") { await this.req("POST", paths.kick(room), { json: { user_id: userId, reason } }); }
   async members(room) { return ((await this.json("GET", paths.members(room))).chunk ?? []).map((ev) => ({ user_id: ev.state_key, membership: ev.content?.membership ?? null })); }
   async allState(room) { return this.json("GET", paths.allState(room)); }
   async getState(room, type, key = "") {
@@ -95,6 +97,18 @@ export class MatrixHttp {
   }
 }
 
+/** Storage as this version keeps it; older layouts are lifted on read. */
+function migrate(raw) {
+  const d = raw && typeof raw === "object" ? raw : {};
+  const rooms = {};
+  for (const [id, r] of Object.entries(d.rooms ?? {})) {
+    const keys = { ...(r.keys ?? {}) }; if (r.key && !keys[0]) keys[0] = r.key;
+    rooms[id] = { name: r.name ?? null, keys, epoch: r.epoch ?? Math.max(0, ...Object.keys(keys).map(Number)), idx: r.idx ?? -1, head: r.head ?? null, manifest: r.manifest ?? [], base: r.base ?? 0, count: r.count ?? 0, pushed: r.pushed ?? [], invites: r.invites ?? {}, pending: r.pending ?? null };
+  }
+  return { v: 2, session: d.session ?? null, identity: d.identity ?? null, rooms };
+}
+const freshRoom = () => ({ name: null, keys: {}, epoch: 0, idx: -1, head: null, manifest: [], base: 0, count: 0, pushed: [], invites: {}, pending: null });
+
 /** A chat's life on a homeserver, over injected storage and fetch. */
 export class FoldMatrix {
   constructor({ storage, fetch: f = globalThis.fetch?.bind(globalThis), record = () => {}, secrets = new SecretSet() } = {}) {
@@ -105,28 +119,70 @@ export class FoldMatrix {
      * and what its own jobs measured of each worker. Memory only. */
     this.pools = {};
     this.sentJobs = new Set();
-    this.data = storage.get() ?? { session: null, identity: null, rooms: {} };
-    this.data.rooms ??= {};
-    if (this.data.session?.access_token) secrets.add("access token", this.data.session.access_token);
-    if (this.data.identity?.priv) secrets.add("identity private key", this.data.identity.priv);
-    for (const r of Object.values(this.data.rooms)) if (r.key) secrets.add("chat key", unb64(r.key));
+    this.saving = Promise.resolve();
+    const raw = storage.get();
+    // A vault at rest: nothing is readable until `unlock` — not the session,
+    // not the keys. Storage holds {v, vault:{salt, rounds, blob}} and nothing else.
+    this.vault = raw?.vault ?? null; this.vaultKey = null;
+    this.data = this.vault ? migrate(null) : migrate(raw);
+    this.registerSecrets();
   }
-  save() { this.storage.set(this.data); }
+  get locked() { return !!this.vault && !this.vaultKey; }
+  registerSecrets() {
+    const s = this.secrets;
+    if (this.data.session?.access_token) s.add("access token", this.data.session.access_token);
+    if (this.data.identity?.priv) s.add("identity private key", this.data.identity.priv);
+    for (const r of Object.values(this.data.rooms)) {
+      for (const k of Object.values(r.keys)) s.add("chat key", unb64(k));
+      for (const inv of Object.values(r.invites)) if (inv?.s) s.add("invite secret", unb64(inv.s));
+      if (r.pending?.s) s.add("invite secret", unb64(r.pending.s));
+    }
+  }
+  save() {
+    if (this.locked) return; // nothing readable to write
+    if (!this.vaultKey) { this.storage.set(this.data); return; }
+    const snapshot = JSON.stringify(this.data);
+    this.saving = this.saving.then(async () => { this.vault = { ...this.vault, blob: b64(await encryptBytes(this.vaultKey, encoder.encode(snapshot))) }; this.storage.set({ v: 2, vault: this.vault }); }).catch(() => {});
+  }
+  /** Seal everything at rest under a passphrase; from now on storage holds
+   * only the vault. The passphrase is asked for on every page load. */
+  async lock(passphrase) {
+    const { vault, key } = await sealVault(passphrase, this.data);
+    this.vault = vault; this.vaultKey = key; this.storage.set({ v: 2, vault });
+    this.record("matrix-vault", { locked: true });
+    return { locked: true };
+  }
+  async unlock(passphrase) {
+    if (!this.vault) throw new MatrixError("nothing is locked");
+    const { data, key } = await openVault(passphrase, this.vault);
+    this.vaultKey = key; this.data = migrate(data); this.registerSecrets();
+    this.record("matrix-vault", { unlocked: true });
+    return this.status();
+  }
+  /** Back to plain storage (the passphrase proves it is the person asking). */
+  async clearLock(passphrase) {
+    if (this.vault) { if (this.locked) await this.unlock(passphrase); else await openVault(passphrase, this.vault); }
+    this.vault = null; this.vaultKey = null; this.storage.set(this.data);
+    this.record("matrix-vault", { locked: false });
+    return { locked: false };
+  }
   /** One line on the record per act — after forRecord, never before. */
   record(kind, fields = {}) { const { fields: safe } = forRecord(fields, this.secrets); this.recordHook(kind, safe); return safe; }
   get session() { const s = this.data.session; return s ? { hs: s.hs, user_id: s.user_id, device_id: s.device_id } : null; }
   http() {
+    if (this.locked) throw new MatrixError("locked — /matrix unlock first", { status: 0 });
     const s = this.data.session;
     if (!s?.access_token) throw new MatrixError("not signed in — /matrix login <homeserver>", { status: 0 });
     return new MatrixHttp({ base: s.hs, token: s.access_token, fetch: this.fetchImpl, onRequest: (r) => { this.traffic.requests++; this.traffic.bytesOut += r.bytes; this.traffic.last = r; } });
   }
   status() {
-    return { signedIn: !!this.data.session, user: this.data.session?.user_id ?? null, hs: this.data.session?.hs ?? null, identity: this.data.identity?.pub ?? null,
-      rooms: Object.entries(this.data.rooms).map(([id, r]) => ({ id, name: r.name ?? null, blocks: (r.idx ?? -1) + 1, entries: r.count ?? 0, hasKey: !!r.key })), traffic: { ...this.traffic } };
+    return { locked: this.locked, vaulted: !!this.vault, signedIn: !!this.data.session, user: this.data.session?.user_id ?? null, hs: this.data.session?.hs ?? null, identity: this.data.identity?.pub ?? null,
+      rooms: Object.entries(this.data.rooms).map(([id, r]) => ({ id, name: r.name ?? null, blocks: (r.idx ?? -1) + 1, entries: r.count ?? 0, hasKey: Object.keys(r.keys).length > 0, epoch: r.epoch, invites: Object.values(r.invites).filter((i) => !i.spent && (!i.exp || i.exp > Date.now())).length, pending: !!r.pending })), traffic: { ...this.traffic } };
   }
 
   // ── session ──
   async login(hsInput, user, password) {
+    if (this.locked) throw new MatrixError("locked — /matrix unlock first");
     if (!user || !password) throw new MatrixError("a user name and a password");
     this.secrets.add("password", password);
     const base = await MatrixHttp.resolve(hsInput, this.fetchImpl);
@@ -155,95 +211,113 @@ export class FoldMatrix {
     }
     return this.data.identity;
   }
-  keyOf(roomId) { const k = this.data.rooms[roomId]?.key; return k ? unb64(k) : null; }
-  rememberRoom(roomId, patch) { const r = this.data.rooms[roomId] ?? { name: null, key: null, idx: -1, head: null, manifest: [], base: 0, count: 0, pushed: [] }; Object.assign(r, patch); this.data.rooms[roomId] = r; this.save(); return r; }
+  async myFingerprint() { return fingerprint((await this.identity()).pub); }
+  /** The current epoch's key, or null. */
+  keyOf(roomId) { const r = this.data.rooms[roomId]; if (!r) return null; const k = r.keys[r.epoch]; return k ? unb64(k) : null; }
+  keysOf(roomId) { const r = this.data.rooms[roomId]; const out = new Map(); for (const [e, k] of Object.entries(r?.keys ?? {})) out.set(Number(e), unb64(k)); return out; }
+  rememberRoom(roomId, patch) { const r = this.data.rooms[roomId] ?? freshRoom(); Object.assign(r, patch); this.data.rooms[roomId] = r; this.save(); return r; }
+  rememberKey(roomId, epoch, key) { const r = this.data.rooms[roomId] ?? freshRoom(); r.keys[epoch] = b64(key); if (epoch >= r.epoch) r.epoch = epoch; this.secrets.add("chat key", key); this.data.rooms[roomId] = r; this.save(); }
+  /** Every epoch's key we hold, wrapped to one public key: the current one
+   * on top, the earlier ones under `older`, so a reader opens the whole record. */
+  async wrapAllFor(roomId, pub) {
+    const r = this.data.rooms[roomId]; const epochs = Object.keys(r.keys).map(Number).sort((a, b) => a - b);
+    const current = r.epoch; const older = [];
+    for (const e of epochs) if (e !== current) older.push({ epoch: e, ...(await wrapChatKey(pub, unb64(r.keys[e]))) });
+    return chatKeyContent(await wrapChatKey(pub, unb64(r.keys[current])), pub, { epoch: current, older });
+  }
 
   // ── rooms ──
-  /** A room of ours for this chat: the one given if we hold its key, else a
-   * new private room with a fresh chat key, our member key published and the
-   * key wrapped to ourselves. */
   async ensureRoom({ roomId = null, name = "a fold chat" } = {}) {
     if (roomId && this.keyOf(roomId)) return roomId;
     const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
     const room = await h.createRoom(name);
-    const key = generateChatKey(); this.secrets.add("chat key", key);
-    this.rememberRoom(room, { name, key: b64(key) });
+    const key = generateChatKey();
+    this.rememberRoom(room, { name }); this.rememberKey(room, 0, key);
     await h.putState(room, TYPES.memberKey, me, memberKeyContent(id.pub));
-    await h.putState(room, TYPES.chatKey, me, chatKeyContent(await wrapChatKey(id.pub, key), id.pub));
+    await h.putState(room, TYPES.chatKey, me, await this.wrapAllFor(room, id.pub));
     this.record("matrix-room", { room, name });
     return room;
   }
-  /** Push what is new: entries whose content id this browser has not pushed
-   * to this room. One block, hash-linked to the last, then the chain head. */
+  /** Push what is new under the current epoch's key: entries whose content
+   * id this browser has not pushed to this room. One block, hash-linked. */
   async preserve(roomId, entries) {
+    if (this.locked) throw new MatrixError("locked — /matrix unlock first");
     const r = this.data.rooms[roomId]; const key = this.keyOf(roomId);
     if (!r || !key) throw new MatrixError("no key for this room — open its share link, or ask a member to grant you");
     const h = this.http(); const me = this.data.session.user_id;
     const fresh = [];
     for (const e of entries) { const id = e.id ?? (await entryId(e)); if (!r.pushed.includes(id)) fresh.push({ ...e, id }); }
     if (!fresh.length) return { pushed: 0, skipped: entries.length, idx: r.idx, bytes: 0 };
-    const idx = r.idx + 1;
+    const idx = r.idx + 1; const epoch = r.epoch;
     const { bytes, sha256 } = await encodeBlock(key, { idx, prev: r.head, entries: fresh });
     const mxc = await h.upload(bytes, `block_${idx}`);
-    const { manifest, base } = capManifest([...r.manifest, manifestEntry(mxc, sha256)], r.base);
+    const { manifest, base } = capManifest([...r.manifest, manifestEntry(mxc, sha256, epoch)], r.base);
     const count = (r.count ?? 0) + fresh.length;
-    await h.putState(roomId, TYPES.chain, me, chainContent({ head: { mxc, sha256 }, idx, count, manifest, base }));
-    this.rememberRoom(roomId, { idx, head: { mxc, sha256 }, manifest, base, count, pushed: [...r.pushed, ...fresh.map((e) => e.id)] });
-    const line = this.record("matrix-preserve", { room: roomId, idx, mxc, sha256, bytes: bytes.length, entries: fresh.length, skipped: entries.length - fresh.length });
-    return { pushed: fresh.length, skipped: entries.length - fresh.length, idx, mxc, sha256, bytes: bytes.length, line };
+    await h.putState(roomId, TYPES.chain, me, chainContent({ head: { mxc, sha256, epoch }, idx, count, manifest, base }));
+    this.rememberRoom(roomId, { idx, head: { mxc, sha256, epoch }, manifest, base, count, pushed: [...r.pushed, ...fresh.map((e) => e.id)] });
+    const line = this.record("matrix-preserve", { room: roomId, idx, epoch, mxc, sha256, bytes: bytes.length, entries: fresh.length, skipped: entries.length - fresh.length });
+    return { pushed: fresh.length, skipped: entries.length - fresh.length, idx, epoch, mxc, sha256, bytes: bytes.length, line };
   }
-  /** The chat key for a room we hold no key for: our own wrapped slot, or a
-   * grant on any member's slot, opened with this browser's private key. */
+  /** Every epoch's key this identity can open, from our own slot or a grant
+   * on any member's slot; the current epoch's key is returned. */
   async keyFor(roomId) {
-    const held = this.keyOf(roomId); if (held) return held;
+    const held = this.keyOf(roomId);
     const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
     const priv = await importPrivateKey(id.priv);
-    const state = await h.allState(roomId);
+    let state; try { state = await h.allState(roomId); } catch (e) { if (held) return held; throw e; }
+    let found = 0;
     for (const ev of state.filter((s) => s.type === TYPES.chatKey)) {
       const wrapped = ev.state_key === me ? ev.content : ev.content?.grants?.[me];
       if (!wrapped?.blob || !wrapped?.eph_pub) continue;
-      try { const key = await unwrapChatKey(priv, wrapped); this.secrets.add("chat key", key); this.rememberRoom(roomId, { key: b64(key), name: this.data.rooms[roomId]?.name ?? state.find((s) => s.type === "m.room.name")?.content?.name ?? null }); return key; }
-      catch { /* wrapped for another identity of ours, or stale */ }
+      for (const w of [wrapped, ...(wrapped.older ?? [])]) {
+        const epoch = Number(w.epoch ?? 0);
+        if (this.data.rooms[roomId]?.keys[epoch]) { found++; continue; }
+        try { this.rememberKey(roomId, epoch, await unwrapChatKey(priv, w)); found++; } catch { /* wrapped for another identity of ours, or stale */ }
+      }
     }
-    return null;
+    if (found) { const name = this.data.rooms[roomId]?.name ?? state.find((s) => s.type === "m.room.name")?.content?.name ?? null; this.rememberRoom(roomId, { name, pending: null }); }
+    return this.keyOf(roomId);
   }
   /** Say who we are in a room so a holder can grant us the key. */
   async requestKey(roomId) {
     const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
     await h.putState(roomId, TYPES.memberKey, me, memberKeyContent(id.pub));
     this.record("matrix-key-request", { room: roomId });
-    return { published: true };
+    return { published: true, fingerprint: await fingerprint(id.pub) };
   }
   /** Every member's chain, fetched by manifest in bounded parallel, walked
-   * past the manifest by prev-pointers, hash-checked, decoded, merged. */
+   * past the manifest by prev-pointers, hash-checked, decoded with the key
+   * of each block's epoch, merged. A block whose epoch we hold no key for
+   * is a typed gap, never a silently shorter chat. */
   async load(roomId) {
+    if (this.locked) throw new MatrixError("locked — /matrix unlock first");
     const key = await this.keyFor(roomId);
     if (!key) { this.record("matrix-load", { room: roomId, gap: "no key" }); return { entries: [], chains: 0, blocks: 0, partial: true, gaps: ["no key for this room: open its share link, or /matrix request and ask a member to /share again"] }; }
+    const keys = this.keysOf(roomId);
     const h = this.http();
     const state = await h.allState(roomId);
     this.noteOffers(roomId, state); // the pool's offers come with the same read
     const heads = state.filter((s) => s.type === TYPES.chain && s.content?.head?.mxc);
     const chains = []; const gaps = []; let blocks = 0;
-    const fetchOne = async (mxc, sha) => { const bytes = await h.download(mxc); return { block: await decodeBlock(key, bytes, sha), sha256: sha }; };
+    const fetchOne = async (mxc, sha, epoch) => { const k = keys.get(epoch ?? 0); if (!k) throw new MatrixError(`sealed under epoch ${epoch ?? 0}, which this browser holds no key for`); const bytes = await h.download(mxc); return { block: await decodeBlock(k, bytes, sha), sha256: sha }; };
     for (const head of heads) {
-      const c = head.content; const listed = (c.manifest ?? []).map((m) => ({ mxc: m.m, sha: m.h }));
+      const c = head.content; const listed = (c.manifest ?? []).map((m) => ({ mxc: m.m, sha: m.h, epoch: m.e ?? c.head.epoch ?? 0 }));
       const got = [];
       for (let i = 0; i < listed.length; i += FETCH_CONCURRENCY) {
-        const part = await Promise.allSettled(listed.slice(i, i + FETCH_CONCURRENCY).map((p) => fetchOne(p.mxc, p.sha)));
-        for (const [j, r] of part.entries()) { if (r.status === "fulfilled") got.push(r.value); else gaps.push(`${head.state_key} block ${c.manifestBase + i + j}: ${r.reason?.message ?? r.reason}`); }
+        const part = await Promise.allSettled(listed.slice(i, i + FETCH_CONCURRENCY).map((p) => fetchOne(p.mxc, p.sha, p.epoch)));
+        for (const [j, r] of part.entries()) { if (r.status === "fulfilled") got.push(r.value); else gaps.push(`${head.state_key} block ${(c.manifestBase ?? 0) + i + j}: ${r.reason?.message ?? r.reason}`); }
       }
-      if (!listed.length) { try { got.push(await fetchOne(c.head.mxc, c.head.sha256)); } catch (e) { gaps.push(`${head.state_key} head: ${e.message}`); } }
-      // walk past the manifest's oldest entry
-      let cursor = got[0]?.block?.prev ?? null; let walked = 0;
-      while (cursor && walked < MAX_WALK) { try { const b = await fetchOne(cursor.mxc, cursor.sha256); got.unshift(b); cursor = b.block.prev; walked++; } catch (e) { gaps.push(`${head.state_key} walk: ${e.message}`); break; } }
+      if (!listed.length) { try { got.push(await fetchOne(c.head.mxc, c.head.sha256, c.head.epoch ?? 0)); } catch (e) { gaps.push(`${head.state_key} head: ${e.message}`); } }
       got.sort((a, b) => a.block.idx - b.block.idx);
+      let cursor = got[0]?.block?.prev ?? null; let walked = 0;
+      while (cursor && walked < MAX_WALK) { try { const b = await fetchOne(cursor.mxc, cursor.sha256, cursor.epoch ?? 0); got.unshift(b); cursor = b.block.prev; walked++; } catch (e) { gaps.push(`${head.state_key} walk: ${e.message}`); break; } }
       const link = chainIsLinked(got);
-      if (!link.linked) gaps.push(`${head.state_key} chain not linked at block ${got[link.at]?.block?.idx}`);
+      if (!link.linked && got.length > 1) gaps.push(`${head.state_key} chain not linked at block ${got[link.at]?.block?.idx}`);
       blocks += got.length;
       chains.push(got.map((g) => g.block));
       if (head.state_key === this.data.session.user_id && got.length) {
         const last = got.at(-1);
-        this.rememberRoom(roomId, { idx: last.block.idx, head: { mxc: c.head.mxc, sha256: last.sha256 }, manifest: c.manifest ?? [], base: c.manifestBase ?? 0, count: c.count ?? 0, pushed: [...new Set([...(this.data.rooms[roomId]?.pushed ?? []), ...got.flatMap((g) => g.block.entries.map((e) => e.id))])] });
+        this.rememberRoom(roomId, { idx: last.block.idx, head: { mxc: c.head.mxc, sha256: last.sha256, epoch: c.head.epoch ?? 0 }, manifest: c.manifest ?? [], base: c.manifestBase ?? 0, count: c.count ?? 0 });
       }
     }
     const entries = mergeChains(chains);
@@ -251,52 +325,190 @@ export class FoldMatrix {
     this.record("matrix-load", { room: roomId, chains: heads.length, blocks, entries: entries.length, gaps: gaps.length });
     return { entries, chains: heads.length, blocks, partial: gaps.length > 0, gaps };
   }
-  /** Invite someone (optional), grant the key to every member who has
-   * published a member key and holds no wrap yet, and mint the link. */
-  async share(roomId, { invite = null, pageHref = "https://localhost/" } = {}) {
+
+  // ── sharing: bound, open, passphrase; grants by proof or by fingerprint ──
+  /**
+   * `mode` "bound" (the default when someone is named): invite them, mint a
+   * one-shot secret, and print a link with no key in it — it works only for
+   * that account, signed in, whose published key carries the secret's proof;
+   * the grant lands from any member's page or worker that holds the secret.
+   * "open": the magic key in the fragment. "passphrase": the key sealed under
+   * words said aloud. `grant`: wrap to a member's unverified key by name,
+   * after comparing fingerprints out of band.
+   */
+  async share(roomId, { invite = null, pageHref = "https://localhost/", mode = null, passphrase = null, grant = null } = {}) {
     const key = this.keyOf(roomId); if (!key) throw new MatrixError("no key for this room");
-    const h = this.http(); const me = this.data.session.user_id;
+    const h = this.http(); const r = this.data.rooms[roomId]; const hs = this.data.session.hs;
+    if (grant) { const g = await this.grantTo(roomId, grant); return { link: null, kind: "grant", ...g }; }
+    if (invite && !/^@[^:]+:.+$/.test(invite)) throw new MatrixError("a Matrix id looks like @who:their.server");
+    const kind = mode ?? (invite ? "bound" : "open");
     if (invite) await h.invite(roomId, invite);
-    const state = await h.allState(roomId);
-    const id = await this.identity();
-    const own = state.find((s) => s.type === TYPES.chatKey && s.state_key === me)?.content ?? chatKeyContent(await wrapChatKey(id.pub, key), id.pub);
-    // A member is covered when some wrap in the room names their CURRENT
-    // public key: their own slot, or a grant on any member's slot. A wiped
-    // browser publishes a new member key, and nothing names it until now.
+    let link, expiresAt = null;
+    if (kind === "bound") {
+      if (!invite) throw new MatrixError("a bound link is for someone: /share @who:server");
+      const secret = generateInviteSecret(); expiresAt = Date.now() + INVITE_TTL_MS;
+      this.secrets.add("invite secret", secret);
+      r.invites[invite] = { s: b64(secret), exp: expiresAt, spent: false }; this.save();
+      link = buildShareLink(pageHref, { hs, room: roomId, name: r.name, to: invite, secret, exp: expiresAt });
+    } else if (kind === "passphrase") {
+      if (!passphrase || String(passphrase).trim().split(/\s+/).length < 3) throw new MatrixError("a passphrase of at least three words");
+      const salt = generateSalt(); const wrapped = await encryptBytes(await keyFromPassphrase(passphrase, salt), key);
+      link = buildShareLink(pageHref, { hs, room: roomId, name: r.name, wrapped, salt });
+    } else if (kind === "open") {
+      link = buildShareLink(pageHref, { hs, room: roomId, name: r.name, key });
+    } else throw new MatrixError(`no such share mode ${kind}`);
+    const pending = await this.grantPending(roomId);
+    this.record("matrix-share", { room: roomId, kind, invited: invite, granted: pending.granted.length, expiresAt });
+    return { link, kind, invited: invite, expiresAt, ...pending };
+  }
+  /** Members holding a wrap to their CURRENT key, per "user pub". */
+  coveredIn(state) {
     const covered = new Set();
     for (const s of state.filter((x) => x.type === TYPES.chatKey)) {
       if (s.content?.pub) covered.add(`${s.state_key} ${s.content.pub}`);
       for (const [who, g] of Object.entries(s.content?.grants ?? {})) if (g?.pub) covered.add(`${who} ${g.pub}`);
     }
-    const grants = { ...(own.grants ?? {}) }; const granted = [];
-    for (const mk of state.filter((s) => s.type === TYPES.memberKey && s.state_key !== me && s.content?.pub)) {
-      if (covered.has(`${mk.state_key} ${mk.content.pub}`)) continue;
-      grants[mk.state_key] = { v: 1, epoch: 0, pub: mk.content.pub, ...(await wrapChatKey(mk.content.pub, key)) };
-      granted.push(mk.state_key);
-    }
-    if (granted.length) await h.putState(roomId, TYPES.chatKey, me, { ...own, grants });
-    const link = buildShareLink(pageHref, { hs: this.data.session.hs, room: roomId, key, name: this.data.rooms[roomId]?.name ?? null });
-    this.record("matrix-share", { room: roomId, invited: invite, granted: granted.length });
-    return { link, invited: invite, granted };
+    return covered;
   }
-  /** Open a share link: the key from the fragment, the room joined, our
-   * member key published and the key self-wrapped, the chat loaded. */
-  async joinFromLink(href) {
+  /**
+   * Grant to every member whose key carries a proof that verifies against an
+   * unspent, unexpired secret this browser issued; say who is unverified
+   * (a key with no proof — /share grant after comparing fingerprints) and
+   * who was refused (a proof that does not verify, or a spent/expired one).
+   */
+  async grantPending(roomId) {
+    const h = this.http(); const me = this.data.session.user_id; const id = await this.identity(); const r = this.data.rooms[roomId];
+    const state = await h.allState(roomId);
+    const covered = this.coveredIn(state);
+    const own = state.find((s) => s.type === TYPES.chatKey && s.state_key === me)?.content ?? (await this.wrapAllFor(roomId, id.pub));
+    const grants = { ...(own.grants ?? {}) }; const granted = []; const unverified = []; const refused = [];
+    for (const mk of state.filter((s) => s.type === TYPES.memberKey && s.state_key !== me && s.content?.pub)) {
+      const user = mk.state_key, pub = mk.content.pub;
+      if (covered.has(`${user} ${pub}`)) continue;
+      const fp = await fingerprint(pub);
+      const inv = r.invites[user];
+      if (!mk.content.proof) { unverified.push({ user, fingerprint: fp }); continue; }
+      if (!inv) { refused.push({ user, fingerprint: fp, why: "a proof for a link this browser did not issue" }); continue; }
+      if (inv.spent) { refused.push({ user, fingerprint: fp, why: "the link was already used once" }); continue; }
+      if (inv.exp && Date.now() > inv.exp) { refused.push({ user, fingerprint: fp, why: "the link expired" }); continue; }
+      if (!(await verifyInviteProof(unb64(inv.s), { room: roomId, user, pub }, mk.content.proof))) { refused.push({ user, fingerprint: fp, why: "the proof does not verify — the key is not the one this account published with this link's secret" }); continue; }
+      grants[user] = { ...(await this.wrapAllFor(roomId, pub)) };
+      inv.spent = true; granted.push({ user, fingerprint: fp });
+    }
+    if (granted.length) { await h.putState(roomId, TYPES.chatKey, me, { ...own, grants }); this.save(); this.record("matrix-grant", { room: roomId, granted: granted.length, verified: true }); }
+    return { granted, unverified, refused };
+  }
+  /** Wrap to one member's key by name — the person compared fingerprints. */
+  async grantTo(roomId, user) {
+    const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
+    const state = await h.allState(roomId);
+    const mk = state.find((s) => s.type === TYPES.memberKey && s.state_key === user);
+    if (!mk?.content?.pub) throw new MatrixError(`${user} has published no key in this room`);
+    const own = state.find((s) => s.type === TYPES.chatKey && s.state_key === me)?.content ?? (await this.wrapAllFor(roomId, id.pub));
+    const grants = { ...(own.grants ?? {}), [user]: await this.wrapAllFor(roomId, mk.content.pub) };
+    await h.putState(roomId, TYPES.chatKey, me, { ...own, grants });
+    const fp = await fingerprint(mk.content.pub);
+    this.record("matrix-grant", { room: roomId, granted: 1, verified: false });
+    return { granted: [{ user, fingerprint: fp }], unverified: [], refused: [] };
+  }
+  /** Who is in the room, each key's fingerprint, and whether they hold a wrap. */
+  async members(roomId) {
+    const h = this.http(); const state = await h.allState(roomId); const covered = this.coveredIn(state);
+    const list = await h.members(roomId);
+    const keys = new Map(state.filter((s) => s.type === TYPES.memberKey).map((s) => [s.state_key, s.content]));
+    return Promise.all(list.map(async (m) => { const k = keys.get(m.user_id); return { user: m.user_id, membership: m.membership, fingerprint: k?.pub ? await fingerprint(k.pub) : null, proof: k?.proof ? "proof" : k ? "none" : null, hasKey: !!k?.pub && covered.has(`${m.user_id} ${k.pub}`) }; }));
+  }
+  pendingInvites(roomId) { return Object.entries(this.data.rooms[roomId]?.invites ?? {}).filter(([, i]) => !i.spent && (!i.exp || i.exp > Date.now())).map(([u]) => u); }
+  /** Keep granting while bound invites are outstanding (the sharer's page or
+   * worker); polls the room's state — a small GET — every `everyMs`. */
+  async watchInvites(roomId, { signal = null, everyMs = 5000, onGrant = null } = {}) {
+    let rounds = 0;
+    while (!signal?.aborted && this.pendingInvites(roomId).length) {
+      try { const g = await this.grantPending(roomId); if (g.granted.length) onGrant?.(g); } catch { /* the next round tries again */ }
+      rounds++;
+      await new Promise((r) => { const t = setTimeout(r, everyMs); signal?.addEventListener?.("abort", () => { clearTimeout(t); r(); }, { once: true }); });
+    }
+    return { rounds };
+  }
+  /**
+   * Open a share link. Open: the key from the fragment. Passphrase: the key
+   * unsealed with the words. Bound: only signed in as the account it names —
+   * join, publish this browser's key with the secret's proof, then wait for
+   * a member's grant (polling the state every 3 s up to `waitMs`); if none
+   * lands in time the key request stays published and a later /matrix open
+   * finds the grant.
+   */
+  async joinFromLink(href, { passphrase = null, waitMs = 60_000, onWait = null } = {}) {
     const p = parseShareLink(href);
     if (!p) throw new MatrixError("not a fold share link");
-    if (!this.data.session) return { needs: "login", hs: p.hs, room: p.room, name: p.name };
+    if (this.locked) return { needs: "unlock", hs: p.hs, room: p.room, name: p.name, to: p.to ?? null };
+    if (!this.data.session) return { needs: "login", hs: p.hs, room: p.room, name: p.name, to: p.to ?? null };
     const h = this.http(); const me = this.data.session.user_id;
-    this.secrets.add("chat key", p.key);
+    let key = null;
+    if (p.kind === "open") key = p.key;
+    else if (p.kind === "passphrase") {
+      if (!passphrase) return { needs: "passphrase", hs: p.hs, room: p.room, name: p.name };
+      try { key = await decryptBytes(await keyFromPassphrase(passphrase, p.salt), p.wrapped); } catch { return { room: p.room, name: p.name, joined: false, gap: "the passphrase does not open this link" }; }
+    } else if (p.kind === "bound") {
+      if (p.to !== me) return { room: p.room, name: p.name, joined: false, gap: `this link is for ${p.to}; you are signed in as ${me}` };
+      if (p.exp && Date.now() > p.exp) return { room: p.room, name: p.name, joined: false, gap: "this link has expired — ask for a new one" };
+    }
+    if (key) this.secrets.add("chat key", key);
     let joined = true;
     try { await h.join(p.room); } catch (e) { if (e.status === 403) joined = false; else throw e; }
     if (!joined) { this.record("matrix-join", { room: p.room, joined: false }); return { room: p.room, name: p.name, joined: false, gap: "not invited: ask the sharer to /share " + me }; }
-    this.rememberRoom(p.room, { name: p.name, key: b64(p.key) });
     const id = await this.identity();
-    try { await h.putState(p.room, TYPES.memberKey, me, memberKeyContent(id.pub)); await h.putState(p.room, TYPES.chatKey, me, chatKeyContent(await wrapChatKey(id.pub, p.key), id.pub)); }
-    catch { /* a viewer without state power still reads through the link's key */ }
-    this.record("matrix-join", { room: p.room, joined: true });
-    const loaded = await this.load(p.room);
-    return { room: p.room, name: p.name, joined: true, ...loaded };
+    if (key) {
+      this.rememberRoom(p.room, { name: p.name }); this.rememberKey(p.room, 0, key);
+      try { await h.putState(p.room, TYPES.memberKey, me, memberKeyContent(id.pub)); await h.putState(p.room, TYPES.chatKey, me, await this.wrapAllFor(p.room, id.pub)); }
+      catch { /* a member without state power still reads through the link's key */ }
+      this.record("matrix-join", { room: p.room, joined: true, kind: p.kind });
+      const loaded = await this.load(p.room);
+      return { room: p.room, name: p.name, joined: true, kind: p.kind, ...loaded };
+    }
+    // bound: publish the proof, then wait for the grant
+    this.secrets.add("invite secret", p.secret);
+    this.rememberRoom(p.room, { name: p.name, pending: { s: b64(p.secret), to: p.to, exp: p.exp } });
+    await h.putState(p.room, TYPES.memberKey, me, memberKeyContent(id.pub, await inviteProof(p.secret, { room: p.room, user: me, pub: id.pub })));
+    this.record("matrix-join", { room: p.room, joined: true, kind: "bound", awaiting: true });
+    const started = Date.now();
+    while (Date.now() - started < waitMs) {
+      const k = await this.keyFor(p.room);
+      if (k) { const loaded = await this.load(p.room); this.record("matrix-granted", { room: p.room, ms: Date.now() - started }); return { room: p.room, name: p.name, joined: true, kind: "bound", fingerprint: await fingerprint(id.pub), ...loaded }; }
+      onWait?.({ ms: Date.now() - started });
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return { room: p.room, name: p.name, joined: true, kind: "bound", awaiting: true, fingerprint: await fingerprint(id.pub), entries: [], chains: 0, blocks: 0, partial: true, gaps: [`no grant yet: your key is published in the room with the link's proof; it is granted the moment a member's page or worker that issued the link is open — reopen the link, or /matrix open ${p.room}, later`] };
+  }
+  /** A new key epoch: everything from now on is sealed under a key the
+   * excluded members never receive; every other member with a key gets it
+   * (and every earlier epoch) re-wrapped on our slot. */
+  async rotate(roomId, { exclude = [] } = {}) {
+    const key = this.keyOf(roomId); if (!key) throw new MatrixError("no key for this room");
+    const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
+    const state = await h.allState(roomId); const covered = this.coveredIn(state);
+    const r = this.data.rooms[roomId]; const epoch = r.epoch + 1;
+    this.rememberKey(roomId, epoch, generateChatKey());
+    const own = await this.wrapAllFor(roomId, id.pub);
+    const grants = {}; const regranted = [];
+    for (const mk of state.filter((s) => s.type === TYPES.memberKey && s.state_key !== me && s.content?.pub)) {
+      const user = mk.state_key;
+      if (exclude.includes(user) || !covered.has(`${user} ${mk.content.pub}`)) continue;
+      grants[user] = await this.wrapAllFor(roomId, mk.content.pub); regranted.push(user);
+    }
+    await h.putState(roomId, TYPES.chatKey, me, { ...own, grants });
+    this.record("matrix-rotate", { room: roomId, epoch, regranted: regranted.length, excluded: exclude.length });
+    return { epoch, regranted, excluded: exclude };
+  }
+  /** Remove a member and rotate, so nothing after this reaches them. What
+   * they already read, they keep — no key can un-read a block. */
+  async remove(roomId, user) {
+    const h = this.http();
+    await h.kick(roomId, user);
+    delete this.data.rooms[roomId]?.invites[user];
+    const rot = await this.rotate(roomId, { exclude: [user] });
+    this.record("matrix-remove", { room: roomId, user, epoch: rot.epoch });
+    return { user, ...rot };
   }
 
   // ── the room as a mouth: sealed jobs to members who offered one ──
@@ -398,6 +610,7 @@ export class FoldMatrix {
       while (!signal?.aborted) {
         let res; try { res = await h.sync({ since, filter, timeout: 30_000, signal }); } catch (e) { if (signal?.aborted || e.errcode === "ABORTED") break; await new Promise((r) => setTimeout(r, 2000)); continue; }
         since = res.next_batch;
+        if (this.pendingInvites(roomId).length) { try { await this.grantPending(roomId); } catch { /* next pass */ } }
         const events = res.rooms?.join?.[roomId]?.timeline?.events ?? [];
         for (const ev of events) if (ev.type === EVENTS.answer && ev.sender === me) answered.add(ev.content?.job);
         for (const ev of events) {

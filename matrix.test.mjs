@@ -4,12 +4,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  generateChatKey, encryptBytes, decryptBytes, sha256B64, b64, b64url, unb64url, hex,
+  generateChatKey, encryptBytes, decryptBytes, sha256B64, b64, unb64, b64url, unb64url, hex,
   generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey, wrapChatKey, unwrapChatKey,
   entryId, encodeBlock, decodeBlock, mergeChains, capManifest, chainIsLinked, manifestEntry, MANIFEST_MAX_BYTES,
   createRoomBody, memberKeyContent, chatKeyContent, loginBody, homeserverBase, paths, TYPES, EVENTS, FULL_POWER,
   seal, open, pickMouth, syncFilter, mouthContent, jobContent, answerContent,
   buildShareLink, parseShareLink, stripShareFragment,
+  generateInviteSecret, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault, INVITE_TTL_MS, MAGIC_KEY_WARNING,
   SecretSet, bytesIndexOf, byteEntropy, forRecord, SERVER_SEES,
 } from "./matrix.js";
 
@@ -112,12 +113,64 @@ test("share link: the key rides only in the fragment; parse round-trips; a link 
   const payload = dec.decode(unb64url(/fold-share=([A-Za-z0-9_-]+)/.exec(u.hash)[1]));
   assert.ok(s.leaks(payload).length, "the key IS in the fragment's payload (positive control)");
   const p = parseShareLink(link);
+  assert.equal(p.kind, "open");
   assert.deepEqual(p.key, key); assert.equal(p.room, "!abc:hs.example"); assert.equal(p.hs, "https://hs.example"); assert.equal(p.name, "Lincoln's cabinet");
   assert.equal(parseShareLink("https://example.org/#fold-share=" + b64url(enc.encode(JSON.stringify({ v: 1, hs: "h", r: "!r:h", k: b64url(new Uint8Array(5)) })))), null);
   assert.equal(parseShareLink("https://example.org/#fold-share=%%%"), null);
   assert.equal(parseShareLink("https://example.org/#tab=chat"), null);
   assert.equal(stripShareFragment(link), "https://example.github.io/the-fold/index.html?x=1#tab=chat");
   assert.equal(stripShareFragment(buildShareLink("https://e.org/i.html", { hs: "h", room: "!r:h", key })), "https://e.org/i.html");
+});
+
+test("bound and passphrase links: a bound link carries no key, names the account and a one-shot secret with an expiry; a passphrase link carries the key sealed under the words; v1 links still read as open", async () => {
+  const key = generateChatKey(); const s = new SecretSet().add("chat key", key);
+  const secret = generateInviteSecret();
+  const bound = buildShareLink("https://e.org/i.html", { hs: "https://hs.example", room: "!r:hs.example", name: "n", to: "@bob:hs.example", secret });
+  const pb = parseShareLink(bound);
+  assert.equal(pb.kind, "bound"); assert.equal(pb.to, "@bob:hs.example"); assert.deepEqual(pb.secret, secret); assert.ok(pb.exp > Date.now() && pb.exp <= Date.now() + INVITE_TTL_MS);
+  assert.equal(pb.key, undefined);
+  assert.deepEqual(s.leaks(dec.decode(unb64url(/fold-share=([A-Za-z0-9_-]+)/.exec(new URL(bound).hash)[1]))), [], "the bound link's payload carries no key");
+  assert.throws(() => buildShareLink("https://e.org/", { hs: "h", room: "!r:h", to: "bob", secret }), /Matrix id/);
+  const salt = generateSalt(); const kdf = await keyFromPassphrase("correct horse battery staple", salt);
+  const wrapped = await encryptBytes(kdf, key);
+  const pass = buildShareLink("https://e.org/i.html", { hs: "https://hs.example", room: "!r:hs.example", wrapped, salt });
+  const pp = parseShareLink(pass);
+  assert.equal(pp.kind, "passphrase"); assert.deepEqual(pp.salt, salt);
+  assert.deepEqual(await decryptBytes(await keyFromPassphrase("correct horse battery staple", pp.salt), pp.wrapped), key);
+  await assert.rejects(async () => decryptBytes(await keyFromPassphrase("wrong words", pp.salt), pp.wrapped), /wrong key/);
+  assert.deepEqual(s.leaks(dec.decode(unb64url(/fold-share=([A-Za-z0-9_-]+)/.exec(new URL(pass).hash)[1]))), [], "the passphrase link's payload carries no key");
+  const v1 = "https://e.org/#fold-share=" + b64url(enc.encode(JSON.stringify({ v: 1, hs: "h", r: "!r:h", k: b64url(key) })));
+  assert.equal(parseShareLink(v1).kind, "open");
+  assert.match(MAGIC_KEY_WARNING, /magic key/);
+});
+
+test("the invite proof binds a key to the secret, the room and the account; a swapped key, another account, another room or another secret all fail; the fingerprint is stable and short", async () => {
+  const secret = generateInviteSecret();
+  const bob = await exportPublicKey((await generateIdentity()).publicKey);
+  const mallory = await exportPublicKey((await generateIdentity()).publicKey);
+  const fields = { room: "!r:h", user: "@bob:h", pub: bob };
+  const proof = await inviteProof(secret, fields);
+  assert.equal(await verifyInviteProof(secret, fields, proof), true);
+  assert.equal(await verifyInviteProof(secret, { ...fields, pub: mallory }, proof), false, "the homeserver swapped the key");
+  assert.equal(await verifyInviteProof(secret, { ...fields, user: "@mallory:h" }, proof), false);
+  assert.equal(await verifyInviteProof(secret, { ...fields, room: "!other:h" }, proof), false);
+  assert.equal(await verifyInviteProof(generateInviteSecret(), fields, proof), false);
+  assert.equal(await verifyInviteProof(secret, fields, "not base64!!"), false);
+  const fp = await fingerprint(bob);
+  assert.match(fp, /^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$/);
+  assert.equal(fp, await fingerprint(bob)); assert.notEqual(fp, await fingerprint(mallory));
+});
+
+test("the vault: sealed under a passphrase, storage holds no secret in any encoding; the wrong passphrase refuses; the right one returns the same data", async () => {
+  const key = generateChatKey(); const token = "syt_alice_secret_token_0123456789";
+  const data = { session: { access_token: token }, rooms: { "!r:h": { keys: { 0: b64(key) } } } };
+  const { vault } = await sealVault("a long passphrase of my own", data);
+  assert.deepEqual(Object.keys(vault).sort(), ["blob", "rounds", "salt", "v"]);
+  const s = new SecretSet().add("chat key", key).add("token", token);
+  assert.deepEqual(s.leaks(JSON.stringify(vault)), []);
+  assert.deepEqual(s.leaks(unb64(vault.blob)), []);
+  await assert.rejects(() => openVault("a long passphrase of my ownn", vault), /does not open/);
+  assert.deepEqual((await openVault("a long passphrase of my own", vault)).data, data);
 });
 
 test("the leak instrument: finds a secret raw, base64, base64url, hex, JSON-escaped and percent-encoded, in text and in bytes — and reports nothing when nothing is there", () => {
@@ -156,6 +209,9 @@ test("sealed events and the pool: a seal opens only with the key; a job and an a
   assert.deepEqual(Object.keys(answerContent({ job: "j1", env })).sort(), ["env", "job", "v"]);
   assert.deepEqual(Object.keys(answerContent({ job: "j1", mxc: "mxc://h/1", sha256: "s" })).sort(), ["job", "mxc", "sha256", "v"]);
   assert.deepEqual(Object.keys(mouthContent({ models: ["a"], home: "terminal", since: 5 })), ["v", "models", "home", "since"]);
+  assert.deepEqual(manifestEntry("mxc://h/1", "s", 2), { m: "mxc://h/1", h: "s", e: 2 });
+  assert.deepEqual(memberKeyContent("P", "PROOF"), { v: 1, alg: "ecdh-p256", pub: "P", proof: "PROOF" });
+  assert.deepEqual(chatKeyContent({ eph_pub: "E", blob: "B" }, "P", { epoch: 1, older: [{ epoch: 0, eph_pub: "E0", blob: "B0" }] }), { v: 1, epoch: 1, pub: "P", eph_pub: "E", blob: "B", older: [{ epoch: 0, eph_pub: "E0", blob: "B0" }] });
   const offers = [{ user: "@a:h", models: ["gemma2:2b"], since: 2 }, { user: "@b:h", models: ["gemma2:2b", "qwen"], since: 1 }, { user: "@c:h", models: [], since: 0 }];
   assert.equal(pickMouth(offers, { inflight: {} }).user, "@b:h", "earliest offer on a tie; an empty offer is no mouth");
   assert.equal(pickMouth(offers, { inflight: { "@b:h": 2 } }).user, "@a:h", "the least loaded");

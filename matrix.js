@@ -135,7 +135,7 @@ export async function entryId(entry) {
 }
 export async function encodeBlock(chatKey, { idx, prev, entries, ts = Date.now() }) {
   if (!Number.isInteger(idx) || idx < 0) throw new Error("a block has a non-negative index");
-  const payload = { v: BLOCK_VERSION, idx, ts, prev: prev ? { mxc: prev.mxc, sha256: prev.sha256 } : null, entries };
+  const payload = { v: BLOCK_VERSION, idx, ts, prev: prev ? { mxc: prev.mxc, sha256: prev.sha256, epoch: prev.epoch ?? 0 } : null, entries };
   const plaintext = encoder.encode(JSON.stringify(payload));
   const bytes = await encryptBytes(chatKey, plaintext);
   return { bytes, sha256: await sha256B64(bytes), plaintext };
@@ -155,7 +155,8 @@ export function mergeChains(chains) {
   }
   return out.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0) || (a.seq ?? 0) - (b.seq ?? 0));
 }
-export const manifestEntry = (mxc, sha256) => ({ m: mxc, h: sha256 });
+/** A pointer: where, its hash, and the key epoch that opens it. */
+export const manifestEntry = (mxc, sha256, epoch = 0) => ({ m: mxc, h: sha256, e: epoch });
 /** Keep the newest pointers that fit the state-event budget; `base` is the
  * absolute index of the first kept pointer, so a reader knows what to walk. */
 export function capManifest(entries, base = 0) {
@@ -183,6 +184,7 @@ export const paths = Object.freeze({
   joinedRooms: () => "/_matrix/client/v3/joined_rooms",
   join: (room) => `/_matrix/client/v3/join/${encodeURIComponent(room)}`,
   invite: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/invite`,
+  kick: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/kick`,
   members: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/members`,
   allState: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state`,
   state: (room, type, key = "") => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state/${encodeURIComponent(type)}/${encodeURIComponent(key)}`,
@@ -218,10 +220,14 @@ export function createRoomBody(name, { now = new Date().toISOString() } = {}) {
     ],
   };
 }
-export const memberKeyContent = (pubB64) => ({ v: 1, alg: "ecdh-p256", pub: pubB64 });
+/** A member's key, with — when they came by a bound link — the proof that
+ * binds this key to that link's secret, this room and this account. */
+export const memberKeyContent = (pubB64, proof = null) => ({ v: 1, alg: "ecdh-p256", pub: pubB64, ...(proof ? { proof } : {}) });
 /** A member's own slot carries the public key it was wrapped to, so a
- * granter can see when a member's identity has changed (a wiped browser). */
-export const chatKeyContent = (wrapped, pub) => ({ v: 1, epoch: 0, pub, eph_pub: wrapped.eph_pub, blob: wrapped.blob });
+ * granter can see when a member's identity has changed (a wiped browser);
+ * `epoch` is the key this wrap opens and `older` the earlier epochs, each
+ * wrapped the same way, so a new member reads the whole record. */
+export const chatKeyContent = (wrapped, pub, { epoch = 0, older = [] } = {}) => ({ v: 1, epoch, pub, eph_pub: wrapped.eph_pub, blob: wrapped.blob, ...(older.length ? { older } : {}) });
 export const chainContent = ({ head, idx, count, manifest, base, updated_at = new Date().toISOString() }) => ({ v: 1, head, idx, count, manifest, manifestBase: base, updated_at });
 
 // ── sealed events: a prompt or an answer as one AES-GCM envelope, base64 ─────
@@ -253,24 +259,84 @@ export const syncFilter = (roomId) => ({
   presence: { types: [] }, account_data: { types: [] },
 });
 
-// ── the share link: the key rides in the fragment, which never leaves the browser
-export function buildShareLink(pageHref, { hs, room, key, name = null }) {
-  if (!(key instanceof Uint8Array) || key.length !== KEY_BYTES) throw new Error("a share link carries the 32-byte chat key");
+// ── invites bound to an account: a secret, a proof, a fingerprint ───────────
+/** A bound link's secret: 128 random bits, one use, time-limited. */
+export function generateInviteSecret() { return randomBytes(16); }
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+async function hmacKey(secret) { return subtle.importKey("raw", secret, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); }
+/** HMAC(secret, room · account · public key): published beside the member's
+ * key by the account that redeemed the link. A granter with the secret wraps
+ * only to a key whose proof verifies — so a homeserver that swapped the key
+ * would have to know the secret, which never reached it. */
+export async function inviteProof(secret, { room, user, pub }) {
+  return b64(new Uint8Array(await subtle.sign("HMAC", await hmacKey(secret), encoder.encode(`fold-invite\n${room}\n${user}\n${pub}`))));
+}
+export async function verifyInviteProof(secret, fields, proof) {
+  const want = unb64(await inviteProof(secret, fields)); let got; try { got = unb64(String(proof ?? "")); } catch { return false; }
+  if (got.length !== want.length) return false;
+  let diff = 0; for (let i = 0; i < want.length; i++) diff |= want[i] ^ got[i];
+  return diff === 0;
+}
+/** Sixteen hex digits of SHA-256 over the public key, in four groups — read
+ * aloud to compare a key out of band before trusting an unverified request. */
+export async function fingerprint(pubB64) {
+  const d = new Uint8Array(await subtle.digest("SHA-256", unb64(pubB64)));
+  return hex(d.subarray(0, 8)).replace(/(.{4})(?=.)/g, "$1-");
+}
+/** A key from a passphrase: PBKDF2-SHA256, 600,000 rounds (eopm's figure), a
+ * fresh 16-byte salt per use. For passphrase links and the local vault. */
+export const KDF_ROUNDS = 600_000;
+export const generateSalt = () => randomBytes(16);
+export async function keyFromPassphrase(passphrase, salt, rounds = KDF_ROUNDS) {
+  if (!passphrase) throw new Error("a passphrase");
+  const material = await subtle.importKey("raw", encoder.encode(String(passphrase).normalize("NFKC")), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: rounds }, material, 256));
+}
+/** The local vault: everything FoldMatrix keeps at rest, sealed under a
+ * passphrase-derived key. `{ v, salt, rounds, blob }` is all storage holds. */
+export async function sealVault(passphrase, obj) {
+  const salt = generateSalt(); const key = await keyFromPassphrase(passphrase, salt);
+  return { vault: { v: 1, salt: b64(salt), rounds: KDF_ROUNDS, blob: b64(await encryptBytes(key, encoder.encode(JSON.stringify(obj)))) }, key };
+}
+export async function openVault(passphrase, vault) {
+  const key = await keyFromPassphrase(passphrase, unb64(vault.salt), vault.rounds ?? KDF_ROUNDS);
+  let plain; try { plain = await decryptBytes(key, unb64(vault.blob)); } catch { throw new Error("the passphrase does not open this vault"); }
+  return { data: JSON.parse(decoder.decode(plain)), key };
+}
+
+// ── the share link: what rides in the fragment, which never leaves the browser
+/**
+ * Three kinds of link, one shape. `open`: the chat key itself rides in the
+ * fragment — a magic key; whoever holds the link reads the room. `bound`: no
+ * key; a one-shot secret and the account it is for, redeemed by signing in
+ * as that account and publishing a key with the secret's proof, granted by a
+ * member who holds the secret. `passphrase`: the key sealed under a
+ * passphrase said aloud; neither the link nor the words alone opens it.
+ */
+export function buildShareLink(pageHref, { hs, room, name = null, key = null, to = null, secret = null, exp = null, wrapped = null, salt = null }) {
+  const payload = { v: 2, hs, r: room, n: name };
+  if (to && secret) { if (!/^@[^:]+:.+$/.test(to)) throw new Error("a bound link names a Matrix id"); Object.assign(payload, { to, s: b64url(secret), exp: exp ?? Date.now() + INVITE_TTL_MS }); }
+  else if (wrapped && salt) Object.assign(payload, { c: b64url(wrapped), salt: b64url(salt) });
+  else { if (!(key instanceof Uint8Array) || key.length !== KEY_BYTES) throw new Error("an open link carries the 32-byte chat key"); payload.k = b64url(key); }
   const u = new URL(pageHref);
   const kept = u.hash.replace(/^#/, "").replace(/(?:^|&)fold-share=[A-Za-z0-9_-]+/, "").replace(/^&/, "");
-  u.hash = `${kept ? `${kept}&` : ""}fold-share=${b64url(encoder.encode(JSON.stringify({ v: 1, hs, r: room, k: b64url(key), n: name })))}`;
+  u.hash = `${kept ? `${kept}&` : ""}fold-share=${b64url(encoder.encode(JSON.stringify(payload)))}`;
   return u.href;
 }
+/** Parsed: `{ kind, hs, room, name, key | to+secret+exp | wrapped+salt }`; v1 links read as open. */
 export function parseShareLink(href) {
   let u; try { u = new URL(href); } catch { return null; }
   const m = /(?:^|[#&])fold-share=([A-Za-z0-9_-]+)/.exec(u.hash);
   if (!m) return null;
   try {
     const p = JSON.parse(decoder.decode(unb64url(m[1])));
-    if (p?.v !== 1 || typeof p.hs !== "string" || !/^![^:]+:.+$/.test(p.r ?? "")) return null;
+    if (![1, 2].includes(p?.v) || typeof p.hs !== "string" || !/^![^:]+:.+$/.test(p.r ?? "")) return null;
+    const base = { hs: p.hs, room: p.r, name: typeof p.n === "string" ? p.n : null };
+    if (typeof p.to === "string" && typeof p.s === "string") { const secret = unb64url(p.s); if (secret.length !== 16 || !/^@[^:]+:.+$/.test(p.to)) return null; return { kind: "bound", ...base, to: p.to, secret, exp: Number(p.exp) || null }; }
+    if (typeof p.c === "string" && typeof p.salt === "string") { const wrapped = unb64url(p.c), salt = unb64url(p.salt); if (wrapped.length !== 12 + KEY_BYTES + 16 || salt.length !== 16) return null; return { kind: "passphrase", ...base, wrapped, salt }; }
     const key = unb64url(p.k ?? "");
     if (key.length !== KEY_BYTES) return null;
-    return { hs: p.hs, room: p.r, key, name: typeof p.n === "string" ? p.n : null };
+    return { kind: "open", ...base, key };
   } catch { return null; }
 }
 export function stripShareFragment(href) {
@@ -346,3 +412,5 @@ export const SERVER_SEES = Object.freeze([
   "which member offers a mouth and which model names; that a sealed job went to whom, its size, and when its sealed answer came back",
   "never: a turn, a prompt, an answer, a source — those exist only inside the seals, and the key that opens a seal is in no event",
 ]);
+/** The plain words for an open link, said at the door every time. */
+export const MAGIC_KEY_WARNING = "this link is a magic key: whoever holds it reads this whole chat, past and future, and it cannot be taken back — send it only over a channel you would trust with the chat itself, and prefer /share @who:server, which works for that account alone";

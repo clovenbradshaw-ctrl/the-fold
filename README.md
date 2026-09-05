@@ -220,13 +220,27 @@ public keys; the tests prove it against a homeserver built to keep and read
 everything.
 
 ```
-/matrix                 where you stand, and what the server can see
-/preserve [name]        seal this chat's turns into blocks (new turns only, each time)
-/share [@who:server]    invite someone; print the link whose #fragment carries the key
-/join <link>            open a shared chat: every block read back and decrypted here
-/serve                  answer the room's sealed prompts with this machine's models
-/pool                   the devices offering a mouth, and what each has answered
+/matrix                    where you stand, and what the server can see
+/preserve [name]           seal this chat's turns into blocks (new turns only, each time)
+/share @who:server         a link for that account alone — no key in it, one use, 7 days
+/share open                the magic key: whoever holds the link reads the chat
+/share words <three words> the key sealed under words you say aloud
+/share grant @who:server   trust an unverified key after comparing fingerprints
+/join <link> [the words]   open a shared chat: every block read back and decrypted here
+/matrix members            who is in the room, each key's fingerprint, who holds the key
+/matrix rotate · remove @who   a new key epoch; removal takes the seat and rotates
+/matrix lock · unlock      seal what this browser keeps under a passphrase
+/serve                     answer the room's sealed prompts with this machine's models
+/pool                      the devices offering a mouth, and what each has answered
 ```
+
+**Prefer `/share @who:server`.** That link carries no key: it works only for
+that account, signed in as themselves, once, and the key is handed over only
+after their browser publishes a public key carrying the link's proof — which
+a homeserver cannot forge or swap (POLICIES.md P120). `/share open` is a
+**magic key**: whoever holds that link reads the whole chat, past and future,
+and it cannot be taken back. `/matrix remove @who` rotates the key so nothing
+after it reaches them; what they already read, they keep.
 
 A member who runs `/serve` (or `node matrix-worker.mjs <link>` on a headless
 machine with Ollama) shows up in every member's model picker as

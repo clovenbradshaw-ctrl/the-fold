@@ -173,3 +173,16 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Ostrom | II.9 | createRoomBody | upheld — by decision | users_default 100: a room of equals; the viewer level of the first cut is gone |
 | Marshall | IV.1; P71 | POLICIES P119, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; measured numbers from the pane; not-claimed list carries the real homeserver, identity-after-wipe, sources, localStorage at rest |
 clean: nothing struck.
+
+## 2026-09-05 — P120: bound links, epochs, the vault (branch `bound-links`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon · Ostrom · Chekhov · Marshall; suites matrix 34/34, the-fold full 1666 pass.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | matrix.js verifyInviteProof | clean | constant-time compare, domain-separated message binding room, account and key; a swapped key, another account, another room and another secret each fail in the suite |
+| Simon | P10 | matrix-client.js grantPending | clean | the spent/expired/unproved/unverifiable cases each carry their own reason; nothing is granted on sight |
+| Ostrom | II.9 | rotate/remove | noted | rotation excludes future blocks only, and the door says so: no key un-reads what was read |
+| Chekhov | III.5 | lock/unlock | clean | the vault gates every door with a typed "locked"; the suite proves storage holds the vault and nothing else |
+| Marshall | IV.1; P71 | POLICIES P120, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the magic-key warning is in the product, not only the docs; not-claimed carries the open link, takeover, fingerprint discipline and the unlocked tab |
+clean: nothing struck.

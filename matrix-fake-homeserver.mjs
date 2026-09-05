@@ -87,10 +87,15 @@ export function startFakeHomeserver({ port = 0, host = "127.0.0.1", users = {}, 
       if (r.members.get(user) !== "invite" && r.members.get(user) !== "join" && rule !== "public") return err(res, 403, "M_FORBIDDEN", "You are not invited to this room.");
       r.members.set(user, "join"); return json(res, 200, { room_id: r.id });
     }
-    if ((m = /^\/_matrix\/client\/v3\/rooms\/([^/]+)\/(invite|members|state)(?:\/([^/]+)\/([^/]*))?$/.exec(p))) {
+    if ((m = /^\/_matrix\/client\/v3\/rooms\/([^/]+)\/(invite|kick|members|state)(?:\/([^/]+)\/([^/]*))?$/.exec(p))) {
       const r = store.rooms.get(decodeURIComponent(m[1])); if (!r) return err(res, 404, "M_NOT_FOUND", "no room");
       if (r.members.get(user) !== "join") return err(res, 403, "M_FORBIDDEN", "not a member");
-      if (m[2] === "invite" && req.method === "POST") { const b = parse(); if (!b?.user_id) return err(res, 400, "M_MISSING_PARAM", "user_id"); if (!r.members.has(b.user_id)) r.members.set(b.user_id, "invite"); return json(res, 200, {}); }
+      if (m[2] === "invite" && req.method === "POST") { const b = parse(); if (!b?.user_id) return err(res, 400, "M_MISSING_PARAM", "user_id"); if (r.members.get(b.user_id) === "join") return err(res, 403, "M_FORBIDDEN", `${b.user_id} is already in the room.`); r.members.set(b.user_id, "invite"); return json(res, 200, {}); }
+      if (m[2] === "kick" && req.method === "POST") {
+        const b = parse(); if (!b?.user_id) return err(res, 400, "M_MISSING_PARAM", "user_id");
+        const pl = r.state.get(stateKey("m.room.power_levels", "")); if (powerOf(r, user) < (pl.kick ?? 50)) return err(res, 403, "M_FORBIDDEN", "You don't have permission to kick");
+        r.members.set(b.user_id, "leave"); return json(res, 200, {});
+      }
       if (m[2] === "members") return json(res, 200, { chunk: [...r.members].map(([u, membership]) => ({ type: "m.room.member", state_key: u, sender: u, content: { membership } })) });
       if (m[2] === "state" && m[3] === undefined) return json(res, 200, [...r.state].map(([k, content]) => { const i = k.indexOf(" "); return { type: k.slice(0, i), state_key: k.slice(i + 1), content, sender: r.creator }; }));
       const type = decodeURIComponent(m[3]), key = decodeURIComponent(m[4] ?? "");

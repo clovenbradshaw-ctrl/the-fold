@@ -106,7 +106,7 @@ import { whereAmI, describeRoutes } from "./routes.js";
 // machine through a Matrix homeserver the person names — every byte that
 // leaves this page for it sealed under a key the homeserver never holds.
 import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
-import { parseShareLink, stripShareFragment, SERVER_SEES } from "./matrix.js";
+import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING } from "./matrix.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
@@ -911,6 +911,7 @@ const isRoomModel = (name) => typeof name === "string" && name.startsWith(ROOM_M
 const roomModelParts = (name) => { const m = /^room:(\S+) (.+)$/.exec(name ?? ""); return m ? { user: m[1], model: m[2] } : null; };
 const roomModelName = (user, model) => `${ROOM_MODEL_PREFIX}${user} ${model}`;
 let roomServing = null; // { room, controller, models, served } while this page serves the room
+let inviteWatch = null; // { room, controller } while this page grants bound invites it issued
 const MAX_TOKENS = 4096;
 /**
  * The summary refresh returns one short JSON object. Left uncapped, a small
@@ -1742,10 +1743,14 @@ async function routesTurn(question) {
 const matrixUsage = [
   "/matrix — where this page stands with its homeserver, and what that server can see",
   "/matrix login [homeserver] — sign in (a sheet; the password never touches the composer)",
-  "/matrix logout · /matrix rooms · /matrix open <room id> · /matrix request <room id> · /matrix forget",
+  "/matrix logout · rooms · open <room id> · request <room id> · members · fingerprint · forget",
+  "/matrix lock · unlock · unlock off — seal what this browser keeps under a passphrase (a sheet)",
+  "/matrix rotate · remove @who:server — a new key epoch; removal takes the seat and rotates",
   "/preserve [name] — seal this chat's turns into blocks on the homeserver (new turns only, each time)",
-  "/share [@who:server] — invite someone and print the link whose #fragment carries the key",
-  "/join <link> — open a shared chat: join, publish your key, read every block back here",
+  "/share @who:server — a link that works for that account alone (no key in it; one use; 7 days)",
+  "/share open — the magic key: whoever holds the link reads the chat · /share words <three or more words> — the key sealed under words you say aloud",
+  "/share grant @who:server — trust an unverified key after comparing fingerprints · /share pending",
+  "/join <link> [words] — open a shared chat: join, publish your key, read every block back here",
   "/serve [stop] — answer sealed prompts for the room with this machine's models",
   "/pool — the devices offering a mouth through the room, and what each has answered",
 ].join("\n");
@@ -1775,29 +1780,67 @@ function replayEntries(entries, from) {
 function roomStatusLines() {
   const st = foldMatrix.status();
   const lines = [];
-  lines.push(st.signedIn ? `signed in as ${st.user} on ${st.hs}` : "not signed in — /matrix login <homeserver>");
+  if (st.locked) lines.push("LOCKED — what this browser keeps (session, identity, keys) is sealed under your passphrase: /matrix unlock");
+  else if (st.vaulted) lines.push("unlocked for this page load; sealed again at rest");
+  lines.push(st.signedIn ? `signed in as ${st.user} on ${st.hs}` : st.locked ? "signed in? unknown until unlocked" : "not signed in — /matrix login <homeserver>");
   lines.push(state.matrixRoom ? `this chat's room: ${roomLabel(state.matrixRoom)}` : "this chat has no room yet — /preserve makes one, /join opens a shared one");
-  if (st.rooms.length) { lines.push("rooms this browser holds a key for:"); for (const r of st.rooms) lines.push(`  ${r.name ?? "(unnamed)"} · ${r.id} · ${r.blocks} block(s), ${r.entries} entr${r.entries === 1 ? "y" : "ies"}`); }
+  if (st.rooms.length) { lines.push("rooms this browser holds a key for:"); for (const r of st.rooms) lines.push(`  ${r.name ?? "(unnamed)"} · ${r.id} · ${r.blocks} block(s), ${r.entries} entr${r.entries === 1 ? "y" : "ies"} · epoch ${r.epoch}${r.invites ? ` · ${r.invites} bound invite(s) outstanding` : ""}${r.pending ? " · waiting for a grant" : ""}`); }
+  if (inviteWatch) lines.push(`granting bound invites for ${roomLabel(inviteWatch.room)} while this page is open`);
   lines.push(roomServing ? `serving the room from this machine: ${roomServing.models.join(", ")} · ${roomServing.served} answered` : "not serving");
   lines.push(`traffic this page sent it: ${st.traffic.requests} request(s), ${st.traffic.bytesOut.toLocaleString()} bytes`);
   lines.push("what the homeserver can see:"); for (const l of SERVER_SEES) lines.push(`  ${l}`);
   return lines;
 }
-function openMatrixLogin(hs = "") {
-  $("mx-hs").value = hs || $("mx-hs").value || "";
+/** The one sheet, in one of four modes: sign in (homeserver, user, password),
+ * set a vault passphrase, unlock the vault, or the words for a passphrase
+ * link. Whatever mode, the secret field is read once by the submit handler
+ * and cleared; nothing typed here ever reaches the composer or the transcript. */
+let sheetMode = "login";
+function openMatrixSheet(mode, { hs = "", user = "" } = {}) {
+  sheetMode = mode;
+  const login = mode === "login";
+  $("mx-hs").closest("label").hidden = !login; $("mx-user").closest("label").hidden = !login;
+  $("mx-hs").required = login; $("mx-user").required = login;
+  if (login) { $("mx-hs").value = hs || $("mx-hs").value || ""; if (user) $("mx-user").value = user; }
   $("mx-pass").value = "";
-  $("matrix-login-sub").textContent = state.matrixPendingLink ? `sign in, and the shared chat opens. ${$("matrix-login-sub").dataset.base}` : $("matrix-login-sub").dataset.base;
+  $("mx-pass").closest("label").firstChild.textContent = mode === "words" ? "the words" : "passphrase";
+  $("matrix-login-title").textContent = { login: "Sign in to a homeserver", lock: "Seal what this browser keeps", unlock: "Unlock", words: "The words this link needs" }[mode];
+  $("matrix-login-sub").textContent = {
+    login: `${state.matrixPendingLink ? "sign in, and the shared chat opens. " : ""}${$("matrix-login-sub").dataset.base}`,
+    lock: "Your session, identity pair and chat keys are sealed under this passphrase at rest, and asked for on every page load. Nothing recovers a forgotten one.",
+    unlock: "The passphrase you sealed this browser's keys with.",
+    words: "Said aloud by whoever shared the link; the link alone does not open the chat.",
+  }[mode];
+  $("matrix-login-note").hidden = !login;
+  $("matrix-login-submit").textContent = { login: "Sign in", lock: "Seal", unlock: "Unlock", words: "Open" }[mode];
   $("matrix-login").showModal();
-  ($("mx-hs").value ? $("mx-user") : $("mx-hs")).focus();
+  (login && !$("mx-hs").value ? $("mx-hs") : login && !$("mx-user").value ? $("mx-user") : $("mx-pass")).focus();
 }
+const openMatrixLogin = (hs = "", user = "") => openMatrixSheet("login", { hs, user });
 async function matrixTurn(arg, question) {
   const [verb, ...rest] = arg.split(/\s+/); const tail = rest.join(" ").trim();
   try {
     if (!verb) return usageTurn(question, `${roomStatusLines().join("\n")}\n\n${matrixUsage}`, { what: "matrix" });
+    if (foldMatrix.locked && !["unlock", "forget"].includes(verb)) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open; nothing this browser keeps is readable until then", { what: "matrix" }); }
     if (verb === "login") {
       if (foldMatrix.status().signedIn && !tail) return usageTurn(question, `already signed in as ${foldMatrix.status().user} — /matrix logout first to change`, { what: "matrix" });
       openMatrixLogin(tail);
       return usageTurn(question, "the sign-in sheet is open — nothing leaves this page until you press Sign in, and then only to the homeserver you named", { what: "matrix" });
+    }
+    if (verb === "lock") { if (foldMatrix.status().vaulted) return usageTurn(question, "already sealed — /matrix unlock off returns to plain storage", { what: "matrix" }); openMatrixSheet("lock"); return usageTurn(question, "the seal sheet is open — choose a passphrase you will not lose; it is asked for on every page load", { what: "matrix" }); }
+    if (verb === "unlock") { if (tail === "off") { if (!foldMatrix.status().vaulted) return usageTurn(question, "nothing is sealed", { what: "matrix" }); sheetMode = "unlock-off"; openMatrixSheet("unlock"); $("matrix-login-title").textContent = "Unseal for good"; return usageTurn(question, "the sheet is open — the passphrase, once more, returns this browser to plain storage", { what: "matrix" }); } if (!foldMatrix.locked) return usageTurn(question, "not locked", { what: "matrix" }); openMatrixSheet("unlock"); return usageTurn(question, "the unlock sheet is open", { what: "matrix" }); }
+    if (verb === "fingerprint") return usageTurn(question, `this browser's key: ${await foldMatrix.myFingerprint()} — read it aloud to a member who is deciding whether to /share grant you`, { what: "matrix" });
+    if (verb === "members") {
+      if (!state.matrixRoom) return usageTurn(question, "no room is open", { what: "matrix" });
+      const list = await foldMatrix.members(state.matrixRoom);
+      return usageTurn(question, [`members of ${roomLabel(state.matrixRoom)}:`, ...list.map((m) => `  ${m.user} · ${m.membership}${m.fingerprint ? ` · key ${m.fingerprint}${m.proof === "proof" ? " (proved by a bound link)" : " (no proof — compare aloud before /share grant)"}` : " · no key published"} · ${m.hasKey ? "holds the chat key" : "no chat key"}`), "— from the room's state, not guessed"].join("\n"), { what: "matrix" });
+    }
+    if (verb === "rotate") { if (!state.matrixRoom) return usageTurn(question, "no room is open", { what: "matrix" }); const r = await foldMatrix.rotate(state.matrixRoom); return usageTurn(question, `new key epoch ${r.epoch} for ${roomLabel(state.matrixRoom)}: everything from now on is sealed under a key ${r.regranted.length} member(s) were re-granted (${r.regranted.join(", ") || "nobody else"}); what was read before stays read`, { what: "matrix" }); }
+    if (verb === "remove") {
+      if (!state.matrixRoom) return usageTurn(question, "no room is open", { what: "matrix" });
+      if (!/^@[^:]+:.+$/.test(tail)) return usageTurn(question, "/matrix remove @who:server", { what: "matrix" });
+      const r = await foldMatrix.remove(state.matrixRoom, tail);
+      return usageTurn(question, `${tail} is out of ${roomLabel(state.matrixRoom)}, and the key rotated to epoch ${r.epoch} — nothing sealed from now on reaches them; what they already read, they keep (no key un-reads a block). Re-granted: ${r.regranted.join(", ") || "nobody"}`, { what: "matrix" });
     }
     if (verb === "logout") { await foldMatrix.logout(); if (roomServing) { roomServing.controller.abort(); roomServing = null; } return usageTurn(question, "signed out; the token was invalidated on the homeserver and forgotten here. Chat keys stay in this browser — /matrix forget drops them too.", { what: "matrix" }); }
     if (verb === "forget") { localStorageStorage().clear(); state.matrixRoom = null; return usageTurn(question, "forgotten: the session, this browser's identity pair, every chat key. Reload to start clean. (Rooms and blocks stay on the homeserver, unreadable without the keys.)", { what: "matrix" }); }
@@ -1822,6 +1865,7 @@ async function matrixTurn(arg, question) {
 }
 async function preserveTurn(arg, question) {
   try {
+    if (foldMatrix.locked) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open", { what: "preserve" }); }
     if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "preserve" });
     const firstAsk = state.history.find((h) => h.role === "user")?.content ?? "";
     const name = arg || firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat";
@@ -1832,7 +1876,7 @@ async function preserveTurn(arg, question) {
     const sources = liveSources().length;
     const lines = [
       made ? `made a private room, ${roomLabel(room)}, with a fresh chat key held in this browser` : `room: ${roomLabel(room)}`,
-      r.pushed ? `preserved ${r.pushed} turn(s) as block ${r.idx} — ${r.bytes.toLocaleString()} bytes of ciphertext at ${r.mxc}, sha256 ${r.sha256.slice(0, 12)}…` : "nothing new to preserve",
+      r.pushed ? `preserved ${r.pushed} turn(s) as block ${r.idx} (key epoch ${r.epoch}) — ${r.bytes.toLocaleString()} bytes of ciphertext at ${r.mxc}, sha256 ${r.sha256.slice(0, 12)}…` : "nothing new to preserve",
       r.skipped ? `${r.skipped} turn(s) were already there` : null,
       sources ? `${sources} attached source(s) are not preserved — the room holds turns; sources stay on this machine` : null,
       "the homeserver holds the sealed block, its size and its time; /share hands the key on",
@@ -1840,38 +1884,73 @@ async function preserveTurn(arg, question) {
     return usageTurn(question, lines.join("\n"), { what: "preserve" });
   } catch (e) { return usageTurn(question, `/preserve: ${matrixGap(e)}`, { what: "preserve" }); }
 }
+/** What the grant pass found, phrased once for every share-shaped door. */
+function grantLines(r) {
+  const lines = [];
+  if (r.granted?.length) lines.push(`granted: ${r.granted.map((g) => `${g.user} (key ${g.fingerprint})`).join(", ")}`);
+  if (r.unverified?.length) lines.push(`waiting on you: ${r.unverified.map((u) => `${u.user} published key ${u.fingerprint} with no link proof — have them read it aloud, then /share grant ${u.user}`).join("; ")}`);
+  if (r.refused?.length) lines.push(`refused: ${r.refused.map((x) => `${x.user} — ${x.why}`).join("; ")}`);
+  return lines;
+}
 async function shareTurn(arg, question) {
   try {
+    if (foldMatrix.locked) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open", { what: "share" }); }
     if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "share" });
-    if (arg && !/^@[^:]+:.+$/.test(arg)) return usageTurn(question, "/share [@who:their.server] — a Matrix id, or nothing for the link alone", { what: "share" });
+    const [verb, ...rest] = arg.split(/\s+/); const tail = rest.join(" ").trim();
     if (!state.matrixRoom) { const firstAsk = state.history.find((h) => h.role === "user")?.content ?? ""; state.matrixRoom = await foldMatrix.ensureRoom({ name: firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat" }); localStorage.setItem("fold-matrix-room", state.matrixRoom); await foldMatrix.preserve(state.matrixRoom, chatEntries()); }
-    const r = await foldMatrix.share(state.matrixRoom, { invite: arg || null, pageHref: stripShareFragment(location.href) });
-    const lines = [
-      arg ? `invited ${arg} to ${roomLabel(state.matrixRoom)} (the room is private: only the invited can join)` : `room: ${roomLabel(state.matrixRoom)}`,
-      r.granted.length ? `the chat key was wrapped to ${r.granted.join(", ")}, who had published a key and held none` : null,
-      `link — the key is after the #, which browsers never send to any server:`,
-      `  ${r.link}`,
-      "anyone holding this link and a seat in the room reads the whole chat; hand it over a channel you trust",
-    ].filter(Boolean);
-    return usageTurn(question, lines.join("\n"), { what: "share" });
+    const room = state.matrixRoom; const pageHref = stripShareFragment(location.href);
+    if (verb === "pending") { const r = await foldMatrix.grantPending(room); return usageTurn(question, [`bound invites outstanding: ${foldMatrix.pendingInvites(room).join(", ") || "none"}`, ...grantLines(r), grantLines(r).length ? "" : "nothing waiting"].join("\n"), { what: "share" }); }
+    if (verb === "grant") { if (!/^@[^:]+:.+$/.test(tail)) return usageTurn(question, "/share grant @who:server — after comparing their fingerprint aloud (/matrix members)", { what: "share" }); const r = await foldMatrix.share(room, { grant: tail }); return usageTurn(question, [`${tail} now holds the chat key (every epoch), wrapped to key ${r.granted[0].fingerprint}`, "you trusted that key by comparing it out of band; a homeserver cannot have swapped what you read aloud"].join("\n"), { what: "share" }); }
+    if (verb === "open" || verb === "") {
+      const r = await foldMatrix.share(room, { mode: "open", pageHref });
+      return usageTurn(question, [`room: ${roomLabel(room)}`, ...grantLines(r), `open link — the key is after the #, which browsers never send to any server:`, `  ${r.link}`, MAGIC_KEY_WARNING].join("\n"), { what: "share" });
+    }
+    if (verb === "words") {
+      if (tail.split(/\s+/).filter(Boolean).length < 3) return usageTurn(question, "/share words <three or more words> — the words you will say aloud", { what: "share" });
+      const r = await foldMatrix.share(room, { mode: "passphrase", passphrase: tail, pageHref });
+      return usageTurn(question, [`room: ${roomLabel(room)}`, ...grantLines(r), `link — the key is sealed under your words; the link alone opens nothing, the words alone open nothing:`, `  ${r.link}`, "say the words to the person over a different channel than the link; whoever has both reads the whole chat"].join("\n"), { what: "share" });
+    }
+    if (/^@[^:]+:.+$/.test(verb)) {
+      const r = await foldMatrix.share(room, { invite: verb, mode: "bound", pageHref });
+      startInviteWatch(room);
+      return usageTurn(question, [`invited ${verb} to ${roomLabel(room)} (private: only the invited can join)`, ...grantLines(r), `bound link — no key in it; it works only for ${verb}, signed in as themselves, once, until ${new Date(r.expiresAt).toLocaleString()}:`, `  ${r.link}`, "when they open it, their page publishes a key with this link's proof; this page (while open) or your worker grants that key and no other — a homeserver cannot swap one in", "if this page is closed when they open it, they see 'waiting for a grant'; reopening this chat later grants it"].join("\n"), { what: "share" });
+    }
+    return usageTurn(question, "/share @who:server (bound to that account) · /share open (the magic key) · /share words <words> · /share grant @who:server · /share pending", { what: "share" });
   } catch (e) { return usageTurn(question, `/share: ${matrixGap(e)}`, { what: "share" }); }
 }
-/** Join from a link: the flow /join, the boot path and the sign-in sheet share. */
-async function joinInto(link) {
-  const r = await foldMatrix.joinFromLink(link);
-  if (r.needs === "login") { state.matrixPendingLink = link; openMatrixLogin(r.hs); return `sign in to your homeserver first — the sheet is open; the shared chat "${r.name ?? r.room}" opens after`; }
+/** While this page is open and holds outstanding bound invites for the
+ * room, grant every proof that verifies, and say so. */
+function startInviteWatch(room) {
+  if (inviteWatch?.room === room) return;
+  inviteWatch?.controller.abort();
+  const controller = new AbortController();
+  inviteWatch = { room, controller };
+  foldMatrix.watchInvites(room, { signal: controller.signal, onGrant: (g) => { for (const x of g.granted) addMessage("assistant", `granted the chat key to ${x.user} (key ${x.fingerprint}) — their bound link's proof verified`); renderPool(); } })
+    .catch(() => {}).finally(() => { if (inviteWatch?.controller === controller) inviteWatch = null; });
+}
+/** Join from a link: the flow /join, the boot path and the sheet share. */
+async function joinInto(link, { passphrase = null } = {}) {
+  const p = parseShareLink(link);
+  const r = await foldMatrix.joinFromLink(link, { passphrase, onWait: ({ ms }) => { $("status").textContent = `waiting for a member to grant your key · ${Math.round(ms / 1000)}s`; } });
+  if (r.needs === "unlock") { state.matrixPendingLink = link; openMatrixSheet("unlock"); return "unlock this browser's keys first — the sheet is open; the shared chat opens after"; }
+  if (r.needs === "login") { state.matrixPendingLink = link; openMatrixLogin(r.hs, r.to ? r.to.replace(/^@/, "").replace(/:.*$/, "") : ""); return `sign in to your homeserver first${r.to ? ` as ${r.to}` : ""} — the sheet is open; the shared chat "${r.name ?? r.room}" opens after`; }
+  if (r.needs === "passphrase") { state.matrixPendingLink = link; openMatrixSheet("words"); return `this link needs the words that were said to you — the sheet is open`; }
   if (!r.joined) return `${r.room}: ${r.gap}`;
   state.matrixPendingLink = null;
   state.matrixRoom = r.room; localStorage.setItem("fold-matrix-room", r.room);
+  $("status").textContent = `ready · ${state.model}`;
+  if (r.awaiting) return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}, and published this browser's key (${r.fingerprint}) with the link's proof — ${r.gaps.join("; ")}`;
   const n = replayEntries(r.entries, r.room);
   renderModelMenu();
-  return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.partial ? `\ngaps: ${r.gaps.join("; ")}` : ""}\nthe key from the link is held in this browser; the address bar no longer carries it`;
+  const how = p?.kind === "bound" ? `the chat key was granted to this browser's key (${r.fingerprint}) — it opens only here` : p?.kind === "passphrase" ? "the key was opened with the words and is held in this browser" : "the key from the link is held in this browser; the address bar no longer carries it";
+  return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.partial ? `\ngaps: ${r.gaps.join("; ")}` : ""}\n${how}`;
 }
 async function joinTurn(arg, question) {
   try {
-    const link = arg || state.matrixPendingLink;
-    if (!link || !parseShareLink(link)) return usageTurn(question, "/join <link> — a link printed by /share (its # carries the key)", { what: "join" });
-    return usageTurn(question, await joinInto(link), { what: "join" });
+    const m = /^(\S+)\s*(.*)$/s.exec(arg ?? "");
+    const link = m?.[1] || state.matrixPendingLink; const words = m?.[2]?.trim() || null;
+    if (!link || !parseShareLink(link)) return usageTurn(question, "/join <link> [the words] — a link printed by /share", { what: "join" });
+    return usageTurn(question, await joinInto(link, { passphrase: words }), { what: "join" });
   } catch (e) { return usageTurn(question, `/join: ${matrixGap(e)}`, { what: "join" }); }
 }
 /** This machine's mouth, for the room: the same completeOnce a turn uses,
@@ -10751,9 +10830,14 @@ fillModels().then(() => {
     const link = location.href;
     history.replaceState(null, "", stripShareFragment(location.href));
     joinInto(link).then((line) => addMessage("assistant", line)).catch((e) => addMessage("assistant", `the shared link could not be opened: ${matrixGap(e)}`));
+  } else if (foldMatrix.locked) {
+    state.matrixRoom = localStorage.getItem("fold-matrix-room") || null;
+    addMessage("assistant", "this browser's room keys are sealed — the unlock sheet is open (/matrix unlock)");
+    openMatrixSheet("unlock");
   } else {
     state.matrixRoom = localStorage.getItem("fold-matrix-room") || null;
     if (state.matrixRoom && !foldMatrix.status().rooms.some((r) => r.id === state.matrixRoom)) state.matrixRoom = null;
+    if (state.matrixRoom && foldMatrix.pendingInvites(state.matrixRoom).length) startInviteWatch(state.matrixRoom);
   }
 });
 // The sign-in sheet: the password is read once, cleared, sent in Matrix's own
@@ -10777,12 +10861,29 @@ async function signInFromSheet(hs, user, pass) {
     renderPool();
   } catch (e) { addMessage("assistant", `sign-in failed: ${matrixGap(e)} — nothing but the login call went to ${hs}`); }
 }
+async function sheetAct(mode, hs, user, secret) {
+  try {
+    if (mode === "login") return signInFromSheet(hs, user, secret);
+    if (!secret) { addMessage("assistant", "nothing was typed — nothing changed"); return; }
+    if (mode === "lock") { await foldMatrix.lock(secret); addMessage("assistant", "sealed: what this browser keeps for the room is now readable only with your passphrase; it is asked for on every page load"); return; }
+    if (mode === "unlock-off") { await foldMatrix.clearLock(secret); addMessage("assistant", "unsealed for good: this browser keeps its session and keys in plain storage again"); return; }
+    if (mode === "unlock") {
+      const st = await foldMatrix.unlock(secret);
+      addMessage("assistant", `unlocked${st.user ? ` — signed in as ${st.user}` : ""}`);
+      if (state.matrixRoom && !st.rooms.some((r) => r.id === state.matrixRoom)) state.matrixRoom = null;
+      if (state.matrixPendingLink) addMessage("assistant", await joinInto(state.matrixPendingLink));
+      renderPool(); return;
+    }
+    if (mode === "words") { if (!state.matrixPendingLink) return; addMessage("assistant", await joinInto(state.matrixPendingLink, { passphrase: secret })); return; }
+  } catch (e) { addMessage("assistant", `${mode}: ${matrixGap(e)}`); }
+}
 $("matrix-login-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  const hs = $("mx-hs").value.trim(), user = $("mx-user").value.trim(), pass = $("mx-pass").value;
+  const hs = $("mx-hs").value.trim(), user = $("mx-user").value.trim(), secret = $("mx-pass").value;
   $("mx-pass").value = "";
   $("matrix-login").close("login");
-  void signInFromSheet(hs, user, pass);
+  const mode = sheetMode; sheetMode = "login";
+  void sheetAct(mode, hs, user, secret);
 });
 $("model-menu-pool").onclick = () => { settingsDialog.close(); renderPool(); $("pool").showModal(); if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch(() => {}); };
 $("pool-refresh").onclick = () => { if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch((e) => { $("pool-sub").textContent = matrixGap(e); }); };

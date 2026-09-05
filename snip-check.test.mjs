@@ -38,7 +38,7 @@ test("the section's rewrite: flagged sentences asked once with their flags as fa
   const sec = checkSection(text.split(/(?<=\.)\s+/), snips);
   assert.equal(sec.flagged.length, 2);
   const ask = reviseAsk(sec.flagged, snips);
-  assert.match(ask, /"The X-Files series first aired on Fox in 1997\." — year "1997" appears in no snip this section stood on; the year 1997 is not what the source says here: "The original television series aired from September 10, 1993/);
+  assert.match(ask, /"The X-Files series first aired on Fox in 1997\." — the sources do not use the year "1997" here; they say 1993 and 2002 where this says 1997: "The original television series aired from September 10, 1993/, "the ask states the fact, in plain words");
   assert.match(ask, /What the sources say, verbatim/);
   const good = applyRewrite(text, sec.flagged, "The X-Files series first aired on Fox in 1993.\n(dropped)", snips);
   assert.match(good.text, /aired on Fox in 1993\./); assert.doesNotMatch(good.text, /Annabeth Gish/);
@@ -62,4 +62,19 @@ test("a rewrite must be about the same thing: a sentence whose atoms sit in a sn
   // A real correction keeps the subject and passes.
   const good = applyRewrite(text, sec.flagged, "The X-Files series first aired on Fox in 1993.", snips);
   assert.equal(good.outcomes[0].outcome, "rewritten");
+});
+
+test("the instrument's own words never reach the answer, and the ask that caused it now speaks plainly (S77 run 3)", () => {
+  const snips = snipsFor(passages, { obligations: ["Chris Carter", "Fox"], terms: ["x-files"] });
+  const text = "The X-Files series first aired on Fox in 1997.";
+  const sec = checkSection([text], snips);
+  // The ask carries facts, not this module's vocabulary.
+  const ask = reviseAsk(sec.flagged, snips);
+  assert.match(ask, /the sources do not use the year "1997" here/);
+  assert.doesNotMatch(ask, /appears in no snip|beside none of this sentence/, "the flag's human-facing detail never goes to the model");
+  // The exact leak measured live: the model echoing a flag phrase back.
+  const leaked = applyRewrite(text, sec.flagged, "Function appears in a snip but beside none of this sentence's own words in 1993.", snips);
+  assert.equal(leaked.outcomes[0].outcome, "refused");
+  assert.match(leaked.outcomes[0].because, /echoes the instrument's own words/);
+  assert.equal(leaked.text, text);
 });

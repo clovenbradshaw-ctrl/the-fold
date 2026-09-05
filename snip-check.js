@@ -25,6 +25,9 @@ import { namesIn } from "./ground-ladder.js";
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const contentWords = (t) => [...wordSet(fold(t))].filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w));
 const YEAR_RE = /\b(1[5-9]\d\d|20\d\d)\b/g;
+/** This module's own vocabulary, and the asks built from it. A candidate
+ * carrying any of it is describing the checking rather than the material. */
+const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
 export const SNIP_MAX = 40;         // snips a section is handed (P9: declared)
 export const SNIP_WINDOW = 320;     // chars of a passage around a hit, when the passage has no sentence boundary near it
 
@@ -122,7 +125,17 @@ export function checkSection(sentences, snips) {
 /** The one ask a section gets for its flagged sentences: the flags as facts, the snips as the only ground. */
 export function reviseAsk(flagged, snips, { words = null } = {}) {
   const lines = flagged.map((r) => {
-    const why = [...r.flags.map((f) => f.detail), ...(r.contradiction ? [`the year ${r.contradiction.sentenceYears.join("/")} is not what the source says here: "${r.contradiction.text.replace(/\s+/g, " ").slice(0, 160)}" [${r.contradiction.ref}#${r.contradiction.start}-${r.contradiction.end}]`] : [])];
+    // PLAIN WORDS ONLY (measured live, S77 run 3): the flag's `detail` is
+    // written for a person reading the export — "appears in a snip but beside
+    // none of this sentence's own words" — and when it was put in front of the
+    // model the model echoed it straight back into its rewrite, which then
+    // landed. What the model needs is the FACT: which value the sources do not
+    // carry, and what they say instead. "Snip" is this instrument's word for
+    // its own working, never a fact about the world.
+    const why = [
+      ...r.flags.map((f) => `the sources do not use ${f.kind === "name" ? "the name" : f.kind === "year" ? "the year" : "the number"} "${f.value}" here`),
+      ...(r.contradiction ? [`they say ${r.contradiction.snipYears.join(" and ")} where this says ${r.contradiction.sentenceYears.join(" and ")}: "${r.contradiction.text.replace(/\s+/g, " ").slice(0, 160)}"`] : []),
+    ];
     return `- "${r.sentence}" — ${why.join("; ")}`;
   });
   return `These sentences say things the sources you were given do not:\n${lines.join("\n")}\n\n${snipBlock(snips)}\n\nRewrite only those sentences so each says what the sources establish, or drop a sentence the sources cannot support. Reply with the rewritten sentences only, one per line, in the same order; write "(dropped)" for a sentence you drop.`;
@@ -150,6 +163,11 @@ export function applyRewrite(text, flagged, reply, snips) {
     // must keep the subject matter of the sentence it replaces: one content
     // word of the original, or an atom of it. Otherwise it is a different
     // sentence, not a correction, and the original stands flagged.
+    // THE INSTRUMENT'S OWN WORDS MAY NEVER LAND IN THE ANSWER (measured live,
+    // S77 run 3: "1. Function appears in a snip but beside none of this
+    // sentence's own words It uses a combination of rules…" reached the
+    // product because the echoed phrase's atoms passed the atom check).
+    if (APPARATUS_RE.test(cand)) { outcomes.push({ sentence: r.sentence, candidate: cand, outcome: "refused", because: "the rewrite echoes the instrument's own words back" }); return; }
     const own = contentWords(r.sentence);
     const kept = own.filter((w) => contentWords(cand).includes(w));
     const keptAtom = r.atoms.some((a) => fold(cand).includes(fold(a.value)));

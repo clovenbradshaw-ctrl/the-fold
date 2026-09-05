@@ -1972,7 +1972,8 @@ test("P119: the snips are handed above the material; a drafted year no snip carr
   assert.match(draftAsk.at(-1).content, /What the sources say, verbatim, each at its address:\n- \[h\.txt#0-\d+#\d+-\d+\] The harbor light was built in 1841 by Ada Rowe\./, "the snips ride above the material, verbatim, addressed");
   const revise = sent.filter((m) => /These sentences say things the sources you were given do not/.test(m.at(-1)?.content ?? ""));
   assert.equal(revise.length, 1, "one rewrite ask for the flagged sentence");
-  assert.match(revise[0].at(-1).content, /year "1847" appears in no snip this section stood on; the year 1847 is not what the source says here: "The harbor light was built in 1841 by Ada Rowe\."/, "the ask carries the flag and the contradicting snip as facts");
+  assert.match(revise[0].at(-1).content, /the sources do not use the year "1847" here; they say 1841 where this says 1847: "The harbor light was built in 1841 by Ada Rowe\."/, "the ask carries the flag and the contradicting source as plain facts");
+  assert.doesNotMatch(revise[0].at(-1).content, /appears in no snip|beside none of this sentence/, "never the instrument's own working (P122)");
   const sec = r.sections[0];
   assert.ok(sec.piece.snipCheck, "the check is on the section's record");
   assert.equal(sec.piece.snipCheck.flagged, 1);

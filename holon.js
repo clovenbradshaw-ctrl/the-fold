@@ -374,6 +374,12 @@ export const MAX_CORRECTIONS = 1;
  * parts — that is what decomposition is for.
  */
 export const EXECUTE_MAX_TOKENS = 512;
+// A piece's section under this share of its word target is continued once
+// (P108). A share, not a count: the target is the caller's, the floor rides
+// it. 0.6 is declared, not measured — the first run's sections came back at
+// ~0.2 of target (2,269 words for a 15,000-word ask), so any floor above
+// that fires; where it should sit is the next measurement.
+export const CONTINUE_BELOW = 0.6;
 /** The plan is a short JSON array; anything longer is the model talking. */
 export const PLAN_MAX_TOKENS = 400;
 
@@ -511,8 +517,22 @@ const S2_FRAME_PREFIX = "";
 export const FLAT_EXECUTE_SYSTEM_PROMPT =
   "You are talking with someone. Answer what they asked, in your own words, the way a person would — not a summary of the question and not a description of what you were given. Everything below is yours to answer from. If the answer is not there, say plainly that it is not, rather than filling the gap.";
 
-export function buildExecutePrompt(part, sourceBlock, discourse = "") {
-  const head = `Write this part: ${part.label}. ${part.description}`;
+/** The words of a draft, counted — never trusted from a prompt (P108). */
+export const wordCount = (t) => String(t ?? "").split(/\s+/).filter(Boolean).length;
+/** The last `n` words of a finished section, for the next section's prompt. */
+export const tailWords = (t, n = 80) => String(t ?? "").split(/\s+/).filter(Boolean).slice(-n).join(" ");
+/** The piece line: where this section sits, what the others are, how long it should run. Information the model receives (P55), never a directive about the apparatus. */
+export function pieceLine(piece) {
+  if (!piece || !Number.isFinite(piece.words)) return "";
+  const where = Number.isFinite(piece.index) && Number.isFinite(piece.count) ? `This is section ${piece.index} of ${piece.count}` : "This is one section";
+  const of = piece.topic ? ` of a ${piece.pages ? `${piece.pages}-page ` : ""}piece on ${piece.topic}` : " of a longer piece";
+  const outline = piece.outline?.length ? ` The sections, in order: ${piece.outline.join("; ")}.` : "";
+  const prev = piece.previousTail ? ` The previous section ended: "${piece.previousTail}"` : "";
+  return `${where}${of}.${outline}${prev} Write about ${piece.words} words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established.`;
+}
+
+export function buildExecutePrompt(part, sourceBlock, discourse = "", piece = null) {
+  const head = `Write this part: ${part.label}. ${part.description}${piece ? `\n${pieceLine(piece)}` : ""}`;
   // The discourse slice is ONE line — topic, flow, entities — never the
   // records block. A part that needs an established fact retrieves it;
   // recall is retrieval, and a small prompt is the point of running as
@@ -876,6 +896,10 @@ export async function runPart({
   foldedRefs = [],
   passagesPerPart = PASSAGES_PER_PART,
   maxCorrections = MAX_CORRECTIONS,
+  executeMaxTokens = EXECUTE_MAX_TOKENS,
+  // Long-form (P108): the section's place in a piece and its word target;
+  // a short draft gets ONE measured continuation before any check runs.
+  piece = null,
   makeNameResolver = null,
   makeRelationReader = null,
   // The link tier (links.js): an async function url => fetched-shape result,
@@ -1796,7 +1820,7 @@ export async function runPart({
         ]
       : [
           { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-          { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse) },
+          { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
         ]
     : chatHistory.length
       ? [
@@ -2113,7 +2137,27 @@ export async function runPart({
             incomplete: isIncomplete(t, c),
           };
 
-  const rawDraft = await call(executeMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
+  let rawDraft = await call(executeMessages, { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+  // LENGTH IS MEASURED, NEVER TRUSTED (P108). A piece's section that came
+  // back under CONTINUE_BELOW of its word target gets exactly one
+  // continuation — the same messages, the draft so far as the assistant's
+  // own turn, and an ask for the remainder — BEFORE inspection, so every
+  // check below reads the whole section. Bounded: one call, declared.
+  let continued = null;
+  if (piece && Number.isFinite(piece.words) && passages.length) {
+    const have = wordCount(clean(rawDraft));
+    if (have < piece.words * CONTINUE_BELOW) {
+      const more = Math.max(50, piece.words - have);
+      const cont = await call([
+        ...executeMessages,
+        { role: "assistant", content: rawDraft },
+        { role: "user", content: `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.` },
+      ], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+      const joined = `${rawDraft.trimEnd()}\n\n${String(cont ?? "").trim()}`;
+      continued = { from: have, to: wordCount(clean(joined)), target: piece.words };
+      rawDraft = joined;
+    }
+  }
   draft = clean(rawDraft);
   check = inspect(draft);
   // Echo and reproduction are MATERIAL-level judgments — a draft measured
@@ -2235,7 +2279,7 @@ export async function runPart({
       mode,
       promptChars: correctionMessages.reduce((n, m) => n + m.content.length, 0),
     });
-    const rawCorrected = await call(correctionMessages, { effort: "low", maxTokens: EXECUTE_MAX_TOKENS, ...streaming });
+    const rawCorrected = await call(correctionMessages, { effort: "low", maxTokens: executeMaxTokens, ...streaming });
     draft = clean(rawCorrected);
     check = inspect(draft);
     verdict = verdictOf(draft, check);
@@ -2415,6 +2459,7 @@ export async function runPart({
     text,
     passages,
     corrections,
+    ...(continued ? { continued } : {}),
     ...check,
     quoteCorrections,
     links: linkReport,
@@ -2448,6 +2493,15 @@ export async function runHolonicTask({
   maxParts = MAX_PARTS,
   passagesPerPart = PASSAGES_PER_PART,
   maxCorrections = MAX_CORRECTIONS,
+  // Long-form (P108): a caller writing a PIECE rather than answering a
+  // question declares a larger draft budget per part and a plan budget
+  // sized to its section count. Defaults are byte-identical to before.
+  executeMaxTokens = EXECUTE_MAX_TOKENS,
+  planMaxTokens = PLAN_MAX_TOKENS,
+  // Long-form (P108): { topic, pages, words } — every part is then told its
+  // place in the piece, the outline, how the previous section ended, and
+  // its word target; a short section is continued once, measured.
+  piece = null,
   makeNameResolver = null,
   makeRelationReader = null,
   witnessSentences = null,
@@ -2538,7 +2592,7 @@ export async function runHolonicTask({
         // schema constrains decoding to the parts array; one that can't
         // falls back to plain JSON mode, and parsePlan handles whatever
         // shape arrives.
-        { effort: "low", maxTokens: PLAN_MAX_TOKENS, json: PLAN_SCHEMA },
+        { effort: "low", maxTokens: planMaxTokens, json: PLAN_SCHEMA },
       );
     } catch {
       planRaw = "";
@@ -2583,6 +2637,15 @@ export async function runHolonicTask({
       // on the task's words, which is the whole repair.
       description: t.description || task,
     };
+    // The section's place in the piece, read off the live plan and the
+    // sections finished so far (the previous one's tail, in plan order).
+    let pieceContext = null;
+    if (piece) {
+      const live = foldPlan(log).parts;
+      const idx = live.findIndex((p) => p.id === t.part_id);
+      const before = live.slice(0, Math.max(0, idx)).map((p) => sectionsById.get(p.id)).filter((s) => s?.text).at(-1);
+      pieceContext = { ...piece, index: idx + 1, count: live.length, outline: live.map((p) => p.label ?? p.id), previousTail: before ? tailWords(before.text) : null };
+    }
     const result = await runPart({
       part,
       task,
@@ -2590,6 +2653,7 @@ export async function runHolonicTask({
       chatHistory,
       chunks,
       call,
+      piece: pieceContext,
       // Passages an earlier part already grounded itself in are deprioritized
       // for later parts the same way an earlier turn's records deprioritize
       // retrieval — proportionally, so a genuinely central passage can still
@@ -2597,6 +2661,7 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
+      executeMaxTokens,
       makeNameResolver,
       makeRelationReader,
       checkLink,

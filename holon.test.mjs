@@ -1832,3 +1832,32 @@ test("the ledger block carries corroborated notes, then question-relevant single
   assert.ok(block.length, "the block was sent");
   for (const b of block) assert.deepEqual(apparatusMentions(b.replace(/\\n/g, "\n")), [], "firewall-clean");
 });
+
+test("P108: a piece's section is told its place, the outline, the previous tail and its word target; a short draft is continued once, measured, before any check", async () => {
+  const { buildExecutePrompt, pieceLine, wordCount, CONTINUE_BELOW } = await import("./holon.js");
+  const line = pieceLine({ topic: "the harbor", pages: 30, words: 650, index: 3, count: 5, outline: ["Origins", "Tides", "Trade", "Storms", "Legacy"], previousTail: "and the tide turned." });
+  assert.match(line, /^This is section 3 of 5 of a 30-page piece on the harbor\. The sections, in order: Origins; Tides; Trade; Storms; Legacy\. The previous section ended: "and the tide turned\." Write about 650 words/);
+  assert.equal(pieceLine(null), "");
+  assert.match(buildExecutePrompt({ label: "Tides", description: "what the tide does." }, "x", "", { words: 100 }), /Write this part: Tides\. what the tide does\.\nThis is one section of a longer piece\. Write about 100 words/);
+  const { apparatusMentions } = await import("./firewall.js");
+  assert.deepEqual(apparatusMentions(line), [], "firewall-clean");
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
+  const sent = [];
+  const short = "The harbor tide turns twice a day.";
+  const r = await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    call: async (messages) => { sent.push(messages); const u = messages.at(-1)?.content ?? ""; if (/Continue this section/.test(u)) return "It lies on the coast, and the tide is its clock."; if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Tides", description: "what the tide does." }] }); return short; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    planMode: "model",
+    piece: { topic: "the harbor", pages: 1, words: 40 },
+  });
+  const continuation = sent.filter((m) => /Continue this section/.test(m.at(-1)?.content ?? ""));
+  assert.equal(continuation.length, 1, "exactly one continuation when the draft is under the floor");
+  assert.equal(continuation[0].at(-2)?.role, "assistant", "the draft so far is the assistant's own turn");
+  assert.ok(wordCount(short) < 40 * CONTINUE_BELOW);
+  assert.match(r.output, /tide is its clock/, "the continuation is part of the section that was checked and shipped");
+  assert.ok(r.sections[0].continued && r.sections[0].continued.from < r.sections[0].continued.to);
+  const sentTwice = sent.filter((m) => /Continue this section/.test(m.at(-1)?.content ?? "")).length;
+  assert.equal(sentTwice, 1);
+});

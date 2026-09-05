@@ -47,3 +47,19 @@ test("the section's rewrite: flagged sentences asked once with their flags as fa
   assert.deepEqual(bad.outcomes.map((o) => o.outcome), ["refused", "refused"]);
   assert.match(bad.text, /in 1997\./, "the original stands when the rewrite does not pass");
 });
+
+test("a rewrite must be about the same thing: a sentence whose atoms sit in a snip but whose subject is different is refused, and the original stands", () => {
+  const snips = snipsFor(passages, { obligations: ["Chris Carter", "Fox", "Millennium"], terms: ["x-files"] });
+  const text = "The X-Files series first aired on Fox in 1997.";
+  const sec = checkSection([text], snips);
+  assert.equal(sec.flagged.length, 1);
+  // The live failure (S77 run 2): a rewrite that is a different sentence
+  // entirely, carrying atoms that happen to appear in the material.
+  const away = applyRewrite(text, sec.flagged, "Millennium was created by Chris Carter.", snips);
+  assert.equal(away.outcomes[0].outcome, "refused");
+  assert.match(away.outcomes[0].because, /about something else/);
+  assert.equal(away.text, text, "the original stands, flagged");
+  // A real correction keeps the subject and passes.
+  const good = applyRewrite(text, sec.flagged, "The X-Files series first aired on Fox in 1993.", snips);
+  assert.equal(good.outcomes[0].outcome, "rewritten");
+});

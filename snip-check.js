@@ -142,6 +142,18 @@ export function applyRewrite(text, flagged, reply, snips) {
     // A rewrite that shares no content word with any snip stands on nothing given — refused, whatever its atoms.
     const stands = contentWords(cand).some((w) => snips.some((sn) => fold(sn.text).includes(w)));
     if (!stands) { outcomes.push({ sentence: r.sentence, candidate: cand, outcome: "refused", because: "the rewrite shares no word with any snip" }); return; }
+    // A CORRECTION IS ABOUT THE SAME THING (measured live, S77 run 2): asked
+    // to fix "The sources describe Prince Andrew's meeting with the Emperor",
+    // the mouth returned "Our order should provide means to that end" — a
+    // sentence whose atoms happened to sit in some snip, so the gate let it
+    // land and the answer got a non sequitur in place of a claim. A rewrite
+    // must keep the subject matter of the sentence it replaces: one content
+    // word of the original, or an atom of it. Otherwise it is a different
+    // sentence, not a correction, and the original stands flagged.
+    const own = contentWords(r.sentence);
+    const kept = own.filter((w) => contentWords(cand).includes(w));
+    const keptAtom = r.atoms.some((a) => fold(cand).includes(fold(a.value)));
+    if (own.length && !kept.length && !keptAtom) { outcomes.push({ sentence: r.sentence, candidate: cand, outcome: "refused", because: "the rewrite is about something else — a correction keeps the subject of the sentence it replaces" }); return; }
     if (c.flags.length || c.contradiction) { outcomes.push({ sentence: r.sentence, candidate: cand, outcome: "refused", because: c.contradiction ? "the rewrite still contradicts a snip" : `the rewrite still carries ${c.flags.map((f) => `"${f.value}"`).join(", ")} unsupported` }); return; }
     if (!out.includes(r.sentence)) { outcomes.push({ sentence: r.sentence, candidate: cand, outcome: "kept", because: "the sentence is no longer in the text" }); return; }
     out = out.replace(r.sentence, cand);

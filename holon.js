@@ -43,6 +43,8 @@ import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
+import { checkPremises, correctTurn, premiseFacts, turnSnipBlock } from "./correction.js";
+import { fromOutcomes, fromPremises, learnedFacts, recallFor } from "./learned.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -983,6 +985,11 @@ export async function runPart({
   snipRounds = 1,
   continuations = 1,
   hunts = 1,
+  // WHAT THIS INSTRUMENT HAS ALREADY BEEN WRONG ABOUT (P123): the durable
+  // corrections, in the chain's own entry shape. The ones in scope for this
+  // question are handed to the model as facts before it drafts, so a mistake
+  // made once is not made again. Empty (every existing caller) changes nothing.
+  learnedStore = [],
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1903,10 +1910,25 @@ export async function runPart({
       ? factBlock.spans.map((sp) => `${sp.ref}:
 "${sp.text}"`).join("\n\n")
       : null;
-  const snipPrefix = piece && snips.length ? snipBlock(snips) : null;
+  // THE PREMISE THE QUESTION SMUGGLES IN (P122), checked before the mouth
+  // sees anything: a claim the question states as already established has its
+  // atoms looked for in this part's own passages, and what the sources
+  // actually say goes in as a FACT. Measured live (S77 turn 15): asked about
+  // a constant whose name had one token swapped, the model answered "You're
+  // right, we established that…" and explained a thing that does not exist.
+  const premiseCheck = passages.length ? checkPremises(question, prosePassages.length ? prosePassages : passages) : null;
+  const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
+  // What was already found wrong on this material, in scope for this question.
+  const learnedRows = learnedStore.length ? recallFor(question, learnedStore) : [];
+  const learnedBlock = learnedRows.length ? learnedFacts(learnedRows) : "";
+  // The snips: a piece stands on its obligations' spans, any other turn on
+  // the question's own words. Both are the source's bytes, verbatim, addressed.
+  const snipPrefix = piece
+    ? (snips.length ? snipBlock(snips) : null)
+    : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
   const draftMaterial = factBlock
-    ? [snipPrefix, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [snipPrefix, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    ? [snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2586,6 +2608,28 @@ export async function runPart({
       flags: after.flagged.map((r) => ({ sentence: r.sentence, flags: r.flags.map((f) => ({ kind: f.kind, value: f.value, reason: f.reason })), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end, snipYears: r.contradiction.snipYears } : null })),
     };
   }
+  // THE SAME CHECK, FOR ANY TURN (P122). Until this, only a piece's section
+  // was corrected; a plain answer drafted, was marked, and stood. Same snips,
+  // same company rule, same gate — a rewrite lands only when its own atoms
+  // clear the check, so the mouth's correction is never trusted, it is
+  // checked again. `snipRounds` is the depth slider's rung (P120).
+  let turnCorrection = null;
+  if (!piece && passages.length && !mechanical && snipRounds > 0) {
+    const pool = prosePassages.length ? prosePassages : passages;
+    const r = await correctTurn({ text, passages: pool, question, call, messages: executeMessages, splitSentences, rounds: snipRounds, maxTokens: executeMaxTokens, streaming });
+    if (r.check) {
+      if (r.text !== text) { text = r.text; check = inspect(text); }
+      turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
+    }
+  }
+  // What this turn learned, in the chain's entry shape (P123) — handed out on
+  // the result for the caller to append to its durable store. Both halves:
+  // what the answer got wrong, and what the question asserted falsely.
+  const learnedNow = [
+    ...fromOutcomes({ outcomes: turnCorrection?.outcomes ?? snipCheck?.outcomes ?? [], flags: turnCorrection?.flags ?? snipCheck?.flags ?? [], question }),
+    ...(premiseCheck ? fromPremises(premiseCheck, { question }) : []),
+  ];
+
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.
@@ -2652,6 +2696,10 @@ export async function runPart({
     corrections,
     ...(continued ? { continued } : {}),
     ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
+    ...(turnCorrection ? { correction: turnCorrection } : {}),
+    ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
+    ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
+    ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
     links: linkReport,
@@ -2713,6 +2761,10 @@ export async function runHolonicTask({
   witnessSentences = null,
   witnessAsks = null,
   checkLink = null,
+  // The durable corrections this instance carries (P123, learned.js): entries
+  // in the chain's own shape. Handed down to every part, and what each part
+  // learns comes back out on `learned` for the caller to append and persist.
+  learnedStore = [],
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -2887,6 +2939,7 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
+      learnedStore,
       pieceWitnessAsks: budgets.pieceWitnessAsks,
       snipRounds: budgets.snipRounds,
       continuations: budgets.continuations,
@@ -3009,5 +3062,26 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
+    ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
+    // What this whole turn learned (P123), deduped by content identity across
+    // its parts — the caller appends these to its durable store, and the room
+    // makes them permanent (matrix.js seals them into the same hash-linked
+    // chain the chat rides).
+    learned: (() => { const seen = new Set(); const out = []; for (const sec of sections) for (const e of sec.learned ?? []) { if (seen.has(e.id)) continue; seen.add(e.id); out.push(e); } return out; })(),
+    // The correction and the premise check, summed across the turn's parts —
+    // a flat turn has one, a decomposed turn several, and the caller reads
+    // one shape either way. Absent (no material, nothing checked) exactly as
+    // before this existed.
+    ...(sections.some((x) => x.correction) ? { correction: (() => {
+      const cs = sections.map((x) => x.correction).filter(Boolean);
+      const sum = (f) => cs.reduce((a, c) => a + (f(c) ?? 0), 0);
+      return { parts: cs.length, snips: sum((c) => c.snips), atoms: sum((c) => c.atoms), supported: sum((c) => c.supported), flagged: sum((c) => c.flagged), asked: sum((c) => c.asked), after: { flagged: sum((c) => c.after?.flagged), supported: sum((c) => c.after?.supported), atoms: sum((c) => c.after?.atoms) }, outcomes: cs.flatMap((c) => c.outcomes ?? []), flags: cs.flatMap((c) => c.flags ?? []) };
+    })() } : {}),
+    ...(sections.some((x) => x.premises) ? { premises: (() => {
+      const ps = sections.map((x) => x.premises).filter(Boolean);
+      const sum = (f) => ps.reduce((a, c) => a + (f(c) ?? 0), 0);
+      return { checked: sum((c) => c.checked), unverified: sum((c) => c.unverified), contradicted: sum((c) => c.contradicted), rows: ps.flatMap((c) => c.rows ?? []) };
+    })() } : {}),
+    ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
+    task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

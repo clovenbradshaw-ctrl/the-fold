@@ -5656,7 +5656,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // Every ∅ cites its void (P106): the open voids at the moment of the
       // record, and the sentence witness's rows, so each absence is either
       // an honest citation of a declared gap or a counted leak.
-      voids: state.grounded ? voidsNow() : [], witness: state.lastWitness ?? [],
+      voids: state.grounded ? voidsNow() : [], witness: state.lastWitness ?? [], sameForm: sameFormOrgan,
       sources: Object.keys(state.sources).map((name) => ({ name, bytes: state.sources[name]?.length ?? null })),
       constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
     });
@@ -6221,7 +6221,7 @@ function taggedProse(text, offered, classified = []) {
       // Every ∅ cites its void (P106): when a gap the reader DECLARED is in
       // scope for this sentence, the mark names it — with its scope — so an
       // honest absence reads differently from the mouth's own "no mention".
-      const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "" });
+      const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "", sameForm: sameFormOrgan });
       if (gap) {
         badge.classList.add("cites-void");
         badge.textContent = `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`;

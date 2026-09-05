@@ -65,3 +65,14 @@ test("every ∅ cites its void (P106): an absence with a declared void in scope 
   const none = answerRecord({ witness: [{ sentence: "The Northgate Observatory's director is not named.", witness: "refused" }], voids: [] });
   assert.deepEqual(none.absenceTally, { citingVoid: 0, citingNone: 1 }, "a planted absence with no void declared is a leak — the control fails as built");
 });
+
+test("the label folds through an injected morphology organ: 'director' cites a void labelled 'directed' only when sameForm says they are one act", () => {
+  const voids = [{ id: "void:the northgate observatory|directed|*", subject: "the Northgate Observatory", verb: "directed", object: null, scope: { sources: ["a.txt"], read: 2, total: 2 } }];
+  const q = "Who directed the Northgate Observatory?";
+  assert.equal(voidInScope("The director of the Northgate Observatory is unknown.", voids, { question: q }), null, "exact match: cites none (P107's run)");
+  const sameForm = (a, b) => a.replace(/(ed|or)$/, "") === b.replace(/(ed|or)$/, "");
+  assert.equal(voidInScope("The director of the Northgate Observatory is unknown.", voids, { question: q, sameForm })?.id, voids[0].id);
+  assert.equal(voidInScope("The Northgate Observatory's founder is unknown.", voids, { question: q, sameForm }), null, "a different act still cites none");
+  const throwing = () => { throw new Error("no prior yet"); };
+  assert.equal(voidInScope("The director of the Northgate Observatory is unknown.", voids, { question: q, sameForm: throwing }), null, "an organ that throws is exact match, never a crash");
+});

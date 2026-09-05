@@ -27,18 +27,23 @@ export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f\u0591-\u05c7\u064b-\u0652]/g, "").toLowerCase();
 const toks = (t) => new Set(fold(t).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1));
 /** The open void in scope for a sentence, or null. `voids` are foldVoids rows (SVO or neutral names). */
-export function voidInScope(sentence, voids = [], { question = "" } = {}) {
+export function voidInScope(sentence, voids = [], { question = "", sameForm = null } = {}) {
   const st = toks(sentence);
   if (!st.size) return null;
   // The first end may be named by the QUESTION the sentence answers — an
   // absence written back to "who was X's director?" says "the director"
-  // and points at X anaphorically. The label must be in the sentence itself.
+  // and points at X anaphorically. The label must be in the sentence itself
+  // — by exact token, or by the same act under an injected morphology organ
+  // (`sameForm`, the engine's own `sameAct`; P107: "director" against a void
+  // labelled "directed" cited none until this existed). Nothing here is a
+  // word list; without the organ the match is exact, as before.
   const qt = toks(question);
+  const has = (w) => st.has(w) || (typeof sameForm === "function" && [...st].some((t) => { try { return sameForm(t, w); } catch { return false; } }));
   for (const v of voids ?? []) {
     const e1 = [...toks(v.end1 ?? v.subject)], lb = [...toks(v.label ?? v.verb)];
     if (!e1.length || !lb.length) continue;
     const anchored = e1.every((w) => st.has(w)) || (qt.size > 0 && e1.every((w) => qt.has(w)));
-    if (anchored && lb.every((w) => st.has(w))) return v;
+    if (anchored && lb.every(has)) return v;
   }
   return null;
 }
@@ -52,14 +57,14 @@ export function voidInScope(sentence, voids = [], { question = "" } = {}) {
  * (absence-leak.mjs, 2026-09-05): counting them here made every absence
  * "cite none" by construction.
  */
-export function absencesOf({ witness = [], voids = [], question = "" } = {}) {
+export function absencesOf({ witness = [], voids = [], question = "", sameForm = null } = {}) {
   const seen = new Set();
   const out = [];
   const add = (sentence, how) => {
     const s = typeof sentence === "string" ? sentence : (sentence?.sentence ?? sentence?.text ?? "");
     if (!s || seen.has(s)) return;
     seen.add(s);
-    const v = voidInScope(s, voids, { question });
+    const v = voidInScope(s, voids, { question, sameForm });
     out.push({ sentence: s, how, void: v ? (v.id ?? null) : null, ...(v?.scope ? { scope: { sources: v.scope.sources?.length ?? null, read: v.scope.read ?? null, total: v.scope.total ?? null } } : {}) });
   };
   for (const w of witness ?? []) if (w?.witness === "refused") add(w.sentence, "witness-refused");
@@ -73,7 +78,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [] } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -91,7 +96,7 @@ export function answerRecord({ question, answer = "", model = null, frame = null
   }
   const tally = {};
   for (const c of claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
-  const absences = absencesOf({ witness, voids, question });
+  const absences = absencesOf({ witness, voids, question, sameForm });
   return {
     schema: ANSWER_RECORD_SCHEMA,
     cursor,

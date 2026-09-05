@@ -761,6 +761,11 @@ line that points at finished work as though it were next.
 
 ## Pass 13 — the reproducibility audit, continued (added 2026-09-05)
 
+**Closed 2026-09-05 — POLICIES.md P95 / eoreader7 S65.** Decided: refuse.
+All nine run with no cap and classified; four transcription docs enforced
+by `lib/` + `tests/`; `audit-results.sh` kept with the map; the MHC
+one-material refusal typed. What it handed forward is Pass 14.
+
 POLICIES.md **P94** / eoreader7 **S64** are the law; this is the handoff.
 The audit of committed eval results ran **3 of 13** wipe-exposed drivers
 before the session wrapped. Established: `admission-gate` drifted by one
@@ -804,3 +809,51 @@ so now). Take the rest in this order:
 Also carried: the MHC battery picks its control from the run set, so a
 one-material invocation reports "none readable" for want of a control —
 worth a typed refusal in `main()` rather than a misleading stage.
+
+## Pass 14 — what the finished audit handed forward (added 2026-09-05)
+
+P95 / S65 closed Pass 13. Five things it found and deliberately did not fix,
+each a fact on the record with a named file, in the order they matter:
+
+1. **The door admits a closed-class connector in a script the prior does
+   not cover.** `hyperlexicon-door-probe` arm C now carries `Война —и→ мир`
+   and `Война —и→ миръ` — Cyrillic "and" from the article's Russian title,
+   invisible to the probe's English hand list and absent from the English
+   POS prior. Same shape as the labels P73 closed for English, one script
+   over. The probe reports "labels the prior has no entry for" beside the
+   hand-list count (`lib/door-probe.mjs`); the fix is a received prior for
+   the script, or a wall that refuses a label the prior cannot classify at
+   all — measure which, and what the second costs on English ("discusses"
+   sits in the same column).
+2. **`boundedObjects` is gone and two files still point at it.**
+   `object-boundary.mjs` (refuses, typed) and `lib/borodino-ledger.mjs`'s
+   `BOUNDED` flag both name an opt-in this repo's P80 removed. Either the
+   referent-aware trim the object-boundary doc pointed at instead ("cut
+   after an earned face only when nothing earned follows", at
+   `hypergraph.js::endpoint`) is built and measured on the same Dracula
+   slice, or the flag comes out. Not both left standing. When it is
+   re-measured, the marginal pairing key (`spans[0].at` start + label +
+   end1) collides where one sentence yields two edges on one subject and
+   verb — the source of the "moved by the cut: 53" artifact even on
+   identical arms — and needs the edge's own id or full span before any
+   "moved" count is trusted.
+3. **Two docs are enforced by nothing and are named as such** in
+   `audit-results.sh`: `admission-gate` (drifted by one note in P94, still
+   print-only) and `rashomon-contrast` (its slot-level table — 1537/15/14,
+   251/7/7, 117/15/15 — was never computed by its driver). The rashomon
+   next step P92 named (the contrast at slot grain through
+   `cardinality.fillers` and `contest.js::adjudicate`, with a null) would
+   make that table a driver output before it is made a test.
+4. **A results doc that prints its own wall-clock never diffs to zero.**
+   `asserted-eval.md` reproduced except for "armed at 200 draws in 32.6s".
+   Move timing to stderr or a separate untracked line in that driver and
+   any other that writes elapsed seconds into a tracked artifact.
+5. **The wiped SVO names are still read somewhere.** S64 found 47 sites in
+   one driver; P95 found the same in `reasoning-e2e-no-llm`. Before any
+   driver's display is trusted: `grep -n "\.subject\|\.verb\|\.object" native/eval/the-fold/*.mjs`
+   and check each hit against an edge that carries `end1/label/end2`.
+   On 2026-09-05 that grep hits 14 drivers; several are legitimate
+   (`e.end2 ?? e.object` fallbacks, the MHC `edgesOf` seam, `queryFillers`
+   results), so each hit is read, not counted.
+   `queryFillers` still returns `{subject, object}` by design; that is the
+   one legitimate reader of the old names.

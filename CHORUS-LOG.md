@@ -97,3 +97,14 @@ skipped:** the "measuring door" feature (widget.js/measure.js) is broken
 on `daff86d` itself for two independent reasons (missing engine exports,
 missing engine module) — both require changes in a sibling repo
 (`eoreader6`) this review has no mandate to make.
+
+## 2026-09-05 — P95: the audit finished (branch `p94-audit-pass13`; docs only in this repo)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Reviewed diff: POLICIES.md P95, CLAUDE.md pointer, NEXT-PASSES.md Pass 13 closed / Pass 14 opened. The code under review lives in eoreader7 (`eoreader7/CHORUS-LOG.md`, same date, carries the full table). The ten persona subagents were rate-limited before reporting; lenses run sequentially in-session.
+
+| persona | cell | citation | file:line | verdict | summary |
+|---|---|---|---|---|---|
+| Ostrom | CON | II.9; P41 | POLICIES.md P95 (rashomon, subject-wall clauses) | fixed (wording) | drift attributed to S63/S64 as cause; now candidates, not isolated |
+| Alexander | SYN | — | P95 / S65 / NEXT-PASSES Pass 14 / CLAUDE.md pointer | clean | counts and file names agree across the four documents and with the eoreader7 diff |
+| Marshall | meta | POLICIES.md Generality discipline (P≥71); IV.1 | POLICIES.md P95 | upheld — compliant | Generality line present and read by `generality-gate.test.mjs`; enforcement ships in the paired eoreader7 diff |
+| others | — | — | — | clean | no code in this repo's diff |

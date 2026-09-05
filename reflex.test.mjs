@@ -141,7 +141,13 @@ test("the SELF block and the MATERIAL block never read alike (IV.5, on this plan
   const self = buildSelfBlock(chunks);
   const material = buildSourceBlock(chunks);
   assert.ok(self.startsWith("SELF"));
-  assert.ok(material.startsWith("MATERIAL"));
+  // buildSourceBlock retired its "MATERIAL —" banner (P80: provenance here,
+  // duty there, each said once), so the two blocks are told apart by what
+  // they SAY, never by a header: the material block is a different string,
+  // does not wear the self plane's name, and does not carry its disclaimer.
+  assert.notEqual(material, self);
+  assert.ok(!material.startsWith("SELF"));
+  assert.ok(!/not material about the world/i.test(material), "the material block never disclaims itself as self");
   assert.ok(/not material about the world/i.test(self), "the block declares what it cannot support");
   assert.ok(self.includes(`[${chunks[0].ref}]`), "self passages carry their addresses");
   assert.equal(buildSelfBlock([]), null);

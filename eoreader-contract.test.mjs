@@ -8,11 +8,17 @@ const read = (name) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8
 
 function importedNames(source, modulePath) {
   const escaped = modulePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = source.match(new RegExp(`import\\s*\\{([\\s\\S]*?)\\}\\s*from\\s*["']${escaped}["']`));
+  // ONE import statement, anchored on its own braces. The first cut used
+  // `\{([\s\S]*?)\}` — a lazy class that opened at the FILE's first `import {`
+  // and ran to the first `} from "<module>"`, so a file whose declared module
+  // was not its first import returned every earlier import's names glued
+  // together (explore-worker.mjs: `workerData } from "node:worker_threads"…`).
+  // A harness bug read for weeks as a contract drift (P94's class).
+  const match = source.match(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*["']${escaped}["']`));
   if (!match) return [];
   return match[1]
     .split(",")
-    .map((part) => part.trim().split(/\\s+as\\s+/)[0])
+    .map((part) => part.trim().split(/\s+as\s+/)[0])
     .filter(Boolean);
 }
 

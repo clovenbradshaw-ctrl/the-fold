@@ -857,3 +857,39 @@ each a fact on the record with a named file, in the order they matter:
    results), so each hit is read, not counted.
    `queryFillers` still returns `{subject, object}` by design; that is the
    one legitimate reader of the old names.
+
+**Status, 2026-09-05 (Pass 15).** Items 4 and 5 closed, item 2's flag half
+closed: `asserted-eval` prints its wall-clock to stderr and its doc diffs to
+zero; the SVO grep was READ hit by hit — the cited-source drivers, rashomon,
+copresence and the MHC battery map claims to SVO at their own seam and are
+legitimate, `complicated-reading` reads the ADAPTER's triples (which still
+carry `subject`), and three drivers read the wiped names off organ edges or
+claim rows and were migrated at one seam each: `mine-1-official-graph`
+(as it stood, every node it would write was `undefined`; its committed
+export predates the wipe and was left as the dated record it is), `try-grid-on-transcript` (threw on `e.subject.toLowerCase()`),
+`material-dialogue-stress` (every claim skipped as "empty subject"). The
+`BOUNDED` flag came out of `lib/borodino-ledger.mjs`; the referent-aware
+trim it pointed at is still capability work. Items 1 and 3 are carried to
+Pass 25. POLICIES.md **P96**.
+
+## Pass 15 — zero-call hygiene before the circuit (added 2026-09-05, CLOSED same day)
+
+The first pass of the program that follows Pass 14 (plan of record:
+`/Users/mlacy/.claude/plans/assuming-the-pass-13-joyful-ocean.md`, mirrored
+in P96's own "what follows"). Green suites, the SVO sweep, the crash in the
+`/corroborate` door, and the reader's frame derived rather than restated.
+Measured: the-fold 1,581 tests / 3 fail → 1,588 / 0; the three names that
+left the set are the two EOReader-contract tests (one real drift, one
+harness regex) and the SELF/MATERIAL block test (a banner P80 retired).
+eoreader7 native 619 → 619 (1 todo), organs 449 → 449. POLICIES.md **P96**.
+
+## Pass 16 — the finish line, executable (next)
+
+The product assay harness on `gate-proof.mjs`'s shape, its 0-call arm pinned
+by a test, the AnswerRecord shape, and the constitutions pinned by content
+identity. Then Pass 17 (one durable record), 18 (read on arrival), 19
+(claims before prose + the model-swap claim diff), 20 (contest live), 21
+(derivation live), 22 (the terminal assay), 23 (the grain-leak prediction),
+24 (documents reconciled), 25 (unwired ratchet). The program's exclusions
+are P96's.
+

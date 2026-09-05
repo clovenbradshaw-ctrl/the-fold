@@ -200,7 +200,9 @@ import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
 import { WITNESS_SCHEMA, SELECT_SCHEMA, buildWitnessMessages, buildSelectMessages, foldSelect, foldTestimony, readTestimony, siblingSwap, witnessSlice, witnessSentences } from "../eoreader7/native/organs/index.js";
-import { corroborateLedger, distinctSources as distinctWitnessSources, witnessNote } from "../eoreader7/native/organs/index.js";
+import { corroborateLedger, witnessNote } from "../eoreader7/native/organs/index.js";
+import { corroborationLines } from "./corroboration-report.js";
+import { readerFrame as frameOfReader } from "./reader-frame.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
@@ -454,7 +456,10 @@ fetch("/priors-data/pos-prior-eng.json")
 // The relation reader's factory — one per passage set, pool = the live
 // corpus (the closed-class measure needs the corpus's scale, not the
 // turn's; hypergraph.js says why).
-const relationsFor = makeRelationReader({
+// The options object is NAMED so the reader's frame (reader-frame.js, P90)
+// is derived from the very object the reader was built with — every key here
+// reaches the ledger's frame and its recipe id without a second declaration.
+const RELATION_READER_OPTIONS = {
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
@@ -583,7 +588,8 @@ const relationsFor = makeRelationReader({
   // mirroring the identical posture `classifyConnector`/`minShare`
   // (grammar-lens.js, two organs up in this file's own history) already
   // holds for the same reason.
-});
+};
+const relationsFor = makeRelationReader(RELATION_READER_OPTIONS);
 
 // The typed-note ledger (hyperlexicon.js, P57), built once — the SAME
 // native cube.js `cellOf` two lines above already gives this file, plus
@@ -617,20 +623,23 @@ const hyperlexiconFor = makeHyperlexicon({
 // about that reading, never a promise about a later one), and what is
 // deliberately absent. Read back with `hyperlexiconFor.frameOf(log)`; a
 // ledger with no frame reports `no_frame` rather than an invented one.
-const readerFrame = () => ({
-  reader: "makeRelationReader",
-  organs: {
-    splitSentences: "native", surfaces: "native", relations: "native", pronouns: "native/en",
-    blankFurniture: "blankLabelRows{minRun:4,maxCell:60}", determiners: "priors.js/en", negation: "priors.js/en",
-  },
+// DERIVED, not restated (reader-frame.js): organs and levers come from
+// RELATION_READER_OPTIONS itself, so attestedVerbs, phrasalPredicates (DR5),
+// the vocabulary gate and every future option are on the record the moment
+// they are handed to the reader. What the options object cannot know is
+// passed in: the LOADED state of the received priors at this moment, and the
+// identity organ (castFor, built from cast.js) that resolves ends — with
+// noteIdentity named as the deliberate omission it still is.
+const readerFrame = () => frameOfReader({
+  options: RELATION_READER_OPTIONS,
   priors: {
     posPrior: posPriorCache ? "POSPrior@1" : null,
+    posGate: posPriorCache ? "on (type-level vocabulary gate over POSPrior@1)" : "off (prior not loaded)",
     verbForms: unimorphVerbForms.size ? `UniMorph eng verb forms (${unimorphVerbForms.size})` : null,
     morphology: sameFormOrgan ? "UniMorph morphology prior (sameAct)" : null,
     connectorLens: connectorLens ? "grammar-lens over POSPrior@1 (asymmetric, P56)" : null,
   },
-  options: { nounPhraseSubjects: true, oovLexicon: unimorphVerbForms.size > 0 },
-  omitted: ["noteIdentity"],
+  identity: { ends: "makeCastResolver (cast.js)", noteIdentity: null },
   model: state.model ?? null,
 });
 
@@ -1657,7 +1666,7 @@ async function rankeTurn(argstr, typed) {
 async function corroborateTurn(argstr, typed) {
   const maxAsks = Number((argstr ?? "").trim());
   if (!Number.isInteger(maxAsks) || maxAsks < 1)
-    return usageTurn(typed, "/corroborate <maxAsks> — walk this conversation's own hyperlexicon against the loaded sources with the witness protocol, so accumulated notes can earn second, independent votes. <maxAsks> is the model-call budget and is YOURS to declare (P9) — e.g. /corroborate 20. Notes with two distinct sources reach the ledger block the model actually sees (holon.js's own gate).");
+    return usageTurn(typed, "/corroborate <maxAsks> — walk this conversation's own hyperlexicon against the loaded sources with the witness protocol, so accumulated notes can earn second, independent votes, and so a source that denies a note lands that denial as a typed dispute. <maxAsks> is the model-call budget and is YOURS to declare (P9) — e.g. /corroborate 20. Every note already reaches the ledger block the model sees, ranked by relevance with its standing disclosed (P84); this walk changes what that standing says.");
   if (!state.ready) return usageTurn(typed, "no model connected — corroboration asks a witness, and there is nobody to ask.");
   const log = state.hyperlexiconLog;
   const notes = log ? hyperlexiconFor.foldHyperlexicon(log) : [];
@@ -1696,24 +1705,18 @@ async function corroborateTurn(argstr, typed) {
   }
   state.hyperlexiconLog = report.log ?? log;
 
-  const settled = (report.standings ?? []).filter((s) => distinctWitnessSources(s.witnesses ?? []).size >= 2);
-  const lines = [
-    `corroboration: ${report.asks} of ${maxAsks} ask(s) spent across ${sources.length} source(s).`,
-    `attested: ${report.attested.length} · contradicted (reported, never landed): ${report.contradicted.length} · skipped without an ask (no co-presence): ${report.skippedNoCopresence}.`,
-    settled.length
-      ? `notes now at >=2 DISTINCT sources — the ledger block's own gate: ${settled.length}.`
-      : `no note reached two distinct sources this walk — a measured outcome, not a failure to walk.`,
-  ];
-  for (const a of (report.attested ?? []).slice(0, 6))
-    lines.push(`  ✓ ${a.noteId} — witnessed by ${a.ref}`);
-  for (const c of (report.contests ?? []).slice(0, 4))
-    lines.push(`  ⇄ contested: ${c.noteId} (stating: ${c.stating.join(", ") || "—"} · contradicting: ${c.contradicting.join(", ") || "—"})`);
-  body.textContent = lines.join("\n");
+  // The render is corroboration-report.js (pure, tested against the organ's
+  // real return shape): `standings` is KEYED, and a contradiction has been a
+  // LANDED dispute since P88 — the previous render filtered a keyed object and
+  // threw right after the ledger was written back (Pass 15).
+  const shown = corroborationLines(report, { maxAsks, sourceCount: sources.length });
+  body.textContent = shown.lines.join("\n");
   renderFold(node, {});
   mirrorTermRecord("corroborate", {
     asks: report.asks, budget: maxAsks, attested: report.attested.length,
-    contradicted: report.contradicted.length, skipped: report.skippedNoCopresence,
-    settled: settled.length, notes: notes.length, sources: sources.length, via: "chat",
+    contradicted: report.contradicted.length, landed: shown.landed, refused: shown.refused,
+    skipped: report.skippedNoCopresence,
+    settled: shown.settled, notes: notes.length, sources: sources.length, via: "chat",
   });
   logAct("checked", { text: `corroborate: ${report.attested.length} attested of ${report.asks} asks` });
 }

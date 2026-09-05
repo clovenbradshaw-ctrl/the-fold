@@ -7510,3 +7510,21 @@ doc. Each transcription doc now has a `lib/` function and a `node --test`
 reader in eoreader7; `audit-results.sh` names print-only drivers instead
 of a vacuous diff. Handed forward: a Cyrillic closed-class connector
 (`Война —и→ мир`) the door admits and the English prior cannot see.
+
+## Pass 15 — zero-call hygiene before the circuit (added 2026-09-05) — pointer
+
+POLICIES.md **P96**. The program after Pass 14 is one thing: make the
+existing machinery one functional Fold (the plan of record names Passes
+15–25 and the terminal assay that defines "there"). Pass 15 is its
+zero-call floor: both suites green (three failures named and closed — a
+real contract drift, a harness regex that read for weeks as drift, and a
+test asserting a banner the code retired), the `/corroborate` door's
+render rebuilt as `corroboration-report.js` against the organ's REAL
+return shape (it threw right after landing the first live dispute), the
+Pass 14 SVO grep read hit by hit with three drivers migrated at one seam,
+and the reader's frame DERIVED from `RELATION_READER_OPTIONS` by
+`reader-frame.js` so a lever handed to the reader is on the record without
+a second declaration (P90). Rule worth keeping: a caller's render of an
+organ's return is tested against that organ's real return, never against
+the shape the caller remembers.
+

@@ -11061,6 +11061,12 @@ landed contest). 1019/1020 native + conformance, zero regressions.
 
 ## P92 — Resolve the move to its cube cell and read the registry BEFORE writing an organ (2026-09-04)
 
+**Generality:** not-applicable. This entry is a procedural house rule
+about how an organ is written, not a measured finding about a specimen;
+it has no cross-domain replay to run. (Tag added 2026-09-05: the entry
+landed without one and `generality-gate.test.mjs` had been failing on it
+since — a standing suite failure nobody read, which is P94's own subject.)
+
 **The failure, three times in one session.** A contradiction detector was
 hand-rolled that `hypergraph.js`'s `unbound.competing` already did better
 (P90). A judge-calibration arm was hand-rolled that
@@ -11110,3 +11116,90 @@ What is enforceable is the map's own integrity, and that is already
 covered — `capability-coverage.mjs::assertGeometry` proves the 27 cells
 and the three 9-way projections, and `grid.test.mjs` proves every registry
 row resolves to a real module and a legal cell.
+
+## P93 — Cross-document identity was already the design; the cast's own furniture wall was still open; a referent's reality-kind is instantiated, not discovered (2026-09-04)
+
+**Generality:** specimen-scoped. The cast furniture-wall fix itself is
+universal; the reality-kind capacity's own measured precision, and the
+generic-token refinement's measured net cost, are both about this
+material and are not claimed to generalize further.
+
+The full account is eoreader7's own **S63**; this is the pointer. User
+direction: cross-document referent identity "is the same thing as when we
+instantiate an entity... a different type of being-hood, because this is
+a cross document entity" — and kind induction should organically
+discover, per referent, that some are real, some fictional, some a
+fictionalization of a real one, naming Borodino (the real battle,
+Tolstoy's own account of it) as the specimen.
+
+**The cross-document half was already built.** `eoreader7/native/organs/
+bridges.js` states the user's own intuition almost verbatim in its own
+header ("it is the same set of operations, just at another level") — a
+referent bridge is heard onto its own ledger through the identical
+`hear()`/`concede()` machinery a within-document entity uses, and
+`bridge-witness.js` (P86) can even ask a model to confirm one. Its real,
+measured ceiling: a bridge exists only where an exact SVO triple matched
+across documents, so a paraphrase never becomes a candidate.
+
+**Building the reality-kind half found a live production bug, not only a
+missing feature.** The most recent related work (`rashomon-contrast.mjs`,
+the corrected successor to a retracted Rashomon run) had already named the
+next step — "a furniture wall on the cast" — after finding real people
+merged with Wikipedia navbox debris. Tracing it found `source.js` already
+computes a page-aware `chunk.blanked` field whenever `blankFurniture` is
+wired into `chunkSource` (P82); `cast.js` simply never read it, so every
+caller believing it had protected the cast this way — including this
+repo's own PRODUCTION `addSource` (the one choke-point every attachment
+passes through) and its web-fetch path, neither of which even wired
+`blankFurniture` into `chunkSource` at all — got no benefit. Both gaps
+are now closed: `app.js`'s two `chunkSource` calls and all three of its
+`cast.js` construction sites are fixed.
+
+**The naive version of the cast fix broke a real, already-tested
+architectural rule** ("a reader that never asked for blanking does not
+get it from the chunker," `source-page-blanking.test.mjs`) — caught by
+running eoreader7's own full suite, not assumed safe. `cast.js` now takes
+an opt-in `blankFurniture` parameter, exactly mirroring how
+`hypergraph.js`'s own `readSentenceText` already gates the same field —
+and needed zero changes there, since `hypergraph.js` was already threading
+its whole `organs` bundle into `makeReferentIndex(organs)`.
+
+**The reality-kind capacity** (`organs/reality-kind.js`, registered as
+`realityKind`, INS·Kind) classifies a referent as real / fictionalized-
+real / fictional from a caller-declared source genre plus a name-level
+cross-source correspondence — deliberately not routed through `bridges.js`
+itself, whose exact-triple requirement would answer "fictional" for
+Napoleon too. Verified against the user's own falsifiable prediction on
+the real Borodino fixtures already in this repo: Napoleon and Kutuzov
+correspond and read fictionalized-real; Bezukhov, Bolkonsky, and Rostova
+never do. A spot-checked (not merely counted) sample found real, honest
+noise — generic military-rank words admitted as referents at all, one
+likely collision with an unrelated same-named person — and a proposed fix
+for it (`genericTokens`, already built for a different purpose) was
+measured to cost more than it buys on this material (it also refuses the
+correct Napoleon/Kutuzov match, for an unrelated pre-existing coreference-
+fragmentation reason) and ships opt-in, off by default, disclosed rather
+than silently defaulted either way.
+
+Full suites, failure names diffed rather than counted: the-fold
+1025/958/67 before and after this pass (zero regressions); eoreader7 core
+555/543/10 and organs 441→449/437/11 (the 8 new reality-kind cases the
+only count change, the same 11 pre-existing failures both times).
+
+## P94 — The stale stage: a committed eval result is not enforcement until a test reads it (2026-09-05)
+
+**Generality:** universal for the law and the two organ rules (eoreader7 **S64** carries the mechanism and its controls); the stage numbers are specimen-scoped.
+
+**The exchange that produced it.** Asked "what level of reading are we able to do now?", this session answered — among other things — that War and Peace scored MHC stage 13, reciting `results/mhc-RESULTS.md`. The user: *"I don't believe we can reason at level 13 with war and peace, prove it."* Re-run live, the same driver over the same committed fixtures read **"Stage: none readable."** The recitation was this project's own L5 failure committed by its reader: a claim about capability taken from a file instead of from a run.
+
+**The law.** A number in a results doc is a report of one run on one day. It becomes an *enforced* fact only when a test reads it on every suite run — eo-constitution III.5, applied to measurements. Every other pass in this file that ends "full suite N/N, zero regressions" protected its *code*; none of them protected the *numbers* it reported, and the MHC driver's own header says as much ("a re-runnable driver, not a committed regression test"). The distinction that matters, seen in this very session: the reality-kind claims (P93) are pinned by `node --test` fixtures against real bytes and cannot drift silently; the stage was not, and did. **From here: a headline number a policy entry stands on is either pinned by a test that reads it, or the entry says it is not.**
+
+**Three drifts, all after the last real run (2026-08-30), all silent** — full mechanism and dates in S64: the same-day `WORKING_PASSAGES` widening exposed two organ defects on the article's back matter (a letterless "&" not breaking a run; two sub-phrases of one anchor both folding into it) and order 5 failed; the 09-01 `readsNothing` wall made the battery's address-less order-13 readings uncountable; the 09-02 SVO wipe left the driver reading `e.subject` off edges that now carry `end1` — `undefined` at 47 sites, reported as "this material offers no edge…" — **a statement about the driver dressed as a statement about the material, P41 in the instrument that measures the instrument.** The results file was carried through the eval migration on 09-02 already wrong twice, wrong a third way six hours later, and read for three days.
+
+**One correction to this session's own first diagnosis, kept because it is the lesson.** The stage collapse (order 5) and the 6–13 blackout were reported here as one cascade. They were two: the stage stops at a failed floor by design (`stageFrom`, unchanged — the "passes above the cap, not folded in" disclosure already existed and needed no change); the blackout was the unmigrated field reads, present on borodino too, whose order 5 passed. The empirical check that separated them — `clean-shaped: 0` at *both* passage caps — was run before designing a fix, and it changed the fix.
+
+**What ships.** eoreader7: the two organ rules (S64), the driver migrated at one memoised seam with a loud refusal for an unknown edge vocabulary, order-13 readings carrying their address, and — the enforcement — `lib/coref-agreement.mjs` as ONE implementation shared by the driver and the new `mhc-order5-precision.test.js`, which fails the suite on the next drift. Measured after: War and Peace **stage 13** again (order 5: 51/51 gathered, 11/11 withheld, one fragment refused as ambiguous, "University Press", by name); Borodino stage 6 at its real order-7 ceiling; borodino-ru unchanged on its disclosed register limits; scale held. Recall cost of the overlap rule on both real fixtures: that single refusal. This repo: `mhc.js` untouched; P92's missing Generality tag added (the `generality-gate` test had been failing on it since it landed — another number nobody read); CLAUDE.md pointer.
+
+**Suites, failure names diffed.** the-fold 1025 tests: 951 pass / 67 fail → 952 / 66 — the one name that left the set is the P71+ gate. eoreader7: see S64's file list and the audit below.
+
+**The audit, partial — stopped at the user's wrap-up after 3 of 13 drivers; the remainder is named, not implied.** Scope: every offline driver in `eoreader7/native/eval/the-fold/` that both has a committed results doc and reads relation edges — the set the SVO wipe exposed, 13 of 130. Method: re-run each on the pristine organs and `git diff` the results doc it regenerates. **The method's own first finding was that it measures almost nothing:** only five of the thirteen write a tracked results file (`subject-wall`, `vendored-prior-eval`, `mechanical-reasoning`, `pruning-timeline`, `asserted-eval`); the other eight docs are hand transcriptions of stdout, so "diff lines: 0" there is vacuous — and this session's own first note that `admission-gate` "reproduces exactly" was read off exactly that vacuous zero, and is withdrawn. Compared by hand against the docs instead: (1) `admission-gate` — **drifted** by one note in the blind arm (A0 admitted 32 → 31, junk 18 → 17, gate refusals 18 → 17: a `the`-labeled edge the reader no longer extracts); the gated arms A1/B/C are byte-identical (19, 0/19, 14, 0 folds, `sameLemma("withdraws","retreated") = false`) — the finding stands, the arm that measures the defect moved. (2) `asserted-eval` — **unreproducible-by-construction here**: it pins the frozen provider by path (`legacy-eoreader6.1/…/spans.js`), an uninitialized submodule whose remote is outside this session's reach; the migrated tests were given a fall-back-to-native resolution and this driver was not. (3) `cited-source-null` — **unreproducible-by-construction since `5541af4`**: the doc landed 11:20 on 09-04, and the fetched faces it reads were untracked at 11:52 the same day; the walk names 106 faces, 20 exist on this disk, and the driver's `existsSync … continue` narrowed the pool to those 20 and still printed "16 independent sources" — P41 in the driver, a fact about the checkout wearing the material's face. On the residual pool the doc's headline inverts: real 7,271 feasible pairs against 18 null draws ALL above it (7,316–7,672), where the doc reported a 9.6% lift at p ≈ 0.048 — which refutes nothing about the doc's own run and everything about re-running it. The driver was killed at the audit's declared 600 s budget with 18 of 20 draws on record; the audit itself was stopped there at the user's direction. (4) `ordered-read-reach`, found by reading rather than running — the identical silent skip on the identical walk file, so its doc (09-04 11:29) stands in the same place. Both drivers now DISCLOSE the skip (the walk's face count, the absent count, the pool actually used, and that the run is not comparable to the full walk); the skip itself stays, because an absent fixture must not crash a null. **Not run, named:** `full-circuit`, `hyperlexicon-door-probe`, `mechanical-reasoning`, `object-boundary`, `pruning-timeline`, `rashomon-contrast`, `reasoning-e2e-no-llm`, `subject-wall`, `vendored-prior-eval` — nine docs dated 09-02 to 09-04 that this pass can call neither reproduced nor drifted. What the audit earned before it stopped: **a results doc whose driver only prints is enforced by nothing, and a driver whose fixtures are gitignored measures whatever this disk happens to hold.** The second is the 09-04 "untrack regenerable eval output" rule meeting this policy head-on, and it needs a decision — commit the material a doc stands on, or make every such driver refuse rather than narrow — not another audit. `NEXT-PASSES.md` carries the continuation.

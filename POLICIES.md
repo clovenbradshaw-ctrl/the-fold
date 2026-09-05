@@ -11395,3 +11395,9 @@ only count change, the same 11 pre-existing failures both times).
 **The first plain run, end to end on the real page.** "write me a 30 page essay on the x files" → detected (30 pages, 23 sections asked) → hunt found 2 pages, 988 passages → the planner returned 19 sections → every section written, retrieved over the material, checked (0 unsupported, 43 unbacked claims marked) → 11.5 minutes at 17 tok/s on gemma2:2b → **2,269 words**, not 15,000: each section came back at roughly a fifth of its target, and later sections restated the opening (nothing told a section what the others had said). Those two findings are what `piece` and the continuation exist for; the second run with them is in flight as this lands and its numbers go in an amendment, not here.
 
 **Suites.** the-fold 1,610 / 0 fail (`holon.test.mjs` 66, `longform.test.mjs` 3).
+
+## P109 — Re-zero as a surprise to the fold: a void filled this turn forces the summary refresh, as an act (2026-09-05)
+
+**Generality:** universal for the rule (a void filled at or after the seq the turn began at — by the arrival read, by a filler the brief found, by the door — is REC·Ground, the ground moved; the running summary refreshes on it instead of being carried, and the override lands as `rezeroed` and `forcedRefresh` acts with the reason named); the kernel's `fillingsSince(log, seq)` is the medium-blind reading (eoreader7 S75's amendment). Pass 29 of the null experiments — the WIRE; its measurement (does it refresh exactly where the P34 pivot case went stale, and not on a random filling) is named and unrun.
+
+**What ships.** `app.js::holonicTurn` records `turnStartSeq`, asks the ledger what filled since, and hands `refreshSummary` a `forceRefresh` with a `because` of its own beside the S1/S2 one (P72). No number is set: one filling is one re-zero.

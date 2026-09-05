@@ -4033,14 +4033,15 @@ async function reflectTurn(question, typed) {
 // more call in that same turn when it fires, so it is appended to the same
 // array rather than left to vanish as a call the turn's own disclosure never
 // knew happened.
-async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false } = {}) {
+async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false, because = null } = {}) {
   state.turnFolds.push(fold);
   const heldGround = Boolean(arrivals) && exchangeHeldGround(arrivals);
   if (heldGround && forceRefresh) {
     // The override is itself an act, never silent — the same discipline
     // the ordinary `carried` skip below already holds for the opposite
-    // decision.
-    logAct("forcedRefresh", { because: "S1/S2 disagreement (metacognition.js)" });
+    // decision. The reason is the caller's (P109: a filled void is a
+    // second reason beside the S1/S2 disagreement).
+    logAct("forcedRefresh", { because: because ?? "S1/S2 disagreement (metacognition.js)" });
   }
   if (heldGround && !forceRefresh && state.heldFolds < MAX_FOLDS_IN_PROMPT - 1) {
     logAct("carried", { streak: state.heldFolds + 1 });
@@ -4481,6 +4482,9 @@ async function seekWhatWeRead(anchorTerm, slotTerm, chunks) {
 // what's selected. Every existing caller passes no opts and is byte-
 // identical to before this existed.
 async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
+  // Where the ledger stood when this turn began (Pass 29 / P109): a void
+  // filled at or after this seq is a re-zero of the ground THIS turn moved.
+  const turnStartSeq = state.hyperlexiconLog?.nextSeq ?? 0;
   if (!opts.skipUserMessage) addMessage("user", typed);
   const node = addMessage("assistant", "");
   if (opts.label) node.querySelector(".who").textContent = opts.label;
@@ -5666,7 +5670,20 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     syncRecords();
     forceRefresh = forcesFoldRefresh(agreement);
   }
-  await refreshSummary(fold, arrivals, sentCalls, { forceRefresh });
+  // RE-ZERO AS A SURPRISE TO THE FOLD (Pass 29 / P109): a void filled this
+  // turn — by the arrival read, by a filler the brief found, by the door —
+  // is REC·Ground: the ground moved. The running summary refreshes on it
+  // rather than being carried, and the override is an act on the ledger.
+  // Whether this refreshes exactly where the summary would have gone stale
+  // is the named, unrun measurement; the wire is what makes it measurable.
+  let forceBecause = forceRefresh ? "S1/S2 disagreement (metacognition.js)" : null;
+  const filledThisTurn = state.grounded && state.hyperlexiconLog && hyperlexiconFor.fillingsSince ? hyperlexiconFor.fillingsSince(state.hyperlexiconLog, turnStartSeq) : [];
+  if (filledThisTurn.length) {
+    logAct("rezeroed", { voids: filledThisTurn.map((f) => f.void), by: filledThisTurn.map((f) => f.by) });
+    forceRefresh = true;
+    forceBecause = `${filledThisTurn.length} void(s) filled this turn (REC·Ground)`;
+  }
+  await refreshSummary(fold, arrivals, sentCalls, { forceRefresh, because: forceBecause });
   // MOMENT 3: everything the turn held, retrieved passages INCLUDED.
   //
   // THE UNION IS LOAD-BEARING AND WAS FOUND LIVE. This pass used to declare

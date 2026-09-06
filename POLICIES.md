@@ -12158,3 +12158,48 @@ Concretely: the model is only ever asked to NAME, QUOTE, LIST, or CHOOSE FROM A 
 **The mechanism, seen live.** Asked a memory question, the model named *"Buddha"*, which appears nowhere in the material; the walk ended at SIG for one model call and said so. Asked an injection question with a swapped name, the false subject failed to resolve and no prose was ever built around it. The one-shot arm, given the same material, wrote *"The blank in the passage is filled with the word 'Turk'"* — fluent, addressed, and false.
 
 **Generality:** universal for the construction and the division; specimen-scoped for every number. That a generator can be confined to naming, quoting and choosing while all inference is done mechanically is a claim about the arrangement, not about this corpus or this model — and the falsehood-to-absence conversion follows from the arrangement, since content that cannot be resolved is refused at the cell that would have carried it rather than at the end. The 5/12, 3/12, 7→1 and the per-kind splits are twelve probes on one model on one day, and the recall column reflects an experiment design that should not have routed cloze questions to either arm.
+
+## P150 — The cube has three faces and this instrument was using one (2026-09-06)
+
+**The prompt.** *"I also think we are not leveraging the full power of the cube, think of what unlocks with the terrains and stances, and using all 3 faces."*
+
+**What the cube actually is** (`kernel/cube.js`, and it is never restated in the-fold — the tables are injected, because a restated table is how the last divergence happened):
+
+| face | axes | the nine |
+|---|---|---|
+| **operator** | mode × domain | NUL SEG DEF / SIG CON EVA / INS SYN REC |
+| **terrain** | domain × grain | Void Entity Kind / Field Link Network / Atmosphere Lens Paradigm |
+| **stance** | mode × grain | Clearing Dissecting Unraveling / Tending Binding Tracing / Cultivating Making Composing |
+
+3 × 3 × 3. The answering path has only ever used the **operator** face — `turn-order.js`'s chain, `admissible`, P143's conditioning ladder, P149's walk. Grain never enters, which means **every procedure written here runs at one grain, implicitly Figure**: find the named thing, quote the sentence mentioning it, answer about it. A question that is not about a figure gets figure treatment anyway.
+
+**Measured before anything was built** (run 1, 869 model turns, outcome = a high defect rate at P144's length-free resolution):
+
+| grain of the question | n | answers with a high defect rate | mean coverage | question words |
+|---|---|---|---|---|
+| **Figure** | 421 | **39%** | 0.44 | 13.7 |
+| **Ground** | 283 | **62%** | 0.66 | 8.8 |
+| provisional | 165 | 57% | 0.67 | 21.5 |
+| Pattern | 2 | — | — | — |
+
+A twenty-three point gap in the predicted direction.
+
+**And it collapses the day's other findings into one account.** P144 found `coverage == 1.0` was the failure regime and could not say why. P148 found the question's content-word count predicted better than coverage. Both were shadows of this: **Ground-grained questions have few content words and common ones, so coverage runs high on them.** The coverage regime *is* the Ground questions being answered by Figure machinery. Coverage was a proxy for grain.
+
+**Pattern occurred twice in 869 turns.** That face of the instrument has never been exercised at all, and no claim about it is made here.
+
+**What II.12 permits, and what it forbids.** *"A terrain, category, cluster, or type assigned by the machine and presented as found is refused. Addresses are declared and checked for coherence, never inferred and asserted. An induced kind carries a per-population null arm or renders provisional."*
+
+So the grain is **not induced**. It is read off the asker's own words — a person who writes "tell me more" has declared a Ground-grained question by writing it that way — and where the words do not settle it the reading is `provisional`, carries **no** grain rather than a default one, and **may not choose a procedure**. 165 of 869 real questions came back unsettled and not one was guessed at.
+
+**The null arm II.12 requires, five seeds:**
+
+| | real spread | shuffled spread | verdict |
+|---|---|---|---|
+| seeds 1, 7, 13, 21, 99 | 22.4pt | 6.0 / 4.0 / 0.8 / 1.1 / 2.4 pt | **separates** |
+
+with a control pinned alongside it that a split which is not there is reported as absent, so the arm can come back negative.
+
+**What this unlocks, stated as the work it implies rather than as a claim.** A settled grain places the question on the other two faces at once: "Where does Circe appear" is Existence × Figure — terrain **Entity**, stance **Binding**. "Tell me more" is Existence × Ground — terrain **Void**, stance **Tending**. Those are different kinds of work, and today they get the same procedure. The Figure procedure exists (P149's walk); a Ground procedure does not, and 283 of 869 turns needed one.
+
+**Generality:** universal for the structure, specimen-scoped for the numbers. That a cube of three faces offers terrain and stance alongside operator is canon, not a finding; that a procedure written at one grain will be applied at every grain unless something reads the grain is a property of the arrangement. The 39%/62%/22.4pt, the 165 provisional and the 2 Pattern turns are one run, one corpus, one probe generator — and that generator produced almost no Pattern questions, so the split measured here is Figure against Ground and nothing else.

@@ -2360,3 +2360,25 @@ test("P135/P136 end to end: the cited passage's own cast decides, and a rendered
   assert.match(r.output, /"Kutúzov" is not someone or something this passage introduces/);
   assert.doesNotMatch(r.output, /do not use "Kutúzov".*do not use "Kutúzov"/s, "the referent reading supersedes the string reading");
 });
+
+test("P137: a finding leaves the part and binds the later cells — the section heading and the piece's revision (the audit's two piece-path leaks)", async () => {
+  const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. Pierre spoke again later, and Prince Andrew listened.');
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established from pg2600.txt that: ""Both true and untrue," Lincoln began; but Prince Andrew interrupted him." Write about that exchange.',
+    chunks, planMode: "model",
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      // The plan names sections after the false claim, as it would.
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Lincoln's silence", description: "the exchange itself." }, { label: "After the interruption", description: "what followed." }] });
+      return "Lincoln began the exchange and Prince Andrew interrupted him.";
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    piece: { topic: "the exchange", pages: 1, words: 30 },
+  });
+  assert.ok(r.sections.some((s) => s.findings?.length), "the findings leave the part");
+  // The heading may not carry what the body was gutted for saying.
+  assert.doesNotMatch(r.output, /^## .*Lincoln/m, "no section heading ships the cut name");
+  assert.doesNotMatch(r.output, /Lincoln/, "and neither does anything the later cells assembled");
+});

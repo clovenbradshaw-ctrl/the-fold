@@ -112,13 +112,25 @@ export async function transcribeBlob(blob, { onProgress, onChunk, lang = "en" } 
   const out = await asr(mono, {
     chunk_length_s: 30,
     stride_length_s: 5,
-    return_timestamps: false,
+    // TIMESTAMPS ARE THE ADDRESS (P138). Without them a transcript is one
+    // flat blob whose only address is "somewhere in this file", and every
+    // organ downstream is blind to it in the way that matters: a snip needs
+    // a span, an atom needs company at an address, the ladder needs somewhere
+    // to point, the export needs bytes to quote, and a person needs to be
+    // able to go and HEAR the moment being cited.
+    return_timestamps: true,
     language: lang === "es" ? "spanish" : "english",
   });
 
   const text = String((out && out.text) || "").trim();
+  // The recognizer's own cut, kept. A model that returns no chunks still
+  // returns text, and the caller falls back to an unaddressed transcript with
+  // that fact visible rather than silently.
+  const segments = Array.isArray(out?.chunks)
+    ? out.chunks.map((c) => ({ text: String(c?.text ?? "").trim(), timestamp: c?.timestamp ?? [] })).filter((c) => c.text)
+    : [];
   if (onChunk) onChunk(text);
-  return { text, duration };
+  return { text, duration, segments, addressed: segments.length > 0 };
 }
 
 /**

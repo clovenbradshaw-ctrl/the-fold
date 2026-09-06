@@ -94,8 +94,11 @@ const MARKUP_DENSE = (text) => {
   const tags = (t.match(/<\/?[a-z][^>]{0,80}>/gi) ?? []).length;
   return tags > 0 && tags * 40 > t.length;   // a tag every ~40 chars is markup, not prose
 };
+// A recording's transcript is speech, never code, whatever its container.
+export const isAudioSource = (name) => /@\d+(?:\.\d+)?-\d+(?:\.\d+)?$|\.audio$/i.test(String(name ?? ""));
 export const isCodeSource = (name, text = null) =>
-  CODE_EXT.test(String(name ?? "").split("#")[0]) || (text != null && MARKUP_DENSE(text));
+  !isAudioSource(name) &&
+  (CODE_EXT.test(String(name ?? "").split("#")[0].split("@")[0]) || (text != null && MARKUP_DENSE(text)));
 
 const foldT = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 /** The topic's content words, folded: every one must appear in a source for it to be in a piece's scope (P114). */

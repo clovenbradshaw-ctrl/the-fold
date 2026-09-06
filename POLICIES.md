@@ -11824,3 +11824,21 @@ An HTML file in this instrument is always RENDERED to text before it becomes a p
 **Proven end to end**, and pinned: retrieval honours the citation so the cited passage is present; the cast of THAT passage decides; the planted name is the only thing flagged; the name the passage does establish is left alone; and the referent reading supersedes the string reading rather than being printed twice. P135's open item is closed.
 
 **Files.** `longform.js` (`isCodeSource` takes the text; `MARKUP_DENSE`), `holon.js` (both call sites pass it), `correction.js` (the referent reading supersedes), their pins. Suites 1,753/0 and 675/0.
+
+## P137 — Findings leave the part, and an address is not a licence to quote something else (2026-09-06)
+
+Four of the audit's confirmed violations, fixed at their root rather than one by one.
+
+**Findings leave `runPart`.** They were local to it, so every later cell was unbound. The **section heading** was never gated: a piece could gut every sentence of a section for naming something the sources contradict and then ship that very name as the section's `## heading` — deterministic, needing no model misbehaviour, since labels come from a plan written off the ask that carried the false claim. And the **piece's revision pass** runs after every part's gate and could reinstate what a part forbade, which is P133's shape one level up. Both are now bound by every finding the parts established.
+
+**An address is not a licence to quote something else.** `verbatimSpans` fell back from the exact chunk to the WHOLE SOURCE and quoted its first 200 characters under the chunk's byte range — the ordinary case, since read-on-arrival admits a whole book while retrieval keeps a few passages, so the exact chunk is usually absent. The reader was shown a verbatim-looking quotation, at a real address, of text that is not there. Now the address is published AS an address, saying the passage was not in hand to quote. No quotation is honest; a wrong one is not.
+
+**A claim the reader itself contradicted is not on the record.** `groundOf` matched notes over claims of ANY verdict, so a sentence the relation tier judged `contradicted` could be published at tier `recorded` — cited, grounded, exported as though the material supported it. A contradicted claim is contested at best, never support.
+
+## P138 — A transcript is addressed by time (2026-09-06)
+
+**Generality:** universal for the rule (a medium that arrives with its own cut keeps it — a recording is cut where the recognizer heard boundaries, and a pause is the speaker's own boundary, better than any character count; the address of speech is a TIME range `name@from-to`, never a byte range, and the two are distinguishable at a glance; a transcript is testimony about what was SAID, so its standing is "heard in the recording", never a fact about the world; a recognizer that returns no timings yields NO addressed passages rather than fabricated ones). User direction: "wire in the ability to transcribe audio."
+
+**What was actually missing.** Transcription already worked; what it produced could not be CHECKED. `return_timestamps: false` meant the transcript landed as one flat blob whose only address was "somewhere in this file", so every organ was blind to it in the way that matters: a snip needs a span, an atom needs company at an address, the ground ladder needs somewhere to point, the export needs bytes to quote, and a person needs to be able to go and HEAR the moment being cited. Everything else in the instrument works on a transcript unchanged, because everything else only ever needed `{ ref, text }` — which is what an address is for.
+
+**Files.** `audio-address.js` (`passagesFromSegments`, `audioRef`, `parseAudioRef`, `citeAudio`, `clock`, `AUDIO_STANDING`) + `audio-address.test.mjs` (3, including: no timings yields nothing fabricated); `transcribe.js` (timestamps kept, `segments` returned); `app.js` (`addSource` takes passages a medium brought with it); `longform.js` (a transcript is speech, never code); `piece-export.js` (a time address read as an address). Suite 1,756/0 plus main's flaky pool test.

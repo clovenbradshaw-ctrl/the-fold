@@ -125,6 +125,7 @@ import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote a
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
+import { passagesFromSegments, citeAudio, AUDIO_STANDING } from "./audio-address.js";
 import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
@@ -3084,7 +3085,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       }
       statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
       $("status").textContent = "transcribing…";
-      const { text, duration } = await transcribeBlob(blob, {
+      const { text, duration, segments } = await transcribeBlob(blob, {
         onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
         onChunk: (partial) => { setLayerText(rawText, partial); },
       });
@@ -3107,9 +3108,14 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       setLayerStatus(selfStatus, selfResolved !== priorsResult.text ? "resolved" : "no bindings");
       await logTranscriptionLayer("self", selfResolved, { source: "file", duration, changed: selfResolved !== priorsResult.text });
 
-      // Attach as material and finish.
-      const name = `transcription-${Date.now()}.txt`;
-      addSource(name, text);
+      // Attach as material and finish. ADDRESSED BY TIME wherever the
+      // recognizer gave its own cut (P138): each passage carries
+      // `name@from-to`, so a citation of speech can be opened and HEARD, and
+      // every check that works on text works on this unchanged. An
+      // unaddressed transcript is still attached, with that fact said.
+      const name = `transcription-${Date.now()}.audio`;
+      const parts = passagesFromSegments(name, segments ?? []);
+      addSource(name, text, { passages: parts.length ? parts : undefined, kind: "audio", standing: AUDIO_STANDING });
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
       statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
@@ -3140,7 +3146,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     const { blob, title } = await fetchAudioFromUrl(arg);
     statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
     $("status").textContent = "transcribing…";
-    const { text, duration } = await transcribeBlob(blob, {
+    const { text, duration, segments } = await transcribeBlob(blob, {
       onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
       onChunk: (partial) => { setLayerText(rawText, partial); },
     });
@@ -9721,7 +9727,7 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
-function addSource(name, text, { fromBoot = false } = {}) {
+function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
   // would make a self address ambiguous about which plane it names — the
@@ -9743,12 +9749,19 @@ function addSource(name, text, { fromBoot = false } = {}) {
   // simply never produced here, because this the real choke-point every
   // source passes through never asked chunkSource for it. Wired now, same
   // declared numbers as `relationsFor`'s own blankFurniture two screens up.
+  // A MEDIUM THAT CARRIES ITS OWN CUT KEEPS IT (P138). Text is cut by this
+  // instrument, because nothing else did; a recording arrives already cut at
+  // the boundaries the recognizer heard, and those are better than any count
+  // — a pause is the speaker's own. Passages handed in are used as given,
+  // with their time addresses intact.
   state.chunks = state.chunks
     .filter((c) => c.source !== name)
-    .concat(chunkSource(name, text, {
-      boundaries: discoverBoundaries(text), identity,
-      blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
-    }));
+    .concat(passages?.length
+      ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
+      : chunkSource(name, text, {
+          boundaries: discoverBoundaries(text), identity,
+          blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+        }));
   renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.

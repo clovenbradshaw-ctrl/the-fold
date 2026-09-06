@@ -2910,6 +2910,11 @@ export async function runPart({
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
     ...(inadmissible.length ? { inadmissible: inadmissible.map((r) => ({ cell: r.cell, because: r.because, sentence: r.sentence })) } : {}),
+    // The findings LEAVE the part (P137). Everything a later cell assembles —
+    // the section heading, the piece's own revision pass — is bound by what
+    // this part established, and neither could see it while the findings
+    // stayed local to runPart.
+    ...(findings.length ? { findings } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
     ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),
@@ -3258,6 +3263,10 @@ export async function runHolonicTask({
   // out of the assembly exactly as its entry dropped out of the live set.
   let sections = plan.parts.map((p) => sectionsById.get(p.id)).filter(Boolean);
 
+  // Every finding the parts established, in one place (P137): the heading and
+  // the revision pass are later cells and are bound by all of them.
+  const allFindings = sections.flatMap((x) => x.findings ?? []);
+
   // THE UNCONSCIOUS EDITS THE MOUTH (P111): a finished piece is edited
   // model-free — restated sentences cut, emptied sections dropped, sections
   // whose claims were all already said merged away — every edit an act
@@ -3290,6 +3299,16 @@ export async function runHolonicTask({
       // a claim knows its sentence by the sentence that carries its first end and its label
       const anchor = (text, claims) => { const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean); const f = (t) => String(t ?? "").toLowerCase(); return (claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => f(x).includes(f(c.end1 ?? c.subject).split(" ")[0] ?? "") && f(x).includes(f(c.label ?? c.verb))) ?? null })); };
       const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
+      // THE REVISION IS A LATER CELL (P137). It runs after every part's own
+      // gate and could put back what a part's finding forbade — the same
+      // shape P133 had at EVA, one level up. Bound here by everything the
+      // parts established, since findings now leave runPart.
+      if (allFindings.length) {
+        for (const sec of rv.sections ?? []) {
+          const gated = admissible(sec.text ?? "", allFindings, { splitSentences, from: "REC" });
+          if (gated.refused.length) { sec.text = gated.text || sec.text; sec.inadmissible = gated.refused; }
+        }
+      }
       revisions = rv.revisions;
       sections = rv.sections.map((e) => ({ ...e._s, text: e.text, ...(e.recited ? { recited: e.recited } : {}) }));
     } catch (e) { revisions = [{ kind: "revision-error", because: String(e?.message ?? e) }]; }
@@ -3300,7 +3319,17 @@ export async function runHolonicTask({
       // An empty part is a typed gap (recorded above); the assembly says so
       // in place rather than shipping a dangling heading or an empty string.
       const text = s.text || "(this part produced no text — left open)";
-      return plan.parts.length > 1 ? `## ${s.part.label}\n\n${text}` : text;
+      // THE HEADING IS BOUND TOO (P137). It was never passed through the
+      // gate, so a piece could gut every sentence of a section for naming
+      // something the sources contradict and then ship that very name as the
+      // section's ## heading. No model misbehaviour is needed; it is
+      // deterministic, because the labels come from the plan, which is written
+      // from the ask that carried the false claim.
+      const bound = allFindings.filter((f) => (f.forbids ?? []).length);
+      const label = bound.some((f) => (f.forbids ?? []).some((v) => String(s.part.label).toLowerCase().includes(String(v).toLowerCase())))
+        ? (s.part.description && !bound.some((f) => (f.forbids ?? []).some((v) => String(s.part.description).toLowerCase().includes(String(v).toLowerCase()))) ? s.part.description : "This section")
+        : s.part.label;
+      return plan.parts.length > 1 ? `## ${label}\n\n${text}` : text;
     })
     .join("\n\n");
 

@@ -12243,3 +12243,36 @@ with a control pinned alongside it that a split which is not there is reported a
 **Two disclosures the downward half owes.** A level in which everything carried equally places no expectation at all, and `informative` says so rather than returning a flat prior dressed as a finding. And `descentChanges` runs the level below **both ways**: if the prior does not change what is established, the descent is **decorative**, however elegant — pinned in both directions, with a control that must come back negative on an `apply` that ignores weights.
 
 **Generality:** universal. That licensing flows up and expectation flows down is a claim about hierarchical inference, not about this corpus; so is the wall between them, which is the standing failure mode of every system that lets a prior decide what it is allowed to see. Nothing here is measured on real material yet — the descent's effect on real answers is owed, and `descentChanges` is the instrument that will say it.
+
+## P155 — Theory guards: the regressions this session's findings are one edit from (2026-09-06)
+
+**The prompt.** *"Set some guidelines to prevent regression on this theory."*
+
+**Why they are needed, evidenced rather than assumed.** In one session **the same defect was found four separate times** — binning a continuous quantity where a backoff existed (`strain.js`'s coverage floor, P143's own first SEG cell, `retrieval-prior.js`'s two bonuses) — and **twice the person committing it was the person who had just written the rule against it.** A theory held only in prose regresses at the speed of the next convenient edit.
+
+**`THEORY-GUARDS.md` — twelve guards, each with three parts.** The *claim*; *why regression is tempting*, which is the part that makes a guard survive contact with a hurry; and the *gate* — a named test that fails when the guard is broken, or the word **UNENFORCED** and what it waits on. There is no third option.
+
+| | guard | gate |
+|---|---|---|
+| G1 | a check that cannot fail is not a check | `pattern.test.mjs` |
+| G2 | a path is derived, never authored | `ascend.test.mjs` |
+| G3 | levels come from the material, not the author | **UNENFORCED** |
+| G4 | recurrence of surfaces is not recurrence of referents | `pattern.test.mjs` |
+| G5 | a level that did not run may never read as absence | `pattern.test.mjs` |
+| G6 | probability may never become possibility | `ascend.test.mjs` |
+| G7 | height stays anchored to bytes | `ascend.test.mjs` |
+| G8 | a guard hit is not a ceiling | `ascend.test.mjs` |
+| G9 | where a backoff exists, a bin is a worse estimator | `prequential.test.mjs`, `earned-constants.test.mjs` |
+| G10 | any-defect outcomes are confounded by output length | `prequential.test.mjs` |
+| G11 | the cube's tables are injected, never restated | `grain.test.mjs` |
+| G12 | a kind read off the machine is refused; off the asker is not | `grain.test.mjs` |
+
+**`theory-guards.test.mjs` is what makes them rules.** It fails when a guard states no gate, when a guard **cites a test that does not exist**, when a guard **cites an assertion the named test does not contain**, when an UNENFORCED guard is not tracked under Owed, and when the numbering has a gap so one could be quietly dropped.
+
+**The third of those is the one that matters most.** A guard pointing at a test that no longer contains its assertion reports protection that is not there — strictly worse than no guard. This is the exact failure `cube.js`'s own header records: a restatement drifting under a comment reading *"nothing is restated here."*
+
+**The gate was mutation-tested rather than trusted** — four deliberate breakages, all caught: a guard with no gate; a guard citing a missing file; a guard citing a drifted assertion (both single-line and line-wrapped titles); a numbering gap. The first attempt at that mutation test **silently failed to apply**, because the cited title wraps across a line in markdown and the single-line replacement was a no-op — the check reported MISSED when it had never been challenged. A mutation test that does not assert its mutation applied is measuring nothing, and it now asserts it.
+
+**One guard is honestly unenforced.** G3 — that levels come from the material rather than from the author — is a debt, waiting on the cursor work, and is listed under Owed. It is the largest one here: `pattern.js`'s five levels are hand-authored and text-only, which is the same defect as the hand-authored walk that P152 exposed.
+
+**Generality:** universal for the form, specimen-scoped for the twelve. That a guard must name a gate or admit it has none, and that a citation must be checked against the thing it cites, holds for any project keeping standing rules. The twelve guards are this instrument's theory on this date; each names the measurement that earned it and goes only by a measurement showing it protects nothing.

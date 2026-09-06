@@ -246,7 +246,7 @@ test("the room as a mouth: alice serves her machine's models; bob's prompt goes 
   assert.equal(a.device.label, "alice-mac");
   assert.ok(a.ms >= 0);
   const pool = bob.pool(room);
-  assert.equal(pool.workers[0].answered, 1); assert.equal(pool.workers[0].inflight, 0); assert.equal(pool.workers[0].device.label, "alice-mac");
+  assert.equal(pool.workers[0].answered, 1); assert.equal(pool.workers[0].inflight, 0); assert.equal(pool.workers[0].answeredBy.label, "alice-mac");
   // what the server holds of it
   const jobs = hs.dump().timeline.filter((e) => e.type === EVENTS.job); const answers = hs.dump().timeline.filter((e) => e.type === EVENTS.answer);
   assert.equal(jobs.length, 1); assert.equal(answers.length, 1);
@@ -254,7 +254,7 @@ test("the room as a mouth: alice serves her machine's models; bob's prompt goes 
   assert.deepEqual(Object.keys(answers[0].content).sort(), ["env", "job", "v"]);
   assert.equal(jobs[0].content.to, "@alice:fake.test");
   const mouth = hs.dump().rooms.find((x) => x.id === room).state.find((e) => e.type === TYPES.mouth && e.state_key === "@alice:fake.test");
-  assert.deepEqual(Object.keys(mouth.content).sort(), ["home", "models", "since", "v"]);
+  assert.deepEqual(Object.keys(mouth.content).filter((k) => !["available", "device", "refused"].includes(k)).sort(), ["home", "models", "since", "v"]);
   const secrets = new SecretSet().add("the prompt", PROMPT).add("the reply", REPLY).add("chat key", alice.keyOf(room));
   for (const l of hs.log) { assert.deepEqual(secrets.leaks(l.body), [], `${l.method} ${l.path}`); assert.deepEqual(secrets.leaks(l.path), []); }
   assert.deepEqual(secrets.leaks(hs.everything()), [], "nor on the operator's disk");
@@ -263,6 +263,82 @@ test("the room as a mouth: alice serves her machine's models; bob's prompt goes 
   const { served } = await serving;
   assert.equal(served, 1);
   assert.deepEqual((await bob.mouths(room)), [], "the offer is withdrawn when serving stops");
+});
+
+test("a job that names no model is answered with the worker's first offered model — 'whatever this machine has' is a real ask, and the worker is what knows", async () => {
+  const ac = new AbortController();
+  const seen = [];
+  const s = alice.serve(room, { complete: async ({ model, messages }) => { seen.push(model); return { text: `answered with ${model}`, usage: { outTokens: 3 }, model }; }, models: ["gemma2:2b", "phi3:mini"], home: "terminal", signal: ac.signal });
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    await bob.mouths(room);
+    const a = await bob.ask(room, { messages: [{ role: "user", content: "no model named" }] }, { timeoutMs: 10_000 });
+    assert.deepEqual(seen, ["gemma2:2b"], "the first model this worker offers");
+    assert.equal(a.model, "gemma2:2b");
+    assert.match(a.text, /answered with gemma2:2b/);
+  } finally { ac.abort(); await s; }
+});
+
+test("coordinating which model runs where: a machine says what it serves, what it has spare and what it is (CPU or GPU); a member asks it to take up a spare model and it does; an ask for a model it does not have is refused with a reason, in the pool", async () => {
+  const ac = new AbortController();
+  const device = { runtime: "Ollama", os: "linux", arch: "x64", cores: 16, memGB: 64, gpu: false };
+  const took = [];
+  const s = alice.serve(room, { complete: async ({ model }) => ({ text: `answered with ${model}`, usage: { outTokens: 3 }, model, device }), models: ["gemma2:2b"], available: ["qwen3:4b", "phi3:mini"], device, home: "terminal", signal: ac.signal, onTakeUp: (t) => took.push(t.model) });
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    await bob.mouths(room);
+    const seen = bob.pool(room).workers.find((w) => w.user === "@alice:fake.test");
+    assert.deepEqual(seen.models, ["gemma2:2b"]);
+    assert.deepEqual(seen.available, ["qwen3:4b", "phi3:mini"], "what it could serve but is not");
+    assert.equal(seen.device.gpu, false, "a CPU-only machine says so");
+    assert.equal(seen.device.cores, 16);
+    // ask for a spare model: it is taken up and offered
+    const w = await bob.want(room, "@alice:fake.test", "qwen3:4b");
+    assert.deepEqual([w.available, w.serving], [true, false]);
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline && !(await bob.mouths(room)).some((o) => o.models.includes("qwen3:4b"))) await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(took, ["qwen3:4b"]);
+    const now = bob.pool(room).workers.find((x) => x.user === "@alice:fake.test");
+    assert.deepEqual(now.models, ["gemma2:2b", "qwen3:4b"]);
+    assert.deepEqual(now.available, ["phi3:mini"], "no longer spare once it is served");
+    const a = await bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "qwen3:4b" }, { timeoutMs: 10_000 });
+    assert.match(a.text, /answered with qwen3:4b/);
+    // ask for a model it does not have: refused, with the reason, in the pool
+    await bob.want(room, "@alice:fake.test", "llama3:70b");
+    const d2 = Date.now() + 8000;
+    while (Date.now() < d2 && !(bob.pool(room).workers.find((x) => x.user === "@alice:fake.test")?.refused ?? []).length) { await bob.mouths(room); await new Promise((r) => setTimeout(r, 200)); }
+    const refused = bob.pool(room).workers.find((x) => x.user === "@alice:fake.test").refused;
+    assert.deepEqual(refused.map((r) => [r.model, r.why]), [["llama3:70b", "this machine does not have that model"]]);
+    await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "llama3:70b" }, { timeoutMs: 2000 }), /no offered mouth has llama3:70b/);
+    await bob.unwant(room, "@alice:fake.test");
+  } finally { ac.abort(); await s; }
+});
+
+test("a machine may decline a model it has — its own hardware, its own call — and the reason travels", async () => {
+  const ac = new AbortController();
+  const s = alice.serve(room, { complete: async ({ model }) => ({ text: "ok", model }), models: ["gemma2:2b"], available: ["llama3:70b"], device: { runtime: "Ollama", cores: 4, memGB: 8, gpu: false }, home: "terminal", signal: ac.signal, canTakeUp: async (model) => (model === "llama3:70b" ? "70B on 8 GB and no GPU would swap for hours" : null) });
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    await bob.mouths(room);
+    await bob.want(room, "@alice:fake.test", "llama3:70b");
+    const d = Date.now() + 8000;
+    while (Date.now() < d && !(bob.pool(room).workers.find((x) => x.user === "@alice:fake.test")?.refused ?? []).length) { await bob.mouths(room); await new Promise((r) => setTimeout(r, 200)); }
+    const w = bob.pool(room).workers.find((x) => x.user === "@alice:fake.test");
+    assert.deepEqual(w.refused.map((r) => r.why), ["70B on 8 GB and no GPU would swap for hours"]);
+    assert.ok(!w.models.includes("llama3:70b"));
+    await bob.unwant(room, "@alice:fake.test");
+  } finally { ac.abort(); await s; }
+});
+
+test("a machine that is offering but slow is reported as busy, not gone, and the deadline stretches to the queue it measured", async () => {
+  const ac = new AbortController();
+  let hold = true;
+  const s = alice.serve(room, { complete: async ({ model }) => { while (hold) await new Promise((r) => setTimeout(r, 20)); return { text: "at last", model }; }, models: ["slowpoke"], home: "terminal", signal: ac.signal });
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    await bob.mouths(room);
+    await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "slowpoke" }, { timeoutMs: 1200 }), /still offering a mouth, so it is most likely still working through its queue/);
+  } finally { hold = false; ac.abort(); await s; }
 });
 
 test("a pool: two machines serve; four concurrent asks spread across them by in-flight count; a prompt too big for an event rides the media store sealed; the pool surface counts it all", async () => {
@@ -291,15 +367,21 @@ test("a pool: two machines serve; four concurrent asks spread across them by in-
   assert.deepEqual(new SecretSet().add("big", big).leaks(hs.everything()), []);
   const pool = bob.pool(room);
   assert.equal(pool.offers, 2);
-  // counts accumulate over the session: alice answered one job in the test before this one
-  for (const w of pool.workers) { assert.equal(w.answered, w.sent); assert.equal(w.inflight, 0); assert.equal(w.failed, 0); assert.ok(w.meanMs >= 0); }
-  assert.equal(pool.workers.reduce((n, w) => n + w.answered, 0), 5, "one from the mouth test, four from this one");
-  assert.deepEqual(pool.workers.map((w) => w.device.label).sort(), ["alice-mac", "carol-pc"]);
+  // The counters accumulate across this file's tests (one job was deliberately
+  // left hanging in the busy-not-gone test), so the claim is the shape: every
+  // job is accounted for, nothing is still in flight, and both machines worked.
+  for (const w of pool.workers) {
+    assert.equal(w.answered + w.failed, w.sent, `${w.user} accounts for every job it was sent`);
+    assert.equal(w.inflight, 0);
+    assert.ok(w.answered >= 2, `${w.user} answered ${w.answered}`);
+    assert.ok(w.meanMs >= 0);
+  }
+  assert.deepEqual(pool.workers.map((w) => w.answeredBy.label).sort(), ["alice-mac", "carol-pc"]);
   } finally { ac.abort(); await s1; await s2; }
 });
 
-test("a mouth that is gone is a typed gap that counts against it; a model nobody offers is a typed gap; a room with no mouths says so", async () => {
-  await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], to: "@nobody:fake.test" }, { timeoutMs: 400 }), /no answer from @nobody:fake.test in 0s/);
+test("a mouth that is gone is a typed gap that counts against it, and the gap says gone rather than busy; a model nobody offers is a typed gap; a room with no mouths says so", async () => {
+  await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], to: "@nobody:fake.test" }, { timeoutMs: 400 }), /no answer from @nobody:fake.test in \d+s — it is no longer offering a mouth/);
   assert.equal(bob.pool(room).workers.find((w) => w.user === "@nobody:fake.test").failed, 1);
   await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "gemma2:2b" }), /nobody in this room offers a mouth/);
   const ac = new AbortController();

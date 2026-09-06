@@ -53,8 +53,19 @@ export const ROUTE_KINDS = Object.freeze({
  * are actually loaded, in picker order (fastest first); `selected` is the
  * model the user chose in the picker.
  */
+/**
+ * A name of the form `room:@who:server <model>` is not a rung on this ladder:
+ * it names a MACHINE another member is offering through a room. Whoever picked
+ * it chose where the work runs, and a ladder that swapped it for the fastest
+ * local rung would quietly move the work back onto this machine — measured
+ * 2026-09-06, when a turn taken under a room mouth ran entirely on the local
+ * model and only the turn's own attribution line showed it.
+ */
+export const isPinnedModel = (name) => typeof name === "string" && /^room:@[^:\s]+:\S+\s+\S/.test(name);
+
 export function routeModel(kind, { offered = [], selected = null } = {}) {
-  const fast = offered[0] ?? MODEL_PICKER[0];
+  if (isPinnedModel(selected)) return selected;
+  const fast = offered.find((m) => !isPinnedModel(m)) ?? MODEL_PICKER[0];
   if (kind === ROUTE_KINDS.SUMMARY || kind === ROUTE_KINDS.FLAT) return fast;
   return selected ?? fast;
 }

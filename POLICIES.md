@@ -11835,6 +11835,8 @@ Four of the audit's confirmed violations, fixed at their root rather than one by
 
 **A claim the reader itself contradicted is not on the record.** `groundOf` matched notes over claims of ANY verdict, so a sentence the relation tier judged `contradicted` could be published at tier `recorded` — cited, grounded, exported as though the material supported it. A contradicted claim is contested at best, never support.
 
+**Generality:** universal. None of the four is about the specimen that found them. A finding that cannot leave the scope that established it binds nothing later; an address that falls back to different bytes is a wrong quotation at a right address; a contradicted claim published as support is a contradiction in terms. Each holds for any material and any reader.
+
 ## P138 — A transcript is addressed by time (2026-09-06)
 
 **Generality:** universal for the rule (a medium that arrives with its own cut keeps it — a recording is cut where the recognizer heard boundaries, and a pause is the speaker's own boundary, better than any character count; the address of speech is a TIME range `name@from-to`, never a byte range, and the two are distinguishable at a glance; a transcript is testimony about what was SAID, so its standing is "heard in the recording", never a fact about the world; a recognizer that returns no timings yields NO addressed passages rather than fabricated ones). User direction: "wire in the ability to transcribe audio."
@@ -11889,6 +11891,8 @@ And the answer CHANGED THE SUBJECT on **82% of memory turns and 73% of injection
 
 **Caveats, stated rather than buried.** n = 12. Claude's memory window was trimmed to three prior turns while the fold retrieved from the full transcript, which flatters the fold on that column. The fold's arm is a 2B model against a frontier one, which is the comparison the project chose, not a handicap it suffered.
 
+**Generality:** specimen-scoped. Twelve probes, one corpus, one 2B model against one frontier model on one day. The scoreboard does not transfer. The one finding inside it that does is stated separately and holds anywhere: addressed citation is a property of material that arrives addressed, not of the reader — so any competent model handed refs will cite them, and the fold may not claim it as its own.
+
 **What this changes.** Nothing about the architecture, and one thing about the language: the fold's case is not that it answers better than a large model. On identical material it answers worse, 6 to 9. Its case is that every answer is addressed and mechanically checked, most of them cost nothing, and none of it leaves the machine.
 
 ## P141 — Retrieval decided against a prior and against what is activated, not by counting words (2026-09-06)
@@ -11929,3 +11933,32 @@ The first attempt used 8 probes and showed the same nothing, but was worthless a
 That is consistent with everything else measured this session: the doors answer recall 33/33 where the model answers 2/13, on the SAME material. **The improvement path is not better retrieval feeding a better answer; it is answering mechanically wherever the instrument can, because the model's failure is upstream of passage quality.** Retrieval quality still matters for the checks — the premise, misquote and referent readings are all taken against the retrieved passages, and P135/P136 were exactly failures of that — so `rank` earns its place there rather than in the hope of a better draft.
 
 Caveats: n = 14, one model, one corpus. The cost saving is real but small and not the reason to adopt it.
+
+## P142 — What the reading did with each passage, on the record (2026-09-06)
+
+**Where it came from.** P140 measured the fold against a frontier model on identical material and lost 6–9. Rather than take the scoreboard, the twelve answers that model gave were read for the *moves* it made:
+
+| move | frontier model | the fold |
+|---|---|---|
+| cites an address | 10 / 12 | does this |
+| corrects the question's premise | 6 / 12 | does this (P133, P135) |
+| **names what it checked and excluded** | **5 / 12** | **0 / 12** |
+| declares a void with its reason | 4 / 12 | partly |
+| reasons about whether the extent suffices | 1 / 12 | no |
+| diagnoses where the error came from | 1 / 12 | no |
+
+The third row is the one that matters, because it is not comprehension — it is bookkeeping the instrument was already in a position to do and threw away. Asked about a line, that model wrote: *"The only other material available is two unrelated Prince Andrew scenes … neither touches this exchange."* The fold retrieved three passages, used whichever bore, and dropped the rest in silence.
+
+**Why silence is a defect and not an economy.** An answer that says nothing about the passages it did not use is indistinguishable, to its reader, from an answer that never looked. This instrument's oldest law is that a measured absence is a finding while a failure to look is a fact about the reader, and the turn was not recording which one it had.
+
+**What lands.** `reading-trace.js`. Every retrieved passage leaves the turn with a verdict: `bore` (the answer stands on it), `checked-silent` (read, shares the question's content words, answered nothing), `checked-apart` (read, about something else). Those verdicts are landed as CON·Figure acts keyed to the question and the address — relations over the material, which is the meta-graph the hypergraph was missing: it holds what the material *says*, this holds what the reading *did with it*. `traceLine` states the excluded set in the instrument's own sentence, appended mechanically after the admissibility gate.
+
+**Two walls.** The excluded passages are never described to the model — naming what is not there teaches a small model to say it (P126). And an empty trace is `nothing was read`, never `nothing bore`: `looked()` separates them and `traceLine` is silent when nothing was read, so an empty search can never be reported as an exhaustive one. That is the control, and it is the test that would fail if the organ were wrong in the direction that matters.
+
+**Live, first turn it ran on** (gemma2:2b, three passages, one bearing):
+
+> The passage says that Pierre began speaking, but Prince Andrew interrupted him.
+>
+> Also looked at: wp-b.txt#0-126, wp-c.txt#0-123 were read and speak of the same things without answering this.
+
+**Generality:** universal. The claim is not about this corpus or this model: any reader that retrieves a set and uses a subset owes its reader the difference, and any reader that retrieves nothing must not be able to phrase that as having excluded something. Neither half depends on what was being read.

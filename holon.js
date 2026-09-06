@@ -41,6 +41,7 @@ import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
 import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
+import { traceReading, traceLine, actsFor, VERDICT } from "./reading-trace.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
@@ -2825,6 +2826,26 @@ export async function runPart({
     }
   }
 
+  // WHAT THE READING DID WITH EACH PASSAGE (P142). Read off twelve answers a
+  // frontier model gave to this run's own probes on this run's own material:
+  // 5 of 12 named what it had checked and EXCLUDED ("the only other material
+  // available is two unrelated Prince Andrew scenes — neither touches this
+  // exchange"), and the fold did that 0 of 12. It retrieved three passages,
+  // used whichever bore, and dropped the rest in silence — so a reader could
+  // not tell an answer that searched and found nothing from one that never
+  // looked. That distinction is this instrument's oldest law. It is a fact
+  // about the SEARCH, computed here and stated as the instrument's own
+  // sentence; it is never asked of the mouth, and the excluded passages are
+  // never described to it (P126: naming what is not there teaches a small
+  // model to say it).
+  const reading = passages.length
+    ? traceReading({ passages: prosePassages.length ? prosePassages : passages, question: task || question, used: [...(check.used ?? []), ...(check.refs ?? [])] })
+    : [];
+  const readingLine = (!piece && text && reading.some((r) => r.verdict !== VERDICT.BORE) && reading.some((r) => r.verdict === VERDICT.BORE))
+    ? traceLine(reading)
+    : "";
+  if (readingLine) text = `${text.trim()}\n\n${readingLine}`;
+
   // What this turn learned, in the chain's entry shape (P126) — handed out on
   // the result for the caller to append to its durable store. Both halves:
   // what the answer got wrong, and what the question asserted falsely.
@@ -2920,6 +2941,11 @@ export async function runPart({
     // this part established, and neither could see it while the findings
     // stayed local to runPart.
     ...(findings.length ? { findings } : {}),
+    // The reading itself, as relations over the material (P142): which
+    // passages bore, which were read and found silent, which were read and
+    // are about something else. An EMPTY list is not "nothing bore" — it is
+    // "nothing was read", and the two may never be confused.
+    ...(reading.length ? { reading } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
     ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),

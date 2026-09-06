@@ -29,7 +29,7 @@
 //
 // PURE: no model call of its own, no I/O. `correctTurn` takes the call it is
 // given and spends exactly the rounds it is handed.
-import { snipsFor, snipBlock, checkSection, checkSentence, reviseAsk, applyRewrite } from "./snip-check.js";
+import { snipsFor, snipBlock, checkSection, checkSentence, reviseAsk, applyRewrite, atomsOf as atomsOfText } from "./snip-check.js";
 import { CLAIM_STOPWORDS } from "./grounding.js";
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -195,6 +195,50 @@ export async function correctTurn({ text, passages = [], question = "", terms = 
     check: { snips: snips.length, atoms: before.atoms, supported: before.supported, flagged: before.flagged.length, after: { flagged: after.flagged.length, supported: after.supported, atoms: after.atoms }, flags: after.flagged.map((r) => ({ sentence: r.sentence, flags: r.flags.map((f) => ({ kind: f.kind, value: f.value, reason: f.reason })), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end, snipYears: r.contradiction.snipYears } : null })) },
     before, after,
   };
+}
+
+
+// ── THE MOUTH NARRATING ITS OWN PROCESS (P124) ──────────────────────────────
+// Measured all through the long-stream run: answers that open "## Identify
+// the passage", "This analysis focuses on a passage from the `holon.js`
+// file", "Let's break down the code and understand its purpose" — the model
+// describing the act of answering instead of answering. `cutMetaTalk` cannot
+// see this: it matches the PIECE's own instruction vocabulary, and none of
+// these words are in it.
+//
+// The cut is deliberately narrow, because the two things it must not touch
+// are the two that matter most:
+//   * A STATED ABSENCE stays. "The sources do not contain a passage about
+//     Scheria" is a finding (THE-NULL-STATES, law 3), not scaffolding.
+//   * ANYTHING CARRYING CONTENT stays. A sentence with a name, a number, or
+//     a word the material itself uses is answering, whatever it sounds like.
+// So a sentence goes only when it is process narration AND says nothing about
+// the material at all.
+const HEADING_RE = /^\s*(?:#{1,6}\s|\*\*[^*]+\*\*\s*:?\s*$|\d+\.\s*\*\*)/;
+const PROCESS_RE = /^\s*(?:let(?:'|’)?s\b|let me\b|i(?:'|’)?(?:ll|m|d|ve)\b|i \w+\b|we(?:'|’)?(?:ll|re|ve)\b|here(?:'|’)?s\b|this (?:analysis|passage|section|code|snippet|document|text|response|answer|breakdown)\b|the (?:following|passage|snippet|code) (?:is|describes|shows|focuses)\b|to (?:answer|summarize|understand|break)\b|in (?:short|summary|conclusion)\b|first,|next,|finally,|okay|sure|certainly)/i;
+const KEEPS_RE = /\b(?:do(?:es)?n['’]t|do(?:es)? not|cannot|can['’]t|no|none|nothing|not)\b[^.]{0,60}\b(?:contain|mention|say|state|include|provide|appear|find|specify|indicate|give|exist)/i;
+
+/**
+ * cutProcessTalk(text, { materialText, splitSentences }) → { text, cut }
+ * Sentences that narrate the answering and say nothing about the material.
+ */
+export function cutProcessTalk(text, { materialText = "", splitSentences }) {
+  if (typeof splitSentences !== "function") return { text: String(text ?? ""), cut: [] };
+  const material = new Set(contentWords(materialText));
+  const cut = [];
+  const kept = [];
+  for (const raw of splitSentences(String(text ?? ""))) {
+    const sent = String(raw?.text ?? raw ?? "");
+    if (!sent.trim()) continue;
+    const shape = HEADING_RE.test(sent) || PROCESS_RE.test(sent);
+    if (!shape) { kept.push(sent); continue; }
+    if (KEEPS_RE.test(sent)) { kept.push(sent); continue; }              // a stated absence is a finding
+    if (atomsOfText(sent).length) { kept.push(sent); continue; }          // carries a name, number or date
+    if (contentWords(sent).some((w) => material.has(w))) { kept.push(sent); continue; } // speaks the material's own words
+    cut.push(sent);
+  }
+  if (!cut.length || !kept.length) return { text: String(text ?? ""), cut: kept.length ? cut : [] };
+  return { text: kept.join(" ").replace(/\s{2,}/g, " ").trim(), cut };
 }
 
 /** The snips a turn stands on, as the block handed above its material (P119's, for any turn). */

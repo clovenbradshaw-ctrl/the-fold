@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { premisesOf, checkPremises, premiseFacts, premiseGuard, repeatsAbsentPremise, correctTurn, turnSnipBlock } from "./correction.js";
+import { premisesOf, checkPremises, premiseFacts, premiseGuard, repeatsAbsentPremise, correctTurn, cutProcessTalk, turnSnipBlock } from "./correction.js";
 import { splitSentences } from "./cite.js";
 
 const passages = [
@@ -73,4 +73,19 @@ test("no passages, no snips or no call is a no-op — every caller without mater
   assert.equal((await correctTurn({ text: "", passages, splitSentences })).text, "");
   assert.equal(turnSnipBlock([], "anything"), "");
   assert.match(turnSnipBlock(passages, "what does it say about Ada Rowe"), /^What the sources say, verbatim/);
+});
+
+test("process narration is cut, but a stated absence and anything carrying the material's own words are kept (P124)", () => {
+  const material = "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.";
+  const run = (t) => cutProcessTalk(t, { materialText: material, splitSentences });
+  const r = run("This analysis focuses on a passage from the material. Let me break down the question and understand its purpose. The harbor light was built in 1841 by Ada Rowe.");
+  assert.equal(r.cut.length, 2);
+  assert.equal(r.text, "The harbor light was built in 1841 by Ada Rowe.");
+  // The two things the cut must never touch.
+  assert.equal(run("The sources do not contain a passage about Scheria.").cut.length, 0, "a stated absence is a finding, not scaffolding");
+  assert.equal(run("Let me explain the tide, which turns twice a day.").cut.length, 0, "it speaks the material's own words");
+  assert.equal(run("I count 1841 as the year given.").cut.length, 0, "it carries an atom");
+  // An answer that is nothing but scaffolding is left whole for the marks to carry.
+  const all = run("Let me break this down. Here's a summary of the approach.");
+  assert.equal(all.text, "Let me break this down. Here's a summary of the approach.");
 });

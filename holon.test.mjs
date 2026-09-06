@@ -2145,3 +2145,21 @@ test("P122: the premise is checked against the TASK, so a decomposed turn cannot
   assert.ok(r.premises.checked >= 1);
   assert.ok(r.premises.contradicted + r.premises.unverified >= 1);
 });
+
+test("P124: the mouth's talk about the writing is cut from a plain grounded turn too, and a passage-less chat turn keeps its own voice (control)", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const r = await runHolonicTask({
+    task: "When was the harbor light built?", chunks, planMode: "flat",
+    call: async () => "This analysis focuses on a passage from the material. Let me break down the question and understand its purpose. The harbor light was built in 1841 by Ada Rowe.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.ok(r.metaCut?.length, "the scaffolding is cut from a plain turn");
+  assert.match(r.output, /1841/, "the answer survives");
+  // Conversation, with nothing attached, is left alone.
+  const chat = await runHolonicTask({
+    task: "hello there", chunks: [], planMode: "flat",
+    call: async () => "Let me say hello back. How can I help you today?",
+  });
+  assert.equal(chat.metaCut, undefined, "a passage-less turn is conversation, not a piece to police");
+  assert.match(chat.output, /hello|help/i);
+});

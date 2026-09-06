@@ -43,7 +43,7 @@ import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
-import { checkPremises, correctTurn, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
+import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
@@ -2579,12 +2579,36 @@ export async function runPart({
   }
   let text = stripFraming(draft);
   let metaCut = [];
-  if (piece) {
+  // THE MOUTH TALKING ABOUT THE WRITING, CUT FROM ANY GROUNDED TURN (P124).
+  // This ran only for a piece until now, and a plain turn shipped whatever
+  // scaffolding came back — measured through the long-stream run, where
+  // answer after answer opened "## Identify the passage · This analysis
+  // focuses on a passage from the `holon.js` file…" instead of answering.
+  // It is the same act as correcting a plain turn's atoms (P122): the check
+  // does not become wrong because the turn is not a piece.
+  //
+  // Only where there IS material. A passage-less turn is conversation, and
+  // cutting a person's "let me explain" out of a chat reply would be a
+  // category error (holon.js's own standing distinction).
+  if (piece || passages.length) {
     // The material's words include the piece's own topic, outline and
-    // obligations — a section titled "Tides" may say "tides".
-    const own = [piece.topic, ...(piece.outline ?? []), ...(piece.obligations ?? []), ...(piece.alreadySaid ?? [])].filter(Boolean).join(" ");
-    const r = cutMetaTalk(text, { instructionText: INSTRUCTION_TEMPLATE, materialText: `${passages.map((p) => p.text ?? "").join(" ")} ${own}`, splitSentences });
-    if (r.cut.length) { text = r.text; metaCut = r.cut; check = inspect(text); }
+    // obligations — a section titled "Tides" may say "tides" — and, for a
+    // plain turn, the question's own words, for the same reason.
+    const own = piece
+      ? [piece.topic, ...(piece.outline ?? []), ...(piece.obligations ?? []), ...(piece.alreadySaid ?? [])].filter(Boolean).join(" ")
+      : `${task ?? ""} ${question ?? ""}`;
+    const materialText = `${passages.map((p) => p.text ?? "").join(" ")} ${own}`;
+    const r = cutMetaTalk(text, { instructionText: INSTRUCTION_TEMPLATE, materialText, splitSentences });
+    // A cut that would empty the answer is not a cut — an answer that is ALL
+    // scaffolding is a finding for the marks to carry, not a blank to ship.
+    if (r.cut.length && String(r.text ?? "").trim()) { text = r.text; metaCut = r.cut; check = inspect(text); }
+    else if (r.cut.length) metaCut = r.cut;
+    // And the process narration `cutMetaTalk` cannot see, since it matches the
+    // piece's instruction vocabulary and this is the model describing its own
+    // answering (P124). Narrow by construction: a stated absence stays, and so
+    // does anything carrying a name, a number, or the material's own words.
+    const pr = cutProcessTalk(text, { materialText, splitSentences });
+    if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
   }
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
   // THE ATOMS AGAINST THE SNIPS (P119), no model: every number, date and
@@ -2729,6 +2753,7 @@ export async function runPart({
     ...(continued ? { continued } : {}),
     ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
     ...(turnCorrection ? { correction: turnCorrection } : {}),
+    ...(!piece && metaCut.length ? { metaCut } : {}),
     ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
@@ -3117,5 +3142,6 @@ export async function runHolonicTask({
     })() } : {}),
     ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
+    ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

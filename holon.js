@@ -2758,7 +2758,20 @@ export async function runPart({
       if (known) { repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" }); continue; }
       kept.push(sent);
     }
-    if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }
+    // A CUT REGISTERS ITS FINDING AT ITS OWN CELL (P134). Cutting the sentence
+    // here is not enough: a rewrite at EVA can put the claim back in different
+    // words, and it did — reproduced end to end by the dependency-order audit
+    // (2026-09-06), with REC then learning the forbidden claim back as a
+    // POSITIVE correction and feeding it to the mouth on later turns. Every
+    // guard that cuts must leave a standing constraint, not just a hole.
+    for (const r of repeated) {
+      const g = guards.find((x) => x.id === r.id);
+      if (g) findings.push(finding("CON", `already found unplaced on this material: "${String(g.claimed).slice(0, 120)}"`, { forbids: g.atoms.filter((a) => String(a).length > 2), says: "" }));
+    }
+    // A draft that is ENTIRELY known-false does not ship whole because cutting
+    // would empty it — the audit found that too. `admissible` below decides
+    // what stands in its place.
+    if (repeated.length) { text = kept.join(" ").trim(); check = inspect(text); }
   }
   let turnCorrection = null;
   if (!piece && passages.length && !mechanical && snipRounds > 0) {
@@ -2775,7 +2788,11 @@ export async function runPart({
   // longer reinstate what SEG cut (measured: it did, P133).
   let inadmissible = [];
   if (findings.length && text) {
-    const gated = admissible(text, findings, { splitSentences, from: "REC" });
+    // The finding's OWN statement quotes the source and may contain the token
+    // it forbids; gating it would drop the correction along with the error
+    // (the audit caught this too). What the instrument itself says is exempt.
+    const ourWords = new Set(findings.map((f) => f.says).filter(Boolean).map((t) => String(t).trim()));
+    const gated = admissible(text, findings, { splitSentences, from: "REC", exempt: ourWords });
     if (gated.refused.length) {
       inadmissible = gated.refused;
       repeated.push(...gated.refused.map((r) => ({ sentence: r.sentence, value: (r.forbids ?? [])[0], why: `${r.because} — established at ${r.cell}, which binds every later cell` })));
@@ -2787,10 +2804,20 @@ export async function runPart({
   // What this turn learned, in the chain's entry shape (P126) — handed out on
   // the result for the caller to append to its durable store. Both halves:
   // what the answer got wrong, and what the question asserted falsely.
+  // REC MAY NOT LEARN BACK WHAT A FINDING FORBADE (P134, and the audit's
+  // sharpest catch: the refused claim was being minted as a POSITIVE
+  // correction, which is exactly what `learnedFacts` feeds the mouth later —
+  // a claim the store held as unplaced re-entering it as established truth).
+  const forbidsAll = findings.flatMap((f) => f.forbids ?? []).map((v) => String(v).toLowerCase());
+  // Only the CORRECTED side is gated. Learning "X was claimed here and the
+  // sources do not carry it" is exactly what should be remembered; what may
+  // never happen is the forbidden claim being minted as the TRUTH, because
+  // `learnedFacts` sends corrected values to the mouth as established.
+  const notForbidden = (e) => !(e.corrected && forbidsAll.some((v) => String(e.corrected).toLowerCase().includes(v)));
   const learnedNow = [
     ...fromOutcomes({ outcomes: turnCorrection?.outcomes ?? snipCheck?.outcomes ?? [], flags: turnCorrection?.flags ?? snipCheck?.flags ?? [], question }),
     ...(premiseCheck ? fromPremises(premiseCheck, { question }) : []),
-  ];
+  ].filter(notForbidden);
 
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its

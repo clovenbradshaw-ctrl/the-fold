@@ -2314,3 +2314,22 @@ test("P134: a SEG finding binds EVA — a rewrite cannot reinstate what the cut 
   assert.doesNotMatch(r.output, /Lincoln/, "no later cell can put it back");
   assert.match(r.output, /Pierre began/, "the earlier cell's own statement stands in its place");
 });
+
+test("P134: every cut registers a finding at its cell — the learned guard's CON cut survives an EVA rewrite, and REC cannot learn the forbidden claim back as truth (the audit's repro)", async () => {
+  const { correctionEntry } = await import("./learned.js");
+  // The store holds a claim found unplaced on an earlier turn, with no
+  // replacement — so learnedFacts never sends it to the mouth and the guard
+  // is its only enforcement.
+  const store = [correctionEntry({ claimed: "John Adams chaired the naval committee", corrected: null, question: "q" })];
+  const chunks = chunkSource("n.txt", "John Adams addressed the naval committee in December. The delegates approved the report.");
+  let n = 0;
+  const r = await runHolonicTask({
+    task: "What did the naval committee do in December?", chunks, planMode: "flat", learnedStore: store,
+    // The mouth reinstates the cut claim in different words when asked to rewrite.
+    call: async () => { n += 1; return n === 1 ? "John Adams chaired the naval committee. The committee met in 1802." : "The naval committee that John Adams chaired met in December."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.ok(r.repeatedKnownFalse?.length, "CON cut it");
+  assert.doesNotMatch(r.output, /chaired/, "and no later cell can put it back in other words");
+  assert.ok(!(r.learned ?? []).some((e) => /chaired/.test(e.corrected ?? "")), "REC may not mint the forbidden claim as the truth");
+});

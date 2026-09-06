@@ -11781,3 +11781,18 @@ Cost: **37 of 263 turns (14%) need no model at all**, which is **289 of 2,167 mo
 After all three: **9 misquotations found over the run, 8 of them exactly the value the probe planted.** Of those the live answers repeated a forbidden token zero times, so on this run the binding would have changed no answer — its value here was the FACT handed to the model (the source's own words), not the refusal. The one live case where the refusal did fire is P133's own, in the tower run.
 
 The general lesson, and the reason the order matters: **a check that only reports may be approximate; a check that FORBIDS must not be.** Wiring a finding into the dependency order raises its burden of proof, because everything after it is bound by what it found.
+
+**Amendment to P134 — the law was right and its application was partial; a fanned-out audit found fourteen more (2026-09-06).** Six independent lenses over the pipelines, every claimed violation adversarially verified, 14 of 19 confirmed with reproductions against the real modules. The cluster in `holon.js` shares ONE root cause: `findings` was assembled BY HAND from two sources (the misquote cut and the premise check), so every other cut in the turn left a hole rather than a standing constraint — which is precisely the disease P134 names, committed inside P134's own implementation.
+
+The sharpest, reproduced end to end through `runHolonicTask`: the learned store's guard cuts a sentence at **CON** ("already found unplaced on this material"); `correctTurn` at **EVA** then asks for a rewrite, the mouth returns the same claim in different words, and `applyRewrite` accepts it because it stands on a snip and keeps the subject. The P134 gate refused nothing, because no CON finding existed for it to carry. **And REC then learned the forbidden claim back as a POSITIVE correction** — which is exactly what `learnedFacts` feeds the mouth as established on later turns. A claim the store held as unplaced re-entered it as truth, self-amplifying.
+
+Fixed, universally rather than case by case:
+
+- **Every cut registers a finding at its own cell.** The learned guard now emits a CON finding, so `admissible` carries it like any other. Cutting a sentence is not enough; a cut must leave a constraint.
+- **REC may not learn back what a finding forbids** — but only the CORRECTED side is gated. Learning "X was claimed here and the sources do not carry it" is exactly what should be remembered; what may never happen is the falsehood being minted as the truth.
+- **A draft whose every sentence is known-false no longer ships whole.** The old `kept.length` condition skipped the cut when nothing survived it; `admissible` now decides what stands in its place.
+- **The instrument's own statement is exempt from its own gate** — a finding's statement quotes the source and may contain the very token it forbids, and gating it dropped the correction along with the error.
+
+Recorded and not yet fixed, each confirmed with named lines: the piece path revises AFTER the gate and findings cannot follow out of `runPart`; a section heading is never gated; the export overwrites the byte address the ladder established; a `contradicted` relation verdict is exported at tier `recorded`; a recorded contest is turned into corroboration by a later attest (`kernel/notes.js`). These are the same law at other seams and are owed their own passes.
+
+**The lesson worth keeping: a law is not enforced by being stated, and its author is the last person who should be trusted to have applied it everywhere.** The fan-out found in one pass what a session of careful reading had not.

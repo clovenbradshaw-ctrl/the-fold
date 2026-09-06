@@ -85,7 +85,7 @@ export const finding = (cell, what, detail = {}) => Object.freeze({ cell, rank: 
  * the check — the check ran once, at its own cell, and this is the standing
  * consequence of what it found.
  */
-export function admissible(text, findings = [], { splitSentences, from = "REC" } = {}) {
+export function admissible(text, findings = [], { splitSentences, from = "REC", exempt = new Set() } = {}) {
   const body = String(text ?? "");
   const forbidden = findings.filter((f) => (f.forbids ?? []).length && f.rank < rank(from));
   if (!forbidden.length || !body.trim() || typeof splitSentences !== "function") return { text: body, refused: [] };
@@ -94,6 +94,9 @@ export function admissible(text, findings = [], { splitSentences, from = "REC" }
   for (const raw of splitSentences(body)) {
     const sent = String(raw?.text ?? raw ?? "");
     if (!sent.trim()) continue;
+    // What the instrument itself said stands: a finding's own statement quotes
+    // the source and may contain the very token it forbids.
+    if ([...exempt].some((t) => t && (sent.includes(t) || t.includes(sent)))) { kept.push(sent); continue; }
     const hit = forbidden.find((f) => (f.forbids ?? []).some((v) => sent.toLowerCase().includes(String(v).toLowerCase())));
     if (hit) { refused.push({ sentence: sent, because: hit.what, cell: hit.cell, forbids: hit.forbids }); continue; }
     kept.push(sent);

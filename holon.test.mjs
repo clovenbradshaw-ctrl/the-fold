@@ -2056,8 +2056,12 @@ test("P122: a plain turn's wrong answer is corrected too — the flagged year is
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
   });
   const first = sent[0].map((m) => m.content).join("\n");
-  assert.match(first, /About what the question takes as already settled:/, "the premise check reached the model as a fact");
-  assert.match(first, /The passages do not say "the harbor light was built in 1996 by Ada Rowe"\. Where they speak of the same thing they read: "The harbor light was built in 1841 by Ada Rowe\." \[h\.txt#0-75#0-47\]/, "the source's own words, at its address, as a fact");
+  // The person's own question necessarily carries their claim; what matters is
+  // that the INSTRUMENT's block never repeats it back (P123's rule).
+  const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  assert.match(ours, /What these sources say about it:/, "the premise check reached the model as a fact");
+  assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\. \[h\.txt#0-75#0-47\]/, "the source's own words, at its address, positively");
+  assert.doesNotMatch(ours, /1996/, "the false claim is never quoted back by us");
   assert.match(first, /What the sources say, verbatim, each at its address:/, "a plain turn stands on snips too");
   assert.ok(r.correction, "a plain turn carries its correction");
   assert.equal(r.correction.flagged, 1);
@@ -2090,7 +2094,7 @@ test("P123: a correction already learned is handed back on the next turn, and a 
     call: async (m) => { bare.push(m); return "Hi."; },
   });
   const b = bare[0].map((m) => m.content).join("\n");
-  assert.doesNotMatch(b, /Already found to be wrong|About what the question takes/, "no material, no blocks");
+  assert.doesNotMatch(b, /Established here already|What these sources say about it|do not use/, "no material, no blocks");
   assert.equal(clean.correction, undefined); assert.equal(clean.learned.length, 0);
 });
 
@@ -2137,8 +2141,7 @@ test("P122: the premise is checked against the TASK, so a decomposed turn cannot
   const drafts = sent.filter((m) => /Write this part/.test(m.at(-1)?.content ?? ""));
   assert.ok(drafts.length >= 1);
   const seen = drafts.map((m) => m.map((x) => x.content).join("\n")).join("\n");
-  assert.match(seen, /About what the question takes as already settled:/, "the check fires even though no part's own words carry the premise");
-  assert.match(seen, /1996/, "and it names the value the sources do not carry");
+  assert.match(seen, /What these sources say about it:|do not use "1996"/, "the check fires even though no part's own words carry the premise");
   assert.ok(r.premises.checked >= 1);
   assert.ok(r.premises.contradicted + r.premises.unverified >= 1);
 });

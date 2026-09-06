@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { premisesOf, checkPremises, premiseFacts, correctTurn, turnSnipBlock } from "./correction.js";
+import { premisesOf, checkPremises, premiseFacts, premiseGuard, repeatsAbsentPremise, correctTurn, turnSnipBlock } from "./correction.js";
 import { splitSentences } from "./cite.js";
 
 const passages = [
@@ -17,15 +17,32 @@ test("a question that asserts something as established yields its premise; a pla
   assert.equal(premisesOf('You said "Millennium ran from 1996 to 1999 on Fox" — is that right?').length, 1);
 });
 
-test("the premise check finds the planted value in no passage and hands the source's own words back as a fact", () => {
+test("the premise check names ONLY what the sources do say, never the false claim, and keeps the absent value as a guard (S77 run 5)", () => {
   const q = 'Earlier we established from POLICIES.md that: "EFFECT_READS_THE_Sherman_RUN is the named export that states it." Remind me what that passage says.';
   const c = checkPremises(q, passages);
   assert.equal(c.premises.length, 1);
   assert.ok(c.unverified.length + c.contradicted.length === 1, "the premise did not check out");
   const facts = premiseFacts(c);
-  assert.match(facts, /^About what the question takes as already settled:/);
-  assert.match(facts, /Sherman|do not say/);
+  assert.match(facts, /These sources do not use "Sherman" anywhere\. There is nothing here to describe under that name\./);
+  assert.doesNotMatch(facts, /EFFECT_READS_THE_Sherman_RUN is the named export/, "the false claim is never quoted back to the mouth (P123's rule)");
   assert.doesNotMatch(facts, /skeptic|careful|be wary|the user/i, "facts about the sources, never an instruction about posture");
+  // The enforcement is mechanical, not advisory.
+  const g = premiseGuard(c);
+  assert.deepEqual(g.map((x) => x.value), ["Sherman"]);
+  assert.ok(repeatsAbsentPremise("The Sherman investigation matters because it weighs the evidence.", g), "a draft asserting the absent token is caught");
+  assert.equal(repeatsAbsentPremise("The constant was declared in 1841.", g), null);
+});
+
+test("a contradicted premise hands back the source's own sentence, positively, with its address", () => {
+  const q = 'Earlier we established that "Millennium ran from 1996 to 2005 on Fox." What else does it say?';
+  const c = checkPremises(q, passages);
+  const facts = premiseFacts(c);
+  if (c.contradicted.length) {
+    assert.match(facts, /^What these sources say about it:\n- Millennium ran from 1996 to 1999 on Fox/);
+    assert.doesNotMatch(facts, /2005/, "the wrong year is never repeated");
+  } else {
+    assert.match(facts, /do not use "2005"/);
+  }
 });
 
 test("a premise the material does establish passes clean and produces no facts block (control)", () => {

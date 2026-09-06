@@ -43,7 +43,7 @@ import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
-import { checkPremises, correctTurn, premiseFacts, turnSnipBlock } from "./correction.js";
+import { checkPremises, correctTurn, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
@@ -1925,6 +1925,11 @@ export async function runPart({
   // fired — the injection reached the mouth unchecked.
   const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages) : null;
   const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
+  // The enforcement the prompt is not asked to provide: the values the
+  // question asserted and the material does not carry. Measured live (S77
+  // run 5, turn 15) the block alone was not enough — the mouth explained a
+  // "Durham investigation" that exists nowhere — so the draft is checked.
+  const premiseGuards = premiseCheck ? premiseGuard(premiseCheck) : [];
   // What was already found wrong on this material, in scope for this question.
   const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
   // ONLY THE POSITIVE HALF REACHES THE MOUTH (P123, measured): a correction
@@ -2629,11 +2634,13 @@ export async function runPart({
   // A draft that repeats something this instance already knows is unplaced is
   // flagged here, mechanically, and the sentence is cut rather than shipped.
   let repeated = [];
-  if (guards.length && text) {
+  if ((guards.length || premiseGuards.length) && text) {
     const kept = [];
     for (const sent of splitSentences(text)) {
-      const hit = repeatsKnownFalse(sent, guards);
-      if (hit) { repeated.push({ sentence: sent, id: hit.id, claimed: hit.claimed }); continue; }
+      const known = guards.length ? repeatsKnownFalse(sent, guards) : null;
+      if (known) { repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" }); continue; }
+      const absent = premiseGuards.length ? repeatsAbsentPremise(sent, premiseGuards) : null;
+      if (absent) { repeated.push({ sentence: sent, value: absent.value, why: "asserts what the question assumed and the sources do not carry" }); continue; }
       kept.push(sent);
     }
     if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }

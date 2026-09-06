@@ -101,24 +101,62 @@ export function checkPremises(question, passages = [], { terms = [] } = {}) {
 }
 
 /**
- * premiseFacts(check) → a plain-language block of what the sources say about
- * the question's own premise, handed to the model as CONTENT (P55): what was
- * looked for, what was not found, and the source's own words where they
- * differ. Never "be careful", never "the user may be wrong".
+ * premiseFacts(check) → what the sources DO say, and nothing else.
+ *
+ * NEVER THE FALSE CLAIM ITSELF (P123's rule, applied here too — it was missed
+ * in this file for a day and the miss was measured). An earlier draft wrote
+ * `Nothing in the passages contains "Durham", so "<the whole false claim>" is
+ * not something the sources establish`, quoting the falsehood back at the
+ * mouth. Live (S77 run 5, turn 15) the mouth then explained it at length and
+ * invented a "Durham investigation" to explain. Repeating a falsehood in
+ * order to deny it hands a small model the falsehood.
+ *
+ * So this block carries only positives: the source's own sentence where it
+ * speaks of the same thing, or — when there is nothing to put in its place —
+ * one short line naming ONLY the value the sources do not use. The claim is
+ * never restated, and the enforcement is not here at all: `premiseGuard`
+ * below keeps the absent values and the draft is checked against them.
  */
 export function premiseFacts(check) {
   if (!check?.premises?.length) return "";
   const lines = [];
+  const seen = new Set();
   for (const r of check.premises) {
     if (r.contradiction) {
-      lines.push(`The passages do not say "${r.text}". Where they speak of the same thing they read: "${r.contradiction.text.replace(/\s+/g, " ").trim()}" [${r.contradiction.ref}#${r.contradiction.start}-${r.contradiction.end}].`);
-    } else if (r.flags.length) {
-      const missing = r.flags.map((f) => `"${f.value}"`).join(", ");
-      lines.push(`Nothing in the passages contains ${missing}, so "${r.text}" is not something the sources establish. Say so plainly rather than explaining it.`);
+      const t = r.contradiction.text.replace(/\s+/g, " ").trim();
+      const key = fold(t);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lines.push(`- ${t} [${r.contradiction.ref}#${r.contradiction.start}-${r.contradiction.end}]`);
     }
   }
-  if (!lines.length) return "";
-  return `About what the question takes as already settled:\n${lines.join("\n")}`;
+  const absent = [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : r.flags.map((f) => f.value))))];
+  const parts = [];
+  if (lines.length) parts.push(`What these sources say about it:\n${lines.join("\n")}`);
+  if (absent.length) parts.push(`These sources do not use ${absent.map((v) => `"${v}"`).join(", ")} anywhere. There is nothing here to describe under that name.`);
+  return parts.join("\n\n");
+}
+
+/**
+ * premiseGuard(check) → the values the question asserted that the material
+ * does not carry. The instrument keeps these and checks the DRAFT against
+ * them; they are the enforcement the prompt is not asked to provide.
+ */
+export function premiseGuard(check) {
+  if (!check?.premises?.length) return [];
+  return [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : r.flags.map((f) => f.value))))]
+    .filter(Boolean)
+    .map((value) => ({ value, fold: fold(value) }));
+}
+
+/**
+ * repeatsAbsentPremise(sentence, guards) → the guard a sentence repeats, or
+ * null. A sentence that asserts the very token the sources lack is the
+ * capitulation this whole check exists to stop, so it does not ship.
+ */
+export function repeatsAbsentPremise(sentence, guards = []) {
+  const f = fold(sentence);
+  return guards.find((g) => g.fold && f.includes(g.fold)) ?? null;
 }
 
 /**

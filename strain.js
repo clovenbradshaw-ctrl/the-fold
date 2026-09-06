@@ -69,11 +69,20 @@ export function strainOf({
   // stream's own null: { strained: true|false|null, why }. Absent, the
   // declared floor decides and says so.
   placement = null,
-  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145), from prequential.js:
-  // { p, base, placement, why } — the probability, computed before the model
-  // speaks, that this answer will carry an unusually high rate of unbacked
-  // sentences, together with the base rate it is being compared against and
-  // an optional placement of it against the stream's own null.
+  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145/P148), from prequential.js.
+  //
+  // A FUNCTION, called here with what this reading knows — coverage included,
+  // which is the whole point: P148 measured the chain WITHOUT coverage at
+  // 0.0100 bits and WITH it at 0.0638, and a belief worth a hundredth of a
+  // bit cannot target anything. Coverage is computed a few lines below and
+  // nowhere else, so the call belongs here rather than in the caller.
+  //
+  // It returns { p, base, median, placement, why } or null: the probability
+  // that this answer will carry an unusually high rate of unbacked sentences,
+  // the stream's base rate, the MEDIAN BELIEF this stream has formed (the
+  // comparison that actually discriminates — measured +11.8 points against
+  // the base rate's +5.0), and an optional placement against the stream's
+  // own null. A plain object is still accepted, for a caller that has one.
   //
   // Absent (every existing caller), NOTHING below changes and the coverage
   // rules decide exactly as before. This is the P144 arm, and it is off until
@@ -127,9 +136,22 @@ export function strainOf({
   // never fired on coverage in 262 of 713 turns because coverage is flat
   // across most of its range, and a null over a flat series has nothing to
   // find (P131/P132's own audit).
-  if (expect && Number.isFinite(expect.p) && Number.isFinite(expect.base)) {
-    if (expect.placement?.strained === true) found.push([3, `this stream's own null places the expected error rate here as an outlier${expect.why ? ` — ${expect.why}` : ""}`]);
-    else if (expect.p > expect.base) found.push([2, `answers of this shape have come back unbacked more often than this stream's usual${expect.why ? ` (${expect.why})` : ""}`]);
+  // Asked once, with coverage in hand. A caller that throws is ignored: a
+  // belief that cannot be formed is no belief, and the floor resumes.
+  let belief = expect;
+  if (typeof expect === "function") {
+    try { belief = expect({ coverage, passages: passages.length, onPoint, premiseUnverified: Boolean(premiseCheck?.unverified?.length) }); }
+    catch { belief = null; }
+  }
+  if (belief && Number.isFinite(belief.p)) {
+    // The comparison is to what this stream has TYPICALLY believed, not to
+    // its outcome base rate. Measured over 861 model turns: against the base
+    // rate the belief strained 645 of them and caught a 64% bad rate against
+    // a 59% floor — barely a selection at all. Against the stream's own
+    // median belief it strains 404 and catches 71%.
+    const against = Number.isFinite(belief.median) ? belief.median : belief.base;
+    if (belief.placement?.strained === true) found.push([3, `this stream's own null places the expected error rate here as an outlier${belief.why ? ` — ${belief.why}` : ""}`]);
+    else if (Number.isFinite(against) && belief.p > against) found.push([2, `answers of this shape have come back unbacked more often than this stream's usual${belief.why ? ` (${belief.why})` : ""}`]);
   } else if (coverage != null) {
     if (placement && placement.strained === true) found.push([2, placement.why]);
     else if (placement && placement.strained === false) { /* measured ordinary — the floor does not get a second vote */ }
@@ -156,7 +178,7 @@ export function strainOf({
   found.sort((a, b) => b[0] - a[0]);
   reasons.push(...found.map(([, r]) => r));
   if (reasons.length === 0) reasons.push("the material speaks to the question and nothing conflicts");
-  return { level, reasons, coverage, informed, cut: placement?.strained == null ? "declared floor" : "measured against this stream's own null" };
+  return { level, reasons, ...(belief && Number.isFinite(belief.p) ? { expect: { p: belief.p, base: belief.base ?? null, median: belief.median ?? null, strained: belief.placement?.strained ?? null } } : {}), coverage, informed, cut: placement?.strained == null ? "declared floor" : "measured against this stream's own null" };
 }
 
 /**

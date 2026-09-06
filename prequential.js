@@ -301,3 +301,25 @@ export function rateOutcome(rows = [], { count = "unbacked", size = "words", min
     return { ...r, rate, high, provisional: median == null };
   });
 }
+
+/**
+ * IS THERE A REGIME TO SPEAK OF? (P147)
+ *
+ * A belief formed over a history where every turn fell on the same side is
+ * not a confident belief — it is `degenerate_ground`, and returning 0.000
+ * from it reads as "certainly fine" when the truth is that nothing has been
+ * distinguished yet. Measured the hard way: a caller stored an ARRAY where a
+ * count was expected, every rate came back NaN, nothing was ever labelled,
+ * and the belief shipped 0.0000 against a base of 0.0000 on live turns. It
+ * looked like an answer. It was the absence of one.
+ *
+ * So the question is asked once, here, rather than by each caller: a usable
+ * ground needs every rate readable and both classes present.
+ */
+export function usableGround(labelled = [], { key = "hot", rate = "rate" } = {}) {
+  if (labelled.length < 2) return { usable: false, why: "empty_material" };
+  if (!labelled.every((x) => Number.isFinite(x[rate]))) return { usable: false, why: "unreadable_rate" };
+  const hot = labelled.filter((x) => x[key]).length;
+  if (hot === 0 || hot === labelled.length) return { usable: false, why: "degenerate_ground" };
+  return { usable: true, why: `${hot} of ${labelled.length} turns fell on the far side` };
+}

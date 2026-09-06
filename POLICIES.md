@@ -12100,3 +12100,61 @@ FOLD-CONSTITUTION II.11 — *"Every threshold, cutoff, minimum count, and top-N 
 **The control.** II.10 holds that an unfalsified gate reports `unmeasured`, never `pass`, so the ratchet plants an unearned `MYSTERY_FLOOR` and an honest one that names its measurement, and asserts the verdict on each. A gate that cannot fail is not enforcing anything.
 
 **Generality:** universal. That an unearned constant is a judgment disguised as a setting is II.11's claim, not this run's, and the ratchet form — disclose the standing debt, fail on the next one — carries to any rule with a large existing violation set. The 59 and the 7 are this repo on this date and mean nothing elsewhere.
+
+## P147 — A belief formed over an undistinguished ground is not a confident belief (2026-09-06)
+
+**Found live, on the P145 arm's first real run.** The belief fired on turns 13 and 15 and reported `p=0.0000, base=0.0000`. That reads as *"this turn is certainly fine"*. It meant *"nothing has been distinguished at all"*.
+
+The cause was a plain wiring defect: the driver stored `r.unbacked` — an **array** of unbacked sentences — where a count belonged. `Number([1,2])` is `NaN`, `NaN > median` is `false`, so no turn was ever labelled, both classes collapsed to one, and the belief came out zero. It shipped on two live turns before anything noticed, and nothing would have noticed, because a confident zero is indistinguishable from a well-founded one at the point of use.
+
+**The fix is not the typo.** It is that `usableGround` now asks, once and in one place, whether there is a regime to speak of at all — every rate readable, and both classes present — and returns a typed reason when there is not: `empty_material`, `unreadable_rate`, `degenerate_ground`. Absent a usable ground the belief is `null`, strain falls back to the floor, and the record says so. This is `calibration.js`'s own standing rule applied to a second quantity: **an unmeasurable reading is never read as no-strain.**
+
+**Why this belongs in the laws and not just in a commit.** Every other guard in this instrument protects against a *wrong* answer. This one protects against a *vacuous* answer wearing the shape of a confident one, which is strictly harder to see: the wrong answer is contradicted by the material, and the vacuous answer is contradicted by nothing. The whole reason to compute a belief rather than narrate one is that a computed belief can be checked — and a belief that cannot tell "certainly fine" from "nothing seen yet" has given that up.
+
+**Generality:** universal. Any estimator over a labelled history can be handed a history where every label is the same, and every one of them will return a number rather than an objection unless it is asked to check. That the check belongs in the estimator's own module rather than in each caller is this repo's one-implementation discipline, not a fact about this defect.
+
+## P149 — The model ideates; the chain does the logic (2026-09-06)
+
+**The question that produced it.** *"Have we really experimented with reasoning that uses both the dependency order reasoning and the model?"* — and then, sharpening it: *"the mechanics for the logic and the model does non logical ideating. I think Kant would approve."*
+
+The honest answer to the first was **no**. Until this pass the two ran in opposition and in sequence: the mechanical doors answered first, failing that the model drafted **once** with everything in the prompt, and then the chain cut what it was allowed to keep. The dependency order was a *constraint applied after the model spoke* (`turn-order.js::admissible`) and a *conditioning structure for a probability* (`prequential.js`). The model had never reasoned along it.
+
+**The division, and it is Kant's.** The model supplies **intuitions** — the manifold: what is this, what does the text say, which of these is about that. The chain supplies the **categories** — existence, incidence, necessity, what binds what. Concepts without intuitions are empty; intuitions without concepts are blind. Neither half is asked to do the other's work.
+
+Concretely: the model is only ever asked to NAME, QUOTE, LIST, or CHOOSE FROM A GIVEN SET. It is never asked whether something follows, whether a claim is true, or why. **Every "therefore" in `chain-reason.js` is a line of code.** That is the whole difference from a frontier model's chain-of-thought, where the therefores are also tokens the model emitted and nobody checked.
+
+**And the division is enforced, not promised.** `ideatingOnly` refuses an ask carrying an inferential move — *therefore, follows, imply, conclude, deduce, prove, is it true, explain why, do you think* — **before it is sent**. Refused, not warned about: the division is the experiment, and a prompt that quietly crosses it makes the arm measure nothing. Every cell's ask passes the wall in the test suite.
+
+**The walk.** `NUL → SIG → INS → CON → DEF`, one narrow model call per cell, each **checked before the next runs**, and three rules the one-shot draft cannot follow:
+
+1. **An unverified answer never becomes a premise.** In the one-shot arm every check happens after the whole answer exists, by which time a false subject has already shaped every sentence.
+2. **A cell that cannot be established ends the walk, and its typed null IS the answer.** "The subject resolves to no referent" is a finding, not a failure to produce one.
+3. **Addresses pass forward, not text** (holonic slots), so the material is never restated into a prompt and cannot drift on restatement.
+
+**Measured, 12 real probes, gemma2:2b, identical material.**
+
+| | one-shot | walk |
+|---|---|---|
+| recall | 0 / 3 | 0 / 3 |
+| reasoning | 2 / 3 | 0 / 3 |
+| memory | 2 / 3 | 0 / 3 |
+| **injection** | **1 / 3** | **3 / 3** |
+| total | **5 / 12** | 3 / 12 |
+| calls per probe | 1.0 | 1.8 |
+
+**A design error in the experiment, stated rather than buried.** Memory probes ask about the conversation and reasoning probes are arithmetic. Neither is a material question, and the fold already routes both to mechanical doors (P129). Judging the material path on them is judging it on work it was never for. On the six **material** questions — recall and injection — the walk takes **3/6 against one-shot's 1/6**. Cloze recall is 0/3 for both arms and should be 3/3: the door answers those, and neither model arm should be running them at all.
+
+**THE RESULT THE SCORE HIDES, which is the real one:**
+
+| | correct | confident falsehood | stated absence |
+|---|---|---|---|
+| one-shot, all 12 | 5 | **7** | **0** |
+| walk, all 12 | 3 | **1** | 7 |
+| one-shot, 6 material | 1 | **5** | 0 |
+| walk, 6 material | **3** | 1 | 2 |
+
+**The walk converts confident falsehoods into stated absences, 7 → 1.** A hit-counting scorer treats *"I don't know"* and *"the answer is Turk"* as equally wrong. For an instrument whose founding discipline is that a measured absence is a finding while a failure to look is a fact about the reader, they are not remotely equal — and a comparison that reports only 5 vs 3 has measured the two arms on the axis this project cares least about.
+
+**The mechanism, seen live.** Asked a memory question, the model named *"Buddha"*, which appears nowhere in the material; the walk ended at SIG for one model call and said so. Asked an injection question with a swapped name, the false subject failed to resolve and no prose was ever built around it. The one-shot arm, given the same material, wrote *"The blank in the passage is filled with the word 'Turk'"* — fluent, addressed, and false.
+
+**Generality:** universal for the construction and the division; specimen-scoped for every number. That a generator can be confined to naming, quoting and choosing while all inference is done mechanically is a claim about the arrangement, not about this corpus or this model — and the falsehood-to-absence conversion follows from the arrangement, since content that cannot be resolved is refused at the cell that would have carried it rather than at the end. The 5/12, 3/12, 7→1 and the per-kind splits are twelve probes on one model on one day, and the recall column reflects an experiment design that should not have routed cloze questions to either arm.

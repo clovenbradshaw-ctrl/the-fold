@@ -1023,12 +1023,13 @@ export async function runPart({
   coverageHistory = [],
   nul = null,
   useMeasuredCut = false,
-  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145). A FUNCTION, not a value:
-  // only the caller holds the stream's history, but only the turn knows what
-  // it actually retrieved, and the belief needs both. It is handed the facts
-  // the turn has at the moment strain is decided and returns
-  // { p, base, placement, why } or null. Absent — every existing caller —
-  // strain decides exactly as before and nothing here changes.
+  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145/P148). A FUNCTION, not a
+  // value: only the caller holds the stream's history, and only the reading
+  // knows its own coverage — the cell that makes the belief worth anything
+  // (0.0100 bits without it, 0.0638 with). So it is threaded straight to
+  // strainOf, which computes coverage and calls it there. This module never
+  // calls it and never imports prequential.js. Absent — every existing
+  // caller — strain decides exactly as before and nothing here changes.
   expect = null,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
@@ -2042,29 +2043,15 @@ export async function runPart({
   // discriminates, and falls back to the declared floor where it does not
   // (P131/P132). `coverageHistory` and `nul` absent → the floor decides and
   // the reading says so; nothing about this turn changes.
-  // Asked once, with what this turn knows and before the model has spoken.
-  // A caller that throws gets ignored rather than crashing the turn: a belief
-  // that cannot be formed is no belief, and strain falls back to the floor.
-  let belief = null;
-  if (typeof expect === "function") {
-    try {
-      belief = expect({
-        passages: (prosePassages.length ? prosePassages : passages).length,
-        // Always false here by construction: the mechanical doors run in
-        // runHolonicTask and return before a part is ever built, so a part
-        // that exists is a part a model is about to draft.
-        answeredBeforeTheModel: false,
-        premiseUnverified: Boolean(premiseCheck?.unverified?.length),
-        question: task || question,
-      });
-    } catch { belief = null; }
-  }
-  const provisional = strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, expect: belief });
+  // P148: the belief is formed inside strainOf, which is where coverage is
+  // computed — the cell that makes the belief worth anything. holon threads
+  // the function and never calls it, and never imports prequential.js.
+  const provisional = strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, expect });
   const placement = (nul && coverageHistory.length && provisional.coverage != null && useMeasuredCut)
     ? placeCoverage(provisional.coverage, coverageHistory, { nul })
     : null;
   const strain = placement
-    ? strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, placement, expect: belief })
+    ? strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, placement, expect })
     : provisional;
   const recruited = recruit(strain, { asked: askedDepth });
   // The checking that happens AFTER the draft is what strain actually buys:
@@ -2973,7 +2960,7 @@ export async function runPart({
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
     ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),
-    strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why, cut: strain.cut, ...(belief ? { expect: { p: Number(belief.p?.toFixed?.(4) ?? belief.p), base: Number(belief.base?.toFixed?.(4) ?? belief.base), strained: belief.placement?.strained ?? null } } : {}), ...(placement ? { placement: { strained: placement.strained, why: placement.why } } : {}) },
+    strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why, cut: strain.cut, ...(strain.expect ? { expect: strain.expect } : {}), ...(placement ? { placement: { strained: placement.strained, why: placement.why } } : {}) },
     ...(swap?.substituted ? { substituted: { share: Number(swap.share.toFixed(2)), asked: swap.asked.slice(0, 12), shared: swap.shared } } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
@@ -3055,12 +3042,13 @@ export async function runHolonicTask({
   coverageHistory = [],
   nul = null,
   useMeasuredCut = false,
-  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145). A FUNCTION, not a value:
-  // only the caller holds the stream's history, but only the turn knows what
-  // it actually retrieved, and the belief needs both. It is handed the facts
-  // the turn has at the moment strain is decided and returns
-  // { p, base, placement, why } or null. Absent — every existing caller —
-  // strain decides exactly as before and nothing here changes.
+  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145/P148). A FUNCTION, not a
+  // value: only the caller holds the stream's history, and only the reading
+  // knows its own coverage — the cell that makes the belief worth anything
+  // (0.0100 bits without it, 0.0638 with). So it is threaded straight to
+  // strainOf, which computes coverage and calls it there. This module never
+  // calls it and never imports prequential.js. Absent — every existing
+  // caller — strain decides exactly as before and nothing here changes.
   expect = null,
   chatHistory = [],
   discourse = "",

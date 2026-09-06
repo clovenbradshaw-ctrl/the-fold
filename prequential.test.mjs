@@ -1,7 +1,7 @@
 // prequential.test.mjs — P143. A real belief about the turn, before the turn.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cellsFor, bandFor, predict, mixture, baseRate, loss, scoreStream, shuffledControl, sensitivity, rateOutcome, CHAIN, STRENGTHS } from "./prequential.js";
+import { cellsFor, bandFor, predict, mixture, baseRate, loss, scoreStream, shuffledControl, sensitivity, rateOutcome, usableGround, CHAIN, STRENGTHS } from "./prequential.js";
 import { strainOf } from "./strain.js";
 
 // A stream where the outcome genuinely depends on a cell the chain can see.
@@ -185,4 +185,29 @@ test("P145 INTEGRATION: and strain actually recruits on it, with the reason carr
   });
   assert.ok(s.level >= 2, `a turn expected to go badly must be strained: ${s.level}`);
   assert.match(s.reasons.join(" "), /8 earlier turns of this shape/);
+});
+
+test("P147: a history where nothing has been distinguished yields no belief, not a confident zero", () => {
+  const allCold = Array.from({ length: 20 }, () => ({ rate: 0, hot: false }));
+  const allHot = Array.from({ length: 20 }, () => ({ rate: 1, hot: true }));
+  assert.equal(usableGround(allCold).usable, false);
+  assert.equal(usableGround(allCold).why, "degenerate_ground");
+  assert.equal(usableGround(allHot).why, "degenerate_ground", "a ground that is entirely one class is degenerate either way");
+});
+
+test("P147: an unreadable rate is refused rather than coerced — the defect that shipped two vacuous beliefs", () => {
+  // A caller stored an array where a count belonged. Number([1,2]) is NaN,
+  // NaN > median is false, nothing was ever labelled, and the belief read
+  // 0.0000 on live turns as though it were certain.
+  const rows = [{ rate: 0.1, hot: true }, { rate: NaN, hot: false }, { rate: 0.2, hot: true }];
+  const g = usableGround(rows);
+  assert.equal(g.usable, false);
+  assert.equal(g.why, "unreadable_rate");
+});
+
+test("P147: a real ground is usable and says how it was distinguished", () => {
+  const rows = [...Array.from({ length: 12 }, () => ({ rate: 0.01, hot: false })), ...Array.from({ length: 8 }, () => ({ rate: 0.9, hot: true }))];
+  const g = usableGround(rows);
+  assert.equal(g.usable, true);
+  assert.match(g.why, /8 of 20/);
 });

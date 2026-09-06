@@ -273,3 +273,116 @@ export async function walk({ question, passages = [], ask, splitSentences } = {}
   steps.push(step("DEF", "put these into plain English", text, "composed", `${con.chosen.length} established span(s)`));
   return { text, steps, calls, ended: null, established: con.chosen, setAside: con.dropped };
 }
+
+// ── THE GROUND PROCEDURE (P151) ────────────────────────────────────────────
+//
+// The walk above is a FIGURE procedure: resolve a named thing, quote what
+// mentions it, answer about it. Measured (P150), 283 of 869 real turns asked
+// a GROUND-grained question — "tell me more", "what else", "summarise" — and
+// got figure treatment, failing at 62% against Figure's 39%.
+//
+// A Ground question names nothing, so asking the model to name its subject is
+// the worst possible first move: that is the cell where it answered "Buddha".
+// There is no figure to find. The question is about the EXTENT.
+//
+// So the cells are different, and that is the whole point of the third face:
+//
+//   NUL · Ground   is there an extent at all
+//   SEG · Ground   → terrain FIELD, stance CLEARING: bound it. Which sources,
+//                    which addresses, how much — mechanically, no model.
+//   INS · Ground   → the model copies out what the extent carries. Ideating:
+//                    quote, do not summarise. Checked verbatim, as ever.
+//   DEF · Ground   → the answer states the extent, what it carries, AND what
+//                    is not in it — the VOID terrain (Existence · Ground) is
+//                    part of the answer to a Ground question, not a failure
+//                    of it.
+//
+// The last is the part a one-shot draft structurally cannot do: asked to
+// "tell me more", it has no way to say how much more there is, because
+// nothing told it what it was holding.
+
+/** SEG · Ground — the extent, bounded mechanically. No model call: this is arithmetic over addresses. */
+export function bound(passages = []) {
+  const bySource = new Map();
+  for (const p of passages) {
+    const src = String(p?.ref ?? "").split("#")[0] || "(unaddressed)";
+    const g = bySource.get(src) ?? { source: src, refs: [], chars: 0 };
+    g.refs.push(p.ref); g.chars += String(p?.text ?? "").length;
+    bySource.set(src, g);
+  }
+  const sources = [...bySource.values()];
+  return {
+    ok: sources.length > 0, sources,
+    chars: sources.reduce((s, x) => s + x.chars, 0),
+    ...step("SEG", null, null, sources.length ? "bounded" : "empty_material",
+      sources.length
+        ? `${passages.length} passage(s) from ${sources.length} source(s): ${sources.map((s) => `${s.source} (${s.refs.length})`).join(", ")}`
+        : "there is no extent to bound"),
+  };
+}
+
+/**
+ * The extent, said plainly — and what is NOT in it.
+ *
+ * `unread` is what the caller knows it did not put in front of the reader:
+ * the rest of the source, the turns not retrieved. A Ground answer that does
+ * not say how much it is standing on is not answering a Ground question, and
+ * this is the sentence that a one-shot draft has no way to produce.
+ */
+export function extentLine(bounded, { unread = null } = {}) {
+  if (!bounded?.ok) return "";
+  const where = bounded.sources.map((s) => `${s.source} (${s.refs.length} passage${s.refs.length === 1 ? "" : "s"})`).join(", ");
+  // A share that rounds to zero is not zero: some of it WAS read, and saying
+  // "0%" says none of it was, which is false. Under a hundredth it is said as
+  // a fraction of the whole rather than as a percentage that lies.
+  let rest = "";
+  if (unread && Number.isFinite(unread.chars) && unread.chars > 0) {
+    const share = bounded.chars / (bounded.chars + unread.chars);
+    const said = share >= 0.01 ? `${Math.round(share * 100)}%` : `about one part in ${Math.round(1 / share).toLocaleString("en-US")}`;
+    rest = ` That is ${said} of what these sources hold; the rest was not read for this answer.`;
+  }
+  return `What is in hand: ${where}.${rest}`;
+}
+
+export const GROUND_ASKS = Object.freeze({
+  INS: (passages) => ideatingOnly(
+    `Below are passages from the sources. Copy out, word for word, the sentences that carry the most of what these passages are about. ` +
+    `Copy exactly — do not summarise, do not rephrase, do not add anything. One sentence per line, at most six.\n\n` +
+    passages.map((p) => p.text).join("\n\n")),
+});
+
+/**
+ * THE GROUND WALK. No subject is named, because the question names none — the
+ * cell that hallucinated in the figure walk is simply not run.
+ */
+export async function walkGround({ question, passages = [], ask, splitSentences, unread = null } = {}) {
+  if (typeof ask !== "function") throw new TypeError("chain-reason.walkGround: the model is injected as ask(prompt)");
+  const steps = [];
+  let calls = 0;
+  const say = async (prompt) => { calls += 1; return String(await ask(ideatingOnly(prompt)) ?? "").trim(); };
+
+  const n = nul(passages);
+  steps.push(n);
+  if (!n.ok) return { text: endingFor(steps), steps, calls, ended: "NUL" };
+
+  // SEG · Ground — mechanical.
+  const b = bound(n.passages);
+  steps.push(b);
+  if (!b.ok) return { text: endingFor(steps), steps, calls, ended: "SEG" };
+
+  // INS · Ground — the model copies; the material verifies.
+  const quoted = await say(GROUND_ASKS.INS(n.passages));
+  const ins = checkQuotes(quoted, n.passages, { splitSentences });
+  steps.push(ins);
+  const line = extentLine(b, { unread });
+  if (!ins.ok) {
+    // Even here there is a real answer: the extent is known, only its content
+    // could not be quoted. That is more than "I don't know" and it is true.
+    return { text: `${line} Nothing in it could be quoted back and checked, so nothing is claimed about what it says.`, steps, calls, ended: "INS", bounded: b };
+  }
+
+  // DEF · Ground — the extent, then what it carries, then what it does not.
+  const composed = await say(composeAsk(question, ins.established));
+  steps.push(step("DEF", "put these into plain English", composed, "composed", `${ins.established.length} established span(s)`));
+  return { text: `${line}\n\n${composed}`, steps, calls, ended: null, established: ins.established, bounded: b };
+}

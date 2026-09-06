@@ -12203,3 +12203,43 @@ with a control pinned alongside it that a split which is not there is reported a
 **What this unlocks, stated as the work it implies rather than as a claim.** A settled grain places the question on the other two faces at once: "Where does Circe appear" is Existence × Figure — terrain **Entity**, stance **Binding**. "Tell me more" is Existence × Ground — terrain **Void**, stance **Tending**. Those are different kinds of work, and today they get the same procedure. The Figure procedure exists (P149's walk); a Ground procedure does not, and 283 of 869 turns needed one.
 
 **Generality:** universal for the structure, specimen-scoped for the numbers. That a cube of three faces offers terrain and stance alongside operator is canon, not a finding; that a procedure written at one grain will be applied at every grain unless something reads the grain is a property of the arrangement. The 39%/62%/22.4pt, the 165 provisional and the 2 Pattern turns are one run, one corpus, one probe generator — and that generator produced almost no Pattern questions, so the split measured here is Figure against Ground and nothing else.
+
+## P152 — Three of twenty-seven moves execute, and all three are one grain (2026-09-06)
+
+**The prompt.** *"The intelligence should be able to recursively generate legal logical moves to any arbitrary height."*
+
+**Why it could not, measured rather than argued.** The algebra has 27 legal moves — 9 operators × 3 grains, and *not* 9×9×9, since stance and terrain are projections of one address rather than free axes. `capability-coverage.mjs` reports the registry at **27/27, 0 empty**. But `capacity-runner.js` returns `not_yet_executable` for every id except two: `cast` (terrain Entity, op `SIG+INS` → **SIG·Figure**, **INS·Figure**) and `relations` (terrain Link, op CON → **CON·Figure**).
+
+**Three of twenty-seven execute, and all three are Figure grain.** Three things measured separately this session are consequences of that one fact:
+
+- **P149's walk was never a design.** `NUL → SIG → INS → CON → DEF` is the only executable path through the cube. It was hand-written and mistaken for a choice.
+- **P150's 62% vs 39%** is not a mystery. Ground-grained questions fail because there are no executable Ground moves; the instrument answers every question at the only grain it has.
+- **Height was capped at 1, structurally.** Every executable move works the ground it was handed. None produces a new one.
+
+**What is built.** `ascend.js` generates the path instead of carrying it: `legalMoves` reads the cube's own `OPERATOR_CHAIN` and the executable set, and derives `SIG·Figure → INS·Figure → CON·Figure` — P149's walk, recovered from the algebra. One guard is load-bearing: an unexecutable precondition may **not** block a move, or every move is illegal forever, which is a bug wearing a law.
+
+**Re-zeroing, not narrowing.** The first version lifted by regrouping established spans into fewer grounds and stopped when it could not narrow — height 3, by exhaustion. That is a funnel, not an ascent: nothing rose, the material shrank. `rezero` instead takes what was established and re-presents it as a **new ground** one grain up, losing nothing. NUL fires again, which is why the chain begins there.
+
+**And the grain CYCLES, which is how three grains give unbounded height.** A Pattern, once established, *is* the Ground in which the next level differentiates Figures. Ground → Figure → Pattern → Ground′ → … That is an abstraction ladder, and the ordinary shape of building an argument: each conclusion becomes a premise and you begin again from a clean slate whose contents are your own prior conclusions.
+
+**The regress, in its checkable form.** `layers.js` (P132) refuses a self-watching layer in a *static* tower. Here levels are made at runtime and each watches the one below, so no cycle is possible by construction and the danger takes another shape: **a level whose ground no longer reaches material bytes is the trail's own trail, however acyclic the diagram looks.** So the rule is provenance, checked at every height — this instrument's oldest discipline applied to its own recursion. Metacognition (`reading`) may **accompany** the material ground and may never be it: `groundIsAnchored` refuses a level standing only on its own record as `self_referential`.
+
+**And a walk that hits its guard says so.** `maxHeight` is a runaway backstop, not the bound. A walk stopped by it has not found its own ceiling and is never reported as though it had.
+
+**Generality:** universal for the construction, specimen-scoped for the count. That a move space with three executable cells at one grain cannot recurse is arithmetic, not a fact about this corpus. The 3-of-27 and which cells they are is this checkout on this date, and it will change the moment another capacity is wired — at which point the derived path changes with it, which is the point of deriving it.
+
+## P153 — The low sets the possibility of the high, the high the probability of the low (2026-09-06)
+
+**The user's formulation, and it is the law of this recursion.** It is not symmetric.
+
+**UP is POSSIBILITY.** The level below determines what the level above may attempt. You cannot establish a Pattern its Figures do not permit. Hard, deductive, already computed: `legalMoves`, whose preconditions come from the cube's own dependency order. A move is licensed or it is not, and no amount of expectation makes an unlicensed move legal.
+
+**DOWN is PROBABILITY.** The level above, once established, is **a prior over its own instances**. A Pattern makes some Figures expected and others surprising. Soft and defeasible: it re-weights what the level below attends to, and it may never license anything, because probability is not permission.
+
+**So the recursion is not a ladder but a circuit** — and the two halves were built separately today without seeing they were one thing. `ascend` is the upward half. `prequential.js`, where a cell's prior *is* the posterior of the cell above it (P143), is the downward half. They are the same structure read in opposite directions.
+
+**THE WALL, pinned rather than intended.** Probability may never become possibility. A descent that made an illegal move legal would be expectation overruling licensing — which is exactly how a reader talks itself into what it already believed. `descend` returns **weights only**; `legalMoves` never reads them, and a test asserts the two produce byte-identical output with and without a prior in the state.
+
+**Two disclosures the downward half owes.** A level in which everything carried equally places no expectation at all, and `informative` says so rather than returning a flat prior dressed as a finding. And `descentChanges` runs the level below **both ways**: if the prior does not change what is established, the descent is **decorative**, however elegant — pinned in both directions, with a control that must come back negative on an `apply` that ignores weights.
+
+**Generality:** universal. That licensing flows up and expectation flows down is a claim about hierarchical inference, not about this corpus; so is the wall between them, which is the standing failure mode of every system that lets a prior decide what it is allowed to see. Nothing here is measured on real material yet — the descent's effect on real answers is owed, and `descentChanges` is the instrument that will say it.

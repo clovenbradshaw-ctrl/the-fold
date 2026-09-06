@@ -32,8 +32,29 @@ const WORD_RE = /[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu;
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const tokens = (t) => [...String(t ?? "").matchAll(WORD_RE)].map((m) => ({ raw: m[0], at: m.index, k: fold(m[0]) }));
 
-/** How much of a quoted run must line up before a difference is a misquote rather than a different sentence. Declared. */
+/**
+ * How much of a quoted run must line up before a difference is a misquote
+ * rather than a different passage entirely. Scored over CONTENT tokens only —
+ * measured 2026-09-06: scoring every token let function words carry the
+ * match, and the checker "found" that a line of the Greek Odyssey was a
+ * misquotation of a Lincoln passage because both contain "and" and "the". A
+ * forbidding finding built on that would have cut correct content out of an
+ * answer, which is worse than missing a misquote.
+ */
 export const MATCH_FLOOR = 0.6;
+/** Content tokens that must line up before any alignment is believed at all. Declared. */
+export const MIN_CONTENT_MATCHED = 3;
+/**
+ * How many content words may differ before this is a DIFFERENT passage rather
+ * than a corrupted quotation of this one. Someone misremembering swaps a name
+ * or a date; they do not replace six words. Scaling this with the window was
+ * measured not to work — a long span accumulates enough chance agreement to
+ * permit six differences — so it is an absolute, declared cap.
+ */
+export const MAX_DIFFS = 3;
+/** The words every English sentence has, which therefore say nothing about whether two runs are the same passage (the same list learned.js keeps for the same reason). */
+const FUNCTION_WORDS = new Set("a an the this that these those it its is are was were be been being of in on at to for with as by from and or but not no nor if then than so such there here have has had do does did will would can could should may might must he she they them their his her our your my me we you i one also more most some any each into out up down over under again very just only own same too s t".split(/\s+/));
+const isContent = (k) => k.length > 2 && !FUNCTION_WORDS.has(k);
 /** A quotation shorter than this is too small to align safely. Declared. */
 export const MIN_TOKENS = 5;
 
@@ -62,21 +83,47 @@ export function findMisquote(quoted, passages = [], { cited = null } = {}) {
     const t = tokens(p?.text ?? "");
     if (t.length < q.length) continue;
     for (let i = 0; i + q.length <= t.length; i++) {
-      let same = 0;
+      let sameContent = 0;
+      let contentSeen = 0;
       const diffs = [];
       for (let j = 0; j < q.length; j++) {
-        if (t[i + j].k === q[j].k) same += 1;
-        else diffs.push({ said: q[j].raw, shouldBe: t[i + j].raw, at: t[i + j].at });
+        const content = isContent(q[j].k);
+        if (content) contentSeen += 1;
+        if (t[i + j].k === q[j].k) { if (content) sameContent += 1; }
+        else diffs.push({ said: q[j].raw, shouldBe: t[i + j].raw, at: t[i + j].at, content: content || isContent(t[i + j].k) });
       }
-      const score = same / q.length;
-      if (!best || score > best.score) best = { score, diffs, p, from: t[i].at, to: t[i + q.length - 1].at + t[i + q.length - 1].raw.length };
+      // Function words agreeing is not evidence of quoting the same passage.
+      const score = contentSeen ? sameContent / contentSeen : 0;
+      if (!best || score > best.score) best = { score, sameContent, contentSeen, diffs, p, from: t[i].at, to: t[i + q.length - 1].at + t[i + q.length - 1].raw.length };
     }
   }
-  if (!best || best.score < MATCH_FLOOR) return null;
+  if (!best || best.score < MATCH_FLOOR || best.sameContent < MIN_CONTENT_MATCHED) return null;
   if (!best.diffs.length) return { misquoted: false, matched: best.score, ref: best.p.ref ?? null, start: best.from, end: best.to };
   // Only differences that are real words, not punctuation drift or a plural.
-  const real = best.diffs.filter((d) => d.said.length > 2 && d.shouldBe.length > 2 && fold(d.said) !== fold(d.shouldBe));
+  // A difference is only reportable if it is a CONTENT word on both sides —
+  // a swapped "the" for "a" is drift, not a misquotation, and forbidding a
+  // function word would cut half the answer.
+  // A reported difference must be a token the matched passage does NOT
+  // contain anywhere in the window. A strict positional window cannot absorb
+  // an inserted or dropped word, so one insertion shifts every later token
+  // and every one of them looks substituted — measured 2026-09-06: "beside
+  // him" against "Turk beside" was reported as two misquotations when it is
+  // one insertion. If the word is in the window, it was not misquoted.
+  const windowWords = new Set(tokens(String(best.p.text ?? "").slice(best.from, best.to)).map((x) => x.k));
+  const quotedWords = new Set(q.map((x) => x.k));
+  const real = best.diffs.filter((d) =>
+    d.content && isContent(fold(d.said)) && isContent(fold(d.shouldBe)) && fold(d.said) !== fold(d.shouldBe)
+    && !windowWords.has(fold(d.said))          // the quoted word is nowhere in the passage's own window
+    && !quotedWords.has(fold(d.shouldBe)));    // and the passage's word is nowhere in the quotation
   if (!real.length) return { misquoted: false, matched: best.score, ref: best.p.ref ?? null, start: best.from, end: best.to };
+  // A MISQUOTATION IS A SMALL PERTURBATION. Someone misremembering a line
+  // swaps a name or a date; they do not replace half its content words. When
+  // the differences rival the agreements, the honest reading is that this is
+  // a DIFFERENT passage that happened to align, not a corrupted quotation of
+  // this one — measured 2026-09-06: a reasoning probe quoting two sources at
+  // once ("According to A: … According to B: …") aligned against a Lincoln
+  // passage with six differences and would have forbidden ordinary words.
+  if (real.length > MAX_DIFFS) return { misquoted: false, matched: best.score, tooMany: real.length, ref: best.p.ref ?? null, start: best.from, end: best.to };
   return {
     misquoted: true,
     matched: best.score,

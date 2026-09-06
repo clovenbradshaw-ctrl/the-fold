@@ -2298,3 +2298,19 @@ test("P133: a quotation with one token swapped is caught as a misquote, the sour
   assert.deepEqual(r.misquote.shouldBe, ["Pierre"]);
   assert.doesNotMatch(r.output, /Lincoln/, "the false token is cut before the answer ships");
 });
+
+test("P134: a SEG finding binds EVA — a rewrite cannot reinstate what the cut established, and the refusal names the cell that bound it", async () => {
+  const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. He laughed disagreeably.');
+  // The mouth returns the cut name for EVERY ask, including the correction's.
+  const r = await runHolonicTask({
+    task: 'Earlier we established from pg2600.txt that: ""Both true and untrue," Lincoln began; but Prince Andrew interrupted him." Remind me what that passage says.',
+    chunks, planMode: "flat",
+    call: async () => "Lincoln began the exchange and Prince Andrew interrupted him.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.deepEqual(r.misquote.said, ["Lincoln"]);
+  assert.ok(r.inadmissible?.length, "the finding refused what a later cell wrote");
+  assert.equal(r.inadmissible[0].cell, "SEG", "and names the cell that established it");
+  assert.doesNotMatch(r.output, /Lincoln/, "no later cell can put it back");
+  assert.match(r.output, /Pierre began/, "the earlier cell's own statement stands in its place");
+});

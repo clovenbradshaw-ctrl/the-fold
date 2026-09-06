@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findMisquote, misquoteFacts, misquoteGuard, citedSource, MATCH_FLOOR, MIN_TOKENS } from "./misquote.js";
+import { findMisquote, misquoteFacts, misquoteGuard, citedSource, MATCH_FLOOR, MIN_TOKENS, MAX_DIFFS } from "./misquote.js";
 
 const passages = [
   { ref: "pg2600.txt#100-400", source: "pg2600.txt", text: '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. He laughed disagreeably.' },
@@ -39,4 +39,21 @@ test("scope follows the citation — searching everything is how one source answ
   const uncited = findMisquote('"Both true and untrue," Lincoln began; but Prince Andrew interrupted him.', passages, {});
   assert.equal(uncited.misquoted, true);
   assert.deepEqual(uncited.shouldBe, ["Pierre"]);
+});
+
+test("the alignment cannot be carried by function words, by a shift, or by a different passage entirely — every one measured on real turns (2026-09-06)", () => {
+  const odyssey = [{ ref: "odyssey-greek.txt#0-200", source: "odyssey-greek.txt", text: "Literally the ways of the night and of the day are near, and the paths run close together by the sea." }];
+  const lincoln = [{ ref: "wikipedia-abraham-lincoln.html#0-200", source: "wikipedia-abraham-lincoln.html", text: "In January 1862, after complaints of inefficiency and profiteering in the War Department, Lincoln replaced Simon Cameron." }];
+  // A wholly different passage must not be reported as a misquotation of this one.
+  const cross = findMisquote("Literally the ways of the night and of the day are near", lincoln, {});
+  assert.ok(!cross || cross.misquoted === false, "function words agreeing is not evidence of the same passage");
+  // A shift caused by one insertion is not a substitution.
+  const shifted = findMisquote("the Turk beside him spoke of the paths", [{ ref: "a#0-90", text: "the tall Turk beside him spoke of the paths" }], {});
+  assert.ok(!shifted || shifted.misquoted === false, "an inserted word shifts the window; that is not a misquote");
+  // The genuine article still lands: exactly one content word swapped.
+  const real = findMisquote("Literally the ways of the night and of the day are far", odyssey, {});
+  assert.equal(real.misquoted, true);
+  assert.deepEqual(real.said, ["far"]);
+  assert.deepEqual(real.shouldBe, ["near"]);
+  assert.ok(MAX_DIFFS <= 3, "a misquotation is a small perturbation, not a different text");
 });

@@ -11769,3 +11769,15 @@ Cost: **37 of 263 turns (14%) need no model at all**, which is **289 of 2,167 mo
 **The disease it names.** The turn had accumulated a dozen checks in the order they were written, each new one slotted in by hand, so a decision made on evidence could be reversed by a stage that ran later and knew less. Measured (P133): the misquote check at SEG cut a name the material contradicts, and the correction loop at EVA asked for a rewrite, got the cut name back, and `applyRewrite` accepted it into the shipped answer. The first fix was to run the SEG check again after EVA — **which is not an order, it is a patch shaped like one**, and it is why the law is now stated rather than the instance patched.
 
 `code-piece.js` (P117) had already shown the discipline for building a program in this order; this carries it to the turn's own checking. Files: `turn-order.js` (`CHAIN`, `plan`, `finding`, `admissible`) + `turn-order.test.mjs` (3, the inversion refused at construction among them). Suite 1,746/0.
+
+**Amendment to P133/P134 — wired, then measured, and the measuring found three ways the new check was unsafe.** Wiring the misquote finding into the dependency order (P134) meant it could FORBID tokens, so a false positive would cut correct content out of an answer — worse than missing a misquote. Replayed over 57 quoting turns of a real run, it did exactly that three times, each a different mechanism:
+
+| what it claimed | what it actually was | the rule now |
+|---|---|---|
+| a line of the Greek Odyssey misquotes a Lincoln passage | both contain "and" and "the" | alignment is scored over CONTENT words only; function words agreeing is not evidence of the same passage |
+| "beside him" misquotes "Turk beside" | one inserted word shifting the window | a reported difference must be a token the matched window does not contain anywhere |
+| a two-source reasoning probe misquotes a Lincoln passage in six places | a different passage that happened to align | a misquotation is a SMALL perturbation: `MAX_DIFFS = 3`, absolute, because scaling with the window was measured not to work — a long span accumulates enough chance agreement to permit six |
+
+After all three: **9 misquotations found over the run, 8 of them exactly the value the probe planted.** Of those the live answers repeated a forbidden token zero times, so on this run the binding would have changed no answer — its value here was the FACT handed to the model (the source's own words), not the refusal. The one live case where the refusal did fire is P133's own, in the tower run.
+
+The general lesson, and the reason the order matters: **a check that only reports may be approximate; a check that FORBIDS must not be.** Wiring a finding into the dependency order raises its burden of proof, because everything after it is bound by what it found.

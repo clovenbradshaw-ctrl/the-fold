@@ -51,6 +51,7 @@ import { answerBeforeTheModel } from "./answerable.js";
 import { recruit, strainOf, substituted } from "./strain.js";
 import { placeCoverage } from "./calibration.js";
 import { citedSource, findMisquote, misquoteFacts, misquoteGuard } from "./misquote.js";
+import { admissible, finding } from "./turn-order.js";
 import { quotedAsk } from "./transcript.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
@@ -1976,6 +1977,14 @@ export async function runPart({
   // run 5, turn 15) the block alone was not enough — the mouth explained a
   // "Durham investigation" that exists nowhere — so the draft is checked.
   const premiseGuards = [...(premiseCheck ? premiseGuard(premiseCheck) : []), ...misquoteGuard(misquote)];
+  // THE FINDINGS, EACH AT THE CELL THAT ESTABLISHED IT (P134). What SEG cut
+  // and what CON refused are not stages to re-run later — they are standing
+  // constraints on every cell after them. `admissible` applies them once,
+  // after all writing and rewriting, and nothing downstream can undo them.
+  const findings = [
+    ...(misquote?.misquoted ? [finding("SEG", `the sources say ${misquote.shouldBe.join(", ")}, not ${misquote.said.join(", ")}`, { forbids: misquote.said, says: misquoteBlock })] : []),
+    ...(premiseCheck?.unverified?.length ? [finding("SEG", "the question assumed something the sources do not carry", { forbids: premiseGuard(premiseCheck).map((g) => g.value), says: premiseBlock })] : []),
+  ];
   // What was already found wrong on this material, in scope for this question.
   const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
   // ONLY THE POSITIVE HALF REACHES THE MOUTH (P126, measured): a correction
@@ -2739,29 +2748,17 @@ export async function runPart({
   // clear the check, so the mouth's correction is never trusted, it is
   // checked again. `snipRounds` is the depth slider's rung (P123).
   // A draft that repeats something this instance already knows is unplaced is
-  // flagged here, mechanically, and the sentence is cut rather than shipped.
+  // flagged here (CON — does this token belong in THIS claim). The learned
+  // store's negative half is spent on the draft, never in the prompt (P126).
   let repeated = [];
-  if ((guards.length || premiseGuards.length) && text) {
+  if (guards.length && text) {
     const kept = [];
     for (const sent of splitSentences(text)) {
-      const known = guards.length ? repeatsKnownFalse(sent, guards) : null;
+      const known = repeatsKnownFalse(sent, guards);
       if (known) { repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" }); continue; }
-      const absent = premiseGuards.length ? repeatsAbsentPremise(sent, premiseGuards) : null;
-      if (absent) { repeated.push({ sentence: sent, value: absent.value, why: "asserts what the question assumed and the sources do not carry" }); continue; }
       kept.push(sent);
     }
     if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }
-    else if (repeated.length && !kept.length) {
-      // EVERY sentence asserted something known to be false. Shipping it whole
-      // because cutting would empty it is the worse of the two failures — so
-      // what the sources actually say stands in its place, and the answer says
-      // plainly that it is the instrument's, not the mouth's. Measured live
-      // (P133): a draft that was nothing but the misquoted name would
-      // otherwise have shipped intact.
-      const standIn = [misquoteBlock, premiseBlock].filter(Boolean).join(" ").trim();
-      text = standIn || "Nothing in the sources supports what was drafted here, and there is nothing in them to put in its place.";
-      check = inspect(text);
-    }
   }
   let turnCorrection = null;
   if (!piece && passages.length && !mechanical && snipRounds > 0) {
@@ -2772,24 +2769,17 @@ export async function runPart({
       turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
     }
   }
-  // THE GUARD IS A FINAL GATE, NOT A STAGE (P133). Measured: the guard cut a
-  // misquoted name, and then the correction loop's own rewrite put it back —
-  // a later stage undoing a decision the instrument had already made on
-  // evidence. Anything the instrument KNOWS to be false may not re-enter the
-  // answer, whatever produced it, so the sweep runs once more after every
-  // rewrite and is the last word on what ships.
-  if (premiseGuards.length && text) {
-    const kept = [];
-    const late = [];
-    for (const sent of splitSentences(text)) {
-      const hit = repeatsAbsentPremise(sent, premiseGuards);
-      if (hit) { late.push({ sentence: sent, value: hit.value, why: "re-entered after a rewrite; the instrument's finding stands" }); continue; }
-      kept.push(sent);
-    }
-    if (late.length) {
-      repeated.push(...late);
-      const standIn = misquoteBlock || premiseBlock;
-      text = kept.length ? kept.join(" ").trim() : (standIn || "Nothing in the sources supports what was drafted here.");
+  // EVERY FINDING APPLIED, ONCE, AFTER ALL WRITING (P134). Not a second run
+  // of the checks — the checks ran at their own cells. This is the standing
+  // consequence of what they found, and it is why a rewrite at EVA can no
+  // longer reinstate what SEG cut (measured: it did, P133).
+  let inadmissible = [];
+  if (findings.length && text) {
+    const gated = admissible(text, findings, { splitSentences, from: "REC" });
+    if (gated.refused.length) {
+      inadmissible = gated.refused;
+      repeated.push(...gated.refused.map((r) => ({ sentence: r.sentence, value: (r.forbids ?? [])[0], why: `${r.because} — established at ${r.cell}, which binds every later cell` })));
+      text = gated.text || premiseBlock || misquoteBlock || "Nothing in the sources supports what was drafted here.";
       check = inspect(text);
     }
   }
@@ -2873,6 +2863,7 @@ export async function runPart({
     ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
+    ...(inadmissible.length ? { inadmissible: inadmissible.map((r) => ({ cell: r.cell, because: r.because, sentence: r.sentence })) } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
     ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),
@@ -3304,6 +3295,7 @@ export async function runHolonicTask({
     ...(sections.find((x) => x.comparison) ? { comparison: sections.find((x) => x.comparison).comparison } : {}),
     ...(sections.some((x) => x.strain) ? { strain: sections.map((x) => x.strain).filter(Boolean) } : {}),
     ...(sections.find((x) => x.misquote) ? { misquote: sections.find((x) => x.misquote).misquote } : {}),
+    ...(sections.some((x) => x.inadmissible?.length) ? { inadmissible: sections.flatMap((x) => x.inadmissible ?? []) } : {}),
     ...(sections.some((x) => x.substituted) ? { substituted: sections.flatMap((x) => (x.substituted ? [x.substituted] : [])) } : {}),
     ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };

@@ -11890,3 +11890,27 @@ And the answer CHANGED THE SUBJECT on **82% of memory turns and 73% of injection
 **Caveats, stated rather than buried.** n = 12. Claude's memory window was trimmed to three prior turns while the fold retrieved from the full transcript, which flatters the fold on that column. The fold's arm is a 2B model against a frontier one, which is the comparison the project chose, not a handicap it suffered.
 
 **What this changes.** Nothing about the architecture, and one thing about the language: the fold's case is not that it answers better than a large model. On identical material it answers worse, 6 to 9. Its case is that every answer is addressed and mechanically checked, most of them cost nothing, and none of it leaves the machine.
+
+## P141 — Retrieval decided against a prior and against what is activated, not by counting words (2026-09-06)
+
+**Generality:** universal for the rule (a term's weight in retrieval is its own surprise IN THIS MATERIAL — `log(N/df)` over the corpus at hand, so a form in every passage weighs nothing and a form in two all but names them; what the conversation is currently about weighs more, as a nudge; a source the question NAMES outranks one it does not, because a claim is made of a source). Local for the two bonuses (`ACTIVATION_BONUS = 0.5`, `CITATION_BONUS = 2.0` — declared; activation is a nudge, never a verdict, and naming counts for more than being talked about).
+
+**What was there.** `source.js::retrieve` scored a passage by raw term hits: `qTerms.filter((t) => c.terms.has(t)).length`. Nothing in that expression knows which words carry a question and which are furniture — and this instrument has had priors, a surprise ladder and a cast of activated referents for a long time, none of which retrieval ever consulted. User, on being shown it: "it's more about using that universe of priors in our activation, surprises, retrieval etc."
+
+**Nearly every failure this session chased runs back to that line.** The source a question CITED was not retrieved because a planted name from another book out-hit it (P135). The Lincoln article and War and Peace were confused because term overlap cannot tell which source a claim is ABOUT (P133). 82% of memory answers changed the subject because the passages handed over shared words with the question and not its subject.
+
+**Measured on the run's own questions** — 60 real questions that name a source, against the 18,996-chunk corpus:
+
+| retrieval | brought the cited source |
+|---|---|
+| term counting (what was there) | 53 / 60 (88%) |
+| scored against the corpus's own prior alone | 56 / 60 (93%) |
+| prior + the citation the question names | **58 / 60 (97%)** |
+
+**And the demonstration that makes the point better than the percentage.** In this corpus `pierre` weighs 2.61 (1,399 passages) and `yosemite` weighs 9.16 (2 passages). Term counting treats them as one hit each. That is exactly why a planted Tolstoy name could outrank the file a question cited.
+
+**The corpus is its own best prior**, and needs no general one — the same move `calibration.js` makes for a threshold, and the user's own: "those priors are kinda shitty but we can spin up a side [prior] for any given content as needed." Note the function words contribute nothing here either way: `tokenize` already drops them, so the gain is entirely from DISCRIMINATING AMONG CONTENT WORDS, which is the harder and more useful half.
+
+**Not yet wired into the live turn.** `rank` is a drop-in for `retrieve` and is measured, but `holon.js` still calls `retrieve`; swapping it changes what every turn reads and is owed its own arm rather than a quiet substitution mid-comparison.
+
+**Files.** `retrieval-prior.js` (`corpusPrior`, `rank`, `activated`, `scoreAgainstPrior`) + `retrieval-prior.test.mjs` (3).

@@ -49,6 +49,7 @@ import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine }
 import { checkComparison } from "./arithmetic.js";
 import { answerBeforeTheModel } from "./answerable.js";
 import { recruit, strainOf, substituted } from "./strain.js";
+import { placeCoverage } from "./calibration.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -1006,6 +1007,11 @@ export async function runPart({
   math = null,
   // What the person asked for on the slider, so strain is held inside it.
   askedDepth = null,
+  // The tower (P131/P132): the stream's own coverage history, the engine's
+  // null apparatus, and whether the audit above has licensed the measured cut.
+  coverageHistory = [],
+  nul = null,
+  useMeasuredCut = false,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1980,10 +1986,17 @@ export async function runPart({
   // S2 IS RECRUITED BY DIFFICULTY, NOT SPENT FLAT (P130). Every signal here
   // is already paid for by work this turn does anyway; the person's slider is
   // a floor and a ceiling on what strain may take.
-  const strain = strainOf({
-    question: task || question, passages: prosePassages.length ? prosePassages : passages,
-    premiseCheck, learnedInScope: learnedRows.length, parts: 1,
-  });
+  // The cut is measured from the stream where the tower says the measured cut
+  // discriminates, and falls back to the declared floor where it does not
+  // (P131/P132). `coverageHistory` and `nul` absent → the floor decides and
+  // the reading says so; nothing about this turn changes.
+  const provisional = strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1 });
+  const placement = (nul && coverageHistory.length && provisional.coverage != null && useMeasuredCut)
+    ? placeCoverage(provisional.coverage, coverageHistory, { nul })
+    : null;
+  const strain = placement
+    ? strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, placement })
+    : provisional;
   const recruited = recruit(strain, { asked: askedDepth });
   // The checking that happens AFTER the draft is what strain actually buys:
   // the witness asks and the correction rounds. An easy turn spends little
@@ -2818,7 +2831,7 @@ export async function runPart({
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
-    strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why },
+    strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why, cut: strain.cut, ...(placement ? { placement: { strained: placement.strained, why: placement.why } } : {}) },
     ...(swap?.substituted ? { substituted: { share: Number(swap.share.toFixed(2)), asked: swap.asked.slice(0, 12), shared: swap.shared } } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
@@ -2892,6 +2905,10 @@ export async function runHolonicTask({
   transcript = [],
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
+  // The tower's inputs (P131/P132), threaded to every part.
+  coverageHistory = [],
+  nul = null,
+  useMeasuredCut = false,
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -3091,6 +3108,9 @@ export async function runHolonicTask({
       transcript,
       math,
       askedDepth: depth,
+      coverageHistory,
+      nul,
+      useMeasuredCut,
       pieceWitnessAsks: budgets.pieceWitnessAsks,
       snipRounds: budgets.snipRounds,
       continuations: budgets.continuations,

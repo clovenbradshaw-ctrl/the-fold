@@ -45,6 +45,7 @@ import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
+import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -990,6 +991,12 @@ export async function runPart({
   // question are handed to the model as facts before it drafts, so a mistake
   // made once is not made again. Empty (every existing caller) changes nothing.
   learnedStore = [],
+  // THE CONVERSATION'S OWN RECORD (P125, transcript.js): [{turn, question,
+  // answer}] oldest first. A question ABOUT what was said retrieves from it,
+  // exactly as a question about the material retrieves from the material —
+  // so what the recency window drops is still reachable. Empty (every
+  // existing caller) changes nothing.
+  transcript = [],
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1181,6 +1188,15 @@ export async function runPart({
     }
     hunted = rounds.length ? { ...rounds[0], rounds } : null;
   }
+  // A question about the conversation is answered from the conversation. The
+  // prior turns join the passages as addressed testimony (`turn:N`), so every
+  // organ below reads them the same way it reads a source — and the ladder
+  // places them on the record, never in the material.
+  let recalledTurns = [];
+  if (transcript.length && isAboutConversation(task || question)) {
+    recalledTurns = recallTurns(task || question, transcript);
+    if (recalledTurns.length) passages = [...recalledTurns, ...passages];
+  }
   const digestChunk = livePool.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
   if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
     passages = [digestChunk, ...passages];
@@ -1212,7 +1228,7 @@ export async function runPart({
   const relations = passages.length ? makeRelationReader?.(passages, { pool: livePool }) ?? null : null;
   // Obligations (P110): the cast the section's own passages establish.
   // Prose passages only: a code file's "cast" is its identifiers (P113).
-  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref));
+  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p));
   const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
   // THE SNIPS (P119): the verbatim, addressed sentences of this section's
@@ -1240,7 +1256,11 @@ export async function runPart({
     // loop that lived here moved there verbatim (ledger born on the first
     // bound edge, frame redeclared on drift, witness `<ref>~<recipe>`,
     // refusals returned never discarded).
-    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref)), {
+    // A PRIOR ANSWER IS NEVER ADMITTED AS MATERIAL (P125). The ledger holds
+    // what the SOURCES establish; letting the mouth's own earlier words in
+    // would make the model its own witness — self:model may never corroborate
+    // itself (P2), and a claim would gain standing by being repeated.
+    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p)), {
       read: (text) => relations.read(text),
       witnessFor: (p) => (p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null),
       classifyConnector,
@@ -1941,12 +1961,13 @@ export async function runPart({
   const guards = learnedRows.length ? learnedGuard(learnedRows) : [];
   // The snips: a piece stands on its obligations' spans, any other turn on
   // the question's own words. Both are the source's bytes, verbatim, addressed.
+  const recalledLine = recalledTurns.length ? transcriptLine(recalledTurns) : "";
   const snipPrefix = piece
     ? (snips.length ? snipBlock(snips) : null)
     : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
   const draftMaterial = factBlock
-    ? [snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    ? [recalledLine, snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [recalledLine, snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2757,6 +2778,7 @@ export async function runPart({
     ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
+    ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
@@ -2823,6 +2845,8 @@ export async function runHolonicTask({
   // in the chain's own shape. Handed down to every part, and what each part
   // learns comes back out on `learned` for the caller to append and persist.
   learnedStore = [],
+  // The conversation's own record (P125), threaded to every part.
+  transcript = [],
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -2998,6 +3022,7 @@ export async function runHolonicTask({
       passagesPerPart,
       maxCorrections,
       learnedStore,
+      transcript,
       pieceWitnessAsks: budgets.pieceWitnessAsks,
       snipRounds: budgets.snipRounds,
       continuations: budgets.continuations,
@@ -3142,6 +3167,7 @@ export async function runHolonicTask({
     })() } : {}),
     ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
+    ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

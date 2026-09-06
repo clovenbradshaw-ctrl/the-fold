@@ -2163,3 +2163,36 @@ test("P124: the mouth's talk about the writing is cut from a plain grounded turn
   assert.equal(chat.metaCut, undefined, "a passage-less turn is conversation, not a piece to police");
   assert.match(chat.output, /hello|help/i);
 });
+
+test("P125: a question about the conversation is answered from the conversation's own record, and a prior answer never becomes material", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const transcript = [
+    { turn: 1, question: "What does the file say about Ada Rowe?", answer: "The harbor light was built in 1841 by Ada Rowe." },
+    { turn: 2, question: "What about the tide?", answer: "The tide turns twice a day." },
+    { turn: 3, question: "Tell me about Lisbon.", answer: "Ships came from Lisbon each spring." },
+  ];
+  const sent = [];
+  const admitted = [];
+  const r = await runHolonicTask({
+    task: 'Earlier I asked you: "What about the tide?" What did you answer then?',
+    chunks, planMode: "flat", transcript,
+    call: async (messages) => { sent.push(messages); return "You said the tide turns twice a day."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    hyperlexicon: { admit: (log, edge, opts) => { admitted.push(opts?.witness ?? edge); return { log, landed: [], turnedAway: [] }; }, fold: () => [], foldHyperlexicon: () => [], foldWithStanding: () => [], foldVoids: () => [] },
+    hyperlexiconLog: { entries: [] },
+  });
+  const prompt = sent[0].map((m) => m.content).join("\n");
+  assert.match(prompt, /Turn 2 of this conversation, quoted from the record\./, "the prior turn is handed over, labelled");
+  assert.match(prompt, /You were asked: What about the tide\?\s+You answered: The tide turns twice a day\./);
+  assert.match(prompt, /turn:2/, "addressed by its turn");
+  assert.match(prompt, /what was said, which is not the same as what the sources establish/);
+  assert.deepEqual(r.recalledTurns, [2]);
+  assert.ok(!admitted.some((w) => String(w).startsWith("turn:")), "a prior answer is never admitted to the ledger as material");
+  // A question about the material recalls nothing from the transcript.
+  const plain = await runHolonicTask({
+    task: "When was the harbor light built?", chunks, planMode: "flat", transcript,
+    call: async () => "It was built in 1841.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(plain.recalledTurns, undefined, "a question about the material does not reach for the transcript");
+});

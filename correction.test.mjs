@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { premisesOf, checkPremises, premiseFacts, premiseGuard, repeatsAbsentPremise, correctTurn, cutProcessTalk, turnSnipBlock } from "./correction.js";
+import { premisesOf, checkPremises, premiseFacts, premiseGuard, premiseReferents, repeatsAbsentPremise, correctTurn, cutProcessTalk, turnSnipBlock } from "./correction.js";
 import { splitSentences } from "./cite.js";
 
 const passages = [
@@ -88,4 +88,43 @@ test("process narration is cut, but a stated absence and anything carrying the m
   // An answer that is nothing but scaffolding is left whole for the marks to carry.
   const all = run("Let me break this down. Here's a summary of the approach.");
   assert.equal(all.text, "Let me break this down. Here's a summary of the approach.");
+});
+
+test("P135: a token is scoped to the source it is claimed OF — another source answering for it is how a planted name passed every check (2026-09-06)", () => {
+  const passages = [
+    { ref: "lincoln.html#0-200", source: "lincoln.html", text: "Lincoln signed the Yosemite Grant, protecting the area now known as the Natural History Guide region for the public." },
+    // The other source genuinely carries the planted token AND shares the
+    // premise's own words, so corpus-wide company is satisfied by the wrong file.
+    { ref: "pg2600.txt#0-200", source: "pg2600.txt", text: "Kutúzov protecting the area of the region signed nothing for the public, said the Emperor." },
+  ];
+  const q = 'Earlier we established from lincoln.html that: "Lincoln signed the Yosemite Grant, protecting the area now known as the Kutúzov region for the public." Remind me what that passage says.';
+  const wide = checkPremises(q, passages);
+  assert.equal(wide.unverified.length + wide.contradicted.length, 0, "corpus-wide, the wrong source answers for it — the live failure");
+  const scoped = checkPremises(q, passages, { cited: "lincoln.html" });
+  assert.ok(scoped.unverified.length + scoped.contradicted.length >= 1, "scoped to what the question cites, it is caught");
+  // A question naming no source still checks against everything it was given.
+  const uncited = checkPremises('Earlier we established that "the light was built in 1996." What else?', [{ ref: "h.txt#0-40", text: "The light was built in 1841." }]);
+  assert.ok(uncited.premises.length >= 1);
+});
+
+test("P135: the check is about REFERENTS, not spans — a name the cited passage's cast does not establish is beyond-reach", async () => {
+  const { makeReferentIndex } = await import("../eoreader7/native/organs/cast.js");
+  const { splitSentences: split } = await import("../eoreader7/native/adapters/text/spans.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import("../eoreader7/native/adapters/text/surfaces.js");
+  const referentIndexFor = makeReferentIndex({ splitSentences: split, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+  const lincoln = [{ ref: "lincoln.html#0-140", source: "lincoln.html", text: "Abraham Lincoln signed the Yosemite Grant in 1864. Lincoln addressed Congress about the measure, and Lincoln praised the region." }];
+  const tolstoy = [{ ref: "pg2600.txt#0-140", source: "pg2600.txt", text: "The Emperor displeasure with Kutúzov was increased at Vílna. Kutúzov could not act, and Kutúzov wrote to the Emperor." }];
+  const premise = "Lincoln signed the Yosemite Grant protecting the Kutúzov region";
+  // The planted name is a real name of the CORPUS but names nobody this passage introduces.
+  const here = premiseReferents(premise, lincoln, { referentIndexFor });
+  assert.ok(here.reached);
+  assert.deepEqual(here.unresolved, ["Kutúzov"], "beyond-reach in the cited passage");
+  assert.deepEqual(here.resolved, ["Yosemite Grant"]);
+  // In the source it really belongs to, the reading is exactly reversed.
+  const there = premiseReferents(premise, tolstoy, { referentIndexFor });
+  assert.deepEqual(there.resolved, ["Kutúzov"]);
+  assert.ok(there.unresolved.includes("Yosemite Grant"));
+  // A cast that cannot be read reaches nothing, and an unreached search is never a finding.
+  assert.equal(premiseReferents(premise, lincoln, {}).reached, false);
+  assert.deepEqual(premiseReferents(premise, lincoln, {}).unresolved, []);
 });

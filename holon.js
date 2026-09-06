@@ -972,6 +972,9 @@ export async function runPart({
   // piece on any subject contains.
   planFacts = null,
   makeNameResolver = null,
+  // The cast organ (cast.js::makeReferentIndex), injected: a name the cited
+  // passage's own cast does not establish is beyond-reach (P135).
+  makeReferentIndexFor = null,
   makeRelationReader = null,
   // The link tier (links.js): an async function url => fetched-shape result,
   // through the P13 egress — injected because this module owns no network.
@@ -1214,6 +1217,22 @@ export async function runPart({
   if (transcript.length && isAboutConversation(task || question)) {
     recalledTurns = recallTurns(task || question, transcript);
     if (recalledTurns.length) passages = [...recalledTurns, ...passages];
+  }
+  // RETRIEVAL HONOURS THE CITATION (P135). A question that names its source
+  // must be answered from that source: scoping a check to a file that was
+  // never retrieved silently falls back to everything, which is the very
+  // failure the scoping exists to stop. Measured live (2026-09-06): asked
+  // about a claim "from lincoln.html", retrieval returned only the War and
+  // Peace chunk — because the planted name is a Tolstoy name — and the cast
+  // check then ran against Tolstoy and called the Lincoln article's own
+  // "Yosemite Grant" a stranger.
+  const citedFile = citedSource(task || question);
+  if (citedFile) {
+    const fromCited = (live ?? []).filter((c) => String(c?.ref ?? c?.source ?? "").includes(citedFile));
+    if (fromCited.length && !passages.some((p) => String(p?.ref ?? p?.source ?? "").includes(citedFile))) {
+      const best = retrieve(fromCited, question, 1, foldedRefs);
+      if (best.length) passages = [...best, ...passages].slice(0, Math.max(passagesPerPart, best.length));
+    }
   }
   const digestChunk = livePool.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
   if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
@@ -1961,7 +1980,7 @@ export async function runPart({
   // decomposed turn `question` is "<part label> <part description>", the
   // asserted claim appears in none of them, and the check silently never
   // fired — the injection reached the mouth unchecked.
-  const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages) : null;
+  const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages, { cited: citedSource(task || question), referentIndexFor: makeReferentIndexFor }) : null;
   // A QUOTATION IS CHECKED AS A QUOTATION (P133). Corpus-wide containment
   // asks "does this token exist?"; a quoted claim asks "does it belong HERE".
   // Measured live: a War and Peace line with one name swapped to Lincoln
@@ -2956,6 +2975,9 @@ export async function runHolonicTask({
   // piece on any subject contains.
   planFacts = null,
   makeNameResolver = null,
+  // The cast organ (cast.js::makeReferentIndex), injected: a name the cited
+  // passage's own cast does not establish is beyond-reach (P135).
+  makeReferentIndexFor = null,
   makeRelationReader = null,
   witnessSentences = null,
   witnessAsks = null,
@@ -3170,6 +3192,7 @@ export async function runHolonicTask({
       learnedStore,
       transcript,
       math,
+      makeReferentIndexFor,
       askedDepth: depth,
       coverageHistory,
       nul,

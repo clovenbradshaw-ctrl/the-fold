@@ -31,6 +31,7 @@
 // given and spends exactly the rounds it is handed.
 import { snipsFor, snipBlock, checkSection, checkSentence, reviseAsk, applyRewrite, atomsOf as atomsOfText } from "./snip-check.js";
 import { CLAIM_STOPWORDS } from "./grounding.js";
+import { namesIn } from "./ground-ladder.js";
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const contentWords = (t) => [...new Set(fold(t).split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w));
@@ -82,22 +83,79 @@ export function premisesOf(question) {
  * Each premise's atoms looked for in the material — the same containment with
  * company P122 uses, over snips built from the passages the turn actually has.
  */
-export function checkPremises(question, passages = [], { terms = [] } = {}) {
+export function checkPremises(question, passages = [], { terms = [], cited = null, referentIndexFor = null } = {}) {
   const premises = premisesOf(question);
   if (!premises.length) return { premises: [], unverified: [], contradicted: [], snips: 0 };
   const needles = [...new Set(premises.flatMap((p) => contentWords(p.text)))];
-  const snips = snipsFor(passages, { obligations: needles, terms });
+  // A TOKEN IS SCOPED TO THE SOURCE IT IS CLAIMED OF (P135). "Does this token
+  // exist in the corpus" was never the question; "does it belong in THIS
+  // source's passage" is. Measured live (2026-09-06): a probe planted
+  // "Kutúzov" into a Lincoln-article sentence and every check passed it,
+  // because Kutúzov is unquestionably in the corpus — he is in War and Peace.
+  // Vienna, Army and Berry failed the same way. When the question names its
+  // source, only that source's passages can answer for it.
+  const inScope = cited ? passages.filter((p) => String(p?.ref ?? p?.source ?? "").includes(cited)) : passages;
+  const snips = snipsFor(inScope.length ? inScope : passages, { obligations: needles, terms });
+  const scoped = inScope.length ? inScope : passages;
   const rows = premises.map((p) => {
     const c = checkSentence(p.text, snips);
-    return { ...p, atoms: c.atoms, flags: c.flags, contradiction: c.contradiction, supported: c.supported };
+    // THE REFERENT READING (P135), where the cast can be read: a name the
+    // cited passage's own cast does not establish is `beyond-reach` — the
+    // claim is about someone that passage never introduces — and that is a
+    // finding of a different and better kind than a missing substring.
+    const ref = referentIndexFor ? premiseReferents(p.text, scoped, { referentIndexFor }) : { unresolved: [], reached: false };
+    return { ...p, atoms: c.atoms, flags: c.flags, contradiction: c.contradiction, supported: c.supported, beyondReach: ref.reached ? ref.unresolved : [], castReached: ref.reached };
   });
   return {
     premises: rows,
-    unverified: rows.filter((r) => r.flags.length && !r.contradiction),
+    unverified: rows.filter((r) => (r.flags.length || r.beyondReach.length) && !r.contradiction),
     contradicted: rows.filter((r) => r.contradiction),
     snips: snips.length,
     snipRows: snips,
   };
+}
+
+/**
+ * premiseReferents(premise, passages, { referentIndexFor }) →
+ *   { names, unresolved, resolved }
+ *
+ * THE CHECK IS ABOUT REFERENTS, NOT SPANS (P135). Whether a string occurs in
+ * a byte range is the wrong question twice over: a name can occur in the
+ * material and name someone else, and a referent can be established under a
+ * surface the claim does not use. What the claim asserts is about a PERSON,
+ * A PLACE, A THING — and the question is whether the cited passage's own cast
+ * establishes that one.
+ *
+ * Measured live (2026-09-06): a probe planted "Kutúzov" into a sentence of
+ * the Lincoln article. Every containment check passed, because Kutúzov is
+ * unquestionably in the corpus — he is in War and Peace, a different work
+ * entirely. Scoping the STRING to the cited file helps, but it is still the
+ * wrong quantity: it would equally pass a name that happens to appear in the
+ * file while naming nobody the passage establishes.
+ *
+ * The right reading is the one this instrument already has an organ and a
+ * name for. `makeReferentIndex` builds the cast the material's own text
+ * establishes; a name that resolves to no referent there is THE-NULL-STATES'
+ * `beyond-reach` — "the subject resolves to no referent, nothing to mark it
+ * on" (SIG·Figure) — which is a typed finding, not a missing substring.
+ */
+export function premiseReferents(premise, passages = [], { referentIndexFor } = {}) {
+  const names = namesIn(String(premise ?? ""));
+  if (!names.length || typeof referentIndexFor !== "function" || !passages.length) return { names, unresolved: [], resolved: [], reached: false };
+  let index;
+  try { index = referentIndexFor(passages); } catch { return { names, unresolved: [], resolved: [], reached: false }; }
+  if (!index || typeof index.resolve !== "function") return { names, unresolved: [], resolved: [], reached: false };
+  const unresolved = [];
+  const resolved = [];
+  for (const n of names) {
+    let ids;
+    try { ids = index.resolve(n); } catch { ids = null; }
+    // A cast that could not be read reaches nothing, and an unreachable
+    // search is never a finding about the world (the standing line).
+    if (!ids) continue;
+    (ids.size ? resolved : unresolved).push(n);
+  }
+  return { names, unresolved, resolved, reached: true };
 }
 
 /**
@@ -131,9 +189,11 @@ export function premiseFacts(check) {
     }
   }
   const absent = [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : r.flags.map((f) => f.value))))];
+  const strangers = [...new Set(check.premises.flatMap((r) => r.beyondReach ?? []))];
   const parts = [];
   if (lines.length) parts.push(`What these sources say about it:\n${lines.join("\n")}`);
-  if (absent.length) parts.push(`These sources do not use ${absent.map((v) => `"${v}"`).join(", ")} anywhere. There is nothing here to describe under that name.`);
+  if (strangers.length) parts.push(`${strangers.map((v) => `"${v}"`).join(", ")} ${strangers.length === 1 ? "is not someone or something" : "are not people or things"} this passage introduces at all.`);
+  if (absent.length) parts.push(`These sources do not use ${absent.filter((v) => !strangers.includes(v)).map((v) => `"${v}"`).join(", ") || absent.map((v) => `"${v}"`).join(", ")} anywhere. There is nothing here to describe under that name.`);
   return parts.join("\n\n");
 }
 
@@ -144,7 +204,7 @@ export function premiseFacts(check) {
  */
 export function premiseGuard(check) {
   if (!check?.premises?.length) return [];
-  return [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : r.flags.map((f) => f.value))))]
+  return [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : [...r.flags.map((f) => f.value), ...(r.beyondReach ?? [])])))]
     .filter(Boolean)
     .map((value) => ({ value, fold: fold(value) }));
 }

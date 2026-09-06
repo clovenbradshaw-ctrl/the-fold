@@ -11796,3 +11796,19 @@ Fixed, universally rather than case by case:
 Recorded and not yet fixed, each confirmed with named lines: the piece path revises AFTER the gate and findings cannot follow out of `runPart`; a section heading is never gated; the export overwrites the byte address the ladder established; a `contradicted` relation verdict is exported at tier `recorded`; a recorded contest is turned into corroboration by a later attest (`kernel/notes.js`). These are the same law at other seams and are owed their own passes.
 
 **The lesson worth keeping: a law is not enforced by being stated, and its author is the last person who should be trusted to have applied it everywhere.** The fan-out found in one pass what a session of careful reading had not.
+
+## P135 — The check is about REFERENTS, not spans (2026-09-06)
+
+**Generality:** universal for the rule (a claim asserts something about a person, a place, a thing — so the question is whether the CITED PASSAGE'S OWN CAST establishes that one, never whether a string occurs in a byte range; a name the passage's cast does not establish is `beyond-reach`, THE-NULL-STATES' SIG·Figure null, "the subject resolves to no referent, nothing to mark it on"; a cast that cannot be read reaches nothing and an unreached search is never a finding about the world). User direction: "this needs to be about referents not spans."
+
+**The class this dissolves, which four patches had failed to.** A probe plants a token into a sentence from source A; the check searches the corpus, finds it in source B where it genuinely lives, and passes. Measured live in one run: **Kutúzov, Vienna, Army, Berry**, and the original Lincoln-for-Pierre case. Every one is a real word of the material sitting in the wrong file, and the company rule (P31) cannot save it because a passage from the wrong source shares the premise's own words too.
+
+**Why scoping the STRING to the file was still the wrong quantity**, though it was the first fix tried: it would equally pass a name that happens to appear in the file while naming nobody the passage establishes, and equally fail a referent the passage establishes under a surface the claim does not use. The instrument already had the organ and the vocabulary for the right reading — `cast.js::makeReferentIndex` builds the cast the material's own text establishes, and `resolve(name)` says whether this passage introduces that one.
+
+Demonstrated, and pinned in both directions: against the cited Lincoln passage, "Kutúzov" is beyond-reach and "Yosemite Grant" resolves; against War and Peace the reading is exactly reversed.
+
+**A gap the wiring exposed: retrieval must honour the citation.** Scoping a check to a file that was never retrieved silently falls back to everything, which is the failure the scoping exists to stop. Asked about a claim "from lincoln.html", retrieval returned only the War and Peace chunk — the planted name is a Tolstoy name — so the cast check ran against Tolstoy. A question naming its source now pulls that source's best passage into the pool.
+
+**Not settled, and said so.** In isolation the referent read is exactly right; at turn level the facts block still reported the reverse pair on one hand-built case, so some part of the integration is selecting the wrong passage set. The organ and its pins stand; the turn-level wiring is not yet proven and is owed a pass.
+
+**Files.** `correction.js` (`premiseReferents`, `checkPremises` taking `referentIndexFor` and `cited`), `holon.js` (the organ injected, retrieval honouring the citation), their pins. Suites 1,750/0 and 675/0.

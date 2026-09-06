@@ -436,8 +436,14 @@ export function detectComparison(question) {
   const order = COMPARE_RE.exec(asked);
   const distance = DISTANCE_RE.test(asked);
   if (!order && !distance) return null;
-  // The values the question itself names, deduplicated in the order asked.
-  const values = [...new Set(numbersIn(question))];
+  // THE VALUES ARE THE ASK'S, WHEN THE ASK NAMES THEM. Measured live
+  // (2026-09-06, turn 260): asked "Which is larger, 9 or 19?" over two quoted
+  // passages, one of which contains "April 19 to 20", the door compared 9
+  // against 20 and answered "the difference is 11". Reading numbers out of
+  // quoted material is the same error as reading the ASK's shape out of it —
+  // the person named their two values, and those are the two.
+  const inAsk = [...new Set(numbersIn(asked))];
+  const values = inAsk.length >= 2 ? inAsk : [...new Set(numbersIn(question))];
   if (values.length < 2) return null;
   // A question naming many numbers is not a two-way comparison; the ordering
   // is still well defined but the distance is ambiguous, so only take the

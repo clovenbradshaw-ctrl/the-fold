@@ -11842,3 +11842,29 @@ Four of the audit's confirmed violations, fixed at their root rather than one by
 **What was actually missing.** Transcription already worked; what it produced could not be CHECKED. `return_timestamps: false` meant the transcript landed as one flat blob whose only address was "somewhere in this file", so every organ was blind to it in the way that matters: a snip needs a span, an atom needs company at an address, the ground ladder needs somewhere to point, the export needs bytes to quote, and a person needs to be able to go and HEAR the moment being cited. Everything else in the instrument works on a transcript unchanged, because everything else only ever needed `{ ref, text }` — which is what an address is for.
 
 **Files.** `audio-address.js` (`passagesFromSegments`, `audioRef`, `parseAudioRef`, `citeAudio`, `clock`, `AUDIO_STANDING`) + `audio-address.test.mjs` (3, including: no timings yields nothing fabricated); `transcribe.js` (timestamps kept, `segments` returned); `app.js` (`addSource` takes passages a medium brought with it); `longform.js` (a transcript is speech, never code); `piece-export.js` (a time address read as an address). Suite 1,756/0 plus main's flaky pool test.
+
+## P139 — Which model runs is decided by the work, and a disagreement between two is a typed finding (2026-09-06)
+
+**Generality:** universal for the rules (the work a question asks for decides the model, not its apparent difficulty: NONE where the instrument knows the answer exactly, COMPOSE where prose is wanted, HOLD where one question must be held steady over close reading; the small model stays the default and a second reading is asked only where measurement says the first drifts; two readings that differ produce a TYPED delta — agree, extra, conflict, one-silent, drifted — and NOTHING picks a winner, because the material decides, exactly as it does for one model). User direction: "modifying which model runs based on the task and consider multiple models and checking the Delta."
+
+**Routing is an evidence question, and run 1 answered it.** Over 909 turns, on the same probes, scored the same way:
+
+| probe | the instrument answered | the 2B model answered |
+|---|---|---|
+| recall | **33 / 33** | 2 / 13 |
+| reasoning | **20 / 26** | 1 / 2 |
+| memory | **7 / 7** | 26 / 38 |
+
+And the answer CHANGED THE SUBJECT on **82% of memory turns and 73% of injection turns**, against **4% of ordinary conversation**. The small model is not uniformly weak; it is weak in a shape. It carries conversation and fails at holding one question steady while reading closely — which is why the ladder is not "bigger model for harder things".
+
+**Then the delta was measured, and it argues against escalating.** Three memory/injection turns, both models through the SAME instrument, same material, same checks:
+
+- **all three agreed**;
+- **two ran with zero model calls at all** — the mechanical doors answered, so the model was irrelevant;
+- the one that used the model got the same answer from both, with the 14B taking **148s against 37s**.
+
+**A methodological error caught and corrected before it produced a conclusion.** The first attempt compared the small model INSIDE the instrument against the large model ALONE, and the large one looked far worse — it hedged and refused where the small one used the record. That measures the instrument, not the models, and would have been a flattering and false result. Both arms must run through the same turn.
+
+**What this means for the standing rule.** "Keep the local model small" survives, and now with a measurement behind it rather than a preference: on this corpus the instrument's own answering and checking make the model choice not matter on exactly the shapes where the small model was weakest. Escalation is reserved for work the doors cannot answer and the checks cannot settle, and the delta is how that set is found. On this corpus it is close to empty. Sample: three turns, two of them door-answered — small, and said so.
+
+**Files.** `model-delta.js` (`workOf`, `routeForWork`, `delta`, `WORK`, `DELTA`) + `model-delta.test.mjs` (2).

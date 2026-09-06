@@ -2582,6 +2582,26 @@ function mergeRelatingLedger(left, nominations) {
     // web fetch or a deposit at a glance; everything else rides through
     // unchecked, the same posture `record()`'s other 20-odd callers here
     // already have.
+    // ---- a finished piece in two faces (the-fold P118): the page hands over
+    // the markdown, the html and the json sidecar it built; they land under
+    // record/pieces/ as files a reader opens, and the landing is a record
+    // event. Nothing is generated here — the server keeps what it is given.
+    if (req.method === "POST" && p === "/api/piece-export") {
+      const body = await readJsonBody(req);
+      const slug = String(body.slug ?? "piece").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "piece";
+      const dir = path.join(ROOT, "record", "pieces");
+      mkdirSync(dir, { recursive: true });
+      const base = `${slug}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
+      const files = {};
+      for (const [ext, key] of [["md", "md"], ["html", "html"], ["json", "json"]]) {
+        if (body[key] == null) continue;
+        const text = typeof body[key] === "string" ? body[key] : JSON.stringify(body[key], null, 2);
+        writeFileSync(path.join(dir, `${base}.${ext}`), text);
+        files[ext] = path.relative(BROWSE_ROOT, path.join(dir, `${base}.${ext}`));
+      }
+      record("piece-export", { slug, base, files, chars: Object.fromEntries(Object.entries(files).map(([k]) => [k, typeof body[k] === "string" ? body[k].length : JSON.stringify(body[k] ?? "").length])) });
+      return send(res, 200, { base, files });
+    }
     if (req.method === "POST" && p === "/api/term-record") {
       const body = await readJsonBody(req);
       // The chat page mirrors more than terminal acts now: its own opens
@@ -2597,7 +2617,7 @@ function mergeRelatingLedger(left, nominations) {
       // silently; a declared allowlist is only a wall if it is kept). The
       // long-form events (P108) carry a piece's progress so a reader — or a
       // driver — can follow a 30-page run off the record rather than the DOM.
-      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done", "web-digest", "codepiece-plan", "codepiece-part", "codepiece-done"]);
+      const CHAT_MIRRORED = new Set(["source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done", "web-digest", "codepiece-plan", "codepiece-part", "codepiece-done", "piece-export-built"]);
       if (typeof body.event !== "string" || !(body.event.startsWith("term-") || CHAT_MIRRORED.has(body.event))) return send(res, 400, { error: `event (string) is required: "term-"-prefixed, or one of ${[...CHAT_MIRRORED].join(" / ")}` });
       const { event, ...fields } = body;
       record(event, fields);

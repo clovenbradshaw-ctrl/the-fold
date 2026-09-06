@@ -1254,12 +1254,20 @@ test("the completeness-gate belief is fully opt-in — omitting grid/gridLog/run
   assert.match(result.output, /Johnson/);
 });
 
-test("an answer that already names every filler never trips the completeness gate", async () => {
+test("an answer that already names every filler never trips the completeness gate — and its fabricated year is caught by the atom check instead (P125)", async () => {
   const relationsFor = makeRelationReader(await relationOrgans());
-  let corrections = 0;
+  // Two different asks, counted apart: the completeness gate names a missing
+  // filler ("the material confirms exactly"); the atom check names a value the
+  // sources do not contain. This draft is complete AND carries a fabricated
+  // year — 1861 appears nowhere in LINCOLN_TEXT — so the first must not fire
+  // and the second must.
+  let completeness = 0, atomChecks = 0, drafts = 0;
   const call = async (messages) => {
     if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
-    corrections++;
+    const user = messages.at(-1)?.content ?? "";
+    if (user.includes("the material confirms exactly")) completeness++;
+    else if (user.includes("These sentences say things the sources you were given do not")) atomChecks++;
+    else drafts++;
     return "Lincoln appointed Hamlin in 1861. Lincoln appointed Johnson later.";
   };
   const result = await runHolonicTask({
@@ -1269,8 +1277,13 @@ test("an answer that already names every filler never trips the completeness gat
     planMode: "flat",
     makeRelationReader: relationsFor,
   });
-  assert.equal(corrections, 1, "a complete first draft earns no correction call at all");
+  assert.equal(completeness, 0, "a complete first draft earns no completeness correction at all");
+  assert.equal(drafts, 1, "one draft");
   assert.ok(!result.open.some((o) => o.includes("names only one of several")));
+  assert.equal(atomChecks, 1, "the fabricated year earns exactly one atom-check ask");
+  assert.deepEqual(result.correction.flags.map((f) => f.flags.map((x) => x.value)).flat(), ["1861"], "1861 is in no passage");
+  assert.deepEqual(result.correction.outcomes.map((o) => o.outcome), ["refused"], "the mouth repeated itself, so the flag stands rather than a worse sentence landing");
+  assert.match(result.output, /1861/, "a refused rewrite leaves the original, flagged — never silently deleted");
 });
 
 test("a single-filler slot never trips the completeness gate — singular is the ordinary, unremarked case", async () => {
@@ -1920,4 +1933,266 @@ test("P111: the unconscious edits the mouth — a section that restates an earli
   assert.ok(r.edits.some((e) => e.kind === "restated-sentence" || e.kind === "empty-section" || e.kind === "merged-section"));
   assert.equal((r.output.match(/## /g) ?? []).length <= 1 || !/## Again/.test(r.output) || true, true);
   assert.equal(r.output.split("where the coast begins").length - 1, 1, "the restated section's prose appears once in the shipped piece");
+});
+
+test("P116: a piece returns its revisions — an array, empty when nothing later changed anything", async () => {
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
+  const r = await runHolonicTask({
+    task: "write about the harbor", chunks,
+    call: async (messages) => { const u = messages.at(-1)?.content ?? ""; if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Tides", description: "the tide." }, { label: "Coast", description: "the coast." }] }); return /Coast/.test(u) ? "A light stands where the coast begins." : "Tides come to this harbor twice each day."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    planMode: "model", piece: { topic: "the harbor", pages: 1, words: 10 },
+  });
+  assert.ok(Array.isArray(r.revisions));
+  assert.equal(r.revisions.filter((x) => x.kind === "revision-error").length, 0, "the revision pass ran without error");
+});
+
+test("P122: the snips are handed above the material; a drafted year no snip carries is flagged with no model, asked once with the flags as facts, and lands only when the rewrite's atoms pass; the witness is spent on the flagged sentence first", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor tide turns twice a day, and the harbor master keeps the light.");
+  const index = { entries: [{ surface: "Ada Rowe", mentions: 3 }, { surface: "the harbor light", mentions: 2 }] };
+  const sent = [];
+  const witnessed = [];
+  const r = await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Light", description: "the light." }] });
+      if (/These sentences say things the sources you were given do not/.test(u)) return "Here are the rewritten sentences:\nThe harbor light was built in 1841 by Ada Rowe.";
+      return "The harbor light was built in 1847 by Ada Rowe. The harbor tide turns twice a day.";
+    },
+    makeRelationReader: (ps) => ({ edges: [], read: (t) => ({ claims: /tide turns twice/.test(t) ? [{ end1: "the harbor tide", label: "turns", end2: "twice a day", verdict: "bound", refs: [ps[0]?.ref], spans: [] }] : [] }) }),
+    witnessSentences: async (sentences) => { witnessed.push(...sentences); return { rows: sentences.map((sentence) => ({ sentence, witness: "skipped", why: "test" })), asks: 0 }; },
+    planMode: "model",
+    piece: { topic: "the harbor", pages: 1, words: 20, referentIndexFor: () => index },
+  });
+  const draftAsk = sent.find((m) => /Write this part: Light/.test(m.at(-1)?.content ?? ""));
+  assert.ok(draftAsk, "the section was drafted");
+  assert.match(draftAsk.at(-1).content, /What the sources say, verbatim, each at its address:\n- \[h\.txt#0-\d+#\d+-\d+\] The harbor light was built in 1841 by Ada Rowe\./, "the snips ride above the material, verbatim, addressed");
+  const revise = sent.filter((m) => /These sentences say things the sources you were given do not/.test(m.at(-1)?.content ?? ""));
+  assert.equal(revise.length, 1, "one rewrite ask for the flagged sentence");
+  assert.match(revise[0].at(-1).content, /the sources do not use the year "1847" here; they say 1841 where this says 1847: "The harbor light was built in 1841 by Ada Rowe\."/, "the ask carries the flag and the contradicting source as plain facts");
+  assert.doesNotMatch(revise[0].at(-1).content, /appears in no snip|beside none of this sentence/, "never the instrument's own working (P125)");
+  const sec = r.sections[0];
+  assert.ok(sec.piece.snipCheck, "the check is on the section's record");
+  assert.equal(sec.piece.snipCheck.flagged, 1);
+  assert.equal(sec.piece.snipCheck.contradictions.length, 1);
+  assert.deepEqual(sec.piece.snipCheck.contradictions[0].source, ["1841"]);
+  assert.deepEqual(sec.piece.snipCheck.outcomes.map((o) => o.outcome), ["rewritten"], "the preamble line is not a sentence; the rewrite passed its atoms");
+  assert.match(sec.text, /built in 1841 by Ada Rowe/); assert.doesNotMatch(sec.text, /1847/);
+  assert.equal(sec.piece.snipCheck.after.flagged, 0);
+  assert.equal(witnessed.length, 2, "the witness saw both sentences");
+});
+
+test("P122 control: the same draft against snips from an unrelated passage flags MORE, and a rewrite whose year is still wrong is refused so the original stands", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor tide turns twice a day.");
+  const index = { entries: [{ surface: "Ada Rowe", mentions: 3 }] };
+  const r = await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    call: async (messages) => {
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Light", description: "the light." }] });
+      if (/These sentences say things the sources you were given do not/.test(u)) return "The harbor light was built in 1852 by Ada Rowe.";
+      return "The harbor light was built in 1847 by Ada Rowe. The harbor tide turns twice a day.";
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    planMode: "model",
+    piece: { topic: "the harbor", pages: 1, words: 20, referentIndexFor: () => index },
+  });
+  const sc = r.sections[0].piece.snipCheck;
+  assert.deepEqual(sc.outcomes.map((o) => o.outcome), ["refused"], "a rewrite still carrying a wrong year does not land");
+  assert.match(r.sections[0].text, /1847/, "the original stands, flagged");
+  assert.equal(sc.after.flagged, 1);
+  assert.match(sc.outcomes[0].because, /still contradicts a snip|unsupported/);
+});
+
+test("P123: the depth slider — depth 0 spends no rewrite and no witness ask; depth 2 asks a second rewrite when the first is refused; depth 1 is byte-identical to the plain defaults", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor tide turns twice a day.");
+  const index = { entries: [{ surface: "Ada Rowe", mentions: 3 }] };
+  const run = async (depth, answers) => {
+    let rewrites = 0; let witnessCalls = 0;
+    const r = await runHolonicTask({
+      task: "write about the harbor", chunks, depth,
+      call: async (messages) => {
+        const u = messages.at(-1)?.content ?? "";
+        if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Light", description: "the light." }] });
+        if (/These sentences say things the sources you were given do not/.test(u)) { rewrites += 1; return answers[rewrites - 1] ?? answers.at(-1); }
+        return "The harbor light was built in 1847 by Ada Rowe. The harbor tide turns twice a day.";
+      },
+      makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+      witnessSentences: async (sentences, claims, passages, { maxAsks }) => { witnessCalls += 1; return { rows: [], asks: 0, maxAsks }; },
+      planMode: "model", piece: { topic: "the harbor", pages: 1, words: 20, referentIndexFor: () => index },
+    });
+    return { r, rewrites, witnessCalls, maxAsks: r.sections[0].witness?.maxAsks };
+  };
+  const quick = await run(0, ["The harbor light was built in 1841 by Ada Rowe."]);
+  assert.equal(quick.rewrites, 0, "depth 0 asks no rewrite"); assert.equal(quick.r.depth, 0);
+  assert.equal(quick.r.sections[0].piece.snipCheck.flagged, 1, "the mechanical check still runs at depth 0");
+  assert.equal(quick.maxAsks, 0, "depth 0 hands the witness a budget of 0");
+  const plain = await run(1, ["The harbor light was built in 1852 by Ada Rowe.", "The harbor light was built in 1841 by Ada Rowe."]);
+  assert.equal(plain.rewrites, 1, "depth 1: one rewrite ask, as before"); assert.equal(plain.maxAsks, 24);
+  assert.match(plain.r.sections[0].text, /1847/, "the refused rewrite leaves the original");
+  const careful = await run(2, ["The harbor light was built in 1852 by Ada Rowe.", "The harbor light was built in 1841 by Ada Rowe."]);
+  assert.equal(careful.rewrites, 2, "depth 2: the refused first rewrite earns a second ask"); assert.equal(careful.maxAsks, 48);
+  assert.deepEqual(careful.r.sections[0].piece.snipCheck.outcomes.map((o) => [o.round, o.outcome]), [[1, "refused"], [2, "rewritten"]]);
+  assert.match(careful.r.sections[0].text, /1841/); assert.doesNotMatch(careful.r.sections[0].text, /1847/);
+  assert.match(careful.r.depthLine, /^Thinking depth 2 of 3 \(careful\)/);
+});
+
+test("P125: a plain turn's wrong answer is corrected too — the flagged year is rewritten from the material, and the question's false premise is handed to the model as a fact before it drafts", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established that "the harbor light was built in 1996 by Ada Rowe." When was it built?',
+    chunks, planMode: "flat",
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      if (/These sentences say things the sources you were given do not/.test(u)) return "The harbor light was built in 1841 by Ada Rowe.";
+      return "The harbor light was built in 1847 by Ada Rowe.";
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const first = sent[0].map((m) => m.content).join("\n");
+  // The person's own question necessarily carries their claim; what matters is
+  // that the INSTRUMENT's block never repeats it back (P126's rule).
+  const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  assert.match(ours, /What these sources say about it:/, "the premise check reached the model as a fact");
+  assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\. \[h\.txt#0-75#0-47\]/, "the source's own words, at its address, positively");
+  assert.doesNotMatch(ours, /1996/, "the false claim is never quoted back by us");
+  assert.match(first, /What the sources say, verbatim, each at its address:/, "a plain turn stands on snips too");
+  assert.ok(r.correction, "a plain turn carries its correction");
+  assert.equal(r.correction.flagged, 1);
+  assert.deepEqual(r.correction.outcomes.map((o) => o.outcome), ["rewritten"]);
+  assert.match(r.output, /1841/); assert.doesNotMatch(r.output, /1847/);
+  assert.equal(r.correction.after.flagged, 0);
+  assert.equal(r.premises.contradicted, 1, "a passage sharing the words with a different year is the stronger finding");
+  assert.ok(r.learned.length >= 2, "both the answer's error and the question's false premise are learned");
+  assert.ok(r.learned.some((e) => e.caught === "premise" && /1996/.test(e.claimed) && /1841/.test(e.corrected ?? "")));
+  assert.ok(r.learned.some((e) => e.caught === "answer" && /1847/.test(e.claimed) && /1841/.test(e.corrected)));
+});
+
+test("P126: a correction already learned is handed back on the next turn, and a turn with no material or no store is byte-identical to before (control)", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe.");
+  const store = [{ id: "c:x", kind: "correction", ts: 1, seq: 0, claimed: "The harbor light was built in 1847.", corrected: "The harbor light was built in 1841.", ref: "h.txt#0-46", start: 0, end: 46, question: "q", caught: "answer" }];
+  const sent = [];
+  const r = await runHolonicTask({
+    task: "When was the harbor light built?", chunks, planMode: "flat", learnedStore: store,
+    call: async (messages) => { sent.push(messages); return "The harbor light was built in 1841 by Ada Rowe."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const first = sent[0].map((m) => m.content).join("\n");
+  assert.match(first, /Established here already, from these sources:/);
+  assert.match(first, /- The harbor light was built in 1841\./, "only what the sources do say");
+  assert.doesNotMatch(first, /1847/, "never the error it replaces (P126, measured)");
+  assert.deepEqual(r.learnedUsed ?? r.sections[0].learnedUsed, ["c:x"]);
+  const bare = [];
+  const clean = await runHolonicTask({
+    task: "hello there", chunks: [], planMode: "flat",
+    call: async (m) => { bare.push(m); return "Hi."; },
+  });
+  const b = bare[0].map((m) => m.content).join("\n");
+  assert.doesNotMatch(b, /Established here already|What these sources say about it|do not use/, "no material, no blocks");
+  assert.equal(clean.correction, undefined); assert.equal(clean.learned.length, 0);
+});
+
+test("P126: the negative half of what was learned never reaches the mouth — it cuts the sentence that repeats it, while the positive half goes in as the source's own statement", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const store = [
+    { id: "c:neg", kind: "correction", ts: 1, seq: 0, claimed: "The harbor light had 700 keepers.", corrected: null, ref: null, question: "q", caught: "answer" },
+    { id: "c:pos", kind: "correction", ts: 2, seq: 1, claimed: "The harbor light was built in 1847.", corrected: "The harbor light was built in 1841 by Ada Rowe.", ref: "h.txt#0-47", start: 0, end: 47, question: "q", caught: "answer" },
+  ];
+  const sent = [];
+  const r = await runHolonicTask({
+    task: "Tell me about the harbor light and its keepers.", chunks, planMode: "flat", learnedStore: store,
+    // Deliberately not a copy of the source: a draft that merely reproduces
+    // the passage is replaced by the mechanical assembly before any of this
+    // runs, and would never reach the guard.
+    call: async (messages) => { sent.push(messages); return "Records once put the staff at 700 keepers for the harbor light. Ada Rowe oversaw its construction, finished in 1841, and the tide has turned twice daily ever since."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const prompt = sent[0].map((m) => m.content).join("\n");
+  assert.match(prompt, /Established here already, from these sources:\n- The harbor light was built in 1841 by Ada Rowe\./, "the positive correction goes in as a statement");
+  assert.doesNotMatch(prompt, /1847/, "the error it replaces never reaches the mouth");
+  assert.doesNotMatch(prompt, /700 keepers/, "nor does a claim we only know to be unplaced");
+  assert.equal(r.repeatedKnownFalse?.length, 1, "the draft repeated it and was caught mechanically");
+  assert.match(r.repeatedKnownFalse[0].sentence, /700 keepers/);
+  assert.doesNotMatch(r.output, /700 keepers/, "and it is cut from what ships");
+  assert.match(r.output, /1841/, "the rest of the answer stands");
+});
+
+test("P125: the premise is checked against the TASK, so a decomposed turn cannot slip an asserted falsehood past the check (S77 run 4)", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day and the keeper trims the lamp.");
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established that "the harbor light was built in 1996 by Ada Rowe." Describe the light and the tide.',
+    chunks, planMode: "model",
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Light", description: "the light." }, { label: "Tide", description: "the tide." }] });
+      return "The harbor light was built in 1841 by Ada Rowe.";
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(r.sections.length, 2, "a decomposed turn");
+  const drafts = sent.filter((m) => /Write this part/.test(m.at(-1)?.content ?? ""));
+  assert.ok(drafts.length >= 1);
+  const seen = drafts.map((m) => m.map((x) => x.content).join("\n")).join("\n");
+  assert.match(seen, /What these sources say about it:|do not use "1996"/, "the check fires even though no part's own words carry the premise");
+  assert.ok(r.premises.checked >= 1);
+  assert.ok(r.premises.contradicted + r.premises.unverified >= 1);
+});
+
+test("P127: the mouth's talk about the writing is cut from a plain grounded turn too, and a passage-less chat turn keeps its own voice (control)", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const r = await runHolonicTask({
+    task: "When was the harbor light built?", chunks, planMode: "flat",
+    call: async () => "This analysis focuses on a passage from the material. Let me break down the question and understand its purpose. The harbor light was built in 1841 by Ada Rowe.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.ok(r.metaCut?.length, "the scaffolding is cut from a plain turn");
+  assert.match(r.output, /1841/, "the answer survives");
+  // Conversation, with nothing attached, is left alone.
+  const chat = await runHolonicTask({
+    task: "hello there", chunks: [], planMode: "flat",
+    call: async () => "Let me say hello back. How can I help you today?",
+  });
+  assert.equal(chat.metaCut, undefined, "a passage-less turn is conversation, not a piece to police");
+  assert.match(chat.output, /hello|help/i);
+});
+
+test("P128: a question about the conversation is answered from the conversation's own record, and a prior answer never becomes material", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const transcript = [
+    { turn: 1, question: "What does the file say about Ada Rowe?", answer: "The harbor light was built in 1841 by Ada Rowe." },
+    { turn: 2, question: "What about the tide?", answer: "The tide turns twice a day." },
+    { turn: 3, question: "Tell me about Lisbon.", answer: "Ships came from Lisbon each spring." },
+  ];
+  const sent = [];
+  const admitted = [];
+  const r = await runHolonicTask({
+    task: 'Earlier I asked you: "What about the tide?" What did you answer then?',
+    chunks, planMode: "flat", transcript,
+    call: async (messages) => { sent.push(messages); return "You said the tide turns twice a day."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    hyperlexicon: { admit: (log, edge, opts) => { admitted.push(opts?.witness ?? edge); return { log, landed: [], turnedAway: [] }; }, fold: () => [], foldHyperlexicon: () => [], foldWithStanding: () => [], foldVoids: () => [] },
+    hyperlexiconLog: { entries: [] },
+  });
+  const prompt = sent[0].map((m) => m.content).join("\n");
+  assert.match(prompt, /Turn 2 of this conversation, quoted from the record\./, "the prior turn is handed over, labelled");
+  assert.match(prompt, /You were asked: What about the tide\?\s+You answered: The tide turns twice a day\./);
+  assert.match(prompt, /turn:2/, "addressed by its turn");
+  assert.match(prompt, /what was said, which is not the same as what the sources establish/);
+  assert.deepEqual(r.recalledTurns, [2]);
+  assert.ok(!admitted.some((w) => String(w).startsWith("turn:")), "a prior answer is never admitted to the ledger as material");
+  // A question about the material recalls nothing from the transcript.
+  const plain = await runHolonicTask({
+    task: "When was the harbor light built?", chunks, planMode: "flat", transcript,
+    call: async () => "It was built in 1841.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(plain.recalledTurns, undefined, "a question about the material does not reach for the transcript");
 });

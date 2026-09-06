@@ -39,7 +39,14 @@ import { distinctSources, proposeCandidates, textFeatures } from "./corroboratio
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
-import { isCodeSource } from "./longform.js";
+import { isCodeSource, topicTerms } from "./longform.js";
+import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
+import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
+import { budgetsFor, depthLine } from "./depth.js";
+import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
+import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
+import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
+import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
@@ -283,6 +290,11 @@ const foldDigest = (log) => canon(projectParts(log).map(({ first_seq, last_seq, 
 // Declared budget per part (P9), with its reason: a flat answer is two to
 // six sentences, each ask one small-model call plus its arm.
 export const WITNESS_ASKS_PER_PART = 6;
+// A PIECE's section is long and its citations are the deliverable (P115):
+// the witness is asked about every sentence the relation tier left open,
+// up to this declared budget — ~3 s an ask on the small mouth, so a
+// 30-page piece spends minutes here, said on the record.
+export const PIECE_WITNESS_ASKS = 24;
 export const MAX_PRODUCE_STEPS = 3;
 
 /**
@@ -545,7 +557,7 @@ export function pieceLine(piece) {
 /** The continuation ask, one place, so the meta-talk cut below knows its words. */
 export const continueAsk = (more) => `Continue this section from where it stopped — about ${more} more words of continuous prose, no lists, no headings, and nothing it already says.`;
 /** The instrument's own words to the mouth, TEMPLATE ONLY — no topic, outline, obligation or fact (those are the material's words and must never count as apparatus). */
-export const INSTRUCTION_TEMPLATE = `${EXECUTE_SYSTEM_PROMPT} This is section of a piece on. The sections, in order. The previous section ended. This section should say something about. Earlier sections already said. The sources disagree on. Nothing read says. Write about words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established. ${continueAsk(100)} Every claim here was made in an earlier section. Write this section again about what the sources establish that those sections did not. This section says nothing about. Keep what it says and add what the sources establish about them, in the same prose. Let me know if you would like me to continue writing this.`;
+export const INSTRUCTION_TEMPLATE = `${EXECUTE_SYSTEM_PROMPT} This is section of a piece on. The sections, in order. The previous section ended. This section should say something about. Earlier sections already said. The sources disagree on. Nothing read says. Write about words of continuous prose for this section alone — no lists, no headings, and nothing the earlier sections already established. ${continueAsk(100)} Every claim here was made in an earlier section. Write this section again about what the sources establish that those sections did not. This section says nothing about. Keep what it says and add what the sources establish about them, in the same prose. Let me know if you would like me to continue writing this. What the sources say, verbatim, each at its address. These sentences say things the sources you were given do not. Rewrite only those sentences so each says what the sources establish, or drop a sentence the sources cannot support. Reply with the rewritten sentences only, one per line, in the same order.`;
 /** The cast's top referents in a set of passages, as plain names — the section's obligations (P110). */
 export function obligationsFrom(index, { limit = 5 } = {}) {
   if (!index?.referents) return [];
@@ -966,6 +978,25 @@ export async function runPart({
   // ships with the relation tier's own verdict alone, as before.
   witnessSentences = null,
   witnessAsks = WITNESS_ASKS_PER_PART,
+  // THE DEPTH SLIDER'S BUDGETS (P123, depth.js): how many bounded passes a
+  // piece's section gets — the witness asks a piece may spend, the snip
+  // rewrite rounds, the continuations of a short draft, the hunts when
+  // retrieval is thin. Defaults are the plain rung, byte-identical to before.
+  pieceWitnessAsks = PIECE_WITNESS_ASKS,
+  snipRounds = 1,
+  continuations = 1,
+  hunts = 1,
+  // WHAT THIS INSTRUMENT HAS ALREADY BEEN WRONG ABOUT (P126): the durable
+  // corrections, in the chain's own entry shape. The ones in scope for this
+  // question are handed to the model as facts before it drafts, so a mistake
+  // made once is not made again. Empty (every existing caller) changes nothing.
+  learnedStore = [],
+  // THE CONVERSATION'S OWN RECORD (P128, transcript.js): [{turn, question,
+  // answer}] oldest first. A question ABOUT what was said retrieves from it,
+  // exactly as a question about the material retrieves from the material —
+  // so what the recency window drops is still reachable. Empty (every
+  // existing caller) changes nothing.
+  transcript = [],
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1137,15 +1168,34 @@ export async function runPart({
   // hunted pages join this part's pool so retrieval can pick from them.
   let hunted = null;
   let livePool = live;
-  if (piece?.huntFor && passages.filter((p) => !String(p?.ref ?? "").startsWith("web:search-results")).length < passagesPerPart) {
-    try {
-      const found = await piece.huntFor(`${part.label} ${piece.topic ?? ""}`.trim());
-      if (Array.isArray(found) && found.length) {
-        livePool = [...live, ...found];
-        passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
-        hunted = { query: `${part.label} ${piece.topic ?? ""}`.trim(), chunks: found.length, passages: passages.length };
-      } else hunted = { query: `${part.label} ${piece.topic ?? ""}`.trim(), chunks: 0, passages: passages.length };
-    } catch (e) { hunted = { query: part.label, error: String(e?.message ?? e) }; }
+  // Up to `hunts` rounds (P123): each round a different query off the
+  // section's own words — its label, then its description, then the topic
+  // alone — and the round stops as soon as retrieval is no longer thin.
+  const thin = () => passages.filter((p) => !String(p?.ref ?? "").startsWith("web:search-results")).length < passagesPerPart;
+  if (piece?.huntFor && thin()) {
+    const queries = [...new Set([`${part.label} ${piece.topic ?? ""}`.trim(), `${part.description ?? ""} ${piece.topic ?? ""}`.trim(), String(piece.topic ?? "").trim()].filter(Boolean))];
+    const rounds = [];
+    for (let round = 0; round < hunts && round < queries.length && thin(); round++) {
+      const query = queries[round];
+      try {
+        const found = await piece.huntFor(query);
+        if (Array.isArray(found) && found.length) {
+          livePool = [...livePool, ...found];
+          passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
+          rounds.push({ query, chunks: found.length, passages: passages.length });
+        } else rounds.push({ query, chunks: 0, passages: passages.length });
+      } catch (e) { rounds.push({ query, error: String(e?.message ?? e) }); }
+    }
+    hunted = rounds.length ? { ...rounds[0], rounds } : null;
+  }
+  // A question about the conversation is answered from the conversation. The
+  // prior turns join the passages as addressed testimony (`turn:N`), so every
+  // organ below reads them the same way it reads a source — and the ladder
+  // places them on the record, never in the material.
+  let recalledTurns = [];
+  if (transcript.length && isAboutConversation(task || question)) {
+    recalledTurns = recallTurns(task || question, transcript);
+    if (recalledTurns.length) passages = [...recalledTurns, ...passages];
   }
   const digestChunk = livePool.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
   if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
@@ -1178,9 +1228,14 @@ export async function runPart({
   const relations = passages.length ? makeRelationReader?.(passages, { pool: livePool }) ?? null : null;
   // Obligations (P110): the cast the section's own passages establish.
   // Prose passages only: a code file's "cast" is its identifiers (P113).
-  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref));
+  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p));
   const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
+  // THE SNIPS (P122): the verbatim, addressed sentences of this section's
+  // prose passages that carry its obligations and its topic — what the
+  // section is handed to write from, and what every number, date and name
+  // it writes is checked against afterwards, with no model.
+  const snips = piece ? snipsFor(prosePassages, { obligations: piece.obligations ?? [], terms: topicTerms(piece.topic ?? "") }) : [];
 
   // hyperlexicon.js (P57): admit this part's own bound claims into the
   // shared, cross-turn ledger — accumulation, not re-derivation on every
@@ -1201,7 +1256,11 @@ export async function runPart({
     // loop that lived here moved there verbatim (ledger born on the first
     // bound edge, frame redeclared on drift, witness `<ref>~<recipe>`,
     // refusals returned never discarded).
-    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref)), {
+    // A PRIOR ANSWER IS NEVER ADMITTED AS MATERIAL (P128). The ledger holds
+    // what the SOURCES establish; letting the mouth's own earlier words in
+    // would make the model its own witness — self:model may never corroborate
+    // itself (P2), and a claim would gain standing by being repeated.
+    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p)), {
       read: (text) => relations.read(text),
       witnessFor: (p) => (p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null),
       classifyConnector,
@@ -1871,9 +1930,44 @@ export async function runPart({
       ? factBlock.spans.map((sp) => `${sp.ref}:
 "${sp.text}"`).join("\n\n")
       : null;
+  // THE PREMISE THE QUESTION SMUGGLES IN (P125), checked before the mouth
+  // sees anything: a claim the question states as already established has its
+  // atoms looked for in this part's own passages, and what the sources
+  // actually say goes in as a FACT. Measured live (S77 turn 15): asked about
+  // a constant whose name had one token swapped, the model answered "You're
+  // right, we established that…" and explained a thing that does not exist.
+  // Against the TASK, not this part's words. A premise is a property of the
+  // whole turn — the person asserted it once, before any plan existed — so it
+  // is checked once per turn, exactly as `searchedVoid` and `answerShape` are
+  // (their own headers say why). Measured live (S77 run 4, turn 15): on a
+  // decomposed turn `question` is "<part label> <part description>", the
+  // asserted claim appears in none of them, and the check silently never
+  // fired — the injection reached the mouth unchecked.
+  const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages) : null;
+  const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
+  // The enforcement the prompt is not asked to provide: the values the
+  // question asserted and the material does not carry. Measured live (S77
+  // run 5, turn 15) the block alone was not enough — the mouth explained a
+  // "Durham investigation" that exists nowhere — so the draft is checked.
+  const premiseGuards = premiseCheck ? premiseGuard(premiseCheck) : [];
+  // What was already found wrong on this material, in scope for this question.
+  const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
+  // ONLY THE POSITIVE HALF REACHES THE MOUTH (P126, measured): a correction
+  // with a replacement goes in as the sentence the sources carry; one that
+  // only says a claim is unplaced is kept back here and spent on the draft
+  // below, because naming a falsehood in order to forbid it makes a small
+  // model repeat it.
+  const learnedBlock = learnedRows.length ? learnedFacts(learnedRows) : "";
+  const guards = learnedRows.length ? learnedGuard(learnedRows) : [];
+  // The snips: a piece stands on its obligations' spans, any other turn on
+  // the question's own words. Both are the source's bytes, verbatim, addressed.
+  const recalledLine = recalledTurns.length ? transcriptLine(recalledTurns) : "";
+  const snipPrefix = piece
+    ? (snips.length ? snipBlock(snips) : null)
+    : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
   const draftMaterial = factBlock
-    ? [factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    ? [recalledLine, snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [recalledLine, snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2218,8 +2312,10 @@ export async function runPart({
   // check below reads the whole section. Bounded: one call, declared.
   let continued = null;
   if (piece && Number.isFinite(piece.words) && passages.length) {
-    const have = wordCount(clean(rawDraft));
-    if (have < piece.words * CONTINUE_BELOW) {
+    // Up to `continuations` rounds (P123), each measured before it is asked.
+    for (let round = 0; round < continuations; round++) {
+      const have = wordCount(clean(rawDraft));
+      if (have >= piece.words * CONTINUE_BELOW) break;
       const more = Math.max(50, piece.words - have);
       const cont = await call([
         ...executeMessages,
@@ -2227,7 +2323,9 @@ export async function runPart({
         { role: "user", content: continueAsk(more) },
       ], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
       const joined = `${rawDraft.trimEnd()}\n\n${String(cont ?? "").trim()}`;
-      continued = { from: have, to: wordCount(clean(joined)), target: piece.words };
+      const to = wordCount(clean(joined));
+      continued = { from: continued?.from ?? have, to, target: piece.words, rounds: round + 1 };
+      if (to <= have) break;
       rawDraft = joined;
     }
   }
@@ -2502,14 +2600,113 @@ export async function runPart({
   }
   let text = stripFraming(draft);
   let metaCut = [];
-  if (piece) {
+  // THE MOUTH TALKING ABOUT THE WRITING, CUT FROM ANY GROUNDED TURN (P127).
+  // This ran only for a piece until now, and a plain turn shipped whatever
+  // scaffolding came back — measured through the long-stream run, where
+  // answer after answer opened "## Identify the passage · This analysis
+  // focuses on a passage from the `holon.js` file…" instead of answering.
+  // It is the same act as correcting a plain turn's atoms (P125): the check
+  // does not become wrong because the turn is not a piece.
+  //
+  // Only where there IS material. A passage-less turn is conversation, and
+  // cutting a person's "let me explain" out of a chat reply would be a
+  // category error (holon.js's own standing distinction).
+  if (piece || passages.length) {
     // The material's words include the piece's own topic, outline and
-    // obligations — a section titled "Tides" may say "tides".
-    const own = [piece.topic, ...(piece.outline ?? []), ...(piece.obligations ?? []), ...(piece.alreadySaid ?? [])].filter(Boolean).join(" ");
-    const r = cutMetaTalk(text, { instructionText: INSTRUCTION_TEMPLATE, materialText: `${passages.map((p) => p.text ?? "").join(" ")} ${own}`, splitSentences });
-    if (r.cut.length) { text = r.text; metaCut = r.cut; check = inspect(text); }
+    // obligations — a section titled "Tides" may say "tides" — and, for a
+    // plain turn, the question's own words, for the same reason.
+    const own = piece
+      ? [piece.topic, ...(piece.outline ?? []), ...(piece.obligations ?? []), ...(piece.alreadySaid ?? [])].filter(Boolean).join(" ")
+      : `${task ?? ""} ${question ?? ""}`;
+    const materialText = `${passages.map((p) => p.text ?? "").join(" ")} ${own}`;
+    const r = cutMetaTalk(text, { instructionText: INSTRUCTION_TEMPLATE, materialText, splitSentences });
+    // A cut that would empty the answer is not a cut — an answer that is ALL
+    // scaffolding is a finding for the marks to carry, not a blank to ship.
+    if (r.cut.length && String(r.text ?? "").trim()) { text = r.text; metaCut = r.cut; check = inspect(text); }
+    else if (r.cut.length) metaCut = r.cut;
+    // And the process narration `cutMetaTalk` cannot see, since it matches the
+    // piece's instruction vocabulary and this is the model describing its own
+    // answering (P127). Narrow by construction: a stated absence stays, and so
+    // does anything carrying a name, a number, or the material's own words.
+    const pr = cutProcessTalk(text, { materialText, splitSentences });
+    if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
   }
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
+  // THE ATOMS AGAINST THE SNIPS (P122), no model: every number, date and
+  // name in the section is looked for in a snip beside a word of the
+  // sentence's own (P31's company rule); a flag names what was looked for
+  // and the absence it stands in; a snip sharing the sentence's words and
+  // carrying a different year is a contradiction candidate. One bounded
+  // rewrite ask carries the flags as facts and the snips as the only
+  // ground; a rewritten sentence lands only where its atoms now pass and
+  // it stands on a snip — the mouth's line is never trusted, it is checked
+  // again. A flag the rewrite could not clear stays a flag on the record.
+  let snipCheck = null;
+  if (piece && snips.length) {
+    const before = checkSection(splitSentences(text), snips);
+    let outcomes = [];
+    let asked = 0;
+    // Up to `snipRounds` asks (P123): each round is the flags still standing
+    // after the last; a round that moved nothing ends the loop early.
+    let standing = before.flagged;
+    let lastReply = null;
+    for (let round = 0; round < snipRounds && standing.length && !mechanical; round++) {
+      asked += 1;
+      const again = await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: reviseAsk(standing, snips) }], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+      const applied = applyRewrite(text, standing, again, snips);
+      outcomes.push(...applied.outcomes.map((o) => ({ ...o, round: round + 1 })));
+      const moved = applied.outcomes.some((o) => o.outcome === "rewritten" || o.outcome === "dropped");
+      if (moved && applied.text !== text && applied.text.length > 0) { text = applied.text; check = inspect(text); }
+      standing = checkSection(splitSentences(text), snips).flagged;
+      // A refused round earns another at a deeper rung (the flags are put
+      // again, as facts); a round whose reply repeats the last one ends it.
+      if (String(again ?? "") === lastReply) break;
+      lastReply = String(again ?? "");
+    }
+    const after = checkSection(splitSentences(text), snips);
+    snipCheck = {
+      snips: snips.length, atoms: before.atoms, supported: before.supported, flagged: before.flagged.length, asked, outcomes,
+      contradictions: before.flagged.filter((r) => r.contradiction).map((r) => ({ sentence: r.sentence, says: r.contradiction.sentenceYears, source: r.contradiction.snipYears, ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end })),
+      after: { flagged: after.flagged.length, supported: after.supported, atoms: after.atoms },
+      flags: after.flagged.map((r) => ({ sentence: r.sentence, flags: r.flags.map((f) => ({ kind: f.kind, value: f.value, reason: f.reason })), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end, snipYears: r.contradiction.snipYears } : null })),
+    };
+  }
+  // THE SAME CHECK, FOR ANY TURN (P125). Until this, only a piece's section
+  // was corrected; a plain answer drafted, was marked, and stood. Same snips,
+  // same company rule, same gate — a rewrite lands only when its own atoms
+  // clear the check, so the mouth's correction is never trusted, it is
+  // checked again. `snipRounds` is the depth slider's rung (P123).
+  // A draft that repeats something this instance already knows is unplaced is
+  // flagged here, mechanically, and the sentence is cut rather than shipped.
+  let repeated = [];
+  if ((guards.length || premiseGuards.length) && text) {
+    const kept = [];
+    for (const sent of splitSentences(text)) {
+      const known = guards.length ? repeatsKnownFalse(sent, guards) : null;
+      if (known) { repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" }); continue; }
+      const absent = premiseGuards.length ? repeatsAbsentPremise(sent, premiseGuards) : null;
+      if (absent) { repeated.push({ sentence: sent, value: absent.value, why: "asserts what the question assumed and the sources do not carry" }); continue; }
+      kept.push(sent);
+    }
+    if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }
+  }
+  let turnCorrection = null;
+  if (!piece && passages.length && !mechanical && snipRounds > 0) {
+    const pool = prosePassages.length ? prosePassages : passages;
+    const r = await correctTurn({ text, passages: pool, question, call, messages: executeMessages, splitSentences, rounds: snipRounds, maxTokens: executeMaxTokens, streaming });
+    if (r.check) {
+      if (r.text !== text) { text = r.text; check = inspect(text); }
+      turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
+    }
+  }
+  // What this turn learned, in the chain's entry shape (P126) — handed out on
+  // the result for the caller to append to its durable store. Both halves:
+  // what the answer got wrong, and what the question asserted falsely.
+  const learnedNow = [
+    ...fromOutcomes({ outcomes: turnCorrection?.outcomes ?? snipCheck?.outcomes ?? [], flags: turnCorrection?.flags ?? snipCheck?.flags ?? [], question }),
+    ...(premiseCheck ? fromPremises(premiseCheck, { question }) : []),
+  ];
+
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
   // addresses attach with certainty, so its warrant stands.
@@ -2556,7 +2753,13 @@ export async function runPart({
   let witnessReport = null;
   if (witnessSentences && passages.length) {
     try {
-      witnessReport = await witnessSentences(splitSentences(stripFraming(text)), check.relations?.claims ?? [], passages, { maxAsks: witnessAsks });
+      // The witness is spent where a flag stands first (P122): a sentence
+      // the snip check flagged and the rewrite did not clear is asked
+      // before any other; then the rest, under the same declared budget.
+      const allSentences = splitSentences(stripFraming(text));
+      const flaggedSet = new Set((snipCheck?.flags ?? []).map((f) => f.sentence));
+      const ordered = flaggedSet.size ? [...allSentences.filter((x) => flaggedSet.has(x)), ...allSentences.filter((x) => !flaggedSet.has(x))] : allSentences;
+      witnessReport = await witnessSentences(ordered, check.relations?.claims ?? [], passages, { maxAsks: piece ? Math.max(witnessAsks, pieceWitnessAsks) : witnessAsks });
     } catch (e) {
       witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
     }
@@ -2569,7 +2772,14 @@ export async function runPart({
     passages,
     corrections,
     ...(continued ? { continued } : {}),
-    ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text) } } : {}),
+    ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
+    ...(turnCorrection ? { correction: turnCorrection } : {}),
+    ...(!piece && metaCut.length ? { metaCut } : {}),
+    ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
+    ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
+    ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
+    ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
+    ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
     links: linkReport,
@@ -2595,6 +2805,9 @@ export async function runPart({
  * with its shape — which is the entire local-model story: point complete() at
  * Ollama and every model call in here runs on the machine.
  */
+/** The depth slider's budgets over THIS module's declared constants (P123) — one base, restated nowhere. */
+export const depthBudgets = (depth) => budgetsFor(depth, { corrections: MAX_CORRECTIONS, witnessAsks: WITNESS_ASKS_PER_PART, pieceWitnessAsks: PIECE_WITNESS_ASKS, snipRounds: 1, revisionRounds: REVISION_ROUNDS, revisionAsks: REVISION_ASKS, continuations: 1, hunts: 1, linkChecks: LINK_CHECKS_PER_PART });
+
 export async function runHolonicTask({
   task,
   chunks = [],
@@ -2602,7 +2815,13 @@ export async function runHolonicTask({
   foldedRefs = [],
   maxParts = MAX_PARTS,
   passagesPerPart = PASSAGES_PER_PART,
-  maxCorrections = MAX_CORRECTIONS,
+  // null → the depth slider's rung decides (P123); an explicit number wins,
+  // so every existing caller and pin is byte-identical to before.
+  maxCorrections = null,
+  // THE THINKING-DEPTH SLIDER (P123, depth.js): 0 quick · 1 plain (today's
+  // budgets) · 2 careful · 3 deep. More passes over the same bounded
+  // material, never more context.
+  depth = 1,
   // Long-form (P108): a caller writing a PIECE rather than answering a
   // question declares a larger draft budget per part and a plan budget
   // sized to its section count. Defaults are byte-identical to before.
@@ -2620,8 +2839,14 @@ export async function runHolonicTask({
   makeNameResolver = null,
   makeRelationReader = null,
   witnessSentences = null,
-  witnessAsks = WITNESS_ASKS_PER_PART,
+  witnessAsks = null,
   checkLink = null,
+  // The durable corrections this instance carries (P126, learned.js): entries
+  // in the chain's own shape. Handed down to every part, and what each part
+  // learns comes back out on `learned` for the caller to append and persist.
+  learnedStore = [],
+  // The conversation's own record (P128), threaded to every part.
+  transcript = [],
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -2671,6 +2896,11 @@ export async function runHolonicTask({
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
+  // The rung's budgets, from this module's own declared constants as the
+  // base (depth.js restates nothing). An explicit caller value wins.
+  const budgets = depthBudgets(depth);
+  maxCorrections = maxCorrections ?? budgets.corrections;
+  witnessAsks = witnessAsks ?? budgets.witnessAsks;
 
   // The plan exists as inserts on an append-only log; everything after this
   // point reads the FOLD of the log, never the parse. The log is the
@@ -2791,6 +3021,13 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
+      learnedStore,
+      transcript,
+      pieceWitnessAsks: budgets.pieceWitnessAsks,
+      snipRounds: budgets.snipRounds,
+      continuations: budgets.continuations,
+      hunts: budgets.hunts,
+      linkBudget: budgets.linkChecks,
       executeMaxTokens,
       makeNameResolver,
       makeRelationReader,
@@ -2860,6 +3097,30 @@ export async function runHolonicTask({
     sections = edited.sections.map((e) => ({ ...e._section, text: e.text, edited: true }));
   }
 
+  // THE PIECE REVISES ITSELF (P116): once every section is written, edited
+  // and checked, each sentence is read again against the WHOLE piece's
+  // material and record — a sentence whose ground rose is re-cited, a
+  // sentence a later reading denies is rewritten once, and a rewrite lands
+  // only if it grounds. Bounded asks, bounded rounds, every act returned.
+  let revisions = [];
+  if (piece && sections.length > 1 && piece.revise !== false && budgets.revisionRounds > 0) {
+    try {
+      const seen = new Set();
+      const allPassages = sections.flatMap((s) => s.passages ?? []).filter((p) => p?.ref && !seen.has(p.ref) && seen.add(p.ref));
+      const reader = allPassages.length && makeRelationReader ? makeRelationReader(allPassages, { pool: allPassages }) : null;
+      const readAgainst = (sent) => (reader ? (reader.read(sent)?.claims ?? []) : []);
+      const notes = hyperlexicon && sharedHyperlexiconLog && hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(sharedHyperlexiconLog) : [];
+      const disputes = hyperlexicon?.disputesOf && sharedHyperlexiconLog ? hyperlexicon.disputesOf(sharedHyperlexiconLog) : null;
+      const index = piece.referentIndexFor && allPassages.length ? piece.referentIndexFor(allPassages) : null;
+      const ctx = { notes, disputes, derived: hyperlexiconDerived ?? [], passages: allPassages, resolveName: index ? (n) => index.resolve(n) : null };
+      // a claim knows its sentence by the sentence that carries its first end and its label
+      const anchor = (text, claims) => { const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean); const f = (t) => String(t ?? "").toLowerCase(); return (claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => f(x).includes(f(c.end1 ?? c.subject).split(" ")[0] ?? "") && f(x).includes(f(c.label ?? c.verb))) ?? null })); };
+      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
+      revisions = rv.revisions;
+      sections = rv.sections.map((e) => ({ ...e._s, text: e.text, ...(e.recited ? { recited: e.recited } : {}) }));
+    } catch (e) { revisions = [{ kind: "revision-error", because: String(e?.message ?? e) }]; }
+  }
+
   const output = sections
     .map((s) => {
       // An empty part is a typed gap (recorded above); the assembly says so
@@ -2884,5 +3145,29 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits } : {}), task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
+    ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
+    // What this whole turn learned (P126), deduped by content identity across
+    // its parts — the caller appends these to its durable store, and the room
+    // makes them permanent (matrix.js seals them into the same hash-linked
+    // chain the chat rides).
+    learned: (() => { const seen = new Set(); const out = []; for (const sec of sections) for (const e of sec.learned ?? []) { if (seen.has(e.id)) continue; seen.add(e.id); out.push(e); } return out; })(),
+    // The correction and the premise check, summed across the turn's parts —
+    // a flat turn has one, a decomposed turn several, and the caller reads
+    // one shape either way. Absent (no material, nothing checked) exactly as
+    // before this existed.
+    ...(sections.some((x) => x.correction) ? { correction: (() => {
+      const cs = sections.map((x) => x.correction).filter(Boolean);
+      const sum = (f) => cs.reduce((a, c) => a + (f(c) ?? 0), 0);
+      return { parts: cs.length, snips: sum((c) => c.snips), atoms: sum((c) => c.atoms), supported: sum((c) => c.supported), flagged: sum((c) => c.flagged), asked: sum((c) => c.asked), after: { flagged: sum((c) => c.after?.flagged), supported: sum((c) => c.after?.supported), atoms: sum((c) => c.after?.atoms) }, outcomes: cs.flatMap((c) => c.outcomes ?? []), flags: cs.flatMap((c) => c.flags ?? []) };
+    })() } : {}),
+    ...(sections.some((x) => x.premises) ? { premises: (() => {
+      const ps = sections.map((x) => x.premises).filter(Boolean);
+      const sum = (f) => ps.reduce((a, c) => a + (f(c) ?? 0), 0);
+      return { checked: sum((c) => c.checked), unverified: sum((c) => c.unverified), contradicted: sum((c) => c.contradicted), rows: ps.flatMap((c) => c.rows ?? []) };
+    })() } : {}),
+    ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
+    ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
+    ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
+    ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
+    task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

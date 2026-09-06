@@ -84,7 +84,7 @@ import { checkGrounding, unsupportedClaims, extractCheckableAtoms } from "./grou
 
 import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
-import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT } from "./holon.js";
+import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets } from "./holon.js";
 
 import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel } from "./model-routing.js";
 
@@ -149,7 +149,11 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // nothing backs, and the reader's identity.
 import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource, inScope, headingsOf } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
+import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 import { editLine } from "./piece-edit.js";
+import { revisionLine } from "./piece-revise.js";
+import { exportPiece } from "./piece-export.js";
+import { groundOf, groundLine } from "./ground-ladder.js";
 import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
@@ -273,6 +277,7 @@ import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
+import { depthLine, DEPTH_NAMES } from "./depth.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
 // metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
 // same "one implementation, injected everywhere" posture.
@@ -412,7 +417,7 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
       updateSourceMeta(name, { readCursor: r.cursor, readRecipe: recipe, readMs: r.ms, readHeard: r.heard, readTurnedAway: r.turnedAway.length });
       console.info(`read on arrival: ${name} — ${r.read} passage(s) in ${r.ms} ms, ${r.heard} note(s) heard, ${r.turnedAway.length} turned away${r.resumed ? " (resumed)" : ""}`);
     }
-    if (state.ready) $("status").textContent = `ready · ${state.model}`;
+    if (state.ready) $("status").textContent = readyLine();
   }).catch((e) => console.warn(`read on arrival: ${name}:`, e?.message ?? e));
   return readQueue;
 }
@@ -978,6 +983,14 @@ const state = {
   grounded: localStorage.getItem("fold-marks") !== "off",
 
   /**
+   * The thinking-depth slider (P123, depth.js): 0 quick · 1 plain (today's
+   * budgets) · 2 careful · 3 deep. Deeper is more bounded passes over the
+   * same material — never more context. Set in the model menu; read per
+   * turn; carried on the record and the export.
+   */
+  depth: (() => { const n = Number(localStorage.getItem("fold-depth")); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1; })(),
+
+  /**
    * The pace ledger and the model's declared window. The ledger is fed by
    * Ollama's own telemetry (real tokens, real durations) on every completed
    * call; the window comes from /api/show at connect. Both are the ground
@@ -1065,6 +1078,8 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  huntUrls: {},
+  lastPiece: null,
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
   /**
@@ -1367,7 +1382,7 @@ async function connect() {
   } catch {
     // No window declared is a gap, not a default — nothing will be trimmed.
   }
-  $("status").textContent = `ready · ${state.model}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`;
+  $("status").textContent = readyLine();
   $("send").disabled = false;
   // Connected is the moment the controls stop earning their space, and the
   // moment the chat is what you want to be looking at.
@@ -1691,7 +1706,7 @@ function usageTurn(question, usage, { what = "usage" } = {}) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2426,7 +2441,8 @@ async function runBuildOnce(entry) {
   renderBuilds(entry.n);
   return { ok: outcome.code === 0 && !outcome.timedOut, outcome, summary: autoRunSummary(outcome) };
 }
-const CODE_PIECE_SEED_TOKENS = 1200;
+const CODE_PIECE_BODY_TOKENS = 700;   // one function body per ask (P117)
+const CODE_PIECE_FIXES = 1;           // one fix per failing function, named by the traceback
 async function codePieceTurn(cp, typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
@@ -2436,58 +2452,157 @@ async function codePieceTurn(cp, typed) {
   const say = (l) => { lines.push(l); body.textContent = lines.join("\n"); };
   const sentCalls = [];
   const call = async (messages, opts = {}) => { sentCalls.push({ n: sentCalls.length + 1, messages }); return complete(messages, { ...opts, model: state.model }); };
-  // 1. the plan: one feature per part, in build order — the shape held by the decoder's grammar
-  const task = `Write a ${cp.lang} program that ${cp.spec}. Plan the features to build, one per part, in the order they must be built.`;
-  let planRaw = "";
-  try { planRaw = await call([{ role: "system", content: PLAN_SYSTEM_PROMPT }, { role: "user", content: buildPlanPrompt(task, cp.parts) }], { maxTokens: PLAN_MAX_TOKENS, json: PLAN_SCHEMA }); } catch {}
-  const plan = parsePlan(planRaw, task, cp.parts);
-  const parts = plan.parts.length >= 2 ? plan.parts : cp.features.map((f, i) => ({ id: `p${i + 1}`, label: f, description: f }));
-  say(`plan: ${parts.length} feature(s) — ${parts.map((p) => p.label).join(" · ")}${plan.degraded ? " (the plan did not parse; the spec's own clauses are the parts)" : ""}`);
-  mirrorTermRecord("codepiece-plan", { lang: cp.lang, spec: cp.spec, parts: parts.map((p) => p.label), via: "chat" });
-  // 2. the seed: the first feature alone, as one fenced program
-  const seedAsk = `Write a ${cp.lang} program that does only this for now: ${parts[0].label} — ${parts[0].description}. It will grow feature by feature; keep it small and runnable, with a main entry that runs when the file runs. Reply with one fenced \`\`\`${cp.lang} block and nothing else.`;
-  let seedReply = "";
-  try { seedReply = await call([{ role: "user", content: seedAsk }], { maxTokens: CODE_PIECE_SEED_TOKENS }); } catch (e) { say(`the seed could not be asked for: ${e?.message ?? e}`); releaseBusy(); return; }
-  const seg = parseSegments(seedReply).find((x) => x.type === "code" && x.code?.trim());
-  if (!seg) { say("the seed reply carried no code block — nothing to build on (typed gap, not a retry)."); mirrorTermRecord("codepiece-done", { lang: cp.lang, gap: "no_seed", via: "chat" }); renderFold(node, { sent: sentCalls }); releaseBusy(); return; }
-  seg.lang = seg.lang || cp.lang;
-  publishBuild(seg, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
+  if (!CODE_RUNTIMES.includes(cp.lang)) { say(`no skeleton for ${cp.lang} yet — the code piece builds ${CODE_RUNTIMES.join(" and ")} programs; the ordinary /run and /fold doors still take ${cp.lang}.`); releaseBusy(); return; }
+  // NUL → SIG → INS → CON → SYN, all mechanical: the spec's clauses in their own order are the dependency order; names off the clauses; the skeleton born as a build with a pipeline main.
+  const sk = skeletonFor(cp.lang, cp.spec, cp.features);
+  publishBuild({ type: "code", lang: cp.lang, code: sk.code }, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
   const entry = state.builds.at(-1);
   const n = entry.n;
-  const runs = [];
+  say(`fold ${n} born as a skeleton, no model: ${sk.names.length} function(s) — ${sk.names.join(" → ")} — wired in order into main (${sk.code.length} chars, the instrument's)`);
+  mirrorTermRecord("codepiece-plan", { lang: cp.lang, spec: cp.spec, parts: sk.names, via: "chat" });
   let r0 = await runBuildOnce(entry);
-  runs.push({ part: parts[0].label, ...r0 });
-  say(`fold ${n} born with "${parts[0].label}" — ${r0.summary ?? r0.skipped}`);
-  // 3. every later feature: a patch through the complaint door, then the run as the witness, one repair on a failed run
-  for (const p of parts.slice(1)) {
-    await foldTurn(n, `Add ${p.label}: ${p.description}`, `add ${p.label}`, { quiet: true, autoRun: false });
-    let r = await runBuildOnce(entry);
-    if (r.ok === false) {
-      const last = (r.outcome?.stderr || "").trim().split("\n").filter(Boolean).pop() ?? "it failed";
-      await foldTurn(n, `Running it failed with: ${last.slice(0, 160)}. Fix that.`, `fix the run`, { quiet: true, autoRun: false });
-      r = await runBuildOnce(entry);
-      r.repaired = true;
+  say(`skeleton run: ${r0.summary ?? r0.skipped} (the first stub refusing is the expected witness)`);
+  // SEG → EVA → REC, one function at a time: the snip is all the model sees; the run is the witness; the traceback names what to fix.
+  let refusals = 0, fixes = 0, okRuns = 0, helpers = 0;
+  const filledNames = [];
+  let witnessed = {};
+  const clauseOf = new Map(sk.names.map((nm, i) => [nm, cp.features[i]]));
+  const land = (code, reason) => { entry.log = buildLog.reviseBuild(entry.log, { code, reason }); entry.cursor = null; mirrorBuild(entry, entry.log.entries.length - 1); persistBuilds(); renderBuilds(entry.n); };
+  const fillOne = async (name, clause, { note = "", prev = null, next = null } = {}) => {
+    const cur = buildFold(entry, null)?.code ?? "";
+    const snip = snipFor(cp.lang, cur, name, clause, { previousClause: prev ? clauseOf.get(prev) ?? null : null, previousValue: prev ? witnessed[prev] ?? null : null, nextClause: next ? clauseOf.get(next) ?? null : null });
+    if (!snip) return { refused: { type: "no_region" } };
+    const reply = await call([{ role: "user", content: snip.ask + note }], { maxTokens: CODE_PIECE_BODY_TOKENS });
+    const sp = spliceFunction(cp.lang, cur, name, reply);
+    if (sp.refused) return { refused: sp.refused };
+    land(sp.code, `${name}: ${note ? "fix" : "body"} from the model, spliced by the instrument`);
+    if (!filledNames.includes(name)) filledNames.push(name);
+    return { refused: null, chars: sp.modelChars };
+  };
+  const runAndWitness = async () => { const r = await runBuildOnce(entry); witnessed = { ...witnessed, ...stepWitnesses(`${r.outcome?.stdout ?? ""}\n${r.outcome?.stderr ?? ""}`) }; return r; };
+  // REC in dependency order: a run naming a function that fails is asked once for that function; a run naming an UNDEFINED name gets a stub for it (INS) and that stub is filled next (SEG) — the program grows the dependency the model reached for, bounded.
+  const CODE_PIECE_HELPERS = 2;
+  const repair = async (name, r) => {
+    let fixed = false;
+    // Mechanical repairs first, the runtime's own witness deciding, no model:
+    // a near-miss name the traceback itself corrects; an undefined name an
+    // imported module carries (the sandbox is asked which). Each is landed
+    // as its own version with its reason.
+    for (let m = 0; m < 2 && r.ok === false; m += 1) {
+      const stderr = r.outcome?.stderr ?? "";
+      const cur = buildFold(entry, null)?.code ?? "";
+      const dym = didYouMean(stderr);
+      if (dym) { const rn = renameCalls(cur, dym.wrong, dym.right); if (rn.count) { land(rn.code, `${dym.wrong} → ${dym.right}: the traceback's own correction, ${rn.count} call site(s), no model`); say(`${name} called ${dym.wrong}; the run said it meant ${dym.right} — renamed ${rn.count} call(s), no model`); r = await runAndWitness(); continue; } }
+      const missingName = (stderr.match(/NameError: name '([A-Za-z_]\w*)' is not defined/) ?? [])[1] ?? null;
+      if (missingName && cp.lang === "python") {
+        const mods = importedModules(cp.lang, cur);
+        let found = null;
+        try { const probe = await runSandboxed("python", moduleProbe(cp.lang, missingName, mods)); found = (probe.stdout ?? "").trim().split(",").filter(Boolean)[0] ?? null; } catch { found = null; }
+        if (found) { const q = qualifyCalls(cur, missingName, found); if (q.count) { land(q.code, `${missingName} → ${found}.${missingName}: the sandbox found it on an imported module, ${q.count} call site(s), no model`); say(`${name} called ${missingName} bare; the sandbox found it on ${found} — qualified ${q.count} call(s), no model`); r = await runAndWitness(); continue; } }
+      }
+      break;
     }
-    runs.push({ part: p.label, ...r });
-    say(`"${p.label}" landed — ${r.summary ?? r.skipped}${r.repaired ? " (after one repair)" : ""}`);
-    mirrorTermRecord("codepiece-part", { fold: n, part: p.label, ok: r.ok ?? null, repaired: Boolean(r.repaired), via: "chat" });
+    for (let k = 0; k < CODE_PIECE_FIXES && r.ok === false; k += 1) {
+      const stderr = r.outcome?.stderr ?? "";
+      const missing = stubMissing(cp.lang, buildFold(entry, null)?.code ?? "", stderr);
+      if (missing.name && helpers < CODE_PIECE_HELPERS) {
+        helpers += 1;
+        land(missing.code, `${missing.name}: stub added — the run named it as undefined (dependency, INS)`);
+        clauseOf.set(missing.name, `is the helper that ${name} calls as ${missing.name}`);
+        say(`${name} reached for ${missing.name}, which did not exist — stubbed it in dependency order and asking for its body`);
+        const f = await fillOne(missing.name, clauseOf.get(missing.name), { prev: null, next: null });
+        if (f.refused) break;
+        fixes += 1;
+        r = await runAndWitness();
+        continue;
+      }
+      if (failingFunction(cp.lang, stderr, [...sk.names, ...filledNames]) !== name) break;
+      const last = stderr.trim().split("\n").filter(Boolean).pop() ?? "it failed";
+      const f = await fillOne(name, clauseOf.get(name), { note: `\n\nWhen run, it failed with: ${last.slice(0, 160)}` });
+      if (f.refused) break;
+      fixes += 1;
+      r = await runAndWitness();
+    }
+    if (r.ok !== false) fixed = true;
+    return { r, fixed };
+  };
+  for (const [i, name] of sk.names.entries()) {
+    const clause = cp.features[i];
+    const filled = await fillOne(name, clause, { prev: sk.names[i - 1] ?? null, next: sk.names[i + 1] ?? null });
+    if (filled.refused) { refusals += 1; say(`${name}: the reply was not that function (${filled.refused.type}) — stub kept`); mirrorTermRecord("codepiece-part", { fold: n, part: name, refused: filled.refused.type, via: "chat" }); continue; }
+    let r = await runAndWitness();
+    let fixed = false;
+    // DEF, witnessed: a step that returned nothing when a next step consumes
+    // `previous` broke the pipeline's contract — the run's own witness says
+    // so ("NoneType: None"), and the mouth is told that fact once.
+    if (i < sk.names.length - 1 && /^NoneType: None$/.test(witnessed[name] ?? "")) {
+      const f = await fillOne(name, clause, { prev: sk.names[i - 1] ?? null, next: sk.names[i + 1], note: `\n\nWhen run, ${name} returned None, but the next step needs its result as \`previous\`. Return the value instead of only printing it.` });
+      if (!f.refused) { fixes += 1; r = await runAndWitness(); say(`${name} returned nothing; told so, asked once — now ${witnessed[name] ?? "unwitnessed"}`); }
+    }
+    const stubNext = r.ok === false && i < sk.names.length - 1 && new RegExp(`NotImplementedError[^\\n]*${sk.names[i + 1]}|not implemented: ${sk.names[i + 1]}`).test(r.outcome?.stderr ?? "");
+    if (r.ok === false && !stubNext) ({ r, fixed } = await repair(name, r));
+    if (r.ok) okRuns += 1;
+    const w = witnessed[name] ? ` · witnessed: ${witnessed[name].slice(0, 80)}` : "";
+    say(`${name} (${filled.chars} chars from the model) — ${r.summary ?? r.skipped}${fixed ? " (after repair)" : ""}${stubNext ? " — the next stub refusing, as expected" : ""}${w}`);
+    mirrorTermRecord("codepiece-part", { fold: n, part: name, ok: r.ok ?? null, fixed, chars: filled.chars, witnessed: witnessed[name] ?? null, via: "chat" });
   }
-  // 4. coverage and the editor's finding, both mechanical
+  const final = await runAndWitness();
   const code = buildFold(entry, null)?.code ?? "";
-  const decls = cp.lang === "js" ? declaredReferents(code) : [...code.matchAll(/^(?:def|class|function|const|let|var)\s+([A-Za-z_][\w]*)/gm)].map((m) => ({ name: m[1] }));
-  const names = decls.map((d) => d.name.toLowerCase());
-  const covered = parts.filter((p) => tokenize(p.label).some((t) => t.length > 3 && names.some((nm) => nm.includes(t))));
-  const dupes = [...names.reduce((m, nm) => m.set(nm, (m.get(nm) ?? 0) + 1), new Map()).entries()].filter(([, c]) => c > 1).map(([nm]) => nm);
-  if (dupes.length) await foldTurn(n, `The name${dupes.length > 1 ? "s" : ""} ${dupes.join(", ")} ${dupes.length > 1 ? "are" : "is"} declared more than once. Keep one declaration of each.`, `edit: duplicate declarations`, { quiet: true, autoRun: false });
-  const final = await runBuildOnce(entry);
-  const okRuns = runs.filter((x) => x.ok).length;
-  say(`done: fold ${n} · ${parts.length} feature(s) · ${okRuns}/${runs.length} landings ran clean · final run ${final.summary ?? final.skipped} · ${decls.length} declared name(s), ${covered.length}/${parts.length} feature(s) named in the code${dupes.length ? ` · ${dupes.length} duplicate declaration(s) sent back to the fold` : ""}`);
-  mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: parts.length, okRuns, finalOk: final.ok ?? null, declared: decls.length, covered: covered.length, dupes: dupes.length, via: "chat" });
+  const modelChars = modelRegions(cp.lang, code, filledNames);
+  const share = modelShare(modelChars, code.length);
+  say(`done: fold ${n} · ${sk.names.length} function(s) + ${helpers} helper(s) the model reached for, ${refusals} refused · final run ${final.summary ?? final.skipped} · the model wrote ${modelChars} of ${code.length} chars (${Math.round((share ?? 0) * 100)}%); the instrument wrote the rest · ${fixes} fix(es)`);
+  mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: sk.names.length, helpers, refusals, fixes, finalOk: final.ok ?? null, modelChars, totalChars: code.length, modelShare: share, witnessed, via: "chat" });
   state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
+}
+
+// exportLastPiece — the two faces of the last piece (P121), built from the
+// kept sections: every sentence placed again by the ladder, its verbatim
+// spans sliced from the passages, the markdown with footnotes and text-
+// fragment links, the html with data-anchors, the json sidecar — handed to
+// the explore server to keep under record/pieces/, the links shown.
+async function exportLastPiece(node = null) {
+  const piece = state.lastPiece;
+  if (!piece) return null;
+  const passages = new Map();
+  for (const s of piece.sections) for (const p of s.passages ?? []) if (p?.ref) passages.set(p.ref, { text: p.text ?? "" });
+  for (const [name, text] of Object.entries(state.sources)) if (!passages.has(name)) passages.set(name, { text });
+  const fold = (t) => String(t ?? "").toLowerCase();
+  const sections = piece.sections.map((s) => {
+    // The engine's splitter returns { text, offset } rows; the strings are what the ladder and the export read.
+    const sents = engineSentences(String(s.text ?? "")).map((x) => String(x?.text ?? x ?? "").trim()).filter(Boolean);
+    const claims = (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => fold(x).includes(fold(c.end1 ?? c.subject).split(" ")[0] ?? "") && fold(x).includes(fold(c.label ?? c.verb))) ?? null }));
+    return { label: s.part?.label ?? s.label ?? "", snipCheck: s.piece?.snipCheck ?? null, sentences: sents.map((text) => {
+      const own = claims.filter((c) => c.sentence === text);
+      const wrow = (s.witness?.rows ?? []).find((r) => r.sentence === text) ?? null;
+      const g = piece.ground ? groundOf(text, { ...piece.ground, claims: own, witness: wrow, model: piece.model }) : { tier: "self", cell: "self:model", addresses: [], phrase: piece.model ?? "the model" };
+      return { text, ground: { ...g, claims: own, decider: wrow?.decider ?? null } };
+    }) };
+  });
+  const out = exportPiece({ title: piece.title, ask: piece.ask, model: piece.model, sections, passages, urls: piece.urls, prompts: piece.prompts, generatedAt: piece.generatedAt, stats: `${piece.depthLine ? `${piece.depthLine} ` : ""}Tally: ${Object.entries(out0Tally(sections)).map(([k, v]) => `${v} ${k}`).join(", ")}.` });
+  const slug = String(piece.title).slice(0, 40);
+  let files = null;
+  try {
+    const r = await fetch(`${EXPLORE_BASE}/api/piece-export`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slug, md: out.md, html: out.html, json: out.json }) });
+    if (r.ok) files = (await r.json()).files;
+  } catch {}
+  const line = files ? `exported — markdown ${pageFaceUrl(EXPLORE_BASE, files.md)} · html ${pageFaceUrl(EXPLORE_BASE, files.html)} · json ${pageFaceUrl(EXPLORE_BASE, files.json)} · ${out.notes} note(s), ${JSON.stringify(out.tally)}` : `export built (${out.md.length} chars md) — the explore server is not reachable, nothing kept`;
+  if (node) { const p = document.createElement("p"); p.className = "piece-links"; if (files) { for (const [k, v] of Object.entries(files)) { const a = document.createElement("a"); a.href = pageFaceUrl(EXPLORE_BASE, v); a.target = "_blank"; a.rel = "noopener"; a.textContent = `⬇ ${k}`; a.style.marginRight = "0.8em"; p.append(a); } } else p.textContent = line; node.querySelector(".body")?.append(p); }
+  mirrorTermRecord("piece-export-built", { title: piece.title, files, tally: out.tally, notes: out.notes, via: "chat" });
+  return { files, out, line };
+}
+const out0Tally = (sections) => { const t = {}; for (const s of sections) for (const x of s.sentences) t[x.ground?.tier ?? "?"] = (t[x.ground?.tier ?? "?"] ?? 0) + 1; return t; };
+function exportTurn(typed) {
+  if (!state.lastPiece) return usageTurn(typed, "no piece to export yet — ask for one (\"write me a 20 page essay on …\") and it is exported when it lands; `/export` writes the last one again.");
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  node.querySelector(".who").textContent = "export";
+  node.querySelector(".body").textContent = "exporting the last piece…";
+  exportLastPiece(node).then((r) => { node.querySelector(".body").textContent = r?.line ?? "export failed"; }).catch((e) => { node.querySelector(".body").textContent = `export failed: ${e?.message ?? e}`; });
+  return Promise.resolve();
 }
 
 // longFormTurn — the same holonic turn every checked answer runs (plan,
@@ -2802,7 +2917,7 @@ async function runTurn(runCmd, typed) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -2961,7 +3076,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       const blob = await pickAudioFile();
       if (!blob) {
         body.textContent = "no file selected.";
-        $("status").textContent = `ready · ${state.model}`;
+        $("status").textContent = readyLine();
         releaseBusy();
         return;
       }
@@ -3010,7 +3125,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     } catch (e) {
       body.textContent = `transcription failed: ${e.message}`;
     }
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     releaseBusy();
     return;
   }
@@ -3066,7 +3181,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
   } catch (e) {
     body.textContent = `transcription failed: ${e.message}`;
   }
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3241,7 +3356,7 @@ async function mechanicalTurn(question, kind) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3288,7 +3403,7 @@ async function recallTurn(question) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3335,7 +3450,7 @@ async function chartTurn(question) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
@@ -3410,7 +3525,7 @@ async function arithmeticTurn(question, found) {
 
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3593,6 +3708,7 @@ async function send(question) {
   if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
   const essayCmd = question.match(/^\/essay\b\s*(.*)$/s);
   if (essayCmd) return essayTurn(essayCmd[1] ?? "", question);
+  if (/^\/export\b/.test(question)) return exportTurn(question);
 
   const rankeCmd = question.match(/^\/ranke\b\s*(.*)$/s);
   if (rankeCmd) return rankeTurn(rankeCmd[1] ?? "", question);
@@ -3806,7 +3922,7 @@ async function ingestTurn(repo, typed) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { fold });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -3892,7 +4008,7 @@ async function maybeSeedBuild(question) {
   }
 
   if (!seed) {
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     return false;
   }
 
@@ -3922,7 +4038,7 @@ async function maybeSeedBuild(question) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
   return true;
 }
@@ -4339,7 +4455,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
 
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -4503,7 +4619,7 @@ async function boundTurn(question, typed) {
   await refreshSummary(fold, arrivals, sentCalls);
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -4621,7 +4737,7 @@ async function reflectTurn(question, typed) {
   await refreshSummary(fold, arrivals, sentCalls);
   renderFold(node, { sent: sentCalls });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -4977,7 +5093,7 @@ async function twoPassTurn(question) {
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { sent });
   renderThreads();
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -5145,9 +5261,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // said. The sources' own headings become the planner's facts.
   let planFacts = null;
   let scopeNote = null;
+  let inScopeNames = null;
   if (opts.longForm) {
     const topic = opts.longForm.topic;
-    const inScopeNames = new Set(Object.entries(state.sources).filter(([name, text]) => !isCodeSource(name) && inScope(topic, text)).map(([name]) => name));
+    inScopeNames = new Set(Object.entries(state.sources).filter(([name, text]) => !isCodeSource(name) && inScope(topic, text)).map(([name]) => name));
     const before = live.length;
     live = live.filter((c) => inScopeNames.has(c.source));
     // `show` is declared further down this function; the scope line is
@@ -5449,6 +5566,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       }
     }
     live = liveChunks();
+    // The named-source block re-reads the WHOLE pool (a page just attached
+    // must join it), which silently undid a piece's scope — measured, run
+    // 8: seven `holon.js` passages and two of the plan of record reached
+    // sections about a television series. The scope is re-applied here,
+    // and a page this very ask named is in scope by construction.
+    if (inScopeNames) {
+      for (const name of Object.keys(state.sources)) if (name.startsWith("web:") && !inScopeNames.has(name) && !isCodeSource(name) && inScope(opts.longForm.topic, state.sources[name] ?? "")) inScopeNames.add(name);
+      live = live.filter((c) => inScopeNames.has(c.source));
+    }
   }
 
   // Every messages array actually sent to the model this turn, verbatim —
@@ -5597,6 +5723,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           stop: preflight.hunt.stop,
         });
       }
+      for (const pg of preflight.pages ?? []) if (pg?.name && pg.url) state.huntUrls[pg.name] = pg.url;
       if (preflight.chunks.length) {
         // Long-form UNIONS what was found with what is attached; an ordinary
         // preflight only ever runs with nothing attached, so `live` is empty
@@ -5976,7 +6103,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 state.summary = advanceSummaryFold(state.summary, foldLine);
                 renderFold(node, { fold: foldLine, reasoning });
                 renderThreads();
-                $("status").textContent = `ready · ${state.model}`;
+                $("status").textContent = readyLine();
                 releaseBusy();
                 return;
               }
@@ -5999,6 +6126,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
+      depth: state.depth,
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
       // from. Empty unless the seek actually bound something, so a turn
@@ -6091,7 +6219,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       ...(opts.maxParts ? { maxParts: opts.maxParts } : {}),
       ...(opts.executeMaxTokens ? { executeMaxTokens: opts.executeMaxTokens } : {}),
       ...(opts.planMaxTokens ? { planMaxTokens: opts.planMaxTokens } : {}),
-      ...(opts.piece ? { piece: opts.piece } : {}),
+      ...(opts.piece ? { piece: { ...opts.piece, model: turnModel } } : {}),
       ...(planFacts ? { planFacts } : {}),
       onProgress: (phase, part, info) => {
         if (phase === "plan") {
@@ -6221,7 +6349,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     state.summary = advanceSummaryFold(state.summary, fold);
     renderFold(node, { sent: sentCalls });
     renderThreads();
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     state.busy = false;
     $("send").disabled = false;
     drainQueue();
@@ -6294,6 +6422,20 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // the sentence witness's rows, read by renderAnswer's badge pass by sentence text
   state.lastAsked = typeof task === "string" ? task : (state.lastAsked ?? "");
   state.lastWitness = result.sections.flatMap((s) => s.witness?.rows ?? []);
+  // The whole cube, for the ground ladder (P115): every section's claims,
+  // passages and witness rows, the ledger's notes, the derived facts and the
+  // live disputes, plus the turn's model — so each sentence is placed on
+  // its highest rung when it is drawn.
+  state.lastGround = (() => {
+    try {
+      const claims = result.sections.flatMap((s) => s.relations?.claims ?? []);
+      const passages = result.sections.flatMap((s) => s.passages ?? []);
+      const notes = state.hyperlexiconLog && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : [];
+      const disputes = state.hyperlexiconLog && hyperlexiconFor.disputesOf ? hyperlexiconFor.disputesOf(state.hyperlexiconLog) : null;
+      const index = passages.length ? referentIndexFor(passages) : null;
+      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: turnModel };
+    } catch (e) { console.warn("ground ladder:", e?.message ?? e); return null; }
+  })();
   // The instruction is the model's own plan — task + plan parts, mechanically
   // assembled. It goes into the build log's PROPOSE entries (build-log.js)
   // so the code is always projected from the instruction that produced it.
@@ -6417,19 +6559,36 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
     const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
     for (const e of result.edits ?? []) show(`edited — ${editLine(e)}`);
+    for (const r of result.revisions ?? []) show(r.kind === "revision-error" ? `revision pass failed: ${r.because}` : revisionLine(r));
     const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    // THE PIECE, KEPT AND EXPORTED (P121): the sections with their claims,
+    // passages and witness rows, the addresses' urls, the prompts — enough
+    // to place every sentence again and write the two faces.
+    try {
+      const prompts = {};
+      for (const c of sentCalls) { const u = (c.messages ?? []).find((x) => x.role === "user")?.content ?? ""; const lab = u.match(/^Write this part: ([^.]+)\./); if (lab && !prompts[lab[1]]) prompts[lab[1]] = (c.messages ?? []).map((x) => `[${x.role}]\n${x.content}`).join("\n\n"); }
+      const urls = {};
+      for (const [name, prov] of Object.entries(state.provenance ?? {})) if (prov?.fields?.url) urls[name] = prov.fields.url;
+      Object.assign(urls, state.huntUrls ?? {});
+      state.lastPiece = { title: `${opts.longForm.topic} — ${opts.longForm.pages}-page ${opts.longForm.kind ?? "piece"} asked of The Fold`, ask: typed, model: turnModel, sections: result.sections ?? [], urls, prompts, ground: state.lastGround, depth: result.depth ?? state.depth, depthLine: result.depthLine ?? null, generatedAt: new Date().toISOString() };
+      exportLastPiece(node).catch((e) => console.warn("piece export:", e?.message ?? e));
+    } catch (e) { console.warn("piece keep:", e?.message ?? e); }
     mirrorTermRecord("longform-done", {
+      depth: result.depth ?? state.depth,
       topic: opts.longForm.topic, pages: opts.longForm.pages, sections: (result.sections ?? []).length, chars: bodyText.length, words: bodyText.split(/\s+/).filter(Boolean).length,
       unbacked: (result.unbacked ?? []).length, unsupported: (result.unsupported ?? []).length,
       // P110's own numbers: words per section, obligation coverage, re-asks, meta-talk cut, hunts.
+      revisions: Object.fromEntries((result.revisions ?? []).map((r) => r.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       edits: (result.edits ?? []).length, editKinds: Object.fromEntries((result.edits ?? []).map((e) => e.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
+      // P122's own numbers: atoms checked against the snips, flagged before and after the one rewrite, rewrite outcomes, contradiction candidates.
+      snipCheck: (() => { const sc = secs.map((x) => x.snipCheck).filter(Boolean); const sum = (f) => sc.reduce((a, x) => a + (f(x) ?? 0), 0); const oc = {}; for (const x of sc) for (const o of x.outcomes ?? []) oc[o.outcome] = (oc[o.outcome] ?? 0) + 1; return { sections: sc.length, snips: sum((x) => x.snips), atoms: sum((x) => x.atoms), supported: sum((x) => x.supported), flagged: sum((x) => x.flagged), flaggedAfter: sum((x) => x.after?.flagged), asked: sum((x) => (x.asked === true ? 1 : Number(x.asked) || 0)), outcomes: oc, contradictions: sum((x) => x.contradictions?.length) }; })(),
       via: "chat",
     });
   }
   renderThreads();
   if (!state.grounded) {
-    $("status").textContent = `ready · ${state.model}`;
+    $("status").textContent = readyLine();
     releaseBusy();
     return;
   }
@@ -6454,7 +6613,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   crownTestimony(node, relationClaims).catch((e) => {
     $("status").textContent = `testimony pass failed: ${e?.message ?? e}`;
   });
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
   releaseBusy();
 }
 
@@ -6744,7 +6903,7 @@ async function crownTestimony(node, relationClaims) {
       body.append(p);
     }
   }
-  $("status").textContent = `ready · ${state.model}`;
+  $("status").textContent = readyLine();
 }
 
 /** An address, exactly as source.js writes and checkCitations reads it. */
@@ -6949,6 +7108,25 @@ function taggedProse(text, offered, classified = []) {
       sent.onclick = () => groundHunt(entry.text);
     }
     sent.append(...refNodes(matched, known));
+    // THE GROUND, off the whole cube (P115): one chip per sentence naming
+    // the highest rung that placed it and its addresses — or, at the bottom,
+    // the model by name: a sentence nothing read places is the mouth's own
+    // testimony, and a witness is cited by its name.
+    if (state.lastGround) {
+      const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
+      // The sentence's own edges (classifySentences rides each relation claim
+      // onto the sentence that carries its subject and verb) are the claims
+      // the ladder reads — a claim knows its sentence only there.
+      const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
+      const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
+      sent.dataset.groundTier = g.tier;
+      const gc = document.createElement("button");
+      gc.className = `ground-chip tier-${g.tier}`;
+      gc.textContent = `◎ ${groundLine(g)}`;
+      gc.title = `${g.detail}${g.addresses?.length ? ` — ${g.addresses.join(", ")}` : ""}. Press to search the material.`;
+      gc.onclick = () => groundHunt(entry.text);
+      sent.append(gc);
+    }
 
     // Where this app attached the address itself, say so in the tag. A
     // citation the model wrote and one this app measured are different
@@ -8415,7 +8593,7 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
       rememberPageFace(sourceName, url, f.entry);
-      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, ...(f.entry.via ? { via: f.entry.via.gateway } : {}) });
+      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, name: sourceName, ...(f.entry.via ? { via: f.entry.via.gateway } : {}) });
       onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept${f.entry.via ? ` — via ${f.entry.via.gateway} (direct fetch ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       const arrived = huntMeter.arrive(hunt, text);
       if (arrived.settled) {
@@ -9170,7 +9348,7 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
         $("status").textContent = `checking claims online · ${i + 1}/${autorun.length}`;
         await run();
       }
-      $("status").textContent = `ready · ${state.model}`;
+      $("status").textContent = readyLine();
     })();
 }
 
@@ -10222,8 +10400,27 @@ renderBuilds();
 // and the boot path connects on its own when a model is reachable.
 $("model").onchange = () => {
   state.model = $("model").value;
-  if (state.ready) $("status").textContent = `ready · ${state.model}`;
+  if (state.ready) $("status").textContent = readyLine();
 };
+
+/** The status line: the model, and the depth when it is not the plain rung. */
+function readyLine() { return `ready · ${state.model}${state.depth !== 1 ? ` · depth ${state.depth}` : ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`; }
+/** The slider's legend, in plain words, from the budgets the rung would spend. */
+function renderDepth() {
+  const b = depthBudgets(state.depth);
+  const name = $("depth-name"); if (name) name.textContent = DEPTH_NAMES[b.level] ?? String(b.level);
+  const line = $("depth-line"); if (line) line.textContent = depthLine(b, { piece: true });
+}
+if ($("depth")) {
+  $("depth").value = String(state.depth);
+  renderDepth();
+  $("depth").oninput = () => {
+    state.depth = Number($("depth").value);
+    localStorage.setItem("fold-depth", String(state.depth));
+    renderDepth();
+    if (state.ready) $("status").textContent = readyLine();
+  };
+}
 
 // Material sent over from the Explore pane. The origin check is the whole
 // security model of a message listener — inbound "*" is never trusted, and
@@ -10948,7 +11145,7 @@ const syncChip = () => {
   const s = statusEl.textContent;
   syncModelPick();
   // Working is a fact about the model, so it shows on the model's own control.
-  const working = state.ready && s && !TRANSIENT.test(s) && !s.startsWith(`ready · ${state.model}`);
+  const working = state.ready && s && !TRANSIENT.test(s) && !s.startsWith(readyLine());
   $("model-pick").dataset.working = working ? "yes" : "no";
   const line = $("status-line");
   if (line) {

@@ -989,6 +989,8 @@ const state = {
    * turn; carried on the record and the export.
    */
   depth: (() => { const n = Number(localStorage.getItem("fold-depth")); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1; })(),
+  /** Whether the person has actually moved the slider. Unset, difficulty decides the rung (P130). */
+  depthSet: localStorage.getItem("fold-depth") != null,
 
   /**
    * The pace ledger and the model's declared window. The ledger is fed by
@@ -6126,7 +6128,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
-      depth: state.depth,
+      // null when the person has not moved the slider off its default, so
+      // strain decides the rung (P130); a deliberate setting is honoured.
+      depth: state.depthSet ? state.depth : null,
       // The arithmetic engine, so ordering and difference are computed rather
       // than asked of the mouth (P129).
       math: window.math,
@@ -10419,6 +10423,7 @@ if ($("depth")) {
   renderDepth();
   $("depth").oninput = () => {
     state.depth = Number($("depth").value);
+    state.depthSet = true;
     localStorage.setItem("fold-depth", String(state.depth));
     renderDepth();
     if (state.ready) $("status").textContent = readyLine();

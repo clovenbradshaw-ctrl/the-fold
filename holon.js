@@ -48,6 +48,7 @@ import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repe
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { checkComparison } from "./arithmetic.js";
 import { answerBeforeTheModel } from "./answerable.js";
+import { recruit, strainOf, substituted } from "./strain.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -1003,6 +1004,8 @@ export async function runPart({
   // hands the vendored mathjs, a test hands the package. Absent, nothing
   // below computes and the turn is byte-identical to before.
   math = null,
+  // What the person asked for on the slider, so strain is held inside it.
+  askedDepth = null,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1974,6 +1977,22 @@ export async function runPart({
   // as a fact to say — never posed to it as a sum to attempt. Measured (S77):
   // ten such probes, the ordering right twice, the arithmetic right zero
   // times. The values are the question's own; nothing is invented.
+  // S2 IS RECRUITED BY DIFFICULTY, NOT SPENT FLAT (P130). Every signal here
+  // is already paid for by work this turn does anyway; the person's slider is
+  // a floor and a ceiling on what strain may take.
+  const strain = strainOf({
+    question: task || question, passages: prosePassages.length ? prosePassages : passages,
+    premiseCheck, learnedInScope: learnedRows.length, parts: 1,
+  });
+  const recruited = recruit(strain, { asked: askedDepth });
+  // The checking that happens AFTER the draft is what strain actually buys:
+  // the witness asks and the correction rounds. An easy turn spends little
+  // and an argued one spends more, inside what the person asked for. The
+  // draft itself is unaffected — S1 always drafts.
+  const spend = depthBudgets(recruited.depth);
+  witnessAsks = spend.witnessAsks;
+  pieceWitnessAsks = spend.pieceWitnessAsks;
+  snipRounds = spend.snipRounds;
   const comparison = math ? checkComparison(task || question, { math }) : null;
   const comparisonLine = comparison && !comparison.gap ? `Worked out from the numbers in the question: ${comparison.sentence}` : "";
   const snipPrefix = piece
@@ -2645,6 +2664,11 @@ export async function runPart({
     const pr = cutProcessTalk(text, { materialText, splitSentences });
     if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
   }
+  // ATTRIBUTE SUBSTITUTION (P130): the answer that quietly answers an easier
+  // question. Read without a model, from the question's own words against the
+  // answer's — measured live, an essay on how language models work returned
+  // for "what fills the blank in this passage", with nothing flagging it.
+  const swap = passages.length ? substituted(task || question, text) : null;
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
   // THE ATOMS AGAINST THE SNIPS (P122), no model: every number, date and
   // name in the section is looked for in a snip beside a word of the
@@ -2794,6 +2818,8 @@ export async function runPart({
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
+    strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why },
+    ...(swap?.substituted ? { substituted: { share: Number(swap.share.toFixed(2)), asked: swap.asked.slice(0, 12), shared: swap.shared } } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
@@ -2836,7 +2862,9 @@ export async function runHolonicTask({
   // THE THINKING-DEPTH SLIDER (P123, depth.js): 0 quick · 1 plain (today's
   // budgets) · 2 careful · 3 deep. More passes over the same bounded
   // material, never more context.
-  depth = 1,
+  // null means the person expressed no preference and STRAIN decides the rung
+  // (P130); a number is a deliberate ask and is honoured as floor and ceiling.
+  depth = null,
   // Long-form (P108): a caller writing a PIECE rather than answering a
   // question declares a larger draft budget per part and a plan budget
   // sized to its section count. Defaults are byte-identical to before.
@@ -2936,7 +2964,7 @@ export async function runHolonicTask({
   }
   // The rung's budgets, from this module's own declared constants as the
   // base (depth.js restates nothing). An explicit caller value wins.
-  const budgets = depthBudgets(depth);
+  const budgets = depthBudgets(depth ?? 1);
   maxCorrections = maxCorrections ?? budgets.corrections;
   witnessAsks = witnessAsks ?? budgets.witnessAsks;
 
@@ -3062,6 +3090,7 @@ export async function runHolonicTask({
       learnedStore,
       transcript,
       math,
+      askedDepth: depth,
       pieceWitnessAsks: budgets.pieceWitnessAsks,
       snipRounds: budgets.snipRounds,
       continuations: budgets.continuations,
@@ -3184,7 +3213,7 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
+    ...(piece ? { edits, revisions } : {}), depth: sections.find((x) => x.strain)?.strain?.recruited ?? budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
     // What this whole turn learned (P126), deduped by content identity across
     // its parts — the caller appends these to its durable store, and the room
     // makes them permanent (matrix.js seals them into the same hash-linked
@@ -3208,6 +3237,8 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     ...(sections.find((x) => x.comparison) ? { comparison: sections.find((x) => x.comparison).comparison } : {}),
+    ...(sections.some((x) => x.strain) ? { strain: sections.map((x) => x.strain).filter(Boolean) } : {}),
+    ...(sections.some((x) => x.substituted) ? { substituted: sections.flatMap((x) => (x.substituted ? [x.substituted] : [])) } : {}),
     ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

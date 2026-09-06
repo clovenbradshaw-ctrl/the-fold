@@ -2251,3 +2251,33 @@ test("P129: a question the instrument can answer exactly is answered with NO mod
   assert.ok(calls2 >= 1, "a question wanting prose reaches the model");
   assert.equal(r2.answeredBeforeTheModel, undefined);
 });
+
+test("P130: S2 is recruited by difficulty — an easy turn spends fewer witness asks than an argued one, and the person's slider is a floor and a ceiling", async () => {
+  const easy = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor light stands above the coast. The harbor light is white.");
+  // Retrieved (it shares "harbor"), but it does not answer: low coverage of
+  // what the question actually asks about, which is the strain.
+  const hard = chunkSource("h.txt", "The harbor turbines are serviced quarterly by the contractor.\n\nThe harbor gearboxes were replaced under a maintenance programme.\n\nThe harbor canteen opens early.\n\nThe harbor car park was resurfaced.");
+  const run = async (chunks, opts = {}) => {
+    let maxAsks = null;
+    const r = await runHolonicTask({
+      task: "When was the harbor light built?", chunks, planMode: "flat", ...opts,
+      call: async () => "The harbor light was built in 1841 by Ada Rowe.",
+      makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+      witnessSentences: async (sents, claims, passages, { maxAsks: m }) => { maxAsks = m; return { rows: [], asks: 0 }; },
+    });
+    return { r, maxAsks, strain: r.strain?.[0] };
+  };
+  const a = await run(easy);
+  const b = await run(hard);
+  assert.equal(a.strain.level, 1, "the material speaks to the question");
+  assert.ok(b.strain.level >= 2, "material that does not answer is a strain: " + JSON.stringify(b.strain.reasons));
+  assert.ok(b.maxAsks > a.maxAsks, `a strained turn buys more checking (${a.maxAsks} vs ${b.maxAsks})`);
+  assert.match(a.strain.why, /recruited by strain/);
+  // A deliberate slider is honoured in both directions.
+  const asked3 = await run(easy, { depth: 3 });
+  assert.ok(asked3.maxAsks > a.maxAsks, "asking for depth gets depth even when it is easy");
+  assert.match(asked3.strain.why, /asked for depth 3; strain alone would have taken 1/);
+  const asked1 = await run(hard, { depth: 1 });
+  assert.match(asked1.strain.why, /caps the/);
+  assert.ok(asked1.maxAsks <= b.maxAsks, "a low slider caps what strain may recruit");
+});

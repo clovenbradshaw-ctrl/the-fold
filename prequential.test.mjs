@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { cellsFor, bandFor, predict, mixture, baseRate, loss, scoreStream, shuffledControl, sensitivity, rateOutcome, CHAIN, STRENGTHS } from "./prequential.js";
+import { strainOf } from "./strain.js";
 
 // A stream where the outcome genuinely depends on a cell the chain can see.
 const stream = (n) => Array.from({ length: n }, (_, i) => {
@@ -145,4 +146,43 @@ test("P144: the outcome's own median is taken prequentially — a turn's label n
 test("P144: before there is a median there is no median, and the row says so", () => {
   const r = rateOutcome([{ unbacked: 0, words: 10 }, { unbacked: 3, words: 10 }], { minHistory: 8 });
   assert.ok(r.every((x) => x.provisional), "with two turns seen, no median may be claimed");
+});
+
+test("P145 INTEGRATION: the belief prequential.js forms is one strainOf can spend", () => {
+  // The two organs are wired through a caller that holds the stream, so this
+  // is the seam nothing else covers: a real history, a real belief, a real
+  // strain reading. A short live run cannot reach it — the belief defers
+  // until twelve turns have been seen, which is the correct behaviour and
+  // also the reason this pin exists.
+  const history = Array.from({ length: 40 }, (_, i) => ({
+    passages: i % 5 === 0 ? 18 : 3,
+    answeredBeforeTheModel: false,
+    premiseUnverified: false,
+    // The 18-passage turns go badly; the 3-passage turns do not.
+    unbacked: i % 5 === 0 ? 9 : 0,
+    words: 100,
+  }));
+  const labelled = rateOutcome(history, { count: "unbacked", size: "words" }).map((x) => ({ ...x, hot: x.high }));
+  const withCells = labelled.map((x) => ({ ...x, cells: cellsFor({ ...x, band: bandFor(x.passages) }) }));
+
+  const beliefFor = (passages) => {
+    const turn = { passages, answeredBeforeTheModel: false, premiseUnverified: false, band: bandFor(passages) };
+    const m = mixture({ ...turn, cells: cellsFor(turn) }, withCells, null, { key: "hot" });
+    return { p: m.p, base: baseRate(labelled, { key: "hot" }), why: m.why };
+  };
+
+  const bad = beliefFor(18), good = beliefFor(3);
+  assert.ok(bad.p > bad.base, `the shape that went badly must be expected to: ${bad.p} vs base ${bad.base}`);
+  assert.ok(good.p < good.base, `the shape that went well must not be: ${good.p} vs base ${good.base}`);
+  assert.match(bad.why, /earlier turns? of this shape/, "the belief must carry its own evidence into the reason");
+});
+
+test("P145 INTEGRATION: and strain actually recruits on it, with the reason carrying the evidence", () => {
+  const s = strainOf({
+    question: "what does the passage say about the grant lincoln signed",
+    passages: [{ text: "the grant lincoln signed in eighteen sixty two" }],
+    expect: { p: 0.82, base: 0.5, why: "8 earlier turns of this shape" },
+  });
+  assert.ok(s.level >= 2, `a turn expected to go badly must be strained: ${s.level}`);
+  assert.match(s.reasons.join(" "), /8 earlier turns of this shape/);
 });

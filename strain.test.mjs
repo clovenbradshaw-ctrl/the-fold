@@ -56,3 +56,60 @@ test("attribute substitution: an answer that shares almost nothing with the ques
   assert.equal(typeof THIN_PASSAGES, "number");
   assert.equal(typeof COVERAGE_FLOOR, "number");
 });
+
+// ── P145: the stream's own belief decides, where there is one ───────────────
+
+test("P145: with no belief supplied, nothing changes — the coverage floor decides exactly as before", () => {
+  const args = { question: "what did lincoln sign in eighteen sixty two", passages: [{ text: "a passage about something else entirely" }] };
+  const before = strainOf(args);
+  const after = strainOf({ ...args, expect: null });
+  assert.deepEqual(after, before, "an absent belief must leave the reading byte-identical");
+});
+
+test("P145: a turn the stream expects to go worse than usual is strained, and the reason says so", () => {
+  const s = strainOf({
+    question: "what did lincoln sign in eighteen sixty two",
+    passages: [{ text: "lincoln signed it in eighteen sixty two, and the grant followed" }],
+    expect: { p: 0.8, base: 0.5, why: "236 earlier turns of this shape" },
+  });
+  assert.ok(s.level >= 2, `expected strain, got ${s.level}`);
+  assert.match(s.reasons.join(" "), /unbacked more often than this stream's usual/);
+  assert.match(s.reasons.join(" "), /236 earlier turns/, "the reason must carry its evidence");
+});
+
+test("P145: a turn the stream expects to go BETTER than usual is not strained by the belief", () => {
+  const s = strainOf({
+    question: "what did lincoln sign in eighteen sixty two",
+    passages: [{ text: "lincoln signed it in eighteen sixty two, and the grant followed" }],
+    expect: { p: 0.2, base: 0.5 },
+  });
+  assert.ok(!s.reasons.join(" ").includes("unbacked more often"), "a better-than-usual turn may not be strained for it");
+});
+
+test("P145: the stream's own null, when it places the belief as an outlier, takes the top rung", () => {
+  const s = strainOf({
+    question: "what did lincoln sign in eighteen sixty two",
+    passages: [{ text: "lincoln signed it in eighteen sixty two" }],
+    expect: { p: 0.99, base: 0.5, placement: { strained: true }, why: "beyond anything resampling produced" },
+  });
+  assert.equal(s.level, 3);
+  assert.match(s.reasons[0], /outlier/);
+});
+
+test("P145 CONTROL: the belief must not be able to strain a turn merely by existing", () => {
+  // A belief exactly at the stream's base rate says nothing about this turn.
+  // If this ever strains, the arm is measuring its own presence, not the turn.
+  const s = strainOf({
+    question: "what did lincoln sign in eighteen sixty two",
+    passages: [{ text: "lincoln signed it in eighteen sixty two" }],
+    expect: { p: 0.5, base: 0.5 },
+  });
+  assert.ok(!s.reasons.join(" ").includes("unbacked more often"), `a belief at the base rate must strain nothing: ${JSON.stringify(s.reasons)}`);
+});
+
+test("P145: a malformed belief is ignored rather than guessed at — the coverage rules resume", () => {
+  const args = { question: "what did lincoln sign in eighteen sixty two", passages: [{ text: "unrelated" }] };
+  for (const bad of [{ p: 0.9 }, { base: 0.5 }, { p: NaN, base: 0.5 }, {}]) {
+    assert.deepEqual(strainOf({ ...args, expect: bad }), strainOf(args), `malformed belief ${JSON.stringify(bad)} must change nothing`);
+  }
+});

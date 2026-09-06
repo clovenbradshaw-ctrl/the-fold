@@ -69,6 +69,16 @@ export function strainOf({
   // stream's own null: { strained: true|false|null, why }. Absent, the
   // declared floor decides and says so.
   placement = null,
+  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145), from prequential.js:
+  // { p, base, placement, why } — the probability, computed before the model
+  // speaks, that this answer will carry an unusually high rate of unbacked
+  // sentences, together with the base rate it is being compared against and
+  // an optional placement of it against the stream's own null.
+  //
+  // Absent (every existing caller), NOTHING below changes and the coverage
+  // rules decide exactly as before. This is the P144 arm, and it is off until
+  // a caller supplies a belief.
+  expect = null,
 } = {}) {
   // S1 answered outright. There is nothing for S2 to be lazy about.
   if (answeredBeforeTheModel) return { level: 0, reasons: ["the answer is known exactly, with an address"], coverage: 1 };
@@ -96,7 +106,31 @@ export function strainOf({
   // corpora — 0.34 is unremarkable on a critical edition and alarming on a
   // novel — so the floor is only the FALLBACK, and the record says which was
   // used. A reading that could not be made never reads as "no strain".
-  if (coverage != null) {
+  // THE BELIEF DECIDES WHERE THERE IS ONE (P145). Measured on the 1,000-turn
+  // run: coverage is the best predictor of a bad answer the turn has (0.0755
+  // bits), and cutting it into levels here left 0.0019 — 97% of it thrown
+  // away by the binning. Worse, the relationship is not the gradient this
+  // floor assumes: coverage 0.0–0.8 is flat at ~0.4, and coverage EXACTLY 1.0
+  // is 0.76. Complete coverage is its own regime, and the floor calls it easy.
+  //
+  // What is NOT done here is transplant that finding: "coverage == 1.0 is
+  // strain" would be a constant measured on one corpus carried into every
+  // other, which is the violation this whole session kept finding. Instead
+  // the stream learns its own regime as it goes — the belief is formed from
+  // the turns already seen, so a different corpus reaches a different regime
+  // on its own, and a stream too young to have one says so and defers.
+  //
+  // Two rungs, neither a chosen number:
+  //   worse than this stream has typically been      → 2
+  //   an outlier against this stream's own null      → 3
+  // The second finally gives the measured cut something it can fire on: it
+  // never fired on coverage in 262 of 713 turns because coverage is flat
+  // across most of its range, and a null over a flat series has nothing to
+  // find (P131/P132's own audit).
+  if (expect && Number.isFinite(expect.p) && Number.isFinite(expect.base)) {
+    if (expect.placement?.strained === true) found.push([3, `this stream's own null places the expected error rate here as an outlier${expect.why ? ` — ${expect.why}` : ""}`]);
+    else if (expect.p > expect.base) found.push([2, `answers of this shape have come back unbacked more often than this stream's usual${expect.why ? ` (${expect.why})` : ""}`]);
+  } else if (coverage != null) {
     if (placement && placement.strained === true) found.push([2, placement.why]);
     else if (placement && placement.strained === false) { /* measured ordinary — the floor does not get a second vote */ }
     else if (coverage < COVERAGE_FLOOR) found.push([2, `the material carries ${Math.round(coverage * 100)}% of what the question asks about${placement?.why ? ` (no null yet: ${placement.why})` : ""}`]);

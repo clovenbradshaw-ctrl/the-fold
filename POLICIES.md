@@ -12052,3 +12052,35 @@ Every obligation covered is its own regime: the model writes roughly twice as mu
 **What is NOT established, and why.** `strain.js` treats LOW coverage as strain and buys more checking there; the levels come out as strain 1 (median coverage 0.71) failing at 0.55 and strain 2 (median coverage 0.27) failing at 0.40 — apparently backwards. That claim is **not made**, because strain is *computed from* coverage, so the two are confounded by construction: holding coverage fixed leaves only 21 and 18 turns in the off-diagonal arms, and the sign flips between coverage bands. Whether strain-2 turns fail less because they were easy or because the checking worked cannot be separated observationally. What is known is that the checking does real work — **837 of 3,848 flagged atoms removed, 21.8%**, with 555 rewritten and 215 dropped — so the treatment explanation is live and must be tested rather than assumed away. **The next move is an experimental arm that recruits on coverage == 1.0, not another observational pass.**
 
 **Generality:** universal for the two method claims, specimen-scoped for every number. That a presence-of-any-defect outcome is confounded by output length holds for any generator whose output length varies, and any such result must be re-measured on a rate; that binning a continuous predictor destroys information a backoff would have kept holds anywhere. The 0.0755, the 0.0019, the coverage-1.0 regime and the 21.8% are one run, one model, one corpus, and transfer to nothing without being re-measured. That strain spends effort backwards is **not** claimed at any generality: it is confounded and pending an experiment.
+
+## P145 — The stream's own belief spends the effort (2026-09-06)
+
+**The arm P144 called for, built and pre-registered before it is run.**
+
+P144 established two things and refused to establish a third. Established: coverage is the best predictor of a bad answer the turn has (0.0755 bits), `strain.js` bins it into levels and that binning costs 97% of it (0.0019 bits), and the relationship is a regime rather than a gradient — coverage 0.0–0.8 flat at ~0.4, coverage exactly 1.0 at 0.76. Refused: that strain therefore spends its effort backwards, because strain is *computed from* coverage and the two are confounded by construction.
+
+**What is NOT done here.** Hard-coding "coverage == 1.0 is strain" would carry a constant measured on one corpus into every other. That is the violation this session found three separate times — in `strain.js`'s floor, in P143's own first SEG cell, and in `retrieval-prior.js`'s two bonus constants — and it is not committed a fourth time to fix the first three.
+
+**What is done.** `strainOf` takes an optional `expect`: the stream's own belief, formed by `prequential.js` from the turns already taken and from nothing else, at P144's length-free resolution. Two rungs, neither a chosen number:
+
+| condition | rung |
+|---|---|
+| the belief exceeds this stream's own base rate | 2 |
+| this stream's own null places the belief as an outlier | 3 |
+
+A different corpus reaches a different regime on its own, and a stream too young to have one (fewer than twelve turns seen) says so and defers to the floor. `expect` is a **function**, not a value: only the caller holds the stream's history and only the turn knows what it retrieved, and the belief needs both — so the turn calls it with its own facts at the moment strain is decided, and `holon.js` never imports `prequential.js`.
+
+**This also gives the measured cut something it can fire on.** `placeCoverage` has been wired-but-dormant since P131 and fired on 0 of 262 turns, because it was placing *coverage*, which is flat across most of its range, and a null over a flat series has nothing to find. Placed against the **belief series** instead, it has a quantity that actually varies.
+
+**PRE-REGISTERED, before the arm is run (II.5).** Two runs, same corpus, same seed, same model, differing only in `--expect on`:
+
+1. **The arm will recruit strain on a different set of turns than the floor does.** If the two sets overlap by more than about three quarters, the belief is re-deriving the floor and buys nothing; that is a refutation, not a null result.
+2. **The unbacked *rate* — not presence, P144 — will fall on the turns the arm strains and did not previously strain.** If it does not, then either the extra checking does not work or the belief is not finding the right turns, and the follow-up must say which.
+3. **Total model calls will rise.** An arm that strains more turns and costs the same has not actually recruited anything.
+4. **The measured cut will fire more than zero times.** It has never fired. If it still never fires against the belief series, the diagnosis that it was placing the wrong quantity is wrong.
+
+A result that requires reading these predictions differently after the fact is a refutation.
+
+**Off by default.** Absent `expect`, every path is byte-identical to before — pinned by a test that compares the two readings directly, and by a control test that a belief sitting exactly at the base rate strains nothing, so the arm cannot measure its own presence.
+
+**Generality:** universal for the construction, and the numbers are not in yet. That a stream can learn its own difficulty regime online, rather than being handed a threshold measured elsewhere, needs no fact about this corpus — it is the same argument as P131's, applied to a quantity that varies. Every claim about whether it *works* is pending the arm, and this entry deliberately states its predictions before that evidence exists rather than after.

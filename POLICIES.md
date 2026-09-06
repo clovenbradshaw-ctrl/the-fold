@@ -11673,3 +11673,23 @@ Repeating a falsehood in order to negate it hands a small model the falsehood; t
 **Not measured yet, deliberately.** This landed while the baseline run was in flight, and the running process has its code already loaded, so the baseline is untouched. The arm to run is the same seed and corpus with the transcript threaded, read against the baseline's memory column — building the feature and measuring it in the same run would be teaching to the test.
 
 **Files.** `transcript.js` (`isAboutConversation`, `quotedAsk`, `recallTurns`, `asPassage`, `isTranscriptPassage`, `transcriptLine`) + `transcript.test.mjs` (3, with the control: a question about the material recalls nothing, and an unrelated history hands over nothing); `holon.js` (`transcript` on `runHolonicTask`/`runPart`, the prior turns joined to the passages, the label above the material, the two exclusions, `recalledTurns` on the turn) + `holon.test.mjs` (P128, with the control); `eoreader7/native/eval/the-fold/long-stream.mjs` (threads `state.transcript`, `T` in the live mark) and `long-stream-score.mjs` (how often the record was reached for). Suites 1,666/0 and 656/0.
+
+## P129 — The reasoning happens before the model: what the instrument knows exactly is answered without asking the mouth at all (2026-09-06)
+
+**Generality:** universal for the rules (a question whose answer the instrument can recover EXACTLY, with an address, is answered mechanically and NO model call is made — a computation over the values the question names, a blank whose filling sits verbatim in the material, a question whose answer is verbatim in the record, or an address the retrieval already knows; a question that also asks for prose — why, explain, what does it mean, what does it matter — is never taken by this door, and the computed fact is handed to the mouth instead; the SHAPE of an ask is read from the person's own words with quoted material removed, because a question quoting a comparison is not making one; ambiguity is declined and falls through to the model, since silence costs a call and a wrong answer costs the truth). Local for nothing measured.
+
+**Why the model was doing work it cannot do.** The user, seeing a reasoning probe still wrong after the engine was wired: "why is the model even doing the generation? how much of this can we do before it gets to the model?" The measurement that settles it, one comparison, same material:
+
+| arm | answer |
+|---|---|
+| the engine, computing | 1805, 36 years apart |
+| the mouth, handed that fact | "There are 46 years between them." |
+| the mouth, handed nothing | "There are 41 years between them." |
+
+Telling a small model the answer does not make it say the answer. This is `arithmetic.js`'s own August law — a number is computed, never generated; a wrong mechanical answer is worse than none and a model-guessed one is the failure the door exists to stop — carried from bare sums to the shapes questions actually take.
+
+**Measured over a live run's own 244 turns**, each seeing only its own past: the reasoning probes went from **0 right in 10** to **11 of 12 answered with no model call at all**; 5% of all turns need no model, and that undercounts the cloze and address doors because passages were not replayed. The organic majority still belongs to the model, which is the point — it is left doing the work only it can do.
+
+**Two misroutings found and closed by the same rule.** A memory question quoting a reasoning question fired the comparison door on seven probes; reading the ask outside quoted spans fixed five, and nested quoting (a memory probe quoting a memory probe quoting a comparison) kept two more until an unbalanced quoted region was treated as one span. A door that answers the wrong question is worse than no door.
+
+**Files.** `arithmetic.js` (`detectComparison`, `checkComparison`, `enforceComparison`, folded into `checkQuantity`) + `arithmetic.test.mjs`; `answerable.js` (`answerBeforeTheModel`, `clozeAnswer`, `priorAnswer`, `whichPassage`, `wantsProse`) + `answerable.test.mjs` (4, each with its refusal); `holon.js` (the door before the plan, returning with `calls: 0`; the computed comparison handed as a fact when prose is wanted; `math` injected) + `holon.test.mjs`; `app.js` (`window.math` into the turn); `eoreader7/native/eval/the-fold/long-stream.mjs` (the engine resolved for the driver). Suite 1,723/0 plus one flaky concurrency test of main's.

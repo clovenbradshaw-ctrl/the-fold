@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as math from "mathjs";
 
-import { checkArithmetic, claimedValue, detectArithmetic, normalizeArithmeticPhrase } from "./arithmetic.js";
+import { checkArithmetic, claimedValue, detectArithmetic, normalizeArithmeticPhrase, checkComparison } from "./arithmetic.js";
 
 test("normalizeArithmeticPhrase: English operator words become symbols, longest phrase first", () => {
   assert.equal(normalizeArithmeticPhrase("17 times 24"), "17 * 24");
@@ -174,4 +174,38 @@ test("checkQuantity: the pure door first, byte-identical, then the shapes, then 
   assert.equal(checkQuantity("What is 10 choose 3?", { math }).value, 120);
   assert.equal(checkQuantity("What day of the week is 2026-09-05?", { math }).value, "Saturday");
   assert.equal(checkQuantity("Who founded the observatory?", { math }), null);
+});
+
+test("P129: ordering and distance are computed, not asked of the mouth — and a question that names no two comparable values is refused", async () => {
+  const math = await import("mathjs");
+  // The exact probe shapes the long-stream run got right zero times out of ten.
+  const years = checkComparison("Which of the two years mentioned is earlier, 1841 or 1996, and how many years apart are they? Give the number.", { math });
+  assert.equal(years.first, 1841); assert.equal(years.difference, 155); assert.equal(years.unit, "years");
+  assert.match(years.sentence, /Of the two, 1841 is the one asked for \(1841 is the smaller, 1996 the larger\)\. The difference between them is 155 years\./);
+  const counts = checkComparison("Which is larger, 740 or 463, and by exactly how much? Give the number.", { math });
+  assert.equal(counts.first, 740); assert.equal(counts.difference, 277); assert.equal(counts.unit, null);
+  // "later" picks the other end; distance alone needs no ordering word.
+  assert.equal(checkComparison("Which of these years is later, 1841 or 1996?", { math }).first, 1996);
+  assert.equal(checkComparison("How many years apart are 1841 and 1996?", { math }).first, null);
+  assert.equal(checkComparison("How many years apart are 1841 and 1996?", { math }).difference, 155);
+  // Refused: not a comparison, only one value, or too many to be a two-way ask.
+  assert.equal(checkComparison("What does the file say about Ada Rowe?", { math }), null);
+  assert.equal(checkComparison("Which is larger, the harbor or the light?", { math }), null);
+  assert.equal(checkComparison("Which year is earlier, 1841?", { math }), null);
+  assert.equal(checkComparison("Which of these is bigger: 3, 7, 11, 19, 23, 40?", { math }), null, "an ambiguous ask is refused, never guessed at");
+  // THE ASK IS THE PERSON'S WORDS, NOT THE MATERIAL THEY QUOTE (2026-09-06):
+  // a memory question quoting a comparison is not making one. Seven such
+  // probes in a live run would otherwise have been answered with a subtraction.
+  assert.equal(checkComparison('Earlier in this conversation I asked you: "Which of these years is earlier, 1805 or 1841, and how far apart?" What did you answer then?', { math }), null);
+  assert.equal(checkComparison('Earlier I asked: "one passage reads <note>20 ... RP</note> ... 4 ..." What did you answer? Repeat the numbers you gave.', { math }), null);
+  // Nested quoting — a memory probe quoting a memory probe quoting a
+  // comparison — must not leak the inner ask back out (two such survived the
+  // first fix in a live run).
+  assert.equal(checkComparison('Earlier I asked you: "Earlier I asked you: "According to Luke.xml: "<note>20 x RP</note>" According to react-dom.js: "Android 4." Which is larger, 20 or 4, and by how much?"" What did you answer then?', { math }), null);
+  // A real comparison that quotes its sources still fires — the values may be
+  // inside the quotes, only the ASK must be outside them.
+  const cited = checkComparison('According to a.txt: "the war began in 1805." According to b.txt: "the light was built in 1841." Which of the two years is earlier, and how many years apart are they?', { math });
+  assert.equal(cited.first, 1805); assert.equal(cited.difference, 36);
+  // No engine is a typed gap, never a hand-rolled subtraction.
+  assert.match(checkComparison("Which is earlier, 1841 or 1996?", {}).gap, /engine is not available/);
 });

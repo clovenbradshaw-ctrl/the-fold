@@ -46,6 +46,8 @@ import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
+import { checkComparison } from "./arithmetic.js";
+import { answerBeforeTheModel } from "./answerable.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -997,6 +999,10 @@ export async function runPart({
   // so what the recency window drops is still reachable. Empty (every
   // existing caller) changes nothing.
   transcript = [],
+  // THE ARITHMETIC ENGINE (arithmetic.js's own injection pattern): the page
+  // hands the vendored mathjs, a test hands the package. Absent, nothing
+  // below computes and the turn is byte-identical to before.
+  math = null,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1962,12 +1968,20 @@ export async function runPart({
   // The snips: a piece stands on its obligations' spans, any other turn on
   // the question's own words. Both are the source's bytes, verbatim, addressed.
   const recalledLine = recalledTurns.length ? transcriptLine(recalledTurns) : "";
+  // REASONING OUTSIDE THE MODEL (P129, arithmetic.js::checkComparison). A
+  // question that asks which of two stated values is earlier or larger, and
+  // how far apart they are, is answered by the ENGINE and handed to the mouth
+  // as a fact to say — never posed to it as a sum to attempt. Measured (S77):
+  // ten such probes, the ordering right twice, the arithmetic right zero
+  // times. The values are the question's own; nothing is invented.
+  const comparison = math ? checkComparison(task || question, { math }) : null;
+  const comparisonLine = comparison && !comparison.gap ? `Worked out from the numbers in the question: ${comparison.sentence}` : "";
   const snipPrefix = piece
     ? (snips.length ? snipBlock(snips) : null)
     : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
   const draftMaterial = factBlock
-    ? [recalledLine, snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [recalledLine, snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    ? [comparisonLine, recalledLine, snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [comparisonLine, recalledLine, snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2779,6 +2793,7 @@ export async function runPart({
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
+    ...(comparison ? { comparison } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
@@ -2847,6 +2862,8 @@ export async function runHolonicTask({
   learnedStore = [],
   // The conversation's own record (P128), threaded to every part.
   transcript = [],
+  // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
+  math = null,
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -2896,6 +2913,27 @@ export async function runHolonicTask({
 }) {
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
+  // ── ANSWERED BEFORE THE MODEL (P129) ──────────────────────────────────
+  // User, 2026-09-06: "why is the model even doing the generation? how much
+  // of this can we do before it gets to the model?" For a class of questions
+  // the instrument knows the answer exactly, at an address, and a small mouth
+  // can only degrade it — measured: told the difference was 36 years, gemma2
+  // answered 46. So the door is opened first, over the material this task
+  // retrieves, and when it answers, NO MODEL IS CALLED AT ALL. A question
+  // wanting prose never reaches it (answerable.js::wantsProse).
+  if (chunks.length || transcript.length || math) {
+    const pool = chunks.length ? retrieve(chunks, task, passagesPerPart, foldedRefs) : [];
+    const known = answerBeforeTheModel({ question: task, passages: pool, transcript, math });
+    if (known) {
+      return {
+        answeredBeforeTheModel: known, calls: 0, depth: 0,
+        task, plan: null, log: null, production: null,
+        sections: [{ part: { label: task, description: task }, text: known.text, passages: pool, refs: known.addresses, answeredBeforeTheModel: known }],
+        output: known.text, refs: known.addresses, unsupported: [], unbacked: [], open: [], channels: [],
+        learned: [], gridLog, hyperlexiconLog, hyperlexiconTurnedAway: [],
+      };
+    }
+  }
   // The rung's budgets, from this module's own declared constants as the
   // base (depth.js restates nothing). An explicit caller value wins.
   const budgets = depthBudgets(depth);
@@ -3023,6 +3061,7 @@ export async function runHolonicTask({
       maxCorrections,
       learnedStore,
       transcript,
+      math,
       pieceWitnessAsks: budgets.pieceWitnessAsks,
       snipRounds: budgets.snipRounds,
       continuations: budgets.continuations,
@@ -3168,6 +3207,7 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
+    ...(sections.find((x) => x.comparison) ? { comparison: sections.find((x) => x.comparison).comparison } : {}),
     ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

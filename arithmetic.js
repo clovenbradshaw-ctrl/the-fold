@@ -392,6 +392,156 @@ export function checkCalendar(question) {
  * shaped questions, then the calendar. Null when none claims it — the
  * question is not this organ's to answer.
  */
+// ── COMPARISON: ordering and distance, computed, never generated ───────────
+//
+// The same law as the top of this file, at the shape a question actually
+// takes about material: "which of these two is earlier, and how far apart are
+// they?" Measured live (S77, the long-stream run): gemma2:2b answered ten
+// such probes and got the arithmetic right zero times, while getting the
+// ORDERING right twice — it can sometimes see which is bigger and essentially
+// never subtract. That is not a prompting problem. Ordering and difference
+// over two stated values are the instrument's to compute and the mouth's only
+// to say (P2, "the model is just the mouth").
+//
+// GROUNDED BY CONSTRUCTION: the values are read out of the QUESTION's own
+// text. This module never goes looking for numbers elsewhere, and never
+// invents one — if the question does not carry two comparable values, it
+// returns null and the turn proceeds exactly as before.
+const COMPARE_RE = /\b(?:which|what)\b[^?]{0,80}?\b(is|was|are|were)\b[^?]{0,40}?\b(earlier|later|earliest|latest|larger|largest|bigger|biggest|greater|greatest|smaller|smallest|lesser|least|higher|highest|lower|lowest|older|oldest|younger|youngest|more|fewer|less)\b/i;
+const DISTANCE_RE = /\b(?:how (?:many|much|far)\b[^?]{0,40}?\b(?:apart|between|difference|older|younger|longer|shorter|more|less|bigger|smaller)|by (?:exactly )?how much|what (?:is|was) the difference)\b/i;
+/** The unit a distance is asked in, when the question names one. */
+const APART_UNIT_RE = /\b(\d[\d,.]*)\s*(years?|months?|days?|hours?|minutes?)\b/i;
+
+const EARLIER_WORDS = /^(earlier|earliest|smaller|smallest|lesser|least|lower|lowest|fewer|less|younger|youngest|older|oldest)$/i;
+// "older" over YEARS means an earlier year; over a plain quantity it means larger.
+/**
+ * A question with its quoted material removed — what the person themselves
+ * asked. Naive pairing is not enough: a memory probe quoting a memory probe
+ * quoting a comparison nests quotes, the pairs come out misaligned, and the
+ * inner ask leaks back into the "person's own words" (measured 2026-09-06 —
+ * two such probes survived the first fix). When quoting is nested or
+ * unbalanced, everything from the first quote mark to the last is treated as
+ * one quoted span, which is the conservative reading: whatever is in there,
+ * the person is reporting it, not asking it.
+ */
+const unquoted = (t) => {
+  const text = String(t ?? "");
+  const marks = (text.match(/["“”]/g) ?? []).length;
+  if (marks > 2) {
+    const first = text.search(/["“”]/);
+    const last = text.lastIndexOf('"') > -1 ? Math.max(text.lastIndexOf('"'), text.lastIndexOf("”"), text.lastIndexOf("“")) : text.length;
+    return (text.slice(0, first) + " " + text.slice(last + 1)).trim();
+  }
+  return text.replace(/["“][^"”]*["”]/g, " ").replace(/[‘'][^’']{6,}[’']/g, " ");
+};
+const numbersIn = (t) => [...String(t ?? "").matchAll(/(?<![\w.])(-?\d{1,3}(?:,\d{3})+|-?\d+(?:\.\d+)?)(?![\w])/g)].map((m) => Number(m[1].replace(/,/g, "")));
+const isYear = (n) => Number.isInteger(n) && n >= 1000 && n <= 2999;
+
+/**
+ * detectComparison(question) → { values, wants, unit } | null
+ * `wants`: "order" (which one), "distance" (how far apart), or "both".
+ */
+export function detectComparison(question) {
+  if (typeof question !== "string" || !question.trim()) return null;
+  // THE ASK IS THE PERSON'S OWN WORDS, NOT THE MATERIAL THEY QUOTE (measured
+  // 2026-09-06). A memory question — 'Earlier I asked you: "…which of these
+  // is earlier…?" What did you answer then?' — quotes a comparison it is not
+  // making. Reading the whole string, this door fired on seven such probes in
+  // a live run and would have answered "what did you answer?" with a
+  // subtraction. So the SHAPE is looked for outside quoted spans; the VALUES
+  // are still read from the whole question, because a legitimate comparison
+  // often quotes its sources ("According to A: '…1805…' … which is earlier?").
+  const asked = unquoted(question);
+  const order = COMPARE_RE.exec(asked);
+  const distance = DISTANCE_RE.test(asked);
+  if (!order && !distance) return null;
+  // The values the question itself names, deduplicated in the order asked.
+  const values = [...new Set(numbersIn(question))];
+  if (values.length < 2) return null;
+  // A question naming many numbers is not a two-way comparison; the ordering
+  // is still well defined but the distance is ambiguous, so only take the
+  // clear case (P9: an ambiguous ask is refused, never guessed at).
+  if (values.length > 4) return null;
+  const word = order ? order[2].toLowerCase() : null;
+  const unit = APART_UNIT_RE.test(question) ? null : (/\byears?\b/i.test(question) && values.every(isYear) ? "years" : null);
+  return {
+    values,
+    word,
+    wants: order && distance ? "both" : order ? "order" : "distance",
+    unit: unit ?? (values.every(isYear) ? "years" : null),
+  };
+}
+
+/**
+ * checkComparison(question, { math }) → { kind: "comparison", values, first, difference, display, sentence } | null
+ * The engine does the arithmetic (this module may not hand-roll a subtraction
+ * — see the header); the sentence is a plain statement of the result, for the
+ * turn to hand the mouth as a FACT rather than a sum to attempt.
+ */
+export function checkComparison(question, { math } = {}) {
+  const found = detectComparison(question);
+  if (!found) return null;
+  const { values, word, unit } = found;
+  const sorted = [...values].sort((a, b) => a - b);
+  const low = sorted[0];
+  const high = sorted[sorted.length - 1];
+  if (!math || typeof math.evaluate !== "function") return { kind: "comparison", ...found, gap: "the arithmetic engine is not available" };
+  let difference;
+  try { difference = math.evaluate(`${high} - ${low}`); }
+  catch { return { kind: "comparison", ...found, gap: "the engine could not take the difference" }; }
+  const picksLow = word ? EARLIER_WORDS.test(word) : null;
+  // "older"/"oldest" of YEARS is the earlier year; of a plain count it is the larger.
+  const first = word == null ? null : (/^(older|oldest)$/i.test(word) ? (unit === "years" ? low : high) : picksLow ? low : high);
+  const u = unit === "years" ? " years" : "";
+  const parts = [];
+  if (first != null) parts.push(`Of the two, ${first} is the one asked for (${low} is the smaller, ${high} the larger).`);
+  parts.push(`The difference between them is ${difference}${u}.`);
+  return {
+    kind: "comparison", values, word, unit, wants: found.wants,
+    low, high, first, difference,
+    display: first != null ? `${first}, by ${difference}${u}` : `${difference}${u}`,
+    sentence: parts.join(" "),
+  };
+}
+
+/**
+ * enforceComparison(text, comparison, { splitSentences }) → { text, fixed }
+ *
+ * A COMPUTED VALUE IS NOT ADVICE (the lesson P125 already had to learn once:
+ * a check that only advises is not a check). Measured live: with the engine
+ * wired and the worked-out difference handed to the mouth as a fact — "the
+ * difference between them is 36 years" — gemma2:2b answered "There are 46
+ * years between them." Without the fact it said 41. Neither is 36. Telling a
+ * small model the answer does not make it say the answer.
+ *
+ * So the instrument keeps the number. Any sentence that asserts a distance
+ * and carries a figure the computation contradicts is replaced by the
+ * computed statement itself, mechanically, with no model call. A sentence
+ * that states the right figure, or asserts no distance at all, is untouched.
+ */
+const DISTANCE_CLAIM_RE = /\b(?:apart|between them|difference|years? between|older|younger|earlier|later|larger|smaller|greater|more|less)\b/i;
+export function enforceComparison(text, comparison, { splitSentences } = {}) {
+  const body = String(text ?? "");
+  if (!comparison || comparison.gap || typeof splitSentences !== "function" || !body.trim()) return { text: body, fixed: [] };
+  const right = new Set([comparison.difference, comparison.low, comparison.high, comparison.first].filter((v) => v != null).map(Number));
+  const fixed = [];
+  const kept = [];
+  let stated = false;
+  for (const raw of splitSentences(body)) {
+    const sent = String(raw?.text ?? raw ?? "");
+    if (!sent.trim()) continue;
+    const nums = [...sent.matchAll(/(?<![\w.])(-?\d{1,3}(?:,\d{3})+|-?\d+(?:\.\d+)?)(?![\w])/g)].map((m) => Number(m[1].replace(/,/g, "")));
+    const wrong = DISTANCE_CLAIM_RE.test(sent) && nums.length > 0 && nums.some((n) => !right.has(n));
+    if (!wrong) { kept.push(sent); if (nums.includes(Number(comparison.difference))) stated = true; continue; }
+    fixed.push({ sentence: sent, said: nums.filter((n) => !right.has(n)), computed: comparison.difference });
+    if (!stated) { kept.push(comparison.sentence); stated = true; }
+  }
+  if (!fixed.length) return { text: body, fixed: [] };
+  // The computed statement always survives, even if the draft was nothing but wrong sentences.
+  if (!kept.length) kept.push(comparison.sentence);
+  return { text: kept.join(" ").replace(/\s{2,}/g, " ").trim(), fixed };
+}
+
 export function checkQuantity(question, { math } = {}) {
-  return checkArithmetic(question, { math }) ?? checkShaped(question, { math }) ?? checkCalendar(question);
+  return checkArithmetic(question, { math }) ?? checkShaped(question, { math }) ?? checkCalendar(question) ?? checkComparison(question, { math });
 }

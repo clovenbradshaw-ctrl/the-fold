@@ -6127,6 +6127,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
       depth: state.depth,
+      // The arithmetic engine, so ordering and difference are computed rather
+      // than asked of the mouth (P129).
+      math: window.math,
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
       // from. Empty unless the seek actually bound something, so a turn

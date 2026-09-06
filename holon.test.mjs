@@ -2174,7 +2174,9 @@ test("P128: a question about the conversation is answered from the conversation'
   const sent = [];
   const admitted = [];
   const r = await runHolonicTask({
-    task: 'Earlier I asked you: "What about the tide?" What did you answer then?',
+    // Wants prose, so it goes to the model — the mechanical door (P129)
+    // takes the bare "what did you answer" case, which is tested there.
+    task: 'Earlier I asked you: "What about the tide?" Explain what you answered and why it matters.',
     chunks, planMode: "flat", transcript,
     call: async (messages) => { sent.push(messages); return "You said the tide turns twice a day."; },
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
@@ -2195,4 +2197,57 @@ test("P128: a question about the conversation is answered from the conversation'
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
   });
   assert.equal(plain.recalledTurns, undefined, "a question about the material does not reach for the transcript");
+});
+
+test("P129: the turn hands the mouth the worked-out comparison as a fact, and a question with nothing to compare is byte-identical to before (control)", async () => {
+  const math = await import("mathjs");
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. Millennium ran until 1996.");
+  const sent = [];
+  const r = await runHolonicTask({
+    // Wants prose, so the turn reaches the model AND carries the worked-out
+    // comparison as a fact; the bare form is answered without the model (P129).
+    task: "Which of the two years mentioned is earlier, 1841 or 1996, and why does that gap matter?",
+    chunks, planMode: "flat", math,
+    call: async (messages) => { sent.push(messages); return "1841 is earlier, by 155 years."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  assert.match(ours, /Worked out from the numbers in the question: Of the two, 1841 is the one asked for/);
+  assert.match(ours, /The difference between them is 155 years\./);
+  assert.equal(r.comparison.difference, 155);
+  assert.equal(r.comparison.first, 1841);
+  const plain = [];
+  const none = await runHolonicTask({
+    task: "What does the file say about Ada Rowe?", chunks, planMode: "flat", math,
+    call: async (m) => { plain.push(m); return "Ada Rowe built the light."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(none.comparison, undefined);
+  assert.doesNotMatch(plain[0].map((m) => m.content).join("\n"), /Worked out from the numbers/);
+});
+
+test("P129: a question the instrument can answer exactly is answered with NO model call at all; one that wants prose still goes to the model", async () => {
+  const math = await import("mathjs");
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The war began in 1805.");
+  let calls = 0;
+  const call = async () => { calls += 1; return "There are 46 years between them."; };
+  const r = await runHolonicTask({
+    task: "Which of the two years is earlier, 1805 or 1841, and how many years apart are they?",
+    chunks, planMode: "flat", math, call,
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(calls, 0, "the model was not asked");
+  assert.equal(r.answeredBeforeTheModel.kind, "comparison");
+  assert.match(r.output, /The difference between them is 36 years\./);
+  assert.doesNotMatch(r.output, /46/, "the mouth's wrong number never enters the answer");
+  // The same values, but the person asked why — that is the model's.
+  let calls2 = 0;
+  const r2 = await runHolonicTask({
+    task: "Which of the two years is earlier, 1805 or 1841, and why does it matter?",
+    chunks, planMode: "flat", math,
+    call: async () => { calls2 += 1; return "1805 is earlier; it matters because the war framed everything after."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.ok(calls2 >= 1, "a question wanting prose reaches the model");
+  assert.equal(r2.answeredBeforeTheModel, undefined);
 });

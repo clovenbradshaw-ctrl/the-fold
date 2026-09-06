@@ -24,6 +24,7 @@
 //
 // PURE: no I/O, no model.
 import { CLAIM_STOPWORDS } from "./grounding.js";
+import { quotedSpan } from "./quoting.js";
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const words = (t) => new Set(fold(t).split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w)));
@@ -38,8 +39,10 @@ export const isAboutConversation = (question) => ABOUT_RE.test(String(question ?
 
 /** The question a person quoted back at us, if they quoted one. */
 export function quotedAsk(question) {
-  const m = String(question ?? "").match(/["“]([^"”]{8,300})["”]/);
-  return m ? m[1].trim() : null;
+  // Nesting handled in one place (quoting.js): taking the FIRST quoted span
+  // returned a two-word fragment on a claim that quoted a line containing
+  // quotation marks, and the misquote check had nothing to align.
+  return quotedSpan(question);
 }
 
 /**

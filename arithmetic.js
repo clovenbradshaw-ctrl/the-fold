@@ -1,3 +1,4 @@
+import { unquoted } from "./quoting.js";
 // arithmetic.js — a number is computed, never generated.
 //
 // L5's law at its smallest scale: a compliance-critical fact is never left
@@ -414,26 +415,6 @@ const APART_UNIT_RE = /\b(\d[\d,.]*)\s*(years?|months?|days?|hours?|minutes?)\b/
 
 const EARLIER_WORDS = /^(earlier|earliest|smaller|smallest|lesser|least|lower|lowest|fewer|less|younger|youngest|older|oldest)$/i;
 // "older" over YEARS means an earlier year; over a plain quantity it means larger.
-/**
- * A question with its quoted material removed — what the person themselves
- * asked. Naive pairing is not enough: a memory probe quoting a memory probe
- * quoting a comparison nests quotes, the pairs come out misaligned, and the
- * inner ask leaks back into the "person's own words" (measured 2026-09-06 —
- * two such probes survived the first fix). When quoting is nested or
- * unbalanced, everything from the first quote mark to the last is treated as
- * one quoted span, which is the conservative reading: whatever is in there,
- * the person is reporting it, not asking it.
- */
-const unquoted = (t) => {
-  const text = String(t ?? "");
-  const marks = (text.match(/["“”]/g) ?? []).length;
-  if (marks > 2) {
-    const first = text.search(/["“”]/);
-    const last = text.lastIndexOf('"') > -1 ? Math.max(text.lastIndexOf('"'), text.lastIndexOf("”"), text.lastIndexOf("“")) : text.length;
-    return (text.slice(0, first) + " " + text.slice(last + 1)).trim();
-  }
-  return text.replace(/["“][^"”]*["”]/g, " ").replace(/[‘'][^’']{6,}[’']/g, " ");
-};
 const numbersIn = (t) => [...String(t ?? "").matchAll(/(?<![\w.])(-?\d{1,3}(?:,\d{3})+|-?\d+(?:\.\d+)?)(?![\w])/g)].map((m) => Number(m[1].replace(/,/g, "")));
 const isYear = (n) => Number.isInteger(n) && n >= 1000 && n <= 2999;
 

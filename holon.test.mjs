@@ -2281,3 +2281,20 @@ test("P130: S2 is recruited by difficulty — an easy turn spends fewer witness 
   assert.match(asked1.strain.why, /caps the/);
   assert.ok(asked1.maxAsks <= b.maxAsks, "a low slider caps what strain may recruit");
 });
+
+test("P133: a quotation with one token swapped is caught as a misquote, the source's own words go in as a fact, and the false token cannot ship", async () => {
+  const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. He laughed disagreeably and placed a chair for her.');
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established from pg2600.txt that: ""Both true and untrue," Lincoln began; but Prince Andrew interrupted him." Remind me what that passage says.',
+    chunks, planMode: "flat",
+    call: async (messages) => { sent.push(messages); return "Lincoln began the exchange and Prince Andrew interrupted him."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  assert.match(ours, /What that passage actually says .*Pierre began/, "the source's own words, positively");
+  assert.doesNotMatch(ours.split("What that passage actually says")[1] ?? "", /Lincoln/, "the misquotation is not repeated back in our own block");
+  assert.deepEqual(r.misquote.said, ["Lincoln"]);
+  assert.deepEqual(r.misquote.shouldBe, ["Pierre"]);
+  assert.doesNotMatch(r.output, /Lincoln/, "the false token is cut before the answer ships");
+});

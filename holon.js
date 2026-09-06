@@ -50,6 +50,8 @@ import { checkComparison } from "./arithmetic.js";
 import { answerBeforeTheModel } from "./answerable.js";
 import { recruit, strainOf, substituted } from "./strain.js";
 import { placeCoverage } from "./calibration.js";
+import { citedSource, findMisquote, misquoteFacts, misquoteGuard } from "./misquote.js";
+import { quotedAsk } from "./transcript.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -1959,12 +1961,21 @@ export async function runPart({
   // asserted claim appears in none of them, and the check silently never
   // fired — the injection reached the mouth unchecked.
   const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages) : null;
-  const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
+  // A QUOTATION IS CHECKED AS A QUOTATION (P133). Corpus-wide containment
+  // asks "does this token exist?"; a quoted claim asks "does it belong HERE".
+  // Measured live: a War and Peace line with one name swapped to Lincoln
+  // passed every check, because Lincoln is in the corpus — in the Lincoln
+  // article. The quoted run is matched as a SPAN, against the source the
+  // question names when it names one.
+  const quotedClaim = passages.length ? quotedAsk(task || question) : null;
+  const misquote = quotedClaim ? findMisquote(quotedClaim, prosePassages.length ? prosePassages : passages, { cited: citedSource(task || question) }) : null;
+  const misquoteBlock = misquote?.misquoted ? misquoteFacts(misquote) : "";
+  const premiseBlock = [premiseCheck ? premiseFacts(premiseCheck) : "", misquoteBlock].filter(Boolean).join("\n\n");
   // The enforcement the prompt is not asked to provide: the values the
   // question asserted and the material does not carry. Measured live (S77
   // run 5, turn 15) the block alone was not enough — the mouth explained a
   // "Durham investigation" that exists nowhere — so the draft is checked.
-  const premiseGuards = premiseCheck ? premiseGuard(premiseCheck) : [];
+  const premiseGuards = [...(premiseCheck ? premiseGuard(premiseCheck) : []), ...misquoteGuard(misquote)];
   // What was already found wrong on this material, in scope for this question.
   const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
   // ONLY THE POSITIVE HALF REACHES THE MOUTH (P126, measured): a correction
@@ -2740,6 +2751,17 @@ export async function runPart({
       kept.push(sent);
     }
     if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }
+    else if (repeated.length && !kept.length) {
+      // EVERY sentence asserted something known to be false. Shipping it whole
+      // because cutting would empty it is the worse of the two failures — so
+      // what the sources actually say stands in its place, and the answer says
+      // plainly that it is the instrument's, not the mouth's. Measured live
+      // (P133): a draft that was nothing but the misquoted name would
+      // otherwise have shipped intact.
+      const standIn = [misquoteBlock, premiseBlock].filter(Boolean).join(" ").trim();
+      text = standIn || "Nothing in the sources supports what was drafted here, and there is nothing in them to put in its place.";
+      check = inspect(text);
+    }
   }
   let turnCorrection = null;
   if (!piece && passages.length && !mechanical && snipRounds > 0) {
@@ -2750,6 +2772,28 @@ export async function runPart({
       turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
     }
   }
+  // THE GUARD IS A FINAL GATE, NOT A STAGE (P133). Measured: the guard cut a
+  // misquoted name, and then the correction loop's own rewrite put it back —
+  // a later stage undoing a decision the instrument had already made on
+  // evidence. Anything the instrument KNOWS to be false may not re-enter the
+  // answer, whatever produced it, so the sweep runs once more after every
+  // rewrite and is the last word on what ships.
+  if (premiseGuards.length && text) {
+    const kept = [];
+    const late = [];
+    for (const sent of splitSentences(text)) {
+      const hit = repeatsAbsentPremise(sent, premiseGuards);
+      if (hit) { late.push({ sentence: sent, value: hit.value, why: "re-entered after a rewrite; the instrument's finding stands" }); continue; }
+      kept.push(sent);
+    }
+    if (late.length) {
+      repeated.push(...late);
+      const standIn = misquoteBlock || premiseBlock;
+      text = kept.length ? kept.join(" ").trim() : (standIn || "Nothing in the sources supports what was drafted here.");
+      check = inspect(text);
+    }
+  }
+
   // What this turn learned, in the chain's entry shape (P126) — handed out on
   // the result for the caller to append to its durable store. Both halves:
   // what the answer got wrong, and what the question asserted falsely.
@@ -2831,6 +2875,7 @@ export async function runPart({
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
     ...(comparison ? { comparison } : {}),
+    ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),
     strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why, cut: strain.cut, ...(placement ? { placement: { strained: placement.strained, why: placement.why } } : {}) },
     ...(swap?.substituted ? { substituted: { share: Number(swap.share.toFixed(2)), asked: swap.asked.slice(0, 12), shared: swap.shared } } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
@@ -3258,6 +3303,7 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     ...(sections.find((x) => x.comparison) ? { comparison: sections.find((x) => x.comparison).comparison } : {}),
     ...(sections.some((x) => x.strain) ? { strain: sections.map((x) => x.strain).filter(Boolean) } : {}),
+    ...(sections.find((x) => x.misquote) ? { misquote: sections.find((x) => x.misquote).misquote } : {}),
     ...(sections.some((x) => x.substituted) ? { substituted: sections.flatMap((x) => (x.substituted ? [x.substituted] : [])) } : {}),
     ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };

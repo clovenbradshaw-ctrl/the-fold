@@ -19,8 +19,12 @@ test("what raises strain: nothing on point, poor coverage, a premise that failed
   assert.match(disagree.reasons[0], /2 claim\(s\) the sources disagree on/, "the reason that drove the rung is reported first");
   const contradicted = strainOf({ question: q, passages: [P("The harbor light was built in 1841.")], premiseCheck: { unverified: [], contradicted: [{}] } });
   assert.equal(contradicted.level, 3);
-  const learned = strainOf({ question: q, passages: [P("The harbor light was built in 1841.")], learnedInScope: 1 });
-  assert.equal(learned.level, 2);
+  // Corrections in scope are INFORMATION, not difficulty — measured: read as
+  // strain, this fired on 148 of 214 real turns and pushed 62% of everything
+  // to level 2, recruiting more work on most turns rather than targeting it.
+  const learned = strainOf({ question: q, passages: [P("The harbor light was built in 1841.")], learnedInScope: 3 });
+  assert.equal(learned.level, 1, "knowing what was wrong before does not make the question harder");
+  assert.equal(learned.informed, 3, "but it is still on the record");
   // A single chunk carrying everything is the EASIEST case, not a thin one.
   const one = strainOf({ question: q, passages: [P("The harbor light was built in 1841 by Ada Rowe, above the coast.")] });
   assert.equal(one.level, 1, JSON.stringify(one.reasons));

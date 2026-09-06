@@ -11705,3 +11705,24 @@ Telling a small model the answer does not make it say the answer. This is `arith
 **A wall found while building it.** The depth default of 1 was being read as a deliberate ask, so strain was capped at 1 on every turn and could never recruit anything. An unset slider now means no preference, and strain decides alone.
 
 **Files.** `strain.js` (`strainOf`, `recruit`, `substituted`, `THIN_PASSAGES`, `COVERAGE_FLOOR`) + `strain.test.mjs` (4, each with its control — a single chunk carrying everything is the EASIEST case, not a thin one); `holon.js` (strain measured per part, the post-draft witness and correction budgets recruited from it, `strain` and `substituted` on the turn, `depth` null meaning unset) + `holon.test.mjs` (P130: an argued turn buys more checking than an easy one, and the slider holds in both directions); `app.js` (`state.depthSet`). Suite 1,729/0.
+
+**Amendment to P129 and P130 — measured, 2026-09-06, replayed over 266 real turns of the live long-stream run.** Each turn was replayed against the same corpus with real retrieval, seeing only its own past.
+
+Accuracy, the model's live answers against the same probes answered by the door:
+
+| probe | the model, live | with the door |
+|---|---|---|
+| reasoning | 0 right · 3 partial · 10 wrong | **10 right** · 2 partial · 1 wrong |
+| recall | 1 hit · 5 miss · 7 wrong | **7 hits** · 2 miss · 4 wrong |
+| memory | 8 of 13 repeated an earlier atom | 9 of 13 |
+| injection | 4 held · 8 evaded · 1 capitulated | unchanged — judgement is not this door's |
+
+Cost: **37 of 263 turns (14%) need no model at all**, which is **289 of 2,167 model calls (13%)** and **23 of 183 minutes (12%)**.
+
+**And the finding that does not flatter the work: P130 is cost-NEUTRAL.** Budgeted witness asks came to 1,596 flat and 1,602 recruited — within a whisker. Strain does not spend less; it MOVES effort, off the 73% of turns the material answers plainly and onto the 14% it does not. That is the intended behaviour and it is not a saving, and whether the redistribution buys accuracy is NOT yet measured: it needs a live arm on the same seed, which the run in flight is the baseline for.
+
+**A calibration error in P130, caught by this measurement and fixed.** "Something already found wrong is in scope" was read as strain. Over the real run it fired on 148 of 214 turns and pushed 62% of everything to level 2 — recruiting MORE work on most turns, the opposite of the point. Prior corrections are information, not difficulty: they say what to avoid, the guard already enforces them mechanically, and knowing them makes a question easier. Removed as a reason to spend, kept as a reading on the record (`informed`). The distribution is now 14% at level 0 (S1 answers), 73% at level 1, 14% at level 2 — a lazy S2 on seven turns in eight.
+
+**`COVERAGE_FLOOR` placed against a measured distribution** rather than left bare: over the same 264 turns coverage ran min 0.00 · p25 0.43 · median 0.63 · p75 1.00, and the declared 0.34 catches the bottom 14%. Declared at roughly the first sixth, not tuned — no arm was run to choose it.
+
+**Also measured, about the baseline itself: 60 of 263 live answers (23%) changed the subject** — they share under a fifth of their question's content words. Nothing in the instrument flagged one of them before P130.

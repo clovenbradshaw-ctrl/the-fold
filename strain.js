@@ -34,7 +34,14 @@ const words = (t) => new Set(fold(t).split(/[^\p{L}\p{N}_]+/u).filter((w) => w.l
 
 /** How thin retrieval has to be to count as strain: fewer than this many passages carrying the question's own words. */
 export const THIN_PASSAGES = 2;
-/** How much of the question's vocabulary the material must carry before its absence counts as strain. */
+/**
+ * How much of the question's vocabulary the material must carry before its
+ * absence counts as strain. Declared, and now placed against a measured
+ * distribution rather than left bare: over 264 real turns of the long-stream
+ * run, coverage ran min 0.00 · p25 0.43 · median 0.63 · p75 1.00, and this
+ * floor catches the bottom 14%. It is a declared cut at roughly the first
+ * sixth, not a tuned one — no arm was run to choose it.
+ */
 export const COVERAGE_FLOOR = 0.34;
 
 /**
@@ -86,14 +93,22 @@ export function strainOf({
   }
   if (parts > 1) found.push([2, `the question was read as ${parts} parts`]);
   if (disagreements > 0) found.push([3, `${disagreements} claim(s) the sources disagree on`]);
-  if (learnedInScope > 0) found.push([2, `${learnedInScope} thing(s) already found wrong on this material are in scope`]);
+  // NOT A STRAIN, and measured not to be. Having corrections in scope was
+  // read as difficulty in the first draft of this file, and over a real run
+  // it fired on 148 of 214 turns — pushing 62% of everything to level 2 and
+  // making S2 recruit MORE on most turns, which is the opposite of the point.
+  // Prior corrections are information, not difficulty: they say what to avoid,
+  // the guard (P126) already enforces them mechanically, and knowing them
+  // makes a question easier rather than harder. Kept as a reading on the
+  // record, never as a reason to spend.
+  const informed = learnedInScope;
   let level = found.reduce((m, [l]) => Math.max(m, l), 1);
   // Several ordinary strains at once are not ordinary.
   if (level === 2 && found.length >= 3) { level = 3; found.push([3, "several at once"]); }
   found.sort((a, b) => b[0] - a[0]);
   reasons.push(...found.map(([, r]) => r));
   if (reasons.length === 0) reasons.push("the material speaks to the question and nothing conflicts");
-  return { level, reasons, coverage };
+  return { level, reasons, coverage, informed };
 }
 
 /**

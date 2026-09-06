@@ -11914,3 +11914,18 @@ And the answer CHANGED THE SUBJECT on **82% of memory turns and 73% of injection
 **Not yet wired into the live turn.** `rank` is a drop-in for `retrieve` and is measured, but `holon.js` still calls `retrieve`; swapping it changes what every turn reads and is owed its own arm rather than a quiet substitution mid-comparison.
 
 **Files.** `retrieval-prior.js` (`corpusPrior`, `rank`, `activated`, `scoreAgainstPrior`) + `retrieval-prior.test.mjs` (3).
+
+**Amendment to P141 — better retrieval did NOT produce better answers, measured twice (2026-09-06).** `rank` was made injectable (`retrieveWith`, defaulting to `retrieve`, so every existing caller is byte-identical) and the two readings were run through the SAME turn on the same probes.
+
+| arm | correct | changed the subject | calls | time |
+|---|---|---|---|---|
+| term counting | 10 / 14 (71%) | 6 / 14 | 23 | 6.0 min |
+| prior + citation | 10 / 14 (71%) | 7 / 14 | 20 | 5.3 min |
+
+The first attempt used 8 probes and showed the same nothing, but was worthless as evidence because most of those turns were answered by the doors and never touched retrieval at all — measuring retrieval on turns that bypass it. The second run used only probes the doors did NOT answer and the model did, which is the only place the question can be asked. Same answer: **identical accuracy, slightly more subject-changing, ~13% fewer calls.**
+
+**What this says, and it is worth more than the win it denies.** Retrieval got measurably better at bringing the cited source (88% → 97%, P141), and the answers did not improve at all. So the 2B model's failure on these probes is NOT that it was handed the wrong passages. It changes the subject on 43–50% of them either way. Better material does not help a reader who does not hold the question.
+
+That is consistent with everything else measured this session: the doors answer recall 33/33 where the model answers 2/13, on the SAME material. **The improvement path is not better retrieval feeding a better answer; it is answering mechanically wherever the instrument can, because the model's failure is upstream of passage quality.** Retrieval quality still matters for the checks — the premise, misquote and referent readings are all taken against the retrieved passages, and P135/P136 were exactly failures of that — so `rank` earns its place there rather than in the hope of a better draft.
+
+Caveats: n = 14, one model, one corpus. The cost saving is real but small and not the reason to adopt it.

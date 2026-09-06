@@ -1013,6 +1013,10 @@ export async function runPart({
   math = null,
   // What the person asked for on the slider, so strain is held inside it.
   askedDepth = null,
+  // HOW THIS TURN FINDS ITS PASSAGES (P141), injected so an arm can be run
+  // against a different reading without editing the turn. Absent, it is
+  // `source.js::retrieve` and every existing caller is byte-identical.
+  retrieveWith = null,
   // The tower (P131/P132): the stream's own coverage history, the engine's
   // null apparatus, and whether the audit above has licensed the measured cut.
   coverageHistory = [],
@@ -1150,14 +1154,15 @@ export async function runPart({
   // prompt split above already fixed the SAME day for the model-facing
   // text — the meta label leaked into content here too, just one layer
   // over, in the query rather than the prompt.
+  const pick = (chunks, q, limit, folded) => (retrieveWith ? retrieveWith(chunks, q, limit, folded) : retrieve(chunks, q, limit, folded));
   const partWords = flat ? part.description : `${part.label} ${part.description}`;
   const live = chunks ?? [];
   let question = partWords;
-  let passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
+  let passages = live.length ? pick(live, question, passagesPerPart, foldedRefs) : [];
   let widened = false;
   if (!passages.length && flat && discourse && live.length) {
     question = `${partWords} ${discourse}`;
-    passages = retrieve(live, question, passagesPerPart, foldedRefs);
+    passages = pick(live, question, passagesPerPart, foldedRefs);
     widened = passages.length > 0;
   }
   // THE SEARCH DIGEST IS PINNED, never left to win a retrieval slot.
@@ -1202,7 +1207,7 @@ export async function runPart({
         const found = await piece.huntFor(query);
         if (Array.isArray(found) && found.length) {
           livePool = [...livePool, ...found];
-          passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
+          passages = pick(livePool, question, passagesPerPart, foldedRefs);
           rounds.push({ query, chunks: found.length, passages: passages.length });
         } else rounds.push({ query, chunks: 0, passages: passages.length });
       } catch (e) { rounds.push({ query, error: String(e?.message ?? e) }); }
@@ -1230,7 +1235,7 @@ export async function runPart({
   if (citedFile) {
     const fromCited = (live ?? []).filter((c) => String(c?.ref ?? c?.source ?? "").includes(citedFile));
     if (fromCited.length && !passages.some((p) => String(p?.ref ?? p?.source ?? "").includes(citedFile))) {
-      const best = retrieve(fromCited, question, 1, foldedRefs);
+      const best = pick(fromCited, question, 1, foldedRefs);
       if (best.length) passages = [...best, ...passages].slice(0, Math.max(passagesPerPart, best.length));
     }
   }
@@ -2995,6 +3000,7 @@ export async function runHolonicTask({
   transcript = [],
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
+  retrieveWith = null,
   // The tower's inputs (P131/P132), threaded to every part.
   coverageHistory = [],
   nul = null,
@@ -3199,6 +3205,7 @@ export async function runHolonicTask({
       math,
       makeReferentIndexFor,
       askedDepth: depth,
+      retrieveWith,
       coverageHistory,
       nul,
       useMeasuredCut,

@@ -73,7 +73,12 @@
 | item | found | status |
 |---|---|---|
 | Preserve and share a chat | none | **built** — blocks AES-256-GCM under a chat key the server never holds; share link's fragment carries the key; `matrix.test.mjs` + `matrix-client.test.mjs` (24) prove nothing readable reaches an adversarial homeserver, three ways |
-| Use other machines for inference; pool them | none | **built** — `/serve`, `matrix-worker.mjs`, a member's models as picker rungs, sealed jobs spread by in-flight count; the pool sheet |
+| Use other machines for inference; pool them | none | **built and drilled (P129)** — `/serve`, `matrix-worker.mjs`, a member's models as picker rungs, the pool sheet; two workers as separate accounts answered a requester's concurrent asks live |
+| Work went to the machine with fewer jobs, not the faster one | a 6× slower machine's queue timed out | **fixed** — routed by measured expected wait; re-run answered 6 of 6 |
+| A job naming no model reached the runtime as a null | six typed gaps | **fixed** — a worker answers with the first model it offers |
+| Which model on which machine answered | not said | **fixed** — every turn declares each call's model and machine, stamped to that turn; the self-citation names the same mouth |
+| A picked machine could be overridden by routing | the turn ran locally | **fixed** — a `room:` selection is pinned through the ladder and the two-pass turn |
+| Coordinating which model runs where | none | **built** — machines publish spare models and their own hardware; `/pool want` asks one to take a model up; a refusal carries its reason |
 | A default homeserver | — | **none, by decision** — the page names and prefers no homeserver; the sign-in sheet's placeholder is generic |
 | A share link was a bearer key with no revocation | whoever held it read the room forever | **fixed (P120)** — `/share @who:server` carries no key: one-shot secret, HMAC proof only that account can publish, granter wraps to that key alone; open links say they are a magic key |
 | A homeserver could substitute a member's published key | the grant was wrapped on sight | **fixed** — an unproved key is never granted automatically; it is listed with a fingerprint to compare aloud; the swap is exercised in the suite |

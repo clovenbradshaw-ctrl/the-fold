@@ -186,3 +186,16 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Chekhov | III.5 | lock/unlock | clean | the vault gates every door with a typed "locked"; the suite proves storage holds the vault and nothing else |
 | Marshall | IV.1; P71 | POLICIES P120, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the magic-key warning is in the product, not only the docs; not-claimed carries the open link, takeover, fingerprint discipline and the unlocked tab |
 clean: nothing struck.
+
+## 2026-09-06 — P129: the pool coordinates models, machines say what they are, turns declare their mouths (branch `pool-coordination`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon · Ostrom · Chekhov · Marshall; suites matrix 39/39, full 1720 pass.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | matrix.js pickMouth | fixed | ranking by job count alone sent three jobs to a machine six times slower and timed two out; expected wait is measured, and an unmeasured machine is scored at what the measured ones take |
+| Simon | P10 | matrix-worker.mjs describeMachine | clean | GPU is read from the runtime's own loaded-model report, null until something is loaded — unmeasured, never assumed |
+| Ostrom | II.9 | serve/canTakeUp | upheld | a machine takes up what the room asks only if it has it, and may decline on its own hardware; the reason travels to the asker |
+| Chekhov | III.5; IV.5 | app.js noteMouth / lastGround.turnSeq | fixed | a late background call was drawn under the wrong answer and the citation named the wrong mouth; both are stamped with the turn now |
+| Marshall | IV.1; P71 | POLICIES P129, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the drill's failures are in the entry, not only its successes; not-claimed carries one physical machine, no CPU-only run, no model pulls |
+clean: nothing struck.

@@ -8,7 +8,7 @@ import {
   generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey, wrapChatKey, unwrapChatKey,
   entryId, encodeBlock, decodeBlock, mergeChains, capManifest, chainIsLinked, manifestEntry, MANIFEST_MAX_BYTES,
   createRoomBody, memberKeyContent, chatKeyContent, loginBody, homeserverBase, paths, TYPES, EVENTS, FULL_POWER,
-  seal, open, pickMouth, syncFilter, mouthContent, jobContent, answerContent,
+  seal, open, pickMouth, syncFilter, mouthContent, jobContent, answerContent, deviceContent, deviceLine, wantContent, wantsFor,
   buildShareLink, parseShareLink, stripShareFragment,
   generateInviteSecret, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault, INVITE_TTL_MS, MAGIC_KEY_WARNING,
   SecretSet, bytesIndexOf, byteEntropy, forRecord, SERVER_SEES,
@@ -208,17 +208,40 @@ test("sealed events and the pool: a seal opens only with the key; a job and an a
   assert.deepEqual(Object.keys(jobContent({ to: "@w:h", id: "j1", env })).sort(), ["bytes", "env", "id", "to", "v"]);
   assert.deepEqual(Object.keys(answerContent({ job: "j1", env })).sort(), ["env", "job", "v"]);
   assert.deepEqual(Object.keys(answerContent({ job: "j1", mxc: "mxc://h/1", sha256: "s" })).sort(), ["job", "mxc", "sha256", "v"]);
-  assert.deepEqual(Object.keys(mouthContent({ models: ["a"], home: "terminal", since: 5 })), ["v", "models", "home", "since"]);
+  assert.deepEqual(Object.keys(mouthContent({ models: ["a"], home: "terminal", since: 5 })).sort(), ["home", "models", "since", "v"]);
   assert.deepEqual(manifestEntry("mxc://h/1", "s", 2), { m: "mxc://h/1", h: "s", e: 2 });
   assert.deepEqual(memberKeyContent("P", "PROOF"), { v: 1, alg: "ecdh-p256", pub: "P", proof: "PROOF" });
   assert.deepEqual(chatKeyContent({ eph_pub: "E", blob: "B" }, "P", { epoch: 1, older: [{ epoch: 0, eph_pub: "E0", blob: "B0" }] }), { v: 1, epoch: 1, pub: "P", eph_pub: "E", blob: "B", older: [{ epoch: 0, eph_pub: "E0", blob: "B0" }] });
   const offers = [{ user: "@a:h", models: ["gemma2:2b"], since: 2 }, { user: "@b:h", models: ["gemma2:2b", "qwen"], since: 1 }, { user: "@c:h", models: [], since: 0 }];
   assert.equal(pickMouth(offers, { inflight: {} }).user, "@b:h", "earliest offer on a tie; an empty offer is no mouth");
   assert.equal(pickMouth(offers, { inflight: { "@b:h": 2 } }).user, "@a:h", "the least loaded");
+  // measured latency decides between machines whose queues are the same depth
+  assert.equal(pickMouth(offers, { inflight: { "@a:h": 1, "@b:h": 1 }, meanMs: { "@a:h": 90_000, "@b:h": 12_000 } }).user, "@b:h", "one job on a 12s machine beats one job on a 90s machine");
+  assert.equal(pickMouth(offers, { inflight: { "@a:h": 0, "@b:h": 1 }, meanMs: { "@a:h": 90_000, "@b:h": 12_000 } }).user, "@a:h", "an idle machine takes it whatever its pace");
+  assert.equal(pickMouth(offers, { inflight: { "@a:h": 3, "@b:h": 1 }, meanMs: { "@b:h": 12_000 } }).user, "@b:h", "an untimed machine is scored at what the timed ones take");
   assert.equal(pickMouth(offers, { model: "qwen" }).user, "@b:h", "the one that has the model");
   assert.equal(pickMouth(offers, { model: "llama" }), null);
   const f = syncFilter("!r:h");
   assert.deepEqual(f.room.rooms, ["!r:h"]); assert.deepEqual(f.room.timeline.types, [EVENTS.job, EVENTS.answer]); assert.deepEqual(f.presence.types, []);
+});
+
+test("coordinating which model runs where: a mouth says what it serves, what it could serve, what its machine is, and what it refused; a want names a machine and a model, and is dropped once that machine serves it", () => {
+  const device = deviceContent({ runtime: "Ollama", os: "linux", arch: "x64", cores: 16, memGB: 64, gpu: false });
+  const m = mouthContent({ models: ["gemma2:2b"], available: ["qwen3:4b", "phi3:mini"], device, refused: [{ model: "llama3:70b", why: "not on this machine" }], home: "terminal", since: 7 });
+  assert.deepEqual(Object.keys(m).sort(), ["available", "device", "home", "models", "refused", "since", "v"]);
+  assert.equal(deviceLine(device), "Ollama · CPU only · 16 cores · 64 GB · linux x64");
+  assert.match(deviceLine(deviceContent({ runtime: "in-tab", gpu: true, cores: 8 })), /^in-tab · GPU · 8 cores$/);
+  assert.match(deviceLine(deviceContent({ runtime: "Ollama" })), /CPU\/GPU unmeasured/, "never a guess");
+  assert.equal(deviceLine(null), "device unknown");
+  const wants = [
+    { state_key: "@a:h", content: wantContent([{ to: "@w:h", model: "qwen3:4b", at: 1 }, { to: "@other:h", model: "x", at: 1 }]) },
+    { state_key: "@b:h", content: wantContent([{ to: "@w:h", model: "qwen3:4b", at: 9 }, { to: "@w:h", model: "gemma2:2b", at: 2 }]) },
+  ];
+  const forW = wantsFor(wants, "@w:h", { serving: ["gemma2:2b"] });
+  assert.deepEqual(forW, [{ model: "qwen3:4b", by: "@b:h", at: 9 }], "one row per model, the latest asker, and nothing it already serves");
+  assert.deepEqual(wantsFor(wants, "@w:h", { serving: ["gemma2:2b", "qwen3:4b"] }), []);
+  assert.deepEqual(wantsFor([], "@w:h"), []);
+  assert.deepEqual(wantContent([{ to: "@w:h", model: "m" }]).wants[0].to, "@w:h");
 });
 
 test("forRecord: a field named for a secret is dropped and said; a value carrying one refuses the line", () => {

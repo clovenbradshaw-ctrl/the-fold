@@ -250,6 +250,16 @@
         margin-left: 10px;
         cursor: help;
       }
+      /* Which model, on which machine, answered each call of this turn. Beside
+         the token count, in the same register: a fact about the turn, not a
+         claim inside the answer. */
+      .turn-mouths {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted);
+        margin-left: 10px;
+        cursor: help;
+      }
       /* EVERY RULE HERE IS SCOPED TO `.msg .body` — the answer surface —
          and none of them reach the `.turn-meta` disclosure, which is a
          sibling of `.body`, not a child. That scoping IS the "hidden

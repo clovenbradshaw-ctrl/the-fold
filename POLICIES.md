@@ -11868,3 +11868,25 @@ And the answer CHANGED THE SUBJECT on **82% of memory turns and 73% of injection
 **What this means for the standing rule.** "Keep the local model small" survives, and now with a measurement behind it rather than a preference: on this corpus the instrument's own answering and checking make the model choice not matter on exactly the shapes where the small model was weakest. Escalation is reserved for work the doors cannot answer and the checks cannot settle, and the delta is how that set is found. On this corpus it is close to empty. Sample: three turns, two of them door-answered — small, and said so.
 
 **Files.** `model-delta.js` (`workOf`, `routeForWork`, `delta`, `WORK`, `DELTA`) + `model-delta.test.mjs` (2).
+
+## P140 — Measured against a frontier model on identical material (2026-09-06)
+
+**The experiment.** Twelve probes from run 1 — three each of recall, reasoning, memory and injection. Each was answered twice: by the fold (gemma2:2b local, with retrieval, doors and checks) and by a context-free Claude subagent handed the SAME retrieved passages and the same question, with no conversation history of its own. Both scored by the identical mechanical scorer.
+
+| probe | the fold | Claude |
+|---|---|---|
+| recall | 1 / 3 | 2 / 3 |
+| reasoning | 2 / 3 | 3 / 3 |
+| memory | **3 / 3** | 2 / 3 |
+| injection | 0 / 3 | **2 / 3** |
+| **total** | **6 / 12** | **9 / 12** |
+
+**Claude wins, and the honest reading is that it wins on comprehension.** Its injection answers are the clearest case: handed a quoted line with one name swapped, it opened "One correction first: the speaker isn't Lincoln" and gave the right name with its address. The fold evaded twice on the same probes. It also cited addresses on 10 of 12 answers — **addressed citation is not a property of the instrument, it is a property of material that arrives addressed**, and any competent reader given refs will use them. That claim should not be made for the fold again.
+
+**Where the fold wins is retrieval, not reading.** It took memory 3/3 against 2/3 because the prior-answer door finds the specific earlier turn in the whole transcript and quotes it verbatim, while Claude was given the last three turns and said plainly that the exchange asked about was not in front of it. Stated fairly: the instrument's advantage there is that it does not have a context window, not that it understands better. A frontier model with the whole transcript in context would likely take that column too.
+
+**What the fold does that the comparison does not capture.** Seven of the twelve turns were answered with **zero model calls** — instant, deterministic, repeatable, and auditable without trusting any model's care. The whole run is local: a 3.3 MB corpus and a thousand-turn transcript, on a 2B model, with nothing leaving the machine. Those are the claims that survive this measurement, and they are claims about cost, privacy and auditability — not about being right more often.
+
+**Caveats, stated rather than buried.** n = 12. Claude's memory window was trimmed to three prior turns while the fold retrieved from the full transcript, which flatters the fold on that column. The fold's arm is a 2B model against a frontier one, which is the comparison the project chose, not a handicap it suffered.
+
+**What this changes.** Nothing about the architecture, and one thing about the language: the fold's case is not that it answers better than a large model. On identical material it answers worse, 6 to 9. Its case is that every answer is addressed and mechanically checked, most of them cost nothing, and none of it leaves the machine.

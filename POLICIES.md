@@ -12084,3 +12084,19 @@ A result that requires reading these predictions differently after the fact is a
 **Off by default.** Absent `expect`, every path is byte-identical to before — pinned by a test that compares the two readings directly, and by a control test that a belief sitting exactly at the base rate strains nothing, so the arm cannot measure its own presence.
 
 **Generality:** universal for the construction, and the numbers are not in yet. That a stream can learn its own difficulty regime online, rather than being handed a threshold measured elsewhere, needs no fact about this corpus — it is the same argument as P131's, applied to a quantity that varies. Every claim about whether it *works* is pending the arm, and this entry deliberately states its predictions before that evidence exists rather than after.
+
+## P146 — II.11 has teeth: the earned-constant ratchet (2026-09-06)
+
+FOLD-CONSTITUTION II.11 — *"Every threshold, cutoff, minimum count, and top-N names the run that derived it… What is refused is a constant with no giver and no measurement — a judgment wearing the clothes of a setting"* — was **enforced by nothing**. A survey of this repo's own inference machinery found it UNWIRED, and the same afternoon found four separate violations of it: `strain.js`'s coverage floor (which P144 measured as destroying 97% of the information in the best predictor the turn has), P143's own first SEG cell (a median bin on a distribution where 915 of 1,000 turns held the same value), and `retrieval-prior.js`'s two scoring bonuses. Finding the same defect four times in one session is what a ratchet is for.
+
+`earned-constants.test.mjs` scans every `export const NAME = <number>` in the-fold and asks whether the comment attached to it names **either** a measurement (a run, a date, a policy, the words measured/derived) **or** a giver. Both halves of II.11 are accepted — earned, or received and said so — because II.11 is explicitly not a refusal.
+
+**Disclosed baseline: 59 unaccounted of 85.** The test does not pretend those are fixed; it records them and **fails on the sixtieth**. Entries may be removed as they are accounted for and may not be added to silently. A second test fails if the baseline names a constant that no longer exists, so the file cannot go stale and quietly stop protecting anything.
+
+**Judgments are reported apart from budgets**, because being wrong about a floor is not being wrong about a snippet length. Seven of the 59 decide something about the material, and they are printed on every run rather than being discoverable only by audit:
+
+`longform.js:MIN_SECTIONS=4` · `mhc.js:SYMBOLIC_FLOOR=5` · `misquote.js:MIN_CONTENT_MATCHED=3` · `misquote.js:MIN_TOKENS=5` · `network.js:RECURRENCE_FLOOR=2` · `retrieval-prior.js:ACTIVATION_BONUS=0.5` · `retrieval-prior.js:CITATION_BONUS=2.0`
+
+**The control.** II.10 holds that an unfalsified gate reports `unmeasured`, never `pass`, so the ratchet plants an unearned `MYSTERY_FLOOR` and an honest one that names its measurement, and asserts the verdict on each. A gate that cannot fail is not enforcing anything.
+
+**Generality:** universal. That an unearned constant is a judgment disguised as a setting is II.11's claim, not this run's, and the ratchet form — disclose the standing debt, fail on the next one — carries to any rule with a large existing violation set. The 59 and the 7 are this repo on this date and mean nothing elsewhere.

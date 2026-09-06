@@ -11726,3 +11726,28 @@ Cost: **37 of 263 turns (14%) need no model at all**, which is **289 of 2,167 mo
 **`COVERAGE_FLOOR` placed against a measured distribution** rather than left bare: over the same 264 turns coverage ran min 0.00 · p25 0.43 · median 0.63 · p75 1.00, and the declared 0.34 catches the bottom 14%. Declared at roughly the first sixth, not tuned — no arm was run to choose it.
 
 **Also measured, about the baseline itself: 60 of 263 live answers (23%) changed the subject** — they share under a fifth of their question's content words. Nothing in the instrument flagged one of them before P130.
+
+## P131 — The cut is measured from the stream, through the engine's own licensed null (2026-09-06)
+
+**Generality:** universal for the rules (a threshold a turn is decided by is placed against a null built from the stream's own recent regime, using the engine's licensed apparatus rather than a statistic invented for the purpose — `nul/index.js::ground` builds the nothing by perturbing present material and `difference` places the observation, censoring at its own declared resolution of 1/draws; the pair is `maxDeviation/resample`, licensed for exactly this shape, and the construction is leave-one-out as its own citation's script does; because `maxDeviation` is blind to sign, DIRECTION is read separately, since an unusually well-covered question is not a strain; every typed gap the apparatus can return means something different and NONE of them means "easy"). Local for the numbers (`MIN_HISTORY = 12`, `HISTORY_WINDOW = 60`, `DRAWS = 200`, `WINDOW = 4` — declared, and the apparatus refuses to default draws or window because the resolution of testimony is 1/draws and the reach of the present is never derived from material length).
+
+**Why a declared floor cannot be right.** `COVERAGE_FLOOR = 0.34` is unremarkable on a marked-up critical edition and alarming on a novel. The cut has to come from the material, and the user asked the question directly: "can this calibration itself be online learning leveraging all the best mechanics we have like the born rule and the different voids and nuls?"
+
+**Files.** `calibration.js` (`placeCoverage`, `rememberCoverage`, `chooseCut`) + `calibration.test.mjs` (4, every typed null among them); `strain.js` (the placement decides where it can, the floor is the disclosed fallback, and the reading says which was used).
+
+## P132 — A tower of watchers, bounded by the law that nothing reads its own trail (2026-09-06)
+
+**Generality:** universal for the rules (each layer's object is the RECORD OF THE LAYER BELOW; a layer that watches itself, or a cycle through any chain, is refused AT CONSTRUCTION — the watcher's regress, which THE-NULL-STATES already named `self_referential` and THE-WAYS-OF-KNOWING calls the eye that cannot see itself, enforced here for the first time rather than stated; a layer that cannot read returns a typed gap, adjusts nothing, and the climb STOPS, because a layer above would be reading a reading never made; a layer that throws is a typed gap, never a crash). Local for the audit floor (0.02, declared — the honest alternative is a null over shuffled histories, named as owed rather than faked).
+
+**The layers were already here, unnamed.** 1 FAST answers what is exactly known with no model (P129). 2 DELIBERATE drafts and checks (holon.js). 3 CALIBRATING watches 2's record and measures the cut 2 spends by (P131) — this is what the strain meter secretly was, once its threshold stopped being declared. 4 AUDITING watches 3 and asks the one question 3 cannot ask about itself: does this cut DISCRIMINATE? The tower is arbitrary in principle and finite in fact — it rises exactly as far as there is a record below with width in it, and layer 5 would have to take layer 4's own reading as its object, which is the regress.
+
+**THE AUDIT IMMEDIATELY REFUTED THE LAYER BENEATH IT, which is the point.** Over 274 real turns of the long-stream run:
+
+| cut | fired on | audit |
+|---|---|---|
+| the declared floor, coverage < 0.34 | 40 of 274 (15%) | discriminating |
+| the stream-measured null (P131) | **0 of 262 (0%)** | **not discriminating — indistinguishable from a cut that never fires** |
+
+**The diagnosis is a mismatch of question, not a bug.** A null asks "is this SURPRISING for this stream?", and over a corpus whose coverage genuinely ranges 0.00 to 1.00, almost nothing is surprising. The floor asks "is this LOW?", and low-but-common is exactly the case that matters here. **Not every threshold should become a null**: a null answers surprise, some cuts need badness, and the two are different questions. So the tower decides rather than the author — `chooseCut` uses the measured cut when the audit says it separates turns and keeps the declared floor when it does not, with the record saying which and why. A wall that never fires reading as rigour is this project's oldest failure shape (P88); this is the first time a layer of the instrument caught it in the instrument's own new work, unprompted.
+
+**Files.** `layers.js` (`makeTower`, `climb`, `discriminating`, `GROUND`) + `layers.test.mjs` (4: the regress refused at construction for self-watch and cycles alike; base-first climbing with each layer reading only below; the climb stopping at a gap with no layer above it running; the audit catching all-or-none). Suite 1,736/0 plus main's flaky pool test.

@@ -65,6 +65,10 @@ export function strainOf({
   learnedInScope = 0,
   parts = 1,
   askedFor = null,
+  // A reading from calibration.js placing this turn's coverage against the
+  // stream's own null: { strained: true|false|null, why }. Absent, the
+  // declared floor decides and says so.
+  placement = null,
 } = {}) {
   // S1 answered outright. There is nothing for S2 to be lazy about.
   if (answeredBeforeTheModel) return { level: 0, reasons: ["the answer is known exactly, with an address"], coverage: 1 };
@@ -86,7 +90,17 @@ export function strainOf({
   // cut rather than how hard the question is.
   if (passages.length && onPoint === 0) found.push([2, `none of the ${passages.length} retrieved passage(s) speak to the question`]);
   else if (passages.length > THIN_PASSAGES && onPoint / passages.length < 0.34 && (coverage ?? 1) < 0.75) found.push([2, `only ${onPoint} of ${passages.length} passage(s) speak to the question`]);
-  if (coverage != null && coverage < COVERAGE_FLOOR) found.push([2, `the material carries ${Math.round(coverage * 100)}% of what the question asks about`]);
+  // THE CUT IS MEASURED WHERE IT CAN BE (P131/P132, calibration.js): the
+  // caller may hand a placement of this coverage against a null built from
+  // the stream's own recent regime. A declared floor cannot be right across
+  // corpora — 0.34 is unremarkable on a critical edition and alarming on a
+  // novel — so the floor is only the FALLBACK, and the record says which was
+  // used. A reading that could not be made never reads as "no strain".
+  if (coverage != null) {
+    if (placement && placement.strained === true) found.push([2, placement.why]);
+    else if (placement && placement.strained === false) { /* measured ordinary — the floor does not get a second vote */ }
+    else if (coverage < COVERAGE_FLOOR) found.push([2, `the material carries ${Math.round(coverage * 100)}% of what the question asks about${placement?.why ? ` (no null yet: ${placement.why})` : ""}`]);
+  }
   if (premiseCheck && (premiseCheck.unverified?.length || premiseCheck.contradicted?.length)) {
     const n = (premiseCheck.unverified?.length ?? 0) + (premiseCheck.contradicted?.length ?? 0);
     found.push([premiseCheck.contradicted?.length ? 3 : 2, `${n} thing(s) the question takes as settled ${premiseCheck.contradicted?.length ? "the sources contradict" : "are not in the material"}`]);
@@ -108,7 +122,7 @@ export function strainOf({
   found.sort((a, b) => b[0] - a[0]);
   reasons.push(...found.map(([, r]) => r));
   if (reasons.length === 0) reasons.push("the material speaks to the question and nothing conflicts");
-  return { level, reasons, coverage, informed };
+  return { level, reasons, coverage, informed, cut: placement?.strained == null ? "declared floor" : "measured against this stream's own null" };
 }
 
 /**

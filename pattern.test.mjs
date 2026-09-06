@@ -84,9 +84,11 @@ test("the surface level says it is about SPELLING, not about referents", () => {
 });
 
 test("the levels that are OWED are named, and say nothing either way", () => {
-  assert.deepEqual(OWED_LEVELS, ["referent", "fold"]);
+  // `fold` left this list when cursor.js built it (P156); `referent` — the
+  // cheap per-turn version, via the cast index — is still owed.
+  assert.deepEqual(OWED_LEVELS, ["referent"]);
   const L = loops({ passages: [], edges: list(4), draws: 50 });
-  assert.deepEqual(L.notYetRun, ["referent", "fold"]);
+  assert.deepEqual(L.notYetRun, ["referent"]);
   assert.match(L.why, /are not built and say nothing either way/);
   for (const owed of OWED_LEVELS) assert.ok(!L.fired.includes(owed), "an unbuilt level may never be reported as having fired");
 });

@@ -105,7 +105,19 @@ export const LEVELS = Object.freeze(["surface", "proposition", "convergence", "s
  *             reading depth. That is the recurrence that matters, and it is
  *             not built here.
  */
-export const OWED_LEVELS = Object.freeze(["referent", "fold"]);
+export const OWED_LEVELS = Object.freeze(["referent"]);
+
+/**
+ * BUILT SINCE (P156): the `fold` level lives in `cursor.js`. It reads the
+ * hypergraph projected at an arbitrary number of cursors and reports each
+ * referent as live, dormant or superseded — the unit being a referent the
+ * reading resolved, not a string that recurred. It is an OFFLINE reading (a
+ * book is ~115 s and 5.4 GB) and so is not called from here.
+ *
+ * `referent` remains owed: recurrence of referents WITHIN one reading, via
+ * the cast index, which is the cheap per-turn version of what cursor.js does
+ * expensively across a whole book.
+ */
 
 /**
  * THE STATISTIC, CORRECTED (and the correction is the finding).

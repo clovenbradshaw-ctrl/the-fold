@@ -57,10 +57,13 @@ easy, reads naturally, and is silently text-only: audio, CSV, code and images
 have none of those units. It was committed and had to be pulled back the same
 day.
 
-**Gate.** UNENFORCED pending the cursor work. The intended gate is that a
-level set is produced by an injected segmenter/perceiver and that a non-text
-material yields a different, non-empty level set. Until that test exists this
-guard is a debt and is recorded as one.
+**Gate.** `cursor.test.mjs` — "AN ARBITRARY NUMBER OF CURSORS" runs the fold
+level at 2, 3, 7 and 20 cursors and asserts each is read as itself, and
+"MATERIAL-AGNOSTIC: nothing here reads text" traces a projection whose nodes
+carry no text at all. The fold level takes its levels from the caller's
+cursors and its units from the perceiver's projection; nothing in it names a
+word, a sentence or a passage. `pattern.js`'s five hand-authored levels remain
+text-only and are the standing exception, disclosed in `OWED_LEVELS`.
 
 ## G4 — Recurrence of surfaces is not recurrence of referents
 
@@ -178,13 +181,56 @@ null arm or renders `provisional`.
 PROVISIONAL, never guessed", "THE NULL ARM (II.12)", and a control that a split
 which is not there is reported absent.
 
+## G13 — Survival is not a finding on an upsert-only fold
+
+**Claim.** "What persists across cursors" distinguishes nothing when the
+structure never loses anything. A trace must check its own vacuity and report
+it, rather than letting a caller present survival as a result.
+
+**Why regression is tempting.** "A pattern is what survives cursor movement"
+is the obvious and attractive design, and it reads as principled. Measured on
+War and Peace's first 120 KB at four cursors: **32 of 32 nodes present at 50%
+are still present at 100%, and the lost set is empty at every step** — the
+fold is upsert-only (`applyObservation`/`applyDelta` both end in
+`upsertManyById`; the sole removal touches `fold.provisional`, never
+`graphEntries`). What carries information is what a node *does* after it
+appears: live, dormant, or superseded.
+
+**Gate.** `cursor.test.mjs` — "THE VACUITY, measured not assumed", "what a
+node DOES separates", and "the fold level reports its own vacuity every time".
+`trace` returns `persistenceIsVacuous` on every call.
+
+## G14 — A reconstruction is never reported as the record it replaces
+
+**Claim.** Where a finding is recovered by inference because its testimony was
+discarded, it is marked `inferred` and names what was lost.
+
+**Why regression is tempting.** The reconstruction works. `supersessions`
+recovers real merges — `ref:auto:vasili` and `ref:auto:prince_vasili` folding
+into `ref:auto:prince_vasili_kuragin`, three ids for one being — from dormancy
+plus surface capture. But the *actual* record exists upstream and is thrown
+away: `discoverReferents` builds `merges.push({kept, folded, witness})`
+(`surfaces.js:1083`) and returns it (`:1165`), and the perceiver's cache reads
+`events` and `gaps` and never `merges` (`recursive.js:297–303`). A
+reconstruction that presents itself as testimony hides the repair that is
+actually owed.
+
+**Gate.** `cursor.test.mjs` — "A MERGE IS RECOVERED from dormancy plus surface
+capture — and marked INFERRED" asserts the flag and the disclosure, with
+"THE CONTROL: dormancy alone is not a merge" so identity is never invented.
+
 ---
 
 ## Owed
 
-- **G3** is UNENFORCED and is the largest debt here.
-- The `referent` and `fold` levels named in `pattern.js::OWED_LEVELS` are not
-  built. When the cursor work lands, this document gains the guard that a
-  fold-level finding must be **what survives cursor movement** — a node
-  present at one cursor only is an artifact of that reading depth, never a
-  pattern — and G3's gate with it.
+- **All guards are enforced.** G3's gate landed with `cursor.js` (P156).
+- **The repair upstream is owed, and it is not this repo's.** `merges` is
+  computed in `eoreader7`'s `surfaces.js` and dropped in `recursive.js`; until
+  that is wired, every supersession here is `inferred` (G14) and weaker than
+  the testimony that already exists.
+- `pattern.js`'s five levels remain hand-authored and text-only. They are the
+  standing exception to G3 and are named in `OWED_LEVELS`; the fold level is
+  the general one.
+- The cursor trace is an OFFLINE reading, not a turn organ: a full book read
+  is ~115 s and 5.4 GB, and exceeds Node's default heap. Each projection is a
+  full replay from entry 0.

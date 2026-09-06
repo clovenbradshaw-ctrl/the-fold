@@ -12276,3 +12276,39 @@ with a control pinned alongside it that a split which is not there is reported a
 **One guard is honestly unenforced.** G3 — that levels come from the material rather than from the author — is a debt, waiting on the cursor work, and is listed under Owed. It is the largest one here: `pattern.js`'s five levels are hand-authored and text-only, which is the same defect as the hand-authored walk that P152 exposed.
 
 **Generality:** universal for the form, specimen-scoped for the twelve. That a guard must name a gate or admit it has none, and that a citation must be checked against the thing it cites, holds for any project keeping standing rules. The twelve guards are this instrument's theory on this date; each names the measurement that earned it and goes only by a measurement showing it protects nothing.
+
+## P156 — The fold level: what cursor movement actually shows, and the record that is thrown away (2026-09-06)
+
+**The prompt.** *"It's not about raw tokens recurrence, it's about the folded hypergraphical cursor based reading"* — and, on levels, *"an arbitrary number of levels working on any type of material."*
+
+**The obvious design is void, and it was measured before it was built.** "A pattern is what survives cursor movement" reads as principled and distinguishes nothing here: the fold is upsert-only (`applyObservation` and `applyDelta` both end in `upsertManyById`; the sole removal in the payload switch touches `fold.provisional`, never `graphEntries`). Measured on War and Peace's first 120 KB at four cursors:
+
+| cursor | nodes | new | **lost** |
+|---|---|---|---|
+| 50% | 32 | 32 | (none) |
+| 70% | 40 | 8 | (none) |
+| 85% | 49 | 9 | (none) |
+| 100% | 55 | 6 | (none) |
+
+**32 of 32 nodes present at 50% survive to 100%.** Everything survives, so survival is not a finding, and `trace` returns `persistenceIsVacuous` on every call so that no caller can present it as one.
+
+**What carries information is what a node DOES after it appears** — three states, not degrees of one thing: **live** (still arriving), **dormant** (the reading has moved on), **superseded** (dormant, and its surface now belongs to a node that gained one). On the same run: 20 of 32 kept arriving, 12 went dormant, and exactly one node grew its surfaces.
+
+**The unit is a referent, not a string.** Node ids are content-derived and stable across cursors (`ref:auto:${diaNorm(surface)}`, `surfaces.js:1102`), so `ref:auto:prince_andrew` and `ref:auto:prince_vasili` stay two beings. A surface counter makes them one and calls it a pattern — which is exactly what `pattern.js`'s `surface` level had to be renamed for.
+
+**THE DEFECT THIS RECOVERS FROM.** `discoverReferents` detects merges and records them — `merges.push({ kept, folded, witness })` at `surfaces.js:1083`, returned at `:1165` as `{events, gaps, merges}` — and **the perceiver's cache reads `events` and `gaps` and never `merges`** (`recursive.js:297–303`). Verified: the only `.merges` consumer in either repo is an unrelated one in `clearance.js`. So the testimony is computed and thrown away, and the projection's own header — *"a node at cursor 500 may be two nodes at cursor 200, and scrubbing the cursor SHOWS that"* — is left to whoever reads two node lists.
+
+`supersessions` reconstructs it from the footprint, and live on the real run it recovers:
+
+```
+ref:auto:vasili         -> ref:auto:prince_vasili_kuragin
+ref:auto:prince_vasili  -> ref:auto:prince_vasili_kuragin
+```
+
+Three ids for one being. **Every row is marked `inferred`**, because a reconstruction that presents itself as testimony hides the repair actually owed — which is upstream, in eoreader7, and is to stop dropping `merges`.
+
+**Arbitrary levels, any material — and this is what closes guard G3.** `foldLevel` takes an arbitrary number of cursors (pinned at 2, 3, 7 and 20), makes no assumption about their spacing, and reads nothing but nodes, arrival counts and surfaces — pinned by a trace over a projection whose nodes carry no text at all. `pattern.js`'s five hand-authored levels remain text-only and are now the disclosed exception rather than the design.
+
+**Cost, stated because it decides where this can run.** A whole-book read is ~115 s and 5.4 GB, and **exceeds Node's default heap** — the committed driver dies with a mark-compact failure on a full book. Each `projectHypergraph` is a full replay from entry 0 (0.7/6.9/8.0/13.7 s at four cursors). This is an offline reading, not a turn organ, and is not called from `loops`.
+
+**Generality:** universal for the three findings, specimen-scoped for the numbers. That survival is vacuous on any upsert-only structure is a property of upsert-only structures; that a reconstruction must be marked as one holds anywhere a record is discarded; that levels should come from the caller's cursors and units from the perceiver's projection is what makes the level material-agnostic at all. The 32-of-32, the 20/12 split, the two recovered merges and the 115 s are one book, one prefix, one machine — and the committed reference JSON for this driver is dated Aug 25 and reproduces different node counts against current `native/`, so it should be treated as stale rather than authoritative.

@@ -271,3 +271,33 @@ export function sensitivity(turns = [], { key = "unbacked", grids = [[1], [0.5, 
     return { grid: strengths.join(","), ...r };
   });
 }
+
+/**
+ * A LENGTH-FREE OUTCOME (P144). Whether an answer contains ANY defect is
+ * mostly a fact about how long the answer is — measured on the 1,000-turn
+ * run, P(an unbacked sentence exists) ran from 0.38 at under forty words to
+ * 1.00 past two hundred and forty. Predicting that outcome is largely
+ * predicting length, which is a much weaker claim than it sounds like.
+ *
+ * So the outcome is a RATE, and it is called high when it exceeds the median
+ * rate the stream has shown SO FAR — the stream's own median, taken from
+ * turns strictly earlier than the one being labelled, so the label for turn t
+ * never sees turn t. No cut is chosen and the firewall is not broken to make
+ * one.
+ *
+ * `rows` need `count` (defects) and `size` (words, sentences — any measure of
+ * how much was written). Until `minHistory` turns have been seen there is no
+ * median to speak of, and the outcome falls back to presence, disclosed on
+ * the row as `provisional`.
+ */
+export function rateOutcome(rows = [], { count = "unbacked", size = "words", minHistory = 8 } = {}) {
+  const seen = [];
+  return rows.map((r) => {
+    const n = Math.max(1, Number(r[size] ?? 0) || 1);
+    const rate = Number(r[count] ?? 0) / n;
+    const median = seen.length >= minHistory ? [...seen].sort((a, b) => a - b)[Math.floor(seen.length / 2)] : null;
+    const high = median == null ? rate > 0 : rate > median;
+    seen.push(rate);
+    return { ...r, rate, high, provisional: median == null };
+  });
+}

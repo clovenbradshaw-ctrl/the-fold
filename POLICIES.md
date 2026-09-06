@@ -12015,3 +12015,40 @@ Seventy-three turns the instrument knew, before the model spoke, were near-certa
 **The wall.** The probability never reaches the model. A small model handed *"you are probably about to be wrong"* is being handed a suggestion, not a fact (P126, measured). It is spent by the instrument — on how much checking to buy, and on what the instrument discloses afterward.
 
 **Generality:** universal for the construction, specimen-scoped for the numbers. That a dependency order can serve as a conditioning order — each cell's posterior being the next cell's prior — is a property of any chain whose cells nest, and needs no fact about this corpus. The 0.2484 bits, the per-cell prices and the calibration table are one run, one model, one corpus, and transfer to nothing without being re-measured. The two defects are universal: a bin over a degenerate distribution measures nothing anywhere, and a disclosed constant that overturns two hundred observations with one is indefensible anywhere.
+
+## P144 — The length confound, and what actually predicts a bad answer (2026-09-06)
+
+**This amends P143, whose headline number was substantially an artifact.** P143 predicted `unbacked > 0` — whether an answer contains any sentence nothing backs. That outcome is very largely a proxy for how long the answer is:
+
+| answer length | P(unbacked > 0) |
+|---|---|
+| 0–39 words | 0.38 |
+| 80–119 words | 0.94 |
+| 240+ words | 1.00 |
+
+A longer answer has more sentences and therefore more chances to contain one that is unbacked. So P143's 0.2484 bits was in part the chain predicting *length*, which is a far weaker claim than predicting *error*.
+
+**Re-measured on a length-normalised outcome** — unbacked sentences per word, called high when above the median rate the stream has shown so far, the median taken prequentially from strictly earlier turns:
+
+| what decides | bits | gain | control |
+|---|---|---|---|
+| the P143 dependency chain | 0.9962 | **0.0100** | −0.0044, loses as it must |
+| **coverage alone** | 0.9307 | **0.0755** | — |
+| **strain level — what the live turn uses today** | — | **0.0019** | — |
+
+The chain's length-free gain is 0.0100 bits: real, since the control still fails, and small. **Coverage alone beats the whole dependency chain seven-fold** — and coverage is already computed in the live turn.
+
+**The finding that matters is about the encoding, and it is not confounded.** `strain.js` takes coverage and cuts it into levels. That cut costs 0.0755 bits → 0.0019 bits: **97% of the information in the best predictor the turn has is destroyed by binning it.** This is the identical defect P143 records in its own first SEG cell, found here in production code. Stated generally, and this is the third time this session it has been found: **where a backoff exists, a bin is a strictly worse estimator wearing a decision.**
+
+**The relationship is a regime, not a gradient.** Coverage does not slope into failure:
+
+| coverage | n | P(rate high) | median words |
+|---|---|---|---|
+| 0.0–0.8 | 625 | 0.34 – 0.43, flat | ~60–70 |
+| **exactly 1.0** | 236 | **0.76** | **114** |
+
+Every obligation covered is its own regime: the model writes roughly twice as much and fails at twice the rate, even after normalising for length. Below that, coverage carries almost nothing. A cut anywhere in 0–0.8 was always going to measure noise.
+
+**What is NOT established, and why.** `strain.js` treats LOW coverage as strain and buys more checking there; the levels come out as strain 1 (median coverage 0.71) failing at 0.55 and strain 2 (median coverage 0.27) failing at 0.40 — apparently backwards. That claim is **not made**, because strain is *computed from* coverage, so the two are confounded by construction: holding coverage fixed leaves only 21 and 18 turns in the off-diagonal arms, and the sign flips between coverage bands. Whether strain-2 turns fail less because they were easy or because the checking worked cannot be separated observationally. What is known is that the checking does real work — **837 of 3,848 flagged atoms removed, 21.8%**, with 555 rewritten and 215 dropped — so the treatment explanation is live and must be tested rather than assumed away. **The next move is an experimental arm that recruits on coverage == 1.0, not another observational pass.**
+
+**Generality:** universal for the two method claims, specimen-scoped for every number. That a presence-of-any-defect outcome is confounded by output length holds for any generator whose output length varies, and any such result must be re-measured on a rate; that binning a continuous predictor destroys information a backoff would have kept holds anywhere. The 0.0755, the 0.0019, the coverage-1.0 regime and the 21.8% are one run, one model, one corpus, and transfer to nothing without being re-measured. That strain spends effort backwards is **not** claimed at any generality: it is confounded and pending an experiment.

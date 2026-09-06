@@ -1,7 +1,7 @@
 // prequential.test.mjs — P143. A real belief about the turn, before the turn.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cellsFor, bandFor, predict, mixture, baseRate, loss, scoreStream, shuffledControl, sensitivity, CHAIN, STRENGTHS } from "./prequential.js";
+import { cellsFor, bandFor, predict, mixture, baseRate, loss, scoreStream, shuffledControl, sensitivity, rateOutcome, CHAIN, STRENGTHS } from "./prequential.js";
 
 // A stream where the outcome genuinely depends on a cell the chain can see.
 const stream = (n) => Array.from({ length: n }, (_, i) => {
@@ -111,4 +111,38 @@ test("the base rate is the null, and with no history it is a coin", () => {
   assert.equal(baseRate([]), 0.5);
   assert.equal(baseRate([{ unbacked: true }, { unbacked: false }]), 0.5);
   assert.equal(baseRate([{ unbacked: true }, { unbacked: true }, { unbacked: false }, { unbacked: false }]), 0.5);
+});
+
+test("P144: whether an answer has ANY defect is mostly a fact about its length — the outcome must be a rate", () => {
+  // Two answers with the identical defect RATE and very different lengths.
+  // Presence calls the long one worse; the rate correctly calls them equal.
+  const rows = [
+    ...Array.from({ length: 40 }, () => ({ unbacked: 1, words: 40 })),   // rate 0.025
+    ...Array.from({ length: 40 }, () => ({ unbacked: 6, words: 240 })),  // rate 0.025 — the same
+  ];
+  const presence = rows.map((r) => r.unbacked > 0);
+  assert.ok(presence.every(Boolean), "presence cannot tell these apart at all — every one is 'defective'");
+  const scored = rateOutcome(rows);
+  const short = scored.filter((r) => r.words === 40 && !r.provisional);
+  const long = scored.filter((r) => r.words === 240 && !r.provisional);
+  assert.ok(short.length && long.length);
+  assert.equal(short[0].rate.toFixed(4), long[0].rate.toFixed(4), "equal rates must be equal");
+  const pShort = short.filter((r) => r.high).length / short.length;
+  const pLong = long.filter((r) => r.high).length / long.length;
+  assert.equal(pShort, pLong, `the same rate must not be called worse for being longer: ${pShort} vs ${pLong}`);
+});
+
+test("P144: the outcome's own median is taken prequentially — a turn's label never sees that turn", () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ unbacked: i, words: 100 }));
+  const a = rateOutcome(rows);
+  // Labelling the same stream twice is identical, and truncating it does not
+  // change the labels of the turns that remain — which is what "strictly
+  // earlier" means operationally.
+  assert.deepEqual(rateOutcome(rows).map((r) => r.high), a.map((r) => r.high));
+  assert.deepEqual(rateOutcome(rows.slice(0, 20)).map((r) => r.high), a.slice(0, 20).map((r) => r.high));
+});
+
+test("P144: before there is a median there is no median, and the row says so", () => {
+  const r = rateOutcome([{ unbacked: 0, words: 10 }, { unbacked: 3, words: 10 }], { minHistory: 8 });
+  assert.ok(r.every((x) => x.provisional), "with two turns seen, no median may be claimed");
 });

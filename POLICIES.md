@@ -11962,3 +11962,56 @@ The third row is the one that matters, because it is not comprehension — it is
 > Also looked at: wp-b.txt#0-126, wp-c.txt#0-123 were read and speak of the same things without answering this.
 
 **Generality:** universal. The claim is not about this corpus or this model: any reader that retrieves a set and uses a subset owes its reader the difference, and any reader that retrieves nothing must not be able to phrase that as having excluded something. Neither half depends on what was being read.
+
+## P143 — The dependency order is the conditioning order: a real belief about the turn, before the turn (2026-09-06)
+
+**Where it came from.** The user, on reading P140's comparison against a frontier model: *"the frontier LLM mimics chain of thought reasoning and baysean priors, but we can actually do it — and we have true dependency order reasoning guardrails."*
+
+That is exactly the line worth drawing. A frontier model writes *"I'm not certain"*, *"probably"*, *"one correction first"*. Those are tokens that **resemble** inference; nothing was conditioned on anything, and narration cannot be scored, calibrated, or wrong in a way that improves it. `ground-ledger.js` already built the honesty apparatus for the real thing — Dawid's prequential firewall, under which a turn may only be scored against a state of knowledge that existed strictly before it arrived, and scores once ever — and its own header named the missing half: *"What this file deliberately does NOT do: score anything."* This is that half.
+
+**What is computed.** Before the model drafts, the probability that this answer will contain sentences nothing backs.
+
+**Where the prior comes from — and this is the whole point.** Not a constant. The prior at each cell **is the posterior of the cell above it in the cube's own dependency chain**, the same chain `turn-order.js` already enforces on what may be said. `NUL SIG INS SEG CON`: each cell asks something the next depends on, so each partitions the stream more finely than the last, and every cell has a strictly coarser estimate over strictly more turns sitting immediately above it. That is a prior by construction, not by analogy. The order is not the sequence in which reasons were mentioned — it is the nesting under which beliefs are conditioned, and it is the same order that binds admissibility.
+
+**Measured on the 1,000-turn run** (gemma2:2b, six sources, base rate 0.648):
+
+| arm | bits/turn | vs null | gain |
+|---|---|---|---|
+| chain-conditioned | **0.6924** | 0.9408 | **+0.2484** |
+| CONTROL, outcomes permuted | 0.9475 | 0.9413 | −0.0062 |
+
+A 26% cut in log loss, and under permutation the chain **loses** to the null — so the gain is in the material, not the machinery. Across four different candidate grids the gain moves 0.2431–0.2484 and never changes verdict.
+
+**What each cell actually buys, priced against the cells it depends on:**
+
+| cells kept | bits | marginal gain |
+|---|---|---|
+| none (the null) | 0.9408 | — |
+| NUL | 0.9408 | 0.0000 |
+| NUL SIG | 0.9408 | 0.0000 |
+| NUL SIG INS | 0.7374 | **0.2034** |
+| NUL SIG INS SEG | 0.7143 | 0.0231 |
+| NUL SIG INS SEG CON | 0.7126 | 0.0017 |
+
+**The honest reading, which is a split verdict.** NUL and SIG buy exactly nothing here because they are constant in this run — material was always present, retrieval never widened — so they could not have spoken. Most of the gain is INS: whether a mechanical door answered instead of the model. That is real and it is also **true by construction**, since a door cannot produce an unbacked sentence. Strip the door and score only the 869 turns a model actually drafted: gain falls to **0.0344 bits/turn**, small but real, with the control still failing correctly at −0.0052.
+
+**Calibration is the part that holds up.** On model turns, what the instrument states is what happens:
+
+| stated | observed | n |
+|---|---|---|
+| 0.70 | 0.79 | 56 |
+| 0.72 | 0.71 | 663 |
+| 0.83 | 0.79 | 66 |
+| **0.98** | **0.97** | **73** |
+
+Seventy-three turns the instrument knew, before the model spoke, were near-certain to come back unbacked. That is the thing a frontier model can only gesture at.
+
+**Two defects the tests caught, both worth recording because both were mine.**
+
+*A cut that measured nothing.* SEG originally banded the retrieved count at the stream's median. 915 of 1,000 turns retrieved exactly three passages, so the median split put everything on one side and SEG bought 0.0016 bits. The fix removed the cut rather than choosing a better one — the cell is the count itself, and the ladder's own backoff already prices a thin cell correctly. SEG then bought 0.0231, fourteen times more. **The lesson generalises: where a backoff exists, a bin is a worse estimator wearing a decision.**
+
+*A constant that was doing real work while disclosed.* The parent's strength was 1, disclosed in the header as structural. A test then showed what that bought: against a parent backed by 200 turns, one contrary observation in a child cell moved the belief from 0.995 to 0.497. A single turn overturning two hundred is not a defensible belief, and disclosure does not make it one. It is now not set at all — a grid of candidates each predicts every turn, and the belief is their average weighted by `exp(-bits each has already cost)`, the Bayes posterior over candidates under log loss, formed from strictly earlier turns like everything else. Also fixed alongside it: a cell holding exactly its parent's turns was still being entered, applying the same evidence twice. A cell that partitions nothing conditions nothing.
+
+**The wall.** The probability never reaches the model. A small model handed *"you are probably about to be wrong"* is being handed a suggestion, not a fact (P126, measured). It is spent by the instrument — on how much checking to buy, and on what the instrument discloses afterward.
+
+**Generality:** universal for the construction, specimen-scoped for the numbers. That a dependency order can serve as a conditioning order — each cell's posterior being the next cell's prior — is a property of any chain whose cells nest, and needs no fact about this corpus. The 0.2484 bits, the per-cell prices and the calibration table are one run, one model, one corpus, and transfer to nothing without being re-measured. The two defects are universal: a bin over a degenerate distribution measures nothing anywhere, and a disclosed constant that overturns two hundred observations with one is indefensible anywhere.

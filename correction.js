@@ -193,7 +193,11 @@ export function premiseFacts(check) {
   const parts = [];
   if (lines.length) parts.push(`What these sources say about it:\n${lines.join("\n")}`);
   if (strangers.length) parts.push(`${strangers.map((v) => `"${v}"`).join(", ")} ${strangers.length === 1 ? "is not someone or something" : "are not people or things"} this passage introduces at all.`);
-  if (absent.length) parts.push(`These sources do not use ${absent.filter((v) => !strangers.includes(v)).map((v) => `"${v}"`).join(", ") || absent.map((v) => `"${v}"`).join(", ")} anywhere. There is nothing here to describe under that name.`);
+  // A name already reported as someone this passage does not introduce is not
+  // reported a second time as a missing string — the referent reading is the
+  // better one and it supersedes.
+  const onlyAbsent = absent.filter((v) => !strangers.includes(v));
+  if (onlyAbsent.length) parts.push(`These sources do not use ${onlyAbsent.map((v) => `"${v}"`).join(", ")} anywhere. There is nothing here to describe under that name.`);
   return parts.join("\n\n");
 }
 

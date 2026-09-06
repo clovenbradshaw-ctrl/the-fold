@@ -75,7 +75,27 @@ export function detectCodePiece(question, { runtimes = [] } = {}) {
 }
 
 /** A source that is CODE, by its name (P113): read by the sandbox and the declaration scout, never by the prose reader — a `.js` file read as English yields `Arokin —is→ …` notes and a cast of identifiers (measured 2026-09-05, the self-review). */
-export const isCodeSource = (name) => /\.(m?js|cjs|ts|tsx|jsx|py|rb|php|r|sql|json|css|html?|sh|yml|yaml|toml)$/i.test(String(name ?? "").split("#")[0]);
+// WHAT A PASSAGE IS, NOT WHAT IT IS CALLED (P136). `.html` was in this list,
+// so every passage of a rendered encyclopaedia article was classed as code
+// and dropped from `prosePassages` — which is what feeds the snips, the
+// obligations, the cast and the referent check. Measured: in one live run the
+// Lincoln article was retrieved 439 times and was invisible to all of them.
+//
+// An HTML file in this instrument is always RENDERED to text before it
+// becomes a passage (the long-stream driver strips tags; the web path keeps a
+// text face), so by the time anything here sees it, it is prose. Raw markup
+// that never got rendered is still code-like, and that is decided by looking
+// at the text rather than at the name — the same discipline the referent
+// check answers to: read what it IS.
+const CODE_EXT = /\.(m?js|cjs|ts|tsx|jsx|py|rb|php|r|sql|json|css|sh|yml|yaml|toml)$/i;
+const MARKUP_DENSE = (text) => {
+  const t = String(text ?? "");
+  if (!t) return false;
+  const tags = (t.match(/<\/?[a-z][^>]{0,80}>/gi) ?? []).length;
+  return tags > 0 && tags * 40 > t.length;   // a tag every ~40 chars is markup, not prose
+};
+export const isCodeSource = (name, text = null) =>
+  CODE_EXT.test(String(name ?? "").split("#")[0]) || (text != null && MARKUP_DENSE(text));
 
 const foldT = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 /** The topic's content words, folded: every one must appear in a source for it to be in a piece's scope (P114). */

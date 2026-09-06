@@ -1265,7 +1265,7 @@ export async function runPart({
   const relations = passages.length ? makeRelationReader?.(passages, { pool: livePool }) ?? null : null;
   // Obligations (P110): the cast the section's own passages establish.
   // Prose passages only: a code file's "cast" is its identifiers (P113).
-  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p));
+  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref, p?.text) && !isTranscriptPassage(p));
   const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
   // THE SNIPS (P122): the verbatim, addressed sentences of this section's
@@ -1297,7 +1297,7 @@ export async function runPart({
     // what the SOURCES establish; letting the mouth's own earlier words in
     // would make the model its own witness — self:model may never corroborate
     // itself (P2), and a claim would gain standing by being repeated.
-    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p)), {
+    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref, p?.text) && !isTranscriptPassage(p)), {
       read: (text) => relations.read(text),
       witnessFor: (p) => (p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null),
       classifyConnector,

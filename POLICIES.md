@@ -11812,3 +11812,15 @@ Demonstrated, and pinned in both directions: against the cited Lincoln passage, 
 **Not settled, and said so.** In isolation the referent read is exactly right; at turn level the facts block still reported the reverse pair on one hand-built case, so some part of the integration is selecting the wrong passage set. The organ and its pins stand; the turn-level wiring is not yet proven and is owed a pass.
 
 **Files.** `correction.js` (`premiseReferents`, `checkPremises` taking `referentIndexFor` and `cited`), `holon.js` (the organ injected, retrieval honouring the citation), their pins. Suites 1,750/0 and 675/0.
+
+## P136 — A passage is prose or code by what it IS, not what it is called (2026-09-06)
+
+**Generality:** universal for the rule (the prose/code decision reads the passage's own text where it has one, and falls back to the extension only when it does not; a rendered document is prose whatever its file was called, and raw markup is code-like whatever it was called; every existing caller that passes no text is byte-identical to before).
+
+**The measured failure, found while proving P135.** `.html` was in the code-extension list, so every passage of a rendered encyclopaedia article was classed as source code and dropped from `prosePassages` — the pool that feeds the snips, the obligations, the cast, and the referent check. In one live run the Lincoln article was retrieved **442 times, 11% of all retrieved passages, and was invisible to every one of those checks.** The turn-level discrepancy P135 recorded as unresolved was this: the referent index was built over War and Peace because the cited article had been filtered out as code, so the article's own "Yosemite Grant" came back as a stranger and the planted "Kutúzov" resolved.
+
+An HTML file in this instrument is always RENDERED to text before it becomes a passage (the long-stream driver strips tags; the web path keeps a text face), so by the time any check sees it, it is prose. Markup that never got rendered is still code-like, and that is decided by looking at the text — a tag every forty characters is markup, not prose.
+
+**Proven end to end**, and pinned: retrieval honours the citation so the cited passage is present; the cast of THAT passage decides; the planted name is the only thing flagged; the name the passage does establish is left alone; and the referent reading supersedes the string reading rather than being printed twice. P135's open item is closed.
+
+**Files.** `longform.js` (`isCodeSource` takes the text; `MARKUP_DENSE`), `holon.js` (both call sites pass it), `correction.js` (the referent reading supersedes), their pins. Suites 1,753/0 and 675/0.

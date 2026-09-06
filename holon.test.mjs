@@ -2333,3 +2333,30 @@ test("P134: every cut registers a finding at its cell — the learned guard's CO
   assert.doesNotMatch(r.output, /chaired/, "and no later cell can put it back in other words");
   assert.ok(!(r.learned ?? []).some((e) => /chaired/.test(e.corrected ?? "")), "REC may not mint the forbidden claim as the truth");
 });
+
+test("P135/P136 end to end: the cited passage's own cast decides, and a rendered article is prose so its cast can be read at all", async () => {
+  const { makeReferentIndex } = await import("../eoreader7/native/organs/cast.js");
+  const { splitSentences: split } = await import("../eoreader7/native/adapters/text/spans.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import("../eoreader7/native/adapters/text/surfaces.js");
+  const referentIndexFor = makeReferentIndex({ splitSentences: split, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+  const chunks = [
+    ...chunkSource("lincoln.html", "Abraham Lincoln signed the Yosemite Grant in 1864. Lincoln addressed Congress about the measure, and Lincoln praised the region."),
+    ...chunkSource("pg2600.txt", "The Emperor displeasure with Kutúzov was increased at Vílna. Kutúzov could not act, and Kutúzov wrote to the Emperor."),
+  ];
+  const r = await runHolonicTask({
+    // A name planted from ANOTHER source — real in the corpus, a stranger here.
+    task: 'Earlier we established from lincoln.html that: "Lincoln signed the Yosemite Grant protecting the Kutúzov region." Remind me what that passage says.',
+    chunks, planMode: "flat", makeReferentIndexFor: referentIndexFor,
+    call: async () => "The Kutúzov region was protected by the grant Lincoln signed.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  // Retrieval honoured the citation, so the cited passage is actually present.
+  assert.ok((r.sections[0].passages ?? []).some((p) => String(p.ref).includes("lincoln.html")), "the cited source is retrieved");
+  // The cast of THAT passage decides: the planted name is beyond-reach, and
+  // the name the passage does establish is not flagged.
+  const flags = r.premises.rows[0].flags;
+  assert.deepEqual(flags, ["Kutúzov"], "only the stranger is flagged");
+  assert.ok(!flags.includes("Yosemite Grant"), "what the passage does introduce is left alone");
+  assert.match(r.output, /"Kutúzov" is not someone or something this passage introduces/);
+  assert.doesNotMatch(r.output, /do not use "Kutúzov".*do not use "Kutúzov"/s, "the referent reading supersedes the string reading");
+});

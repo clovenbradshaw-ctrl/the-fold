@@ -108,3 +108,81 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Revi
 | Alexander | SYN | — | P95 / S65 / NEXT-PASSES Pass 14 / CLAUDE.md pointer | clean | counts and file names agree across the four documents and with the eoreader7 diff |
 | Marshall | meta | POLICIES.md Generality discipline (P≥71); IV.1 | POLICIES.md P95 | upheld — compliant | Generality line present and read by `generality-gate.test.mjs`; enforcement ships in the paired eoreader7 diff |
 | others | — | — | — | clean | no code in this repo's diff |
+
+## 2026-09-05 — P115: frontier-25, arithmetic's shaped questions and calendar, shape.js's declared form (branch `frontier-25`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1 (`chorus-fast.sh --working`): law ok (8 citations resolve; P19/S17 pre-existing duplicates warned), routed Diaconis · Feynman · Dijkstra · Marshall; suites the-fold 1,605 pass / 3 fail (`webllm-rung.test.mjs`'s mirrored-weights walls — the gitignored mirror is absent in this worktree, present in the main checkout; not this diff's) · arithmetic 23/23 · shape 17/17 · generality-gate + constitution 16/16.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Diaconis | II.23; P4 | POLICIES.md P115 "The eval" | clean | the only null in the diff is the measuring door's own (burstiness/shuffle, draws 200); the video pairing's collapse is reported as `degenerate_ground`, a fact about the pairing, and the fixture pins that verdict rather than a cut claim |
+| Feynman | P4 (no hand-set thresholds) | arithmetic.js:238 `nums.length < 2` | clean | a statistic "of" one number is not a list — structural, not tuned; the mouth arm's arithmetic witness compares at the organ's own precision (a rounded "8.05 km" reads as failed) and the results doc says so |
+| Dijkstra | III.3 | arithmetic.js:224 `unitWord` | noted | `toLowerCase` on unit words is ASCII-safe for mathjs's own unit names; `°c`/`°f` are mapped by hand — a non-Latin unit word falls to the engine, which refuses it as unknown (typed gap), never a wrong number |
+| Marshall | IV.1/IV.2; P71 | POLICIES.md P115, CLAUDE.md, NEXT-PASSES Pass 31 | upheld — compliant | a policy entry with its Generality line (generality-gate 16/16), enforcement in the same diff (arithmetic.test, shape.test, eoreader7 frontier-25.test), no constitution edit; the deleted first-cut modules are named in the entry |
+clean: nothing struck; the standing P19/S17 duplicates remain the activation-rule carry (renumber in their own commit).
+
+## 2026-09-05 — P116: the in-tab roster wired, the launch pass, the phone layout (branch `frontier-25`, second batch)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1 (`chorus-fast.sh --working`): law ok; routed Dijkstra · Marshall · Simon/Chekhov; suites the-fold full + rung 41/41 + constitution.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | II.13 (no non-local host the page can reach) | webllm-rung.js roster | fixed | the first cut carried model-card URLs (huggingface.co) in a page-loaded module; the rung's own test caught it; the cards moved to P116 |
+| Simon | P10 / the mirror gate | models/fetch-webllm.sh | fixed | OLMo 2 ships only tensor-cache.json and names vocab.json/merges.txt; the script reads the manifest that exists and every tokenizer file the config names — the rung test's shard walk refused the half mirror |
+| Chekhov | III.5 (prose may not claim wiring) | app.js fillModels/connect/completeOnce; explore-server.mjs serveStatic | fixed | the WebLLM rung had shipped unwired since P21; the Explore page's shims had no server alias — both measured in a browser |
+| Feynman | P41 (a check that did not run never reports a pass) | webllm-rung.test.mjs mirror walks | upheld | absence skips TYPED, presence with drift fails |
+| Alexander | SYN — the cascade | index.html / explore.css phone blocks | fixed | a phone block placed above the base rules lost at equal specificity; kept LAST on purpose, said so in the sheet |
+| Marshall | IV.1/IV.2; P71 | POLICIES P116, README, CLAUDE.md, MVP-LAUNCH-CHECKLIST.md | upheld — compliant | Generality line present; enforcement in the same diff; the checklist's decisions (web toggle default, LICENSE) are proposed, not disposed |
+clean: nothing struck.
+
+## 2026-09-05 — P117: public gateways as the learned fall-through (branch `frontier-25`, third batch)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Diaconis · Dijkstra · Ostrom · Marshall; suites the-fold full, native web-gateways 5/5, constitution + seam + contract 20/20.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Diaconis | II.23; P4 (no hand-set threshold) | web.js rankGateways | upheld | natural frequency, untried-before-failed, no cut-off; the roster is never pruned; "open" is only ever the last try |
+| Dijkstra | II.13; III.3 | web.js GATEWAYS (six hosts in a page-loaded module) | clean | covered by the standing web.js allowance (address builders, zero egress calls) — constitution.test.mjs 12/12 |
+| Ostrom | II.9 (property of the instrument vs the material) | P117 "Measured" | fixed (wording) | the leak probe decided nothing because no relay was open; the table says "not measurable while closed", never "safe" |
+| Feynman | P41 | explore-server.mjs fetchThroughGateways | clean | a Wayback snapshot over the byte cap is a typed refusal on the record (bloomberg.com), not a silent skip |
+| Marshall | IV.1/IV.2; P71 | POLICIES P117, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; enforcement (web-gateways.test.js, constitution scan) in the same diff; the maintainer's-proxy question is recorded as a decision with its reasons |
+clean: nothing struck.
+
+## 2026-09-05 — P118: three homes, one page (branch `frontier-25`, fourth batch)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon/Chekhov · Marshall; suites the-fold full + build-site/routes/rung 30/30.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 (a wrong path, silently) | deploy/build-site.mjs rewriteMounts | clean | the rewrite is prefix-exact on quoted literals and per-file depth; `/api/` is not a mount and is left absolute so it fails visibly; the assay builds for real and scans for leftovers |
+| Simon | P10 (unverified dependency) | .github/workflows/deploy-pages.yml | fixed | the old workflow's engine checkout was eoreader6.1 while the page imports eoreader7; now the build's own assay runs before the build |
+| Chekhov | III.5 | webllm-client.js chooseWeights | clean | the ladder is walked and its choice stated; measured: the first rung (own models/) answered on the static host |
+| Ostrom | II.9 | routes.js whereAmI | noted | a localhost static host reads as "terminal"; the api probe is what distinguishes it — the summary says `/run off`, which is the fact that matters |
+| Marshall | IV.1; P71 | POLICIES P118, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; enforcement in the same diff; the extension is stated as built-not-run, Pages as not-deployed-from-here |
+clean: nothing struck.
+
+## 2026-09-05 — P119: the room (branch `matrix-rooms`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok after two catches (II.13 flagged a doc comment naming a public homeserver, then a `https://${s}` template — both removed); routed Dijkstra · Simon · Chekhov · Ostrom · Marshall; suites matrix 24/24, the-fold full green.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | matrix.js forRecord / SecretSet | clean | one instrument on both sides: the app refuses a leaking record line with the same code the tests run over the adversary's disk; its positive controls prove it sees what is there |
+| Simon | P10 | matrix-fake-homeserver.mjs | noted | the adversary implements the routes the crossing uses and the auth rules leaned on; a real homeserver is the person's first sign-in and is said as not exercised |
+| Chekhov | III.5 | matrix-client.js ask/serve | clean | every ask is addressed and counted; a gone mouth, an unoffered model and a mouthless room are typed gaps that count against the worker; abort is immediate on both sides |
+| Ostrom | II.9 | createRoomBody | upheld — by decision | users_default 100: a room of equals; the viewer level of the first cut is gone |
+| Marshall | IV.1; P71 | POLICIES P119, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; measured numbers from the pane; not-claimed list carries the real homeserver, identity-after-wipe, sources, localStorage at rest |
+clean: nothing struck.
+
+## 2026-09-05 — P120: bound links, epochs, the vault (branch `bound-links`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon · Ostrom · Chekhov · Marshall; suites matrix 34/34, the-fold full 1666 pass.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | matrix.js verifyInviteProof | clean | constant-time compare, domain-separated message binding room, account and key; a swapped key, another account, another room and another secret each fail in the suite |
+| Simon | P10 | matrix-client.js grantPending | clean | the spent/expired/unproved/unverifiable cases each carry their own reason; nothing is granted on sight |
+| Ostrom | II.9 | rotate/remove | noted | rotation excludes future blocks only, and the door says so: no key un-reads what was read |
+| Chekhov | III.5 | lock/unlock | clean | the vault gates every door with a typed "locked"; the suite proves storage holds the vault and nothing else |
+| Marshall | IV.1; P71 | POLICIES P120, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the magic-key warning is in the product, not only the docs; not-claimed carries the open link, takeover, fingerprint discipline and the unlocked tab |
+clean: nothing struck.

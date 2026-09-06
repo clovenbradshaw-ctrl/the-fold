@@ -1,10 +1,10 @@
-// learned.js — what the instrument got wrong once, kept forever (P123).
+// learned.js — what the instrument got wrong once, kept forever (P126).
 //
 // User direction (2026-09-05): "we don't need a system that's always right,
 // but we do need one that is actively learning to get better … see how we now
 // can have permanent memory for an instance."
 //
-// A correction is worth nothing if it dies with the turn. P122 catches a
+// A correction is worth nothing if it dies with the turn. P125 catches a
 // wrong answer and rewrites it; this file makes the catch DURABLE and then
 // SPENDS it: every correction is an entry, entries ride the same hash-linked,
 // sealed chain a chat is preserved in (matrix.js's `encodeBlock` /

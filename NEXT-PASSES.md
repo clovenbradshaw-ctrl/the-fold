@@ -1001,13 +1001,13 @@ The long-form organs (P108–P111) are medium-blind by construction: a plan size
 
 **The organ to build:** `detectLongForm` gains the code shape — "write me a python program that …", "build a widget that …" with a stated size (files, functions, features) or a spec list; the plan is modules/functions as parts; each part lands as a PATCH on ONE build (never a fresh fence per section — the P16 lesson); after each part the sandbox runs the whole (EVA, mechanical); a failing run marks the part and asks once with the run's own stderr as the fact (the mouth is told what happened, not what to do); obligations are the spec's own named features, coverage measured by `declaredReferents` (does the function the spec named now exist?); the editor removes duplicate declarations and unreferenced ones (`code-scout.js::deltaOps`), every edit an act; the conclusion is the run witness. Measurement: features declared vs features present and passing; the control built to fail: the regenerate arm (whole artifact per turn) and a shuffled spec. Model: qwen2.5-coder:1.5b or gemma2:2b — small only.
 
-## Pass 31 — the section checks its own atoms against its snips, in process (LANDED 2026-09-05 — P119)
+## Pass 31 — the section checks its own atoms against its snips, in process (LANDED 2026-09-05 — P122)
 
-Snips above the material; atoms (numbers, dates, names) against the snips with the company rule, no model; contradiction candidate by year at the source's address; one rewrite ask per section, landed only when it clears; the witness spent flagged-first; the export's check line per section. Open: the live measurement (3-page, then 30-page) is recorded as P119's amendment; the snip grain is the sentence — a paraphrase that scatters an atom across two sentences reads as absent (the same wall as P115's binding rate); names are checked by surface only.
+Snips above the material; atoms (numbers, dates, names) against the snips with the company rule, no model; contradiction candidate by year at the source's address; one rewrite ask per section, landed only when it clears; the witness spent flagged-first; the export's check line per section. Open: the live measurement (3-page, then 30-page) is recorded as P122's amendment; the snip grain is the sentence — a paraphrase that scatters an atom across two sentences reads as absent (the same wall as P115's binding rate); names are checked by surface only.
 
-## Pass 32 — the thinking-depth slider (LANDED 2026-09-05 — P120) and the long-stream stress (BUILT 2026-09-05 — P121 / S77; the 1,000-turn run is the open item)
+## Pass 32 — the thinking-depth slider (LANDED 2026-09-05 — P123) and the long-stream stress (BUILT 2026-09-05 — P124 / S77; the 1,000-turn run is the open item)
 
-Depth: `depth.js` rungs over holon's own budgets, wired through the section's hunts, continuations, snip rewrites, witness and revision; the slider in the model menu; on the record and the export. Long-stream: `eoreader7/native/eval/the-fold/long-stream.mjs` + runbook. Open: run 1,000 turns at depth 1 (then a depth-2 arm on the same seed), score, fix what it exposes, amend P121 with the numbers.
+Depth: `depth.js` rungs over holon's own budgets, wired through the section's hunts, continuations, snip rewrites, witness and revision; the slider in the model menu; on the record and the export. Long-stream: `eoreader7/native/eval/the-fold/long-stream.mjs` + runbook. Open: run 1,000 turns at depth 1 (then a depth-2 arm on the same seed), score, fix what it exposes, amend P124 with the numbers.
 
 ## Composition track — Passes 26–32 (proposed 2026-09-05, NOT started)
 
@@ -1355,3 +1355,7 @@ Everything else in Pass 15 (15.2's Assembly framing, 15.3's other five
 rule-nominations, 15.5's material-as-ground, 15.6's constitution articles,
 15.8) stands as written, unstarted, gated on the same order: nothing
 after 15.1 until 15.1's real run is read.
+
+## Pass 31 — twenty-five "frontier" tasks, and the perceivers' seat (added 2026-09-05, RUN same day)
+
+POLICIES.md **P115** / eoreader7 **S76**. Zero-call arm 13/13 claimed, 11/11 witnesses able to fail, media 5/5 through the door; mouth arm a dated record in eoreader7 `eval/the-fold/results/frontier-25-RESULTS.md`. Open after it, in order: (1) a line of reading out of a frame — the essay's third step, over the crossed perceivers' units, with the reading-lines grammar; (2) the page-side decoder for the measuring door (canvas for an image, a `<video>` frame walk, `decodeAudioData` for compressed audio) so `/measure` on a dropped png reads scanlines in the browser as it now does headless; (3) the form witness on the app's own creative turn (shape.js::declaredForm is wired nowhere in app.js yet — the eval is its only caller).

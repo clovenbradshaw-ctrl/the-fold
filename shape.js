@@ -235,3 +235,143 @@ export async function askShape(question, call, { model = null, giver = "model" }
   }
   return readShape(raw, { giver: model ? `${model}` : giver });
 }
+
+// ── THE DECLARED FORM: the task's own words as the mechanical giver (2026-09-05)
+//
+// `askShape` proposes a form from a model. A task often DECLARES its form
+// outright — "four lines", "an acrostic spelling FOLD", "without the letter
+// e", "no more than eight words", "include the word river" — and a declared
+// constraint is read off the task's words (P4: a word class finds the
+// shape, it never types the value), which makes it a determination, not a
+// proposal: `mergeShape`'s own rule already says a proposal never overwrites
+// one. Measured on the app's 2b mouth (2026-09-05): asked for an acrostic
+// it wrote four lines spelling nothing, and nothing checked, because the
+// only reader of form was the mouth's own "here is your acrostic".
+//
+// `checkForm` is the tripwire, computed never asked (L5): every examined
+// constraint lands with the bytes that broke it, and a constraint this
+// module cannot hold exactly (rhyme, metre, syllables — each needs a
+// pronouncing dictionary this repo does not carry) is `unexamined`, never
+// approximated. The line-count extent goes through void-shape.js's own
+// space (zeroSpace / fill / voidsOf) so "how much answer" is the same
+// organ the void uses, and the per-line constraints are read here.
+
+import { zeroSpace, fill, voidsOf } from "./void-shape.js";
+
+export const FORM_KINDS = Object.freeze(["lines", "minLines", "maxLines", "acrostic", "mustInclude", "mustExclude", "noLetter", "minWords", "maxWords", "endsWith", "startsWith", "oneSentence"]);
+export const FORM_UNEXAMINED = Object.freeze(["rhyme", "metre", "meter", "syllables", "haiku"]);
+
+const WORD_RE_FORM = /[A-Za-z0-9'’-]+/g;
+const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fourteen: 14, sixteen: 16, twenty: 20 });
+const num = (s) => (/^\d+$/.test(s) ? Number(s) : NUMBER_WORDS[String(s).toLowerCase()] ?? null);
+export const formWords = (s) => String(s ?? "").match(WORD_RE_FORM) ?? [];
+export const formLines = (s) => String(s ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+
+/**
+ * The constraints a task declares in its own words, as {kind: value} plus
+ * `unexamined` for the ones named but not checkable here. Nothing is
+ * inferred: a task that says nothing about form declares nothing.
+ */
+export function declaredForm(task) {
+  const t = String(task ?? "");
+  const form = {};
+  const unexamined = [];
+  let m;
+  if ((m = /\b(?:exactly\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fourteen|sixteen)[- ]lines?\b/i.exec(t)) || (m = /\b(?:exactly\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fourteen|sixteen)\s+lines\b/i.exec(t))) form.lines = num(m[1]);
+  if ((m = /\bat\s+least\s+(\d+|[a-z]+)\s+lines\b/i.exec(t)) && num(m[1]) != null) form.minLines = num(m[1]);
+  if ((m = /\b(?:at\s+most|no\s+more\s+than)\s+(\d+|[a-z]+)\s+lines\b/i.exec(t)) && num(m[1]) != null) form.maxLines = num(m[1]);
+  if ((m = /\bacrostic\b[^.]*?\b(?:spelling|spells|that\s+spells|for|of)\s+["“']?([A-Za-z]{2,})["”']?/i.exec(t))) form.acrostic = m[1].toUpperCase();
+  if ((m = /\bwithout\s+(?:using\s+)?the\s+letter\s+["“']?([A-Za-z])["”']?/i.exec(t)) || (m = /\bnever\s+us(?:e|ing)\s+the\s+letter\s+["“']?([A-Za-z])["”']?/i.exec(t))) form.noLetter = m[1].toLowerCase();
+  if ((m = /\bat\s+least\s+(\d+|[a-z]+)\s+words\b/i.exec(t)) && num(m[1]) != null) form.minWords = num(m[1]);
+  if ((m = /\b(?:at\s+most|no\s+more\s+than|in|under)\s+(\d+|[a-z]+)\s+words\b/i.exec(t)) && num(m[1]) != null) form.maxWords = num(m[1]);
+  const includes = [...t.matchAll(/(?<!\b(?:never|not|without)\s)\b(?:includes?|including|contains?|containing|uses?|using)\s+the\s+words?\s+((?:["“'][^"”']+["”']|[A-Za-z-]+)(?:\s*(?:,|and)\s*(?:["“'][^"”']+["”']|[A-Za-z-]+(?=\s*(?:,|\band\b|[.!?]|$))))*)/gi)].flatMap((x) => x[1].split(/\s*(?:,|\band\b)\s*/).map((w) => w.replace(/["“”']/g, "").trim()).filter(Boolean));
+  if (includes.length) form.mustInclude = includes;
+  const excludes = [...t.matchAll(/\b(?:without|do\s+not\s+use|never\s+us(?:e|es|ing)|avoid(?:s|ing)?|excluding)\s+the\s+words?\s+((?:["“'][^"”']+["”']|[A-Za-z-]+)(?:\s*(?:,|or|and)\s*(?:["“'][^"”']+["”']|[A-Za-z-]+(?=\s*(?:,|\bor\b|\band\b|[.!?]|$))))*)/gi)].flatMap((x) => x[1].split(/\s*(?:,|\bor\b|\band\b)\s*/).map((w) => w.replace(/["“”']/g, "").trim()).filter(Boolean));
+  if (excludes.length) form.mustExclude = excludes;
+  if ((m = /\bend(?:s|ing)?\s+with\s+the\s+word\s+["“']?([A-Za-z-]+)["”']?/i.exec(t))) form.endsWith = m[1];
+  if ((m = /\bstart(?:s|ing)?\s+with\s+the\s+word\s+["“']?([A-Za-z-]+)["”']?/i.exec(t))) form.startsWith = m[1];
+  if (/\b(?:one|a\s+single)\s+sentence\b/i.test(t)) form.oneSentence = true;
+  for (const k of FORM_UNEXAMINED) if (new RegExp(`\\b${k}\\b`, "i").test(t)) unexamined.push(k);
+  return { form, unexamined, declared: Object.keys(form) };
+}
+
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The poem or prose a draft actually offers: a fenced block if there is
+ * one, else the draft minus a leading "Here is…" line. */
+export function draftText(draft) {
+  const s = String(draft ?? "");
+  const fence = /```[^\n]*\n([\s\S]*?)```/.exec(s);
+  if (fence) return fence[1].trim();
+  const ls = s.split("\n");
+  if (ls.length > 1 && /^(here('s| is| are)|sure|certainly|of course)\b/i.test(ls[0].trim())) return ls.slice(1).join("\n").trim();
+  return s.trim();
+}
+
+/**
+ * Check a text against a declared form. {ok, failures:[{kind, detail}],
+ * examined, unexamined, lines, words}. `ok` is true only when at least one
+ * constraint was examined and none failed (P41: a check that did not run
+ * never reports a pass).
+ */
+export function checkForm(text, { form = {}, unexamined = [] } = {}) {
+  const t = String(text ?? "");
+  const ls = formLines(t);
+  const ws = formWords(t);
+  const failures = [];
+  const examined = [];
+  const fail = (kind, detail) => failures.push({ kind, detail });
+  for (const [kind, want] of Object.entries(form)) {
+    if (!FORM_KINDS.includes(kind)) continue;
+    examined.push(kind);
+    switch (kind) {
+      case "lines": {
+        // the extent through the void's own space: line i covers [i, i+1)
+        // on a continuous line axis, so adjacent lines touch and the space
+        // reports a hole only where a line is genuinely missing
+        let space = zeroSpace({ slot: "line", constraint: { from: 1, to: want + 1 }, dimension: "lines" });
+        ls.forEach((l, i) => { space = fill(space, { filler: l, span: { from: i + 1, to: i + 2 }, source: "draft" }); });
+        const v = voidsOf(space);
+        if (ls.length !== want) fail(kind, `expected ${want} lines, got ${ls.length}${v.voids.length ? ` (unfilled: ${v.voids.map((x) => `${x.from}–${x.to}`).join(", ")})` : ""}`);
+        break;
+      }
+      case "minLines": if (ls.length < want) fail(kind, `expected at least ${want} lines, got ${ls.length}`); break;
+      case "maxLines": if (ls.length > want) fail(kind, `expected at most ${want} lines, got ${ls.length}`); break;
+      case "acrostic": {
+        const got = ls.map((l) => (l.match(/[A-Za-z]/) ?? [""])[0].toUpperCase()).join("");
+        if (got !== want) fail(kind, `first letters spell "${got}", not "${want}"`);
+        break;
+      }
+      case "mustInclude": {
+        const missing = [].concat(want).filter((w) => !new RegExp(`\\b${escapeRe(w)}\\b`, "i").test(t));
+        if (missing.length) fail(kind, `missing: ${missing.join(", ")}`);
+        break;
+      }
+      case "mustExclude": {
+        const present = [].concat(want).filter((w) => new RegExp(`\\b${escapeRe(w)}\\b`, "i").test(t));
+        if (present.length) fail(kind, `present: ${present.join(", ")}`);
+        break;
+      }
+      case "noLetter": {
+        const hits = ws.filter((w) => w.toLowerCase().includes(String(want).toLowerCase()));
+        if (hits.length) fail(kind, `the letter "${want}" appears in: ${hits.slice(0, 8).join(", ")}${hits.length > 8 ? "…" : ""}`);
+        break;
+      }
+      case "minWords": if (ws.length < want) fail(kind, `expected at least ${want} words, got ${ws.length}`); break;
+      case "maxWords": if (ws.length > want) fail(kind, `expected at most ${want} words, got ${ws.length}`); break;
+      case "endsWith": { const last = (ws[ws.length - 1] ?? "").toLowerCase().replace(/[’']s$/, ""); if (last !== String(want).toLowerCase()) fail(kind, `ends with "${ws[ws.length - 1] ?? ""}", not "${want}"`); break; }
+      case "startsWith": { const first = (ws[0] ?? "").toLowerCase(); if (first !== String(want).toLowerCase()) fail(kind, `starts with "${ws[0] ?? ""}", not "${want}"`); break; }
+      case "oneSentence": { const ends = (t.trim().match(/[.!?](\s|$)/g) ?? []).length; if (ends !== 1) fail(kind, `expected one sentence, found ${ends} sentence ending(s)`); break; }
+      default: break;
+    }
+  }
+  return { ok: examined.length > 0 && failures.length === 0, failures, examined, unexamined: [...unexamined], lines: ls.length, words: ws.length };
+}
+
+/** One line for a retry — the result, never the reasoning (the model is the mouth). */
+export function formLine(f) {
+  if (!f) return "";
+  if (!f.examined.length) return "form: nothing examined";
+  if (f.ok) return `form: ${f.examined.length} constraint(s) held`;
+  return `form: ${f.failures.length} constraint(s) failed — ${f.failures.map((x) => `${x.kind}: ${x.detail}`).join("; ").slice(0, 400)}`;
+}

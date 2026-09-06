@@ -70,7 +70,10 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // engine injected (the cast.js pattern) so this module stays pure; the page
 // hands it window.math, the vendored mathjs UMD bundle (index.html — must
 // load before monaco's loader.js, see that file's comment).
-import { checkArithmetic } from "./arithmetic.js";
+// checkQuantity (P115): the pure door first, byte-identical, then the shaped
+// questions (units, choose, statistics, derivative, an equation) and the
+// calendar — each computed by the engine's own operation, never restated.
+import { checkQuantity } from "./arithmetic.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
 // computed expression as typeset math — mathjs's own toTex(), not a second,
@@ -88,10 +91,32 @@ import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamed
 import { renderBlocksInto } from "./render.js";
 
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, runSandboxed } from "./term.js";
+// The in-tab rung (P21's WebLLM rung, wired into the page 2026-09-05 — its
+// modules and tests had shipped unwired). The decisions are webllm-rung.js's;
+// webllm-client.js is the worker + the streaming call; the roster is three
+// models chosen for what their publishers disclose about the training data.
+import { WEBLLM_MODELS, isWebLLMModel, webllmModelOf, webllmLabelFor, mergeOffered, webgpuBlocker } from "./webllm-rung.js";
+import { webllmClient } from "./webllm-client.js";
+// The three homes (P118): where the page is and what it can reach are probed
+// at boot and said once; /routes prints the table. routes.js decides and
+// phrases; the probes below are the only calls, every one localhost or
+// same-origin.
+import { whereAmI, describeRoutes } from "./routes.js";
+// The room (P119): preserve a chat, share it, and borrow a mouth on another
+// machine through a Matrix homeserver the person names — every byte that
+// leaves this page for it sealed under a key the homeserver never holds.
+import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
+import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING } from "./matrix.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
+// The measuring door (P19), routed from the chat since 2026-09-05: the organ
+// is eoreader7's measure.js (the-fold/measure.js is its shim); the null is
+// the engine's own /nul mount; the audio reduce is the crossed pure half.
+import { parseMeasure, runMeasurement, sniffContainer, MEASURE_phrase as measurePhrase, usage as measureUsage } from "../eoreader7/native/organs/index.js";
+import * as nul from "/nul/index.js";
+import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce.js";
 // The declarations register (Pass 21, P102): what a person has DECLARED
 // about a relation — transitive, or composing into a named product — each
 // with its giver. Chemistry comes from this register and nowhere else
@@ -99,7 +124,7 @@ import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landCon
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 
-import { transcribeBlob, fetchAudioFromUrl, autoDownload as prewarmTranscription } from "./transcribe.js";
+import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
 import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
@@ -879,6 +904,19 @@ let ANSWER_CURSOR = 0;
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 const OLLAMA = "http://localhost:11434";
+// ── the room (P119) ────────────────────────────────────────────────────────
+// One FoldMatrix for the page: its session, this browser's identity pair and
+// each room's chat key live in localStorage (the person's own browser, like
+// the reading record); every act it records passes matrix.js's forRecord
+// first, so the record holds pointers and never a key, a token or a turn.
+const foldMatrix = new FoldMatrix({ storage: localStorageStorage(), record: (kind, fields) => { logAct(kind, fields); mirrorTermRecord(kind, fields); } });
+// A room member's mouth is a rung like any other: `room:@who:server model`.
+const ROOM_MODEL_PREFIX = "room:";
+const isRoomModel = (name) => typeof name === "string" && name.startsWith(ROOM_MODEL_PREFIX);
+const roomModelParts = (name) => { const m = /^room:(\S+) (.+)$/.exec(name ?? ""); return m ? { user: m[1], model: m[2] } : null; };
+const roomModelName = (user, model) => `${ROOM_MODEL_PREFIX}${user} ${model}`;
+let roomServing = null; // { room, controller, models, served } while this page serves the room
+let inviteWatch = null; // { room, controller } while this page grants bound invites it issued
 const MAX_TOKENS = 4096;
 /**
  * The summary refresh returns one short JSON object. Left uncapped, a small
@@ -894,6 +932,8 @@ const state = {
   model: null,
   /** The picker rungs Ollama actually has, fastest first — what routing may name. */
   offeredModels: [],
+  matrixRoom: null, // the room this chat is preserved to / read from
+  matrixPendingLink: null, // a share link opened before sign-in
   /** Every model name Ollama actually reports (not just MODEL_PICKER's four rungs) — what resolveNamedModel checks S1_MODEL/S2_MODEL against. */
   availableModels: new Set(),
   ready: false,
@@ -943,7 +983,7 @@ const state = {
   grounded: localStorage.getItem("fold-marks") !== "off",
 
   /**
-   * The thinking-depth slider (P120, depth.js): 0 quick · 1 plain (today's
+   * The thinking-depth slider (P123, depth.js): 0 quick · 1 plain (today's
    * budgets) · 2 careful · 3 deep. Deeper is more bounded passes over the
    * same material — never more context. Set in the model menu; read per
    * turn; carried on the record and the export.
@@ -1280,21 +1320,56 @@ async function fillModels() {
     sel.value = state.offeredModels[0] ?? MODEL_PICKER[0];
     if (!offered.length) $("status").textContent = "ollama has no models pulled";
   } catch {
+    state.availableModels = state.availableModels ?? new Set();
+    state.offeredModels = [];
     $("status").textContent = "ollama not reachable on :11434";
+  }
+  // The in-tab rungs, appended LAST (mergeOffered's own order: a native rung
+  // is the faster summary rung where Ollama answers; where it does not, the
+  // in-tab rung is offered[0] and every kind routes there). Offered only
+  // where WebGPU can actually run them — the blocker names its own fix in
+  // the status line, never a picker entry that would fail on use.
+  const blocker = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
+  if (!blocker) {
+    state.offeredModels = mergeOffered(state.offeredModels, true);
+    for (const m of WEBLLM_MODELS) {
+      state.availableModels.add(m.id);
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = `${m.label} · ${m.publisher}, ${m.license}`;
+      opt.title = m.origin;
+      sel.append(opt);
+    }
+    if (!sel.value || !state.offeredModels.includes(sel.value)) sel.value = state.offeredModels[0];
+    if (!state.offeredModels.some((n) => !isWebLLMModel(n))) $("status").textContent = `no Ollama here — the in-tab models are offered (weights from ${webllmClient.weights})`;
+  } else if (!state.offeredModels.length) {
+    $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${blocker}`;
   }
 }
 
 async function connect() {
   state.model = $("model").value;
   state.ready = true;
-  // Pre-warm the Whisper model download in the background so by the time
-  // someone types /transcribe, the (large, one-time) download is already
-  // done or well underway. Never blocks boot — a failed pre-warm retries
-  // on the real call.
-  prewarmTranscription().catch(() => {});
+  // No pre-warm of the Whisper weights here (removed 2026-09-05): a page load
+  // must not reach huggingface.co on its own. The weights are fetched on the
+  // FIRST /transcribe, and that turn says so before it starts — the one
+  // egress this page causes that is not a localhost call, disclosed at the
+  // moment it happens, never in the background.
   // The model's declared window, from the runtime's own mouth. The one
   // non-arbitrary meaning of "this prompt is too long" is this number.
   state.contextTokens = null;
+  if (isWebLLMModel(state.model)) {
+    // The window is the library's own declared context for this rung; the
+    // bytes' origin is decided by where this page is served from (P1).
+    state.contextTokens = webllmClient.contextWindowFor(state.model);
+    const m = webllmModelOf(state.model);
+    $("status").textContent = `ready · ${webllmLabelFor(state.model)} · weights from ${webllmClient.weights} · ${m?.origin ?? ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`;
+    $("send").disabled = false;
+    openSettings(false);
+    showView("chat");
+    $("input").focus();
+    return;
+  }
   try {
     const res = await fetch(`${OLLAMA}/api/show`, {
       method: "POST",
@@ -1334,6 +1409,49 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
   // bound, reflect) spends the model the user chose. Whatever it is, the
   // request, the pace ledger, and the status line all name the SAME model.
   const modelName = model ?? state.model;
+  if (isRoomModel(modelName)) {
+    // The same contract as the two local branches below, through the room:
+    // the prompt sealed under the chat key to ONE member who offered this
+    // model, their sealed answer read back. The homeserver saw an address,
+    // an id, a seal and a size; the status line names who answered.
+    const { user, model: remote } = roomModelParts(modelName);
+    if (!state.matrixRoom) throw new Error("no room is open — /join a share link or /preserve first");
+    $("status").textContent = `asking ${user} for ${remote} through the room…`;
+    const a = await foldMatrix.ask(state.matrixRoom, { messages, model: remote, to: user, options: { maxTokens: maxTokens ?? MAX_TOKENS, temperature, json: json ?? null } }, { onWait: ({ ms }) => { $("status").textContent = `waiting on ${user} · ${Math.round(ms / 1000)}s`; } });
+    tokensSeen.calls += 1; tokensSeen.in += a.usage?.promptTokens ?? 0; tokensSeen.out += a.usage?.outTokens ?? 0;
+    onDelta?.(a.text);
+    $("status").textContent = `ready · ${modelName} · answered by ${a.by} in ${Math.round(a.ms / 1000)}s`;
+    return { text: a.text, thinking: "", doneReason: "stop", via: { room: state.matrixRoom, by: a.by, model: a.model, ms: a.ms } };
+  }
+  if (isWebLLMModel(modelName)) {
+    // Same contract as the Ollama branch below — {text, thinking, doneReason},
+    // the pace ledger fed from the engine's own telemetry, the status line
+    // naming the same model — through the worker engine, one model at a
+    // time. A load's progress (a first download, cache reads, shader
+    // compilation) narrates into the status line; a typed failure is thrown
+    // to the caller like any Ollama error.
+    let cancelled = false;
+    const text = await webllmClient.stream(messages, {
+      maxTokens: maxTokens ?? MAX_TOKENS,
+      json,
+      temperature,
+      model: modelName,
+      onProgress: (line, pct) => { $("status").textContent = `${webllmLabelFor(modelName)} · ${line}${pct ? ` ${pct}%` : ""}`; },
+      onUsage: (rec) => {
+        state.paceLog = recordCall(state.paceLog, rec);
+        tokensSeen.in += rec.promptTokens ?? 0;
+        tokensSeen.out += rec.outTokens ?? 0;
+        tokensSeen.calls += 1;
+        const pace = foldPace(state.paceLog, modelName);
+        $("status").textContent = `ready · ${webllmLabelFor(modelName)}${pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : ""}`;
+      },
+      onDelta: (out) => {
+        if (onDelta?.(out) === true) { cancelled = true; return true; }
+        return false;
+      },
+    });
+    return { text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
+  }
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1573,7 +1691,7 @@ function stripComputedCaption(text) {
 /** A command that arrived without its argument gets its usage line back — a
  * turn with no model in it, folded like any other so the exchange is on the
  * conversation's own record. */
-function usageTurn(question, usage) {
+function usageTurn(question, usage, { what = "usage" } = {}) {
   addMessage("user", question);
   const node = addMessage("assistant", usage);
   state.history.push(
@@ -1581,7 +1699,7 @@ function usageTurn(question, usage) {
     { role: "assistant", content: stripComputedCaption(usage) },
   );
   const turn = state.summary.turnCount + 1;
-  logAct("answered-from-state", { what: "usage" });
+  logAct("answered-from-state", { what });
   observeExchange(turn, question, usage);
   const fold = mechanicalFoldLine(question, usage);
   state.turnFolds.push(fold);
@@ -1590,6 +1708,359 @@ function usageTurn(question, usage) {
   renderThreads();
   $("status").textContent = readyLine();
   releaseBusy();
+}
+
+/**
+ * The measuring door (P19), from the chat: `/measure` teaches the
+ * declaration; `/measure <media>` probes the file's own measurable surface;
+ * `/measure <media> channel:… frame:… as:… broken:… draws:… window:…` places
+ * one statistic against a Born-constructed null and phrases the placement.
+ * Mechanical from end to end — no model call — and every media pill has
+ * advertised this door since the materials panel was folded into the pills;
+ * until 2026-09-05 nothing routed it, so the words went to the model.
+ * Decoded image/video measurement (S76) is node-side today; in the page a
+ * png or mp4 frames as bytes and the probe says so.
+ */
+async function measureTurn(question) {
+  const parsed = parseMeasure(question);
+  if (!parsed || parsed.usage) return usageTurn(question, `${measureUsage(nul)}\n— the door's own usage, computed`, { what: "measure" });
+  if (parsed.refused) return usageTurn(question, `refused (${parsed.refused.type}): ${parsed.refused.detail}`, { what: "measure" });
+  const decl = parsed.decl;
+  const names = Object.keys(state.media);
+  const m = decl.file ? state.media[decl.file] : null;
+  if (!m) return usageTurn(question, `no media named "${decl.file ?? ""}" is attached — /measure reads the media pills${names.length ? `: ${names.join(", ")}` : " (none attached; drop an audio, image or video file first)"}.`, { what: "measure" });
+  const bytes = new Uint8Array(await m.blob.arrayBuffer());
+  const kind = sniffContainer(bytes) ?? "bytes";
+  let result;
+  try {
+    // bindLinks is the pairs: door over a TABLE's columns; a media file has no
+    // columns and the organ refuses pairs: on binary material by name, so no
+    // /engine module is widened onto the page for a branch it cannot reach.
+    result = runMeasurement(decl, { kind, bytes }, { nul, bindLinks: null, reduce: audioReduce });
+  } catch (e) {
+    return usageTurn(question, `the measuring door threw: ${e.message}`, { what: "measure" });
+  }
+  const text = result.kind === "probe" ? result.lines.join("\n") : result.refused ? `refused (${result.refused.type}): ${result.refused.detail}` : measurePhrase(result);
+  return usageTurn(question, `${text}\n— computed, not generated`, { what: "measure" });
+}
+
+/** `/routes` — where the page is and what it can reach, probed now. */
+async function routesTurn(question) {
+  try {
+    const r = await probeRoutes();
+    return usageTurn(question, `${r.lines.map((l) => `  ${l}`).join("\n")}\n— probed now, not assumed`, { what: "routes" });
+  } catch (e) {
+    return usageTurn(question, `/routes: ${e.message}`, { what: "routes" });
+  }
+}
+
+// ── the room's doors (P119) ─────────────────────────────────────────────────
+const matrixUsage = [
+  "/matrix — where this page stands with its homeserver, and what that server can see",
+  "/matrix login [homeserver] — sign in (a sheet; the password never touches the composer)",
+  "/matrix logout · rooms · open <room id> · request <room id> · members · fingerprint · forget",
+  "/matrix lock · unlock · unlock off — seal what this browser keeps under a passphrase (a sheet)",
+  "/matrix rotate · remove @who:server — a new key epoch; removal takes the seat and rotates",
+  "/preserve [name] — seal this chat's turns into blocks on the homeserver (new turns only, each time)",
+  "/share @who:server — a link that works for that account alone (no key in it; one use; 7 days)",
+  "/share open — the magic key: whoever holds the link reads the chat · /share words <three or more words> — the key sealed under words you say aloud",
+  "/share grant @who:server — trust an unverified key after comparing fingerprints · /share pending",
+  "/join <link> [words] — open a shared chat: join, publish your key, read every block back here",
+  "/serve [stop] — answer sealed prompts for the room with this machine's models",
+  "/pool — the devices offering a mouth through the room, and what each has answered",
+].join("\n");
+const roomLabel = (id) => { const r = foldMatrix.status().rooms.find((x) => x.id === id); return r?.name ? `${r.name} (${id})` : id; };
+const matrixGap = (e) => (e instanceof MatrixError ? e.message : e?.message ?? String(e));
+
+/** Every entry this chat holds, as the block codec wants it: turns in order,
+ * an id carried over for turns that came from a room. */
+function chatEntries() {
+  const now = Date.now();
+  return state.history.map((h, i) => ({ kind: "turn", role: h.role, content: h.content, seq: i, ts: h.ts ?? now, ...(h.matrixId ? { id: h.matrixId } : {}) }));
+}
+/** Turns read back from a room, drawn into the pane and carried in history
+ * with their ids so a later /preserve never pushes them twice. */
+function replayEntries(entries, from) {
+  let n = 0;
+  for (const e of entries) {
+    if (e.kind !== "turn" || !e.content) continue;
+    if (state.history.some((h) => h.matrixId === e.id)) continue;
+    addMessage(e.role === "assistant" ? "assistant" : "user", e.content);
+    state.history.push({ role: e.role === "assistant" ? "assistant" : "user", content: e.content, matrixId: e.id, ts: e.ts });
+    n++;
+  }
+  if (n) logAct("matrix-replayed", { from, turns: n });
+  return n;
+}
+function roomStatusLines() {
+  const st = foldMatrix.status();
+  const lines = [];
+  if (st.locked) lines.push("LOCKED — what this browser keeps (session, identity, keys) is sealed under your passphrase: /matrix unlock");
+  else if (st.vaulted) lines.push("unlocked for this page load; sealed again at rest");
+  lines.push(st.signedIn ? `signed in as ${st.user} on ${st.hs}` : st.locked ? "signed in? unknown until unlocked" : "not signed in — /matrix login <homeserver>");
+  lines.push(state.matrixRoom ? `this chat's room: ${roomLabel(state.matrixRoom)}` : "this chat has no room yet — /preserve makes one, /join opens a shared one");
+  if (st.rooms.length) { lines.push("rooms this browser holds a key for:"); for (const r of st.rooms) lines.push(`  ${r.name ?? "(unnamed)"} · ${r.id} · ${r.blocks} block(s), ${r.entries} entr${r.entries === 1 ? "y" : "ies"} · epoch ${r.epoch}${r.invites ? ` · ${r.invites} bound invite(s) outstanding` : ""}${r.pending ? " · waiting for a grant" : ""}`); }
+  if (inviteWatch) lines.push(`granting bound invites for ${roomLabel(inviteWatch.room)} while this page is open`);
+  lines.push(roomServing ? `serving the room from this machine: ${roomServing.models.join(", ")} · ${roomServing.served} answered` : "not serving");
+  lines.push(`traffic this page sent it: ${st.traffic.requests} request(s), ${st.traffic.bytesOut.toLocaleString()} bytes`);
+  lines.push("what the homeserver can see:"); for (const l of SERVER_SEES) lines.push(`  ${l}`);
+  return lines;
+}
+/** The one sheet, in one of four modes: sign in (homeserver, user, password),
+ * set a vault passphrase, unlock the vault, or the words for a passphrase
+ * link. Whatever mode, the secret field is read once by the submit handler
+ * and cleared; nothing typed here ever reaches the composer or the transcript. */
+let sheetMode = "login";
+function openMatrixSheet(mode, { hs = "", user = "" } = {}) {
+  sheetMode = mode;
+  const login = mode === "login";
+  $("mx-hs").closest("label").hidden = !login; $("mx-user").closest("label").hidden = !login;
+  $("mx-hs").required = login; $("mx-user").required = login;
+  if (login) { $("mx-hs").value = hs || $("mx-hs").value || ""; if (user) $("mx-user").value = user; }
+  $("mx-pass").value = "";
+  $("mx-pass").closest("label").firstChild.textContent = mode === "words" ? "the words" : "passphrase";
+  $("matrix-login-title").textContent = { login: "Sign in to a homeserver", lock: "Seal what this browser keeps", unlock: "Unlock", words: "The words this link needs" }[mode];
+  $("matrix-login-sub").textContent = {
+    login: `${state.matrixPendingLink ? "sign in, and the shared chat opens. " : ""}${$("matrix-login-sub").dataset.base}`,
+    lock: "Your session, identity pair and chat keys are sealed under this passphrase at rest, and asked for on every page load. Nothing recovers a forgotten one.",
+    unlock: "The passphrase you sealed this browser's keys with.",
+    words: "Said aloud by whoever shared the link; the link alone does not open the chat.",
+  }[mode];
+  $("matrix-login-note").hidden = !login;
+  $("matrix-login-submit").textContent = { login: "Sign in", lock: "Seal", unlock: "Unlock", words: "Open" }[mode];
+  $("matrix-login").showModal();
+  (login && !$("mx-hs").value ? $("mx-hs") : login && !$("mx-user").value ? $("mx-user") : $("mx-pass")).focus();
+}
+const openMatrixLogin = (hs = "", user = "") => openMatrixSheet("login", { hs, user });
+async function matrixTurn(arg, question) {
+  const [verb, ...rest] = arg.split(/\s+/); const tail = rest.join(" ").trim();
+  try {
+    if (!verb) return usageTurn(question, `${roomStatusLines().join("\n")}\n\n${matrixUsage}`, { what: "matrix" });
+    if (foldMatrix.locked && !["unlock", "forget"].includes(verb)) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open; nothing this browser keeps is readable until then", { what: "matrix" }); }
+    if (verb === "login") {
+      if (foldMatrix.status().signedIn && !tail) return usageTurn(question, `already signed in as ${foldMatrix.status().user} — /matrix logout first to change`, { what: "matrix" });
+      openMatrixLogin(tail);
+      return usageTurn(question, "the sign-in sheet is open — nothing leaves this page until you press Sign in, and then only to the homeserver you named", { what: "matrix" });
+    }
+    if (verb === "lock") { if (foldMatrix.status().vaulted) return usageTurn(question, "already sealed — /matrix unlock off returns to plain storage", { what: "matrix" }); openMatrixSheet("lock"); return usageTurn(question, "the seal sheet is open — choose a passphrase you will not lose; it is asked for on every page load", { what: "matrix" }); }
+    if (verb === "unlock") { if (tail === "off") { if (!foldMatrix.status().vaulted) return usageTurn(question, "nothing is sealed", { what: "matrix" }); sheetMode = "unlock-off"; openMatrixSheet("unlock"); $("matrix-login-title").textContent = "Unseal for good"; return usageTurn(question, "the sheet is open — the passphrase, once more, returns this browser to plain storage", { what: "matrix" }); } if (!foldMatrix.locked) return usageTurn(question, "not locked", { what: "matrix" }); openMatrixSheet("unlock"); return usageTurn(question, "the unlock sheet is open", { what: "matrix" }); }
+    if (verb === "fingerprint") return usageTurn(question, `this browser's key: ${await foldMatrix.myFingerprint()} — read it aloud to a member who is deciding whether to /share grant you`, { what: "matrix" });
+    if (verb === "members") {
+      if (!state.matrixRoom) return usageTurn(question, "no room is open", { what: "matrix" });
+      const list = await foldMatrix.members(state.matrixRoom);
+      return usageTurn(question, [`members of ${roomLabel(state.matrixRoom)}:`, ...list.map((m) => `  ${m.user} · ${m.membership}${m.fingerprint ? ` · key ${m.fingerprint}${m.proof === "proof" ? " (proved by a bound link)" : " (no proof — compare aloud before /share grant)"}` : " · no key published"} · ${m.hasKey ? "holds the chat key" : "no chat key"}`), "— from the room's state, not guessed"].join("\n"), { what: "matrix" });
+    }
+    if (verb === "rotate") { if (!state.matrixRoom) return usageTurn(question, "no room is open", { what: "matrix" }); const r = await foldMatrix.rotate(state.matrixRoom); return usageTurn(question, `new key epoch ${r.epoch} for ${roomLabel(state.matrixRoom)}: everything from now on is sealed under a key ${r.regranted.length} member(s) were re-granted (${r.regranted.join(", ") || "nobody else"}); what was read before stays read`, { what: "matrix" }); }
+    if (verb === "remove") {
+      if (!state.matrixRoom) return usageTurn(question, "no room is open", { what: "matrix" });
+      if (!/^@[^:]+:.+$/.test(tail)) return usageTurn(question, "/matrix remove @who:server", { what: "matrix" });
+      const r = await foldMatrix.remove(state.matrixRoom, tail);
+      return usageTurn(question, `${tail} is out of ${roomLabel(state.matrixRoom)}, and the key rotated to epoch ${r.epoch} — nothing sealed from now on reaches them; what they already read, they keep (no key un-reads a block). Re-granted: ${r.regranted.join(", ") || "nobody"}`, { what: "matrix" });
+    }
+    if (verb === "logout") { await foldMatrix.logout(); if (roomServing) { roomServing.controller.abort(); roomServing = null; } return usageTurn(question, "signed out; the token was invalidated on the homeserver and forgotten here. Chat keys stay in this browser — /matrix forget drops them too.", { what: "matrix" }); }
+    if (verb === "forget") { localStorageStorage().clear(); state.matrixRoom = null; return usageTurn(question, "forgotten: the session, this browser's identity pair, every chat key. Reload to start clean. (Rooms and blocks stay on the homeserver, unreadable without the keys.)", { what: "matrix" }); }
+    if (verb === "rooms") {
+      const st = foldMatrix.status(); if (!st.signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver>", { what: "matrix" });
+      const joined = await foldMatrix.http().joinedRooms();
+      const lines = [`joined on ${st.hs}: ${joined.length} room(s)`];
+      for (const id of joined) { const known = st.rooms.find((r) => r.id === id); lines.push(`  ${id} · ${known ? `${known.name ?? "(unnamed)"} · key held · ${known.blocks} block(s)` : "no key here — /matrix open to try a grant, or ask for its link"}`); }
+      return usageTurn(question, lines.join("\n"), { what: "matrix" });
+    }
+    if (verb === "open") {
+      if (!/^!/.test(tail)) return usageTurn(question, "/matrix open <room id> — a room id starts with !", { what: "matrix" });
+      const r = await foldMatrix.load(tail);
+      if (!r.entries.length && r.partial) return usageTurn(question, `${tail}: ${r.gaps.join("; ")}`, { what: "matrix" });
+      state.matrixRoom = tail; localStorage.setItem("fold-matrix-room", tail);
+      const n = replayEntries(r.entries, tail);
+      return usageTurn(question, `opened ${roomLabel(tail)}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.gaps.length ? `\ngaps: ${r.gaps.join("; ")}` : ""}`, { what: "matrix" });
+    }
+    if (verb === "request") { if (!/^!/.test(tail)) return usageTurn(question, "/matrix request <room id>", { what: "matrix" }); await foldMatrix.requestKey(tail); return usageTurn(question, `your public key is published in ${tail}; when a member runs /share there, the chat key is wrapped to it — then /matrix open ${tail}`, { what: "matrix" }); }
+    return usageTurn(question, matrixUsage, { what: "matrix" });
+  } catch (e) { return usageTurn(question, `/matrix ${verb}: ${matrixGap(e)}`, { what: "matrix" }); }
+}
+async function preserveTurn(arg, question) {
+  try {
+    if (foldMatrix.locked) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open", { what: "preserve" }); }
+    if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "preserve" });
+    const firstAsk = state.history.find((h) => h.role === "user")?.content ?? "";
+    const name = arg || firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat";
+    const made = !state.matrixRoom;
+    const room = await foldMatrix.ensureRoom({ roomId: state.matrixRoom, name });
+    state.matrixRoom = room; localStorage.setItem("fold-matrix-room", room);
+    const r = await foldMatrix.preserve(room, chatEntries());
+    const sources = liveSources().length;
+    const lines = [
+      made ? `made a private room, ${roomLabel(room)}, with a fresh chat key held in this browser` : `room: ${roomLabel(room)}`,
+      r.pushed ? `preserved ${r.pushed} turn(s) as block ${r.idx} (key epoch ${r.epoch}) — ${r.bytes.toLocaleString()} bytes of ciphertext at ${r.mxc}, sha256 ${r.sha256.slice(0, 12)}…` : "nothing new to preserve",
+      r.skipped ? `${r.skipped} turn(s) were already there` : null,
+      sources ? `${sources} attached source(s) are not preserved — the room holds turns; sources stay on this machine` : null,
+      "the homeserver holds the sealed block, its size and its time; /share hands the key on",
+    ].filter(Boolean);
+    return usageTurn(question, lines.join("\n"), { what: "preserve" });
+  } catch (e) { return usageTurn(question, `/preserve: ${matrixGap(e)}`, { what: "preserve" }); }
+}
+/** What the grant pass found, phrased once for every share-shaped door. */
+function grantLines(r) {
+  const lines = [];
+  if (r.granted?.length) lines.push(`granted: ${r.granted.map((g) => `${g.user} (key ${g.fingerprint})`).join(", ")}`);
+  if (r.unverified?.length) lines.push(`waiting on you: ${r.unverified.map((u) => `${u.user} published key ${u.fingerprint} with no link proof — have them read it aloud, then /share grant ${u.user}`).join("; ")}`);
+  if (r.refused?.length) lines.push(`refused: ${r.refused.map((x) => `${x.user} — ${x.why}`).join("; ")}`);
+  return lines;
+}
+async function shareTurn(arg, question) {
+  try {
+    if (foldMatrix.locked) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open", { what: "share" }); }
+    if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "share" });
+    const [verb, ...rest] = arg.split(/\s+/); const tail = rest.join(" ").trim();
+    if (!state.matrixRoom) { const firstAsk = state.history.find((h) => h.role === "user")?.content ?? ""; state.matrixRoom = await foldMatrix.ensureRoom({ name: firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat" }); localStorage.setItem("fold-matrix-room", state.matrixRoom); await foldMatrix.preserve(state.matrixRoom, chatEntries()); }
+    const room = state.matrixRoom; const pageHref = stripShareFragment(location.href);
+    if (verb === "pending") { const r = await foldMatrix.grantPending(room); return usageTurn(question, [`bound invites outstanding: ${foldMatrix.pendingInvites(room).join(", ") || "none"}`, ...grantLines(r), grantLines(r).length ? "" : "nothing waiting"].join("\n"), { what: "share" }); }
+    if (verb === "grant") { if (!/^@[^:]+:.+$/.test(tail)) return usageTurn(question, "/share grant @who:server — after comparing their fingerprint aloud (/matrix members)", { what: "share" }); const r = await foldMatrix.share(room, { grant: tail }); return usageTurn(question, [`${tail} now holds the chat key (every epoch), wrapped to key ${r.granted[0].fingerprint}`, "you trusted that key by comparing it out of band; a homeserver cannot have swapped what you read aloud"].join("\n"), { what: "share" }); }
+    if (verb === "open" || verb === "") {
+      const r = await foldMatrix.share(room, { mode: "open", pageHref });
+      return usageTurn(question, [`room: ${roomLabel(room)}`, ...grantLines(r), `open link — the key is after the #, which browsers never send to any server:`, `  ${r.link}`, MAGIC_KEY_WARNING].join("\n"), { what: "share" });
+    }
+    if (verb === "words") {
+      if (tail.split(/\s+/).filter(Boolean).length < 3) return usageTurn(question, "/share words <three or more words> — the words you will say aloud", { what: "share" });
+      const r = await foldMatrix.share(room, { mode: "passphrase", passphrase: tail, pageHref });
+      return usageTurn(question, [`room: ${roomLabel(room)}`, ...grantLines(r), `link — the key is sealed under your words; the link alone opens nothing, the words alone open nothing:`, `  ${r.link}`, "say the words to the person over a different channel than the link; whoever has both reads the whole chat"].join("\n"), { what: "share" });
+    }
+    if (/^@[^:]+:.+$/.test(verb)) {
+      const r = await foldMatrix.share(room, { invite: verb, mode: "bound", pageHref });
+      startInviteWatch(room);
+      return usageTurn(question, [`invited ${verb} to ${roomLabel(room)} (private: only the invited can join)`, ...grantLines(r), `bound link — no key in it; it works only for ${verb}, signed in as themselves, once, until ${new Date(r.expiresAt).toLocaleString()}:`, `  ${r.link}`, "when they open it, their page publishes a key with this link's proof; this page (while open) or your worker grants that key and no other — a homeserver cannot swap one in", "if this page is closed when they open it, they see 'waiting for a grant'; reopening this chat later grants it"].join("\n"), { what: "share" });
+    }
+    return usageTurn(question, "/share @who:server (bound to that account) · /share open (the magic key) · /share words <words> · /share grant @who:server · /share pending", { what: "share" });
+  } catch (e) { return usageTurn(question, `/share: ${matrixGap(e)}`, { what: "share" }); }
+}
+/** While this page is open and holds outstanding bound invites for the
+ * room, grant every proof that verifies, and say so. */
+function startInviteWatch(room) {
+  if (inviteWatch?.room === room) return;
+  inviteWatch?.controller.abort();
+  const controller = new AbortController();
+  inviteWatch = { room, controller };
+  foldMatrix.watchInvites(room, { signal: controller.signal, onGrant: (g) => { for (const x of g.granted) addMessage("assistant", `granted the chat key to ${x.user} (key ${x.fingerprint}) — their bound link's proof verified`); renderPool(); } })
+    .catch(() => {}).finally(() => { if (inviteWatch?.controller === controller) inviteWatch = null; });
+}
+/** Join from a link: the flow /join, the boot path and the sheet share. */
+async function joinInto(link, { passphrase = null } = {}) {
+  const p = parseShareLink(link);
+  const r = await foldMatrix.joinFromLink(link, { passphrase, onWait: ({ ms }) => { $("status").textContent = `waiting for a member to grant your key · ${Math.round(ms / 1000)}s`; } });
+  if (r.needs === "unlock") { state.matrixPendingLink = link; openMatrixSheet("unlock"); return "unlock this browser's keys first — the sheet is open; the shared chat opens after"; }
+  if (r.needs === "login") { state.matrixPendingLink = link; openMatrixLogin(r.hs, r.to ? r.to.replace(/^@/, "").replace(/:.*$/, "") : ""); return `sign in to your homeserver first${r.to ? ` as ${r.to}` : ""} — the sheet is open; the shared chat "${r.name ?? r.room}" opens after`; }
+  if (r.needs === "passphrase") { state.matrixPendingLink = link; openMatrixSheet("words"); return `this link needs the words that were said to you — the sheet is open`; }
+  if (!r.joined) return `${r.room}: ${r.gap}`;
+  state.matrixPendingLink = null;
+  state.matrixRoom = r.room; localStorage.setItem("fold-matrix-room", r.room);
+  $("status").textContent = `ready · ${state.model}`;
+  if (r.awaiting) return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}, and published this browser's key (${r.fingerprint}) with the link's proof — ${r.gaps.join("; ")}`;
+  const n = replayEntries(r.entries, r.room);
+  renderModelMenu();
+  const how = p?.kind === "bound" ? `the chat key was granted to this browser's key (${r.fingerprint}) — it opens only here` : p?.kind === "passphrase" ? "the key was opened with the words and is held in this browser" : "the key from the link is held in this browser; the address bar no longer carries it";
+  return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.partial ? `\ngaps: ${r.gaps.join("; ")}` : ""}\n${how}`;
+}
+async function joinTurn(arg, question) {
+  try {
+    const m = /^(\S+)\s*(.*)$/s.exec(arg ?? "");
+    const link = m?.[1] || state.matrixPendingLink; const words = m?.[2]?.trim() || null;
+    if (!link || !parseShareLink(link)) return usageTurn(question, "/join <link> [the words] — a link printed by /share", { what: "join" });
+    return usageTurn(question, await joinInto(link, { passphrase: words }), { what: "join" });
+  } catch (e) { return usageTurn(question, `/join: ${matrixGap(e)}`, { what: "join" }); }
+}
+/** This machine's mouth, for the room: the same completeOnce a turn uses,
+ * with what it measured — tokens from the counter, the device's own label. */
+async function serveComplete({ model, messages, options }) {
+  const before = { in: tokensSeen.in, out: tokensSeen.out };
+  const r = await completeOnce(messages, { model, json: options?.json ?? undefined, maxTokens: options?.maxTokens, temperature: options?.temperature });
+  return { text: r.text, model, usage: { promptTokens: tokensSeen.in - before.in, outTokens: tokensSeen.out - before.out }, device: { home: state.routes?.summary?.split(" · ")[0] ?? null, label: navigator.platform ?? null, webgpu: !!navigator.gpu } };
+}
+function localModels() { return state.offeredModels.filter((n) => !isRoomModel(n)); }
+async function startServing(room) {
+  if (roomServing) return roomServing;
+  const models = localModels();
+  if (!models.length) throw new Error("this machine offers no model — Ollama is not answering and the in-tab rung is unavailable");
+  const controller = new AbortController();
+  roomServing = { room, controller, models, served: 0 };
+  foldMatrix.serve(room, { complete: serveComplete, models, home: state.routes?.summary?.split(" · ")[0] ?? null, signal: controller.signal, onJob: ({ from, model }) => { roomServing.served++; $("status").textContent = `serving ${from} with ${model} through the room…`; renderPool(); } })
+    .catch((e) => { addMessage("assistant", `serving stopped: ${matrixGap(e)}`); })
+    .finally(() => { if (roomServing?.controller === controller) roomServing = null; renderPool(); });
+  renderPool();
+  return roomServing;
+}
+async function serveTurn(arg, question) {
+  try {
+    if (/^stop\b/.test(arg)) { if (!roomServing) return usageTurn(question, "not serving", { what: "serve" }); roomServing.controller.abort(); const n = roomServing.served; roomServing = null; return usageTurn(question, `stopped serving — ${n} answered; the offer is withdrawn from the room`, { what: "serve" }); }
+    if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "serve" });
+    if (!state.matrixRoom) return usageTurn(question, "no room is open — /preserve makes one, /join opens a shared one", { what: "serve" });
+    const s = await startServing(state.matrixRoom);
+    return usageTurn(question, `serving ${roomLabel(state.matrixRoom)} from this machine: ${s.models.join(", ")}\nany member can pick one of these as their model (the picker lists it as room:${foldMatrix.status().user} <model>); their prompts arrive sealed, are answered here, and go back sealed\n/serve stop withdraws the offer`, { what: "serve" });
+  } catch (e) { return usageTurn(question, `/serve: ${matrixGap(e)}`, { what: "serve" }); }
+}
+function poolLines(pool) {
+  if (!pool.workers.length) return ["nobody offers a mouth in this room yet — /serve on a machine that has one"];
+  return pool.workers.map((w) => `  ${w.user}${w.withdrawn ? " (withdrawn)" : ""} · ${w.home ?? "home unknown"} · ${w.models.join(", ") || "no models"} · sent ${w.sent}, answered ${w.answered}, failed ${w.failed}, in flight ${w.inflight}${w.meanMs != null ? ` · mean ${(w.meanMs / 1000).toFixed(1)}s` : ""}${w.tokPerSec != null ? ` · ${w.tokPerSec} tok/s` : ""}${w.device?.label ? ` · ${w.device.label}` : ""}`);
+}
+async function poolTurn(question) {
+  try {
+    if (!state.matrixRoom) return usageTurn(question, "no room is open — /preserve makes one, /join opens a shared one", { what: "pool" });
+    await foldMatrix.mouths(state.matrixRoom);
+    const pool = foldMatrix.pool(state.matrixRoom);
+    renderPool(); $("pool").showModal();
+    return usageTurn(question, `pooled devices in ${roomLabel(state.matrixRoom)} — ${pool.offers} offering:\n${poolLines(pool).join("\n")}\n— from the room's state and this page's own jobs, not guessed`, { what: "pool" });
+  } catch (e) { return usageTurn(question, `/pool: ${matrixGap(e)}`, { what: "pool" }); }
+}
+/** The pool sheet: the same facts as /pool, as a table, live while serving. */
+function renderPool() {
+  const table = $("pool-table"); if (!table) return;
+  const room = state.matrixRoom;
+  const pool = room ? foldMatrix.pool(room) : { workers: [], offers: 0 };
+  $("pool-sub").textContent = room ? `${roomLabel(room)} — ${pool.offers} device(s) offering` : "no room is open — /preserve makes one, /join opens a shared one";
+  table.textContent = "";
+  if (pool.workers.length) {
+    const head = table.createTHead().insertRow();
+    for (const h of ["member", "home", "models", "sent", "answered", "failed", "in flight", "mean", "tok/s", "device"]) { const th = document.createElement("th"); th.textContent = h; head.append(th); }
+    const body = table.createTBody();
+    for (const w of pool.workers) {
+      const tr = body.insertRow(); if (w.withdrawn) tr.className = "withdrawn";
+      const cells = [w.user + (w.withdrawn ? " (withdrawn)" : ""), w.home ?? "—", w.models.join(", ") || "—", w.sent, w.answered, w.failed, w.inflight, w.meanMs != null ? `${(w.meanMs / 1000).toFixed(1)}s` : "—", w.tokPerSec ?? "—", w.device ? `${w.device.label ?? ""}${w.device.webgpu ? " · WebGPU" : ""}` : "—"];
+      cells.forEach((c, i) => { const td = tr.insertCell(); td.textContent = String(c); if (i >= 3 && i <= 8) td.className = "num"; });
+    }
+  }
+  $("pool-this").textContent = roomServing ? `this machine is serving: ${roomServing.models.join(", ")} · ${roomServing.served} answered so far` : `this machine is not serving${localModels().length ? ` — it could offer ${localModels().join(", ")}` : " — it has no model to offer"}`;
+  const btn = $("pool-serve"); btn.textContent = roomServing ? "Stop serving" : "Serve from this machine"; btn.classList.toggle("on", !!roomServing); btn.disabled = !room || !foldMatrix.status().signedIn;
+}
+
+/**
+ * `/gateways` — which public gateways this instrument has found open, off
+ * its own record (P117); `/gateways probe [url]` tries each one, recorded.
+ * A gateway is a third party the reader reaches only when a direct fetch
+ * was refused and the web toggle is on; the table says what each one sees.
+ */
+async function gatewaysTurn(arg, question) {
+  const probe = /^probe\b/.test(arg);
+  const target = probe ? arg.replace(/^probe\s*/, "").trim() : "";
+  try {
+    const res = probe
+      ? await fetch(`${EXPLORE_BASE}/api/web/gateways`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(target ? { url: target } : {}) })
+      : await fetch(`${EXPLORE_BASE}/api/web/gateways`);
+    if (!res.ok) return usageTurn(question, `the explore server answered ${res.status} — /gateways needs explore-server.mjs on ${EXPLORE_BASE}`, { what: "gateways" });
+    const got = await res.json();
+    const head = probe
+      ? `probed ${got.results.length} public gateways with ${got.target} — ${got.results.filter((r) => r.ok).length} answered (each try is on the record):`
+      : `public gateways, as this instrument has found them (off the record; a direct fetch that is refused tries them in this order):`;
+    const rows = probe
+      ? [
+          ...got.results.map((r) => `  ${r.ok ? "open  " : "closed"} ${r.gateway} · ${r.status ?? "no answer"} · ${r.ms} ms${r.ok ? ` · ${r.chars.toLocaleString()} chars` : ` · ${r.detail}`}`),
+          `what each relay or reader forwards about you${got.ownIpKnown ? "" : " (your own address could not be read, so nothing is decided)"}:`,
+          ...(got.leaks ?? []).map((l) => `  ${l.gateway} · ${l.forwardsAddress === true ? `forwards your address (${l.carriers.map((c) => c.name).join(", ")})` : l.forwardsAddress === false ? "does not forward your address" : l.echoed ? "unreadable" : "not measurable while closed"}`),
+        ]
+      : got.lines.map((l) => `  ${l}`);
+    const tail = probe ? `\nlearned order now: ${got.order.join(" → ")}` : `\norder: ${got.order.join(" → ")}\n/gateways probe [url] — try each one now, recorded`;
+    return usageTurn(question, `${head}\n${rows.join("\n")}${tail}\n— computed from the record, not generated`, { what: "gateways" });
+  } catch (e) {
+    return usageTurn(question, `/gateways: ${e.message} — is explore-server.mjs running on ${EXPLORE_BASE}?`, { what: "gateways" });
+  }
 }
 
 /**
@@ -2088,7 +2559,7 @@ async function codePieceTurn(cp, typed) {
   releaseBusy();
 }
 
-// exportLastPiece — the two faces of the last piece (P118), built from the
+// exportLastPiece — the two faces of the last piece (P121), built from the
 // kept sections: every sentence placed again by the ladder, its verbatim
 // spans sliced from the passages, the markdown with footnotes and text-
 // fragment links, the html with data-anchors, the json sidecar — handed to
@@ -2609,7 +3080,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
         releaseBusy();
         return;
       }
-      statusP.textContent = "transcribing with Whisper…";
+      statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
       $("status").textContent = "transcribing…";
       const { text, duration } = await transcribeBlob(blob, {
         onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
@@ -2665,7 +3136,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
 
   try {
     const { blob, title } = await fetchAudioFromUrl(arg);
-    statusP.textContent = "transcribing with Whisper…";
+    statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
     $("status").textContent = "transcribing…";
     const { text, duration } = await transcribeBlob(blob, {
       onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
@@ -3065,7 +3536,7 @@ function drainQueue() {
   // real one through the turn function's own addMessage.
   const placeholder = document.querySelector(".msg.queued");
   if (placeholder) placeholder.remove();
-  send(next);
+  guardedSend(next);
 }
 
 function releaseBusy() {
@@ -3073,6 +3544,26 @@ function releaseBusy() {
   $("send").disabled = false;
   $("input").focus();
   drainQueue();
+}
+
+/**
+ * A door that throws must never leave the composer busy (2026-09-05, found
+ * live: an exception inside a mechanical door left `state.busy` set, so
+ * every later message silently queued behind a turn that would never end).
+ * The throw becomes a typed assistant line — the promise the page makes is
+ * that it shows its work, and "this door threw, nothing was answered" is
+ * work shown; a dead composer is not.
+ */
+function guardedSend(question) {
+  let p;
+  try { p = send(question); } catch (e) { p = Promise.reject(e); }
+  return Promise.resolve(p).catch((e) => {
+    const node = addMessage("assistant", `this turn threw before answering: ${e?.message ?? e} — nothing was recorded as an answer; the composer is free.`);
+    node.classList.add("door-failed");
+    console.error("turn failed", e);
+    $("status").textContent = `ready · ${state.model}`;
+    releaseBusy();
+  });
 }
 
 async function send(question) {
@@ -3105,6 +3596,9 @@ async function send(question) {
   if (ingestCmd) return ingestTurn(ingestCmd.repo, question);
   if (/^\/ingest\b/.test(question))
     return usageTurn(question, "/ingest <owner/name or github url> — fetches the repo's admissible files through the recorded egress and lands each as a fold carrying its provenance (source, license, retrieval date) forever.");
+
+  // The measuring door (P19): typed, mechanical, no model — see measureTurn.
+  if (/^\/measure\b/.test(question)) return measureTurn(question);
 
   const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
   if (task) return holonicTurn(task, question, "model");
@@ -3141,6 +3635,31 @@ async function send(question) {
   // on disk, not a thing to phrase.
   const priorsCmd = question.match(/^\/priors\b\s*(.*)$/s);
   if (priorsCmd) return priorsTurn(priorsCmd[1] ?? "", question);
+
+  // The public gateways (P117): bare, the learned table off the record — no
+  // egress; `probe`, one recorded fetch of a canonical page through each
+  // gateway so the table has something to learn from. Mechanical either way.
+  const gatewaysCmd = question.match(/^\/gateways\b\s*(.*)$/s);
+  if (gatewaysCmd) return gatewaysTurn(gatewaysCmd[1]?.trim() ?? "", question);
+
+  // The routes (P118): where this page is and what it found reachable at
+  // boot, re-probed on request. Mechanical, localhost / same-origin only.
+  if (/^\/routes\b/.test(question)) return routesTurn(question);
+
+  // The room (P119): sign in to a homeserver the person names; preserve this
+  // chat there sealed; share it; join a shared one; serve a mouth from this
+  // machine; see the pool. Mechanical, every act on the record as pointers.
+  const matrixCmd = question.match(/^\/matrix\b\s*(.*)$/s);
+  if (matrixCmd) return matrixTurn(matrixCmd[1]?.trim() ?? "", question);
+  const preserveCmd = question.match(/^\/preserve\b\s*(.*)$/s);
+  if (preserveCmd) return preserveTurn(preserveCmd[1]?.trim() ?? "", question);
+  const shareCmd = question.match(/^\/share\b\s*(.*)$/s);
+  if (shareCmd) return shareTurn(shareCmd[1]?.trim() ?? "", question);
+  const joinCmd = question.match(/^\/join\b\s*(.*)$/s);
+  if (joinCmd) return joinTurn(joinCmd[1]?.trim() ?? "", question);
+  const serveCmd = question.match(/^\/serve\b\s*(.*)$/s);
+  if (serveCmd) return serveTurn(serveCmd[1]?.trim() ?? "", question);
+  if (/^\/pool\b/.test(question)) return poolTurn(question);
 
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
@@ -3263,7 +3782,7 @@ async function send(question) {
   // widget doors below. checkArithmetic itself refuses to claim anything
   // with a free symbol left after normalizing, so a real question about
   // the world (or the material) always falls through untouched.
-  const arithmetic = checkArithmetic(question, { math: window.math });
+  const arithmetic = checkQuantity(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
 
   // Self questions asked in words ("what surprised you most", "how do you
@@ -3328,9 +3847,18 @@ async function send(question) {
   // /task shape, in spirit) — S1/S2 is for the common little question,
   // which is exactly where a naked fast pass either already answers it or
   // visibly earns the deeper, checked pass that follows.
+  // A slash that no door above claimed is a typed refusal, never a model
+  // prompt: until 2026-09-05 an unknown /word reached the model (and, with
+  // the web toggle on, a search) as if it were a question.
+  if (/^\/[a-z][a-z-]*\b/i.test(question))
+    return usageTurn(question, `no door named ${question.split(/\s+/)[0]} — the doors: ${DOORS.join(" ")}`, { what: "no-such-door" });
   if (needsDecomposition(question)) return holonicTurn(question, question, "model");
   return twoPassTurn(question);
 }
+
+/** Every door the composer routes, read off the dispatch above — kept as one
+ * list so the refusal for an unknown slash names all of them. */
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -5032,7 +5560,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
           fields: { url: f.entry.finalUrl ?? url },
         };
-        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested`);
+        show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested${f.entry.via ? ` — via ${f.entry.via.gateway} (the direct fetch was ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       } catch (e) {
         show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
       }
@@ -6033,7 +6561,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     for (const e of result.edits ?? []) show(`edited — ${editLine(e)}`);
     for (const r of result.revisions ?? []) show(r.kind === "revision-error" ? `revision pass failed: ${r.because}` : revisionLine(r));
     const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-    // THE PIECE, KEPT AND EXPORTED (P118): the sections with their claims,
+    // THE PIECE, KEPT AND EXPORTED (P121): the sections with their claims,
     // passages and witness rows, the addresses' urls, the prompts — enough
     // to place every sentence again and write the two faces.
     try {
@@ -6053,7 +6581,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       revisions: Object.fromEntries((result.revisions ?? []).map((r) => r.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       edits: (result.edits ?? []).length, editKinds: Object.fromEntries((result.edits ?? []).map((e) => e.kind).reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map())),
       sectionWords: secs.map((x) => x.words), coverage: avg(secs.map((x) => x.coverage?.share).filter((x) => x != null)), reasked: secs.flatMap((x) => x.reasked ?? []).length, metaCut: secs.reduce((a, x) => a + (x.metaCut?.length ?? 0), 0), hunts: secs.filter((x) => x.hunted?.chunks).length,
-      // P119's own numbers: atoms checked against the snips, flagged before and after the one rewrite, rewrite outcomes, contradiction candidates.
+      // P122's own numbers: atoms checked against the snips, flagged before and after the one rewrite, rewrite outcomes, contradiction candidates.
       snipCheck: (() => { const sc = secs.map((x) => x.snipCheck).filter(Boolean); const sum = (f) => sc.reduce((a, x) => a + (f(x) ?? 0), 0); const oc = {}; for (const x of sc) for (const o of x.outcomes ?? []) oc[o.outcome] = (oc[o.outcome] ?? 0) + 1; return { sections: sc.length, snips: sum((x) => x.snips), atoms: sum((x) => x.atoms), supported: sum((x) => x.supported), flagged: sum((x) => x.flagged), flaggedAfter: sum((x) => x.after?.flagged), asked: sum((x) => (x.asked === true ? 1 : Number(x.asked) || 0)), outcomes: oc, contradictions: sum((x) => x.contradictions?.length) }; })(),
       via: "chat",
     });
@@ -8065,8 +8593,8 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
       rememberPageFace(sourceName, url, f.entry);
-      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, name: sourceName });
-      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept`);
+      pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, name: sourceName, ...(f.entry.via ? { via: f.entry.via.gateway } : {}) });
+      onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept${f.entry.via ? ` — via ${f.entry.via.gateway} (direct fetch ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       const arrived = huntMeter.arrive(hunt, text);
       if (arrived.settled) {
         huntStop = "settled";
@@ -9876,7 +10404,7 @@ $("model").onchange = () => {
 };
 
 /** The status line: the model, and the depth when it is not the plain rung. */
-function readyLine() { return `ready · ${state.model}${state.depth !== 1 ? ` · depth ${state.depth}` : ""}`; }
+function readyLine() { return `ready · ${state.model}${state.depth !== 1 ? ` · depth ${state.depth}` : ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`; }
 /** The slider's legend, in plain words, from the budgets the rung would spend. */
 function renderDepth() {
   const b = depthBudgets(state.depth);
@@ -9940,6 +10468,7 @@ $("attach-upload").onclick = () => {
 $("attach-paste").onclick = () => {
   $("attach-menu").close();
   $("material").value = "";
+  pasteHandled = false;
   $("paste").showModal();
   $("material").focus();
 };
@@ -10131,7 +10660,19 @@ function addPasted() {
   $("material").value = "";
   $("status").textContent = "pasted text attached";
 }
+// The paste sheet is handled on its form's SUBMIT as well as the dialog's
+// close: in Chromium 148 (measured in the browser pane, 2026-09-05, P119) a
+// <dialog> fires `toggle` but never `close`, so a handler on close alone
+// never ran there and pasted material silently went nowhere. The flag keeps
+// a browser that fires both from attaching twice.
+let pasteHandled = false;
+$("paste").querySelector("form").addEventListener("submit", (e) => {
+  if (e.submitter?.id !== "paste-add") return;
+  pasteHandled = true;
+  queueMicrotask(addPasted);
+});
 $("paste").addEventListener("close", () => {
+  if (pasteHandled) return;
   if ($("paste").returnValue === "add") addPasted();
 });
 
@@ -10360,6 +10901,9 @@ function openSettings(open) {
   if (!open) return settingsDialog.close();
   renderModelMenu();
   settingsDialog.showModal();
+  // The room's offers are re-read each time the menu opens, so a mouth that
+  // came or went since the last look is drawn; the rows re-render in place.
+  if (state.matrixRoom && foldMatrix.status().signedIn) foldMatrix.mouths(state.matrixRoom).then(() => { if (settingsDialog.open) renderModelMenu(); }).catch(() => {});
 }
 
 /** The models this machine has, current one marked. Built from the same
@@ -10404,6 +10948,22 @@ function renderModelMenu() {
     };
     list.append(row);
   }
+  // The room's mouths (P119): every model a member offers through the open
+  // room, as rungs. Choosing one routes each turn to that member sealed;
+  // there is nothing to connect to here — the room is already open.
+  if (state.matrixRoom) {
+    for (const w of foldMatrix.pool(state.matrixRoom).workers.filter((x) => !x.withdrawn)) for (const m of w.models) {
+      const name = roomModelName(w.user, m);
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `model-row${name === state.model ? " on" : ""}`;
+      const n = document.createElement("span"); n.className = "nm"; n.textContent = `${m} · on ${w.user}${w.home ? `'s ${w.home}` : ""}, through the room`;
+      row.append(n);
+      if (name === state.model) { const tick = document.createElement("span"); tick.className = "tick"; tick.textContent = "✓"; row.append(tick); }
+      row.onclick = () => { state.model = name; state.ready = true; state.contextTokens = null; settingsDialog.close(); syncModelPick(); $("send").disabled = false; $("status").textContent = `ready · ${name} · sealed through the room`; showView("chat"); $("input").focus(); };
+      list.append(row);
+    }
+  }
 }
 
 /** The composer's model button: the name, or the reason there isn't one. */
@@ -10420,7 +10980,7 @@ function syncModelPick() {
 // backdrop (or press Escape, which <dialog> gives natively) and it goes. The
 // ✕ in each sheet's head is the third way, and the only one that is visible:
 // Escape is not discoverable and a backdrop click is a guess.
-for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer"]) {
+for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer", "matrix-login", "pool"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -10428,6 +10988,8 @@ for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", 
 }
 for (const [btn, dlg] of [
   ["model-menu-x", "model-menu"],
+  ["matrix-login-x", "matrix-login"],
+  ["pool-x", "pool"],
   ["attach-menu-x", "attach-menu"],
   ["picker-x", "picker"],
   ["paste-x", "paste"],
@@ -10449,10 +11011,121 @@ $("model-pick").onclick = () => openSettings(true);
 // only when there is a real choice to make: nothing reachable, or nothing
 // pulled. The picker stays in the chip for anyone who wants a different rung.
 fillModels().then(() => {
-  if (state.ready) return;
-  if (state.offeredModels.length) connect();
-  else openSettings(true);
+  if (!state.ready) {
+    if (state.offeredModels.length) connect();
+    else openSettings(true);
+  }
+  // The routes are probed once the model picker has settled, so Ollama's
+  // answer is what fillModels actually found, not a race with it.
+  probeRoutes().catch(() => {});
+  // The room (P119): a share link opened in the address bar, and the room
+  // this browser last preserved to. The key is read off the fragment and the
+  // fragment is dropped from the bar at once; nothing is joined until the
+  // person is signed in, and the sheet says the chat opens after.
+  const shared = parseShareLink(location.href);
+  if (shared) {
+    const link = location.href;
+    history.replaceState(null, "", stripShareFragment(location.href));
+    joinInto(link).then((line) => addMessage("assistant", line)).catch((e) => addMessage("assistant", `the shared link could not be opened: ${matrixGap(e)}`));
+  } else if (foldMatrix.locked) {
+    state.matrixRoom = localStorage.getItem("fold-matrix-room") || null;
+    addMessage("assistant", "this browser's room keys are sealed — the unlock sheet is open (/matrix unlock)");
+    openMatrixSheet("unlock");
+  } else {
+    state.matrixRoom = localStorage.getItem("fold-matrix-room") || null;
+    if (state.matrixRoom && !foldMatrix.status().rooms.some((r) => r.id === state.matrixRoom)) state.matrixRoom = null;
+    if (state.matrixRoom && foldMatrix.pendingInvites(state.matrixRoom).length) startInviteWatch(state.matrixRoom);
+  }
 });
+// The sign-in sheet: the password is read once, cleared, sent in Matrix's own
+// login call to the homeserver named — and the outcome is drawn as a message,
+// never as a turn, so the sheet's fields are never in the transcript.
+$("matrix-login-sub").dataset.base = $("matrix-login-sub").textContent;
+$("matrix-login-cancel").onclick = () => $("matrix-login").close("cancel");
+// The sheet is handled on its form's SUBMIT (a button, Enter in a field, or
+// requestSubmit all raise it) — not on the dialog's close event, which the
+// embedded browser this was rehearsed in never fired for a method=dialog
+// submission. The password is read once, the field cleared, the dialog
+// closed, and the login call made; the outcome is drawn as a message, never
+// as a turn, so the sheet's fields are never in the transcript.
+for (const id of ["mx-hs", "mx-user", "mx-pass"]) $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); $("matrix-login-form").requestSubmit($("matrix-login-form").querySelector("button[value=login]")); } });
+async function signInFromSheet(hs, user, pass) {
+  if (!hs || !user || !pass) { addMessage("assistant", "sign-in needs a homeserver, a user name and a password — nothing was sent"); return; }
+  try {
+    const st = await foldMatrix.login(hs, user, pass);
+    addMessage("assistant", `signed in as ${st.user} on ${st.hs} — this browser now holds a session and an identity pair for it`);
+    if (state.matrixPendingLink) { const line = await joinInto(state.matrixPendingLink); addMessage("assistant", line); }
+    renderPool();
+  } catch (e) { addMessage("assistant", `sign-in failed: ${matrixGap(e)} — nothing but the login call went to ${hs}`); }
+}
+async function sheetAct(mode, hs, user, secret) {
+  try {
+    if (mode === "login") return signInFromSheet(hs, user, secret);
+    if (!secret) { addMessage("assistant", "nothing was typed — nothing changed"); return; }
+    if (mode === "lock") { await foldMatrix.lock(secret); addMessage("assistant", "sealed: what this browser keeps for the room is now readable only with your passphrase; it is asked for on every page load"); return; }
+    if (mode === "unlock-off") { await foldMatrix.clearLock(secret); addMessage("assistant", "unsealed for good: this browser keeps its session and keys in plain storage again"); return; }
+    if (mode === "unlock") {
+      const st = await foldMatrix.unlock(secret);
+      addMessage("assistant", `unlocked${st.user ? ` — signed in as ${st.user}` : ""}`);
+      if (state.matrixRoom && !st.rooms.some((r) => r.id === state.matrixRoom)) state.matrixRoom = null;
+      if (state.matrixPendingLink) addMessage("assistant", await joinInto(state.matrixPendingLink));
+      renderPool(); return;
+    }
+    if (mode === "words") { if (!state.matrixPendingLink) return; addMessage("assistant", await joinInto(state.matrixPendingLink, { passphrase: secret })); return; }
+  } catch (e) { addMessage("assistant", `${mode}: ${matrixGap(e)}`); }
+}
+$("matrix-login-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const hs = $("mx-hs").value.trim(), user = $("mx-user").value.trim(), secret = $("mx-pass").value;
+  $("mx-pass").value = "";
+  $("matrix-login").close("login");
+  const mode = sheetMode; sheetMode = "login";
+  void sheetAct(mode, hs, user, secret);
+});
+$("model-menu-pool").onclick = () => { settingsDialog.close(); renderPool(); $("pool").showModal(); if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch(() => {}); };
+$("pool-refresh").onclick = () => { if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch((e) => { $("pool-sub").textContent = matrixGap(e); }); };
+$("pool-serve").onclick = async () => {
+  try { if (roomServing) { roomServing.controller.abort(); roomServing = null; } else await startServing(state.matrixRoom); }
+  catch (e) { $("pool-this").textContent = matrixGap(e); }
+  renderPool();
+};
+
+/**
+ * The routes, probed. Ollama's answer is what fillModels already found;
+ * WebGPU is the rung's own blocker; the explore server is one light GET on
+ * its lightest route; serve.mjs's API is reachable exactly when the page's
+ * own origin serves serve.mjs itself (a static home never does — the build
+ * carries only what the page loads). The result is said once beside the
+ * status and kept for /routes.
+ */
+state.routes = null;
+async function probeRoutes() {
+  const where = whereAmI(location.href);
+  const probes = {};
+  probes.ollama = state.availableModels?.size ? { ok: true, models: state.availableModels.size - WEBLLM_MODELS.filter((m) => state.availableModels.has(m.id)).length } : { ok: false, detail: "no answer on :11434" };
+  probes.webgpu = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
+  try {
+    const r = await fetch(`${EXPLORE_BASE}/api/skills`, { cache: "no-store" });
+    probes.explore = r.ok ? { ok: true, base: EXPLORE_BASE } : { ok: false, base: EXPLORE_BASE, detail: `answered ${r.status}` };
+  } catch (e) {
+    probes.explore = { ok: false, base: EXPLORE_BASE, detail: e.message };
+  }
+  try {
+    const r = await fetch(new URL("serve.mjs", location.href), { method: "HEAD", cache: "no-store" });
+    probes.api = r.ok ? { ok: true, base: location.origin } : { ok: false, base: location.origin, detail: `answered ${r.status}` };
+  } catch (e) {
+    probes.api = { ok: false, base: location.origin, detail: e.message };
+  }
+  probes.weights = webllmClient.weightsRoute ? { route: webllmClient.weightsRoute.route, base: webllmClient.weightsRoute.base } : null;
+  state.routes = describeRoutes({ where, probes });
+  // Said once, on the status chip the page already keeps (the composer's
+  // status line is the turn loop's and is hidden between turns); the full
+  // table is /routes.
+  const st = $("status");
+  if (st && /^ready · /.test(st.textContent) && !/ · routes: /.test(st.textContent)) st.textContent = `${st.textContent} · routes: ${state.routes.summary}`;
+  return state.routes;
+}
+
 
 // The chip mirrors whatever the status line says, so every existing status
 // update reaches it without threading a setter through the turn loop.
@@ -10520,7 +11193,7 @@ $("composer").onsubmit = (e) => {
     el.querySelector(".body").append(Object.assign(document.createElement("span"), { className: "queue-tag", textContent: "queued" }));
     return;
   }
-  send(q);
+  guardedSend(q);
 };
 
 $("input").onkeydown = (e) => {

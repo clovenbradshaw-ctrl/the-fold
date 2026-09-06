@@ -24,7 +24,7 @@ test("the premise check names ONLY what the sources do say, never the false clai
   assert.ok(c.unverified.length + c.contradicted.length === 1, "the premise did not check out");
   const facts = premiseFacts(c);
   assert.match(facts, /These sources do not use "Sherman" anywhere\. There is nothing here to describe under that name\./);
-  assert.doesNotMatch(facts, /EFFECT_READS_THE_Sherman_RUN is the named export/, "the false claim is never quoted back to the mouth (P123's rule)");
+  assert.doesNotMatch(facts, /EFFECT_READS_THE_Sherman_RUN is the named export/, "the false claim is never quoted back to the mouth (P126's rule)");
   assert.doesNotMatch(facts, /skeptic|careful|be wary|the user/i, "facts about the sources, never an instruction about posture");
   // The enforcement is mechanical, not advisory.
   const g = premiseGuard(c);
@@ -75,7 +75,7 @@ test("no passages, no snips or no call is a no-op — every caller without mater
   assert.match(turnSnipBlock(passages, "what does it say about Ada Rowe"), /^What the sources say, verbatim/);
 });
 
-test("process narration is cut, but a stated absence and anything carrying the material's own words are kept (P124)", () => {
+test("process narration is cut, but a stated absence and anything carrying the material's own words are kept (P127)", () => {
   const material = "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.";
   const run = (t) => cutProcessTalk(t, { materialText: material, splitSentences });
   const r = run("This analysis focuses on a passage from the material. Let me break down the question and understand its purpose. The harbor light was built in 1841 by Ada Rowe.");

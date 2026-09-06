@@ -1,5 +1,5 @@
 // snip-check.js — a section's claims checked against the snips it stands on,
-// IN PROCESS, the cheap rung first (P119). Pure.
+// IN PROCESS, the cheap rung first (P122). Pure.
 //
 // User direction (2026-09-05): "now that we have the snips, what is an
 // efficient way for it to evaluate the accuracy of its claims in process?"

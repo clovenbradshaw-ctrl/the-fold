@@ -22,3 +22,6 @@ priors/
 # the in-tab model's mirrored weights (P21) — re-fetched, never committed:
 # models/fetch-llama32-3b.sh rebuilds them md5-verified
 models/*/
+
+# a symlinked node_modules (worktrees) is not a directory, so node_modules/ above misses it
+node_modules

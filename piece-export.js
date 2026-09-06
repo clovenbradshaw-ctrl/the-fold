@@ -1,5 +1,5 @@
 // piece-export.js — a finished piece in two faces, both carrying the same
-// ground (P118). Pure.
+// ground (P121). Pure.
 //
 // User direction (2026-09-05): "two types of output — one that uses those
 // Google hyperlinks that cite specific spans and then footnotes with
@@ -72,7 +72,7 @@ export function exportPiece({ title = "Untitled", ask = "", model = null, sectio
   const htmlSections = [];
   const tally = {};
   let sentenceIndex = 0;
-  // The passages the piece cites ride INSIDE the html (P118, user direction:
+  // The passages the piece cites ride INSIDE the html (P121, user direction:
   // "the html should let me click and see the source content snipped") —
   // one <template> per cited passage, so a click opens the source's own
   // bytes with the span marked, no page load, no remote resource.
@@ -99,7 +99,7 @@ export function exportPiece({ title = "Untitled", ask = "", model = null, sectio
       jsonSent.push({ i: sentenceIndex, text: s.text, tier: g.tier, cell: g.cell ?? null, addresses: g.addresses ?? [], spans, note, phrase: g.phrase ?? null, detail: g.detail ?? null, ...(g.names ? { names: g.names } : {}), ...(g.refused ? { refused: true } : {}) });
       sentenceIndex += 1;
     }
-    // The section's own check (P119): what was checked against the snips, what stayed flagged.
+    // The section's own check (P122): what was checked against the snips, what stayed flagged.
     const sc = sec.snipCheck ?? null;
     const scLine = sc ? `Checked against ${sc.snips} snip${sc.snips === 1 ? "" : "s"}: ${sc.atoms} atom${sc.atoms === 1 ? "" : "s"} (numbers, dates, names), ${sc.supported} placed in a snip beside the sentence's own words, ${sc.flagged} flagged${sc.asked ? `, ${(sc.asked === true ? 1 : Number(sc.asked) || 0) === 1 ? "one rewrite asked" : `${sc.asked} rewrite asks`} (${Object.entries((sc.outcomes ?? []).reduce((m, o) => ({ ...m, [o.outcome]: (m[o.outcome] ?? 0) + 1 }), {})).map(([k, v]) => `${v} ${k}`).join(", ") || "nothing came back"})` : ""}; ${sc.after?.flagged ?? sc.flagged} still flagged${sc.flags?.length ? `: ${sc.flags.map((f) => [...f.flags.map((x) => `${x.kind} "${x.value}" ${x.reason === "absent" ? "in no snip" : "in a snip beside none of its words"}`), ...(f.contradiction ? [`the source says ${f.contradiction.snipYears.join("/")} at ${f.contradiction.ref}#${f.contradiction.start}-${f.contradiction.end}`] : [])].join("; ")).join(" · ")}` : ""}.` : null;
     mdParts.push(`## ${sec.label}`, "", mdSent.join(" "), "", ...(scLine ? [`> ${scLine}`, ""] : []));

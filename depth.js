@@ -1,4 +1,4 @@
-// depth.js — the thinking-depth slider (P120). Pure.
+// depth.js — the thinking-depth slider (P123). Pure.
 //
 // User direction (2026-09-05): "the output becomes better the same way
 // people make better output, not by expanding their context window but

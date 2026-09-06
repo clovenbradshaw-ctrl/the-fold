@@ -148,8 +148,9 @@ const ALLOWANCES = [
       "typed ones; the egress lives in explore-server.mjs. links.js is the same split for the " +
       "link-citation tier — its doc comments name example addresses (x.org, real/fake.example) " +
       "to explain the verdicts; the fetch that checks a real one is injected from app.js. " +
-      "github.js is the same split for the GitHub organ — it names the n8n device-flow relays " +
-      "and api.github.com as constants the SERVER reads (explore-server.mjs is what calls " +
+      "github.js is the same split for the GitHub organ — it names github.com's own device-flow " +
+      "endpoints (no relay: the maintainer's n8n relay was removed 2026-09-05 so nothing about a " +
+      "user's login passes anyone but GitHub) and api.github.com as constants the SERVER reads (explore-server.mjs is what calls " +
       "fetch on them); the browser page loads github.js only for its pure shapes (base64, " +
       "path building, response parsing). Checked, not asserted: none of the three files holds " +
       "an egress call at all, so nothing in them can issue a request. wikidata.js (P56) is the " +

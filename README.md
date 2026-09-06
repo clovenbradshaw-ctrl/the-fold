@@ -12,8 +12,9 @@ cd the-fold
 ```
 
 One command, from nothing. `./fold` installs Node.js and Ollama if they're
-missing, clones the two sibling repos it needs (`eoreader6.1` for the
-reading engine, `live_priors` for the priors organ's corpus), installs this
+missing, clones the two sibling repos it needs (`eoreader7` — the reading
+engine, with the frozen 6.1 cut it pins as a submodule — and `live_priors`
+for the priors organ's corpus), installs this
 repo's own dependencies, pulls a starter model if none is pulled yet, and
 opens the browser once everything is up. What each step does, and how to run
 the pieces by hand, is in [Running it](#running-it) below.
@@ -119,8 +120,8 @@ pins that at 400 turns.
 
 See [Quickstart](#quickstart) above for the one-command path. In full,
 `./fold` installs Node.js if missing (Homebrew on macOS), clones
-`eoreader6.1` next to this repo if it isn't there (the engine both servers
-mount), clones `live_priors` next to this repo if it isn't there (the priors
+`eoreader7` next to this repo if it isn't there (the engine both servers
+mount: its `native/` kernel and the frozen 6.1 cut it pins as a submodule), clones `live_priors` next to this repo if it isn't there (the priors
 organ's corpus — soft dependency, explore-server.mjs shows a typed gap
 without it, so this is best-effort and never blocks the rest of the launch),
 installs `node_modules`, installs Ollama if missing and starts it if it
@@ -140,7 +141,8 @@ node the-fold/serve.mjs 8811
 ```
 
 (The chat server must be `serve.mjs`, not a generic static server: it mounts
-eoreader6.1's engine at `/engine` and serves everything no-store.)
+eoreader7's frozen 6.1 engine at `/engine`, its native kernel at `/engine-v7`,
+and serves everything no-store.)
 
 Two model calls per ordinary turn: the answer, and the summary refresh. The
 refresh runs constrained to JSON at a 300-token cap — it is bookkeeping over
@@ -182,3 +184,114 @@ that the address still resolves after the paraphrase has forgotten.
 The algorithm is ported from `eochatX`'s `app/client/eo-discourse.ts`, which is
 itself a port of `eochat`'s `server/conversation-summary.js`. This repo is that
 mechanism standing on its own, with no framework around it.
+
+## Three homes, one page
+
+The Fold runs from a terminal (`./fold`), from a static site, and — packaged
+by the same build — as a Chrome extension. Which routes are open is never
+assumed from where the page is: at boot it probes Ollama, WebGPU, the local
+explore server and its own server, says what it found on the status chip,
+and `/routes` prints the table (POLICIES.md P118). A Pages visitor who also
+runs `./fold` gets their local record and web organ; a terminal user without
+Ollama gets the in-tab models.
+
+```bash
+node deploy/build-site.mjs --out dist                 # the static site (GitHub Pages serves dist/)
+node deploy/build-site.mjs --out dist --models copy   # a self-contained pin (archive.org item, ~3.6 GB)
+node deploy/build-site.mjs --out dist --extension     # + manifest.json: load dist/ unpacked in chrome://extensions
+node deploy/build-site.mjs --out dist --mirror https://archive.org/download/<item>/models
+```
+
+The build carries exactly what the page loads (derived from `page-graph.mjs`)
+laid out as the repos already sit — `the-fold/`, `eoreader7/`, `node_modules/`
+— with the five server mount-point paths rewritten to relative ones, so it
+runs at a domain root, under a subpath, from an archive.org item, or from an
+extension origin. `SHA256SUMS` and `BUILD.json` record every byte and the
+commit.
+
+## Preserve, share, and borrow a machine — through a homeserver you name
+
+A chat can be preserved to a Matrix room, shared by a link, and answered by a
+model on another member's machine — with nothing readable ever leaving the
+page (POLICIES.md P119). The page names no homeserver: `/matrix login` opens
+a sheet and you type yours — your own, a friend's, a public one. What that
+server holds is ciphertext under a chat key it never sees, pointers, and
+public keys; the tests prove it against a homeserver built to keep and read
+everything.
+
+```
+/matrix                    where you stand, and what the server can see
+/preserve [name]           seal this chat's turns into blocks (new turns only, each time)
+/share @who:server         a link for that account alone — no key in it, one use, 7 days
+/share open                the magic key: whoever holds the link reads the chat
+/share words <three words> the key sealed under words you say aloud
+/share grant @who:server   trust an unverified key after comparing fingerprints
+/join <link> [the words]   open a shared chat: every block read back and decrypted here
+/matrix members            who is in the room, each key's fingerprint, who holds the key
+/matrix rotate · remove @who   a new key epoch; removal takes the seat and rotates
+/matrix lock · unlock      seal what this browser keeps under a passphrase
+/serve                     answer the room's sealed prompts with this machine's models
+/pool                      the devices offering a mouth, and what each has answered
+```
+
+**Prefer `/share @who:server`.** That link carries no key: it works only for
+that account, signed in as themselves, once, and the key is handed over only
+after their browser publishes a public key carrying the link's proof — which
+a homeserver cannot forge or swap (POLICIES.md P120). `/share open` is a
+**magic key**: whoever holds that link reads the whole chat, past and future,
+and it cannot be taken back. `/matrix remove @who` rotates the key so nothing
+after it reaches them; what they already read, they keep.
+
+A member who runs `/serve` (or `node matrix-worker.mjs <link>` on a headless
+machine with Ollama) shows up in every member's model picker as
+`room:@who:server model`; a turn under that rung goes to them sealed and comes
+back sealed. The pool sheet counts what your own jobs measured — latency,
+tokens per second, the device — never a guess. Every member of a room holds
+full power.
+
+## Run it from a website
+
+The page does not need Ollama. Serve this directory (plus `models/`, see
+below) from any static host over https, and the model runs **in the
+visitor's own tab** on WebGPU — nothing leaves their machine, and nothing
+about them reaches the site's owner: the site serves bytes, the browser does
+the reading. Three in-tab models are offered, chosen for what their
+publishers disclose about the training data (POLICIES.md P116):
+
+| picker | publisher, licence | training data |
+|---|---|---|
+| OLMo 2 1B · in this tab | Ai2, Apache-2.0 | data, code, weights and logs all published |
+| SmolLM2 1.7B · in this tab | Hugging Face, Apache-2.0 | pretraining mixture and instruction data published |
+| RedPajama-INCITE 3B · in this tab | Together, Apache-2.0 | RedPajama-1T, the open reproduction of the LLaMA data |
+
+Weights climb a ladder: the site's own `models/` first on any origin (a pinned
+copy that carries them is self-contained), then each mirror the site names in
+`models/MIRRORS.json`, then the publisher; the status line says which one
+answered. GitHub Pages cannot hold the shards (~100 MB each), so a Pages build
+names a mirror or lets the publisher serve them. Mirror them once, so a local
+page or a pin serves every byte itself:
+
+```bash
+sh models/fetch-webllm.sh
+```
+
+That fetches ~3.3 GB from the publishers into `models/` (md5-verified,
+resumable; one model: `sh models/fetch-webllm.sh <id>`). WebGPU needs a
+secure origin (https:// or localhost) and a Chrome- or Edge-shaped browser
+with hardware acceleration; the page says which of those is missing rather
+than offering a model that would fail. The page is laid out for a phone
+as well as a desk: on a narrow screen the chat is one tab among the panels,
+every control is reachable by touch, and the in-tab models run the same way.
+
+What a page load reaches: its own origin, and `localhost:11434` if Ollama is
+there. What leaves only when you act: a web search or page fetch when the
+`web` toggle is on (through the local explore server), `/transcribe`'s
+one-time Whisper download from huggingface.co (said before it starts),
+`pip install` from pyodide's mirror, GitHub when you connect a repo —
+straight to github.com from the local server, through no one's relay —
+and, when a site refuses the direct fetch and the `web` toggle is on, a
+public gateway (the Wayback Machine, a reader or relay service) that then
+sees the address; which gateways are open and what each forwards about you
+is learned from your own record, shown by `/gateways`, and every page read
+that way says so (POLICIES.md P117). Nothing about you reaches this
+project's maintainer by any route.

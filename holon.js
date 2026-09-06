@@ -978,7 +978,7 @@ export async function runPart({
   // ships with the relation tier's own verdict alone, as before.
   witnessSentences = null,
   witnessAsks = WITNESS_ASKS_PER_PART,
-  // THE DEPTH SLIDER'S BUDGETS (P120, depth.js): how many bounded passes a
+  // THE DEPTH SLIDER'S BUDGETS (P123, depth.js): how many bounded passes a
   // piece's section gets — the witness asks a piece may spend, the snip
   // rewrite rounds, the continuations of a short draft, the hunts when
   // retrieval is thin. Defaults are the plain rung, byte-identical to before.
@@ -986,12 +986,12 @@ export async function runPart({
   snipRounds = 1,
   continuations = 1,
   hunts = 1,
-  // WHAT THIS INSTRUMENT HAS ALREADY BEEN WRONG ABOUT (P123): the durable
+  // WHAT THIS INSTRUMENT HAS ALREADY BEEN WRONG ABOUT (P126): the durable
   // corrections, in the chain's own entry shape. The ones in scope for this
   // question are handed to the model as facts before it drafts, so a mistake
   // made once is not made again. Empty (every existing caller) changes nothing.
   learnedStore = [],
-  // THE CONVERSATION'S OWN RECORD (P125, transcript.js): [{turn, question,
+  // THE CONVERSATION'S OWN RECORD (P128, transcript.js): [{turn, question,
   // answer}] oldest first. A question ABOUT what was said retrieves from it,
   // exactly as a question about the material retrieves from the material —
   // so what the recency window drops is still reachable. Empty (every
@@ -1168,7 +1168,7 @@ export async function runPart({
   // hunted pages join this part's pool so retrieval can pick from them.
   let hunted = null;
   let livePool = live;
-  // Up to `hunts` rounds (P120): each round a different query off the
+  // Up to `hunts` rounds (P123): each round a different query off the
   // section's own words — its label, then its description, then the topic
   // alone — and the round stops as soon as retrieval is no longer thin.
   const thin = () => passages.filter((p) => !String(p?.ref ?? "").startsWith("web:search-results")).length < passagesPerPart;
@@ -1231,7 +1231,7 @@ export async function runPart({
   const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p));
   const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
-  // THE SNIPS (P119): the verbatim, addressed sentences of this section's
+  // THE SNIPS (P122): the verbatim, addressed sentences of this section's
   // prose passages that carry its obligations and its topic — what the
   // section is handed to write from, and what every number, date and name
   // it writes is checked against afterwards, with no model.
@@ -1256,7 +1256,7 @@ export async function runPart({
     // loop that lived here moved there verbatim (ledger born on the first
     // bound edge, frame redeclared on drift, witness `<ref>~<recipe>`,
     // refusals returned never discarded).
-    // A PRIOR ANSWER IS NEVER ADMITTED AS MATERIAL (P125). The ledger holds
+    // A PRIOR ANSWER IS NEVER ADMITTED AS MATERIAL (P128). The ledger holds
     // what the SOURCES establish; letting the mouth's own earlier words in
     // would make the model its own witness — self:model may never corroborate
     // itself (P2), and a claim would gain standing by being repeated.
@@ -1930,7 +1930,7 @@ export async function runPart({
       ? factBlock.spans.map((sp) => `${sp.ref}:
 "${sp.text}"`).join("\n\n")
       : null;
-  // THE PREMISE THE QUESTION SMUGGLES IN (P122), checked before the mouth
+  // THE PREMISE THE QUESTION SMUGGLES IN (P125), checked before the mouth
   // sees anything: a claim the question states as already established has its
   // atoms looked for in this part's own passages, and what the sources
   // actually say goes in as a FACT. Measured live (S77 turn 15): asked about
@@ -1952,7 +1952,7 @@ export async function runPart({
   const premiseGuards = premiseCheck ? premiseGuard(premiseCheck) : [];
   // What was already found wrong on this material, in scope for this question.
   const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
-  // ONLY THE POSITIVE HALF REACHES THE MOUTH (P123, measured): a correction
+  // ONLY THE POSITIVE HALF REACHES THE MOUTH (P126, measured): a correction
   // with a replacement goes in as the sentence the sources carry; one that
   // only says a claim is unplaced is kept back here and spent on the draft
   // below, because naming a falsehood in order to forbid it makes a small
@@ -2312,7 +2312,7 @@ export async function runPart({
   // check below reads the whole section. Bounded: one call, declared.
   let continued = null;
   if (piece && Number.isFinite(piece.words) && passages.length) {
-    // Up to `continuations` rounds (P120), each measured before it is asked.
+    // Up to `continuations` rounds (P123), each measured before it is asked.
     for (let round = 0; round < continuations; round++) {
       const have = wordCount(clean(rawDraft));
       if (have >= piece.words * CONTINUE_BELOW) break;
@@ -2600,12 +2600,12 @@ export async function runPart({
   }
   let text = stripFraming(draft);
   let metaCut = [];
-  // THE MOUTH TALKING ABOUT THE WRITING, CUT FROM ANY GROUNDED TURN (P124).
+  // THE MOUTH TALKING ABOUT THE WRITING, CUT FROM ANY GROUNDED TURN (P127).
   // This ran only for a piece until now, and a plain turn shipped whatever
   // scaffolding came back — measured through the long-stream run, where
   // answer after answer opened "## Identify the passage · This analysis
   // focuses on a passage from the `holon.js` file…" instead of answering.
-  // It is the same act as correcting a plain turn's atoms (P122): the check
+  // It is the same act as correcting a plain turn's atoms (P125): the check
   // does not become wrong because the turn is not a piece.
   //
   // Only where there IS material. A passage-less turn is conversation, and
@@ -2626,13 +2626,13 @@ export async function runPart({
     else if (r.cut.length) metaCut = r.cut;
     // And the process narration `cutMetaTalk` cannot see, since it matches the
     // piece's instruction vocabulary and this is the model describing its own
-    // answering (P124). Narrow by construction: a stated absence stays, and so
+    // answering (P127). Narrow by construction: a stated absence stays, and so
     // does anything carrying a name, a number, or the material's own words.
     const pr = cutProcessTalk(text, { materialText, splitSentences });
     if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
   }
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
-  // THE ATOMS AGAINST THE SNIPS (P119), no model: every number, date and
+  // THE ATOMS AGAINST THE SNIPS (P122), no model: every number, date and
   // name in the section is looked for in a snip beside a word of the
   // sentence's own (P31's company rule); a flag names what was looked for
   // and the absence it stands in; a snip sharing the sentence's words and
@@ -2646,7 +2646,7 @@ export async function runPart({
     const before = checkSection(splitSentences(text), snips);
     let outcomes = [];
     let asked = 0;
-    // Up to `snipRounds` asks (P120): each round is the flags still standing
+    // Up to `snipRounds` asks (P123): each round is the flags still standing
     // after the last; a round that moved nothing ends the loop early.
     let standing = before.flagged;
     let lastReply = null;
@@ -2671,11 +2671,11 @@ export async function runPart({
       flags: after.flagged.map((r) => ({ sentence: r.sentence, flags: r.flags.map((f) => ({ kind: f.kind, value: f.value, reason: f.reason })), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end, snipYears: r.contradiction.snipYears } : null })),
     };
   }
-  // THE SAME CHECK, FOR ANY TURN (P122). Until this, only a piece's section
+  // THE SAME CHECK, FOR ANY TURN (P125). Until this, only a piece's section
   // was corrected; a plain answer drafted, was marked, and stood. Same snips,
   // same company rule, same gate — a rewrite lands only when its own atoms
   // clear the check, so the mouth's correction is never trusted, it is
-  // checked again. `snipRounds` is the depth slider's rung (P120).
+  // checked again. `snipRounds` is the depth slider's rung (P123).
   // A draft that repeats something this instance already knows is unplaced is
   // flagged here, mechanically, and the sentence is cut rather than shipped.
   let repeated = [];
@@ -2699,7 +2699,7 @@ export async function runPart({
       turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
     }
   }
-  // What this turn learned, in the chain's entry shape (P123) — handed out on
+  // What this turn learned, in the chain's entry shape (P126) — handed out on
   // the result for the caller to append to its durable store. Both halves:
   // what the answer got wrong, and what the question asserted falsely.
   const learnedNow = [
@@ -2753,7 +2753,7 @@ export async function runPart({
   let witnessReport = null;
   if (witnessSentences && passages.length) {
     try {
-      // The witness is spent where a flag stands first (P119): a sentence
+      // The witness is spent where a flag stands first (P122): a sentence
       // the snip check flagged and the rewrite did not clear is asked
       // before any other; then the rest, under the same declared budget.
       const allSentences = splitSentences(stripFraming(text));
@@ -2805,7 +2805,7 @@ export async function runPart({
  * with its shape — which is the entire local-model story: point complete() at
  * Ollama and every model call in here runs on the machine.
  */
-/** The depth slider's budgets over THIS module's declared constants (P120) — one base, restated nowhere. */
+/** The depth slider's budgets over THIS module's declared constants (P123) — one base, restated nowhere. */
 export const depthBudgets = (depth) => budgetsFor(depth, { corrections: MAX_CORRECTIONS, witnessAsks: WITNESS_ASKS_PER_PART, pieceWitnessAsks: PIECE_WITNESS_ASKS, snipRounds: 1, revisionRounds: REVISION_ROUNDS, revisionAsks: REVISION_ASKS, continuations: 1, hunts: 1, linkChecks: LINK_CHECKS_PER_PART });
 
 export async function runHolonicTask({
@@ -2815,10 +2815,10 @@ export async function runHolonicTask({
   foldedRefs = [],
   maxParts = MAX_PARTS,
   passagesPerPart = PASSAGES_PER_PART,
-  // null → the depth slider's rung decides (P120); an explicit number wins,
+  // null → the depth slider's rung decides (P123); an explicit number wins,
   // so every existing caller and pin is byte-identical to before.
   maxCorrections = null,
-  // THE THINKING-DEPTH SLIDER (P120, depth.js): 0 quick · 1 plain (today's
+  // THE THINKING-DEPTH SLIDER (P123, depth.js): 0 quick · 1 plain (today's
   // budgets) · 2 careful · 3 deep. More passes over the same bounded
   // material, never more context.
   depth = 1,
@@ -2841,11 +2841,11 @@ export async function runHolonicTask({
   witnessSentences = null,
   witnessAsks = null,
   checkLink = null,
-  // The durable corrections this instance carries (P123, learned.js): entries
+  // The durable corrections this instance carries (P126, learned.js): entries
   // in the chain's own shape. Handed down to every part, and what each part
   // learns comes back out on `learned` for the caller to append and persist.
   learnedStore = [],
-  // The conversation's own record (P125), threaded to every part.
+  // The conversation's own record (P128), threaded to every part.
   transcript = [],
   chatHistory = [],
   discourse = "",
@@ -3146,7 +3146,7 @@ export async function runHolonicTask({
 
   return {
     ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
-    // What this whole turn learned (P123), deduped by content identity across
+    // What this whole turn learned (P126), deduped by content identity across
     // its parts — the caller appends these to its durable store, and the room
     // makes them permanent (matrix.js seals them into the same hash-linked
     // chain the chat rides).

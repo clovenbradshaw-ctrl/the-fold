@@ -1,4 +1,4 @@
-// transcript.js — the conversation's own record, made retrievable (P125).
+// transcript.js — the conversation's own record, made retrievable (P128).
 //
 // The fold's standing claim is that the transcript grows without limit while
 // the carried context does not, because the RECORD holds what the window

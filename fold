@@ -54,32 +54,34 @@ if ! command -v node >/dev/null 2>&1; then
   fi
 fi
 
-# ── EOReader 7 through the frozen legacy mount ─────────────────────────────
+# ── EOReader 7, at the path both servers actually read ───────────────────────
 #
-# The Fold still imports ../eoreader6.1 by design. During the v7 migration
-# that path is the compatibility mount, not a statement about the provider's
-# version. A fresh machine therefore clones eoreader7 *into that mount name*.
-# eoreader7 currently pins the exact 6.1 cut as a submodule and exposes the
-# old root paths through compatibility symlinks, so this is the strongest
-# possible test that v7 can satisfy the existing consumer unchanged.
+# serve.mjs and explore-server.mjs resolve the engine at ../eoreader7:
+# ENGINE = ../eoreader7/legacy-eoreader6.1/packages/engine (the frozen 6.1
+# cut, a submodule), NUL = ../eoreader7/legacy-eoreader6.1/nul, ENGINE_V7 =
+# ../eoreader7/native (v7's own kernel and organs). Until 2026-09-05 this
+# script cloned eoreader7 into ../eoreader6.1 — a mount name nothing in
+# either server reads any more — so a fresh machine came up with every
+# engine import 404ing behind a blank page. The check at the end names the
+# exact files the servers need, so a half-initialized clone fails here,
+# out loud, instead of later as a module-not-found stack.
 
-EOREADER="$DIR/../eoreader6.1"
+EOREADER="$DIR/../eoreader7"
 
-# Clone only when there is no checkout at the compatibility mount. A checkout
-# with an uninitialized submodule has dangling compatibility symlinks and must
-# be repaired in place, not mistaken for an absent repository.
+# Clone only when there is no checkout there. A checkout with an
+# uninitialized submodule must be repaired in place, not mistaken for an
+# absent repository.
 if [ ! -d "$EOREADER/.git" ] && [ ! -f "$EOREADER/.git" ]; then
   if ! command -v git >/dev/null 2>&1; then
     echo "error: git is required to fetch EOReader 7 and wasn't found" >&2
     exit 1
   fi
-  echo "cloning EOReader 7 into the legacy eoreader6.1 compatibility mount..."
+  echo "cloning EOReader 7 next to this repo (with its frozen 6.1 source pin)..."
   git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git "$EOREADER"
 fi
 
-# If the v7 compatibility repo was cloned without its submodule, complete it
-# before either server starts. This is idempotent and does nothing for a fully
-# initialized checkout.
+# If eoreader7 was cloned without its submodule, complete it before either
+# server starts. Idempotent; a no-op for a fully initialized checkout.
 if [ -f "$EOREADER/.gitmodules" ]; then
   if ! command -v git >/dev/null 2>&1; then
     echo "error: git is required to initialize EOReader 7's source pin" >&2
@@ -88,14 +90,14 @@ if [ -f "$EOREADER/.gitmodules" ]; then
   (cd "$EOREADER" && git submodule update --init --recursive)
 fi
 
-# The unchanged Fold runtime expects this exact compatibility surface. Fail
-# here with a useful error rather than letting the servers fail later with a
-# misleading module-not-found stack.
-if [ ! -d "$EOREADER/packages/engine" ]; then
-  echo "error: EOReader 7 compatibility mount is incomplete: $EOREADER/packages/engine is unavailable" >&2
-  echo "  remove $EOREADER and re-run ./fold, or initialize its submodules" >&2
-  exit 1
-fi
+# The three mounts the servers read, checked by name.
+for need in "$EOREADER/native/organs/index.js" "$EOREADER/legacy-eoreader6.1/packages/engine" "$EOREADER/legacy-eoreader6.1/nul/index.js"; do
+  if [ ! -e "$need" ]; then
+    echo "error: EOReader 7 is incomplete: $need is missing" >&2
+    echo "  run: (cd $EOREADER && git submodule update --init --recursive), or remove $EOREADER and re-run ./fold" >&2
+    exit 1
+  fi
+done
 
 # ── live_priors (sibling repo; the priors organ's corpus). Soft dependency —
 # explore-server.mjs resolves it at ../live_priors and returns a typed

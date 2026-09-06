@@ -1,11 +1,11 @@
-// correction.js — a wrong answer is corrected AT ANY LEVEL (P122), and the
+// correction.js — a wrong answer is corrected AT ANY LEVEL (P125), and the
 // premise a question smuggles in is checked before the mouth ever sees it.
 //
 // User direction (2026-09-05): "wire it up so wrong answers get corrected at
 // any level … we don't need a system that's always right, but we do need one
 // that is actively learning to get better."
 //
-// Until this file, the only self-correction in the instrument was P119's, and
+// Until this file, the only self-correction in the instrument was P122's, and
 // it ran ONLY for a piece's section. A plain turn drafted, was marked, and
 // stood — measured live in the long-stream run (S77): asked "Earlier we
 // established from POLICIES.md that: `EFFECT_READS_THE_Sherman_RUN` is the
@@ -18,13 +18,13 @@
 //
 //   1. THE PREMISE CHECK, before drafting. A question that asserts something
 //      as already established carries claims. Their atoms are looked for in
-//      the material the same way a drafted sentence's are (P119's company
+//      the material the same way a drafted sentence's are (P122's company
 //      rule). An atom in no passage is an unverified premise; a passage that
 //      shares the premise's words and carries a DIFFERENT value is a
 //      contradiction with an address. Both are handed to the model as FACTS
 //      about what the sources say — never as an instruction to be skeptical.
 //   2. THE ANSWER CHECK, after drafting. The same atoms-against-snips check
-//      P119 runs for a section, run for any turn with passages, with the
+//      P122 runs for a section, run for any turn with passages, with the
 //      same gate: a rewrite lands only when its own atoms clear the check.
 //
 // PURE: no model call of its own, no I/O. `correctTurn` takes the call it is
@@ -80,7 +80,7 @@ export function premisesOf(question) {
 /**
  * checkPremises(question, passages, { terms }) → { premises: [...], unverified, contradicted }
  * Each premise's atoms looked for in the material — the same containment with
- * company P119 uses, over snips built from the passages the turn actually has.
+ * company P122 uses, over snips built from the passages the turn actually has.
  */
 export function checkPremises(question, passages = [], { terms = [] } = {}) {
   const premises = premisesOf(question);
@@ -103,7 +103,7 @@ export function checkPremises(question, passages = [], { terms = [] } = {}) {
 /**
  * premiseFacts(check) → what the sources DO say, and nothing else.
  *
- * NEVER THE FALSE CLAIM ITSELF (P123's rule, applied here too — it was missed
+ * NEVER THE FALSE CLAIM ITSELF (P126's rule, applied here too — it was missed
  * in this file for a day and the miss was measured). An earlier draft wrote
  * `Nothing in the passages contains "Durham", so "<the whole false claim>" is
  * not something the sources establish`, quoting the falsehood back at the
@@ -162,7 +162,7 @@ export function repeatsAbsentPremise(sentence, guards = []) {
 /**
  * correctTurn({ text, passages, question, call, messages, splitSentences, rounds, maxTokens, streaming })
  *   → { text, check, outcomes, asked, before, after }
- * P119's check and rewrite, for ANY turn. Byte-identical to no-op when there
+ * P122's check and rewrite, for ANY turn. Byte-identical to no-op when there
  * are no passages, no snips, or no flags.
  */
 export async function correctTurn({ text, passages = [], question = "", terms = [], call = null, messages = [], splitSentences, rounds = 1, maxTokens = 512, streaming = {}, onRewrite = null }) {
@@ -198,7 +198,7 @@ export async function correctTurn({ text, passages = [], question = "", terms = 
 }
 
 
-// ── THE MOUTH NARRATING ITS OWN PROCESS (P124) ──────────────────────────────
+// ── THE MOUTH NARRATING ITS OWN PROCESS (P127) ──────────────────────────────
 // Measured all through the long-stream run: answers that open "## Identify
 // the passage", "This analysis focuses on a passage from the `holon.js`
 // file", "Let's break down the code and understand its purpose" — the model
@@ -241,7 +241,7 @@ export function cutProcessTalk(text, { materialText = "", splitSentences }) {
   return { text: kept.join(" ").replace(/\s{2,}/g, " ").trim(), cut };
 }
 
-/** The snips a turn stands on, as the block handed above its material (P119's, for any turn). */
+/** The snips a turn stands on, as the block handed above its material (P122's, for any turn). */
 export function turnSnipBlock(passages, question, terms = []) {
   const snips = snipsFor(passages, { obligations: contentWords(question), terms });
   return snips.length ? snipBlock(snips) : "";

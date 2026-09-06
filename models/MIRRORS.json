@@ -1,0 +1,4 @@
+{
+  "mirrors": [],
+  "note": "weights bases the page tries after its own models/ and before the publisher (webllm-rung.js weightsBases)"
+}

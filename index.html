@@ -533,11 +533,18 @@
         #pane-explore { height: 100%; margin: -16px -20px; }
         #col-panel { flex-direction: column; }
         #col-panel .scroll { order: 1; }
-        .composer { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+        /* The tab bar is the lowest thing on a phone, so the safe-area inset
+           belongs to it, not to the composer above it. */
+        .composer { padding: 10px 14px; }
+        .tabs { padding-bottom: env(safe-area-inset-bottom); }
         .scroll { padding: 14px; }
         .sources-strip { padding: 8px 14px 0; }
         textarea#material { min-height: 160px; }
+        /* A hover reveal is unreachable by touch — the actions are simply there. */
+        .sources-file-actions { opacity: 1; }
       }
+
+
       .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
       .col + .col { border-left: 1px solid var(--line); }
       .scroll { overflow-y: auto; padding: 16px 20px; flex: 1; min-height: 0; }
@@ -1753,6 +1760,18 @@
       .sheet-close:hover { color: var(--fg); background: var(--accent-soft); }
       .sheet-body { padding: 14px 16px; }
       .sheet-body.flush { padding: 0; }
+      /* A labelled field in a sheet (the homeserver sign-in). */
+      .field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+      .field input { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+      .field input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+      /* The pool: who offers a mouth through the room, and what each one measured. */
+      .pool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .pool-table th, .pool-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      .pool-table th { color: var(--muted); font-weight: 500; }
+      .pool-table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+      .pool-table tr.withdrawn td { color: var(--muted); }
+      .pool-note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+      #pool-serve.on { color: var(--accent); }
       .sheet-foot {
         display: flex;
         gap: 8px;
@@ -1822,6 +1841,77 @@
       }
       .dropzone-card span { color: var(--muted); font-size: 13px; }
       .note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+          /* Phones (added 2026-09-05, kept LAST in this sheet on purpose — these
+         rules must win the cascade over every base rule above them), measured at 375×812). Everything below is
+         reach and legibility, not new behaviour: 44px targets (Apple's and
+         Android's own floors), 16px inputs (an iOS field under 16px zooms
+         the page on focus), a composer bar that wraps so the model's name
+         stays readable, sheets that rise from the bottom and scroll inside
+         themselves, and no hover-only affordance anywhere. */
+      @media (max-width: 600px) {
+        button, [role="tab"], .switch, .model-row, .sheet-close, .threads .thread-tab {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
+        textarea, input, select { font-size: 16px; }
+        .tabs button { min-height: 48px; padding: 10px 2px; font-size: 13px; }
+        .tabs button.term-toggle { min-height: 44px; margin-left: 2px; }
+        .threads { padding: 6px 12px 0; }
+        .threads .thread-tab { min-height: 42px; }
+        header { padding: 8px 12px; }
+        #marks-toggle, #theme-toggle { min-width: 44px; min-height: 40px; }
+        /* The composer bar in two rows: what you attach and what answers on
+           the first, the switches and Send on the second. The one-row rule
+           above was written so Send never moves when attachments arrive;
+           on a phone the pills already scroll, and the model's name was
+           being squeezed to nothing — the row wrapped is the row read. */
+        .composer-bar { flex-wrap: wrap; row-gap: 8px; }
+        .composer-bar .spacer { display: none; }
+        .attach-group { order: 1; }
+        .attach-group .attach { min-height: 40px; padding: 6px 12px; }
+        .model-pick { order: 2; flex: 1 1 auto; min-height: 40px; font-size: 13px; justify-content: flex-start; }
+        .model-pick #model-name { max-width: none; }
+        #attach-strip { order: 3; flex: 1 1 100%; }
+        .composer-bar .switch { order: 4; min-height: 40px; font-size: 13px; padding: 0 4px; }
+        .switch .track { width: 34px; height: 20px; }
+        .switch .track::after { width: 16px; height: 16px; }
+        .composer .switch input:checked + .track::after { transform: translateX(14px); }
+        #send { order: 5; margin-left: auto; min-height: 44px; padding: 0 18px; font-size: 15px; }
+        .composer textarea { min-height: 48px; }
+        /* Sheets rise from the bottom and never outgrow the screen. */
+        dialog {
+          width: 100vw;
+          max-width: 100vw;
+          margin: auto 0 0;
+          border-radius: 16px 16px 0 0;
+          border-left: 0;
+          border-right: 0;
+          border-bottom: 0;
+          max-height: 88dvh;
+          display: flex;
+          flex-direction: column;
+        }
+        dialog:not([open]) { display: none; }
+        .sheet-body { overflow: auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+        .sheet-head { padding: 12px 14px 10px; }
+        .sheet-close { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+        .model-row { min-height: 48px; padding: 12px 16px; }
+        #source-viewer { width: 100vw; max-width: 100vw; }
+        /* The reading pane's action row wraps instead of clipping its Add
+           button, and the pane — pulled edge to edge by the 900px rule — keeps
+           a gutter so nothing sits on the screen's edge. */
+        .sources-actions { flex-wrap: wrap; padding: 0 12px; }
+        .explore-subnav, .sources-strip { padding-left: 12px; padding-right: 12px; }
+        .sources-actions > * { min-height: 40px; }
+        .sources-actions input[type="search"], .sources-actions .search { flex: 1 1 100%; }
+        /* The terminal drawer's two icons are reachable. */
+        body.term-drawer #pane-terminal button { min-width: 40px; min-height: 40px; }
+        body.term-drawer #pane-terminal { height: 34vh; }
+      }
+      /* Any pointer that cannot hover (a phone or a tablet at any width). */
+      @media (hover: none) {
+        .sources-file-actions { opacity: 1; }
+      }
     </style>
   </head>
   <body>
@@ -2108,8 +2198,9 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <div class="sheet-head">
         <div>
           <h3>Model</h3>
-          <p class="sub">Ollama, on this machine. There is no hosted path.</p>
+          <p class="sub">Ollama or the in-tab rung on this machine — or a room member's machine, sealed through the room. There is no hosted path.</p>
         </div>
+        <button type="button" class="sheet-close" id="model-menu-pool" title="Pooled devices — who offers a mouth through the room, and what each one answered" style="font-size:12px">pool</button>
         <button type="button" class="sheet-close" id="model-menu-x" title="close" aria-label="close">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
         </button>
@@ -2274,6 +2365,60 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <form method="dialog"><button>✕ close</button></form>
       </div>
       <div id="fold-view-body"></div>
+    </dialog>
+
+    <!-- The homeserver sign-in (P119). The password goes from this field to
+         the homeserver the person named, in Matrix's own login call, and
+         nowhere else: never through the composer, the transcript, or the
+         record. No homeserver is named or preferred here — the person names
+         theirs. -->
+    <dialog id="matrix-login">
+      <div class="sheet-head">
+        <div>
+          <h3 id="matrix-login-title">Sign in to a homeserver</h3>
+          <p class="sub" id="matrix-login-sub">Any Matrix homeserver you trust — your own, a friend's, a public one. The page names none.</p>
+        </div>
+        <button type="button" class="sheet-close" id="matrix-login-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <form method="dialog" id="matrix-login-form">
+        <div class="sheet-body">
+          <label class="field">homeserver<input id="mx-hs" type="text" autocomplete="url" spellcheck="false" placeholder="the homeserver's address" required /></label>
+          <label class="field">user name<input id="mx-user" type="text" autocomplete="username" spellcheck="false" placeholder="the name, without the @ and the server" required /></label>
+          <label class="field">password<input id="mx-pass" type="password" autocomplete="current-password" required /></label>
+          <p class="pool-note" id="matrix-login-note">What that server will hold of your chats: who is in a room, the size and time of each sealed block, public keys. Never a turn.</p>
+        </div>
+        <div class="sheet-foot">
+          <button type="button" id="matrix-login-cancel">Cancel</button>
+          <button value="login" class="primary" id="matrix-login-submit">Sign in</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- The pool: every device that offers a mouth through the open room,
+         and what this page has measured of each — counts, latency, tokens,
+         the device's own label. Computed from the room's state and this
+         page's own jobs; nothing here is guessed. -->
+    <dialog id="pool">
+      <div class="sheet-head">
+        <div>
+          <h3>Pooled devices</h3>
+          <p class="sub" id="pool-sub">who offers a mouth through the room, and what each one has answered</p>
+        </div>
+        <button type="button" class="sheet-close" id="pool-refresh" title="re-read the room's offers" style="font-size:12px">refresh</button>
+        <button type="button" class="sheet-close" id="pool-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <div class="table-wrap"><table class="pool-table" id="pool-table"></table></div>
+        <p class="pool-note" id="pool-this"></p>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Close</button>
+        <button type="button" id="pool-serve" class="primary">Serve from this machine</button>
+      </form>
     </dialog>
 
     <!-- mathjs, vendored (P1: no CDN), for arithmetic.js's checkArithmetic —

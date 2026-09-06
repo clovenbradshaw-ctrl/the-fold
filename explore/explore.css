@@ -987,3 +987,42 @@ a.v:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
+
+/* ── phones (added 2026-09-05, measured at 375×812; kept LAST so it wins) ──
+   Reach and legibility only: the rail and the stage were splitting a
+   375px screen side by side (a 105px stage), targets sat under 36px, and
+   the bottom bar had no safe-area gutter. Nothing here changes what a
+   control does. */
+@media (max-width: 600px) {
+  button, a, .tree-entry, .page-tabs a, .page-nav a, .tabs a {
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  input, select, textarea { font-size: 16px; }
+  header { gap: 8px; padding: 8px 12px; flex-wrap: wrap; }
+  header h1 { font-size: 15px; }
+  .page-nav a, .tabs a { padding: 8px 12px; font-size: 13px; min-height: 36px; display: inline-flex; align-items: center; }
+  .source-line { flex-wrap: wrap; row-gap: 2px; }
+  header button, #rail-toggle, #theme-toggle, #record-toggle { min-height: 40px; min-width: 40px; }
+  /* One column: the rail is a drawer above the stage, a third of the screen
+     at most and scrolling inside itself; the header's toggle still hides it. */
+  main { flex-direction: column; }
+  #rail {
+    width: 100%; max-height: 34dvh; border-right: 0; border-bottom: 1px solid var(--line);
+    padding: 4px 0;
+  }
+  .tree-entry { min-height: 40px; padding: 4px 12px 4px 4px; }
+  .rail-hd { padding: 8px 12px 2px; }
+  #stagebar { padding: 8px 12px; gap: 10px; }
+  main button:not(.linkish), #views button, #stagebar button, .new-btn, .home { min-height: 38px; }
+  .home { display: inline-flex; align-items: center; }
+  #surface { padding-left: 12px; padding-right: 12px; }
+  footer { padding: 5px 12px calc(5px + env(safe-area-inset-bottom)); }
+  .page-tabs a {
+    min-height: 48px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 4px calc(0px + env(safe-area-inset-bottom)); font-size: 13px;
+  }
+}
+@media (hover: none) {
+  .tree-entry:hover { background: none; }
+  .tree-entry.current { background: var(--accent-soft); }
+}

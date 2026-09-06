@@ -1254,7 +1254,7 @@ test("the completeness-gate belief is fully opt-in — omitting grid/gridLog/run
   assert.match(result.output, /Johnson/);
 });
 
-test("an answer that already names every filler never trips the completeness gate — and its fabricated year is caught by the atom check instead (P122)", async () => {
+test("an answer that already names every filler never trips the completeness gate — and its fabricated year is caught by the atom check instead (P125)", async () => {
   const relationsFor = makeRelationReader(await relationOrgans());
   // Two different asks, counted apart: the completeness gate names a missing
   // filler ("the material confirms exactly"); the atom check names a value the
@@ -1947,7 +1947,7 @@ test("P116: a piece returns its revisions — an array, empty when nothing later
   assert.equal(r.revisions.filter((x) => x.kind === "revision-error").length, 0, "the revision pass ran without error");
 });
 
-test("P119: the snips are handed above the material; a drafted year no snip carries is flagged with no model, asked once with the flags as facts, and lands only when the rewrite's atoms pass; the witness is spent on the flagged sentence first", async () => {
+test("P122: the snips are handed above the material; a drafted year no snip carries is flagged with no model, asked once with the flags as facts, and lands only when the rewrite's atoms pass; the witness is spent on the flagged sentence first", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor tide turns twice a day, and the harbor master keeps the light.");
   const index = { entries: [{ surface: "Ada Rowe", mentions: 3 }, { surface: "the harbor light", mentions: 2 }] };
   const sent = [];
@@ -1973,7 +1973,7 @@ test("P119: the snips are handed above the material; a drafted year no snip carr
   const revise = sent.filter((m) => /These sentences say things the sources you were given do not/.test(m.at(-1)?.content ?? ""));
   assert.equal(revise.length, 1, "one rewrite ask for the flagged sentence");
   assert.match(revise[0].at(-1).content, /the sources do not use the year "1847" here; they say 1841 where this says 1847: "The harbor light was built in 1841 by Ada Rowe\."/, "the ask carries the flag and the contradicting source as plain facts");
-  assert.doesNotMatch(revise[0].at(-1).content, /appears in no snip|beside none of this sentence/, "never the instrument's own working (P122)");
+  assert.doesNotMatch(revise[0].at(-1).content, /appears in no snip|beside none of this sentence/, "never the instrument's own working (P125)");
   const sec = r.sections[0];
   assert.ok(sec.piece.snipCheck, "the check is on the section's record");
   assert.equal(sec.piece.snipCheck.flagged, 1);
@@ -1985,7 +1985,7 @@ test("P119: the snips are handed above the material; a drafted year no snip carr
   assert.equal(witnessed.length, 2, "the witness saw both sentences");
 });
 
-test("P119 control: the same draft against snips from an unrelated passage flags MORE, and a rewrite whose year is still wrong is refused so the original stands", async () => {
+test("P122 control: the same draft against snips from an unrelated passage flags MORE, and a rewrite whose year is still wrong is refused so the original stands", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor tide turns twice a day.");
   const index = { entries: [{ surface: "Ada Rowe", mentions: 3 }] };
   const r = await runHolonicTask({
@@ -2008,7 +2008,7 @@ test("P119 control: the same draft against snips from an unrelated passage flags
   assert.match(sc.outcomes[0].because, /still contradicts a snip|unsupported/);
 });
 
-test("P120: the depth slider — depth 0 spends no rewrite and no witness ask; depth 2 asks a second rewrite when the first is refused; depth 1 is byte-identical to the plain defaults", async () => {
+test("P123: the depth slider — depth 0 spends no rewrite and no witness ask; depth 2 asks a second rewrite when the first is refused; depth 1 is byte-identical to the plain defaults", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor tide turns twice a day.");
   const index = { entries: [{ surface: "Ada Rowe", mentions: 3 }] };
   const run = async (depth, answers) => {
@@ -2041,7 +2041,7 @@ test("P120: the depth slider — depth 0 spends no rewrite and no witness ask; d
   assert.match(careful.r.depthLine, /^Thinking depth 2 of 3 \(careful\)/);
 });
 
-test("P122: a plain turn's wrong answer is corrected too — the flagged year is rewritten from the material, and the question's false premise is handed to the model as a fact before it drafts", async () => {
+test("P125: a plain turn's wrong answer is corrected too — the flagged year is rewritten from the material, and the question's false premise is handed to the model as a fact before it drafts", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
   const sent = [];
   const r = await runHolonicTask({
@@ -2057,7 +2057,7 @@ test("P122: a plain turn's wrong answer is corrected too — the flagged year is
   });
   const first = sent[0].map((m) => m.content).join("\n");
   // The person's own question necessarily carries their claim; what matters is
-  // that the INSTRUMENT's block never repeats it back (P123's rule).
+  // that the INSTRUMENT's block never repeats it back (P126's rule).
   const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
   assert.match(ours, /What these sources say about it:/, "the premise check reached the model as a fact");
   assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\. \[h\.txt#0-75#0-47\]/, "the source's own words, at its address, positively");
@@ -2074,7 +2074,7 @@ test("P122: a plain turn's wrong answer is corrected too — the flagged year is
   assert.ok(r.learned.some((e) => e.caught === "answer" && /1847/.test(e.claimed) && /1841/.test(e.corrected)));
 });
 
-test("P123: a correction already learned is handed back on the next turn, and a turn with no material or no store is byte-identical to before (control)", async () => {
+test("P126: a correction already learned is handed back on the next turn, and a turn with no material or no store is byte-identical to before (control)", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe.");
   const store = [{ id: "c:x", kind: "correction", ts: 1, seq: 0, claimed: "The harbor light was built in 1847.", corrected: "The harbor light was built in 1841.", ref: "h.txt#0-46", start: 0, end: 46, question: "q", caught: "answer" }];
   const sent = [];
@@ -2086,7 +2086,7 @@ test("P123: a correction already learned is handed back on the next turn, and a 
   const first = sent[0].map((m) => m.content).join("\n");
   assert.match(first, /Established here already, from these sources:/);
   assert.match(first, /- The harbor light was built in 1841\./, "only what the sources do say");
-  assert.doesNotMatch(first, /1847/, "never the error it replaces (P123, measured)");
+  assert.doesNotMatch(first, /1847/, "never the error it replaces (P126, measured)");
   assert.deepEqual(r.learnedUsed ?? r.sections[0].learnedUsed, ["c:x"]);
   const bare = [];
   const clean = await runHolonicTask({
@@ -2098,7 +2098,7 @@ test("P123: a correction already learned is handed back on the next turn, and a 
   assert.equal(clean.correction, undefined); assert.equal(clean.learned.length, 0);
 });
 
-test("P123: the negative half of what was learned never reaches the mouth — it cuts the sentence that repeats it, while the positive half goes in as the source's own statement", async () => {
+test("P126: the negative half of what was learned never reaches the mouth — it cuts the sentence that repeats it, while the positive half goes in as the source's own statement", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
   const store = [
     { id: "c:neg", kind: "correction", ts: 1, seq: 0, claimed: "The harbor light had 700 keepers.", corrected: null, ref: null, question: "q", caught: "answer" },
@@ -2123,7 +2123,7 @@ test("P123: the negative half of what was learned never reaches the mouth — it
   assert.match(r.output, /1841/, "the rest of the answer stands");
 });
 
-test("P122: the premise is checked against the TASK, so a decomposed turn cannot slip an asserted falsehood past the check (S77 run 4)", async () => {
+test("P125: the premise is checked against the TASK, so a decomposed turn cannot slip an asserted falsehood past the check (S77 run 4)", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day and the keeper trims the lamp.");
   const sent = [];
   const r = await runHolonicTask({
@@ -2146,7 +2146,7 @@ test("P122: the premise is checked against the TASK, so a decomposed turn cannot
   assert.ok(r.premises.contradicted + r.premises.unverified >= 1);
 });
 
-test("P124: the mouth's talk about the writing is cut from a plain grounded turn too, and a passage-less chat turn keeps its own voice (control)", async () => {
+test("P127: the mouth's talk about the writing is cut from a plain grounded turn too, and a passage-less chat turn keeps its own voice (control)", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
   const r = await runHolonicTask({
     task: "When was the harbor light built?", chunks, planMode: "flat",
@@ -2164,7 +2164,7 @@ test("P124: the mouth's talk about the writing is cut from a plain grounded turn
   assert.match(chat.output, /hello|help/i);
 });
 
-test("P125: a question about the conversation is answered from the conversation's own record, and a prior answer never becomes material", async () => {
+test("P128: a question about the conversation is answered from the conversation's own record, and a prior answer never becomes material", async () => {
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
   const transcript = [
     { turn: 1, question: "What does the file say about Ada Rowe?", answer: "The harbor light was built in 1841 by Ada Rowe." },

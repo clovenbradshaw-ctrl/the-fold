@@ -49,7 +49,7 @@ test("the markdown reads as prose with numbered footnotes of verbatim spans and 
   assert.equal(r.notes, 2, "one note per distinct span, shared by identical spans");
 });
 
-test("P119: a section's snip check rides the export — a check line under the section in md and html, the object in the sidecar", () => {
+test("P122: a section's snip check rides the export — a check line under the section in md and html, the object in the sidecar", () => {
   const passages = new Map([["h.txt#0-60", { ref: "h.txt#0-60", text: "The harbor light was built in 1841 by Ada Rowe." }]]);
   const sc = { snips: 3, atoms: 4, supported: 3, flagged: 1, asked: true, outcomes: [{ sentence: "x", outcome: "refused", because: "still" }], contradictions: [], after: { flagged: 1, supported: 3, atoms: 4 }, flags: [{ sentence: "The light was built in 1847.", flags: [{ kind: "year", value: "1847", reason: "absent" }], contradiction: { ref: "h.txt#0-60", start: 0, end: 47, snipYears: ["1841"] } }] };
   const out = exportPiece({ title: "T", model: "gemma2:2b", passages, sections: [{ label: "Light", snipCheck: sc, sentences: [{ text: "The light was built in 1847.", ground: { tier: "self", cell: "self:model", addresses: [] } }] }] });

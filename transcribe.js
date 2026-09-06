@@ -9,6 +9,9 @@
 
 const SR = 16000;
 const MODEL = "onnx-community/whisper-base";
+/** Said out loud on the first transcription: the one non-localhost fetch
+ * this page ever causes, and only on this act — never on page load. */
+export const WHISPER_DISCLOSURE = `(first use fetches the ${MODEL} weights from huggingface.co, ~150 MB, cached by this browser; the audio itself never leaves this machine)`;
 
 let _asr = null;
 

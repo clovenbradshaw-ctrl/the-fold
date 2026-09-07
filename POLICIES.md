@@ -12540,6 +12540,20 @@ At the 60 KB identity cursor the projection has **33 nodes instead of 38, with t
 
 **Enforced.** `dialogue.test.mjs` (10, against the real `makeReferentIndex` over a fixture that spells one being two ways so a substring and a referent disagree), `dialogue-turn.test.mjs` (5, through the real `runHolonicTask` with the real organs and a scripted mouth: the doors, the position, the re-ask by referent, the absence with no re-ask, the wall before the diff, self-consistency). Suite 1899 / 1894 / 2 — the two load-flaky Matrix pool tests, by name, pre-existing.
 
-**Not yet measured, and named as the next number:** the 25-turn comparison against the baseline above, on the wired turn (run started 2026-09-07 17:14, seed 3, `results/conversation/2026-09-07T17-14-15-gemma2_2b-pg2554`); the amendment carries it.
+**Measured — the 25-turn comparison (amended 2026-09-07, same day).** Same seed (3), same novel, same mouth and reader (gemma2:2b), the baseline turn versus the wired turn (eoreader7 `results/conversation/2026-09-07T16-31-42-…` versus `…T17-29-51-…`, `scratchpad/compare-runs.py` over the first 25 rows of each, the driver's own `addressed`/`resolved`/`cited`):
 
-**Generality:** universal for the rules (identity is the index's, never a string's; an absence needs two bars; the diff measures what ships; keys at comparison time); specimen-scoped for the three English speech-act triggers, which are question-side and minimal.
+| move | baseline n · addressed · resolved | wired n · addressed · resolved |
+|---|---|---|
+| open | 7 · 3 · 1 | 5 · 5 · 5 |
+| deepen | 1 · 0 · 0 | 5 · 1 · 1 |
+| why | 3 · 2 · 2 | 3 · 2 · 2 |
+| reflect | 3 · — · 1 | 5 · — · 4 |
+| revisit | 3 · 1 · 1 | 2 · 1 · 1 |
+| clarify | 3 · 1 · 1 | 2 · unmeasured · 0 |
+| verify | 5, all mechanical | 3, all through the doors |
+
+The turn's own record, absent before: address check recorded on 25 of 25, all referents named on 20, **8 re-asks and 8 of 8 improved the naming**, 5 typed absences and 0 unestablished (the two-bar rule held on real turns); expectation composed on 15 turns — matched 2, novel 21, missing 71, mean authorship 0.10 over the 7 turns with a measurable one (the reader hears far more in the passages than the mouth says, and what the mouth says it mostly cannot bind — the paraphrase wall MINE-1 and P74 already name, now as a per-turn number); history depth 1.4 exchanges, by referent on 19 turns and by surface on 5; doors before the model 4; self-contradictions 0. Refs per answer 0.92 → 1.28; unsupported 0 both. **Cost:** 43.6 → 92.8 s per turn and 1.96 → 2.92 calls — the re-asks are one call each, and the machine carried the long-stream arm and the Pass 33 eval throughout; the ratio is the honest number, the seconds are not.
+
+**Two misfires the rows exposed, fixed the same day and pinned.** Positions were 0 across five reflect turns because the mouth phrases its reflections "Is THIS what the book says?", "Do you agree with this interpretation?", "Did the book say that X?" — each a word off the triggers, and turn 8's answer to the first was "You're right! I apologize for the confusion" to a restatement the sources never make. The triggers are widened to those phrasings (still question-side, still minimal). And "Did the book say that Sonia was angry?" (turn 10) went through the record-check door, which answered "Yes — those passages are in the book": a question about CONTENT is the restatement loop's, and the door's verb branch now requires a passage anaphor. `clarify` is honest about its own limit: both targets were the mouth's own headings ("Conflict and Tension", "Rodya's Situation"), which resolve to nothing, and the record said so — a name the mouth coins is a typed absence, and the driver leaves `addressed` unmeasured on it rather than scoring a substring.
+
+**Generality:** universal for the rules (identity is the index's, never a string's; an absence needs two bars; the diff measures what ships; keys at comparison time; a door that answers about addresses needs a passage anaphor); specimen-scoped for the English speech-act triggers, which are question-side, minimal, and were widened from one run's own phrasings.

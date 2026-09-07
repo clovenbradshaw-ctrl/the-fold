@@ -123,9 +123,10 @@ export function absenceOf(qRefs, passages = []) {
 }
 export const absenceLine = (qRefs, passages = []) => absenceOf(qRefs, passages).line;
 
-const RESTATEMENT_RE = /\b(?:so,?\s+(?:you(?:'re| are)\s+(?:saying|telling me)|if I (?:follow|understand)(?: you)?|in other words|basically|then)|if I (?:follow|understand)(?: you)?|you(?:'re| are) saying(?: that)?|is that (?:really )?what (?:the (?:book|text|source|novel)|it) says|am I right that|do I have that right|so it(?:'s| is))\b[:,]?\s*/i;
+// The reader's speech acts, question-side, lang/en, minimal. Widened 2026-09-07 from the wired run's own phrasings: "Did the book say that X?", "Is THIS what the book says?", "Do you agree with this interpretation?" — five reflect turns in 25 and no position, because each missed the trigger by a word.
+const RESTATEMENT_RE = /\b(?:so,?\s+(?:you(?:'re| are)\s+(?:saying|telling me)|if I (?:follow|understand)(?: you)?|in other words|basically|then)|if I (?:follow|understand)(?: you)?|you(?:'re| are) saying(?: that)?|is (?:that|this) (?:really |actually )?what (?:the (?:book|text|source|novel)|it) says|did (?:the (?:book|text|source|novel)|it) (?:really |actually )?say that|am I right that|do I have that right|so it(?:'s| is))\b[:,]?\s*/i;
 /** The reader's restatement, when the question is one: the clause after the trigger, before the check. */
-const TRAILING_CHECK_RE = /\b(?:is that (?:really )?what (?:the (?:book|text|source|novel)|it) says|is that right|isn'?t that (?:right|so)|am I right(?: about that)?|do I have that right|right|correct)\s*\??\s*$/i;
+const TRAILING_CHECK_RE = /\b(?:is (?:that|this) (?:really |actually )?(?:what|how) (?:the (?:book|text|source|novel)|it) (?:says|presents (?:it|this|that|the passage))|did (?:the (?:book|text|source|novel)|it) (?:really |actually )?say (?:that|this|so)|do you agree(?: with (?:this|that)(?: interpretation| reading| view)?)?|is (?:that|this) right|isn'?t that (?:right|so)|am I right(?: about (?:that|this))?|do I have (?:that|this) right|right|correct)\s*\??\s*$/i;
 const LEADING_UPTAKE_RE = /^(?:so|well|okay|ok|right|then)[,:]?\s+|^(?:if I (?:follow|understand)(?: you)?|so you(?:'re| are) saying|in other words|basically|I (?:take it|gather|think|see|understand)(?: that)?|it (?:sounds|seems) like|sounds like)[,:]?\s*/i;
 const enough = (t) => t.split(/\s+/).filter(Boolean).length >= 3; // the claim's own shape — two ends and a label — the floor the premise check can grade; structural, not tuned
 /**

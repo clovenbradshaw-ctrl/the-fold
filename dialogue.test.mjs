@@ -74,6 +74,10 @@ test("a reader's restatement is a premise: graded by the same check, and the rec
   assert.equal(restatementOf("Is that right?"), null, "a bare check restates nothing");
   assert.equal(restatementOf("I take it Sonia is deeply loving. Is that really what the book says?"), "Sonia is deeply loving", "the reader's uptake words are not part of the claim");
   assert.equal(restatementOf("Which is right?"), null);
+  // The wired run's own reflect phrasings (2026-09-07), each of which missed the first triggers by a word:
+  assert.equal(restatementOf("The Ministry is a place of power dynamics and social hierarchy, where characters navigate their roles. Do you agree with this interpretation?"), "The Ministry is a place of power dynamics and social hierarchy, where characters navigate their roles");
+  assert.equal(restatementOf("It sounds like Sonia is prepared for a journey to Siberia, but also has some doubts. Is this what the book says?"), "Sonia is prepared for a journey to Siberia, but also has some doubts");
+  assert.equal(restatementOf("Sonia seems very upset and frustrated, Sonia's anger is palpable. Did the book say that Sonia was angry?"), "Sonia was angry");
   const ps = premisesOf("So you're saying Razumihin brought soup to Raskolnikov — is that right?");
   assert.equal(ps.length, 1); assert.equal(ps[0].how, "restated by the reader");
   const yes = checkPremises("So you're saying Razumihin brought soup and sat with him — is that right?", PASSAGES, { referentIndexFor: indexFor });
@@ -142,4 +146,6 @@ test("THE TWO DOORS: 'quote it for me' returns the bytes at the last answer's ad
   assert.equal(answerBeforeTheModel({ question: "I'd like to see the words themselves. Which passage says so?", transcript: [LAST], chunksByRef: CHUNKS }).kind, "quote");
   assert.equal(answerBeforeTheModel({ question: "Quote it for me.", transcript: [{ turn: 1, question: "q", answer: "a" }], chunksByRef: CHUNKS }), null, "no addresses to quote: not this door's");
   assert.equal(answerBeforeTheModel({ question: "Why does that matter?", transcript: [LAST], chunksByRef: CHUNKS }), null, "prose is the mouth's");
+  assert.equal(answerBeforeTheModel({ question: "Sonia seems very upset. Did the book say that Sonia was angry?", transcript: [LAST], chunksByRef: CHUNKS }), null, "a question about CONTENT is not the record door's — it is the restatement loop's (wired run, turn 10)");
+  assert.equal(answerBeforeTheModel({ question: "Did the book actually include them?", transcript: [LAST], chunksByRef: CHUNKS })?.kind, "record-check");
 });

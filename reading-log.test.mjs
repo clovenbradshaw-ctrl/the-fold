@@ -83,3 +83,33 @@ test("S24 control — a caseless script: the reader establishes no referent and 
   const r = activate({ question: "מה הספר אומר על פורפירי?", index: hindex, book: hbook, dmdWindow });
   assert.equal(r.basis, "surface"); assert.match(r.why, /no referent/);
 });
+
+test("one being, many addresses: the reader's recorded merges fold its fragments; a partial form joins the ONE fuller being its own coreference organ places it in; a form inside two beings stays its own (S17's ambiguous bare form)", () => {
+  const ref = (id, surfaces) => ({ schema: "EOReferent@1", id, surfaces, provenance: [], fedBy: [] });
+  const log = [
+    ref("ref:auto:pyotr", ["Pyotr", "Pyotr Petrovitch"]),
+    ref("ref:auto:pyotr_petrovitch:78", ["Pyotr Petrovitch"]),
+    ref("ref:auto:mr_luzhin", ["Pyotr Petrovitch Luzhin", "Mr Luzhin", "Pyotr Petrovitch", "Luzhin"]),
+    ref("ref:auto:luzhin", ["Luzhin"]),
+    ref("ref:auto:porfiry", ["Porfiry", "Porfiry Petrovitch"]),
+    ref("ref:auto:petrovitch", ["Petrovitch"]),
+    ref("ref:auto:raskolnikov", ["Raskolnikov"]),
+    ref("ref:auto:rodion", ["Rodion", "Rodion Romanovitch", "Rodion Romanovitch Raskolnikov"]),
+    { schema: "EOReferentMerge@1", id: "merge:3250:pp78:pyotr", kept: "ref:auto:pyotr_petrovitch:78", folded: ["ref:auto:pyotr"], witness: "Pyotr Petrovitch" },
+    { schema: "EOReferentMerge@1", id: "merge:11075:luzhin:pyotr", kept: "ref:auto:mr_luzhin", folded: ["ref:auto:pyotr"], witness: "Pyotr Petrovitch Luzhin" },
+  ];
+  const f = foldReading(log, { diaNorm, namesCorefer });
+  assert.equal(f.identity.fragments, 8);
+  assert.equal(f.identity.mergedByRecord, 2, "both recorded merges applied — transitively one class through «pyotr»");
+  const luzhin = f.referents.get("ref:auto:mr_luzhin");
+  assert.ok(luzhin, "the face is the member with the most surfaces");
+  assert.deepEqual([...luzhin.members].sort(), ["ref:auto:luzhin", "ref:auto:mr_luzhin", "ref:auto:pyotr", "ref:auto:pyotr_petrovitch:78"], "«Luzhin» joins by containment in exactly one fuller being; the two merged fragments by record");
+  assert.ok(f.referents.has("ref:auto:petrovitch"), "«Petrovitch» sits inside Luzhin's AND Porfiry's surfaces — ambiguous, stays its own");
+  assert.ok(f.identity.ambiguousForms >= 1);
+  assert.ok(f.referents.has("ref:auto:rodion") && !f.referents.has("ref:auto:raskolnikov"), "«Raskolnikov» joins «Rodion Romanovitch Raskolnikov» by the reader's own coreference");
+  assert.equal(f.referents.size, 4, "eight addresses, four beings: Luzhin, Porfiry, Petrovitch (ambiguous), Raskolnikov");
+  const idx = readingIndexFromLog(log, { diaNorm, namesCorefer });
+  assert.deepEqual([...idx.resolve("Pyotr Petrovitch")], ["ref:auto:mr_luzhin"], "one being, however it is spelled on the log");
+  assert.deepEqual([...idx.resolve("Petrovitch")], ["ref:auto:petrovitch"]);
+  assert.deepEqual([...idx.resolve("Rodya Pyotr Petrovitch")], ["ref:auto:mr_luzhin"], "maximal munch: «Pyotr Petrovitch» consumed, «Petrovitch» never re-resolved to Porfiry; «Rodya» is not on this log");
+});

@@ -5026,7 +5026,7 @@ function activationRetrievalNow() {
   conversationIndexNow();
   const { index, book } = conversationIndexCache;
   if (!index || !book) return null;
-  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow });
+  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
 function transcriptNow() {
   const h = state.history ?? [];

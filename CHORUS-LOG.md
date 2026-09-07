@@ -215,3 +215,10 @@ chorus-fast: staged scope, 10 files; 18 affected test files, 287 cases; the one 
 | Marshall | IV.4 | POLICIES.md P170, CLAUDE.md pointer | upheld | every claim cites a test or a live row; the 25-turn comparison is named as not yet measured, not implied |
 
 deferred-with-reason: none. false-positive-on-review: none.
+
+## 2026-09-07 — the shared cut at its ladder's top; beings folded by the reader's own merges; the Lens bounds the sentences (staged: reading-log.js, activation-retrieval.js, resolutions.js, holon.js, app.js + tests)
+- chorus-fast: PASS — 286/286 across 18 affected files; citations resolve (P38 P9 S17 S80); pre-existing duplicate headers P115/P116/P117/P19 and S17 warned (renumber in its own commit, not this one).
+- Feynman (activation-retrieval.js:125, `resolutions >= 2`): the ladder's own level at which the Lens is handed (0/1/2/3 declared in resolutions.js), not a tuned number — no change.
+- Dijkstra (resolutions.js:179, co-activation ids): resolves through the injected index (the reading's, caseless), never a string — no change.
+- Holmes (holon.js:2804): the address check and its re-ask now resolve through the conversation's own index when handed, the part's presence index only as fallback — the finding this diff exists for (a glued capitalised run named as a being); fixed here, pinned in dialogue-turn/holon suites.
+- Marshall: no law edited; P9 (declared budget, the ladder's top named a ceiling), S17 (containment witnessed downward, ambiguous bare form stays), S80 (address at birth; the projection folds recorded merges) cited as they read.

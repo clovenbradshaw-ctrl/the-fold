@@ -2801,9 +2801,17 @@ export async function runPart({
   // gate, so a re-asked draft passes every wall the first draft did.
   const dfold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
-  const bound = referentIndex ? bindAnaphora(task || question, lastTurn, referentIndex) : null;
+  // IDENTITY IS THE READING'S. When the turn is handed the conversation's
+  // own index (the constitutional reader's log projected — reading-log.js),
+  // every decision about who is meant resolves through it; the part's own
+  // cast index over its passages (a presence index, P38) stands in only when
+  // no reading was handed. Measured 2026-09-07: with the cast index here the
+  // address check named `rodya_pyotr_petrovitch` — a capitalised run the
+  // bytes carry once — as an asked-about being the reading never established.
+  const identityIndex = conversationIndex ?? referentIndex;
+  const bound = identityIndex ? bindAnaphora(task || question, lastTurn, identityIndex) : null;
   const qRefs = bound ? { ...bound.own, ids: new Set([...bound.own.ids, ...(bound.own.ids.size ? [] : bound.ids.slice(0, 1))]) } : null;
-  let addressed = referentIndex ? null : { gap: "no_referent_index", detail: "the turn was handed no makeReferentIndexFor; the address check needs the material's own referents" };
+  let addressed = identityIndex ? null : { gap: "no_referent_index", detail: "the turn was handed neither a conversation index nor makeReferentIndexFor; the address check needs the material's own referents" };
   // The absence veto runs over the WHOLE loaded material, never the three
   // passages in front of the turn: a name a rare paragraph carries is
   // unestablished, not absent. And an absent name is DECLARED A VOID on the
@@ -2832,15 +2840,15 @@ export async function runPart({
   if (qRefs?.ids.size && String(text ?? "").trim()) {
     // Recorded on every draft — a mechanical one (verbatim quotes shipped as
     // quotes) included; only the RE-ASK needs a mouth that drafted.
-    addressed = { ...addressedBy(text, qRefs, referentIndex), bound: bound.ids.length ? bound.ids.slice(0, 3) : [], unresolved: qRefs.unresolved, reasked: false, resolvedOn: null };
+    addressed = { ...addressedBy(text, qRefs, identityIndex), bound: bound.ids.length ? bound.ids.slice(0, 3) : [], unresolved: qRefs.unresolved, reasked: false, resolvedOn: null };
     if (!addressed.all && passages.length && !mechanical) {
-      const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(referentIndex, id));
+      const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(identityIndex, id));
       const names = addressed.missingNames;
       const snips = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map((x) => String(x?.text ?? x)).filter((x) => missingSurfaces.some((sf) => dfold(x).includes(dfold(sf)))).slice(0, 2).map((x) => `- ${x.trim()}`)).slice(0, 6); // no address reaches the mouth
       const facts = `The question asks about ${names.join(", ")}.${snips.length ? `\nWhat the sources say about ${names.join(", ")}:\n${snips.join("\n")}` : `\nThe retrieved passages do not mention ${names.join(", ")}.`}`;
       let again = "";
       try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
-      const a2 = again.trim() ? addressedBy(again, qRefs, referentIndex) : null;
+      const a2 = again.trim() ? addressedBy(again, qRefs, identityIndex) : null;
       if (a2 && a2.named.length > addressed.named.length) { text = again.trim(); check = inspect(text); addressed = { ...addressed, ...a2, reasked: true, resolvedOn: "re-ask" }; }
       else addressed = { ...addressed, reasked: true, resolvedOn: null };
     }
@@ -3063,7 +3071,7 @@ export async function runPart({
     ...(owned.length ? { owned: owned.map((e) => ({ claimed: e.claimed, corrected: e.corrected, ts: e.ts ?? null, line: ownedLine([e]) })) } : {}),
     ...(voidsDeclared.length ? { voidsDeclared } : {}),
     ...(retrieval ? { retrieval } : {}),
-    ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
+    ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, cuts: resolution?.lens?.cuts ?? null, text: resolution?.text ?? "" } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
     ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
     ...(position ? { position: position.verdict } : {}),

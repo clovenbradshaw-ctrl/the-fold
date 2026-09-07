@@ -12432,3 +12432,56 @@ the-fold has carried the earned-constant ratchet since P146; eoreader7 had none,
 **Structural tests, not timings** (`tests/fold-transient.test.js`, 8): array identity held across 500 steps; a schema view returned the *same* array after a step (a from-scratch compute would be a new one — the measured hit P157 demands); a counted compute across a copy; the default is pure; the frozen-tip fallback; the superseded-turn accessor.
 
 **Generality:** universal for the three rules — transience declared by the chain's owner, the record pointing forward so the tip retains nothing, a superseded state read as the log's projection; specimen-scoped for the table.
+
+## P167 — The time term, closed by growth ranking: profile two sizes, fix the term whose share grows, gate every step against the old code (2026-09-07)
+
+**The prompt.** *"Keep iterating until it works as well as possible."* After P166 the full book took 9,801 s beside the arm — 286 ms/sentence against ~11 at 3,051 — and P166's own finding was that the copy had been the memory term, not the time term.
+
+**The method, because it is what this entry is for.** CPU-profile the same read at two sizes (120 KB and 240 KB, then 240 KB and 480 KB), rank *inclusive* time by its growth ratio, and the term whose share grows is the term — not the one that is largest. Fix it exactly; gate with `read-cost.mjs --identity` and `--trace --against` baselines captured from the old code in a clean worktree (240 KB at every 25th step, 480 KB at every 50th); pin the fix as **structure** — a counted compute, equality with the reference path, array identity — never a timing; re-profile. Nine terms fell to it in six commits (eoreader7 c314156, 3e22662, 5e135dd, 448b8e6, 6c40ab5 and the P166 base). Every one is byte-identical to the old reading at both sizes.
+
+**The ladder** (CPU-sampled seconds, contended throughout by the P145 arm's model beside the reads; the shares and ratios are the finding, the absolutes are not):
+
+| read | before | after discourse | after surfaces + individuation | cliff part 1 | part 2 | part 3 |
+|---|---|---|---|---|---|---|
+| 240 KB | 20.9 | 15.7 | 5.2 | — | — | — |
+| 480 KB | — | — | 79.3 | 77.1 | 44.9 | 25.0 |
+| 120 → 240 KB growth (1.79× sentences) | 5.09× | | 1.82× | | | |
+| 240 → 480 KB growth (2× sentences) | | | 12.5× | 12.2× | 7.1× | 3.9× |
+
+
+**Wall-clock, old code (0bcb90d, pre-P166) and final code (6c40ab5), back to back, the arm still running beside both, one run at a time:**
+
+| sentences | old s | new s | old heap MB | new heap MB | old ms/sent | new ms/sent |
+|---|---|---|---|---|---|---|
+| 926 | 1.66 | 0.86 | 130 | 81 | 1.79 | 0.93 |
+| 1,707 | 6.98 | 2.54 | 411 | 151 | 4.09 | 1.49 |
+| 3,051 | 14.81 | 4.65 | 1,404 | 338 | 4.85 | 1.53 |
+| 5,904 | (cannot complete 1 MB) | 13.57 | — | 486 | — | 2.30 |
+
+3,051 → 5,904 sentences is still 2.9× time for 1.94× sentences — the residue named below.
+
+**The nine terms, each named by its measured share before the fix.**
+1. *Discourse projection, 30% of 240 KB, ×7.9.* P157's header said its whole-array fallback fired "twice in a novel"; counted, it fired on **42% of sentences**, each spreading a fresh array the chain view can only compute from scratch, then walking every occurrence — on material where zero discourse links were ever admitted. A layer over the persistent state for this sentence's extras; groups per root merged on union; a memo versioned by the state's counters.
+2. *`containsSurface`, 14%, ×6.4.* A fresh regex per known surface per sentence. A once-per-refresh index scanned once per sentence at each word start, exact to the single-surface organ's boundary rule (tested against it over 600 real sentences × 27 surfaces).
+3. *`descriptorHypothesesWith`, 12%, ×7.* A whole-map copy and a walk over every group per sentence, with a memo stale on the chain path. The output maintained incrementally; the memo versioned by group length.
+4. *No-op updates.* Revision re-admits this sentence's own observation entries (the fold lacks them at revise time), so `applyDelta` upserted the same object twice — 1,628 hyperedge "updates" on 1,166 sentences at 240 KB — and every schema view answered with an O(n) recompute. An update whose every field is the current entry's own records nothing.
+5. *Occurrence updates.* A participant with no occurrence id falls back to its surface slug, so two edges in one sentence sharing a surface yield one id with different `edge`/`relation` — a real update, 112 at 240 KB. Each view now names what it reads off an occurrence and swaps the object in place when those fields hold, recomputing otherwise.
+6. *`indexHypergraphEntries`, 6–7%, ×16.* Not key volume (≈15 keys per sentence): the function ended with `graph.entries = [...byId.values()]`, a copy of every indexed entry on every call, three per sentence, for an array nothing reads. Lazy, cached per graph.
+7. *The relation matcher, 7%, ×5.6.* `[...vocab].map(escapeRe).join("|")` over thousands of admitted verbs, and a regex compiled from it, per sentence, though the vocabulary changes only at a refresh. Memoised per Set, per word set, per pattern source; `lastIndex` rewound per use.
+8. *Identity revision, 13%, ×24.* Every fold entry filtered for hyperedges, each tested against the identity, each touched edge's canonical found by a second whole-fold search — per support. A chain view keeps hyperedges by participant value, positions in fold order, canonicals by source edge. Then the third site of P157's defect: revision handed it a **spread** of the fold's array plus this sentence's admissions, so the view rebuilt from scratch on every sentence with identity evidence — **170 builds in 1,707 sentences, counted; 1 after** the fold's own array reaches it and the extras are scanned after it in their own order.
+9. *The consumer's walk, 8.5%, ×36.* revision.js walked every hypothesis every sentence to admit the few whose ids were new. The view answers "what changed since you last asked" (`changedOnly`).
+
+Beside them: the refresh's `individuating`/`diaNorm` per *pair* memoised per call (19%); anchoring's cast rebuilt per sentence and its case-blind fallback walking every surface per hit; live alternatives indexed by first token for `attackEvidence`.
+
+**The gates caught two of my own bugs before either landed, and that is the method's own defect record.** The first cut of `changedOnly` offered only this sentence's extras, on the argument that an append arrives only as an extra; the 60 KB *log* hash moved while every node hash held, a bisect placed it, and the argument's hole was that an occurrence also enters the fold through the observation's own entries. `pending` — every surface a delta touched since the last ask — closes it, and the case is a test. Then, with part 3 landed, the 480 KB differential diverged at step 5550 while 240 KB held; a bisect cleared the memo, and a per-step delta comparison between two worktrees found step 5534: eleven canonicals in the fold lacked the alternative "anatole" that the index carried. One upsert call had appended an edge's canonical (a support's REC) and updated it (an attack's REC later in the same sentence); the delta records the first as appended and the merged second as updated, and my fold steps applied `updated` before `appended`. **Appended first, then updated, in every fold step** — a test builds exactly that delta. Neither would have been visible to any correctness test in the tree; both were visible to a byte-level differential against the old code, which is why that gate exists (P159 step 0).
+
+**Rules drilled from this pass.**
+- `[...fold.graphEntries, ...extras]` handed to a chain view is P157's defect wherever it appears — found in three places; hand the fold's own array and the extras beside it.
+- A chain view's fold step applies **appended before updated**: one call can do both to one id, and the update is the later fact.
+- An update that changes nothing is not an update; a view that can name what it reads off an entry may swap an update in place, and must recompute otherwise.
+- A consumer that admits new ids and ignores known ones should be answered with what changed, and the view keeps the debt (`pending`) for changes it folded while nobody asked.
+- Run the gates with a heap flag and one at a time: with the arm's model resident, two of my runs died allocating and printed only Node's banner; a third became a swap storm and was stopped unmeasured.
+
+**What remains, at 480 KB (25 s).** Anchoring's `observe`/`recall` 24% (the memory organ's posting walk); the refresh's re-clustering 18% — every surface pair, every 25 sentences; making it incremental would change *which* surfaces oscillate (P165) and is a reading change, a decision, not a fix; `extractRelations` 15% (the matcher itself over a growing alternation; restricting the alternation to the sentence's own tokens is exact only if Unicode case folding is, which is unproven). The full book: 9,801 s on the P166 code; the run on the mid-ladder commit swapped and was stopped, unmeasured; the run on the final commit is the next number.
+
+**Generality:** universal for the method and the rules; specimen-scoped for every number in the ladder.

@@ -65,9 +65,10 @@ export function snipsFor(passages = [], { obligations = [], terms = [], max = SN
 }
 
 /** The snips as the block a section is handed: verbatim, each with its address. */
+// THE MOUTH NEVER SEES AN ADDRESS (the rule since 2026-08-18, restated by the user 2026-09-07: "it's just liable to lie with it"). The snips keep their addresses for the CHECK (snipsFor's rows carry ref/start/end); what is handed is the sentences alone. cite.js attaches the address after the draft, mechanically.
 export function snipBlock(snips) {
   if (!snips.length) return "";
-  return `What the sources say, verbatim, each at its address:\n${snips.map((s) => `- [${s.ref}#${s.start}-${s.end}] ${s.text.replace(/\s+/g, " ")}`).join("\n")}`;
+  return `What the sources say, verbatim:\n${snips.map((s) => `- ${s.text.replace(/\s+/g, " ")}`).join("\n")}`;
 }
 
 /** The atoms of a sentence: numbers (years and figures) and names. */

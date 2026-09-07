@@ -33,7 +33,9 @@ export function textFragment(quote) {
 }
 
 /** The source name of an address (`web:host-0#12-40` → `web:host-0`). */
-export const sourceOf = (ref) => String(ref ?? "").split("#")[0].split("~")[0];
+export // A citation names where to LOOK: bytes in a file, or a moment in a recording
+// (P138). Both are addresses; neither may be read as the other.
+const sourceOf = (ref) => String(ref ?? "").split("#")[0].split("@")[0].split("~")[0];
 
 /**
  * The verbatim spans a ground stands on, sliced from passage bytes by
@@ -51,7 +53,20 @@ export function verbatimSpans(ground, { passages = new Map(), urls = {}, sentenc
     const decider = ground.decider ?? null;
     for (const a of ground.addresses ?? []) { const loc = locate(a, decider); if (loc) push(a, loc.start, loc.end, decider); else { const p = passages.get(a); if (p?.text && decider) push(a, null, null, decider); } }
   } else if (ground.tier === "recorded" || ground.tier === "contested" || ground.tier === "derived") {
-    for (const a of ground.addresses ?? []) { const p = passages.get(a) ?? passages.get(sourceOf(a)); if (p?.text) push(a, 0, Math.min(p.text.length, 200), p.text.slice(0, 200)); else push(a, null, null, a); }
+    // AN ADDRESS IS NOT A LICENCE TO QUOTE SOMETHING ELSE (P137). This used
+    // to fall back from the exact chunk to the WHOLE SOURCE and then quote its
+    // first 200 characters under the chunk's address — the ordinary case,
+    // since read-on-arrival admits a whole book while retrieval keeps a few
+    // passages, so the exact chunk is usually absent. The reader was shown a
+    // verbatim-looking quotation, at a real byte range, of text that is not
+    // there. No quotation is honest; a wrong one is not.
+    for (const a of ground.addresses ?? []) {
+      const p = passages.get(a);
+      if (p?.text) push(a, 0, Math.min(p.text.length, 200), p.text.slice(0, 200));
+      // The chunk is not in hand. The address is still true and is published
+      // as an address — never dressed as a quotation of words nobody read.
+      else out.push({ ref: a, source: sourceOf(a), start: null, end: null, text: null, addressOnly: true, url: urls[sourceOf(a)] ?? null, link: urls[sourceOf(a)] ?? null });
+    }
   } else if (ground.tier === "named") {
     for (const nm of ground.names ?? []) for (const a of ground.addresses ?? []) { const loc = locate(a, nm); if (loc) { push(a, loc.start, loc.end, nm); break; } }
   }
@@ -109,7 +124,9 @@ export function exportPiece({ title = "Untitled", ask = "", model = null, sectio
   // footnotes
   const fn = [];
   for (const n of notes) {
-    const parts = n.spans.map((sp) => `“${sp.text.replace(/\s+/g, " ").trim()}” — ${sp.source}${sp.start != null ? ` bytes ${sp.start}–${sp.end} of that passage` : ""}${sp.link ? ` [open at the span](${sp.link})` : ""}`);
+    const parts = n.spans.map((sp) => (sp.addressOnly || !sp.text
+      ? `${sp.ref} — on the record at this address; the passage itself was not in hand to quote${sp.link ? ` [open the source](${sp.link})` : ""}`
+      : `“${sp.text.replace(/\s+/g, " ").trim()}” — ${sp.source}${sp.start != null ? ` bytes ${sp.start}–${sp.end} of that passage` : ""}${sp.link ? ` [open at the span](${sp.link})` : ""}`));
     fn.push(`[^${n.n}]: ${n.kind === "named" ? "names established here, the claim not: " : ""}${parts.join(" · ")}`);
   }
   if (tally.self) fn.push(`[^m]: ${modelName}'s own testimony — nothing read places it.`, `[^r]: ${modelName}'s own testimony — the witness was asked whether any passage states it and none was pointed at.`);

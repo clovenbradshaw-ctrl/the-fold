@@ -50,3 +50,21 @@ test("scope (P114): a source is in a piece's scope only when it carries every co
   const h = headingsOf(`The X-Files\n\n${para}\n\nProduction\n\n${para}\n\nSee also\n\n- Michael W. Watkins\n\nLowry 1995 , p. 257\n\nMain article: List of episodes\n\nCasting and characters\n\n${para}\n\nInfobox row\n\nShort next line.\n`);
   assert.deepEqual(h, ["The X-Files", "Production", "Casting and characters"], "a heading heads a paragraph; list items, citations and infobox rows are not headings");
 });
+
+test("P136: a passage is prose or code by what it IS, not what it is called — a rendered article is not source code", () => {
+  // The live bug: `.html` was in the code list, so every passage of a rendered
+  // encyclopaedia article was dropped from prosePassages — the pool that feeds
+  // the snips, the obligations, the cast and the referent check. In one run
+  // the Lincoln article was retrieved 439 times and was invisible to all of them.
+  assert.equal(isCodeSource("wikipedia-abraham-lincoln.html#0-500", "On April 14, 1865, Lincoln was fatally shot by John Wilkes Booth at Ford Theatre."), false);
+  assert.equal(isCodeSource("lincoln.html#0-128", "Abraham Lincoln signed the Yosemite Grant in 1864."), false);
+  // Raw markup that was never rendered is still code-like, decided by the text.
+  assert.equal(isCodeSource("raw.html#0-90", '<div class="a"><span><p><b>x</b></p></span></div><ul><li><a href="#">y</a></li></ul>'), true);
+  // Real code is unchanged, and prose in any container is prose.
+  assert.equal(isCodeSource("react-dom.js#0-50", "var RootDidNotComplete = 6;"), true);
+  assert.equal(isCodeSource("pg2600.txt#0-100", "Well, Prince, so Genoa and Lucca are now just family estates."), false);
+  assert.equal(isCodeSource("Luke.xml#0-90", "Herod was king of Judea when Zacharias served in the temple."), false);
+  // Called without text, the extension still decides — every existing caller.
+  assert.equal(isCodeSource("react-dom.js"), true);
+  assert.equal(isCodeSource("pg2600.txt"), false);
+});

@@ -34,7 +34,8 @@ export function namesIn(sentence) {
   const text = String(sentence ?? "");
   for (const m of text.matchAll(/(?:^|[^\p{L}])((?:\p{Lu}[\p{L}\p{N}'’.-]*)(?:\s+(?:of|the|de|von|van|and|&)?\s*\p{Lu}[\p{L}\p{N}'’.-]*)*)/gu)) {
     // a sentence-initial function word is not part of the name it precedes
-    const n = m[1].trim().replace(/[.,;:]+$/, "").replace(/^(?:The|This|That|These|Those|It|In|On|At|By|For|From|With|As|A|An|And|But|Or|So|If|When|While|Their|Its|His|Her|They|He|She|We|You|I)\s+/, "");
+    // A possessive marker is stripped BEFORE the function-word test — measured 2026-09-07: "She's" passed as a name (the test saw "She's", not "She") and a reader asked what happens to She's.
+    const n = m[1].trim().replace(/[.,;:]+$/, "").replace(/['’]s$/u, "").replace(/^(?:The|This|That|These|Those|It|In|On|At|By|For|From|With|As|A|An|And|But|Or|So|If|When|While|Their|Its|His|Her|They|He|She|We|You|I)\s+/, "");
     if (!(n.length > 2) || /^(The|This|That|These|Those|It|In|On|At|By|For|From|With|As|A|An|And|But|Or|So|If|When|While|Their|Its|His|Her|They|He|She|We|You|I)$/.test(n)) continue;
     // ONE capitalised word at the start of a sentence, or inside a quoted
     // title, is capitalisation — not evidence of a name (L2: capitalisation
@@ -84,8 +85,22 @@ export function groundOf(sentence, ctx = {}) {
     return { tier: "witnessed", cell: CELL_OF.witnessed, addresses: ref ? [ref] : [], phrase: "a passage states this", detail: witness.decider ? `the witness pointed at: “${String(witness.decider).slice(0, 120)}”` : "the witness pointed at a passage", reached };
   }
   // 3. recorded / 5. contested — the sentence's claims (any verdict) matched to notes on the ledger
-  const keys = new Set(mine.map(claimKey));
+  // A CLAIM THE READER ITSELF CONTRADICTED IS NOT ON THE RECORD (P137). The
+  // match was over claims of ANY verdict, so a sentence the relation tier had
+  // judged `contradicted` could still find a same-key note and be published at
+  // tier `recorded` — cited, grounded, and exported as though the material
+  // supported it. A contradicted claim is contested at best, never support.
+  const contradicted = mine.filter((c) => c.verdict === "contradicted");
+  const supportable = mine.filter((c) => c.verdict !== "contradicted");
+  const keys = new Set(supportable.map(claimKey));
   const onRecord = notes.filter((n) => keys.has(claimKey(n)));
+  if (!onRecord.length && contradicted.length) {
+    const notes2 = notes.filter((n) => new Set(contradicted.map(claimKey)).has(claimKey(n)));
+    if (notes2.length) {
+      const w = [...new Set(notes2.flatMap((n) => (n.witnesses ?? []).map(sourceOf)))];
+      return { tier: "contested", cell: CELL_OF.contested, addresses: w, phrase: "on the record, and this reading contradicts it", detail: `the reader returned ${contradicted.length} claim(s) here as contradicted`, reached: true };
+    }
+  }
   if (onRecord.length) {
     const witnesses = [...new Set(onRecord.flatMap((n) => (n.witnesses ?? []).map(sourceOf)))];
     const disputed = onRecord.filter((n) => (n.disputedBy?.length ?? 0) > 0);

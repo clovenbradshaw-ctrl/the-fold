@@ -41,11 +41,23 @@ import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
 import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
+import { traceReading, traceLine, actsFor, VERDICT } from "./reading-trace.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
+// The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
+import { resolutionBlocks } from "./resolutions.js";
+import { mouthFacing } from "./firewall.js";
+import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
+import { checkComparison } from "./arithmetic.js";
+import { answerBeforeTheModel } from "./answerable.js";
+import { recruit, strainOf, substituted } from "./strain.js";
+import { placeCoverage } from "./calibration.js";
+import { citedSource, findMisquote, misquoteFacts, misquoteGuard } from "./misquote.js";
+import { admissible, finding } from "./turn-order.js";
+import { quotedAsk } from "./transcript.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -965,6 +977,9 @@ export async function runPart({
   // piece on any subject contains.
   planFacts = null,
   makeNameResolver = null,
+  // The cast organ (cast.js::makeReferentIndex), injected: a name the cited
+  // passage's own cast does not establish is beyond-reach (P135).
+  makeReferentIndexFor = null,
   makeRelationReader = null,
   // The link tier (links.js): an async function url => fetched-shape result,
   // through the P13 egress — injected because this module owns no network.
@@ -991,12 +1006,43 @@ export async function runPart({
   // question are handed to the model as facts before it drafts, so a mistake
   // made once is not made again. Empty (every existing caller) changes nothing.
   learnedStore = [],
+  language = "en", // the question's declared language for dialogue.js's question-side triggers (S39): another language is a typed gap on the record, never a silent non-match
+  learnedSince = null, // dialogue.js::ownedRows — corrections learned at or after this timestamp are THIS conversation's own, and the record owns them on the answer
   // THE CONVERSATION'S OWN RECORD (P128, transcript.js): [{turn, question,
   // answer}] oldest first. A question ABOUT what was said retrieves from it,
   // exactly as a question about the material retrieves from the material —
   // so what the recency window drops is still reachable. Empty (every
   // existing caller) changes nothing.
   transcript = [],
+  resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
+  dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
+  conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
+  records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
+  mentionBook = null, // activation-retrieval.js's address book, when the caller built one: prominence for naming a ground, nothing else
+  material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
+  // THE ARITHMETIC ENGINE (arithmetic.js's own injection pattern): the page
+  // hands the vendored mathjs, a test hands the package. Absent, nothing
+  // below computes and the turn is byte-identical to before.
+  math = null,
+  // What the person asked for on the slider, so strain is held inside it.
+  askedDepth = null,
+  // HOW THIS TURN FINDS ITS PASSAGES (P141), injected so an arm can be run
+  // against a different reading without editing the turn. Absent, it is
+  // `source.js::retrieve` and every existing caller is byte-identical.
+  retrieveWith = null,
+  // The tower (P175/P132): the stream's own coverage history, the engine's
+  // null apparatus, and whether the audit above has licensed the measured cut.
+  coverageHistory = [],
+  nul = null,
+  useMeasuredCut = false,
+  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145/P148). A FUNCTION, not a
+  // value: only the caller holds the stream's history, and only the reading
+  // knows its own coverage — the cell that makes the belief worth anything
+  // (0.0100 bits without it, 0.0638 with). So it is threaded straight to
+  // strainOf, which computes coverage and calls it there. This module never
+  // calls it and never imports prequential.js. Absent — every existing
+  // caller — strain decides exactly as before and nothing here changes.
+  expect = null,
   // True only for the single flat part a plain chat question runs as
   // (runHolonicTask's planMode "flat" — the part's own words ARE the whole
   // conversation, never a plan-scoped slice). Distinguishes this part from
@@ -1129,14 +1175,15 @@ export async function runPart({
   // prompt split above already fixed the SAME day for the model-facing
   // text — the meta label leaked into content here too, just one layer
   // over, in the query rather than the prompt.
+  const pick = (chunks, q, limit, folded) => (retrieveWith ? retrieveWith(chunks, q, limit, folded) : retrieve(chunks, q, limit, folded));
   const partWords = flat ? part.description : `${part.label} ${part.description}`;
   const live = chunks ?? [];
   let question = partWords;
-  let passages = live.length ? retrieve(live, question, passagesPerPart, foldedRefs) : [];
+  let passages = live.length ? pick(live, question, passagesPerPart, foldedRefs) : [];
   let widened = false;
   if (!passages.length && flat && discourse && live.length) {
     question = `${partWords} ${discourse}`;
-    passages = retrieve(live, question, passagesPerPart, foldedRefs);
+    passages = pick(live, question, passagesPerPart, foldedRefs);
     widened = passages.length > 0;
   }
   // THE SEARCH DIGEST IS PINNED, never left to win a retrieval slot.
@@ -1181,7 +1228,7 @@ export async function runPart({
         const found = await piece.huntFor(query);
         if (Array.isArray(found) && found.length) {
           livePool = [...livePool, ...found];
-          passages = retrieve(livePool, question, passagesPerPart, foldedRefs);
+          passages = pick(livePool, question, passagesPerPart, foldedRefs);
           rounds.push({ query, chunks: found.length, passages: passages.length });
         } else rounds.push({ query, chunks: 0, passages: passages.length });
       } catch (e) { rounds.push({ query, error: String(e?.message ?? e) }); }
@@ -1196,6 +1243,22 @@ export async function runPart({
   if (transcript.length && isAboutConversation(task || question)) {
     recalledTurns = recallTurns(task || question, transcript);
     if (recalledTurns.length) passages = [...recalledTurns, ...passages];
+  }
+  // RETRIEVAL HONOURS THE CITATION (P135). A question that names its source
+  // must be answered from that source: scoping a check to a file that was
+  // never retrieved silently falls back to everything, which is the very
+  // failure the scoping exists to stop. Measured live (2026-09-06): asked
+  // about a claim "from lincoln.html", retrieval returned only the War and
+  // Peace chunk — because the planted name is a Tolstoy name — and the cast
+  // check then ran against Tolstoy and called the Lincoln article's own
+  // "Yosemite Grant" a stranger.
+  const citedFile = citedSource(task || question);
+  if (citedFile) {
+    const fromCited = (live ?? []).filter((c) => String(c?.ref ?? c?.source ?? "").includes(citedFile));
+    if (fromCited.length && !passages.some((p) => String(p?.ref ?? p?.source ?? "").includes(citedFile))) {
+      const best = pick(fromCited, question, 1, foldedRefs);
+      if (best.length) passages = [...best, ...passages].slice(0, Math.max(passagesPerPart, best.length));
+    }
   }
   const digestChunk = livePool.find((c) => String(c?.ref ?? "").startsWith("web:search-results"));
   if (digestChunk && !passages.some((p) => p.ref === digestChunk.ref)) {
@@ -1220,6 +1283,10 @@ export async function runPart({
   // Built once per part from its own passages — names resolve against the
   // cast the material itself establishes (cast.js), never a wider corpus.
   const resolveName = makeNameResolver?.(passages) ?? null;
+  // THE REFERENT INDEX (cast.js makeReferentIndex): names in a question, an answer
+  // or a claim are candidates; `resolve(name)` decides what they name in THIS
+  // material. Every dialogue loop below asks it; none compares strings.
+  const referentIndex = makeReferentIndexFor ? (() => { try { return makeReferentIndexFor(passages); } catch { return null; } })() : null;
 
   // The relation tier (hypergraph.js), built the same way: the material's
   // own edges from this part's passages, the closed-class measure from the
@@ -1228,7 +1295,7 @@ export async function runPart({
   const relations = passages.length ? makeRelationReader?.(passages, { pool: livePool }) ?? null : null;
   // Obligations (P110): the cast the section's own passages establish.
   // Prose passages only: a code file's "cast" is its identifiers (P113).
-  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p));
+  const prosePassages = passages.filter((p) => !isCodeSource(p?.source ?? p?.ref, p?.text) && !isTranscriptPassage(p));
   const obligations = piece?.referentIndexFor && prosePassages.length ? obligationsFrom(piece.referentIndexFor(prosePassages)) : [];
   if (piece && obligations.length) piece = { ...piece, obligations };
   // THE SNIPS (P122): the verbatim, addressed sentences of this section's
@@ -1260,7 +1327,7 @@ export async function runPart({
     // what the SOURCES establish; letting the mouth's own earlier words in
     // would make the model its own witness — self:model may never corroborate
     // itself (P2), and a claim would gain standing by being repeated.
-    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref) && !isTranscriptPassage(p)), {
+    const admitted = admitPassages(hyperlexicon, beliefNotes, passages.filter((p) => !isCodeSource(p?.source ?? p?.ref, p?.text) && !isTranscriptPassage(p)), {
       read: (text) => relations.read(text),
       witnessFor: (p) => (p.ref ? (hyperlexiconRecipe ? `${p.ref}~${hyperlexiconRecipe}` : p.ref) : null),
       classifyConnector,
@@ -1312,11 +1379,13 @@ export async function runPart({
   const readingNote = (Array.isArray(hyperlexiconUnread) && hyperlexiconUnread.length)
     ? `Still reading: ${hyperlexiconUnread.map((u) => `${u.name} — ${u.read} of ${u.total} passages so far`).join("; ")}. What follows is from the part already read.`
     : null;
+  // The ledger's notes folded ONCE with their standing; the ledger block, the lens and the paradigm all read these rows.
+  const foldedNotes = (hyperlexicon && beliefNotes) ? (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} }))) : [];
   const ledgerBlock = (() => {
     if (!hyperlexicon || !beliefNotes) return readingNote;
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
     const line = (n) => `${n.subject} — ${n.verb}→ ${n.object}`;
-    const all = (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} })))
+    const all = foldedNotes
       .filter((n) => !shown.has(line(n).toLowerCase()));
     // BOTH tiers are ranked by the question. Measured (gate-proof.mjs,
     // 2026-09-03): with the corroborated tier unranked, 21 corroborated
@@ -1356,7 +1425,9 @@ export async function runPart({
     // find, said with its scope — how many sources, how far read — as an
     // open gap the first arrival cancels. The mouth relays a declared void;
     // it never declares one (THE-NULL-STATES, law 6).
-    const voidRows = Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids.filter((v) => v && v.subject && v.verb).map((v) => ({ ...v, object: v.object ?? "?" })) : [];
+    // The caller's voids when it hands some (app.js's voidsNow); otherwise the LEDGER's own declared voids — a void the turn itself declared last time reaches the mouth this time (P105, closed for callers that hand none, 2026-09-07).
+    const voidSource = Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []);
+    const voidRows = Array.isArray(voidSource) ? voidSource.filter((v) => v && v.subject && v.verb).map((v) => ({ ...v, object: v.object ?? "?" })) : [];
     const voids = voidRows.length
       ? proposeCandidates(voidRows, String(question ?? ""), { limit: voidRows.length, featuresOfSource: questionFeatures })
           .sort((a, b) => b.shared - a.shared)
@@ -1943,13 +2014,41 @@ export async function runPart({
   // decomposed turn `question` is "<part label> <part description>", the
   // asserted claim appears in none of them, and the check silently never
   // fired — the injection reached the mouth unchecked.
-  const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages) : null;
-  const premiseBlock = premiseCheck ? premiseFacts(premiseCheck) : "";
+  const premiseCheck = passages.length ? checkPremises(task || question, prosePassages.length ? prosePassages : passages, { cited: citedSource(task || question), referentIndexFor: makeReferentIndexFor }) : null;
+  // A QUOTATION IS CHECKED AS A QUOTATION (P133). Corpus-wide containment
+  // asks "does this token exist?"; a quoted claim asks "does it belong HERE".
+  // Measured live: a War and Peace line with one name swapped to Lincoln
+  // passed every check, because Lincoln is in the corpus — in the Lincoln
+  // article. The quoted run is matched as a SPAN, against the source the
+  // question names when it names one.
+  const quotedClaim = passages.length ? quotedAsk(task || question) : null;
+  const misquote = quotedClaim ? findMisquote(quotedClaim, prosePassages.length ? prosePassages : passages, { cited: citedSource(task || question) }) : null;
+  const misquoteBlock = misquote?.misquoted ? misquoteFacts(misquote) : "";
+  const premiseBlock = [premiseCheck ? premiseFacts(premiseCheck) : "", misquoteBlock].filter(Boolean).join("\n\n");
+  // ── THE RECORD SPEAKS FIRST (dialogue.js; GFP Pass 40's first rung) ──────
+  // A reader's restatement was graded above like any premise; the record's
+  // own position on it is a fact the mouth is handed, and is prepended to the
+  // answer below so it is said whatever the mouth does. And what the
+  // retrieved passages STATE about what was asked — the reader's own bound
+  // claims over them — is composed before the draft, handed over as facts at
+  // their addresses, and diffed against the draft afterwards (matched, novel,
+  // missing, contradicted; the authorship ratio).
+  const position = premiseCheck?.premises?.some((pr) => pr.how === "restated by the reader") ? positionOn(premiseCheck) : null;
+  const expectation = relations ? expectationFrom(prosePassages.length ? prosePassages : passages, task || question, (t) => relations.read(t), referentIndex) : { claims: [], basis: null, why: "no relation reader for this part" };
+  const dialogueBlock = [position ? `The record's own position on what you restated: ${position.text}` : "", expectationFacts(expectation)].filter(Boolean).join("\n\n");
   // The enforcement the prompt is not asked to provide: the values the
   // question asserted and the material does not carry. Measured live (S77
   // run 5, turn 15) the block alone was not enough — the mouth explained a
   // "Durham investigation" that exists nowhere — so the draft is checked.
-  const premiseGuards = premiseCheck ? premiseGuard(premiseCheck) : [];
+  const premiseGuards = [...(premiseCheck ? premiseGuard(premiseCheck) : []), ...misquoteGuard(misquote)];
+  // THE FINDINGS, EACH AT THE CELL THAT ESTABLISHED IT (P134). What SEG cut
+  // and what CON refused are not stages to re-run later — they are standing
+  // constraints on every cell after them. `admissible` applies them once,
+  // after all writing and rewriting, and nothing downstream can undo them.
+  const findings = [
+    ...(misquote?.misquoted ? [finding("SEG", `the sources say ${misquote.shouldBe.join(", ")}, not ${misquote.said.join(", ")}`, { forbids: misquote.said, says: misquoteBlock })] : []),
+    ...(premiseCheck?.unverified?.length ? [finding("SEG", "the question assumed something the sources do not carry", { forbids: premiseGuard(premiseCheck).map((g) => g.value), says: premiseBlock })] : []),
+  ];
   // What was already found wrong on this material, in scope for this question.
   const learnedRows = learnedStore.length ? recallFor(`${task || ""} ${question}`.trim(), learnedStore) : [];
   // ONLY THE POSITIVE HALF REACHES THE MOUTH (P126, measured): a correction
@@ -1962,12 +2061,63 @@ export async function runPart({
   // The snips: a piece stands on its obligations' spans, any other turn on
   // the question's own words. Both are the source's bytes, verbatim, addressed.
   const recalledLine = recalledTurns.length ? transcriptLine(recalledTurns) : "";
+  // REASONING OUTSIDE THE MODEL (P173, arithmetic.js::checkComparison). A
+  // question that asks which of two stated values is earlier or larger, and
+  // how far apart they are, is answered by the ENGINE and handed to the mouth
+  // as a fact to say — never posed to it as a sum to attempt. Measured (S77):
+  // ten such probes, the ordering right twice, the arithmetic right zero
+  // times. The values are the question's own; nothing is invented.
+  // S2 IS RECRUITED BY DIFFICULTY, NOT SPENT FLAT (P174). Every signal here
+  // is already paid for by work this turn does anyway; the person's slider is
+  // a floor and a ceiling on what strain may take.
+  // The cut is measured from the stream where the tower says the measured cut
+  // discriminates, and falls back to the declared floor where it does not
+  // (P175/P132). `coverageHistory` and `nul` absent → the floor decides and
+  // the reading says so; nothing about this turn changes.
+  // P148: the belief is formed inside strainOf, which is where coverage is
+  // computed — the cell that makes the belief worth anything. holon threads
+  // the function and never calls it, and never imports prequential.js.
+  const provisional = strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, expect });
+  const placement = (nul && coverageHistory.length && provisional.coverage != null && useMeasuredCut)
+    ? placeCoverage(provisional.coverage, coverageHistory, { nul })
+    : null;
+  const strain = placement
+    ? strainOf({ question: task || question, passages: prosePassages.length ? prosePassages : passages, premiseCheck, parts: 1, placement, expect })
+    : provisional;
+  const recruited = recruit(strain, { asked: askedDepth });
+  // The checking that happens AFTER the draft is what strain actually buys:
+  // the witness asks and the correction rounds. An easy turn spends little
+  // and an argued one spends more, inside what the person asked for. The
+  // draft itself is unaffected — S1 always drafts.
+  const spend = depthBudgets(recruited.depth);
+  witnessAsks = spend.witnessAsks;
+  pieceWitnessAsks = spend.pieceWitnessAsks;
+  snipRounds = spend.snipRounds;
+  const comparison = math ? checkComparison(task || question, { math }) : null;
+  const comparisonLine = comparison && !comparison.gap ? `Worked out from the numbers in the question: ${comparison.sentence}` : "";
+  // ACTIVATION (activation-retrieval.js): when the pick was an activation over
+  // the reading, the passages ARE sentences chosen and cut by it — they are
+  // handed verbatim as the snips, once, and never doubled as a raw source block.
+  const retrieval = passages?.retrieval ?? null;
+  const activated = retrieval?.basis === "activation";
   const snipPrefix = piece
     ? (snips.length ? snipBlock(snips) : null)
-    : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
-  const draftMaterial = factBlock
-    ? [recalledLine, snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [recalledLine, snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    : activated
+      ? (passages.length ? snipBlock(passages.map((p) => ({ ref: p.ref, start: 0, end: String(p.text ?? "").length, text: String(p.text ?? "") }))) : null)
+      : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
+  // COMPRESSION (P171): a higher holon stands in for the lower material it
+  // was computed from — a Lens line for the sentence it was read from, a
+  // Paradigm line for every occurrence of a recurring act. So at level 2
+  // and above the raw passages LEAVE the prompt: the blocks replace them and
+  // the snips stay as the Field-level ground (verbatim, addressed, what the
+  // walls check against). Handed is recorded; a turn with nothing verbatim
+  // to hand falls back to the passages and says so. Level means what the
+  // mouth is handed, and higher means less — measured as a monotone
+  // compression ladder, never assumed.
+  const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
+  const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
+  const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
+  const draftMaterial = [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -1975,23 +2125,26 @@ export async function runPart({
   // It rides the system message as a fact the model receives (P55's
   // posture), never as an instruction about the apparatus.
   const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
+  // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
+  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
+  const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : [
-          { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+          { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
           { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
@@ -2631,6 +2784,69 @@ export async function runPart({
     const pr = cutProcessTalk(text, { materialText, splitSentences });
     if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
   }
+  // ATTRIBUTE SUBSTITUTION (P174): the answer that quietly answers an easier
+  // question. Read without a model, from the question's own words against the
+  // answer's — measured live, an essay on how language models work returned
+  // for "what fills the blank in this passage", with nothing flagging it.
+  // ── the address check, BEFORE the walls (dialogue.js) — ON REFERENTS ──────
+  // What was asked about is the set of REFERENT IDS the question resolves to
+  // in this material (a pronoun binds to the last answer's referents through
+  // the same index). Did the draft name them — by identity, through the index,
+  // never by substring? A name the material has no referent for is a typed
+  // absence the record states itself. If a resolved referent is missing and
+  // the draft did not say the sources are silent, ONE re-ask with positive
+  // facts: sentences that mention that referent's own surfaces, at their
+  // addresses — never an instruction about what not to say. It sits before
+  // the snip checks, the guards, the correction round and the inadmissible
+  // gate, so a re-asked draft passes every wall the first draft did.
+  const dfold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
+  const bound = referentIndex ? bindAnaphora(task || question, lastTurn, referentIndex) : null;
+  const qRefs = bound ? { ...bound.own, ids: new Set([...bound.own.ids, ...(bound.own.ids.size ? [] : bound.ids.slice(0, 1))]) } : null;
+  let addressed = referentIndex ? null : { gap: "no_referent_index", detail: "the turn was handed no makeReferentIndexFor; the address check needs the material's own referents" };
+  // The absence veto runs over the WHOLE loaded material, never the three
+  // passages in front of the turn: a name a rare paragraph carries is
+  // unestablished, not absent. And an absent name is DECLARED A VOID on the
+  // ledger (P105's organ) with the material as its scope, so the next turn
+  // that names it is handed "looked for and not found so far" before it
+  // drafts — awareness that changes what the mouth is given, not a line the
+  // reader sees (user, 2026-09-07: "awareness in a way that makes future
+  // mistakes less likely").
+  const absence = qRefs ? absenceOf(qRefs, chunks.length ? chunks : passages, { vocabulary: conversationIndex?.vocabulary ?? null }) : { absent: [], unestablished: [], line: "" };
+  const absent = absence.line;
+  const voidsDeclared = [];
+  if (absence.absent.length && hyperlexicon?.declareVoid && beliefNotes) {
+    const sourcesRead = [...new Set((chunks.length ? chunks : passages).map((c) => c?.source ?? String(c?.ref ?? "").split("#")[0]).filter(Boolean))];
+    for (const name of absence.absent) {
+      try {
+        // Scope = how far the READ got (S70/S71): the admission cursor when the caller reports one, else the loaded extent. The bytes were scanned whole; the reading may not have finished, and the void says which.
+        const unread = Array.isArray(hyperlexiconUnread) && hyperlexiconUnread.length ? hyperlexiconUnread[0] : null;
+        const extent = (chunks.length ? chunks : passages).length;
+        const scope = { sources: sourcesRead, read: unread ? Number(unread.read) || 0 : extent, total: unread ? Number(unread.total) || extent : extent };
+        const r = hyperlexicon.declareVoid(beliefNotes, { end1: name, label: "appears", end2: null, scope, because: `asked about and not found in the material's vocabulary (${sourcesRead.length} source${sourcesRead.length === 1 ? "" : "s"}; ${scope.read} of ${scope.total} parts read${scope.read >= scope.total ? ", all of it" : " so far"})` });
+        if (r?.log) beliefNotes = r.log;
+        voidsDeclared.push({ name, refused: r?.refused?.type ?? null });
+      } catch (e) { voidsDeclared.push({ name, refused: `threw: ${e?.message ?? e}` }); }
+    }
+  }
+  if (qRefs?.ids.size && String(text ?? "").trim()) {
+    // Recorded on every draft — a mechanical one (verbatim quotes shipped as
+    // quotes) included; only the RE-ASK needs a mouth that drafted.
+    addressed = { ...addressedBy(text, qRefs, referentIndex), bound: bound.ids.length ? bound.ids.slice(0, 3) : [], unresolved: qRefs.unresolved, reasked: false, resolvedOn: null };
+    if (!addressed.all && passages.length && !mechanical) {
+      const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(referentIndex, id));
+      const names = addressed.missingNames;
+      const snips = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map((x) => String(x?.text ?? x)).filter((x) => missingSurfaces.some((sf) => dfold(x).includes(dfold(sf)))).slice(0, 2).map((x) => `- ${x.trim()}`)).slice(0, 6); // no address reaches the mouth
+      const facts = `The question asks about ${names.join(", ")}.${snips.length ? `\nWhat the sources say about ${names.join(", ")}:\n${snips.join("\n")}` : `\nThe retrieved passages do not mention ${names.join(", ")}.`}`;
+      let again = "";
+      try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
+      const a2 = again.trim() ? addressedBy(again, qRefs, referentIndex) : null;
+      if (a2 && a2.named.length > addressed.named.length) { text = again.trim(); check = inspect(text); addressed = { ...addressed, ...a2, reasked: true, resolvedOn: "re-ask" }; }
+      else addressed = { ...addressed, reasked: true, resolvedOn: null };
+    }
+  } else if (qRefs && !qRefs.ids.size && qRefs.unresolved.length) addressed = { named: [], missing: [], all: null, unresolved: qRefs.unresolved, absent: absence.absent, unestablished: absence.unestablished, reasked: false, resolvedOn: absence.absent.length ? "absence" : "unestablished" };
+  if (addressed && !addressed.gap) addressed = { ...addressed, absent: absence.absent, unestablished: absence.unestablished };
+  const swap = passages.length ? substituted(task || question, text) : null;
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
   // THE ATOMS AGAINST THE SNIPS (P122), no model: every number, date and
   // name in the section is looked for in a snip beside a word of the
@@ -2677,18 +2893,30 @@ export async function runPart({
   // clear the check, so the mouth's correction is never trusted, it is
   // checked again. `snipRounds` is the depth slider's rung (P123).
   // A draft that repeats something this instance already knows is unplaced is
-  // flagged here, mechanically, and the sentence is cut rather than shipped.
+  // flagged here (CON — does this token belong in THIS claim). The learned
+  // store's negative half is spent on the draft, never in the prompt (P126).
   let repeated = [];
-  if ((guards.length || premiseGuards.length) && text) {
+  if (guards.length && text) {
     const kept = [];
     for (const sent of splitSentences(text)) {
-      const known = guards.length ? repeatsKnownFalse(sent, guards) : null;
+      const known = repeatsKnownFalse(sent, guards);
       if (known) { repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" }); continue; }
-      const absent = premiseGuards.length ? repeatsAbsentPremise(sent, premiseGuards) : null;
-      if (absent) { repeated.push({ sentence: sent, value: absent.value, why: "asserts what the question assumed and the sources do not carry" }); continue; }
       kept.push(sent);
     }
-    if (repeated.length && kept.length) { text = kept.join(" ").trim(); check = inspect(text); }
+    // A CUT REGISTERS ITS FINDING AT ITS OWN CELL (P134). Cutting the sentence
+    // here is not enough: a rewrite at EVA can put the claim back in different
+    // words, and it did — reproduced end to end by the dependency-order audit
+    // (2026-09-06), with REC then learning the forbidden claim back as a
+    // POSITIVE correction and feeding it to the mouth on later turns. Every
+    // guard that cuts must leave a standing constraint, not just a hole.
+    for (const r of repeated) {
+      const g = guards.find((x) => x.id === r.id);
+      if (g) findings.push(finding("CON", `already found unplaced on this material: "${String(g.claimed).slice(0, 120)}"`, { forbids: g.atoms.filter((a) => String(a).length > 2), says: "" }));
+    }
+    // A draft that is ENTIRELY known-false does not ship whole because cutting
+    // would empty it — the audit found that too. `admissible` below decides
+    // what stands in its place.
+    if (repeated.length) { text = kept.join(" ").trim(); check = inspect(text); }
   }
   let turnCorrection = null;
   if (!piece && passages.length && !mechanical && snipRounds > 0) {
@@ -2699,13 +2927,62 @@ export async function runPart({
       turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
     }
   }
+  // EVERY FINDING APPLIED, ONCE, AFTER ALL WRITING (P134). Not a second run
+  // of the checks — the checks ran at their own cells. This is the standing
+  // consequence of what they found, and it is why a rewrite at EVA can no
+  // longer reinstate what SEG cut (measured: it did, P133).
+  let inadmissible = [];
+  if (findings.length && text) {
+    // The finding's OWN statement quotes the source and may contain the token
+    // it forbids; gating it would drop the correction along with the error
+    // (the audit caught this too). What the instrument itself says is exempt.
+    const ourWords = new Set(findings.map((f) => f.says).filter(Boolean).map((t) => String(t).trim()));
+    const gated = admissible(text, findings, { splitSentences, from: "REC", exempt: ourWords });
+    if (gated.refused.length) {
+      inadmissible = gated.refused;
+      repeated.push(...gated.refused.map((r) => ({ sentence: r.sentence, value: (r.forbids ?? [])[0], why: `${r.because} — established at ${r.cell}, which binds every later cell` })));
+      text = gated.text || premiseBlock || misquoteBlock || "Nothing in the sources supports what was drafted here.";
+      check = inspect(text);
+    }
+  }
+
+  // WHAT THE READING DID WITH EACH PASSAGE (P142). Read off twelve answers a
+  // frontier model gave to this run's own probes on this run's own material:
+  // 5 of 12 named what it had checked and EXCLUDED ("the only other material
+  // available is two unrelated Prince Andrew scenes — neither touches this
+  // exchange"), and the fold did that 0 of 12. It retrieved three passages,
+  // used whichever bore, and dropped the rest in silence — so a reader could
+  // not tell an answer that searched and found nothing from one that never
+  // looked. That distinction is this instrument's oldest law. It is a fact
+  // about the SEARCH, computed here and stated as the instrument's own
+  // sentence; it is never asked of the mouth, and the excluded passages are
+  // never described to it (P126: naming what is not there teaches a small
+  // model to say it).
+  const reading = passages.length
+    ? traceReading({ passages: prosePassages.length ? prosePassages : passages, question: task || question, used: [...(check.used ?? []), ...(check.refs ?? [])] })
+    : [];
+  const readingLine = (!piece && text && reading.some((r) => r.verdict !== VERDICT.BORE) && reading.some((r) => r.verdict === VERDICT.BORE))
+    ? traceLine(reading)
+    : "";
+  if (readingLine) text = `${text.trim()}\n\n${readingLine}`;
+
   // What this turn learned, in the chain's entry shape (P126) — handed out on
   // the result for the caller to append to its durable store. Both halves:
   // what the answer got wrong, and what the question asserted falsely.
+  // REC MAY NOT LEARN BACK WHAT A FINDING FORBADE (P134, and the audit's
+  // sharpest catch: the refused claim was being minted as a POSITIVE
+  // correction, which is exactly what `learnedFacts` feeds the mouth later —
+  // a claim the store held as unplaced re-entering it as established truth).
+  const forbidsAll = findings.flatMap((f) => f.forbids ?? []).map((v) => String(v).toLowerCase());
+  // Only the CORRECTED side is gated. Learning "X was claimed here and the
+  // sources do not carry it" is exactly what should be remembered; what may
+  // never happen is the forbidden claim being minted as the TRUTH, because
+  // `learnedFacts` sends corrected values to the mouth as established.
+  const notForbidden = (e) => !(e.corrected && forbidsAll.some((v) => String(e.corrected).toLowerCase().includes(v)));
   const learnedNow = [
     ...fromOutcomes({ outcomes: turnCorrection?.outcomes ?? snipCheck?.outcomes ?? [], flags: turnCorrection?.flags ?? snipCheck?.flags ?? [], question }),
     ...(premiseCheck ? fromPremises(premiseCheck, { question }) : []),
-  ];
+  ].filter(notForbidden);
 
   // A failed model answer earns nothing — but the mechanical assembly is
   // not the model's answer: its sentences ARE the material's bytes and its
@@ -2764,6 +3041,17 @@ export async function runPart({
       witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
     }
   }
+  // ── after the walls: the diff against the expectation, and the answer's claims
+  // against what this conversation bound earlier — both stand, on the record.
+  const dialogueClaims = check?.relations?.claims ?? [];
+  const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
+  const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
+  if (position) text = `${position.text}\n\n${text}`.trim();
+  if (absent) text = `${text}\n\n${absent}`.trim();
+  // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
+  // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
+  const owned = ownedRows(learnedRows, { since: learnedSince });
+  if (selfRows.length) text = `${text}\n\n${contradictionLine(selfRows)}`;
   onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
   return {
@@ -2771,6 +3059,14 @@ export async function runPart({
     text,
     passages,
     corrections,
+    ...(addressed ? { addressed } : {}),
+    ...(owned.length ? { owned: owned.map((e) => ({ claimed: e.claimed, corrected: e.corrected, ts: e.ts ?? null, line: ownedLine([e]) })) } : {}),
+    ...(voidsDeclared.length ? { voidsDeclared } : {}),
+    ...(retrieval ? { retrieval } : {}),
+    ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
+    ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
+    ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
+    ...(position ? { position: position.verdict } : {}),
     ...(continued ? { continued } : {}),
     ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
     ...(turnCorrection ? { correction: turnCorrection } : {}),
@@ -2778,7 +3074,22 @@ export async function runPart({
     ...(premiseCheck?.premises?.length ? { premises: { checked: premiseCheck.premises.length, unverified: premiseCheck.unverified.length, contradicted: premiseCheck.contradicted.length, rows: premiseCheck.premises.map((r) => ({ text: r.text, flags: r.flags.map((f) => f.value), contradiction: r.contradiction ? { ref: r.contradiction.ref, start: r.contradiction.start, end: r.contradiction.end } : null })) } } : {}),
     ...(learnedRows.length ? { learnedUsed: learnedRows.map((e) => e.id) } : {}),
     ...(repeated.length ? { repeatedKnownFalse: repeated } : {}),
+    ...(inadmissible.length ? { inadmissible: inadmissible.map((r) => ({ cell: r.cell, because: r.because, sentence: r.sentence })) } : {}),
+    // The findings LEAVE the part (P137). Everything a later cell assembles —
+    // the section heading, the piece's own revision pass — is bound by what
+    // this part established, and neither could see it while the findings
+    // stayed local to runPart.
+    ...(findings.length ? { findings } : {}),
+    // The reading itself, as relations over the material (P142): which
+    // passages bore, which were read and found silent, which were read and
+    // are about something else. An EMPTY list is not "nothing bore" — it is
+    // "nothing was read", and the two may never be confused.
+    ...(reading.length ? { reading } : {}),
     ...(recalledTurns.length ? { recalledTurns: recalledTurns.map((p) => p.turn) } : {}),
+    ...(comparison ? { comparison } : {}),
+    ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),
+    strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why, cut: strain.cut, ...(strain.expect ? { expect: strain.expect } : {}), ...(placement ? { placement: { strained: placement.strained, why: placement.why } } : {}) },
+    ...(swap?.substituted ? { substituted: { share: Number(swap.share.toFixed(2)), asked: swap.asked.slice(0, 12), shared: swap.shared } } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
@@ -2821,7 +3132,9 @@ export async function runHolonicTask({
   // THE THINKING-DEPTH SLIDER (P123, depth.js): 0 quick · 1 plain (today's
   // budgets) · 2 careful · 3 deep. More passes over the same bounded
   // material, never more context.
-  depth = 1,
+  // null means the person expressed no preference and STRAIN decides the rung
+  // (P174); a number is a deliberate ask and is honoured as floor and ceiling.
+  depth = null,
   // Long-form (P108): a caller writing a PIECE rather than answering a
   // question declares a larger draft budget per part and a plan budget
   // sized to its section count. Defaults are byte-identical to before.
@@ -2837,6 +3150,9 @@ export async function runHolonicTask({
   // piece on any subject contains.
   planFacts = null,
   makeNameResolver = null,
+  // The cast organ (cast.js::makeReferentIndex), injected: a name the cited
+  // passage's own cast does not establish is beyond-reach (P135).
+  makeReferentIndexFor = null,
   makeRelationReader = null,
   witnessSentences = null,
   witnessAsks = null,
@@ -2845,8 +3161,31 @@ export async function runHolonicTask({
   // in the chain's own shape. Handed down to every part, and what each part
   // learns comes back out on `learned` for the caller to append and persist.
   learnedStore = [],
+  language = "en", // the question's declared language for dialogue.js's question-side triggers (S39): another language is a typed gap on the record, never a silent non-match
+  learnedSince = null, // dialogue.js::ownedRows — corrections learned at or after this timestamp are THIS conversation's own, and the record owns them on the answer
   // The conversation's own record (P128), threaded to every part.
   transcript = [],
+  resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
+  dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
+  conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
+  records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
+  mentionBook = null, // activation-retrieval.js's address book, when the caller built one: prominence for naming a ground, nothing else
+  material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
+  // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
+  math = null,
+  retrieveWith = null,
+  // The tower's inputs (P175/P132), threaded to every part.
+  coverageHistory = [],
+  nul = null,
+  useMeasuredCut = false,
+  // THE STREAM'S OWN BELIEF ABOUT THIS TURN (P145/P148). A FUNCTION, not a
+  // value: only the caller holds the stream's history, and only the reading
+  // knows its own coverage — the cell that makes the belief worth anything
+  // (0.0100 bits without it, 0.0638 with). So it is threaded straight to
+  // strainOf, which computes coverage and calls it there. This module never
+  // calls it and never imports prequential.js. Absent — every existing
+  // caller — strain decides exactly as before and nothing here changes.
+  expect = null,
   chatHistory = [],
   discourse = "",
   planMode = "model",
@@ -2894,11 +3233,34 @@ export async function runHolonicTask({
   hyperlexiconVoids = [],
   classifyConnector = null,
 }) {
+  // THE MOUTH'S DOOR: no address reaches the model, whatever any renderer wrote (firewall.js::mouthFacing) — the record keeps every address, cite.js attaches them after the draft.
+  if (typeof call === "function") { const rawCall = call; call = (messages, opts) => rawCall(mouthFacing(messages), opts); }
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
+  // ── ANSWERED BEFORE THE MODEL (P173) ──────────────────────────────────
+  // User, 2026-09-06: "why is the model even doing the generation? how much
+  // of this can we do before it gets to the model?" For a class of questions
+  // the instrument knows the answer exactly, at an address, and a small mouth
+  // can only degrade it — measured: told the difference was 36 years, gemma2
+  // answered 46. So the door is opened first, over the material this task
+  // retrieves, and when it answers, NO MODEL IS CALLED AT ALL. A question
+  // wanting prose never reaches it (answerable.js::wantsProse).
+  if (chunks.length || transcript.length || math) {
+    const pool = chunks.length ? retrieve(chunks, task, passagesPerPart, foldedRefs) : [];
+    const known = answerBeforeTheModel({ question: task, passages: pool, transcript, math, chunksByRef: new Map(chunks.map((c) => [c?.ref, c]).filter(([k]) => k)) });
+    if (known) {
+      return {
+        answeredBeforeTheModel: known, calls: 0, depth: 0,
+        task, plan: null, log: null, production: null,
+        sections: [{ part: { label: task, description: task }, text: known.text, passages: pool, refs: known.addresses, answeredBeforeTheModel: known }],
+        output: known.text, refs: known.addresses, unsupported: [], unbacked: [], open: [], channels: [],
+        learned: [], gridLog, hyperlexiconLog, hyperlexiconTurnedAway: [],
+      };
+    }
+  }
   // The rung's budgets, from this module's own declared constants as the
   // base (depth.js restates nothing). An explicit caller value wins.
-  const budgets = depthBudgets(depth);
+  const budgets = depthBudgets(depth ?? 1);
   maxCorrections = maxCorrections ?? budgets.corrections;
   witnessAsks = witnessAsks ?? budgets.witnessAsks;
 
@@ -3021,8 +3383,17 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
-      learnedStore,
+      learnedStore, learnedSince, language,
       transcript,
+      resolutions, dmdWindow, conversationIndex, records, material, mentionBook,
+      math,
+      makeReferentIndexFor,
+      askedDepth: depth,
+      retrieveWith,
+      coverageHistory,
+      nul,
+      useMeasuredCut,
+      expect,
       pieceWitnessAsks: budgets.pieceWitnessAsks,
       snipRounds: budgets.snipRounds,
       continuations: budgets.continuations,
@@ -3084,6 +3455,10 @@ export async function runHolonicTask({
   // out of the assembly exactly as its entry dropped out of the live set.
   let sections = plan.parts.map((p) => sectionsById.get(p.id)).filter(Boolean);
 
+  // Every finding the parts established, in one place (P137): the heading and
+  // the revision pass are later cells and are bound by all of them.
+  const allFindings = sections.flatMap((x) => x.findings ?? []);
+
   // THE UNCONSCIOUS EDITS THE MOUTH (P111): a finished piece is edited
   // model-free — restated sentences cut, emptied sections dropped, sections
   // whose claims were all already said merged away — every edit an act
@@ -3116,6 +3491,16 @@ export async function runHolonicTask({
       // a claim knows its sentence by the sentence that carries its first end and its label
       const anchor = (text, claims) => { const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean); const f = (t) => String(t ?? "").toLowerCase(); return (claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => f(x).includes(f(c.end1 ?? c.subject).split(" ")[0] ?? "") && f(x).includes(f(c.label ?? c.verb))) ?? null })); };
       const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
+      // THE REVISION IS A LATER CELL (P137). It runs after every part's own
+      // gate and could put back what a part's finding forbade — the same
+      // shape P133 had at EVA, one level up. Bound here by everything the
+      // parts established, since findings now leave runPart.
+      if (allFindings.length) {
+        for (const sec of rv.sections ?? []) {
+          const gated = admissible(sec.text ?? "", allFindings, { splitSentences, from: "REC" });
+          if (gated.refused.length) { sec.text = gated.text || sec.text; sec.inadmissible = gated.refused; }
+        }
+      }
       revisions = rv.revisions;
       sections = rv.sections.map((e) => ({ ...e._s, text: e.text, ...(e.recited ? { recited: e.recited } : {}) }));
     } catch (e) { revisions = [{ kind: "revision-error", because: String(e?.message ?? e) }]; }
@@ -3126,7 +3511,17 @@ export async function runHolonicTask({
       // An empty part is a typed gap (recorded above); the assembly says so
       // in place rather than shipping a dangling heading or an empty string.
       const text = s.text || "(this part produced no text — left open)";
-      return plan.parts.length > 1 ? `## ${s.part.label}\n\n${text}` : text;
+      // THE HEADING IS BOUND TOO (P137). It was never passed through the
+      // gate, so a piece could gut every sentence of a section for naming
+      // something the sources contradict and then ship that very name as the
+      // section's ## heading. No model misbehaviour is needed; it is
+      // deterministic, because the labels come from the plan, which is written
+      // from the ask that carried the false claim.
+      const bound = allFindings.filter((f) => (f.forbids ?? []).length);
+      const label = bound.some((f) => (f.forbids ?? []).some((v) => String(s.part.label).toLowerCase().includes(String(v).toLowerCase())))
+        ? (s.part.description && !bound.some((f) => (f.forbids ?? []).some((v) => String(s.part.description).toLowerCase().includes(String(v).toLowerCase()))) ? s.part.description : "This section")
+        : s.part.label;
+      return plan.parts.length > 1 ? `## ${label}\n\n${text}` : text;
     })
     .join("\n\n");
 
@@ -3145,7 +3540,7 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits, revisions } : {}), depth: budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
+    ...(piece ? { edits, revisions } : {}), depth: sections.find((x) => x.strain)?.strain?.recruited ?? budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
     // What this whole turn learned (P126), deduped by content identity across
     // its parts — the caller appends these to its durable store, and the room
     // makes them permanent (matrix.js seals them into the same hash-linked
@@ -3168,6 +3563,20 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
+    // dialogue.js (2026-09-07): the conversation's loops, aggregated over the parts
+    ...(sections.some((x) => x.voidsDeclared) ? { voidsDeclared: sections.flatMap((x) => x.voidsDeclared ?? []) } : {}),
+    ...(sections.some((x) => x.owned) ? { owned: sections.flatMap((x) => x.owned ?? []) } : {}),
+    ...(sections.some((x) => x.retrieval) ? { retrieval: sections.filter((x) => x.retrieval).map((x) => ({ part: x.part?.label ?? null, ...x.retrieval })) } : {}),
+    ...(sections.some((x) => x.resolutions) ? { resolutions: sections.filter((x) => x.resolutions).map((x) => ({ part: x.part?.label ?? null, ...x.resolutions })) } : {}),
+    ...(sections.some((x) => x.addressed) ? { addressed: sections.filter((x) => x.addressed).map((x) => ({ part: x.part?.label ?? null, ...x.addressed })) } : {}),
+    ...(sections.some((x) => x.expectation) ? { expectation: (() => { const xs = sections.filter((x) => x.expectation).map((x) => x.expectation); const auth = xs.map((e) => e.authorship).filter((a) => a != null); return { expected: xs.reduce((a, e) => a + e.expected, 0), matched: xs.reduce((a, e) => a + e.matched.length, 0), novel: xs.reduce((a, e) => a + e.novel.length, 0), missing: xs.reduce((a, e) => a + e.missing.length, 0), contradicted: xs.reduce((a, e) => a + e.contradicted.length, 0), authorship: auth.length ? Number((auth.reduce((a, b) => a + b, 0) / auth.length).toFixed(3)) : null }; })() } : {}),
+    ...(sections.some((x) => x.selfContradictions?.length) ? { selfContradictions: sections.flatMap((x) => x.selfContradictions ?? []) } : {}),
+    ...(sections.some((x) => x.position) ? { position: sections.find((x) => x.position).position } : {}),
+    ...(sections.find((x) => x.comparison) ? { comparison: sections.find((x) => x.comparison).comparison } : {}),
+    ...(sections.some((x) => x.strain) ? { strain: sections.map((x) => x.strain).filter(Boolean) } : {}),
+    ...(sections.find((x) => x.misquote) ? { misquote: sections.find((x) => x.misquote).misquote } : {}),
+    ...(sections.some((x) => x.inadmissible?.length) ? { inadmissible: sections.flatMap((x) => x.inadmissible ?? []) } : {}),
+    ...(sections.some((x) => x.substituted) ? { substituted: sections.flatMap((x) => (x.substituted ? [x.substituted] : [])) } : {}),
     ...(!piece && sections.some((x) => x.metaCut?.length) ? { metaCut: sections.flatMap((x) => x.metaCut ?? []) } : {}),
     task, plan, log, production, sections, output, refs, unsupported, unbacked, open, channels, gridLog: sharedGridLog, hyperlexiconLog: sharedHyperlexiconLog, hyperlexiconTurnedAway: sharedHyperlexiconTurnedAway };
 }

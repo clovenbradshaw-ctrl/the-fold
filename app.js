@@ -125,6 +125,7 @@ import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote a
 import { renderCrown } from "./crown.js";
 
 import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
+import { passagesFromSegments, citeAudio, AUDIO_STANDING } from "./audio-address.js";
 import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
@@ -268,6 +269,9 @@ import { briefFor, observedFillers } from "./void-brief.js";
 import { narrateVoid, noSlotLine } from "./void-narration.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
+// The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
+import { dmdWindow } from "/engine-v7/kernel/activation.js";
+import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js";
 // The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
 // relation reading admits, corroborated across turns by the same cell the
 // cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
@@ -1017,6 +1021,8 @@ const state = {
    * turn; carried on the record and the export.
    */
   depth: (() => { const n = Number(localStorage.getItem("fold-depth")); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1; })(),
+  /** Whether the person has actually moved the slider. Unset, difficulty decides the rung (P174). */
+  depthSet: localStorage.getItem("fold-depth") != null,
 
   /**
    * The pace ledger and the model's declared window. The ledger is fed by
@@ -3155,7 +3161,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       }
       statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
       $("status").textContent = "transcribing…";
-      const { text, duration } = await transcribeBlob(blob, {
+      const { text, duration, segments } = await transcribeBlob(blob, {
         onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
         onChunk: (partial) => { setLayerText(rawText, partial); },
       });
@@ -3178,9 +3184,14 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       setLayerStatus(selfStatus, selfResolved !== priorsResult.text ? "resolved" : "no bindings");
       await logTranscriptionLayer("self", selfResolved, { source: "file", duration, changed: selfResolved !== priorsResult.text });
 
-      // Attach as material and finish.
-      const name = `transcription-${Date.now()}.txt`;
-      addSource(name, text);
+      // Attach as material and finish. ADDRESSED BY TIME wherever the
+      // recognizer gave its own cut (P138): each passage carries
+      // `name@from-to`, so a citation of speech can be opened and HEARD, and
+      // every check that works on text works on this unchanged. An
+      // unaddressed transcript is still attached, with that fact said.
+      const name = `transcription-${Date.now()}.audio`;
+      const parts = passagesFromSegments(name, segments ?? []);
+      addSource(name, text, { passages: parts.length ? parts : undefined, kind: "audio", standing: AUDIO_STANDING });
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
       statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
@@ -3211,7 +3222,7 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     const { blob, title } = await fetchAudioFromUrl(arg);
     statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
     $("status").textContent = "transcribing…";
-    const { text, duration } = await transcribeBlob(blob, {
+    const { text, duration, segments } = await transcribeBlob(blob, {
       onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
       onChunk: (partial) => { setLayerText(rawText, partial); },
     });
@@ -5065,6 +5076,47 @@ function needsSystem2(question, s1Text) {
  * exactly when the wider view is the only thing that could keep the
  * conversation in view.
  */
+// THE THREE RESOLUTIONS (resolutions.js, P171): the discourse handed to the
+// mouth as computed readings at three grains — atmosphere, lens, paradigm —
+// beside the one-line discourse, never in place of the raw exchanges. The
+// conversation-wide referent index is built over the live chunks and cached
+// by their identity; the transcript is read off the raw history with each
+// turn's checked refs from the record store.
+const RESOLUTIONS_LEVEL = 3;
+let conversationIndexCache = { key: null, index: null, book: null };
+function conversationIndexNow() {
+  const chunks = liveChunks();
+  const key = `${chunks.length}:${chunks[0]?.ref ?? ""}:${chunks[chunks.length - 1]?.ref ?? ""}`;
+  if (conversationIndexCache.key !== key) {
+    const index = chunks.length ? referentIndexFor(chunks) : null;
+    // THE ADDRESS BOOK (activation-retrieval.js): every sentence an established referent stands in, by referent — a projection of the index, built with it.
+    const book = index ? mentionBook(chunks, index, { splitSentences: engineSentences }) : null;
+    // No reader is built here: the acts of a sentence are the ledger's own notes (read at arrival, persisted — P98/P99), projected by span in activation-retrieval.js. Building the reader over a novel here cost 362 s (measured 2026-09-07) and re-did the reading the log already holds.
+    conversationIndexCache = { key, index, book };
+  }
+  return conversationIndexCache.index;
+}
+// RETRIEVAL IS ACTIVATION (THE-HOLOGRAPH.md §6): the question activates referents, hop 0 their sentences, hop 1 what they stand with, cut by the measurement; the term retriever stands in only for a question that resolves to no referent, and the record says so.
+function activationRetrievalNow() {
+  conversationIndexNow();
+  const { index, book } = conversationIndexCache;
+  if (!index || !book) return null;
+  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow });
+}
+function transcriptNow() {
+  const h = state.history ?? [];
+  const rows = [];
+  let turn = 0;
+  for (let i = 0; i + 1 < h.length; i += 1) {
+    if (h[i]?.role !== "user" || h[i + 1]?.role !== "assistant") continue;
+    turn += 1;
+    const rec = (state.summary?.records ?? []).find((r) => r.turn === turn);
+    rows.push({ turn, question: String(h[i].content ?? ""), answer: String(h[i + 1].content ?? ""), refs: rec?.refs ?? [] });
+    i += 1;
+  }
+  return rows;
+}
+
 function discourseLineNow() {
   const s = state.summary;
   return [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
@@ -6208,7 +6260,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
-      depth: state.depth,
+      // null when the person has not moved the slider off its default, so
+      // strain decides the rung (P174); a deliberate setting is honoured.
+      depth: state.depthSet ? state.depth : null,
+      // The arithmetic engine, so ordering and difference are computed rather
+      // than asked of the mouth (P173).
+      math: window.math,
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
       // from. Empty unless the seek actually bound something, so a turn
@@ -6240,6 +6297,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       },
       foldedRefs,
       makeNameResolver: castFor,
+      // THE REFERENT INDEX (P11): the premise check and the dialogue loops resolve names through it — until 2026-09-07 nothing handed the turn one, so those paths ran without it.
+      makeReferentIndexFor: referentIndexFor,
       // The relation tier is the expensive check and the one with a whole
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
@@ -6285,6 +6344,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // the fold.
       chatHistory: state.history.slice(-present),
       discourse: discourseLine,
+      resolutions: RESOLUTIONS_LEVEL,
+      retrieveWith: activationRetrievalNow(),
+      mentionBook: conversationIndexCache.book,
+      dmdWindow,
+      conversationIndex: conversationIndexNow(),
+      records: state.summary?.records ?? [],
+      transcript: transcriptNow(),
       searchedVoid,
       priorPass: opts.priorPass ?? null,
       // Flow #2's other two knobs (escalation, computed above): identical
@@ -9812,7 +9878,7 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
-function addSource(name, text, { fromBoot = false } = {}) {
+function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
   // would make a self address ambiguous about which plane it names — the
@@ -9834,12 +9900,19 @@ function addSource(name, text, { fromBoot = false } = {}) {
   // simply never produced here, because this the real choke-point every
   // source passes through never asked chunkSource for it. Wired now, same
   // declared numbers as `relationsFor`'s own blankFurniture two screens up.
+  // A MEDIUM THAT CARRIES ITS OWN CUT KEEPS IT (P138). Text is cut by this
+  // instrument, because nothing else did; a recording arrives already cut at
+  // the boundaries the recognizer heard, and those are better than any count
+  // — a pause is the speaker's own. Passages handed in are used as given,
+  // with their time addresses intact.
   state.chunks = state.chunks
     .filter((c) => c.source !== name)
-    .concat(chunkSource(name, text, {
-      boundaries: discoverBoundaries(text), identity,
-      blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
-    }));
+    .concat(passages?.length
+      ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
+      : chunkSource(name, text, {
+          boundaries: discoverBoundaries(text), identity,
+          blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+        }));
   renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.
@@ -10514,6 +10587,7 @@ if ($("depth")) {
   renderDepth();
   $("depth").oninput = () => {
     state.depth = Number($("depth").value);
+    state.depthSet = true;
     localStorage.setItem("fold-depth", String(state.depth));
     renderDepth();
     if (state.ready) $("status").textContent = readyLine();

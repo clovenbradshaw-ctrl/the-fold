@@ -141,3 +141,22 @@ export function assertModelFacing(named) {
   }
   return Object.keys(named ?? {});
 }
+
+/**
+ * strikeAddresses(text) — THE MOUTH NEVER SEES AN ADDRESS. The rule since
+ * 2026-08-18 (an address in the model's view is an address it will write,
+ * and a written address is a fabrication order), restated by the user
+ * 2026-09-07: "it's just liable to lie with it". Bracketed addresses
+ * ([pg2554.txt#a-b], [turn:N], [h.txt#0-75, bytes 0–46]) and bare ones
+ * (h.txt#0-75#0-47) are struck; the record keeps every address, and cite.js
+ * attaches them after the draft, mechanically. Applied ONCE, at the mouth's
+ * door (holon.js wraps `call`), so no renderer has to remember.
+ */
+export function strikeAddresses(text) {
+  return String(text ?? "")
+    .replace(/\s*\[(?:turn:[^\]]*|[^\[\]\s]+#[^\]]*)\]/g, "")
+    .replace(/(?:^|(?<=[\s(]))[^\s()\[\]"“”]+\.[A-Za-z0-9]{1,5}#\d+-\d+(?:#\d+-\d+)?/g, "")
+    .replace(/\s+([.,;:])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ");
+}
+export const mouthFacing = (messages) => (messages ?? []).map((m) => (m && typeof m.content === "string" ? { ...m, content: strikeAddresses(m.content) } : m));

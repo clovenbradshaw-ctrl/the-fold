@@ -7659,6 +7659,10 @@ POLICIES.md **P118**. `deploy/build-site.mjs` is the one static build (site, arc
 
 POLICIES.md **P119**. `matrix.js` is the pure half (envelope, wrap, blocks, shapes, share link, seal, `SecretSet`, `forRecord`); `matrix-client.js` the crossing (`MatrixHttp`, `FoldMatrix`); `matrix-fake-homeserver.mjs` the adversary for tests and the browser rehearsal (never in the page graph); `matrix-worker.mjs` the headless Ollama worker. Rules: every record line through `forRecord`; no homeserver literal anywhere the page loads (II.13 catches even a doc comment); rooms at full power; a member's mouth is `room:@who:server model` and routes inside `completeOnce`. Dialog sheets act on their form's `submit`, not the dialog's `close` (dead in Chromium 148). Rehearse with `node matrix-fake-homeserver.mjs 8448` and two origins (localhost / 127.0.0.1) for two people.
 
+## The entropy null states its rate (added 2026-09-07) — pointer
+
+POLICIES.md **P172**. A pass/fail null states its false-positive rate as its own arithmetic, never as a sample min/max: `matrix-client.test.mjs::randomBand` places a sealed blob against random bytes of its length by exact order statistics (P(outside N draws' band) = 2/(N+1), distribution-free), the rate `NULL_FALSE_POSITIVE` is the named budget and the draw count is derived from it, and draws stop as soon as the verdict is decided, so a passing check costs 100 draws and only a failing one pays for all 19,999. A widened band re-proves its cut: plaintext of the same length must sit below the band that admitted the ciphertext. Grep for "min/max of k draws" read as "the null" before writing another band.
+
 ## Bound links, epochs, the vault (2026-09-05)
 
 POLICIES.md **P120**. Share links are v2 and come in three kinds — `bound` (no key; account + one-shot secret + expiry; redeemed by publishing a `fold.member_key` whose `proof` HMACs room/user/pub under the secret), `open` (the magic key; always printed with `MAGIC_KEY_WARNING`), `passphrase` (key sealed under words). Grants: `grantPending` verifies proofs and wraps only to the proved key; an unproved key is listed as unverified with a `fingerprint()` to compare aloud, then `/share grant @who`. Keys are per epoch (`rooms[id].keys{epoch}`); blocks, manifest entries and chain heads name theirs; `rotate`/`remove` mint a new one and re-wrap older epochs under `older`. `lock`/`unlock` seal storage (PBKDF2 600k); `locked` gates every door. Rehearse with two origins plus `node matrix-fake-homeserver.mjs 8448`.
@@ -7678,3 +7682,22 @@ POLICIES.md **P129**. A mouth offer carries `models`, `available` (spare), `devi
 ## Ground, Figure, Pattern (2026-09-07)
 
 POLICIES.md **P130**; spec `GROUND-FIGURE-PATTERN-SPEC.md`. `relative.js` is a keyless state field (no `get`; recall from a cue, walk a synapse, serialize by signature); `relative-pattern.js` is the meta part (`drift`, `reanchor`, `correspond`) over `record-log.js resolveAddress`. Rule: the ends stay absolute (bytes, and the recorded acts), the middle goes relative (memory). Every verdict is against a null band measured per field per cue length — never a threshold. Neither module is in the page graph yet; the spec's Pass 34 is the one wiring point (reopen). `node eval/relative-addresses.mjs` reproduces the table. **P131**: prediction as author is a reordering of the turn (expect → render → diff → update), not a separate program — Passes 40–42; invariants A1–A4 (the ledger authors, the expectation is on the record before the draft, the self tier stays open, precision is the tier).
+
+## The conversation's loops, on referents (added 2026-09-07) — pointer
+
+POLICIES.md **P170** is the law. `dialogue.js` closes the reading's loops over the CONVERSATION — anaphora, the reader's restatement graded as a premise, the address check with one positive-fact re-ask, typed absence, self-consistency across turns, a measured history depth, the expectation before the draft — and every decision about identity is `cast.js::makeReferentIndex`'s (`resolve`), never a string's. Two things not to re-derive: **nothing had ever passed `makeReferentIndexFor` to the turn** before this (the premise check's referent path had never run in the app), and **an absence the record states needs two bars** — the index refuses a sentence-initial capital as evidence, so a name the bytes carry but the index never established is `unestablished`, never "absent". The doors (`answerable.js::quoteBytes`, `recordCheck`) answer before any model.
+
+## The holograph (added 2026-09-07) — pointer
+
+`eoreader7/native/docs/THE-HOLOGRAPH.md` (standing: nomination) is the
+theory: the record is the object, and what a consumer is handed is a small
+addressed pattern computed from it — every part points at the whole, a
+higher holon replaces the lower material it was computed from (the level
+ladder is a compression ladder), and the mouth never sees an address (one
+wall at its door, `firewall.js::mouthFacing`; the record keeps every
+address and cite.js attaches them after the draft). Prior art (Gabor,
+Pribram, Hopfield, Kanerva, Plate's HRRs, Nelson's transclusion, Koestler,
+Bateson, event sourcing, RAG / GraphRAG), the path on the record (P159,
+P45, the 08-18 address decision, P170, the three resolutions), and the
+walls that stay. Its numbers — the compression ladder and the
+holograph-reading test — are pending and named there as pending.

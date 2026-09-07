@@ -52,6 +52,7 @@
       "app.js": [
         "/engine-v7/kernel/cube.js",
         "/engine-v7/kernel/task-log.js",
+        "/engine-v7/kernel/activation.js",
         "/engine-v7/adapters/text/segments.js",
         "/engine-v7/adapters/text/spans.js",
         "/engine-v7/adapters/text/surfaces.js",

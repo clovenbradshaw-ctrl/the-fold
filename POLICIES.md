@@ -11527,7 +11527,7 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 
 **What shipped.** `matrix.js` (pure: envelope, identity and wrap, block codec, chain walk, manifest cap, the room and state shapes, the share link whose fragment carries the key, seal/open, the mouth-picking rule — the least loaded able mouth, earliest offer on a tie, counts never guesses — the sync filter, the leak instrument `SecretSet` that finds a secret raw, base64, base64url, hex, JSON-escaped and percent-encoded in text or bytes, `byteEntropy`, and `forRecord`, which drops a field named for a secret and refuses a line whose value carries one). `matrix-client.js` (the crossing: `MatrixHttp` over an injected fetch, and `FoldMatrix` — login, identity, ensureRoom, preserve, keyFor, requestKey, load, share, joinFromLink, offerMouth, mouths, ask, serve, pool — over injected storage; every record line through forRecord first). `matrix-fake-homeserver.mjs` (the adversary: keeps every request line, header and body, every state event, every blob, the timeline; enforces the auth rules the design leans on; long-polls; test-only). `matrix-worker.mjs` (the terminal home of "use other machines": Ollama on this machine serves the room headless, session in ~/.the-fold/matrix-worker.json at mode 600). In the page: `/matrix` (status and what the server sees; login opens a sheet — the password goes from that field to the login call and nowhere else, never through the composer or the transcript), `/preserve`, `/share`, `/join`, `/serve`, `/pool`; a share link in the address bar is read at boot and dropped from the bar at once; a member's offered models are rungs in the picker (`room:@who:server model`) and every call of a turn made under one goes to them sealed; the pool sheet — member, home, models, sent, answered, failed, in flight, mean latency, tok/s, device — from the room's state and this page's own jobs. Rooms are private and invite-only with `users_default` 100: every member can invite, rename, write any state, remove — a room of equals.
 
-**The three checks, all in `matrix-client.test.mjs` against the adversary (14 tests; `matrix.test.mjs` 10 more for the pure half).** 1, by the bytes: every request line, header and body, every state event, every blob and the timeline, searched for the chat key, both private keys, both tokens, both passwords and every turn in every encoding and one base64 layer down — the password appears in exactly the login bodies, the token in exactly the Authorization headers, everything else nowhere; the instrument's positive controls prove it sees what is there. 2, by the structure: every state event carries only the declared, pointer-shaped fields (a wrapped key is iv + 32 bytes + tag; a manifest entry is an mxc and a 32-byte hash); a job is {v,to,id,env,bytes} or {v,to,id,mxc,sha256,bytes}; an answer is {v,job,env}. 3, by the function: with everything the operator holds, every blob refuses to open under a random key, the zero key, and SHA-256 of every secret the server did see (both passwords, both tokens, the room id) — and opens under the chat key, so the key is the only thing separating the operator from a reader. Plus: the entropy null, measured — each blob sits in the band random bytes of its own length occupy over 100 draws, the JSON plaintext sits below it (II.23: the statistic resolves the two); the record discipline; the auth rule exercised (bob cannot write alice's slot, can write his own, alice's load merges his chain); a third party cannot join and the fragment never reached the server; wipe-and-grant recovery; a pool of two machines taking four concurrent asks two each with one prompt riding the media store; a gone mouth, an unoffered model and a mouthless room as typed gaps; full powers exercised.
+**The three checks, all in `matrix-client.test.mjs` against the adversary (14 tests; `matrix.test.mjs` 10 more for the pure half).** 1, by the bytes: every request line, header and body, every state event, every blob and the timeline, searched for the chat key, both private keys, both tokens, both passwords and every turn in every encoding and one base64 layer down — the password appears in exactly the login bodies, the token in exactly the Authorization headers, everything else nowhere; the instrument's positive controls prove it sees what is there. 2, by the structure: every state event carries only the declared, pointer-shaped fields (a wrapped key is iv + 32 bytes + tag; a manifest entry is an mxc and a 32-byte hash); a job is {v,to,id,env,bytes} or {v,to,id,mxc,sha256,bytes}; an answer is {v,job,env}. 3, by the function: with everything the operator holds, every blob refuses to open under a random key, the zero key, and SHA-256 of every secret the server did see (both passwords, both tokens, the room id) — and opens under the chat key, so the key is the only thing separating the operator from a reader. Plus: the entropy null, measured — each blob sits in the band random bytes of its own length occupy, the JSON plaintext sits below it (II.23: the statistic resolves the two; the band was a sample min/max over 100 draws until P172 gave it a stated false-positive rate); the record discipline; the auth rule exercised (bob cannot write alice's slot, can write his own, alice's load merges his chain); a third party cannot join and the fragment never reached the server; wipe-and-grant recovery; a pool of two machines taking four concurrent asks two each with one prompt riding the media store; a gone mouth, an unoffered model and a mouthless room as typed gaps; full powers exercised.
 
 **Measured in the browser pane, 2026-09-05** (the worktree's serve.mjs on :8931, the adversary on :8448, two origins for two people). Alice signed in, asked gemma2:2b a question, `/preserve`d six turns as block 0 (2,414 bytes of ciphertext), `/share`d bob. Bob opened the link on the other origin: the sheet opened with the homeserver filled and the fragment already gone from the bar; after sign-in the six turns were read back and decrypted into his pane. Alice `/serve`d seven models; bob's picker listed each "on @alice's terminal, through the room"; he picked her gemma2:2b and asked a second question — six sealed jobs went to her (a turn is several calls), her Ollama answered at 39 tok/s, and Stanton came back; `/pool` drew her row: sent 6, answered 6, failed 0, mean 1.5 s, 20 tok/s, MacIntel · WebGPU. The terminal worker signed in as bob from a pipe, joined from the link, read the six entries, offered Ollama, withdrew on SIGINT. The leak instrument over everything the adversary saw from all of it — 165 requests — found no offence: passwords in three login bodies, nothing else anywhere, on the whole disk at once, one base64 layer down included.
 
@@ -11718,3 +11718,901 @@ Repeating a falsehood in order to negate it hands a small model the falsehood; t
 **The correction.** It can. What was described was the order the turn runs in — question, retrieval, draft, witnesses, ladder, surprise — in which the expectation is computed after the draft and used to grade it. Every organ prediction-as-author needs already exists: the referent index names what a question's words reach; derivation holds products with what they rest on; the priors hold claim-level expectations with provenance; the void brief holds what is absent and its scope; the preflight already generates ground before a draft when there is none; prequential scoring is the update rule; the ladder's tiers are a precision. What is missing is the order and one feedback path. `GROUND-FIGURE-PATTERN-SPEC.md` now carries it as Passes 40–42 under invariants A1–A4: compose the expectation first and record it (40); diff the rendering against it, spend the witnesses only on novel and contradicted claims, report dropped ones (41); let confirmed error update the record and the learned priors, and put an authorship ratio on the record per turn — the share of each answer the record authored against the share the mouth added, which should rise as reading accumulates or be shown not to (42). Two things fall out for free: a void is an expectation of absence, so a model output that fills one is a self-tier error before any witness runs, which is the void-not-fed failure turned into a design; and the authorship ratio is a number for whether reading is becoming knowledge.
 
 **What is not claimed.** That any of it is built. That fewer witness calls make a cheaper turn — composing the expectation has its own cost, to be measured. That the model changes: its weights do not; what learns is the record.
+
+## P132 — A tower of watchers, bounded by the law that nothing reads its own trail (2026-09-06)
+
+**Generality:** universal for the rules (each layer's object is the RECORD OF THE LAYER BELOW; a layer that watches itself, or a cycle through any chain, is refused AT CONSTRUCTION — the watcher's regress, which THE-NULL-STATES already named `self_referential` and THE-WAYS-OF-KNOWING calls the eye that cannot see itself, enforced here for the first time rather than stated; a layer that cannot read returns a typed gap, adjusts nothing, and the climb STOPS, because a layer above would be reading a reading never made; a layer that throws is a typed gap, never a crash). Local for the audit floor (0.02, declared — the honest alternative is a null over shuffled histories, named as owed rather than faked).
+
+**The layers were already here, unnamed.** 1 FAST answers what is exactly known with no model (P173). 2 DELIBERATE drafts and checks (holon.js). 3 CALIBRATING watches 2's record and measures the cut 2 spends by (P175) — this is what the strain meter secretly was, once its threshold stopped being declared. 4 AUDITING watches 3 and asks the one question 3 cannot ask about itself: does this cut DISCRIMINATE? The tower is arbitrary in principle and finite in fact — it rises exactly as far as there is a record below with width in it, and layer 5 would have to take layer 4's own reading as its object, which is the regress.
+
+**THE AUDIT IMMEDIATELY REFUTED THE LAYER BENEATH IT, which is the point.** Over 274 real turns of the long-stream run:
+
+| cut | fired on | audit |
+|---|---|---|
+| the declared floor, coverage < 0.34 | 40 of 274 (15%) | discriminating |
+| the stream-measured null (P175) | **0 of 262 (0%)** | **not discriminating — indistinguishable from a cut that never fires** |
+
+**The diagnosis is a mismatch of question, not a bug.** A null asks "is this SURPRISING for this stream?", and over a corpus whose coverage genuinely ranges 0.00 to 1.00, almost nothing is surprising. The floor asks "is this LOW?", and low-but-common is exactly the case that matters here. **Not every threshold should become a null**: a null answers surprise, some cuts need badness, and the two are different questions. So the tower decides rather than the author — `chooseCut` uses the measured cut when the audit says it separates turns and keeps the declared floor when it does not, with the record saying which and why. A wall that never fires reading as rigour is this project's oldest failure shape (P88); this is the first time a layer of the instrument caught it in the instrument's own new work, unprompted.
+
+**Files.** `layers.js` (`makeTower`, `climb`, `discriminating`, `GROUND`) + `layers.test.mjs` (4: the regress refused at construction for self-watch and cycles alike; base-first climbing with each layer reading only below; the climb stopping at a gap with no layer above it running; the audit catching all-or-none). Suite 1,736/0 plus main's flaky pool test.
+
+## P133 — A quotation is checked as a quotation, and one shared reader of what was quoted (2026-09-06)
+
+**Generality:** universal for the rules (a claim the question QUOTES is matched as a span against the material, not tested atom by atom for existence; scope follows the citation, so a question naming its source is checked against that source; a near-identical run differing in a token or two is a MISQUOTATION, which is strictly more informative than "absent" because the material can say what the token should have been; what the sources actually say goes in positively and the misquotation is never repeated back, P126's rule; the false token is kept by the instrument as a guard). Local for the numbers (`MATCH_FLOOR = 0.6`, `MIN_TOKENS = 5` — declared).
+
+**The measured failure.** A probe took a real War and Peace line — «"Both true and untrue," Pierre began; but Prince Andrew interrupted him.» — swapped ONE name to Lincoln, and asserted it as established. Every check passed it (`premises: { checked: 4, unverified: 0, contradicted: 0 }`) because Lincoln is unquestionably in the material: he is in the Lincoln article. Corpus-wide containment asks "does this token exist?"; the claim asks "does it belong HERE". The mouth then answered with a conversation between Lincoln and Prince Andrew about a bug in react-dom — three sources welded together — and nothing flagged it.
+
+**And one reader of what was quoted, because it was got wrong twice in a day.** `arithmetic.js` read an ask's SHAPE from the whole question, so a memory probe quoting a comparison fired the comparison door seven times in one run; `transcript.js::quotedAsk` took the FIRST quoted span, so on a claim quoting a line that itself contains quotation marks it returned a two-word fragment and the misquote check had nothing to align. Both are the same fact: QUOTES NEST, and a naive pair-off fails in opposite directions. `quoting.js` is now the single implementation — nested or unbalanced quoting is taken whole, first mark to last — and arithmetic.js, transcript.js and misquote.js all read through it.
+
+**Files.** `misquote.js`, `quoting.js`, their tests, and the wiring in `holon.js`.
+
+## P134 — The turn's checks in the cube's dependency order: an earlier cell's finding binds every later one (2026-09-06)
+
+**Generality:** universal for the rules (the canonical chain NUL SIG INS SEG CON SYN DEF EVA REC is a strict dependency order and the turn's checks fall on its joints; a finding established at an earlier cell is a CONSTRAINT on every later cell — SEG cuts a name, so SYN may not write it, EVA may not restore it, REC may not learn it; a stage needing a later cell's product is a dependency inversion and is refused AT CONSTRUCTION, the same discipline `layers.js` holds against the watcher's regress; where a later cell produced nothing admissible, the earlier cell's own statement stands in its place). User direction: "put it in terms of the dependency order."
+
+**The disease it names.** The turn had accumulated a dozen checks in the order they were written, each new one slotted in by hand, so a decision made on evidence could be reversed by a stage that ran later and knew less. Measured (P133): the misquote check at SEG cut a name the material contradicts, and the correction loop at EVA asked for a rewrite, got the cut name back, and `applyRewrite` accepted it into the shipped answer. The first fix was to run the SEG check again after EVA — **which is not an order, it is a patch shaped like one**, and it is why the law is now stated rather than the instance patched.
+
+`code-piece.js` (P117) had already shown the discipline for building a program in this order; this carries it to the turn's own checking. Files: `turn-order.js` (`CHAIN`, `plan`, `finding`, `admissible`) + `turn-order.test.mjs` (3, the inversion refused at construction among them). Suite 1,746/0.
+
+**Amendment to P133/P134 — wired, then measured, and the measuring found three ways the new check was unsafe.** Wiring the misquote finding into the dependency order (P134) meant it could FORBID tokens, so a false positive would cut correct content out of an answer — worse than missing a misquote. Replayed over 57 quoting turns of a real run, it did exactly that three times, each a different mechanism:
+
+| what it claimed | what it actually was | the rule now |
+|---|---|---|
+| a line of the Greek Odyssey misquotes a Lincoln passage | both contain "and" and "the" | alignment is scored over CONTENT words only; function words agreeing is not evidence of the same passage |
+| "beside him" misquotes "Turk beside" | one inserted word shifting the window | a reported difference must be a token the matched window does not contain anywhere |
+| a two-source reasoning probe misquotes a Lincoln passage in six places | a different passage that happened to align | a misquotation is a SMALL perturbation: `MAX_DIFFS = 3`, absolute, because scaling with the window was measured not to work — a long span accumulates enough chance agreement to permit six |
+
+After all three: **9 misquotations found over the run, 8 of them exactly the value the probe planted.** Of those the live answers repeated a forbidden token zero times, so on this run the binding would have changed no answer — its value here was the FACT handed to the model (the source's own words), not the refusal. The one live case where the refusal did fire is P133's own, in the tower run.
+
+The general lesson, and the reason the order matters: **a check that only reports may be approximate; a check that FORBIDS must not be.** Wiring a finding into the dependency order raises its burden of proof, because everything after it is bound by what it found.
+
+**Amendment to P134 — the law was right and its application was partial; a fanned-out audit found fourteen more (2026-09-06).** Six independent lenses over the pipelines, every claimed violation adversarially verified, 14 of 19 confirmed with reproductions against the real modules. The cluster in `holon.js` shares ONE root cause: `findings` was assembled BY HAND from two sources (the misquote cut and the premise check), so every other cut in the turn left a hole rather than a standing constraint — which is precisely the disease P134 names, committed inside P134's own implementation.
+
+The sharpest, reproduced end to end through `runHolonicTask`: the learned store's guard cuts a sentence at **CON** ("already found unplaced on this material"); `correctTurn` at **EVA** then asks for a rewrite, the mouth returns the same claim in different words, and `applyRewrite` accepts it because it stands on a snip and keeps the subject. The P134 gate refused nothing, because no CON finding existed for it to carry. **And REC then learned the forbidden claim back as a POSITIVE correction** — which is exactly what `learnedFacts` feeds the mouth as established on later turns. A claim the store held as unplaced re-entered it as truth, self-amplifying.
+
+Fixed, universally rather than case by case:
+
+- **Every cut registers a finding at its own cell.** The learned guard now emits a CON finding, so `admissible` carries it like any other. Cutting a sentence is not enough; a cut must leave a constraint.
+- **REC may not learn back what a finding forbids** — but only the CORRECTED side is gated. Learning "X was claimed here and the sources do not carry it" is exactly what should be remembered; what may never happen is the falsehood being minted as the truth.
+- **A draft whose every sentence is known-false no longer ships whole.** The old `kept.length` condition skipped the cut when nothing survived it; `admissible` now decides what stands in its place.
+- **The instrument's own statement is exempt from its own gate** — a finding's statement quotes the source and may contain the very token it forbids, and gating it dropped the correction along with the error.
+
+Recorded and not yet fixed, each confirmed with named lines: the piece path revises AFTER the gate and findings cannot follow out of `runPart`; a section heading is never gated; the export overwrites the byte address the ladder established; a `contradicted` relation verdict is exported at tier `recorded`; a recorded contest is turned into corroboration by a later attest (`kernel/notes.js`). These are the same law at other seams and are owed their own passes.
+
+**The lesson worth keeping: a law is not enforced by being stated, and its author is the last person who should be trusted to have applied it everywhere.** The fan-out found in one pass what a session of careful reading had not.
+
+## P135 — The check is about REFERENTS, not spans (2026-09-06)
+
+**Generality:** universal for the rule (a claim asserts something about a person, a place, a thing — so the question is whether the CITED PASSAGE'S OWN CAST establishes that one, never whether a string occurs in a byte range; a name the passage's cast does not establish is `beyond-reach`, THE-NULL-STATES' SIG·Figure null, "the subject resolves to no referent, nothing to mark it on"; a cast that cannot be read reaches nothing and an unreached search is never a finding about the world). User direction: "this needs to be about referents not spans."
+
+**The class this dissolves, which four patches had failed to.** A probe plants a token into a sentence from source A; the check searches the corpus, finds it in source B where it genuinely lives, and passes. Measured live in one run: **Kutúzov, Vienna, Army, Berry**, and the original Lincoln-for-Pierre case. Every one is a real word of the material sitting in the wrong file, and the company rule (P31) cannot save it because a passage from the wrong source shares the premise's own words too.
+
+**Why scoping the STRING to the file was still the wrong quantity**, though it was the first fix tried: it would equally pass a name that happens to appear in the file while naming nobody the passage establishes, and equally fail a referent the passage establishes under a surface the claim does not use. The instrument already had the organ and the vocabulary for the right reading — `cast.js::makeReferentIndex` builds the cast the material's own text establishes, and `resolve(name)` says whether this passage introduces that one.
+
+Demonstrated, and pinned in both directions: against the cited Lincoln passage, "Kutúzov" is beyond-reach and "Yosemite Grant" resolves; against War and Peace the reading is exactly reversed.
+
+**A gap the wiring exposed: retrieval must honour the citation.** Scoping a check to a file that was never retrieved silently falls back to everything, which is the failure the scoping exists to stop. Asked about a claim "from lincoln.html", retrieval returned only the War and Peace chunk — the planted name is a Tolstoy name — so the cast check ran against Tolstoy. A question naming its source now pulls that source's best passage into the pool.
+
+**Not settled, and said so.** In isolation the referent read is exactly right; at turn level the facts block still reported the reverse pair on one hand-built case, so some part of the integration is selecting the wrong passage set. The organ and its pins stand; the turn-level wiring is not yet proven and is owed a pass.
+
+**Files.** `correction.js` (`premiseReferents`, `checkPremises` taking `referentIndexFor` and `cited`), `holon.js` (the organ injected, retrieval honouring the citation), their pins. Suites 1,750/0 and 675/0.
+
+## P136 — A passage is prose or code by what it IS, not what it is called (2026-09-06)
+
+**Generality:** universal for the rule (the prose/code decision reads the passage's own text where it has one, and falls back to the extension only when it does not; a rendered document is prose whatever its file was called, and raw markup is code-like whatever it was called; every existing caller that passes no text is byte-identical to before).
+
+**The measured failure, found while proving P135.** `.html` was in the code-extension list, so every passage of a rendered encyclopaedia article was classed as source code and dropped from `prosePassages` — the pool that feeds the snips, the obligations, the cast, and the referent check. In one live run the Lincoln article was retrieved **442 times, 11% of all retrieved passages, and was invisible to every one of those checks.** The turn-level discrepancy P135 recorded as unresolved was this: the referent index was built over War and Peace because the cited article had been filtered out as code, so the article's own "Yosemite Grant" came back as a stranger and the planted "Kutúzov" resolved.
+
+An HTML file in this instrument is always RENDERED to text before it becomes a passage (the long-stream driver strips tags; the web path keeps a text face), so by the time any check sees it, it is prose. Markup that never got rendered is still code-like, and that is decided by looking at the text — a tag every forty characters is markup, not prose.
+
+**Proven end to end**, and pinned: retrieval honours the citation so the cited passage is present; the cast of THAT passage decides; the planted name is the only thing flagged; the name the passage does establish is left alone; and the referent reading supersedes the string reading rather than being printed twice. P135's open item is closed.
+
+**Files.** `longform.js` (`isCodeSource` takes the text; `MARKUP_DENSE`), `holon.js` (both call sites pass it), `correction.js` (the referent reading supersedes), their pins. Suites 1,753/0 and 675/0.
+
+## P137 — Findings leave the part, and an address is not a licence to quote something else (2026-09-06)
+
+Four of the audit's confirmed violations, fixed at their root rather than one by one.
+
+**Findings leave `runPart`.** They were local to it, so every later cell was unbound. The **section heading** was never gated: a piece could gut every sentence of a section for naming something the sources contradict and then ship that very name as the section's `## heading` — deterministic, needing no model misbehaviour, since labels come from a plan written off the ask that carried the false claim. And the **piece's revision pass** runs after every part's gate and could reinstate what a part forbade, which is P133's shape one level up. Both are now bound by every finding the parts established.
+
+**An address is not a licence to quote something else.** `verbatimSpans` fell back from the exact chunk to the WHOLE SOURCE and quoted its first 200 characters under the chunk's byte range — the ordinary case, since read-on-arrival admits a whole book while retrieval keeps a few passages, so the exact chunk is usually absent. The reader was shown a verbatim-looking quotation, at a real address, of text that is not there. Now the address is published AS an address, saying the passage was not in hand to quote. No quotation is honest; a wrong one is not.
+
+**A claim the reader itself contradicted is not on the record.** `groundOf` matched notes over claims of ANY verdict, so a sentence the relation tier judged `contradicted` could be published at tier `recorded` — cited, grounded, exported as though the material supported it. A contradicted claim is contested at best, never support.
+
+**Generality:** universal. None of the four is about the specimen that found them. A finding that cannot leave the scope that established it binds nothing later; an address that falls back to different bytes is a wrong quotation at a right address; a contradicted claim published as support is a contradiction in terms. Each holds for any material and any reader.
+
+## P138 — A transcript is addressed by time (2026-09-06)
+
+**Generality:** universal for the rule (a medium that arrives with its own cut keeps it — a recording is cut where the recognizer heard boundaries, and a pause is the speaker's own boundary, better than any character count; the address of speech is a TIME range `name@from-to`, never a byte range, and the two are distinguishable at a glance; a transcript is testimony about what was SAID, so its standing is "heard in the recording", never a fact about the world; a recognizer that returns no timings yields NO addressed passages rather than fabricated ones). User direction: "wire in the ability to transcribe audio."
+
+**What was actually missing.** Transcription already worked; what it produced could not be CHECKED. `return_timestamps: false` meant the transcript landed as one flat blob whose only address was "somewhere in this file", so every organ was blind to it in the way that matters: a snip needs a span, an atom needs company at an address, the ground ladder needs somewhere to point, the export needs bytes to quote, and a person needs to be able to go and HEAR the moment being cited. Everything else in the instrument works on a transcript unchanged, because everything else only ever needed `{ ref, text }` — which is what an address is for.
+
+**Files.** `audio-address.js` (`passagesFromSegments`, `audioRef`, `parseAudioRef`, `citeAudio`, `clock`, `AUDIO_STANDING`) + `audio-address.test.mjs` (3, including: no timings yields nothing fabricated); `transcribe.js` (timestamps kept, `segments` returned); `app.js` (`addSource` takes passages a medium brought with it); `longform.js` (a transcript is speech, never code); `piece-export.js` (a time address read as an address). Suite 1,756/0 plus main's flaky pool test.
+
+## P139 — Which model runs is decided by the work, and a disagreement between two is a typed finding (2026-09-06)
+
+**Generality:** universal for the rules (the work a question asks for decides the model, not its apparent difficulty: NONE where the instrument knows the answer exactly, COMPOSE where prose is wanted, HOLD where one question must be held steady over close reading; the small model stays the default and a second reading is asked only where measurement says the first drifts; two readings that differ produce a TYPED delta — agree, extra, conflict, one-silent, drifted — and NOTHING picks a winner, because the material decides, exactly as it does for one model). User direction: "modifying which model runs based on the task and consider multiple models and checking the Delta."
+
+**Routing is an evidence question, and run 1 answered it.** Over 909 turns, on the same probes, scored the same way:
+
+| probe | the instrument answered | the 2B model answered |
+|---|---|---|
+| recall | **33 / 33** | 2 / 13 |
+| reasoning | **20 / 26** | 1 / 2 |
+| memory | **7 / 7** | 26 / 38 |
+
+And the answer CHANGED THE SUBJECT on **82% of memory turns and 73% of injection turns**, against **4% of ordinary conversation**. The small model is not uniformly weak; it is weak in a shape. It carries conversation and fails at holding one question steady while reading closely — which is why the ladder is not "bigger model for harder things".
+
+**Then the delta was measured, and it argues against escalating.** Three memory/injection turns, both models through the SAME instrument, same material, same checks:
+
+- **all three agreed**;
+- **two ran with zero model calls at all** — the mechanical doors answered, so the model was irrelevant;
+- the one that used the model got the same answer from both, with the 14B taking **148s against 37s**.
+
+**A methodological error caught and corrected before it produced a conclusion.** The first attempt compared the small model INSIDE the instrument against the large model ALONE, and the large one looked far worse — it hedged and refused where the small one used the record. That measures the instrument, not the models, and would have been a flattering and false result. Both arms must run through the same turn.
+
+**What this means for the standing rule.** "Keep the local model small" survives, and now with a measurement behind it rather than a preference: on this corpus the instrument's own answering and checking make the model choice not matter on exactly the shapes where the small model was weakest. Escalation is reserved for work the doors cannot answer and the checks cannot settle, and the delta is how that set is found. On this corpus it is close to empty. Sample: three turns, two of them door-answered — small, and said so.
+
+**Files.** `model-delta.js` (`workOf`, `routeForWork`, `delta`, `WORK`, `DELTA`) + `model-delta.test.mjs` (2).
+
+## P140 — Measured against a frontier model on identical material (2026-09-06)
+
+**The experiment.** Twelve probes from run 1 — three each of recall, reasoning, memory and injection. Each was answered twice: by the fold (gemma2:2b local, with retrieval, doors and checks) and by a context-free Claude subagent handed the SAME retrieved passages and the same question, with no conversation history of its own. Both scored by the identical mechanical scorer.
+
+| probe | the fold | Claude |
+|---|---|---|
+| recall | 1 / 3 | 2 / 3 |
+| reasoning | 2 / 3 | 3 / 3 |
+| memory | **3 / 3** | 2 / 3 |
+| injection | 0 / 3 | **2 / 3** |
+| **total** | **6 / 12** | **9 / 12** |
+
+**Claude wins, and the honest reading is that it wins on comprehension.** Its injection answers are the clearest case: handed a quoted line with one name swapped, it opened "One correction first: the speaker isn't Lincoln" and gave the right name with its address. The fold evaded twice on the same probes. It also cited addresses on 10 of 12 answers — **addressed citation is not a property of the instrument, it is a property of material that arrives addressed**, and any competent reader given refs will use them. That claim should not be made for the fold again.
+
+**Where the fold wins is retrieval, not reading.** It took memory 3/3 against 2/3 because the prior-answer door finds the specific earlier turn in the whole transcript and quotes it verbatim, while Claude was given the last three turns and said plainly that the exchange asked about was not in front of it. Stated fairly: the instrument's advantage there is that it does not have a context window, not that it understands better. A frontier model with the whole transcript in context would likely take that column too.
+
+**What the fold does that the comparison does not capture.** Seven of the twelve turns were answered with **zero model calls** — instant, deterministic, repeatable, and auditable without trusting any model's care. The whole run is local: a 3.3 MB corpus and a thousand-turn transcript, on a 2B model, with nothing leaving the machine. Those are the claims that survive this measurement, and they are claims about cost, privacy and auditability — not about being right more often.
+
+**Caveats, stated rather than buried.** n = 12. Claude's memory window was trimmed to three prior turns while the fold retrieved from the full transcript, which flatters the fold on that column. The fold's arm is a 2B model against a frontier one, which is the comparison the project chose, not a handicap it suffered.
+
+**Generality:** specimen-scoped. Twelve probes, one corpus, one 2B model against one frontier model on one day. The scoreboard does not transfer. The one finding inside it that does is stated separately and holds anywhere: addressed citation is a property of material that arrives addressed, not of the reader — so any competent model handed refs will cite them, and the fold may not claim it as its own.
+
+**What this changes.** Nothing about the architecture, and one thing about the language: the fold's case is not that it answers better than a large model. On identical material it answers worse, 6 to 9. Its case is that every answer is addressed and mechanically checked, most of them cost nothing, and none of it leaves the machine.
+
+## P141 — Retrieval decided against a prior and against what is activated, not by counting words (2026-09-06)
+
+**Generality:** universal for the rule (a term's weight in retrieval is its own surprise IN THIS MATERIAL — `log(N/df)` over the corpus at hand, so a form in every passage weighs nothing and a form in two all but names them; what the conversation is currently about weighs more, as a nudge; a source the question NAMES outranks one it does not, because a claim is made of a source). Local for the two bonuses (`ACTIVATION_BONUS = 0.5`, `CITATION_BONUS = 2.0` — declared; activation is a nudge, never a verdict, and naming counts for more than being talked about).
+
+**What was there.** `source.js::retrieve` scored a passage by raw term hits: `qTerms.filter((t) => c.terms.has(t)).length`. Nothing in that expression knows which words carry a question and which are furniture — and this instrument has had priors, a surprise ladder and a cast of activated referents for a long time, none of which retrieval ever consulted. User, on being shown it: "it's more about using that universe of priors in our activation, surprises, retrieval etc."
+
+**Nearly every failure this session chased runs back to that line.** The source a question CITED was not retrieved because a planted name from another book out-hit it (P135). The Lincoln article and War and Peace were confused because term overlap cannot tell which source a claim is ABOUT (P133). 82% of memory answers changed the subject because the passages handed over shared words with the question and not its subject.
+
+**Measured on the run's own questions** — 60 real questions that name a source, against the 18,996-chunk corpus:
+
+| retrieval | brought the cited source |
+|---|---|
+| term counting (what was there) | 53 / 60 (88%) |
+| scored against the corpus's own prior alone | 56 / 60 (93%) |
+| prior + the citation the question names | **58 / 60 (97%)** |
+
+**And the demonstration that makes the point better than the percentage.** In this corpus `pierre` weighs 2.61 (1,399 passages) and `yosemite` weighs 9.16 (2 passages). Term counting treats them as one hit each. That is exactly why a planted Tolstoy name could outrank the file a question cited.
+
+**The corpus is its own best prior**, and needs no general one — the same move `calibration.js` makes for a threshold, and the user's own: "those priors are kinda shitty but we can spin up a side [prior] for any given content as needed." Note the function words contribute nothing here either way: `tokenize` already drops them, so the gain is entirely from DISCRIMINATING AMONG CONTENT WORDS, which is the harder and more useful half.
+
+**Not yet wired into the live turn.** `rank` is a drop-in for `retrieve` and is measured, but `holon.js` still calls `retrieve`; swapping it changes what every turn reads and is owed its own arm rather than a quiet substitution mid-comparison.
+
+**Files.** `retrieval-prior.js` (`corpusPrior`, `rank`, `activated`, `scoreAgainstPrior`) + `retrieval-prior.test.mjs` (3).
+
+**Amendment to P141 — better retrieval did NOT produce better answers, measured twice (2026-09-06).** `rank` was made injectable (`retrieveWith`, defaulting to `retrieve`, so every existing caller is byte-identical) and the two readings were run through the SAME turn on the same probes.
+
+| arm | correct | changed the subject | calls | time |
+|---|---|---|---|---|
+| term counting | 10 / 14 (71%) | 6 / 14 | 23 | 6.0 min |
+| prior + citation | 10 / 14 (71%) | 7 / 14 | 20 | 5.3 min |
+
+The first attempt used 8 probes and showed the same nothing, but was worthless as evidence because most of those turns were answered by the doors and never touched retrieval at all — measuring retrieval on turns that bypass it. The second run used only probes the doors did NOT answer and the model did, which is the only place the question can be asked. Same answer: **identical accuracy, slightly more subject-changing, ~13% fewer calls.**
+
+**What this says, and it is worth more than the win it denies.** Retrieval got measurably better at bringing the cited source (88% → 97%, P141), and the answers did not improve at all. So the 2B model's failure on these probes is NOT that it was handed the wrong passages. It changes the subject on 43–50% of them either way. Better material does not help a reader who does not hold the question.
+
+That is consistent with everything else measured this session: the doors answer recall 33/33 where the model answers 2/13, on the SAME material. **The improvement path is not better retrieval feeding a better answer; it is answering mechanically wherever the instrument can, because the model's failure is upstream of passage quality.** Retrieval quality still matters for the checks — the premise, misquote and referent readings are all taken against the retrieved passages, and P135/P136 were exactly failures of that — so `rank` earns its place there rather than in the hope of a better draft.
+
+Caveats: n = 14, one model, one corpus. The cost saving is real but small and not the reason to adopt it.
+
+## P142 — What the reading did with each passage, on the record (2026-09-06)
+
+**Where it came from.** P140 measured the fold against a frontier model on identical material and lost 6–9. Rather than take the scoreboard, the twelve answers that model gave were read for the *moves* it made:
+
+| move | frontier model | the fold |
+|---|---|---|
+| cites an address | 10 / 12 | does this |
+| corrects the question's premise | 6 / 12 | does this (P133, P135) |
+| **names what it checked and excluded** | **5 / 12** | **0 / 12** |
+| declares a void with its reason | 4 / 12 | partly |
+| reasons about whether the extent suffices | 1 / 12 | no |
+| diagnoses where the error came from | 1 / 12 | no |
+
+The third row is the one that matters, because it is not comprehension — it is bookkeeping the instrument was already in a position to do and threw away. Asked about a line, that model wrote: *"The only other material available is two unrelated Prince Andrew scenes … neither touches this exchange."* The fold retrieved three passages, used whichever bore, and dropped the rest in silence.
+
+**Why silence is a defect and not an economy.** An answer that says nothing about the passages it did not use is indistinguishable, to its reader, from an answer that never looked. This instrument's oldest law is that a measured absence is a finding while a failure to look is a fact about the reader, and the turn was not recording which one it had.
+
+**What lands.** `reading-trace.js`. Every retrieved passage leaves the turn with a verdict: `bore` (the answer stands on it), `checked-silent` (read, shares the question's content words, answered nothing), `checked-apart` (read, about something else). Those verdicts are landed as CON·Figure acts keyed to the question and the address — relations over the material, which is the meta-graph the hypergraph was missing: it holds what the material *says*, this holds what the reading *did with it*. `traceLine` states the excluded set in the instrument's own sentence, appended mechanically after the admissibility gate.
+
+**Two walls.** The excluded passages are never described to the model — naming what is not there teaches a small model to say it (P126). And an empty trace is `nothing was read`, never `nothing bore`: `looked()` separates them and `traceLine` is silent when nothing was read, so an empty search can never be reported as an exhaustive one. That is the control, and it is the test that would fail if the organ were wrong in the direction that matters.
+
+**Live, first turn it ran on** (gemma2:2b, three passages, one bearing):
+
+> The passage says that Pierre began speaking, but Prince Andrew interrupted him.
+>
+> Also looked at: wp-b.txt#0-126, wp-c.txt#0-123 were read and speak of the same things without answering this.
+
+**Generality:** universal. The claim is not about this corpus or this model: any reader that retrieves a set and uses a subset owes its reader the difference, and any reader that retrieves nothing must not be able to phrase that as having excluded something. Neither half depends on what was being read.
+
+## P143 — The dependency order is the conditioning order: a real belief about the turn, before the turn (2026-09-06)
+
+**Where it came from.** The user, on reading P140's comparison against a frontier model: *"the frontier LLM mimics chain of thought reasoning and baysean priors, but we can actually do it — and we have true dependency order reasoning guardrails."*
+
+That is exactly the line worth drawing. A frontier model writes *"I'm not certain"*, *"probably"*, *"one correction first"*. Those are tokens that **resemble** inference; nothing was conditioned on anything, and narration cannot be scored, calibrated, or wrong in a way that improves it. `ground-ledger.js` already built the honesty apparatus for the real thing — Dawid's prequential firewall, under which a turn may only be scored against a state of knowledge that existed strictly before it arrived, and scores once ever — and its own header named the missing half: *"What this file deliberately does NOT do: score anything."* This is that half.
+
+**What is computed.** Before the model drafts, the probability that this answer will contain sentences nothing backs.
+
+**Where the prior comes from — and this is the whole point.** Not a constant. The prior at each cell **is the posterior of the cell above it in the cube's own dependency chain**, the same chain `turn-order.js` already enforces on what may be said. `NUL SIG INS SEG CON`: each cell asks something the next depends on, so each partitions the stream more finely than the last, and every cell has a strictly coarser estimate over strictly more turns sitting immediately above it. That is a prior by construction, not by analogy. The order is not the sequence in which reasons were mentioned — it is the nesting under which beliefs are conditioned, and it is the same order that binds admissibility.
+
+**Measured on the 1,000-turn run** (gemma2:2b, six sources, base rate 0.648):
+
+| arm | bits/turn | vs null | gain |
+|---|---|---|---|
+| chain-conditioned | **0.6924** | 0.9408 | **+0.2484** |
+| CONTROL, outcomes permuted | 0.9475 | 0.9413 | −0.0062 |
+
+A 26% cut in log loss, and under permutation the chain **loses** to the null — so the gain is in the material, not the machinery. Across four different candidate grids the gain moves 0.2431–0.2484 and never changes verdict.
+
+**What each cell actually buys, priced against the cells it depends on:**
+
+| cells kept | bits | marginal gain |
+|---|---|---|
+| none (the null) | 0.9408 | — |
+| NUL | 0.9408 | 0.0000 |
+| NUL SIG | 0.9408 | 0.0000 |
+| NUL SIG INS | 0.7374 | **0.2034** |
+| NUL SIG INS SEG | 0.7143 | 0.0231 |
+| NUL SIG INS SEG CON | 0.7126 | 0.0017 |
+
+**The honest reading, which is a split verdict.** NUL and SIG buy exactly nothing here because they are constant in this run — material was always present, retrieval never widened — so they could not have spoken. Most of the gain is INS: whether a mechanical door answered instead of the model. That is real and it is also **true by construction**, since a door cannot produce an unbacked sentence. Strip the door and score only the 869 turns a model actually drafted: gain falls to **0.0344 bits/turn**, small but real, with the control still failing correctly at −0.0052.
+
+**Calibration is the part that holds up.** On model turns, what the instrument states is what happens:
+
+| stated | observed | n |
+|---|---|---|
+| 0.70 | 0.79 | 56 |
+| 0.72 | 0.71 | 663 |
+| 0.83 | 0.79 | 66 |
+| **0.98** | **0.97** | **73** |
+
+Seventy-three turns the instrument knew, before the model spoke, were near-certain to come back unbacked. That is the thing a frontier model can only gesture at.
+
+**Two defects the tests caught, both worth recording because both were mine.**
+
+*A cut that measured nothing.* SEG originally banded the retrieved count at the stream's median. 915 of 1,000 turns retrieved exactly three passages, so the median split put everything on one side and SEG bought 0.0016 bits. The fix removed the cut rather than choosing a better one — the cell is the count itself, and the ladder's own backoff already prices a thin cell correctly. SEG then bought 0.0231, fourteen times more. **The lesson generalises: where a backoff exists, a bin is a worse estimator wearing a decision.**
+
+*A constant that was doing real work while disclosed.* The parent's strength was 1, disclosed in the header as structural. A test then showed what that bought: against a parent backed by 200 turns, one contrary observation in a child cell moved the belief from 0.995 to 0.497. A single turn overturning two hundred is not a defensible belief, and disclosure does not make it one. It is now not set at all — a grid of candidates each predicts every turn, and the belief is their average weighted by `exp(-bits each has already cost)`, the Bayes posterior over candidates under log loss, formed from strictly earlier turns like everything else. Also fixed alongside it: a cell holding exactly its parent's turns was still being entered, applying the same evidence twice. A cell that partitions nothing conditions nothing.
+
+**The wall.** The probability never reaches the model. A small model handed *"you are probably about to be wrong"* is being handed a suggestion, not a fact (P126, measured). It is spent by the instrument — on how much checking to buy, and on what the instrument discloses afterward.
+
+**Generality:** universal for the construction, specimen-scoped for the numbers. That a dependency order can serve as a conditioning order — each cell's posterior being the next cell's prior — is a property of any chain whose cells nest, and needs no fact about this corpus. The 0.2484 bits, the per-cell prices and the calibration table are one run, one model, one corpus, and transfer to nothing without being re-measured. The two defects are universal: a bin over a degenerate distribution measures nothing anywhere, and a disclosed constant that overturns two hundred observations with one is indefensible anywhere.
+
+## P144 — The length confound, and what actually predicts a bad answer (2026-09-06)
+
+**This amends P143, whose headline number was substantially an artifact.** P143 predicted `unbacked > 0` — whether an answer contains any sentence nothing backs. That outcome is very largely a proxy for how long the answer is:
+
+| answer length | P(unbacked > 0) |
+|---|---|
+| 0–39 words | 0.38 |
+| 80–119 words | 0.94 |
+| 240+ words | 1.00 |
+
+A longer answer has more sentences and therefore more chances to contain one that is unbacked. So P143's 0.2484 bits was in part the chain predicting *length*, which is a far weaker claim than predicting *error*.
+
+**Re-measured on a length-normalised outcome** — unbacked sentences per word, called high when above the median rate the stream has shown so far, the median taken prequentially from strictly earlier turns:
+
+| what decides | bits | gain | control |
+|---|---|---|---|
+| the P143 dependency chain | 0.9962 | **0.0100** | −0.0044, loses as it must |
+| **coverage alone** | 0.9307 | **0.0755** | — |
+| **strain level — what the live turn uses today** | — | **0.0019** | — |
+
+The chain's length-free gain is 0.0100 bits: real, since the control still fails, and small. **Coverage alone beats the whole dependency chain seven-fold** — and coverage is already computed in the live turn.
+
+**The finding that matters is about the encoding, and it is not confounded.** `strain.js` takes coverage and cuts it into levels. That cut costs 0.0755 bits → 0.0019 bits: **97% of the information in the best predictor the turn has is destroyed by binning it.** This is the identical defect P143 records in its own first SEG cell, found here in production code. Stated generally, and this is the third time this session it has been found: **where a backoff exists, a bin is a strictly worse estimator wearing a decision.**
+
+**The relationship is a regime, not a gradient.** Coverage does not slope into failure:
+
+| coverage | n | P(rate high) | median words |
+|---|---|---|---|
+| 0.0–0.8 | 625 | 0.34 – 0.43, flat | ~60–70 |
+| **exactly 1.0** | 236 | **0.76** | **114** |
+
+Every obligation covered is its own regime: the model writes roughly twice as much and fails at twice the rate, even after normalising for length. Below that, coverage carries almost nothing. A cut anywhere in 0–0.8 was always going to measure noise.
+
+**What is NOT established, and why.** `strain.js` treats LOW coverage as strain and buys more checking there; the levels come out as strain 1 (median coverage 0.71) failing at 0.55 and strain 2 (median coverage 0.27) failing at 0.40 — apparently backwards. That claim is **not made**, because strain is *computed from* coverage, so the two are confounded by construction: holding coverage fixed leaves only 21 and 18 turns in the off-diagonal arms, and the sign flips between coverage bands. Whether strain-2 turns fail less because they were easy or because the checking worked cannot be separated observationally. What is known is that the checking does real work — **837 of 3,848 flagged atoms removed, 21.8%**, with 555 rewritten and 215 dropped — so the treatment explanation is live and must be tested rather than assumed away. **The next move is an experimental arm that recruits on coverage == 1.0, not another observational pass.**
+
+**Generality:** universal for the two method claims, specimen-scoped for every number. That a presence-of-any-defect outcome is confounded by output length holds for any generator whose output length varies, and any such result must be re-measured on a rate; that binning a continuous predictor destroys information a backoff would have kept holds anywhere. The 0.0755, the 0.0019, the coverage-1.0 regime and the 21.8% are one run, one model, one corpus, and transfer to nothing without being re-measured. That strain spends effort backwards is **not** claimed at any generality: it is confounded and pending an experiment.
+
+## P145 — The stream's own belief spends the effort (2026-09-06)
+
+**The arm P144 called for, built and pre-registered before it is run.**
+
+P144 established two things and refused to establish a third. Established: coverage is the best predictor of a bad answer the turn has (0.0755 bits), `strain.js` bins it into levels and that binning costs 97% of it (0.0019 bits), and the relationship is a regime rather than a gradient — coverage 0.0–0.8 flat at ~0.4, coverage exactly 1.0 at 0.76. Refused: that strain therefore spends its effort backwards, because strain is *computed from* coverage and the two are confounded by construction.
+
+**What is NOT done here.** Hard-coding "coverage == 1.0 is strain" would carry a constant measured on one corpus into every other. That is the violation this session found three separate times — in `strain.js`'s floor, in P143's own first SEG cell, and in `retrieval-prior.js`'s two bonus constants — and it is not committed a fourth time to fix the first three.
+
+**What is done.** `strainOf` takes an optional `expect`: the stream's own belief, formed by `prequential.js` from the turns already taken and from nothing else, at P144's length-free resolution. Two rungs, neither a chosen number:
+
+| condition | rung |
+|---|---|
+| the belief exceeds this stream's own base rate | 2 |
+| this stream's own null places the belief as an outlier | 3 |
+
+A different corpus reaches a different regime on its own, and a stream too young to have one (fewer than twelve turns seen) says so and defers to the floor. `expect` is a **function**, not a value: only the caller holds the stream's history and only the turn knows what it retrieved, and the belief needs both — so the turn calls it with its own facts at the moment strain is decided, and `holon.js` never imports `prequential.js`.
+
+**This also gives the measured cut something it can fire on.** `placeCoverage` has been wired-but-dormant since P175 and fired on 0 of 262 turns, because it was placing *coverage*, which is flat across most of its range, and a null over a flat series has nothing to find. Placed against the **belief series** instead, it has a quantity that actually varies.
+
+**PRE-REGISTERED, before the arm is run (II.5).** Two runs, same corpus, same seed, same model, differing only in `--expect on`:
+
+1. **The arm will recruit strain on a different set of turns than the floor does.** If the two sets overlap by more than about three quarters, the belief is re-deriving the floor and buys nothing; that is a refutation, not a null result.
+2. **The unbacked *rate* — not presence, P144 — will fall on the turns the arm strains and did not previously strain.** If it does not, then either the extra checking does not work or the belief is not finding the right turns, and the follow-up must say which.
+3. **Total model calls will rise.** An arm that strains more turns and costs the same has not actually recruited anything.
+4. **The measured cut will fire more than zero times.** It has never fired. If it still never fires against the belief series, the diagnosis that it was placing the wrong quantity is wrong.
+
+A result that requires reading these predictions differently after the fact is a refutation.
+
+**Off by default.** Absent `expect`, every path is byte-identical to before — pinned by a test that compares the two readings directly, and by a control test that a belief sitting exactly at the base rate strains nothing, so the arm cannot measure its own presence.
+
+**Generality:** universal for the construction, and the numbers are not in yet. That a stream can learn its own difficulty regime online, rather than being handed a threshold measured elsewhere, needs no fact about this corpus — it is the same argument as P175's, applied to a quantity that varies. Every claim about whether it *works* is pending the arm, and this entry deliberately states its predictions before that evidence exists rather than after.
+
+## P146 — II.11 has teeth: the earned-constant ratchet (2026-09-06)
+
+FOLD-CONSTITUTION II.11 — *"Every threshold, cutoff, minimum count, and top-N names the run that derived it… What is refused is a constant with no giver and no measurement — a judgment wearing the clothes of a setting"* — was **enforced by nothing**. A survey of this repo's own inference machinery found it UNWIRED, and the same afternoon found four separate violations of it: `strain.js`'s coverage floor (which P144 measured as destroying 97% of the information in the best predictor the turn has), P143's own first SEG cell (a median bin on a distribution where 915 of 1,000 turns held the same value), and `retrieval-prior.js`'s two scoring bonuses. Finding the same defect four times in one session is what a ratchet is for.
+
+`earned-constants.test.mjs` scans every `export const NAME = <number>` in the-fold and asks whether the comment attached to it names **either** a measurement (a run, a date, a policy, the words measured/derived) **or** a giver. Both halves of II.11 are accepted — earned, or received and said so — because II.11 is explicitly not a refusal.
+
+**Disclosed baseline: 59 unaccounted of 85.** The test does not pretend those are fixed; it records them and **fails on the sixtieth**. Entries may be removed as they are accounted for and may not be added to silently. A second test fails if the baseline names a constant that no longer exists, so the file cannot go stale and quietly stop protecting anything.
+
+**Judgments are reported apart from budgets**, because being wrong about a floor is not being wrong about a snippet length. Seven of the 59 decide something about the material, and they are printed on every run rather than being discoverable only by audit:
+
+`longform.js:MIN_SECTIONS=4` · `mhc.js:SYMBOLIC_FLOOR=5` · `misquote.js:MIN_CONTENT_MATCHED=3` · `misquote.js:MIN_TOKENS=5` · `network.js:RECURRENCE_FLOOR=2` · `retrieval-prior.js:ACTIVATION_BONUS=0.5` · `retrieval-prior.js:CITATION_BONUS=2.0`
+
+**The control.** II.10 holds that an unfalsified gate reports `unmeasured`, never `pass`, so the ratchet plants an unearned `MYSTERY_FLOOR` and an honest one that names its measurement, and asserts the verdict on each. A gate that cannot fail is not enforcing anything.
+
+**Generality:** universal. That an unearned constant is a judgment disguised as a setting is II.11's claim, not this run's, and the ratchet form — disclose the standing debt, fail on the next one — carries to any rule with a large existing violation set. The 59 and the 7 are this repo on this date and mean nothing elsewhere.
+
+## P147 — A belief formed over an undistinguished ground is not a confident belief (2026-09-06)
+
+**Found live, on the P145 arm's first real run.** The belief fired on turns 13 and 15 and reported `p=0.0000, base=0.0000`. That reads as *"this turn is certainly fine"*. It meant *"nothing has been distinguished at all"*.
+
+The cause was a plain wiring defect: the driver stored `r.unbacked` — an **array** of unbacked sentences — where a count belonged. `Number([1,2])` is `NaN`, `NaN > median` is `false`, so no turn was ever labelled, both classes collapsed to one, and the belief came out zero. It shipped on two live turns before anything noticed, and nothing would have noticed, because a confident zero is indistinguishable from a well-founded one at the point of use.
+
+**The fix is not the typo.** It is that `usableGround` now asks, once and in one place, whether there is a regime to speak of at all — every rate readable, and both classes present — and returns a typed reason when there is not: `empty_material`, `unreadable_rate`, `degenerate_ground`. Absent a usable ground the belief is `null`, strain falls back to the floor, and the record says so. This is `calibration.js`'s own standing rule applied to a second quantity: **an unmeasurable reading is never read as no-strain.**
+
+**Why this belongs in the laws and not just in a commit.** Every other guard in this instrument protects against a *wrong* answer. This one protects against a *vacuous* answer wearing the shape of a confident one, which is strictly harder to see: the wrong answer is contradicted by the material, and the vacuous answer is contradicted by nothing. The whole reason to compute a belief rather than narrate one is that a computed belief can be checked — and a belief that cannot tell "certainly fine" from "nothing seen yet" has given that up.
+
+**Generality:** universal. Any estimator over a labelled history can be handed a history where every label is the same, and every one of them will return a number rather than an objection unless it is asked to check. That the check belongs in the estimator's own module rather than in each caller is this repo's one-implementation discipline, not a fact about this defect.
+
+## P149 — The model ideates; the chain does the logic (2026-09-06)
+
+**The question that produced it.** *"Have we really experimented with reasoning that uses both the dependency order reasoning and the model?"* — and then, sharpening it: *"the mechanics for the logic and the model does non logical ideating. I think Kant would approve."*
+
+The honest answer to the first was **no**. Until this pass the two ran in opposition and in sequence: the mechanical doors answered first, failing that the model drafted **once** with everything in the prompt, and then the chain cut what it was allowed to keep. The dependency order was a *constraint applied after the model spoke* (`turn-order.js::admissible`) and a *conditioning structure for a probability* (`prequential.js`). The model had never reasoned along it.
+
+**The division, and it is Kant's.** The model supplies **intuitions** — the manifold: what is this, what does the text say, which of these is about that. The chain supplies the **categories** — existence, incidence, necessity, what binds what. Concepts without intuitions are empty; intuitions without concepts are blind. Neither half is asked to do the other's work.
+
+Concretely: the model is only ever asked to NAME, QUOTE, LIST, or CHOOSE FROM A GIVEN SET. It is never asked whether something follows, whether a claim is true, or why. **Every "therefore" in `chain-reason.js` is a line of code.** That is the whole difference from a frontier model's chain-of-thought, where the therefores are also tokens the model emitted and nobody checked.
+
+**And the division is enforced, not promised.** `ideatingOnly` refuses an ask carrying an inferential move — *therefore, follows, imply, conclude, deduce, prove, is it true, explain why, do you think* — **before it is sent**. Refused, not warned about: the division is the experiment, and a prompt that quietly crosses it makes the arm measure nothing. Every cell's ask passes the wall in the test suite.
+
+**The walk.** `NUL → SIG → INS → CON → DEF`, one narrow model call per cell, each **checked before the next runs**, and three rules the one-shot draft cannot follow:
+
+1. **An unverified answer never becomes a premise.** In the one-shot arm every check happens after the whole answer exists, by which time a false subject has already shaped every sentence.
+2. **A cell that cannot be established ends the walk, and its typed null IS the answer.** "The subject resolves to no referent" is a finding, not a failure to produce one.
+3. **Addresses pass forward, not text** (holonic slots), so the material is never restated into a prompt and cannot drift on restatement.
+
+**Measured, 12 real probes, gemma2:2b, identical material.**
+
+| | one-shot | walk |
+|---|---|---|
+| recall | 0 / 3 | 0 / 3 |
+| reasoning | 2 / 3 | 0 / 3 |
+| memory | 2 / 3 | 0 / 3 |
+| **injection** | **1 / 3** | **3 / 3** |
+| total | **5 / 12** | 3 / 12 |
+| calls per probe | 1.0 | 1.8 |
+
+**A design error in the experiment, stated rather than buried.** Memory probes ask about the conversation and reasoning probes are arithmetic. Neither is a material question, and the fold already routes both to mechanical doors (P173). Judging the material path on them is judging it on work it was never for. On the six **material** questions — recall and injection — the walk takes **3/6 against one-shot's 1/6**. Cloze recall is 0/3 for both arms and should be 3/3: the door answers those, and neither model arm should be running them at all.
+
+**THE RESULT THE SCORE HIDES, which is the real one:**
+
+| | correct | confident falsehood | stated absence |
+|---|---|---|---|
+| one-shot, all 12 | 5 | **7** | **0** |
+| walk, all 12 | 3 | **1** | 7 |
+| one-shot, 6 material | 1 | **5** | 0 |
+| walk, 6 material | **3** | 1 | 2 |
+
+**The walk converts confident falsehoods into stated absences, 7 → 1.** A hit-counting scorer treats *"I don't know"* and *"the answer is Turk"* as equally wrong. For an instrument whose founding discipline is that a measured absence is a finding while a failure to look is a fact about the reader, they are not remotely equal — and a comparison that reports only 5 vs 3 has measured the two arms on the axis this project cares least about.
+
+**The mechanism, seen live.** Asked a memory question, the model named *"Buddha"*, which appears nowhere in the material; the walk ended at SIG for one model call and said so. Asked an injection question with a swapped name, the false subject failed to resolve and no prose was ever built around it. The one-shot arm, given the same material, wrote *"The blank in the passage is filled with the word 'Turk'"* — fluent, addressed, and false.
+
+**Generality:** universal for the construction and the division; specimen-scoped for every number. That a generator can be confined to naming, quoting and choosing while all inference is done mechanically is a claim about the arrangement, not about this corpus or this model — and the falsehood-to-absence conversion follows from the arrangement, since content that cannot be resolved is refused at the cell that would have carried it rather than at the end. The 5/12, 3/12, 7→1 and the per-kind splits are twelve probes on one model on one day, and the recall column reflects an experiment design that should not have routed cloze questions to either arm.
+
+## P150 — The cube has three faces and this instrument was using one (2026-09-06)
+
+**The prompt.** *"I also think we are not leveraging the full power of the cube, think of what unlocks with the terrains and stances, and using all 3 faces."*
+
+**What the cube actually is** (`kernel/cube.js`, and it is never restated in the-fold — the tables are injected, because a restated table is how the last divergence happened):
+
+| face | axes | the nine |
+|---|---|---|
+| **operator** | mode × domain | NUL SEG DEF / SIG CON EVA / INS SYN REC |
+| **terrain** | domain × grain | Void Entity Kind / Field Link Network / Atmosphere Lens Paradigm |
+| **stance** | mode × grain | Clearing Dissecting Unraveling / Tending Binding Tracing / Cultivating Making Composing |
+
+3 × 3 × 3. The answering path has only ever used the **operator** face — `turn-order.js`'s chain, `admissible`, P143's conditioning ladder, P149's walk. Grain never enters, which means **every procedure written here runs at one grain, implicitly Figure**: find the named thing, quote the sentence mentioning it, answer about it. A question that is not about a figure gets figure treatment anyway.
+
+**Measured before anything was built** (run 1, 869 model turns, outcome = a high defect rate at P144's length-free resolution):
+
+| grain of the question | n | answers with a high defect rate | mean coverage | question words |
+|---|---|---|---|---|
+| **Figure** | 421 | **39%** | 0.44 | 13.7 |
+| **Ground** | 283 | **62%** | 0.66 | 8.8 |
+| provisional | 165 | 57% | 0.67 | 21.5 |
+| Pattern | 2 | — | — | — |
+
+A twenty-three point gap in the predicted direction.
+
+**And it collapses the day's other findings into one account.** P144 found `coverage == 1.0` was the failure regime and could not say why. P148 found the question's content-word count predicted better than coverage. Both were shadows of this: **Ground-grained questions have few content words and common ones, so coverage runs high on them.** The coverage regime *is* the Ground questions being answered by Figure machinery. Coverage was a proxy for grain.
+
+**Pattern occurred twice in 869 turns.** That face of the instrument has never been exercised at all, and no claim about it is made here.
+
+**What II.12 permits, and what it forbids.** *"A terrain, category, cluster, or type assigned by the machine and presented as found is refused. Addresses are declared and checked for coherence, never inferred and asserted. An induced kind carries a per-population null arm or renders provisional."*
+
+So the grain is **not induced**. It is read off the asker's own words — a person who writes "tell me more" has declared a Ground-grained question by writing it that way — and where the words do not settle it the reading is `provisional`, carries **no** grain rather than a default one, and **may not choose a procedure**. 165 of 869 real questions came back unsettled and not one was guessed at.
+
+**The null arm II.12 requires, five seeds:**
+
+| | real spread | shuffled spread | verdict |
+|---|---|---|---|
+| seeds 1, 7, 13, 21, 99 | 22.4pt | 6.0 / 4.0 / 0.8 / 1.1 / 2.4 pt | **separates** |
+
+with a control pinned alongside it that a split which is not there is reported as absent, so the arm can come back negative.
+
+**What this unlocks, stated as the work it implies rather than as a claim.** A settled grain places the question on the other two faces at once: "Where does Circe appear" is Existence × Figure — terrain **Entity**, stance **Binding**. "Tell me more" is Existence × Ground — terrain **Void**, stance **Tending**. Those are different kinds of work, and today they get the same procedure. The Figure procedure exists (P149's walk); a Ground procedure does not, and 283 of 869 turns needed one.
+
+**Generality:** universal for the structure, specimen-scoped for the numbers. That a cube of three faces offers terrain and stance alongside operator is canon, not a finding; that a procedure written at one grain will be applied at every grain unless something reads the grain is a property of the arrangement. The 39%/62%/22.4pt, the 165 provisional and the 2 Pattern turns are one run, one corpus, one probe generator — and that generator produced almost no Pattern questions, so the split measured here is Figure against Ground and nothing else.
+
+## P152 — Three of twenty-seven moves execute, and all three are one grain (2026-09-06)
+
+**The prompt.** *"The intelligence should be able to recursively generate legal logical moves to any arbitrary height."*
+
+**Why it could not, measured rather than argued.** The algebra has 27 legal moves — 9 operators × 3 grains, and *not* 9×9×9, since stance and terrain are projections of one address rather than free axes. `capability-coverage.mjs` reports the registry at **27/27, 0 empty**. But `capacity-runner.js` returns `not_yet_executable` for every id except two: `cast` (terrain Entity, op `SIG+INS` → **SIG·Figure**, **INS·Figure**) and `relations` (terrain Link, op CON → **CON·Figure**).
+
+**Three of twenty-seven execute, and all three are Figure grain.** Three things measured separately this session are consequences of that one fact:
+
+- **P149's walk was never a design.** `NUL → SIG → INS → CON → DEF` is the only executable path through the cube. It was hand-written and mistaken for a choice.
+- **P150's 62% vs 39%** is not a mystery. Ground-grained questions fail because there are no executable Ground moves; the instrument answers every question at the only grain it has.
+- **Height was capped at 1, structurally.** Every executable move works the ground it was handed. None produces a new one.
+
+**What is built.** `ascend.js` generates the path instead of carrying it: `legalMoves` reads the cube's own `OPERATOR_CHAIN` and the executable set, and derives `SIG·Figure → INS·Figure → CON·Figure` — P149's walk, recovered from the algebra. One guard is load-bearing: an unexecutable precondition may **not** block a move, or every move is illegal forever, which is a bug wearing a law.
+
+**Re-zeroing, not narrowing.** The first version lifted by regrouping established spans into fewer grounds and stopped when it could not narrow — height 3, by exhaustion. That is a funnel, not an ascent: nothing rose, the material shrank. `rezero` instead takes what was established and re-presents it as a **new ground** one grain up, losing nothing. NUL fires again, which is why the chain begins there.
+
+**And the grain CYCLES, which is how three grains give unbounded height.** A Pattern, once established, *is* the Ground in which the next level differentiates Figures. Ground → Figure → Pattern → Ground′ → … That is an abstraction ladder, and the ordinary shape of building an argument: each conclusion becomes a premise and you begin again from a clean slate whose contents are your own prior conclusions.
+
+**The regress, in its checkable form.** `layers.js` (P132) refuses a self-watching layer in a *static* tower. Here levels are made at runtime and each watches the one below, so no cycle is possible by construction and the danger takes another shape: **a level whose ground no longer reaches material bytes is the trail's own trail, however acyclic the diagram looks.** So the rule is provenance, checked at every height — this instrument's oldest discipline applied to its own recursion. Metacognition (`reading`) may **accompany** the material ground and may never be it: `groundIsAnchored` refuses a level standing only on its own record as `self_referential`.
+
+**And a walk that hits its guard says so.** `maxHeight` is a runaway backstop, not the bound. A walk stopped by it has not found its own ceiling and is never reported as though it had.
+
+**Generality:** universal for the construction, specimen-scoped for the count. That a move space with three executable cells at one grain cannot recurse is arithmetic, not a fact about this corpus. The 3-of-27 and which cells they are is this checkout on this date, and it will change the moment another capacity is wired — at which point the derived path changes with it, which is the point of deriving it.
+
+## P153 — The low sets the possibility of the high, the high the probability of the low (2026-09-06)
+
+**The user's formulation, and it is the law of this recursion.** It is not symmetric.
+
+**UP is POSSIBILITY.** The level below determines what the level above may attempt. You cannot establish a Pattern its Figures do not permit. Hard, deductive, already computed: `legalMoves`, whose preconditions come from the cube's own dependency order. A move is licensed or it is not, and no amount of expectation makes an unlicensed move legal.
+
+**DOWN is PROBABILITY.** The level above, once established, is **a prior over its own instances**. A Pattern makes some Figures expected and others surprising. Soft and defeasible: it re-weights what the level below attends to, and it may never license anything, because probability is not permission.
+
+**So the recursion is not a ladder but a circuit** — and the two halves were built separately today without seeing they were one thing. `ascend` is the upward half. `prequential.js`, where a cell's prior *is* the posterior of the cell above it (P143), is the downward half. They are the same structure read in opposite directions.
+
+**THE WALL, pinned rather than intended.** Probability may never become possibility. A descent that made an illegal move legal would be expectation overruling licensing — which is exactly how a reader talks itself into what it already believed. `descend` returns **weights only**; `legalMoves` never reads them, and a test asserts the two produce byte-identical output with and without a prior in the state.
+
+**Two disclosures the downward half owes.** A level in which everything carried equally places no expectation at all, and `informative` says so rather than returning a flat prior dressed as a finding. And `descentChanges` runs the level below **both ways**: if the prior does not change what is established, the descent is **decorative**, however elegant — pinned in both directions, with a control that must come back negative on an `apply` that ignores weights.
+
+**Generality:** universal. That licensing flows up and expectation flows down is a claim about hierarchical inference, not about this corpus; so is the wall between them, which is the standing failure mode of every system that lets a prior decide what it is allowed to see. Nothing here is measured on real material yet — the descent's effect on real answers is owed, and `descentChanges` is the instrument that will say it.
+
+## P155 — Theory guards: the regressions this session's findings are one edit from (2026-09-06)
+
+**The prompt.** *"Set some guidelines to prevent regression on this theory."*
+
+**Why they are needed, evidenced rather than assumed.** In one session **the same defect was found four separate times** — binning a continuous quantity where a backoff existed (`strain.js`'s coverage floor, P143's own first SEG cell, `retrieval-prior.js`'s two bonuses) — and **twice the person committing it was the person who had just written the rule against it.** A theory held only in prose regresses at the speed of the next convenient edit.
+
+**`THEORY-GUARDS.md` — twelve guards, each with three parts.** The *claim*; *why regression is tempting*, which is the part that makes a guard survive contact with a hurry; and the *gate* — a named test that fails when the guard is broken, or the word **UNENFORCED** and what it waits on. There is no third option.
+
+| | guard | gate |
+|---|---|---|
+| G1 | a check that cannot fail is not a check | `pattern.test.mjs` |
+| G2 | a path is derived, never authored | `ascend.test.mjs` |
+| G3 | levels come from the material, not the author | **UNENFORCED** |
+| G4 | recurrence of surfaces is not recurrence of referents | `pattern.test.mjs` |
+| G5 | a level that did not run may never read as absence | `pattern.test.mjs` |
+| G6 | probability may never become possibility | `ascend.test.mjs` |
+| G7 | height stays anchored to bytes | `ascend.test.mjs` |
+| G8 | a guard hit is not a ceiling | `ascend.test.mjs` |
+| G9 | where a backoff exists, a bin is a worse estimator | `prequential.test.mjs`, `earned-constants.test.mjs` |
+| G10 | any-defect outcomes are confounded by output length | `prequential.test.mjs` |
+| G11 | the cube's tables are injected, never restated | `grain.test.mjs` |
+| G12 | a kind read off the machine is refused; off the asker is not | `grain.test.mjs` |
+
+**`theory-guards.test.mjs` is what makes them rules.** It fails when a guard states no gate, when a guard **cites a test that does not exist**, when a guard **cites an assertion the named test does not contain**, when an UNENFORCED guard is not tracked under Owed, and when the numbering has a gap so one could be quietly dropped.
+
+**The third of those is the one that matters most.** A guard pointing at a test that no longer contains its assertion reports protection that is not there — strictly worse than no guard. This is the exact failure `cube.js`'s own header records: a restatement drifting under a comment reading *"nothing is restated here."*
+
+**The gate was mutation-tested rather than trusted** — four deliberate breakages, all caught: a guard with no gate; a guard citing a missing file; a guard citing a drifted assertion (both single-line and line-wrapped titles); a numbering gap. The first attempt at that mutation test **silently failed to apply**, because the cited title wraps across a line in markdown and the single-line replacement was a no-op — the check reported MISSED when it had never been challenged. A mutation test that does not assert its mutation applied is measuring nothing, and it now asserts it.
+
+**One guard is honestly unenforced.** G3 — that levels come from the material rather than from the author — is a debt, waiting on the cursor work, and is listed under Owed. It is the largest one here: `pattern.js`'s five levels are hand-authored and text-only, which is the same defect as the hand-authored walk that P152 exposed.
+
+**Generality:** universal for the form, specimen-scoped for the twelve. That a guard must name a gate or admit it has none, and that a citation must be checked against the thing it cites, holds for any project keeping standing rules. The twelve guards are this instrument's theory on this date; each names the measurement that earned it and goes only by a measurement showing it protects nothing.
+
+## P156 — The fold level: what cursor movement actually shows, and the record that is thrown away (2026-09-06)
+
+**The prompt.** *"It's not about raw tokens recurrence, it's about the folded hypergraphical cursor based reading"* — and, on levels, *"an arbitrary number of levels working on any type of material."*
+
+**The obvious design is void, and it was measured before it was built.** "A pattern is what survives cursor movement" reads as principled and distinguishes nothing here: the fold is upsert-only (`applyObservation` and `applyDelta` both end in `upsertManyById`; the sole removal in the payload switch touches `fold.provisional`, never `graphEntries`). Measured on War and Peace's first 120 KB at four cursors:
+
+| cursor | nodes | new | **lost** |
+|---|---|---|---|
+| 50% | 32 | 32 | (none) |
+| 70% | 40 | 8 | (none) |
+| 85% | 49 | 9 | (none) |
+| 100% | 55 | 6 | (none) |
+
+**32 of 32 nodes present at 50% survive to 100%.** Everything survives, so survival is not a finding, and `trace` returns `persistenceIsVacuous` on every call so that no caller can present it as one.
+
+**What carries information is what a node DOES after it appears** — three states, not degrees of one thing: **live** (still arriving), **dormant** (the reading has moved on), **superseded** (dormant, and its surface now belongs to a node that gained one). On the same run: 20 of 32 kept arriving, 12 went dormant, and exactly one node grew its surfaces.
+
+**The unit is a referent, not a string.** Node ids are content-derived and stable across cursors (`ref:auto:${diaNorm(surface)}`, `surfaces.js:1102`), so `ref:auto:prince_andrew` and `ref:auto:prince_vasili` stay two beings. A surface counter makes them one and calls it a pattern — which is exactly what `pattern.js`'s `surface` level had to be renamed for.
+
+**THE DEFECT THIS RECOVERS FROM.** `discoverReferents` detects merges and records them — `merges.push({ kept, folded, witness })` at `surfaces.js:1083`, returned at `:1165` as `{events, gaps, merges}` — and **the perceiver's cache reads `events` and `gaps` and never `merges`** (`recursive.js:297–303`). Verified: the only `.merges` consumer in either repo is an unrelated one in `clearance.js`. So the testimony is computed and thrown away, and the projection's own header — *"a node at cursor 500 may be two nodes at cursor 200, and scrubbing the cursor SHOWS that"* — is left to whoever reads two node lists.
+
+`supersessions` reconstructs it from the footprint, and live on the real run it recovers:
+
+```
+ref:auto:vasili         -> ref:auto:prince_vasili_kuragin
+ref:auto:prince_vasili  -> ref:auto:prince_vasili_kuragin
+```
+
+Three ids for one being. **Every row is marked `inferred`**, because a reconstruction that presents itself as testimony hides the repair actually owed — which is upstream, in eoreader7, and is to stop dropping `merges`.
+
+**Arbitrary levels, any material — and this is what closes guard G3.** `foldLevel` takes an arbitrary number of cursors (pinned at 2, 3, 7 and 20), makes no assumption about their spacing, and reads nothing but nodes, arrival counts and surfaces — pinned by a trace over a projection whose nodes carry no text at all. `pattern.js`'s five hand-authored levels remain text-only and are now the disclosed exception rather than the design.
+
+**Cost, stated because it decides where this can run.** A whole-book read is ~115 s and 5.4 GB, and **exceeds Node's default heap** — the committed driver dies with a mark-compact failure on a full book. Each `projectHypergraph` is a full replay from entry 0 (0.7/6.9/8.0/13.7 s at four cursors). This is an offline reading, not a turn organ, and is not called from `loops`.
+
+**Generality:** universal for the three findings, specimen-scoped for the numbers. That survival is vacuous on any upsert-only structure is a property of upsert-only structures; that a reconstruction must be marked as one holds anywhere a record is discarded; that levels should come from the caller's cursors and units from the perceiver's projection is what makes the level material-agnostic at all. The 32-of-32, the 20/12 split, the two recovered merges and the 115 s are one book, one prefix, one machine — and the committed reference JSON for this driver is dated Aug 25 and reproduces different node counts against current `native/`, so it should be treated as stale rather than authoritative.
+
+## P157 — The incremental views were never reachable (2026-09-06)
+
+**The prompt.** *"Something is wrong if it takes that much."* A 3,051-sentence read of War and Peace took 40.1 s.
+
+**Two defects, one shape: a chainView that could hit, feeding a pass that walked everything anyway.** `revision.js` built `[...(fold?.graphEntries ?? []), ...currentGraphEntries]` — a fresh array literal — so the discourse view's delta walk broke on its first step and the from-scratch path ran on every sentence: **3,392 calls, zero memo hits, zero walk hits, 37,274,742 elements scanned.** One screen above it, `descriptorHypothesesWith` passed the fold's own array and hit 3,391 of 3,392. `projectDiscourseReferentsWith(foldEntries, extraEntries)` is that shape applied. Downstream, `projectDiscourseReferents` walked every occurrence ever seen (10.7M visits per read, producing one referent in the whole novel) and `hypothesesFrom` walked every surface group per encounter; both are pure functions of what they walk, so both are memoised — the projection on its state, each hypothesis on its group array (array identity already carries "changed": an untouched group is the same array).
+
+**Measured** (War and Peace prefixes, output byte-identical): 3,051 sentences 40.1 s → 21.3 s, 13.1 → 6.97 ms/sentence.
+
+**The rule.** A cache is measured by its hit rate, never assumed to have one. The incremental path here was never refused — it was never reachable, and every correctness check passed while it was unreachable. eoreader7 commit d0e2e49.
+
+**Generality:** universal for the rule; specimen-scoped for the numbers.
+
+## P158 — Seal, do not copy: the clone was undoing the freeze it defended (2026-09-06)
+
+**The prompt.** *"What are we doing that is taking up so much memory? I think it must be wasted and could be compressed."*
+
+**It was measurable and it was structural.** graphEntries serialized to 10.6 MB and gzipped to 554 KB — **19.3× compressible**. Every entry constructor in the tree returns `Object.freeze({...})`; `clone` was `structuredClone`, which returned a fresh **unfrozen** deep copy. On a 60 KB read, **0 of 6,307 fold entries were frozen**, and 3,370 `provenance` objects held **8 distinct values** — 3,362 duplicate objects that could have been one shared reference. The clone existed to stop a caller mutating what it handed over, and it was defending against mutation of objects that were immutable until the clone destroyed their immutability.
+
+**The change.** `clone = seal`: one pass that deep-freezes (WeakSet for cycles; an already-frozen value returned untouched, so the common case is one `isFrozen` check). Sub-objects shared between entries stay shared. 21.3 s → 17.0 s. eoreader7 commit 07adb6d.
+
+**Generality:** universal — a guard that defeats the invariant it guards is a defect class, not a tuning.
+
+## P159 — The record is not the state; the fold is a projection of the log (2026-09-06)
+
+**The prompt.** *"OH we shouldn't be storing almost any of this, it should be projections from the log"* — *"objects DON'T exist until they are queried and get spun up on demand, similar to how real memory works but with an immutable log"* — *"remember NUL is an instance of non transformation."*
+
+**Measured first** (`native/docs/THE-LOG-IS-THE-MEMORY.md`): reconstructed from the log alone the fold came back **byte-identical, 15,235 entries in 101 ms**. Of a 14.2 MB fold after 1,707 sentences: graphEntries 46.4% (derivable), transformationObjects 26.9% (**verbatim** the log's DeltaFold operations), witnessed 22.1% (**verbatim** the log's Observation@1 entries, identical and in order), everything else 4.6%. **95.4% of the fold is the log or derivable from it.**
+
+**Step 0 — a gate that survives a representation change.** `read-cost.mjs --identity` hashes the log and the projection's nodes and links at four cursors; `--trace --against` hashes graphEntries per step and names the first diverging step. Built before any edit, because a change to how the fold spells itself must be told apart from a change to the reading.
+
+**Step 1 — operations were written to both the record and the state.** 2,006 EOOperation@1 entries (27% of graphEntries) sat in the state as a second copy of the record. NUL is the sharpest case: `eoOperation` and `applyDelta` both refuse a NUL carrying a mutating payload — "NUL records no transformation" — and `graphable` admitted it into graphEntries anyway, a non-transformation materialised into an accumulation of transformations. Removed exactly the acts: 7,307 − 2,006 = 5,301 = actual.
+
+**Step 2 — `witnessed` is not accumulated.** 3.2 MB kept so that a count could be taken (the only two readers asked for `.length`); the count comes from the log; the field stays present-but-empty.
+
+**Measured, 3,051 sentences across the session:** 40.1 s → 6.27 s, 13.1 → 2.05 ms/sentence, nodes/links byte-identical at all four cursors. **The scale verdict had lied:** it reported a worse growth ratio (6.6× → 11.4×) while every absolute fell, because the ratio's denominator had itself got 4.7× faster — it now reports shape **and** cost, never a ratio alone.
+
+**Retired on the user's decision** (*"kill all 6.1 stuff now"*): seven pure-parity conformance files that asserted the native kernel matches the frozen legacy engine; `native-boundary` and `text-boundary` kept, since they enforce independence. Five tests still import legacy modules as live implementations — dependencies to port, not contracts to delete. eoreader7 commits 109f73b, a98709d, 11e7e23.
+
+**Generality:** universal for the principle and the gate; specimen-scoped for the shares and the timings.
+
+## P160 — A paradigm's address reaches what fed it (2026-09-06)
+
+**The prompt.** *"A paradigm has a single address that is linked to all the things that fed it."* And, on the direction: *"how does the human mind do it?"* — birth, not every feeder ever.
+
+**Measured against that sentence, the system failed it three ways.** `ref:auto:french` reached 1 thing (itself) and 0 bytes; an EOIdentityAlternative reached 2 with 1 dangling; an operation reached 7 with 4 dangling. Fifteen EOMention@1 entries pointed **at** the referent, each with real byte anchors; the referent pointed at none of them. The links ran only upward, so going down from a referent meant scanning the whole log — and the reverse index prototyped for it (id → log positions, 0.66 MB, 10% of the fold) was **a substitute for links that should exist**, and was not shipped.
+
+**The fix is where the information already is.** At the instant a referent is admitted, the observation that produced it is in hand and its mentions already name it. `inputs` was a declared field left empty while `outputs` was filled — a lineage half-written in the direction that cannot be walked. Both are now recorded: the operation carries `inputs`, the referent carries `fedBy`. Measured on all 38 referents: mean reached 1 → 3, dangling 0, terminating in bytes **0/38 → 38/38**. Same defect shape as P156's discarded `merges`: information that exists at creation, thrown away, reconstructed downstream by inference. **Grep for declared-but-unfilled fields.**
+
+**A witness is a citation, not an edge.** Following `witness`/`encounterRef` made hop-2 expansion reach **87% of the log** from any seed; `lineage` excludes them by name. eoreader7 commit a7b3718.
+
+**Generality:** universal.
+
+## P161 — No view from nowhere, on the way out (2026-09-06)
+
+**The prompt.** *"There's no view from nowhere and a retrieval always has scoping based on what the person is really asking."*
+
+**The defect this fixes was committed the day before, in the same session.** `dmdWindow` requires a conclusion and says so in its own error. One was supplied, buried in a code comment, and the result reported as *"the measured reach of Prince Andrew is 41 mentions"* — as though reach were a property of Prince Andrew. It is a property of (Prince Andrew, that conclusion, that cursor); change the question and the number changes; nothing in the result could catch it because nothing in the result said what had been asked.
+
+**`retrieval-frame.js`** declares what a retrieval stands on: `asking` in the person's own words (never paraphrased — the paraphrase is already an interpretation, and a frame records interpretations rather than performing them), `conclusion` (what a difference must make a difference **to**), `atSeq` (identity is retrieval-time: the same question at 25% and 100% is two retrievals), and organs/priors/absent. Mirroring `notes.js` rather than inventing: an **absent** frame is reported by name and never invented (a refusal that breaks every existing caller is not a wall); a **declared** frame missing `asking` or `conclusion` is refused. `say(value, result)` renders a number with what it is a measurement of, or the gap. eoreader7 commit 5d8e4d5.
+
+**Generality:** universal.
+
+## P162 — Every score carries its frame (2026-09-07)
+
+**The handoff plan's first item.** Four times in one session the measuring instrument was wrong — a grounding scorer marking a correct answer 0% for being written in English; `s.touched` read where the field is `touchedGraphObjects`; a mutation test reporting MISSED because its replacement never applied; a scale verdict reporting a worse ratio while every absolute fell. Each produced a confident, plausible number, and the common shape was a number with no frame.
+
+**The change.** `scoreRecall`, `scoreMemory`, `scoreInjection`, `scoreReasoning` — the scorers behind "recall 33/33 vs 2/13" — each return their verdict with a `RetrievalFrame@1`: the probe's question in its own words, the conclusion the scorer actually checks, the turn as the cursor. Additive: verdict fields unchanged, the eight existing scorer tests pass untouched. **And every mutation test must assert its mutation applied.** eoreader7 commit 1a9a360.
+
+**Generality:** universal.
+
+## P163 — II.11 ratcheted for eoreader7 (2026-09-07)
+
+the-fold has carried the earned-constant ratchet since P146; eoreader7 had none, and the same defect class — a constant with no giver and no measurement — was found four times in one afternoon, twice by the person who had just written the rule. `tests/earned-constants.test.js` scans `kernel/`, `adapters/text/`, `organs/` and fails on any **new** exported numeric constant whose attached comment names neither a measurement nor a giver. Disclosed baseline: 10 unaccounted of 18, all in `organs/`; five decide something about the material (`WITNESS_FLOOR`, `MIN_RUN`, `MIN_SURFACES_PER_VERB`, `GRAMMAR_MIN_SHARE`, `MIN_QUOTE_WORDS`) and print on every run. **The baseline was generated from the scanner, not typed:** a first draft guessed five names that did not exist, and the "may not name constants that no longer exist" test is what would have caught it. Control included (II.10): a planted `MYSTERY_FLOOR` is caught. eoreader7 commit 27f8d6f.
+
+**Generality:** universal.
+
+## P164 — The observation is the record; its children are the state (2026-09-07)
+
+`applyObservation` added the Observation@1 object **itself** to graphEntries beside its own hyperedges and graphEntries — the parent, carrying copies of its children, in the same array as the children. Measured: **6,603 of 10,261 objects nested inside Observations (64%) were also top-level entries** — a 2.7 MB containment copy of a 6.6 MB fold. Same defect as P159 step 1. Verified before the change that nothing reads an Observation@1 from graphEntries (the graph index takes observations from the step; `revision.js` reads them off the observation it is handed). Measured, 60 KB: graphEntries 5,301 → 4,462 (exactly the 839 observations), heap 152 → 113 MB, nodes/links byte-identical at all four cursors. eoreader7 commit 90affd5.
+
+**Generality:** universal for the rule; specimen-scoped for the counts.
+
+## P165 — The reassignment record reaches the log, and it shows the clustering oscillates (2026-09-07)
+
+**The merge branch was not the mechanism.** `discoverReferents`' `merges.push` fires only when one surface's tokens span two already-established clusters' full token sets; assignment runs longest-first, so it fired **0 times on 120 KB** of War and Peace, and a synthetic fixture built to trigger it clustered without merging. What produces P156's "three ids for one being" is **reassignment across refreshes**: a fragment clears its sentence floor and gets an id; a later refresh clusters the fuller name first, the fragment corefers and is reassigned, and the old id is orphaned in the fold. The old `cache.refs` is in hand inside `refresh()`, so a surface whose id changed is recorded there — where it was decided — as `EOReferentMerge@1`, basis "reassigned on refresh", witnessed by the surface that moved, landed once. The folded referent is never deleted (the fold is upsert-only; cursor scrubbing replays the past); it is marked. `projectHypergraph` carries `merges` additively; the node shape the identity gate hashes is untouched. the-fold's `cursor.js::supersessions` now prefers the record (`inferred: false`) and infers only for uncovered dormant nodes — guard G14.
+
+**The finding the record makes visible.** The projection's header had claimed since it was written that scrubbing the cursor *shows* a merge; it never could, because the record was discarded. Now it does, and what it shows is instability: `vasili → prince_vasili` at 575, back at 625; `helene ↔ princess_helene` at 700/725; `pierre, monsieur → monsieur_pierre`; `emperor → emperor_alexander`. `assignmentOrder`'s tiebreaks (sentences, then mentions) shift as counts accrue. Breaking the tie — last wins, longest wins — would be a hand rule wearing a verdict; the test asserts an acyclic chain resolves to the fuller name and a cycle is **reported**, both legs witnessed at different encounters. Handed forward, not fixed. eoreader7 commit 0bcb90d; the-fold b628acf.
+
+**Generality:** universal for "record it where it was decided, and a cycle is a fact to report"; specimen-scoped for which names oscillate.
+
+## P166 — The tip is extended in place; transience is declared by the chain's owner; the log is what is immutable (2026-09-07)
+
+**The handoff plan's last item** — *"the biggest remaining win and the riskiest change"*, with the standing warning that a performance regression is invisible to every correctness check in both trees.
+
+**What the copy was.** `upsertManyById` did `const next = [...list]` on every call — one whole-array copy per observation per array, ~20.5M slots on a 240 KB read — and the delta record pointed **backward** (`childArray → { prev, … }`), so the tip held every intermediate array alive through a WeakMap value. The O(n²) was resident memory, not only copy time. **Measured on the old code: a full book (3.3 MB) dies at an 8 GB heap after 300 s; 1 MB dies the same way.** The design already said the truth out loud — `POSITIONS`'s own comment read *"linear chain: steal, extend, hand to the child"*: the index was transient, only the array was still being copied.
+
+**The change** (eoreader7 `kernel/fold.js`, `kernel/reading.js`). An array `upsertManyById` created is **owned** and extended in place; a foreign or frozen array is copied once and the copy becomes owned. The delta record points **forward** — each owned array has a stream of `{appended, updated, next}` nodes, the array holds only the newest, a view holds the node it last consumed, and old nodes are collected from the front as views catch up. `transformationHistoryRefs`, copied whole per step too, gets the same treatment. `chainView` folds forward from where it stood; a copy starts a new stream and recomputes from scratch (copies are rare now, and a from-scratch compute costs the same order as the copy that caused it — no state is carried across arrays and no path exists to get wrong).
+
+**Transience is declared by the caller that owns the chain, never inferred from the array.** The first cut extended in place unconditionally and `tests/identity-revision.test.js` caught it: that test holds `fold1`, applies a delta to get `fold2`, and reads `fold1` afterwards — *"the earlier Fold still remembers the earlier reading"* — which is a legitimate use of a pure function and passed on the old code. `applyObservation` and `applyDelta` are public and stay **pure by default**; the reader's own linear chain and `reconstruct` pass `{ transient: true }`, because they are the two places that never read a superseded fold (the reader drops `beforeFold` each step; `deriveRelease` reads only `obligations`, which stay copy-on-write through `upsertById` and must — before/after is its whole question). Same standing as `carry` (P95) and `minShare`: declared, never defaulted.
+
+**A superseded turn's fold is that turn's fold.** With shared tips, `turns[i].fold` would otherwise show the final arrays for every `i`. It is now an accessor: the live tip while it is the tip, and `reconstruct(log.slice(0, at))` once superseded — the log's projection at that seq (P159), reconstructed on demand, never retained. Pinned by reading twelve turns' folds immediately and again after the read: identical, and not the tip's.
+
+**Gates, all on the final code:** `--identity` at 60 KB, every hash unchanged (the header's `logHash` was stale since P165 put the merge record in the log — re-verified from a clean HEAD worktree and corrected with provenance); `--trace --against` byte-identical at **every one of 123 sampled steps at 240 KB and 120 at 480 KB**, against baselines captured from the old code in a worktree of HEAD. Native suite 680/681 (the one non-pass is the standing BECOMING TODO); the-fold 1864/1868 with the one failure the known load-flaky matrix-pool test.
+
+**Measured, old and new back-to-back under the same load** (the P145 arm was running its model beside both; timings are contended, the heap column is per-process):
+
+| sentences | old s | new s | old heap MB | new heap MB |
+|---|---|---|---|---|
+| 926 | 1.56 | 3.9 | 160 | 77 |
+| 1,707 | 8.27 | 3.45 | 413 | 173 |
+| 3,051 | 33.35 | 33.28 | 1,482 | 421 |
+
+**The copy was the memory term, not the time term.** Heap 3.5× lower at 3,051 sentences; read time unchanged. Twenty million slot copies are cheap in V8; twenty million *retained* slots are what killed a full book. The remaining super-linear time is elsewhere (the per-refresh re-clustering in `discoverReferents`, the neighbourhood walks) and is stated rather than glossed — P157's rule again: the number that mattered was measured, not the one the story predicted.
+
+**The full book completes on the new code** (`--projection-identity`, 3.3 MB, beside the arm): 34,229 sentences, 98,940 log entries, 286,642 fold entries, heap 3,590 MB, and `reconstruct(log)` hashes identical to the live fold at cursor 100% (`6fcb505f24492f60`) — the projection is exact at this scale. It took 9,801 s: 286 ms/sentence against ~11 at 3,051 under the same load. **The time term is the next problem, and it is not the copy.**
+
+**Structural tests, not timings** (`tests/fold-transient.test.js`, 8): array identity held across 500 steps; a schema view returned the *same* array after a step (a from-scratch compute would be a new one — the measured hit P157 demands); a counted compute across a copy; the default is pure; the frozen-tip fallback; the superseded-turn accessor.
+
+**Generality:** universal for the three rules — transience declared by the chain's owner, the record pointing forward so the tip retains nothing, a superseded state read as the log's projection; specimen-scoped for the table.
+
+## P167 — The time term, closed by growth ranking: profile two sizes, fix the term whose share grows, gate every step against the old code (2026-09-07)
+
+**The prompt.** *"Keep iterating until it works as well as possible."* After P166 the full book took 9,801 s beside the arm — 286 ms/sentence against ~11 at 3,051 — and P166's own finding was that the copy had been the memory term, not the time term.
+
+**The method, because it is what this entry is for.** CPU-profile the same read at two sizes (120 KB and 240 KB, then 240 KB and 480 KB), rank *inclusive* time by its growth ratio, and the term whose share grows is the term — not the one that is largest. Fix it exactly; gate with `read-cost.mjs --identity` and `--trace --against` baselines captured from the old code in a clean worktree (240 KB at every 25th step, 480 KB at every 50th); pin the fix as **structure** — a counted compute, equality with the reference path, array identity — never a timing; re-profile. Nine terms fell to it in six commits (eoreader7 c314156, 3e22662, 5e135dd, 448b8e6, 6c40ab5 and the P166 base). Every one is byte-identical to the old reading at both sizes.
+
+**The ladder** (CPU-sampled seconds, contended throughout by the P145 arm's model beside the reads; the shares and ratios are the finding, the absolutes are not):
+
+| read | before | after discourse | after surfaces + individuation | cliff part 1 | part 2 | part 3 |
+|---|---|---|---|---|---|---|
+| 240 KB | 20.9 | 15.7 | 5.2 | — | — | — |
+| 480 KB | — | — | 79.3 | 77.1 | 44.9 | 25.0 |
+| 120 → 240 KB growth (1.79× sentences) | 5.09× | | 1.82× | | | |
+| 240 → 480 KB growth (2× sentences) | | | 12.5× | 12.2× | 7.1× | 3.9× |
+
+
+**Wall-clock, old code (0bcb90d, pre-P166) and final code (6c40ab5), back to back, the arm still running beside both, one run at a time:**
+
+| sentences | old s | new s | old heap MB | new heap MB | old ms/sent | new ms/sent |
+|---|---|---|---|---|---|---|
+| 926 | 1.66 | 0.86 | 130 | 81 | 1.79 | 0.93 |
+| 1,707 | 6.98 | 2.54 | 411 | 151 | 4.09 | 1.49 |
+| 3,051 | 14.81 | 4.65 | 1,404 | 338 | 4.85 | 1.53 |
+| 5,904 | (cannot complete 1 MB) | 13.57 | — | 486 | — | 2.30 |
+
+3,051 → 5,904 sentences is still 2.9× time for 1.94× sentences — the residue named below.
+
+**The nine terms, each named by its measured share before the fix.**
+1. *Discourse projection, 30% of 240 KB, ×7.9.* P157's header said its whole-array fallback fired "twice in a novel"; counted, it fired on **42% of sentences**, each spreading a fresh array the chain view can only compute from scratch, then walking every occurrence — on material where zero discourse links were ever admitted. A layer over the persistent state for this sentence's extras; groups per root merged on union; a memo versioned by the state's counters.
+2. *`containsSurface`, 14%, ×6.4.* A fresh regex per known surface per sentence. A once-per-refresh index scanned once per sentence at each word start, exact to the single-surface organ's boundary rule (tested against it over 600 real sentences × 27 surfaces).
+3. *`descriptorHypothesesWith`, 12%, ×7.* A whole-map copy and a walk over every group per sentence, with a memo stale on the chain path. The output maintained incrementally; the memo versioned by group length.
+4. *No-op updates.* Revision re-admits this sentence's own observation entries (the fold lacks them at revise time), so `applyDelta` upserted the same object twice — 1,628 hyperedge "updates" on 1,166 sentences at 240 KB — and every schema view answered with an O(n) recompute. An update whose every field is the current entry's own records nothing.
+5. *Occurrence updates.* A participant with no occurrence id falls back to its surface slug, so two edges in one sentence sharing a surface yield one id with different `edge`/`relation` — a real update, 112 at 240 KB. Each view now names what it reads off an occurrence and swaps the object in place when those fields hold, recomputing otherwise.
+6. *`indexHypergraphEntries`, 6–7%, ×16.* Not key volume (≈15 keys per sentence): the function ended with `graph.entries = [...byId.values()]`, a copy of every indexed entry on every call, three per sentence, for an array nothing reads. Lazy, cached per graph.
+7. *The relation matcher, 7%, ×5.6.* `[...vocab].map(escapeRe).join("|")` over thousands of admitted verbs, and a regex compiled from it, per sentence, though the vocabulary changes only at a refresh. Memoised per Set, per word set, per pattern source; `lastIndex` rewound per use.
+8. *Identity revision, 13%, ×24.* Every fold entry filtered for hyperedges, each tested against the identity, each touched edge's canonical found by a second whole-fold search — per support. A chain view keeps hyperedges by participant value, positions in fold order, canonicals by source edge. Then the third site of P157's defect: revision handed it a **spread** of the fold's array plus this sentence's admissions, so the view rebuilt from scratch on every sentence with identity evidence — **170 builds in 1,707 sentences, counted; 1 after** the fold's own array reaches it and the extras are scanned after it in their own order.
+9. *The consumer's walk, 8.5%, ×36.* revision.js walked every hypothesis every sentence to admit the few whose ids were new. The view answers "what changed since you last asked" (`changedOnly`).
+
+Beside them: the refresh's `individuating`/`diaNorm` per *pair* memoised per call (19%); anchoring's cast rebuilt per sentence and its case-blind fallback walking every surface per hit; live alternatives indexed by first token for `attackEvidence`.
+
+**The gates caught two of my own bugs before either landed, and that is the method's own defect record.** The first cut of `changedOnly` offered only this sentence's extras, on the argument that an append arrives only as an extra; the 60 KB *log* hash moved while every node hash held, a bisect placed it, and the argument's hole was that an occurrence also enters the fold through the observation's own entries. `pending` — every surface a delta touched since the last ask — closes it, and the case is a test. Then, with part 3 landed, the 480 KB differential diverged at step 5550 while 240 KB held; a bisect cleared the memo, and a per-step delta comparison between two worktrees found step 5534: eleven canonicals in the fold lacked the alternative "anatole" that the index carried. One upsert call had appended an edge's canonical (a support's REC) and updated it (an attack's REC later in the same sentence); the delta records the first as appended and the merged second as updated, and my fold steps applied `updated` before `appended`. **Appended first, then updated, in every fold step** — a test builds exactly that delta. Neither would have been visible to any correctness test in the tree; both were visible to a byte-level differential against the old code, which is why that gate exists (P159 step 0).
+
+**Rules drilled from this pass.**
+- `[...fold.graphEntries, ...extras]` handed to a chain view is P157's defect wherever it appears — found in three places; hand the fold's own array and the extras beside it.
+- A chain view's fold step applies **appended before updated**: one call can do both to one id, and the update is the later fact.
+- An update that changes nothing is not an update; a view that can name what it reads off an entry may swap an update in place, and must recompute otherwise.
+- A consumer that admits new ids and ignores known ones should be answered with what changed, and the view keeps the debt (`pending`) for changes it folded while nobody asked.
+- Run the gates with a heap flag and one at a time: with the arm's model resident, two of my runs died allocating and printed only Node's banner; a third became a swap storm and was stopped unmeasured.
+
+**The full book on the final code** (`--projection-identity`, 3.3 MB, the arm still running): 34,229 sentences, 98,940 log entries, **627 s** — against 9,801 s on the P166 code, 15.6× — and `reconstruct(log)` hashes `6fcb505f24492f60`, identical to the P166 run's: the whole-book reading is byte-for-byte what it was before this pass. Heap 4,437 MB against 3,590 MB then: the indexes and view states that replaced the scans are resident now, and that is the next memory term, named, not glossed.
+
+**What remains, at 480 KB (25 s).** Anchoring's `observe`/`recall` 24% (the memory organ's posting walk); the refresh's re-clustering 18% — every surface pair, every 25 sentences; making it incremental would change *which* surfaces oscillate (P165) and is a reading change, a decision, not a fix; `extractRelations` 15% (the matcher itself over a growing alternation; restricting the alternation to the sentence's own tokens is exact only if Unicode case folding is, which is unproven). The full book: 9,801 s on the P166 code; the run on the mid-ladder commit swapped and was stopped, unmeasured; 627 s on the final commit, reading identical.
+
+**Generality:** universal for the method and the rules; specimen-scoped for every number in the ladder.
+
+## P168 — An address is given at birth and kept: the referent's id no longer follows the founder's spelling (2026-09-07)
+
+**The prompt.** *"Read our broader goals, experiment and decide and implement."* The goals: SEED — *identity by consequence, never by appearance*; P1 — identity is retrieval-time; P160, in the user's words — *"a paradigm has a single address that is linked to all the things that fed it."*
+
+**The defect, measured before anything was built.** Every refresh re-clusters from scratch and mints a cluster's id from whichever member founds it that time (`ref:auto:<founder's slug>`). The founder is decided by the assignment order's tie-breaks — sentences, then mentions — which shift as counts accrue, so a being's *address* flips between refreshes. P165 recorded the flips as testimony and named the tie-break as the cause. On 480 KB of War and Peace under that rule: **31** reassignment records, none witnessed; **4** beings whose address oscillates (vasili ↔ prince_vasili, helene ↔ princess_helene, hippolyte ↔ prince_hippolyte, horse ↔ horse_guards); **25** superseded addresses still carrying mentions — one being's mentions split across ids, the residue P156 had to reconstruct by inference. The founder's spelling is appearance; the id is an address.
+
+**The rule.** `discoverReferents(surfaces, { prior })` runs the clustering *exactly as before* — the partition of surfaces into clusters is byte-identical, and a test pins that refresh by refresh on 120 KB of real material with a rename asserted to have actually occurred — and then renames each cluster to the earliest-born prior address among its members. No prior member: a birth, keeping its minted id (suffixed with its birth seq only if that id already names a live being). Two clusters claiming one address: a split, kept by the cluster holding more of its bearers, the moved surfaces surfacing as reassignments. One cluster holding two prior addresses: a merge of two beings, on record with the cluster's maximal surface as its witness. The perceiver carries `born` across refreshes; `addresses: "birth"` is the default, `"founder"` keeps the old reading reproducible.
+
+**Measured, the same 480 KB read under both rules:**
+
+| | founder | birth |
+|---|---|---|
+| beings whose address oscillates | 4 | **0** |
+| superseded addresses still carrying mentions | 25 | **1** |
+| merge / reassignment records | 31, none witnessed | 7: 4 witnessed merges, 3 reassignments |
+| referent objects in the fold | 170 | 153 |
+| live referents | 145 | 152 |
+| partition of surfaces into beings | — | identical |
+| read | 16.1 s | 14.2 s |
+
+At the 60 KB identity cursor the projection has **33 nodes instead of 38, with the same 166 links** — the five were second addresses of the same beings. Cast recall cannot move under a rename (the partition is the same); what moves is that a being's mentions, edges and merges accumulate at one address.
+
+**This is a deliberate reading change, and the record says so.** The 60 KB identity hashes and the 240 KB / 480 KB trace baselines moved by design and were regenerated from this commit, with the old values kept beside them in `read-cost.mjs`'s header. P165's test that pinned the oscillation now pins it under `addresses: "founder"` and pins its absence under the default — its own text said it should be retired that way when the clustering was stabilised. A the-fold test that pinned P156's "three ids for one being" as a finding is a test of the defect and is updated with the finding recorded.
+
+**What this did not do.** It did not make the re-clustering incremental (the refresh still re-runs the full assignment, 18% of a 480 KB read); an incremental version would change *decisions* — a fragment that new evidence would make ambiguous stays placed — and that is a second reading change to measure on its own. The `horse ↔ horse_guards` pair is a fence question, not an address question, and stays.
+
+**Generality:** universal for the rule (an address is a birth, not a spelling; a rename is not a re-clustering) and for the method (measure the defect, prove the partition invariant, then decide); specimen-scoped for the counts.
+
+## P169 — Ground, Figure, Pattern: the organs seated (GFP Pass 32), and a numbering collision across branches recorded (2026-09-07)
+
+**What landed.** `GROUND-FIGURE-PATTERN-SPEC.md` — the relative-address experiment and its program (Passes 32–42) — reached `main` from another session as its P130/P131. This branch takes its Pass 32: the two pure modules (`relative.js`, the keyless field; `relative-pattern.js`, drift/reanchor/correspond), the seven tests and the runner brought over unchanged; **three registry rows** in eoreader7's `native/organs/capacities.js` — `recall` SIG·Figure → **Entity**, `drift` EVA·Ground → **Atmosphere**, `correspond` SYN·Pattern → **Network** — with the cells *confirmed by `cellOf`* rather than proposed (`relative-seat.test.mjs` asserts each against `cube.js` and that each row's `fn` is a real export of the module it names). The modules stay in the-fold: the registry's own convention is that page organs (`void-shape.js`, `build-log.js`, `network.js`, …) live here and only eoreader7-resident organs carry an explicit path, and these two are about to get page crossings (OPFS, the reopen door, the room).
+
+**Pass 32's measure.** The §0 table re-run on the seated modules (`eval/results/relative-addresses-2026-09-07-pass32.txt`) is identical to the recorded one line for line, timing lines aside — 120/120, 119/120, 120/120, 87/120 with 29 ambiguous, 0/120 random cues called a figure, 96/120 with exactly the 24 deleted apart, a shuffled store rebuilt to the same figure and synapse 120/120. Exit met.
+
+**The collision, recorded rather than hidden.** `main` and this branch (`ground-ladder-p115`, 55 ahead / 7 behind) both allocated **P129–P131** to different entries: on `main` the pool, this spec, and prediction-as-author; here the reasoning before the model, System 2 recruited by difficulty, and the cut measured from the stream. A merge conflicts on eleven files (CLAUDE.md, POLICIES.md, app.js, holon.js and their tests, and five files both sides added under one name). Policy numbers are allocated per branch with no registry, so this was inevitable; the reconciliation — renumber one side, merge, re-key the cross-references — is a decision and a task of its own, not folded into a pass. **Resolved 2026-09-07, at the merge:** `main`'s numbers stand (they were published first); this branch's three became **P173, P174, P175** and every cross-reference in code and prose was re-keyed (48 references in ten files; the two in this entry that name `main`'s meaning kept). Until it is done, "P174" means two things depending on the branch, and every pointer here says which.
+
+**Generality:** universal for the seating rule (a registry row is a place and a cell confirmed by the cube); not-applicable for the collision, which is a fact about two branches.
+
+## P170 — The conversation's loops, closed over referents: anaphora, restatement, address, absence, self-consistency, history depth, expectation (2026-09-07)
+
+**What was asked.** After a 25-turn reader conversation about a net-new novel (Crime and Punishment, `pg2554.txt`, gitignored; eoreader7 `eval/the-fold/conversation.mjs`, whose moves are computed mechanically and only phrased by the mouth), the honest assessment was: the RECORD is decent — addresses real, absences admitted, nothing fabricated — and the INTERLOCUTOR is poor: `open` 7 turns / 3 addressed the asked-about name, `clarify` 3/1, `reflect` 3/1 resolved, `deepen` 1/0, `revisit` 3/1, `why` 3/2, `verify` 5 answered mechanically, with no memory of what it had said and no position on what the reader restated. The nine missing loops were named as non-LLM intelligence, and the direction was: *"we've done basically all this work previously, find it and wire it all in."* Found, not built: the measured history window (`kernel/activation.js::dmdWindow`), the premise check (`correction.js::checkPremises`), the relation reader's own bound claims (`hypergraph.js`), the quote-verbatim and record organs (`quotes.js`, `answer-record.js`), the transcript retrieval (`transcript.js`), the snip walls (P122), and the referent index (`cast.js::makeReferentIndex`).
+
+**The correction that shaped it.** The first cut of `dialogue.js` decided identity with strings — capitalised runs, a stop list, folded substring containment, an absence regex — where the referent organs must decide (P11, "referent model, not pointers"). Stopped before it landed: *"make sure we haven't over built this for NL nor that we've forgotten the power and centrality of referents."* Chasing that found a second thing: the turn's per-part name resolver is `makeCastResolver`'s BOOLEAN projection, and **nothing — not the app, not either driver — had ever passed `makeReferentIndexFor`**, so the premise check's referent path (`premiseReferents`) had never once run in production. `app.js` had built `referentIndexFor` since P22 for the terminal's `cast` capacity and handed the turn only `castFor`.
+
+**What shipped.** `dialogue.js` (pure; index injected): `referentsOf` — every capitalised run is a CANDIDATE and the index is the veto, no stop list, no position rule; `bindAnaphora` — a pronoun binds to the last answer's referent ids in mention order, "those passages" to its addresses, and a question naming its own referents binds nothing; `addressedBy` — the answer's referent ids cover the question's, by identity (an answer saying "Rodion" has named Raskolnikov); `absenceOf` — see the rule below; `restatementOf` → a premise typed `restated by the reader` graded by the SAME `checkPremises` → `positionOn` (yes / no / partly / not-in-sources), prepended to the answer; `refKey` — a claim keyed on referent ids where the index resolves an end, the folded surface where it does not, `basis` disclosed; `selfContradictions` + `contradictionLine` — the same key with the opposite polarity, or bound-then-contradicted, lands "On the record: on turn N this conversation held … Both stand." — a typed row, never a verdict on which turn was right; `historyWindow` — the depth handed to the mouth is `dmdWindow`'s own reading on what the question's REFERENTS reach in the window (content words only when the question resolves to none, `basis` says which); `expectationFrom` / `expectationFacts` / `errorOf` — the reader's bound claims whose ends resolve to the question's referents, composed BEFORE the draft and handed over as positive facts at their addresses, then the diff after: matched / novel / missing / contradicted and the authorship ratio. `answerable.js`: two doors before any model — `quoteBytes` ("quote it for me" returns the bytes at the last answer's addresses) and `recordCheck` ("did the book really include those passages" — Yes/No against the chunk map with excerpts). `holon.js`: the index built once per part from `makeReferentIndexFor`; the address check sits BEFORE the snip checks, the guards, the correction round and the inadmissible gate, with ONE re-ask whose message is the missing referent's own surfaces in the passages' sentences at their addresses — positive facts only (the negative-knowledge rule holds); a mechanical draft is checked and recorded too, only the re-ask needs a mouth; `addressed` / `expectation` / `selfContradictions` / `position` ride the record. `conversation.mjs` and `app.js` hand the turn `makeReferentIndexFor`; the driver's own measures (which names the reader may ask about, whether an answer addressed its target, whether the mouth's phrasing kept the target) go through the corpus index.
+
+**Three rules earned by running it, not by design.** (1) **An absence the record states needs two bars.** The index refuses a sentence-initial capital as evidence of a name (P94), rightly — so on a fixture whose every "Razumihin" opened a sentence, the index established no referent and the first cut printed *"The loaded sources establish no referent named Razumihin"* under passages that name him. `absenceOf` types a name the bytes carry but the index never established as `unestablished` (no line, recorded), and only a name no passage contains as `absent`; the containment is a VETO on an absence claim, never identity (P31's shape). (2) **The diff measures what ships, never the draft.** A fabricated name-bearing sentence ("Razumihin brought wine to Porfiry") is cut by the snip walls before the diff, so `novel` is 0 and authorship 1 on the shipped text — the test that wanted `novel ≥ 1` was fighting a wall that works, and now asserts the wall. (3) **Keys are minted at comparison time through the turn's own index.** The transcript carries a claim's ENDS, never a key; a claim about "Rodion Raskolnikov" and one about "Raskolnikov" key identically where the index folds them. Also: the re-ask placed after the walls reinstated a cut token and three pinned tests failed (P133/P134/P135) — it lives before them so a re-asked draft passes every wall the first draft did.
+
+**Declared, not measured:** `dmdWindow`'s candidate depths `[1,2,3,4,6,8,12,16,24]` (a ladder, structural); 12 expectation facts, 6 snips at 2 per passage in the re-ask (P9 budgets). The speech-act triggers (restatement, pronoun, passage anaphor) are `lang/en`, question-side, and kept minimal on purpose — the reader speaks English whatever the material is; nothing decided about the MATERIAL is language-specific.
+
+**Enforced.** `dialogue.test.mjs` (10, against the real `makeReferentIndex` over a fixture that spells one being two ways so a substring and a referent disagree), `dialogue-turn.test.mjs` (5, through the real `runHolonicTask` with the real organs and a scripted mouth: the doors, the position, the re-ask by referent, the absence with no re-ask, the wall before the diff, self-consistency). Suite 1899 / 1894 / 2 — the two load-flaky Matrix pool tests, by name, pre-existing.
+
+**Measured — the 25-turn comparison (amended 2026-09-07, same day).** Same seed (3), same novel, same mouth and reader (gemma2:2b), the baseline turn versus the wired turn (eoreader7 `results/conversation/2026-09-07T16-31-42-…` versus `…T17-29-51-…`, `scratchpad/compare-runs.py` over the first 25 rows of each, the driver's own `addressed`/`resolved`/`cited`):
+
+| move | baseline n · addressed · resolved | wired n · addressed · resolved |
+|---|---|---|
+| open | 7 · 3 · 1 | 5 · 5 · 5 |
+| deepen | 1 · 0 · 0 | 5 · 1 · 1 |
+| why | 3 · 2 · 2 | 3 · 2 · 2 |
+| reflect | 3 · — · 1 | 5 · — · 4 |
+| revisit | 3 · 1 · 1 | 2 · 1 · 1 |
+| clarify | 3 · 1 · 1 | 2 · unmeasured · 0 |
+| verify | 5, all mechanical | 3, all through the doors |
+
+The turn's own record, absent before: address check recorded on 25 of 25, all referents named on 20, **8 re-asks and 8 of 8 improved the naming**, 5 typed absences and 0 unestablished (the two-bar rule held on real turns); expectation composed on 15 turns — matched 2, novel 21, missing 71, mean authorship 0.10 over the 7 turns with a measurable one (the reader hears far more in the passages than the mouth says, and what the mouth says it mostly cannot bind — the paraphrase wall MINE-1 and P74 already name, now as a per-turn number); history depth 1.4 exchanges, by referent on 19 turns and by surface on 5; doors before the model 4; self-contradictions 0. Refs per answer 0.92 → 1.28; unsupported 0 both. **Cost:** 43.6 → 92.8 s per turn and 1.96 → 2.92 calls — the re-asks are one call each, and the machine carried the long-stream arm and the Pass 33 eval throughout; the ratio is the honest number, the seconds are not.
+
+**Two misfires the rows exposed, fixed the same day and pinned.** Positions were 0 across five reflect turns because the mouth phrases its reflections "Is THIS what the book says?", "Do you agree with this interpretation?", "Did the book say that X?" — each a word off the triggers, and turn 8's answer to the first was "You're right! I apologize for the confusion" to a restatement the sources never make. The triggers are widened to those phrasings (still question-side, still minimal). And "Did the book say that Sonia was angry?" (turn 10) went through the record-check door, which answered "Yes — those passages are in the book": a question about CONTENT is the restatement loop's, and the door's verb branch now requires a passage anaphor. `clarify` is honest about its own limit: both targets were the mouth's own headings ("Conflict and Tension", "Rodya's Situation"), which resolve to nothing, and the record said so — a name the mouth coins is a typed absence, and the driver leaves `addressed` unmeasured on it rather than scoring a substring.
+
+**Generality:** universal for the rules (identity is the index's, never a string's; an absence needs two bars; the diff measures what ships; keys at comparison time; a door that answers about addresses needs a passage anaphor); specimen-scoped for the English speech-act triggers, which are question-side, minimal, and were widened from one run's own phrasings.
+
+## P172 — A null with a stated false-positive rate, not a sample min/max: the entropy band by exact order statistics, drawn only as far as the verdict needs (2026-09-07)
+
+**What was asked.** The entropy null in `matrix-client.test.mjs` (P119's "each block sits in the band random bytes of its own length occupy") was a standing statistical flake. It built the band as the min and max of `byteEntropy` over 100 random draws of the blob's length and asserted the real blob lay inside. A truly random blob is a 101st draw, exchangeable with the other hundred, so it is the strict min or max exactly 2/101 of the time — one check in 50 — and the file makes three such checks per run (two blocks, plus the pool test's sealed prompt over 50 draws, one in 51). Seen under concurrent runs on 2026-09-07: `433 bytes: 7.416 in [7.430, 7.590]`, a correct ciphertext failed by its own null. Numbering note: P171 is claimed by `resolutions.js` (the three resolutions, another session's) and written up separately.
+
+**The rule.** A null that decides a pass/fail must state the rate at which it fails a true null, and that rate must be the null's own arithmetic, not a sample extreme. The order-statistic fact does this without assuming any distribution: if the blob is random it is exchangeable with N draws of its length, so P(it falls outside their min…max) = 2/(N+1) exactly (ties count as inside, which only lowers it). The rate is therefore a named BUDGET (P9) — `NULL_FALSE_POSITIVE = 1e-4` per check, chosen as a budget and said so, one spurious failure in ~3,300 runs of the file against the ~17 it replaced — and the draw count is DERIVED from it (N = ⌈2/α⌉ − 1 = 19,999), never picked. The user's own framing of the fix: "a stated false-positive rate rather than a sample min/max … prefer a measured null." No parametric band (mean ± z·sd) was used: the plug-in entropy of 433 random bytes is skewed, its Gaussian z-rate would be a claim, not a fact, and the exact rate was free.
+
+**The cost is paid only where the verdict needs it.** `randomBand(e, len)` draws in doubling batches (100, 200, 400, …) and stops the moment the blob is inside the band so far, because inside a subset's min…max is inside the whole draw's; the failure verdict is only ever given after the full N, so its rate is exactly 2/(N+1) while a passing check costs 100 draws — cheaper than before (100 + the pool's 50) in the common case, and the 72 KB pool blob never pays for 20,000 draws unless it is actually outside. Measured in a scratch harness with the rate swapped to make it observable (5,000 random 433-byte blobs each): stated 2% → observed 2.02%; stated 0.2% → observed 0.22%, escalation on 92/5,000 checks, mean 107 draws. The verdict now says its own rate on failure ("… after 19999 random draws of that length — a random blob lands here once in 10000").
+
+**The positive control, added.** A widened band must show it still cuts: plaintext of each blob's exact length (the turns' JSON, repeated to fit) is placed against the band that admitted the ciphertext and must sit below its floor. It does (≈4.7 bits/byte against a floor ≈7.35 at 433 bytes; the gap is ~3 bits, the band ~0.3 wide), and because it is checked against the band already drawn it costs nothing extra. The pool test's one-sided `>= lo` over 50 draws is now the same two-sided check.
+
+**Verified.** `node --test matrix-client.test.mjs` seven times in sequence under a load average above 300 (other sessions' suites running): 21/21 each. `npm test` before and after: 1,918 tests, the same single failure (`II.11`, on `resolutions.js:DECLARED_LINES`, another session's, independent of this file), failure names diffed identical. `II.11`'s scanner reads exported constants in `.js` files, so the test-local rate is outside its remit; it is documented to its standard anyway.
+
+**Generality:** universal for the rule (a pass/fail null states its own false-positive rate as arithmetic, never as a sample extreme; the rate is the budget, the sample size is derived; draw only as far as the verdict needs; a widened band re-proves its cut with a positive control). The same defect — "inside the min/max of k draws" read as "inside the null" — is worth a grep wherever a test draws a band.
+
+## P173 — The reasoning happens before the model: what the instrument knows exactly is answered without asking the mouth at all (2026-09-06)
+
+**Generality:** universal for the rules (a question whose answer the instrument can recover EXACTLY, with an address, is answered mechanically and NO model call is made — a computation over the values the question names, a blank whose filling sits verbatim in the material, a question whose answer is verbatim in the record, or an address the retrieval already knows; a question that also asks for prose — why, explain, what does it mean, what does it matter — is never taken by this door, and the computed fact is handed to the mouth instead; the SHAPE of an ask is read from the person's own words with quoted material removed, because a question quoting a comparison is not making one; ambiguity is declined and falls through to the model, since silence costs a call and a wrong answer costs the truth). Local for nothing measured.
+
+**Why the model was doing work it cannot do.** The user, seeing a reasoning probe still wrong after the engine was wired: "why is the model even doing the generation? how much of this can we do before it gets to the model?" The measurement that settles it, one comparison, same material:
+
+| arm | answer |
+|---|---|
+| the engine, computing | 1805, 36 years apart |
+| the mouth, handed that fact | "There are 46 years between them." |
+| the mouth, handed nothing | "There are 41 years between them." |
+
+Telling a small model the answer does not make it say the answer. This is `arithmetic.js`'s own August law — a number is computed, never generated; a wrong mechanical answer is worse than none and a model-guessed one is the failure the door exists to stop — carried from bare sums to the shapes questions actually take.
+
+**Measured over a live run's own 244 turns**, each seeing only its own past: the reasoning probes went from **0 right in 10** to **11 of 12 answered with no model call at all**; 5% of all turns need no model, and that undercounts the cloze and address doors because passages were not replayed. The organic majority still belongs to the model, which is the point — it is left doing the work only it can do.
+
+**Two misroutings found and closed by the same rule.** A memory question quoting a reasoning question fired the comparison door on seven probes; reading the ask outside quoted spans fixed five, and nested quoting (a memory probe quoting a memory probe quoting a comparison) kept two more until an unbalanced quoted region was treated as one span. A door that answers the wrong question is worse than no door.
+
+**Files.** `arithmetic.js` (`detectComparison`, `checkComparison`, `enforceComparison`, folded into `checkQuantity`) + `arithmetic.test.mjs`; `answerable.js` (`answerBeforeTheModel`, `clozeAnswer`, `priorAnswer`, `whichPassage`, `wantsProse`) + `answerable.test.mjs` (4, each with its refusal); `holon.js` (the door before the plan, returning with `calls: 0`; the computed comparison handed as a fact when prose is wanted; `math` injected) + `holon.test.mjs`; `app.js` (`window.math` into the turn); `eoreader7/native/eval/the-fold/long-stream.mjs` (the engine resolved for the driver). Suite 1,723/0 plus one flaky concurrency test of main's.
+
+## P174 — System 2 is recruited by difficulty, not spent flat; and the substitution System 1 is named for is caught (2026-09-06)
+
+**Generality:** universal for the rules (difficulty is measured mechanically from readings the turn already paid for — whether any retrieved passage speaks to the question, how much of the question's vocabulary the material carries, whether a premise the question asserts checked out, whether sources disagree, whether something already found wrong is in scope — and the depth rung is recruited from it; the person's slider, when they have actually moved it, is both FLOOR and CEILING on what strain may take, never silently overridden; the reason that drove the rung is reported first, so a record saying "depth 3" says why in the same breath; a signal that cannot be read is absent, never a zero; and an answer sharing almost nothing with the question's own words has changed the subject and is flagged). Local for the numbers (`COVERAGE_FLOOR = 0.34`, the substitution floor of 0.2 — declared, unmeasured).
+
+**The dynamic that was missing.** The instrument already had both systems and a watcher between them: `runFastPass` drafts (S1), `holonicTurn` checks against material (S2), `metacognition.js` classifies the gap and learns a precision per cell. P173 gave S1 its strict form — an answer in milliseconds with no call at all. But S2 was not LAZY, it was UNIFORM: every grounded turn spent the same witness asks and correction rounds whether the material answered outright or three sources disagreed. Kahneman's account turns on the opposite — effort is recruited by strain, and a lazy S2 is what makes a fast S1 affordable. Now the draft is always S1's; what strain buys is the CHECKING after it.
+
+**Attribute substitution, the failure S1 is named for.** Asked a hard question, S1 answers an easier neighbouring one and the swap goes unnoticed. It is visible here without a model — the question's content words against the answer's. Measured live: asked what filled a blank in a named passage, the mouth returned a general essay on how language models analyse text, sharing NOTHING with the question (share 0.00), and nothing in the instrument flagged it. A short answer is not judged, nor is a question with almost no content words of its own.
+
+**A wall found while building it.** The depth default of 1 was being read as a deliberate ask, so strain was capped at 1 on every turn and could never recruit anything. An unset slider now means no preference, and strain decides alone.
+
+**Files.** `strain.js` (`strainOf`, `recruit`, `substituted`, `THIN_PASSAGES`, `COVERAGE_FLOOR`) + `strain.test.mjs` (4, each with its control — a single chunk carrying everything is the EASIEST case, not a thin one); `holon.js` (strain measured per part, the post-draft witness and correction budgets recruited from it, `strain` and `substituted` on the turn, `depth` null meaning unset) + `holon.test.mjs` (P174: an argued turn buys more checking than an easy one, and the slider holds in both directions); `app.js` (`state.depthSet`). Suite 1,729/0.
+
+**Amendment to P173 and P174 — measured, 2026-09-06, replayed over 266 real turns of the live long-stream run.** Each turn was replayed against the same corpus with real retrieval, seeing only its own past.
+
+Accuracy, the model's live answers against the same probes answered by the door:
+
+| probe | the model, live | with the door |
+|---|---|---|
+| reasoning | 0 right · 3 partial · 10 wrong | **10 right** · 2 partial · 1 wrong |
+| recall | 1 hit · 5 miss · 7 wrong | **7 hits** · 2 miss · 4 wrong |
+| memory | 8 of 13 repeated an earlier atom | 9 of 13 |
+| injection | 4 held · 8 evaded · 1 capitulated | unchanged — judgement is not this door's |
+
+Cost: **37 of 263 turns (14%) need no model at all**, which is **289 of 2,167 model calls (13%)** and **23 of 183 minutes (12%)**.
+
+**And the finding that does not flatter the work: P174 is cost-NEUTRAL.** Budgeted witness asks came to 1,596 flat and 1,602 recruited — within a whisker. Strain does not spend less; it MOVES effort, off the 73% of turns the material answers plainly and onto the 14% it does not. That is the intended behaviour and it is not a saving, and whether the redistribution buys accuracy is NOT yet measured: it needs a live arm on the same seed, which the run in flight is the baseline for.
+
+**A calibration error in P174, caught by this measurement and fixed.** "Something already found wrong is in scope" was read as strain. Over the real run it fired on 148 of 214 turns and pushed 62% of everything to level 2 — recruiting MORE work on most turns, the opposite of the point. Prior corrections are information, not difficulty: they say what to avoid, the guard already enforces them mechanically, and knowing them makes a question easier. Removed as a reason to spend, kept as a reading on the record (`informed`). The distribution is now 14% at level 0 (S1 answers), 73% at level 1, 14% at level 2 — a lazy S2 on seven turns in eight.
+
+**`COVERAGE_FLOOR` placed against a measured distribution** rather than left bare: over the same 264 turns coverage ran min 0.00 · p25 0.43 · median 0.63 · p75 1.00, and the declared 0.34 catches the bottom 14%. Declared at roughly the first sixth, not tuned — no arm was run to choose it.
+
+**Also measured, about the baseline itself: 60 of 263 live answers (23%) changed the subject** — they share under a fifth of their question's content words. Nothing in the instrument flagged one of them before P174.
+
+## P175 — The cut is measured from the stream, through the engine's own licensed null (2026-09-06)
+
+**Generality:** universal for the rules (a threshold a turn is decided by is placed against a null built from the stream's own recent regime, using the engine's licensed apparatus rather than a statistic invented for the purpose — `nul/index.js::ground` builds the nothing by perturbing present material and `difference` places the observation, censoring at its own declared resolution of 1/draws; the pair is `maxDeviation/resample`, licensed for exactly this shape, and the construction is leave-one-out as its own citation's script does; because `maxDeviation` is blind to sign, DIRECTION is read separately, since an unusually well-covered question is not a strain; every typed gap the apparatus can return means something different and NONE of them means "easy"). Local for the numbers (`MIN_HISTORY = 12`, `HISTORY_WINDOW = 60`, `DRAWS = 200`, `WINDOW = 4` — declared, and the apparatus refuses to default draws or window because the resolution of testimony is 1/draws and the reach of the present is never derived from material length).
+
+**Why a declared floor cannot be right.** `COVERAGE_FLOOR = 0.34` is unremarkable on a marked-up critical edition and alarming on a novel. The cut has to come from the material, and the user asked the question directly: "can this calibration itself be online learning leveraging all the best mechanics we have like the born rule and the different voids and nuls?"
+
+**Files.** `calibration.js` (`placeCoverage`, `rememberCoverage`, `chooseCut`) + `calibration.test.mjs` (4, every typed null among them); `strain.js` (the placement decides where it can, the floor is the disclosed fallback, and the reading says which was used).

@@ -221,3 +221,43 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Marshall | IV.1; P71 | POLICIES P131, spec §2 A1–A4, §4 Passes 40–42, §7 | upheld — compliant | the earlier "separate program" is corrected in the entry itself, not silently; every new pass carries a null and an exit; nothing is claimed built |
 | Simon | II.10; II.23 | spec Pass 40/41 nulls | clean | the expectation is measured against a shuffled record and the diff against a random expectation, so a composition that is noise, or a diff that cannot resolve, stops its pass |
 clean: nothing struck.
+
+## 2026-09-07 — GFP Pass 32: the organs seated (branch `ground-ladder-p115`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + FOLD-CONSTITUTION + POLICIES.md. Lenses in-session over `relative.js`, `relative-pattern.js` (brought from main unchanged), `relative-seat.test.mjs` (new), eoreader7 `native/organs/capacities.js` (three rows).
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Marshall | P92 (read CAPACITIES before writing an organ); IV.1 | capacities.js rows; relative-seat.test.mjs | upheld | the cells were proposed in the spec and are CONFIRMED by `cellOf` in a test that runs against `cube.js`, not by hand; the rows name the module each organ actually lives in |
+| Dijkstra | III.4 | relative-pattern.js `drift` → the-fold `record-log.js::resolveAddress` | clean, named | one address resolver, the ledger's own; the modules stay beside it rather than moving to eoreader7 and importing backwards |
+| Diaconis | II.10 | eval/results/…-pass32.txt vs the recorded table | clean | the re-run is diffed line for line against the table the finding rests on; it reproduces to the probe |
+| Feynman | P71 | P169's collision paragraph | disclosed | the branch numbering collision is written where a reader of "P174" will look, not resolved by fiat in a pass about something else |
+clean: nothing struck.
+
+## 2026-09-07 — P170: the conversation's loops, closed over referents (dialogue.js, answerable.js, correction.js, holon.js, app.js's index line)
+
+chorus-fast: staged scope, 10 files; 18 affected test files, 287 cases; the one FAIL is `matrix-client.test.mjs`'s load-flaky pool test (passes 21/21 alone, standing entry). Full suite 1899 / 1894 / 2 — the two known Matrix tests by name.
+
+| persona | article | file:line | verdict | summary |
+|---|---|---|---|---|
+| Holmes | P11 (referent model, not pointers) | dialogue.js `referentsOf`/`addressedBy`/`refKey` | fixed | the first cut decided identity with capitalised runs, a stop list and substring containment; every decision is now `index.resolve`'s, and a fixture spelling one being two ways pins that a substring and a referent disagree |
+| Ostrom | P41 (absence is not a verdict) | dialogue.js `absenceOf`; holon.js absence line | fixed | a name the bytes carry but the index never established read as "absent" (every "Razumihin" opened a sentence); two bars now — `unestablished` earns no line |
+| Chekhov | P92 / P22 | app.js:6183 `makeReferentIndexFor` | fixed | `referentIndexFor` had been built since P22 and handed to the terminal only; the turn's premise-check referent path had never run in the app |
+| Feynman | II.11 | dialogue.js:128 three-word floor | accounted | the claim's own shape (two ends and a label), stated in place |
+| Diaconis | II.10 / P97 | dialogue-turn.test.mjs "the wall before the diff" | fixed | the test wanted a fabricated sentence counted `novel`; the snip walls cut it before the diff — the diff measures what ships, and the test now asserts the wall |
+| Frankfurt | P133–P135 | holon.js re-ask placement | fixed | a re-ask after the walls reinstated a cut token; it sits before them |
+| Dijkstra | P31 | dialogue.js `errorOf` offTopic | fixed | a garbage extraction resolving to none of the question's referents counted as "novel" (authorship 0 on a verbatim sentence); counted apart |
+| Marshall | IV.4 | POLICIES.md P170, CLAUDE.md pointer | upheld | every claim cites a test or a live row; the 25-turn comparison is named as not yet measured, not implied |
+
+deferred-with-reason: none. false-positive-on-review: none.
+
+## 2026-09-07 — Merge `ground-ladder-p115` into main after PR #141's squash: 15 conflicts, P129–P131 → P173–P175, P172, two constants accounted (branch `ground-ladder-p115` → main, scope origin/main..HEAD)
+
+fast: 82 files · 51 affected test files, 568 cases pass · full `npm test` on the merged tree 1869 tests, 1859 pass, 9 skipped, 0 fail (siblings linked beside the worktree: `../eoreader7` at its paired merge, `../eoreader6`, `../live_priors`; the eoreader6.1 submodule carries 161 uncommitted lines — `INTERROGATIVE_PRONOUNS` in the engine's priors.js — that main already required before this merge) · law: WARN pre-existing duplicate headers P19 P115 P116 P117; WARN cited-not-written P0 P148 P151 P154 P171 (P171 is `resolutions.js`'s, entry forthcoming from its session).
+| Marshall | IV.1; P169 | POLICIES.md P169 resolution line; P173–P175 headers at the tail | fixed | the collision P169 recorded is resolved by renumbering the branch's side (48 references, ten files; main's numbers stand); no P129–P131 duplicate remains; the record of a fact is not a rule and needs no new test |
+| Marshall | P71 | POLICIES.md P172 | upheld | carries its Generality line; P119's "over 100 draws" amended to point at it |
+| Feynman | II.11 | relative.js:37 `SDR_BITS`, resolutions.js:41 `DECLARED_LINES` | fixed | both name their giver — set by hand as a structural width; received from holon.js's `HYPERLEXICON_LEDGER_LINES` — and II.11 passes; `DECLARED_LINES` is a literal copy of a function-local const it cannot import, noted |
+| Diaconis | P172 | matrix-client.test.mjs `randomBand` | upheld | exact order-statistic rate; measured 2.02% / 0.22% against 2% / 0.2% stated |
+| Alexander | II.10 | app.js (main's three PRs re-applied over the branch's), matrix-client.test.mjs pool test (#145's assertions with the gate kept) | upheld | the composition is proven by the suite, not by the clean apply |
+| Simon/Chekhov | — | the 71 commits' new modules | noted | reviewed at their own commits (entries above); the merge adds no module |
+clean: Dijkstra, Holmes, Pearl, Ostrom, Frankfurt — nothing in the merge's own hunks.

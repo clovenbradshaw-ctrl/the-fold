@@ -1969,7 +1969,7 @@ test("P122: the snips are handed above the material; a drafted year no snip carr
   });
   const draftAsk = sent.find((m) => /Write this part: Light/.test(m.at(-1)?.content ?? ""));
   assert.ok(draftAsk, "the section was drafted");
-  assert.match(draftAsk.at(-1).content, /What the sources say, verbatim, each at its address:\n- \[h\.txt#0-\d+#\d+-\d+\] The harbor light was built in 1841 by Ada Rowe\./, "the snips ride above the material, verbatim, addressed");
+  assert.match(draftAsk.at(-1).content, /What the sources say, verbatim:\n- The harbor light was built in 1841 by Ada Rowe\./, "the snips ride above the material, verbatim, addressed");
   const revise = sent.filter((m) => /These sentences say things the sources you were given do not/.test(m.at(-1)?.content ?? ""));
   assert.equal(revise.length, 1, "one rewrite ask for the flagged sentence");
   assert.match(revise[0].at(-1).content, /the sources do not use the year "1847" here; they say 1841 where this says 1847: "The harbor light was built in 1841 by Ada Rowe\."/, "the ask carries the flag and the contradicting source as plain facts");
@@ -2060,9 +2060,9 @@ test("P125: a plain turn's wrong answer is corrected too — the flagged year is
   // that the INSTRUMENT's block never repeats it back (P126's rule).
   const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
   assert.match(ours, /What these sources say about it:/, "the premise check reached the model as a fact");
-  assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\. \[h\.txt#0-75#0-47\]/, "the source's own words, at its address, positively");
+  assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\./, "the source's own words, positively"); assert.doesNotMatch(ours, /h\.txt#/, "no address reaches the mouth (firewall.js::mouthFacing)");
   assert.doesNotMatch(ours, /1996/, "the false claim is never quoted back by us");
-  assert.match(first, /What the sources say, verbatim, each at its address:/, "a plain turn stands on snips too");
+  assert.match(first, /What the sources say, verbatim:/, "a plain turn stands on snips too"); assert.doesNotMatch(first, /#\d+-\d+/, "and no address reaches the mouth");
   assert.ok(r.correction, "a plain turn carries its correction");
   assert.equal(r.correction.flagged, 1);
   assert.deepEqual(r.correction.outcomes.map((o) => o.outcome), ["rewritten"]);
@@ -2174,7 +2174,9 @@ test("P128: a question about the conversation is answered from the conversation'
   const sent = [];
   const admitted = [];
   const r = await runHolonicTask({
-    task: 'Earlier I asked you: "What about the tide?" What did you answer then?',
+    // Wants prose, so it goes to the model — the mechanical door (P173)
+    // takes the bare "what did you answer" case, which is tested there.
+    task: 'Earlier I asked you: "What about the tide?" Explain what you answered and why it matters.',
     chunks, planMode: "flat", transcript,
     call: async (messages) => { sent.push(messages); return "You said the tide turns twice a day."; },
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
@@ -2195,4 +2197,188 @@ test("P128: a question about the conversation is answered from the conversation'
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
   });
   assert.equal(plain.recalledTurns, undefined, "a question about the material does not reach for the transcript");
+});
+
+test("P173: the turn hands the mouth the worked-out comparison as a fact, and a question with nothing to compare is byte-identical to before (control)", async () => {
+  const math = await import("mathjs");
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. Millennium ran until 1996.");
+  const sent = [];
+  const r = await runHolonicTask({
+    // Wants prose, so the turn reaches the model AND carries the worked-out
+    // comparison as a fact; the bare form is answered without the model (P173).
+    task: "Which of the two years mentioned is earlier, 1841 or 1996, and why does that gap matter?",
+    chunks, planMode: "flat", math,
+    call: async (messages) => { sent.push(messages); return "1841 is earlier, by 155 years."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  assert.match(ours, /Worked out from the numbers in the question: Of the two, 1841 is the one asked for/);
+  assert.match(ours, /The difference between them is 155 years\./);
+  assert.equal(r.comparison.difference, 155);
+  assert.equal(r.comparison.first, 1841);
+  const plain = [];
+  const none = await runHolonicTask({
+    task: "What does the file say about Ada Rowe?", chunks, planMode: "flat", math,
+    call: async (m) => { plain.push(m); return "Ada Rowe built the light."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(none.comparison, undefined);
+  assert.doesNotMatch(plain[0].map((m) => m.content).join("\n"), /Worked out from the numbers/);
+});
+
+test("P173: a question the instrument can answer exactly is answered with NO model call at all; one that wants prose still goes to the model", async () => {
+  const math = await import("mathjs");
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The war began in 1805.");
+  let calls = 0;
+  const call = async () => { calls += 1; return "There are 46 years between them."; };
+  const r = await runHolonicTask({
+    task: "Which of the two years is earlier, 1805 or 1841, and how many years apart are they?",
+    chunks, planMode: "flat", math, call,
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(calls, 0, "the model was not asked");
+  assert.equal(r.answeredBeforeTheModel.kind, "comparison");
+  assert.match(r.output, /The difference between them is 36 years\./);
+  assert.doesNotMatch(r.output, /46/, "the mouth's wrong number never enters the answer");
+  // The same values, but the person asked why — that is the model's.
+  let calls2 = 0;
+  const r2 = await runHolonicTask({
+    task: "Which of the two years is earlier, 1805 or 1841, and why does it matter?",
+    chunks, planMode: "flat", math,
+    call: async () => { calls2 += 1; return "1805 is earlier; it matters because the war framed everything after."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.ok(calls2 >= 1, "a question wanting prose reaches the model");
+  assert.equal(r2.answeredBeforeTheModel, undefined);
+});
+
+test("P174: S2 is recruited by difficulty — an easy turn spends fewer witness asks than an argued one, and the person's slider is a floor and a ceiling", async () => {
+  const easy = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor light stands above the coast. The harbor light is white.");
+  // Retrieved (it shares "harbor"), but it does not answer: low coverage of
+  // what the question actually asks about, which is the strain.
+  const hard = chunkSource("h.txt", "The harbor turbines are serviced quarterly by the contractor.\n\nThe harbor gearboxes were replaced under a maintenance programme.\n\nThe harbor canteen opens early.\n\nThe harbor car park was resurfaced.");
+  const run = async (chunks, opts = {}) => {
+    let maxAsks = null;
+    const r = await runHolonicTask({
+      task: "When was the harbor light built?", chunks, planMode: "flat", ...opts,
+      call: async () => "The harbor light was built in 1841 by Ada Rowe.",
+      makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+      witnessSentences: async (sents, claims, passages, { maxAsks: m }) => { maxAsks = m; return { rows: [], asks: 0 }; },
+    });
+    return { r, maxAsks, strain: r.strain?.[0] };
+  };
+  const a = await run(easy);
+  const b = await run(hard);
+  assert.equal(a.strain.level, 1, "the material speaks to the question");
+  assert.ok(b.strain.level >= 2, "material that does not answer is a strain: " + JSON.stringify(b.strain.reasons));
+  assert.ok(b.maxAsks > a.maxAsks, `a strained turn buys more checking (${a.maxAsks} vs ${b.maxAsks})`);
+  assert.match(a.strain.why, /recruited by strain/);
+  // A deliberate slider is honoured in both directions.
+  const asked3 = await run(easy, { depth: 3 });
+  assert.ok(asked3.maxAsks > a.maxAsks, "asking for depth gets depth even when it is easy");
+  assert.match(asked3.strain.why, /asked for depth 3; strain alone would have taken 1/);
+  const asked1 = await run(hard, { depth: 1 });
+  assert.match(asked1.strain.why, /caps the/);
+  assert.ok(asked1.maxAsks <= b.maxAsks, "a low slider caps what strain may recruit");
+});
+
+test("P133: a quotation with one token swapped is caught as a misquote, the source's own words go in as a fact, and the false token cannot ship", async () => {
+  const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. He laughed disagreeably and placed a chair for her.');
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established from pg2600.txt that: ""Both true and untrue," Lincoln began; but Prince Andrew interrupted him." Remind me what that passage says.',
+    chunks, planMode: "flat",
+    call: async (messages) => { sent.push(messages); return "Lincoln began the exchange and Prince Andrew interrupted him."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
+  assert.match(ours, /What that passage actually says:.*Pierre began/, "the source's own words, positively — without its address (firewall.js::mouthFacing)");
+  assert.doesNotMatch(ours.split("What that passage actually says")[1] ?? "", /Lincoln/, "the misquotation is not repeated back in our own block");
+  assert.deepEqual(r.misquote.said, ["Lincoln"]);
+  assert.deepEqual(r.misquote.shouldBe, ["Pierre"]);
+  assert.doesNotMatch(r.output, /Lincoln/, "the false token is cut before the answer ships");
+});
+
+test("P134: a SEG finding binds EVA — a rewrite cannot reinstate what the cut established, and the refusal names the cell that bound it", async () => {
+  const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. He laughed disagreeably.');
+  // The mouth returns the cut name for EVERY ask, including the correction's.
+  const r = await runHolonicTask({
+    task: 'Earlier we established from pg2600.txt that: ""Both true and untrue," Lincoln began; but Prince Andrew interrupted him." Remind me what that passage says.',
+    chunks, planMode: "flat",
+    call: async () => "Lincoln began the exchange and Prince Andrew interrupted him.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.deepEqual(r.misquote.said, ["Lincoln"]);
+  assert.ok(r.inadmissible?.length, "the finding refused what a later cell wrote");
+  assert.equal(r.inadmissible[0].cell, "SEG", "and names the cell that established it");
+  assert.doesNotMatch(r.output, /Lincoln/, "no later cell can put it back");
+  assert.match(r.output, /Pierre began/, "the earlier cell's own statement stands in its place");
+});
+
+test("P134: every cut registers a finding at its cell — the learned guard's CON cut survives an EVA rewrite, and REC cannot learn the forbidden claim back as truth (the audit's repro)", async () => {
+  const { correctionEntry } = await import("./learned.js");
+  // The store holds a claim found unplaced on an earlier turn, with no
+  // replacement — so learnedFacts never sends it to the mouth and the guard
+  // is its only enforcement.
+  const store = [correctionEntry({ claimed: "John Adams chaired the naval committee", corrected: null, question: "q" })];
+  const chunks = chunkSource("n.txt", "John Adams addressed the naval committee in December. The delegates approved the report.");
+  let n = 0;
+  const r = await runHolonicTask({
+    task: "What did the naval committee do in December?", chunks, planMode: "flat", learnedStore: store,
+    // The mouth reinstates the cut claim in different words when asked to rewrite.
+    call: async () => { n += 1; return n === 1 ? "John Adams chaired the naval committee. The committee met in 1802." : "The naval committee that John Adams chaired met in December."; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.ok(r.repeatedKnownFalse?.length, "CON cut it");
+  assert.doesNotMatch(r.output, /chaired/, "and no later cell can put it back in other words");
+  assert.ok(!(r.learned ?? []).some((e) => /chaired/.test(e.corrected ?? "")), "REC may not mint the forbidden claim as the truth");
+});
+
+test("P135/P136 end to end: the cited passage's own cast decides, and a rendered article is prose so its cast can be read at all", async () => {
+  const { makeReferentIndex } = await import("../eoreader7/native/organs/cast.js");
+  const { splitSentences: split } = await import("../eoreader7/native/adapters/text/spans.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import("../eoreader7/native/adapters/text/surfaces.js");
+  const referentIndexFor = makeReferentIndex({ splitSentences: split, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+  const chunks = [
+    ...chunkSource("lincoln.html", "Abraham Lincoln signed the Yosemite Grant in 1864. Lincoln addressed Congress about the measure, and Lincoln praised the region."),
+    ...chunkSource("pg2600.txt", "The Emperor displeasure with Kutúzov was increased at Vílna. Kutúzov could not act, and Kutúzov wrote to the Emperor."),
+  ];
+  const r = await runHolonicTask({
+    // A name planted from ANOTHER source — real in the corpus, a stranger here.
+    task: 'Earlier we established from lincoln.html that: "Lincoln signed the Yosemite Grant protecting the Kutúzov region." Remind me what that passage says.',
+    chunks, planMode: "flat", makeReferentIndexFor: referentIndexFor,
+    call: async () => "The Kutúzov region was protected by the grant Lincoln signed.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  // Retrieval honoured the citation, so the cited passage is actually present.
+  assert.ok((r.sections[0].passages ?? []).some((p) => String(p.ref).includes("lincoln.html")), "the cited source is retrieved");
+  // The cast of THAT passage decides: the planted name is beyond-reach, and
+  // the name the passage does establish is not flagged.
+  const flags = r.premises.rows[0].flags;
+  assert.deepEqual(flags, ["Kutúzov"], "only the stranger is flagged");
+  assert.ok(!flags.includes("Yosemite Grant"), "what the passage does introduce is left alone");
+  assert.match(r.output, /"Kutúzov" is not someone or something this passage introduces/);
+  assert.doesNotMatch(r.output, /do not use "Kutúzov".*do not use "Kutúzov"/s, "the referent reading supersedes the string reading");
+});
+
+test("P137: a finding leaves the part and binds the later cells — the section heading and the piece's revision (the audit's two piece-path leaks)", async () => {
+  const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. Pierre spoke again later, and Prince Andrew listened.');
+  const sent = [];
+  const r = await runHolonicTask({
+    task: 'Earlier we established from pg2600.txt that: ""Both true and untrue," Lincoln began; but Prince Andrew interrupted him." Write about that exchange.',
+    chunks, planMode: "model",
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      // The plan names sections after the false claim, as it would.
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Lincoln's silence", description: "the exchange itself." }, { label: "After the interruption", description: "what followed." }] });
+      return "Lincoln began the exchange and Prince Andrew interrupted him.";
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    piece: { topic: "the exchange", pages: 1, words: 30 },
+  });
+  assert.ok(r.sections.some((s) => s.findings?.length), "the findings leave the part");
+  // The heading may not carry what the body was gutted for saying.
+  assert.doesNotMatch(r.output, /^## .*Lincoln/m, "no section heading ships the cut name");
+  assert.doesNotMatch(r.output, /Lincoln/, "and neither does anything the later cells assembled");
 });

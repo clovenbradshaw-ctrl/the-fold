@@ -1,0 +1,41 @@
+corpus: 400 passages from tolstoy-borodino.txt, 116,785 bytes; field of 400 nodes, vocabulary 3278; 120 probes per task
+
+— recall from a cue: exact key (the graph) vs the field (the state), hits above the null band —
+  cue                        key   field   ambiguous  nothing   band.hi
+  whole passage              120/120  120/120     0          0     0.149
+  first 30% of the words       0/120  119/120     1          0     0.180
+  a middle 30%                 0/120  120/120     0          0     0.180
+  20% of words replaced        0/120  120/120     0          0     0.149
+  40% of words replaced        0/120  120/120     0          0     0.149
+  first 15% of the words       0/120   87/120    29          2     0.180
+
+— the null: random cues of the same lengths —
+   3 words: top activation by chance in [0.067, 0.231], widest lead by chance 0.080 (150 draws)
+   5 words: top activation by chance in [0.059, 0.180], widest lead by chance 0.072 (150 draws)
+  10 words: top activation by chance in [0.060, 0.216], widest lead by chance 0.050 (150 draws)
+  15 words: top activation by chance in [0.065, 0.171], widest lead by chance 0.063 (150 draws)
+  20 words: top activation by chance in [0.063, 0.154], widest lead by chance 0.038 (150 draws)
+  25 words: top activation by chance in [0.070, 0.149], widest lead by chance 0.040 (150 draws)
+  30 words: top activation by chance in [0.073, 0.149], widest lead by chance 0.032 (150 draws)
+  35 words: top activation by chance in [0.076, 0.143], widest lead by chance 0.035 (150 draws)
+  40 words: top activation by chance in [0.069, 0.147], widest lead by chance 0.040 (150 draws)
+  45 words: top activation by chance in [0.079, 0.161], widest lead by chance 0.025 (150 draws)
+  50 words: top activation by chance in [0.079, 0.141], widest lead by chance 0.029 (150 draws)
+  55 words: top activation by chance in [0.076, 0.155], widest lead by chance 0.034 (150 draws)
+  60 words: top activation by chance in [0.079, 0.149], widest lead by chance 0.029 (150 draws)
+  random 20-word cues that the field calls a figure: 0/120
+
+— navigation by synapse: after(node) from the recalled passage is the next passage —
+  100/100
+
+— the ground perturbed: what each way of addressing still gets right, and what the pattern repairs —
+  perturbation                                          ground   figure   pattern   apart  (of probes)
+  a 2,000-byte preface inserted (every offset shifts)      0/120   119/120    120/120      0
+  the source renamed                                       0/120   119/120    120/120      0
+  renamed AND prefaced                                     0/120   119/120    120/120      0
+  one passage in five deleted                              0/120    95/120     96/120     24
+
+— a re-ordered store: the field rebuilt from a serialization with its rows shuffled —
+  same figure recalled 120/120; same neighbour by synapse 120/120 — positions changed, addresses did not
+
+— cost: 1.3s for everything above; one recall over 400 nodes ≈ 0.3 ms —

@@ -198,3 +198,20 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + FOLD-CONSTITUTION + POLICIE
 | Diaconis | II.10 | eval/results/…-pass32.txt vs the recorded table | clean | the re-run is diffed line for line against the table the finding rests on; it reproduces to the probe |
 | Feynman | P71 | P169's collision paragraph | disclosed | the branch numbering collision is written where a reader of "P130" will look, not resolved by fiat in a pass about something else |
 clean: nothing struck.
+
+## 2026-09-07 — P170: the conversation's loops, closed over referents (dialogue.js, answerable.js, correction.js, holon.js, app.js's index line)
+
+chorus-fast: staged scope, 10 files; 18 affected test files, 287 cases; the one FAIL is `matrix-client.test.mjs`'s load-flaky pool test (passes 21/21 alone, standing entry). Full suite 1899 / 1894 / 2 — the two known Matrix tests by name.
+
+| persona | article | file:line | verdict | summary |
+|---|---|---|---|---|
+| Holmes | P11 (referent model, not pointers) | dialogue.js `referentsOf`/`addressedBy`/`refKey` | fixed | the first cut decided identity with capitalised runs, a stop list and substring containment; every decision is now `index.resolve`'s, and a fixture spelling one being two ways pins that a substring and a referent disagree |
+| Ostrom | P41 (absence is not a verdict) | dialogue.js `absenceOf`; holon.js absence line | fixed | a name the bytes carry but the index never established read as "absent" (every "Razumihin" opened a sentence); two bars now — `unestablished` earns no line |
+| Chekhov | P92 / P22 | app.js:6183 `makeReferentIndexFor` | fixed | `referentIndexFor` had been built since P22 and handed to the terminal only; the turn's premise-check referent path had never run in the app |
+| Feynman | II.11 | dialogue.js:128 three-word floor | accounted | the claim's own shape (two ends and a label), stated in place |
+| Diaconis | II.10 / P97 | dialogue-turn.test.mjs "the wall before the diff" | fixed | the test wanted a fabricated sentence counted `novel`; the snip walls cut it before the diff — the diff measures what ships, and the test now asserts the wall |
+| Frankfurt | P133–P135 | holon.js re-ask placement | fixed | a re-ask after the walls reinstated a cut token; it sits before them |
+| Dijkstra | P31 | dialogue.js `errorOf` offTopic | fixed | a garbage extraction resolving to none of the question's referents counted as "novel" (authorship 0 on a verbatim sentence); counted apart |
+| Marshall | IV.4 | POLICIES.md P170, CLAUDE.md pointer | upheld | every claim cites a test or a live row; the 25-turn comparison is named as not yet measured, not implied |
+
+deferred-with-reason: none. false-positive-on-review: none.

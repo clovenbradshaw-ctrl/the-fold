@@ -29,6 +29,7 @@
 //
 // PURE: no model call of its own, no I/O. `correctTurn` takes the call it is
 // given and spends exactly the rounds it is handed.
+import { restatementOf } from "./dialogue.js";
 import { snipsFor, snipBlock, checkSection, checkSentence, reviseAsk, applyRewrite, atomsOf as atomsOfText } from "./snip-check.js";
 import { CLAIM_STOPWORDS } from "./grounding.js";
 import { namesIn } from "./ground-ladder.js";
@@ -64,6 +65,10 @@ export function premisesOf(question) {
     seen.add(key);
     out.push({ text: t, how });
   };
+  // A reader's RESTATEMENT is a claim set (dialogue.js, 2026-09-07): "so
+  // you're saying X — is that what the book says?" asserts X as heard and
+  // asks the record to grade it. The same check, the same facts back.
+  { const rest = restatementOf(q); if (rest) take(rest, "restated by the reader"); }
   for (const re of [TRIGGER_RE, ACCORDING_RE]) {
     re.lastIndex = 0;
     let m;

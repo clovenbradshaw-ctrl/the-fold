@@ -45,6 +45,8 @@ import { traceReading, traceLine, actsFor, VERDICT } from "./reading-trace.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
+// The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
+import { referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { checkComparison } from "./arithmetic.js";
@@ -1271,6 +1273,10 @@ export async function runPart({
   // Built once per part from its own passages — names resolve against the
   // cast the material itself establishes (cast.js), never a wider corpus.
   const resolveName = makeNameResolver?.(passages) ?? null;
+  // THE REFERENT INDEX (cast.js makeReferentIndex): names in a question, an answer
+  // or a claim are candidates; `resolve(name)` decides what they name in THIS
+  // material. Every dialogue loop below asks it; none compares strings.
+  const referentIndex = makeReferentIndexFor ? (() => { try { return makeReferentIndexFor(passages); } catch { return null; } })() : null;
 
   // The relation tier (hypergraph.js), built the same way: the material's
   // own edges from this part's passages, the closed-class measure from the
@@ -2005,6 +2011,17 @@ export async function runPart({
   const misquote = quotedClaim ? findMisquote(quotedClaim, prosePassages.length ? prosePassages : passages, { cited: citedSource(task || question) }) : null;
   const misquoteBlock = misquote?.misquoted ? misquoteFacts(misquote) : "";
   const premiseBlock = [premiseCheck ? premiseFacts(premiseCheck) : "", misquoteBlock].filter(Boolean).join("\n\n");
+  // ── THE RECORD SPEAKS FIRST (dialogue.js; GFP Pass 40's first rung) ──────
+  // A reader's restatement was graded above like any premise; the record's
+  // own position on it is a fact the mouth is handed, and is prepended to the
+  // answer below so it is said whatever the mouth does. And what the
+  // retrieved passages STATE about what was asked — the reader's own bound
+  // claims over them — is composed before the draft, handed over as facts at
+  // their addresses, and diffed against the draft afterwards (matched, novel,
+  // missing, contradicted; the authorship ratio).
+  const position = premiseCheck?.premises?.some((pr) => pr.how === "restated by the reader") ? positionOn(premiseCheck) : null;
+  const expectation = relations ? expectationFrom(prosePassages.length ? prosePassages : passages, task || question, (t) => relations.read(t), referentIndex) : { claims: [], basis: null, why: "no relation reader for this part" };
+  const dialogueBlock = [position ? `The record's own position on what you restated: ${position.text}` : "", expectationFacts(expectation)].filter(Boolean).join("\n\n");
   // The enforcement the prompt is not asked to provide: the values the
   // question asserted and the material does not carry. Measured live (S77
   // run 5, turn 15) the block alone was not enough — the mouth explained a
@@ -2068,8 +2085,8 @@ export async function runPart({
     ? (snips.length ? snipBlock(snips) : null)
     : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
   const draftMaterial = factBlock
-    ? [comparisonLine, recalledLine, snipPrefix, premiseBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [comparisonLine, recalledLine, snipPrefix, premiseBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+    ? [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
+    : [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2737,6 +2754,41 @@ export async function runPart({
   // question. Read without a model, from the question's own words against the
   // answer's — measured live, an essay on how language models work returned
   // for "what fills the blank in this passage", with nothing flagging it.
+  // ── the address check, BEFORE the walls (dialogue.js) — ON REFERENTS ──────
+  // What was asked about is the set of REFERENT IDS the question resolves to
+  // in this material (a pronoun binds to the last answer's referents through
+  // the same index). Did the draft name them — by identity, through the index,
+  // never by substring? A name the material has no referent for is a typed
+  // absence the record states itself. If a resolved referent is missing and
+  // the draft did not say the sources are silent, ONE re-ask with positive
+  // facts: sentences that mention that referent's own surfaces, at their
+  // addresses — never an instruction about what not to say. It sits before
+  // the snip checks, the guards, the correction round and the inadmissible
+  // gate, so a re-asked draft passes every wall the first draft did.
+  const dfold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
+  const bound = referentIndex ? bindAnaphora(task || question, lastTurn, referentIndex) : null;
+  const qRefs = bound ? { ...bound.own, ids: new Set([...bound.own.ids, ...(bound.own.ids.size ? [] : bound.ids.slice(0, 1))]) } : null;
+  let addressed = referentIndex ? null : { gap: "no_referent_index", detail: "the turn was handed no makeReferentIndexFor; the address check needs the material's own referents" };
+  const absence = qRefs ? absenceOf(qRefs, passages) : { absent: [], unestablished: [], line: "" };
+  const absent = absence.line;
+  if (qRefs?.ids.size && String(text ?? "").trim()) {
+    // Recorded on every draft — a mechanical one (verbatim quotes shipped as
+    // quotes) included; only the RE-ASK needs a mouth that drafted.
+    addressed = { ...addressedBy(text, qRefs, referentIndex), bound: bound.ids.length ? bound.ids.slice(0, 3) : [], unresolved: qRefs.unresolved, reasked: false, resolvedOn: null };
+    if (!addressed.all && passages.length && !mechanical) {
+      const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(referentIndex, id));
+      const names = addressed.missingNames;
+      const snips = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map((x) => String(x?.text ?? x)).filter((x) => missingSurfaces.some((sf) => dfold(x).includes(dfold(sf)))).slice(0, 2).map((x) => `- ${x.trim()} [${p.ref}]`)).slice(0, 6);
+      const facts = `The question asks about ${names.join(", ")}.${snips.length ? `\nWhat the sources say about ${names.join(", ")}:\n${snips.join("\n")}` : `\nThe retrieved passages do not mention ${names.join(", ")}.`}`;
+      let again = "";
+      try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
+      const a2 = again.trim() ? addressedBy(again, qRefs, referentIndex) : null;
+      if (a2 && a2.named.length > addressed.named.length) { text = again.trim(); check = inspect(text); addressed = { ...addressed, ...a2, reasked: true, resolvedOn: "re-ask" }; }
+      else addressed = { ...addressed, reasked: true, resolvedOn: null };
+    }
+  } else if (qRefs && !qRefs.ids.size && qRefs.unresolved.length) addressed = { named: [], missing: [], all: null, unresolved: qRefs.unresolved, absent: absence.absent, unestablished: absence.unestablished, reasked: false, resolvedOn: absence.absent.length ? "absence" : "unestablished" };
+  if (addressed && !addressed.gap) addressed = { ...addressed, absent: absence.absent, unestablished: absence.unestablished };
   const swap = passages.length ? substituted(task || question, text) : null;
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
   // THE ATOMS AGAINST THE SNIPS (P122), no model: every number, date and
@@ -2932,6 +2984,14 @@ export async function runPart({
       witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
     }
   }
+  // ── after the walls: the diff against the expectation, and the answer's claims
+  // against what this conversation bound earlier — both stand, on the record.
+  const dialogueClaims = check?.relations?.claims ?? [];
+  const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
+  const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
+  if (position) text = `${position.text}\n\n${text}`.trim();
+  if (absent) text = `${text}\n\n${absent}`.trim();
+  if (selfRows.length) text = `${text}\n\n${contradictionLine(selfRows)}`;
   onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
   return {
@@ -2939,6 +2999,10 @@ export async function runPart({
     text,
     passages,
     corrections,
+    ...(addressed ? { addressed } : {}),
+    ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
+    ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
+    ...(position ? { position: position.verdict } : {}),
     ...(continued ? { continued } : {}),
     ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
     ...(turnCorrection ? { correction: turnCorrection } : {}),
@@ -3109,7 +3173,7 @@ export async function runHolonicTask({
   // wanting prose never reaches it (answerable.js::wantsProse).
   if (chunks.length || transcript.length || math) {
     const pool = chunks.length ? retrieve(chunks, task, passagesPerPart, foldedRefs) : [];
-    const known = answerBeforeTheModel({ question: task, passages: pool, transcript, math });
+    const known = answerBeforeTheModel({ question: task, passages: pool, transcript, math, chunksByRef: new Map(chunks.map((c) => [c?.ref, c]).filter(([k]) => k)) });
     if (known) {
       return {
         answeredBeforeTheModel: known, calls: 0, depth: 0,
@@ -3424,6 +3488,11 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.learnedUsed?.length) ? { learnedUsed: [...new Set(sections.flatMap((x) => x.learnedUsed ?? []))] } : {}),
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
+    // dialogue.js (2026-09-07): the conversation's loops, aggregated over the parts
+    ...(sections.some((x) => x.addressed) ? { addressed: sections.filter((x) => x.addressed).map((x) => ({ part: x.part?.label ?? null, ...x.addressed })) } : {}),
+    ...(sections.some((x) => x.expectation) ? { expectation: (() => { const xs = sections.filter((x) => x.expectation).map((x) => x.expectation); const auth = xs.map((e) => e.authorship).filter((a) => a != null); return { expected: xs.reduce((a, e) => a + e.expected, 0), matched: xs.reduce((a, e) => a + e.matched.length, 0), novel: xs.reduce((a, e) => a + e.novel.length, 0), missing: xs.reduce((a, e) => a + e.missing.length, 0), contradicted: xs.reduce((a, e) => a + e.contradicted.length, 0), authorship: auth.length ? Number((auth.reduce((a, b) => a + b, 0) / auth.length).toFixed(3)) : null }; })() } : {}),
+    ...(sections.some((x) => x.selfContradictions?.length) ? { selfContradictions: sections.flatMap((x) => x.selfContradictions ?? []) } : {}),
+    ...(sections.some((x) => x.position) ? { position: sections.find((x) => x.position).position } : {}),
     ...(sections.find((x) => x.comparison) ? { comparison: sections.find((x) => x.comparison).comparison } : {}),
     ...(sections.some((x) => x.strain) ? { strain: sections.map((x) => x.strain).filter(Boolean) } : {}),
     ...(sections.find((x) => x.misquote) ? { misquote: sections.find((x) => x.misquote).misquote } : {}),

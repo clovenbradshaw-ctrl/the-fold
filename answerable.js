@@ -106,6 +106,45 @@ export function whichPassage(question, passages = []) {
   return { refs, text: `From ${refs.length === 1 ? "this passage" : "these passages"}: ${refs.join(", ")}.` };
 }
 
+// ── the two doors a conversation about a book opened on 2026-09-07 ────────
+// A reader asked "Which passage says that? Quote it for me." and got an
+// address list; asked "Did the book actually include those passages?" and
+// the mouth said "You are absolutely right! I will try my best…". Both are
+// answered by the record without a model: the addresses name bytes, and the
+// bytes are either there or not.
+const QUOTE_ASK_RE = /\b(?:quote (?:it|that|them|the passage|the words)|(?:show|give|read) me (?:the (?:words|passage|lines|text|exact words)|it|them)|(?:the )?words themselves|word for word|verbatim|what (?:does|do) (?:it|that|the passage|they) (?:actually )?say|where in the (?:book|text|novel|source)|which passage says (?:so|that)|which passage)\b/i;
+const RECORD_CHECK_RE = /\b(?:did (?:the (?:book|text|novel|source)|it) (?:actually |really )?(?:include|contain|have|say)|are (?:those|these|they) (?:real|actual|actually there|genuine)|did you (?:make (?:that|those|them) up|invent|fabricate)|do (?:those|these) (?:passages|quotes|references|addresses) (?:exist|really exist)|(?:are|were) (?:those|these) (?:passages|quotes|references) (?:in|from) the (?:book|text))\b/i;
+const squash2 = (t) => String(t ?? "").replace(/\s+/g, " ").trim();
+const excerpt = (text, n = 420) => { const t = squash2(text); return t.length > n ? `${t.slice(0, n)}…` : t; };
+/** The last answer's addresses, or the retrieved ones: what "those passages" can mean. */
+const lastRefs = (transcript = [], passages = []) => { const last = transcript[transcript.length - 1]; const fromLast = [...new Set((last?.refs ?? []).filter(Boolean))]; return fromLast.length ? fromLast : [...new Set(passages.map((p) => p?.ref).filter(Boolean))]; };
+
+/** quoteBytes(question, { transcript, passages, chunksByRef }) → the words at the addresses the last answer cited, verbatim. */
+export function quoteBytes(question, { transcript = [], passages = [], chunksByRef = null } = {}) {
+  if (!QUOTE_ASK_RE.test(String(question ?? ""))) return null;
+  const refs = lastRefs(transcript, passages);
+  if (!refs.length) return null;
+  const byRef = chunksByRef ?? new Map(passages.map((p) => [p?.ref, p]));
+  const rows = refs.map((ref) => ({ ref, text: byRef.get(ref)?.text ?? null })).filter((r) => r.text);
+  if (!rows.length) return null;
+  return { refs: rows.map((r) => r.ref), text: rows.map((r) => `${r.ref}:\n"${excerpt(r.text)}"`).join("\n\n") };
+}
+
+/** recordCheck(question, { transcript, passages, chunksByRef }) → whether each cited address names bytes in the loaded sources. */
+export function recordCheck(question, { transcript = [], passages = [], chunksByRef = null } = {}) {
+  if (!RECORD_CHECK_RE.test(String(question ?? ""))) return null;
+  const refs = lastRefs(transcript, passages);
+  if (!refs.length) return null;
+  const byRef = chunksByRef ?? new Map(passages.map((p) => [p?.ref, p]));
+  const rows = refs.map((ref) => { const c = byRef.get(ref); return c?.text ? { ref, ok: true, text: excerpt(c.text, 160) } : { ref, ok: false }; });
+  const ok = rows.filter((r) => r.ok), bad = rows.filter((r) => !r.ok);
+  const text = [
+    ok.length ? `Yes — ${ok.length === rows.length ? (ok.length === 1 ? "that passage is" : "those passages are") : `${ok.length} of ${rows.length} are`} in the book, at ${ok.length === 1 ? "this address" : "these addresses"}:\n${ok.map((r) => `- ${r.ref}: "${r.text}"`).join("\n")}` : "",
+    bad.length ? `${ok.length ? "But " : "No — "}${bad.map((r) => r.ref).join(", ")} ${bad.length === 1 ? "does" : "do"} not resolve to any loaded source.` : "",
+  ].filter(Boolean).join("\n");
+  return { refs: ok.map((r) => r.ref), text, ok: ok.length, bad: bad.length };
+}
+
 /**
  * answerBeforeTheModel({ question, passages, transcript, math, splitSentences })
  *   → { kind, text, addresses, why } | null
@@ -125,7 +164,14 @@ export function whichPassage(question, passages = []) {
 const PROSE_ASK_RE = /\b(?:why|how come|explain|describe|summari[sz]e|elaborate|tell me about|what does (?:that|this|it) (?:mean|tell|suggest|imply)|what do you (?:think|make)|significan(?:ce|t)|matters?|implications?|context|discuss|compare and contrast)\b/i;
 export const wantsProse = (question) => PROSE_ASK_RE.test(String(question ?? ""));
 
-export function answerBeforeTheModel({ question, passages = [], transcript = [], math = null } = {}) {
+export function answerBeforeTheModel({ question, passages = [], transcript = [], math = null, chunksByRef = null } = {}) {
+  // The two conversation doors come before the prose test: "quote it for me"
+  // and "did the book include those passages" are asks the record answers
+  // exactly, whatever else the sentence says.
+  const check = recordCheck(question, { transcript, passages, chunksByRef });
+  if (check) return { kind: "record-check", text: check.text, addresses: check.refs, why: "the addresses name bytes, or they do not — the record says which" };
+  const quoted = quoteBytes(question, { transcript, passages, chunksByRef });
+  if (quoted) return { kind: "quote", text: quoted.text, addresses: quoted.refs, why: "the words at the addresses the last answer cited, verbatim" };
   // A question that also asks for prose is the model's, whatever else it carries.
   if (wantsProse(question)) return null;
   const comparison = math ? checkComparison(question, { math }) : null;

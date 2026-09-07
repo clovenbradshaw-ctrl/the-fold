@@ -6171,6 +6171,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       },
       foldedRefs,
       makeNameResolver: castFor,
+      // THE REFERENT INDEX (P11): the premise check and the dialogue loops resolve names through it — until 2026-09-07 nothing handed the turn one, so those paths ran without it.
+      makeReferentIndexFor: referentIndexFor,
       // The relation tier is the expensive check and the one with a whole
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.

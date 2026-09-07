@@ -1359,3 +1359,7 @@ after 15.1 until 15.1's real run is read.
 ## Pass 31 — twenty-five "frontier" tasks, and the perceivers' seat (added 2026-09-05, RUN same day)
 
 POLICIES.md **P115** / eoreader7 **S76**. Zero-call arm 13/13 claimed, 11/11 witnesses able to fail, media 5/5 through the door; mouth arm a dated record in eoreader7 `eval/the-fold/results/frontier-25-RESULTS.md`. Open after it, in order: (1) a line of reading out of a frame — the essay's third step, over the crossed perceivers' units, with the reading-lines grammar; (2) the page-side decoder for the measuring door (canvas for an image, a `<video>` frame walk, `decodeAudioData` for compressed audio) so `/measure` on a dropped png reads scanlines in the browser as it now does headless; (3) the form witness on the app's own creative turn (shape.js::declaredForm is wired nowhere in app.js yet — the eval is its only caller).
+
+## Pass 32 — Ground, Figure, Pattern: the addressed, the addressless, and the meta (added 2026-09-07, SPECCED)
+
+POLICIES.md **P130**; the spec is `GROUND-FIGURE-PATTERN-SPEC.md` (Passes 32–39, each with its build, its null, its exit). Measured so far: a keyless field recalls from fragments and corruption where addresses fail outright; the correspondence act repairs every shifted or renamed address and names exactly the deleted ones as *apart*. Next: Pass 32's registry rows with `cellOf`-confirmed cells, then the field over the real record (33), then the pattern act at reopen (34).

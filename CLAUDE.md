@@ -7674,3 +7674,7 @@ POLICIES.md **P127**. The mouth narrating its own answering — a heading, "Let 
 ## The pool, coordinated (2026-09-06)
 
 POLICIES.md **P129**. A mouth offer carries `models`, `available` (spare), `device` (`deviceContent`: runtime, cores, memGB, `gpu` true/false/null) and `refused`. `/pool want @who <model>` writes a `fold.want` state event; the worker's serve loop takes the model up if it is spare (subject to `canTakeUp`) or refuses with a reason that travels back in the offer. `pickMouth` ranks by in-flight × measured mean latency. A `room:@who:server model` selection is PINNED (`isPinnedModel`) through `routeModel` and `twoPassTurn`. Every call notes its mouth with the turn's `turnSeq`; `renderFold` draws only that turn's, and `state.lastGround.turnSeq` gates the self-citation. Drill scripts live in the scratchpad, not the repo; the fixture now sends state deltas on incremental syncs.
+
+## Ground, Figure, Pattern (2026-09-07)
+
+POLICIES.md **P130**; spec `GROUND-FIGURE-PATTERN-SPEC.md`. `relative.js` is a keyless state field (no `get`; recall from a cue, walk a synapse, serialize by signature); `relative-pattern.js` is the meta part (`drift`, `reanchor`, `correspond`) over `record-log.js resolveAddress`. Rule: the ends stay absolute (bytes, and the recorded acts), the middle goes relative (memory). Every verdict is against a null band measured per field per cue length — never a threshold. Neither module is in the page graph yet; the spec's Pass 34 is the one wiring point (reopen). `node eval/relative-addresses.mjs` reproduces the table.

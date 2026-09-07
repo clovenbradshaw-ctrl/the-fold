@@ -5016,18 +5016,17 @@ function conversationIndexNow() {
     const index = chunks.length ? referentIndexFor(chunks) : null;
     // THE ADDRESS BOOK (activation-retrieval.js): every sentence an established referent stands in, by referent — a projection of the index, built with it.
     const book = index ? mentionBook(chunks, index, { splitSentences: engineSentences }) : null;
-    // THE GRAIN OF A SENTENCE IS THE ACT: the same relation reader the turn runs, over the live chunks, built with the book and read once per candidate sentence (activation-retrieval.js, SENTENCE_CEILING).
-    let reader = null; try { reader = index && chunks.length ? relationsFor(chunks, { pool: chunks }) : null; } catch { reader = null; }
-    conversationIndexCache = { key, index, book, reader };
+    // No reader is built here: the acts of a sentence are the ledger's own notes (read at arrival, persisted — P98/P99), projected by span in activation-retrieval.js. Building the reader over a novel here cost 362 s (measured 2026-09-07) and re-did the reading the log already holds.
+    conversationIndexCache = { key, index, book };
   }
   return conversationIndexCache.index;
 }
 // RETRIEVAL IS ACTIVATION (THE-HOLOGRAPH.md §6): the question activates referents, hop 0 their sentences, hop 1 what they stand with, cut by the measurement; the term retriever stands in only for a question that resolves to no referent, and the record says so.
 function activationRetrievalNow() {
   conversationIndexNow();
-  const { index, book, reader } = conversationIndexCache;
+  const { index, book } = conversationIndexCache;
   if (!index || !book) return null;
-  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, read: reader ? (t) => reader.read(t) : null, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow });
+  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow });
 }
 function transcriptNow() {
   const h = state.history ?? [];

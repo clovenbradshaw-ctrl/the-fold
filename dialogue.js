@@ -260,5 +260,7 @@ export function errorOf(expectation, answerClaims = [], index = null) {
   const saidKeys = new Set(answered.map((c) => c.key));
   const missing = [...expected.keys()].filter((k) => !saidKeys.has(k));
   const authored = matched.length, added = novel.length;
-  return { matched, novel, missing, contradicted, authorship: authored + added ? Number((authored / (authored + added)).toFixed(3)) : null, expected: expected.size, said: answered.length, offTopic, basis: expectation?.basis ?? null };
+  // No expectation, no authorship: when the reader hears NOTHING about the asked-about in the passages, the ratio cannot separate "the reader could not hear it" from "the mouth made it up" (P41's withhold-vs-convict) — null, with the reason, never 0.
+  const authorship = expected.size === 0 ? null : authored + added ? Number((authored / (authored + added)).toFixed(3)) : null;
+  return { matched, novel, missing, contradicted, authorship, expected: expected.size, said: answered.length, offTopic, basis: expectation?.basis ?? null, ...(expected.size === 0 ? { why: "no expectation to author from — the reader heard nothing about the asked-about in the passages" } : {}) };
 }

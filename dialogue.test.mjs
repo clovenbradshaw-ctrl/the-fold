@@ -119,6 +119,8 @@ test("the expectation before the draft: the reader's bound claims whose ends res
   assert.equal(err.matched.length, 1); assert.equal(err.novel.length, 1); assert.equal(err.missing.length, 0);
   assert.equal(err.authorship, 0.5);
   assert.equal(err.offTopic, 1, "a garbage extraction that resolves to none of the question's referents is off-topic to the diff, never novel");
+  const none = errorOf(expectationFrom(PASSAGES, "What does the book say about Porfiry?", () => ({ claims: [] }), index), [{ end1: "Porfiry", label: "smiled", end2: "", verdict: "unheard" }], index);
+  assert.equal(none.authorship, null, "no expectation, no authorship — withheld with its reason, never 0"); assert.equal(none.expected, 0); assert.match(none.why, /heard nothing/);
   const byRef = expectationFrom(PASSAGES, "What does the book say about Rodion?", read, index);
   assert.deepEqual(byRef.claims.map((c) => c.label).sort(), ["murdered", "questioned"], "the Rodion spelling reaches every claim with Raskolnikov at EITHER end, through the index");
   assert.equal(expectationFrom([], "x", read, index).claims.length, 0);

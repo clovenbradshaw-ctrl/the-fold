@@ -46,6 +46,7 @@ import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
+import { resolutionBlocks } from "./resolutions.js";
 import { referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
@@ -1010,6 +1011,10 @@ export async function runPart({
   // so what the recency window drops is still reachable. Empty (every
   // existing caller) changes nothing.
   transcript = [],
+  resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
+  dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
+  conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
+  records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
   // THE ARITHMETIC ENGINE (arithmetic.js's own injection pattern): the page
   // hands the vendored mathjs, a test hands the package. Absent, nothing
   // below computes and the turn is byte-identical to before.
@@ -1369,11 +1374,13 @@ export async function runPart({
   const readingNote = (Array.isArray(hyperlexiconUnread) && hyperlexiconUnread.length)
     ? `Still reading: ${hyperlexiconUnread.map((u) => `${u.name} — ${u.read} of ${u.total} passages so far`).join("; ")}. What follows is from the part already read.`
     : null;
+  // The ledger's notes folded ONCE with their standing; the ledger block, the lens and the paradigm all read these rows.
+  const foldedNotes = (hyperlexicon && beliefNotes) ? (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} }))) : [];
   const ledgerBlock = (() => {
     if (!hyperlexicon || !beliefNotes) return readingNote;
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
     const line = (n) => `${n.subject} — ${n.verb}→ ${n.object}`;
-    const all = (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} })))
+    const all = foldedNotes
       .filter((n) => !shown.has(line(n).toLowerCase()));
     // BOTH tiers are ranked by the question. Measured (gate-proof.mjs,
     // 2026-09-03): with the corroborated tier unranked, 21 corroborated
@@ -2094,23 +2101,26 @@ export async function runPart({
   // It rides the system message as a fact the model receives (P55's
   // posture), never as an instruction about the apparatus.
   const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
+  // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
+  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids : [], records, dmdWindow }) : null;
+  const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : [
-          { role: "system", content: EXECUTE_SYSTEM_PROMPT },
+          { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
           { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
@@ -3000,6 +3010,7 @@ export async function runPart({
     passages,
     corrections,
     ...(addressed ? { addressed } : {}),
+    ...(resolution ? { resolutions: { level: resolution.level, active: resolution.active, index: conversationIndex ? "conversation" : "part", atmosphere: resolution.atmosphere?.lines?.length ?? 0, lens: resolution.lens?.lines?.length ?? 0, paradigm: resolution.paradigm?.lines?.length ?? 0, windows: resolution.lens?.windows ?? null, text: resolution.text } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
     ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
     ...(position ? { position: position.verdict } : {}),
@@ -3099,6 +3110,10 @@ export async function runHolonicTask({
   learnedStore = [],
   // The conversation's own record (P128), threaded to every part.
   transcript = [],
+  resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
+  dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
+  conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
+  records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
   retrieveWith = null,
@@ -3311,6 +3326,7 @@ export async function runHolonicTask({
       maxCorrections,
       learnedStore,
       transcript,
+      resolutions, dmdWindow, conversationIndex, records,
       math,
       makeReferentIndexFor,
       askedDepth: depth,
@@ -3489,6 +3505,7 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     // dialogue.js (2026-09-07): the conversation's loops, aggregated over the parts
+    ...(sections.some((x) => x.resolutions) ? { resolutions: sections.filter((x) => x.resolutions).map((x) => ({ part: x.part?.label ?? null, ...x.resolutions })) } : {}),
     ...(sections.some((x) => x.addressed) ? { addressed: sections.filter((x) => x.addressed).map((x) => ({ part: x.part?.label ?? null, ...x.addressed })) } : {}),
     ...(sections.some((x) => x.expectation) ? { expectation: (() => { const xs = sections.filter((x) => x.expectation).map((x) => x.expectation); const auth = xs.map((e) => e.authorship).filter((a) => a != null); return { expected: xs.reduce((a, e) => a + e.expected, 0), matched: xs.reduce((a, e) => a + e.matched.length, 0), novel: xs.reduce((a, e) => a + e.novel.length, 0), missing: xs.reduce((a, e) => a + e.missing.length, 0), contradicted: xs.reduce((a, e) => a + e.contradicted.length, 0), authorship: auth.length ? Number((auth.reduce((a, b) => a + b, 0) / auth.length).toFixed(3)) : null }; })() } : {}),
     ...(sections.some((x) => x.selfContradictions?.length) ? { selfContradictions: sections.flatMap((x) => x.selfContradictions ?? []) } : {}),

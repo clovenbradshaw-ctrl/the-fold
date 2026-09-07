@@ -269,6 +269,8 @@ import { briefFor, observedFillers } from "./void-brief.js";
 import { narrateVoid, noSlotLine } from "./void-narration.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
+// The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
+import { dmdWindow } from "/engine-v7/kernel/activation.js";
 // The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
 // relation reading admits, corroborated across turns by the same cell the
 // cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
@@ -4998,6 +5000,34 @@ function needsSystem2(question, s1Text) {
  * exactly when the wider view is the only thing that could keep the
  * conversation in view.
  */
+// THE THREE RESOLUTIONS (resolutions.js, P171): the discourse handed to the
+// mouth as computed readings at three grains — atmosphere, lens, paradigm —
+// beside the one-line discourse, never in place of the raw exchanges. The
+// conversation-wide referent index is built over the live chunks and cached
+// by their identity; the transcript is read off the raw history with each
+// turn's checked refs from the record store.
+const RESOLUTIONS_LEVEL = 3;
+let conversationIndexCache = { key: null, index: null };
+function conversationIndexNow() {
+  const chunks = liveChunks();
+  const key = `${chunks.length}:${chunks[0]?.ref ?? ""}:${chunks[chunks.length - 1]?.ref ?? ""}`;
+  if (conversationIndexCache.key !== key) conversationIndexCache = { key, index: chunks.length ? referentIndexFor(chunks) : null };
+  return conversationIndexCache.index;
+}
+function transcriptNow() {
+  const h = state.history ?? [];
+  const rows = [];
+  let turn = 0;
+  for (let i = 0; i + 1 < h.length; i += 1) {
+    if (h[i]?.role !== "user" || h[i + 1]?.role !== "assistant") continue;
+    turn += 1;
+    const rec = (state.summary?.records ?? []).find((r) => r.turn === turn);
+    rows.push({ turn, question: String(h[i].content ?? ""), answer: String(h[i + 1].content ?? ""), refs: rec?.refs ?? [] });
+    i += 1;
+  }
+  return rows;
+}
+
 function discourseLineNow() {
   const s = state.summary;
   return [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
@@ -6218,6 +6248,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // the fold.
       chatHistory: state.history.slice(-present),
       discourse: discourseLine,
+      resolutions: RESOLUTIONS_LEVEL,
+      dmdWindow,
+      conversationIndex: conversationIndexNow(),
+      records: state.summary?.records ?? [],
+      transcript: transcriptNow(),
       searchedVoid,
       priorPass: opts.priorPass ?? null,
       // Flow #2's other two knobs (escalation, computed above): identical

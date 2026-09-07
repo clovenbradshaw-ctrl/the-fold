@@ -100,3 +100,23 @@ test("self-consistency: a claim this conversation bound earlier, denied now, lan
   if ((r.selfContradictions ?? []).length) { assert.match(r.output, /On the record: on turn 3 this conversation held/); assert.match(r.output, /Both stand\./); }
   else assert.ok(true, "the reader did not mint the same key for the denial on this fixture — disclosed, not forced");
 });
+
+test("THE THREE RESOLUTIONS reach the mouth: at level 1 the system message carries where the conversation stands, computed from the transcript through the conversation index and firewall-clean; at level 0 it does not", async () => {
+  const { apparatusMentions } = await import("./firewall.js");
+  const { dmdWindow } = await import("../eoreader7/native/kernel/activation.js");
+  const transcript = [
+    { turn: 1, question: "What does the book say about Razumihin?", answer: "Razumihin brought soup to Raskolnikov.", refs: [refOf("Razumihin brought soup")] },
+    { turn: 2, question: "What does the book say about Porfiry?", answer: "Porfiry questioned Raskolnikov twice.", refs: [refOf("Porfiry questioned")] },
+  ];
+  const seen = [];
+  const capture = ({ first }) => async (messages) => { seen.push(messages); return first; };
+  const r = await runHolonicTask({ task: "Did Porfiry question him more than once?", chunks, transcript, planMode: "flat", resolutions: 1, dmdWindow, conversationIndex: indexFor(chunks), call: capture({ first: `Porfiry questioned Raskolnikov twice. [${refOf("Porfiry questioned")}]` }), ...organs });
+  const sys = seen.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n");
+  // In THIS fixture every "Razumihin" and "Porfiry" opens a sentence, so the index establishes neither (P94) and the only ground is Raskolnikov — the block says what the material lets it say, never more.
+  assert.match(sys, /Where the conversation stands:\nFor 2 exchanges the conversation has stood on Raskolnikov \[turn:1–2\]\.\nCited on this ground so far: 2 places in novel\.txt\./);
+  assert.deepEqual(apparatusMentions(r.resolutions[0].text), []);
+  assert.equal(r.resolutions[0].index, "conversation");
+  const off = [];
+  await runHolonicTask({ task: "Did Porfiry question him more than once?", chunks, transcript, planMode: "flat", resolutions: 0, call: async (m) => { off.push(m); return "Porfiry questioned Raskolnikov twice."; }, ...organs });
+  assert.doesNotMatch(off.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n"), /Where the conversation stands/);
+});

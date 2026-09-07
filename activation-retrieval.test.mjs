@@ -55,6 +55,19 @@ test("a note on the ledger extends hop 1 to its other end; a question naming not
   assert.equal(none.basis, "surface"); assert.equal(none.passages.length, 0); assert.match(none.why, /no referent/);
 });
 
+test("the acts of a sentence are on the log: notes with spans inside the sentence give the act grain with no reader at all — two acts about Porfiry, two sentences", () => {
+  const told = book.sentences.find((s) => /told Raskolnikov about Porfiry/.test(s.text)), asked = book.sentences.find((s) => /questioned Raskolnikov/.test(s.text));
+  const notes = [
+    { subject: "Razumihin", verb: "told", object: "Raskolnikov", spans: [{ at: `${told.chunkRef}#${told.start - chunks.find((c) => c.ref === told.chunkRef).start}-${told.end - chunks.find((c) => c.ref === told.chunkRef).start}` }], witnesses: [`${told.chunkRef}~r`] },
+    { subject: "Porfiry Petrovich", verb: "questioned", object: "Raskolnikov", spans: [{ at: asked.ref }], witnesses: [`${asked.chunkRef}~r`] },
+  ];
+  const r = activate({ question: "What does the book say about Porfiry?", index, book, notes, dmdWindow });
+  assert.equal(r.grain, "act"); assert.equal(r.actsOnLog, 2);
+  assert.ok(r.passages.some((p) => /told Raskolnikov about Porfiry/.test(p.text)) && r.passages.some((p) => /questioned Raskolnikov/.test(p.text)), "both acts' sentences handed");
+  const none = activate({ question: "What does the book say about Porfiry?", index, book, dmdWindow });
+  assert.equal(none.grain, "referent");
+});
+
 test("makeActivationRetrieval: the turn's retrieveWith — activation when it reaches, the term retriever standing in when it does not, and the array says which", () => {
   const rw = makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve });
   const a = rw(chunks, "What does the book say about Porfiry?", 3, []);

@@ -105,10 +105,31 @@ export function activate({ question = "", transcript = [], index, book, notes = 
   const rows0 = [...hop0].map((i) => ({ ...book.sentences[i], hop: 0 })).sort((a, b) => carries(b, active) - carries(a, active) || carries(b, hop1) - carries(a, hop1) || a.order - b.order);
   const rows1 = [...hop1Sentences].map((i) => ({ ...book.sentences[i], hop: 1 })).sort((a, b) => carries(b, hop1) - carries(a, hop1) || a.order - b.order);
   const rows = [...rows0.slice(0, SENTENCE_CEILING), ...rows1.slice(0, SENTENCE_CEILING)];
-  const acts = new Map(); // row order → the acts the reader hears in it about an active or hop-1 referent (memo; read once per row, never beyond the ceiling)
+  // THE ACTS OF A SENTENCE ARE ON THE LOG. A note's spans carry the addresses
+  // it was read from (`ref#start-end` inside a chunk, or a bare address); a
+  // sentence's acts are the labels of the notes whose spans fall inside its
+  // own byte range — a projection of the ledger, no reader at the turn.
+  // The reader (`read`) is consulted only for a sentence no note covers,
+  // when one is injected; a corpus with its reading on the ledger never
+  // pays for it again (the page admits at arrival and keeps the log — P98/P99).
+  const spanRanges = [];
+  for (const n of notes ?? []) {
+    const label = fold(n.verb ?? n.label); if (!label) continue;
+    const ends = [...resolveIds(index, n.subject ?? n.end1), ...resolveIds(index, n.object ?? n.end2)].filter((id) => active.has(id) || hop1.has(id));
+    if (!ends.length) continue;
+    for (const sp of n.spans ?? []) {
+      const at = String(sp?.at ?? sp?.ref ?? "");
+      const m = /^(.*?)#(\d+)-(\d+)(?:#(\d+)-(\d+))?$/.exec(at); if (!m) continue;
+      const base = Number(m[2]); const rel = m[4] != null;
+      const start = rel ? base + Number(m[4]) : Number(m[2]), end = rel ? base + Number(m[5]) : Number(m[3]);
+      spanRanges.push({ source: m[1].split("#")[0], start, end, keys: ends.map((id) => `${id}|${label}`) });
+    }
+  }
+  const acts = new Map(); // row order → the acts on the log inside this sentence (or, failing any, what the reader hears — read once per row, never beyond the ceiling)
   const actsOf = (r) => {
-    if (typeof read !== "function") return [];
     if (acts.has(r.order)) return acts.get(r.order);
+    const onLog = [...new Set(spanRanges.filter((sp) => sp.source === r.source && sp.start < r.end && sp.end > r.start).flatMap((sp) => sp.keys))];
+    if (onLog.length || typeof read !== "function") { acts.set(r.order, onLog); return onLog; }
     let out = [];
     try {
       for (const c of read(r.text)?.claims ?? []) {
@@ -123,7 +144,7 @@ export function activate({ question = "", transcript = [], index, book, notes = 
   const reachOf = (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `0:${id}`).concat([...r.ids].filter((id) => hop1.has(id)).map((id) => `1:${id}`), actsOf(r));
   const cut = dmdCut(rows, new Set([...active, ...hop1]), { dmdWindow, reachOf });
   const passages = cut.rows.map((r) => ({ ref: r.ref, source: r.source, chunkRef: r.chunkRef, start: r.start, end: r.end, text: r.text, hop: r.hop, ids: [...r.ids].sort() }));
-  return { passages, basis: "activation", grain: typeof read === "function" ? "act" : "referent", ceiling: SENTENCE_CEILING, active: [...active].sort(), activeBasis: act.basis, hop1: [...hop1].sort(), window: cut.window, cutBasis: cut.basis, hop0Count: hop0.size, hop1Count: hop1Sentences.size, why: `${hop0.size} sentence(s) carry the active referent(s), ${hop1Sentences.size} more carry what they stand with; ${cut.window} handed` };
+  return { passages, basis: "activation", grain: spanRanges.length || typeof read === "function" ? "act" : "referent", actsOnLog: spanRanges.length, ceiling: SENTENCE_CEILING, active: [...active].sort(), activeBasis: act.basis, hop1: [...hop1].sort(), window: cut.window, cutBasis: cut.basis, hop0Count: hop0.size, hop1Count: hop1Sentences.size, why: `${hop0.size} sentence(s) carry the active referent(s), ${hop1Sentences.size} more carry what they stand with; ${cut.window} handed` };
 }
 
 /**

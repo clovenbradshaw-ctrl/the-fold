@@ -222,3 +222,6 @@ deferred-with-reason: none. false-positive-on-review: none.
 - Dijkstra (resolutions.js:179, co-activation ids): resolves through the injected index (the reading's, caseless), never a string — no change.
 - Holmes (holon.js:2804): the address check and its re-ask now resolve through the conversation's own index when handed, the part's presence index only as fallback — the finding this diff exists for (a glued capitalised run named as a being); fixed here, pinned in dialogue-turn/holon suites.
 - Marshall: no law edited; P9 (declared budget, the ladder's top named a ceiling), S17 (containment witnessed downward, ambiguous bare form stays), S80 (address at birth; the projection folds recorded merges) cited as they read.
+
+## 2026-09-07 — P171 written (staged: POLICIES.md)
+- chorus-fast: PASS — law checks (Generality present on P171; citations resolve; the pre-existing duplicate headers P115/P116/P117/P19 warned, unchanged); no source touched in this commit.

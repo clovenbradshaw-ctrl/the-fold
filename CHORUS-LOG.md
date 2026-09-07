@@ -211,3 +211,13 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Ostrom | II.3; II.5 | relative-pattern.js correspond | clean | no address is rewritten; a repair is an act that names the old and the new |
 | Marshall | IV.1; P71 | POLICIES P130, the spec, NEXT-PASSES, CLAUDE.md | upheld — compliant | Generality line present; the spec's every pass carries a null and an exit; not-claimed names the unwired page and the unmeasured constants |
 clean: nothing struck.
+
+## 2026-09-07 — P131: prediction as author (branch `prediction-author`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Marshall · Simon; suites unchanged (docs only).
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Marshall | IV.1; P71 | POLICIES P131, spec §2 A1–A4, §4 Passes 40–42, §7 | upheld — compliant | the earlier "separate program" is corrected in the entry itself, not silently; every new pass carries a null and an exit; nothing is claimed built |
+| Simon | II.10; II.23 | spec Pass 40/41 nulls | clean | the expectation is measured against a shuffled record and the diff against a random expectation, so a composition that is noise, or a diff that cannot resolve, stops its pass |
+clean: nothing struck.

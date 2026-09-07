@@ -292,3 +292,18 @@ export function errorOf(expectation, answerClaims = [], index = null) {
   const authorship = expected.size === 0 ? null : authored + added ? Number((authored / (authored + added)).toFixed(3)) : null;
   return { matched, novel, missing, contradicted, authorship, expected: expected.size, said: answered.length, offTopic, basis: expectation?.basis ?? null, ...(expected.size === 0 ? { why: "no expectation to author from — the reader heard nothing about the asked-about in the passages" } : {}) };
 }
+
+/**
+ * ownedLine(rows, { since }) — the record OWNS a correction it learned in
+ * this conversation, on the answer, in words: what an earlier answer held,
+ * what the sources say. Both halves are positive facts of the record (P126
+ * hands the corrected fact to the mouth; this line is the record speaking
+ * for itself, never an instruction to the model and never the mouth's
+ * apology). Only corrections learned since `since` — a shared store carries
+ * other conversations' lessons, which are the mouth's ground, not this
+ * conversation's own mistakes.
+ */
+export function ownedRows(rows = [], { since = null } = {}) {
+  return (rows ?? []).filter((e) => e && e.claimed && e.corrected && (since == null || (Number(e.ts) || 0) >= since));
+}
+export const ownedLine = (rows) => rows.length ? `Earlier in this conversation ${rows.slice(0, 3).map((e) => `an answer held "${String(e.claimed).trim().replace(/[.]+$/, "")}" and the sources say "${String(e.corrected).trim().replace(/[.]+$/, "")}"`).join("; ")}${rows.length > 3 ? `; and ${rows.length - 3} more` : ""}.` : "";

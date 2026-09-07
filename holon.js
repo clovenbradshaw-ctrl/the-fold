@@ -48,7 +48,7 @@ import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard,
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
 import { mouthFacing } from "./firewall.js";
-import { referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
+import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { checkComparison } from "./arithmetic.js";
@@ -1006,6 +1006,7 @@ export async function runPart({
   // question are handed to the model as facts before it drafts, so a mistake
   // made once is not made again. Empty (every existing caller) changes nothing.
   learnedStore = [],
+  learnedSince = null, // dialogue.js::ownedRows — corrections learned at or after this timestamp are THIS conversation's own, and the record owns them on the answer
   // THE CONVERSATION'S OWN RECORD (P128, transcript.js): [{turn, question,
   // answer}] oldest first. A question ABOUT what was said retrieves from it,
   // exactly as a question about the material retrieves from the material —
@@ -3021,6 +3022,9 @@ export async function runPart({
   const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
   if (position) text = `${position.text}\n\n${text}`.trim();
   if (absent) text = `${text}\n\n${absent}`.trim();
+  // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
+  const owned = ownedRows(learnedRows, { since: learnedSince });
+  if (owned.length) text = `${text}\n\n${ownedLine(owned)}`;
   if (selfRows.length) text = `${text}\n\n${contradictionLine(selfRows)}`;
   onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
@@ -3030,6 +3034,7 @@ export async function runPart({
     passages,
     corrections,
     ...(addressed ? { addressed } : {}),
+    ...(owned.length ? { owned: owned.map((e) => ({ claimed: e.claimed, corrected: e.corrected, ts: e.ts ?? null })) } : {}),
     ...(retrieval ? { retrieval } : {}),
     ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
@@ -3129,6 +3134,7 @@ export async function runHolonicTask({
   // in the chain's own shape. Handed down to every part, and what each part
   // learns comes back out on `learned` for the caller to append and persist.
   learnedStore = [],
+  learnedSince = null, // dialogue.js::ownedRows — corrections learned at or after this timestamp are THIS conversation's own, and the record owns them on the answer
   // The conversation's own record (P128), threaded to every part.
   transcript = [],
   resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
@@ -3349,7 +3355,7 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
-      learnedStore,
+      learnedStore, learnedSince,
       transcript,
       resolutions, dmdWindow, conversationIndex, records, material, mentionBook,
       math,
@@ -3530,6 +3536,7 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     // dialogue.js (2026-09-07): the conversation's loops, aggregated over the parts
+    ...(sections.some((x) => x.owned) ? { owned: sections.flatMap((x) => x.owned ?? []) } : {}),
     ...(sections.some((x) => x.retrieval) ? { retrieval: sections.filter((x) => x.retrieval).map((x) => ({ part: x.part?.label ?? null, ...x.retrieval })) } : {}),
     ...(sections.some((x) => x.resolutions) ? { resolutions: sections.filter((x) => x.resolutions).map((x) => ({ part: x.part?.label ?? null, ...x.resolutions })) } : {}),
     ...(sections.some((x) => x.addressed) ? { addressed: sections.filter((x) => x.addressed).map((x) => ({ part: x.part?.label ?? null, ...x.addressed })) } : {}),

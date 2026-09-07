@@ -7,7 +7,7 @@
 // different answers, and the tests want the referent's.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { referentsOf, bindAnaphora, addressedBy, absenceLine, absenceOf, restatementOf, positionOn, selfContradictions, contradictionLine, historyWindow, expectationFrom, errorOf, expectationFacts, refKey } from "./dialogue.js";
+import { referentsOf, bindAnaphora, addressedBy, absenceLine, absenceOf, ownedRows, ownedLine, restatementOf, positionOn, selfContradictions, contradictionLine, historyWindow, expectationFrom, errorOf, expectationFacts, refKey } from "./dialogue.js";
 import { premisesOf, checkPremises } from "./correction.js";
 import { answerBeforeTheModel, quoteBytes, recordCheck } from "./answerable.js";
 import { makeReferentIndex } from "./cast.js";
@@ -148,4 +148,17 @@ test("THE TWO DOORS: 'quote it for me' returns the bytes at the last answer's ad
   assert.equal(answerBeforeTheModel({ question: "Why does that matter?", transcript: [LAST], chunksByRef: CHUNKS }), null, "prose is the mouth's");
   assert.equal(answerBeforeTheModel({ question: "Sonia seems very upset. Did the book say that Sonia was angry?", transcript: [LAST], chunksByRef: CHUNKS }), null, "a question about CONTENT is not the record door's — it is the restatement loop's (wired run, turn 10)");
   assert.equal(answerBeforeTheModel({ question: "Did the book actually include them?", transcript: [LAST], chunksByRef: CHUNKS })?.kind, "record-check");
+});
+
+test("the record OWNS what it learned in this conversation: a correction learned since the conversation began lands on the answer as what was held and what the sources say; a shared store's older lessons do not", () => {
+  const t0 = 1_000;
+  const rows = [
+    { claimed: "The harbor light was built in 1996 by Ada Rowe", corrected: "The harbor light was built in 1841 by Ada Rowe.", ts: t0 + 5 },
+    { claimed: "Razumihin brought tea", corrected: "Nastasya brought tea to Raskolnikov.", ts: t0 - 100 },
+  ];
+  const own = ownedRows(rows, { since: t0 });
+  assert.equal(own.length, 1);
+  assert.equal(ownedLine(own), 'Earlier in this conversation an answer held "The harbor light was built in 1996 by Ada Rowe" and the sources say "The harbor light was built in 1841 by Ada Rowe".');
+  assert.equal(ownedLine([]), "");
+  assert.equal(ownedRows(rows, { since: null }).length, 2, "no `since`: every recalled correction is owned");
 });

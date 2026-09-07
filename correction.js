@@ -68,7 +68,7 @@ export function premisesOf(question) {
   // A reader's RESTATEMENT is a claim set (dialogue.js, 2026-09-07): "so
   // you're saying X — is that what the book says?" asserts X as heard and
   // asks the record to grade it. The same check, the same facts back.
-  { const rest = restatementOf(q); if (rest) take(rest, "restated by the reader"); }
+  const restated = restatementOf(q);
   for (const re of [TRIGGER_RE, ACCORDING_RE]) {
     re.lastIndex = 0;
     let m;
@@ -80,6 +80,10 @@ export function premisesOf(question) {
       if (clause) take(clause[1], "asserted as established");
     }
   }
+  // Only when no explicit trigger named one: "you said «X» — is that right?"
+  // is the stronger reading of the same sentence, and two premises from one
+  // sentence would grade it twice (correction.test.mjs pins the count).
+  if (restated && out.length === 0) take(restated, "restated by the reader");
   return out;
 }
 

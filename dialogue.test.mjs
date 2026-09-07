@@ -69,6 +69,11 @@ test("a reader's restatement is a premise: graded by the same check, and the rec
   assert.equal(restatementOf("So, you're saying Crime and Punishment is about a guy who thinks he can get away with murder?"), "Crime and Punishment is about a guy who thinks he can get away with murder");
   assert.equal(restatementOf("If I follow you, Razumihin brings him soup and sits with him — is that what the book says?"), "Razumihin brings him soup and sits with him");
   assert.equal(restatementOf("What does the book say about Razumihin?"), null);
+  assert.equal(restatementOf("Sonia has had no education and is deeply loving. Is that really what the book says?"), "Sonia has had no education and is deeply loving", "a trailing check restates BEFORE the trigger");
+  assert.equal(restatementOf("I took from that that Razumihin cared for him more than anyone. Is that right?"), "I took from that that Razumihin cared for him more than anyone");
+  assert.equal(restatementOf("Is that right?"), null, "a bare check restates nothing");
+  assert.equal(restatementOf("I take it Sonia is deeply loving. Is that really what the book says?"), "Sonia is deeply loving", "the reader's uptake words are not part of the claim");
+  assert.equal(restatementOf("Which is right?"), null);
   const ps = premisesOf("So you're saying Razumihin brought soup to Raskolnikov — is that right?");
   assert.equal(ps.length, 1); assert.equal(ps[0].how, "restated by the reader");
   const yes = checkPremises("So you're saying Razumihin brought soup and sat with him — is that right?", PASSAGES, { referentIndexFor: indexFor });

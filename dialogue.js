@@ -125,14 +125,30 @@ export const absenceLine = (qRefs, passages = []) => absenceOf(qRefs, passages).
 
 const RESTATEMENT_RE = /\b(?:so,?\s+(?:you(?:'re| are)\s+(?:saying|telling me)|if I (?:follow|understand)(?: you)?|in other words|basically|then)|if I (?:follow|understand)(?: you)?|you(?:'re| are) saying(?: that)?|is that (?:really )?what (?:the (?:book|text|source|novel)|it) says|am I right that|do I have that right|so it(?:'s| is))\b[:,]?\s*/i;
 /** The reader's restatement, when the question is one: the clause after the trigger, before the check. */
+const TRAILING_CHECK_RE = /\b(?:is that (?:really )?what (?:the (?:book|text|source|novel)|it) says|is that right|isn'?t that (?:right|so)|am I right(?: about that)?|do I have that right|right|correct)\s*\??\s*$/i;
+const LEADING_UPTAKE_RE = /^(?:so|well|okay|ok|right|then)[,:]?\s+|^(?:if I (?:follow|understand)(?: you)?|so you(?:'re| are) saying|in other words|basically|I (?:take it|gather|think|see|understand)(?: that)?|it (?:sounds|seems) like|sounds like)[,:]?\s*/i;
+const enough = (t) => t.split(/\s+/).filter(Boolean).length >= 3; // the claim's own shape — two ends and a label — the floor the premise check can grade; structural, not tuned
+/**
+ * The reader's restatement, when the question is one. Two shapes: a LEADING
+ * trigger ("so you're saying X — is that right?") restates after it; a
+ * TRAILING check ("X. Is that really what the book says?") restates before
+ * it — measured 2026-09-07: the reader's reflect turns end this way and had
+ * no position until the second shape was read.
+ */
 export function restatementOf(question) {
   const q = String(question ?? "").replace(/\s+/g, " ").trim();
   const m = RESTATEMENT_RE.exec(q);
-  if (!m) return null;
-  let rest = q.slice(m.index + m[0].length);
-  rest = rest.replace(/\s*[—–-]+\s*(?:is that|isn'?t that|right|correct|am I right|do I have that right)[^?]*\??$/i, "").replace(/\s*\?\s*(?:is that|isn'?t that)[^?]*\?$/i, "").replace(/\s*(?:is that (?:really )?what (?:the (?:book|text|novel)|it) says|is that right|right|correct)\s*\??$/i, "").replace(/[?.!]+$/, "").trim();
-  // Three words is the claim's own shape — two ends and a label — the floor the premise check can grade; structural, not tuned.
-  return rest.split(/\s+/).length >= 3 ? rest : null;
+  if (m) {
+    const rest = q.slice(m.index + m[0].length).replace(/\s*[—–-]+\s*(?:is that|isn'?t that|right|correct|am I right|do I have that right)[^?]*\??$/i, "").replace(/\s*\?\s*(?:is that|isn'?t that)[^?]*\?$/i, "").replace(/\s*(?:is that (?:really )?what (?:the (?:book|text|novel)|it) says|is that right|right|correct)\s*\??$/i, "").replace(/[?.!]+$/, "").trim();
+    if (enough(rest)) return rest;
+  }
+  const t = TRAILING_CHECK_RE.exec(q);
+  if (t) {
+    const before = q.slice(0, t.index).replace(/\s*[—–,;:-]+\s*$/, "").trim();
+    const clause = (before.match(/[^.!?]+[.!?]?\s*$/)?.[0] ?? before).trim().replace(LEADING_UPTAKE_RE, "").replace(LEADING_UPTAKE_RE, "").replace(/[?.!]+$/, "").trim();
+    if (enough(clause)) return clause;
+  }
+  return null;
 }
 /** positionOn(check) — the record's verdict on a graded restatement; null when the check has no premise. */
 export function positionOn(check) {

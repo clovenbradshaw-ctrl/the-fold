@@ -97,3 +97,21 @@ test("through the real turn: activated sentences are handed once, verbatim, addr
   assert.equal(r.retrieval[0].basis, "activation");
   assert.equal(r.resolutions?.[0]?.handed ?? r.sections[0].resolutions?.handed, "activated sentences");
 });
+
+test("at a resolution that carries the Lens, the sentences handed GROUND the Lens's shown acts and nothing beyond them; below it the full reach is handed (the ladder is a compression ladder)", () => {
+  const told = book.sentences.find((s) => /told Raskolnikov about Porfiry/.test(s.text)), asked = book.sentences.find((s) => /questioned Raskolnikov/.test(s.text));
+  const notes = [
+    { subject: "Razumihin", verb: "told", object: "Raskolnikov", spans: [{ at: told.ref }], witnesses: [`${told.chunkRef}~r`] },
+    { subject: "Porfiry Petrovich", verb: "questioned", object: "Raskolnikov", spans: [{ at: asked.ref }], witnesses: [`${asked.chunkRef}~r`] }, // the fixture's own spelling — a note whose end the index cannot resolve is not about the active referent
+  ];
+  const withLens = activate({ question: "What does the book say about Porfiry?", index, book, notes, dmdWindow, resolutions: 2 });
+  assert.ok(withLens.lens, "the Lens's cut is on the result");
+  assert.equal(withLens.lens.acts, 1, "one shown act about Porfiry (questioned); «told» is Razumihin's act, Porfiry its object");
+  assert.equal(withLens.lens.grounded, withLens.lens.acts, "every shown act is grounded by a handed sentence");
+  assert.ok(withLens.passages.some((p) => /questioned Raskolnikov/.test(p.text)), "the sentence carrying the shown act is handed");
+  assert.ok(withLens.window <= 2, `bounded by the Lens and the active referent: ${withLens.window}`);
+  const below = activate({ question: "What does the book say about Porfiry?", index, book, notes, dmdWindow, resolutions: 1 });
+  assert.equal(below.lens, null, "below level 2 there is no Lens to replace the sentences");
+  assert.ok(below.window >= withLens.window, `the full reach hands at least as much: ${below.window} vs ${withLens.window}`);
+  assert.ok(below.passages.some((p) => /told Raskolnikov about Porfiry/.test(p.text)), "the hop-1 act's sentence is handed when nothing else carries it");
+});

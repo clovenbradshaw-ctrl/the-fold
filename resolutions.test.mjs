@@ -5,7 +5,7 @@
 // atmosphere has a real cut to find.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { atmosphereBlock, lensBlock, paradigmBlock, resolutionBlocks, activeReferents, dmdCut, RECURRENCE_FLOOR } from "./resolutions.js";
+import { atmosphereBlock, lensBlock, paradigmBlock, resolutionBlocks, activeReferents, dmdCut, RECURRENCE_FLOOR, lensCut } from "./resolutions.js";
 import { apparatusMentions } from "./firewall.js";
 import { makeReferentIndex } from "./cast.js";
 import { dmdWindow } from "../eoreader7/native/kernel/activation.js";
@@ -119,4 +119,24 @@ test("resolutionBlocks: level 0 is nothing, 1 the atmosphere, 2 adds the lens, 3
   clean(three.text);
   assert.deepEqual(three.active.ids, [id("Porfiry")]);
   assert.equal(resolutionBlocks({ level: 3, ...base, index: null }).text, "", "no conversation index, no blocks — said in the basis");
+});
+
+test("the whole set is never a candidate: 30 notes with 30 distinct acts hand the ladder's top as a CEILING, said so; 30 notes carrying 3 acts converge below it, measured", () => {
+  const mk = (i, verb) => ({ subject: "Raskolnikov", verb, object: `thing ${i}`, witnesses: [`novel.txt#${i * 10}-${i * 10 + 9}~r`], sources: 1 });
+  const distinct = Array.from({ length: 30 }, (_, i) => mk(i, `act${i}`));
+  const active = index.resolve("Raskolnikov");
+  const c1 = lensCut({ active, index, notes: distinct, dmdWindow });
+  assert.equal(c1.ceiling, true, "no rung reproduces 30 distinct acts");
+  assert.equal(c1.window, 24, "the ladder's top is handed as the declared budget");
+  assert.match(c1.basis, /^ceiling: no depth up to 24 reproduced the reach of all 30 rows/);
+  assert.equal(c1.of, 30);
+  const repeats = Array.from({ length: 30 }, (_, i) => mk(i, `act${i % 3}`));
+  const c2 = lensCut({ active, index, notes: repeats, dmdWindow });
+  assert.equal(c2.ceiling, false);
+  assert.ok(c2.window <= 4 && c2.window >= 3, `converges where the three acts are all shown: ${c2.window}`);
+  assert.match(c2.basis, /difference-that-makes-a-difference/);
+  const few = Array.from({ length: 4 }, (_, i) => mk(i, `act${i}`));
+  const c3 = lensCut({ active, index, notes: few, dmdWindow });
+  assert.equal(c3.window, 4, "a set within the declared lines with no rung below it is handed whole");
+  assert.equal(c3.ceiling, false);
 });

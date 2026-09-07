@@ -7674,3 +7674,18 @@ POLICIES.md **P127**. The mouth narrating its own answering — a heading, "Let 
 ## The conversation's loops, on referents (added 2026-09-07) — pointer
 
 POLICIES.md **P170** is the law. `dialogue.js` closes the reading's loops over the CONVERSATION — anaphora, the reader's restatement graded as a premise, the address check with one positive-fact re-ask, typed absence, self-consistency across turns, a measured history depth, the expectation before the draft — and every decision about identity is `cast.js::makeReferentIndex`'s (`resolve`), never a string's. Two things not to re-derive: **nothing had ever passed `makeReferentIndexFor` to the turn** before this (the premise check's referent path had never run in the app), and **an absence the record states needs two bars** — the index refuses a sentence-initial capital as evidence, so a name the bytes carry but the index never established is `unestablished`, never "absent". The doors (`answerable.js::quoteBytes`, `recordCheck`) answer before any model.
+
+## The holograph (added 2026-09-07) — pointer
+
+`eoreader7/native/docs/THE-HOLOGRAPH.md` (standing: nomination) is the
+theory: the record is the object, and what a consumer is handed is a small
+addressed pattern computed from it — every part points at the whole, a
+higher holon replaces the lower material it was computed from (the level
+ladder is a compression ladder), and the mouth never sees an address (one
+wall at its door, `firewall.js::mouthFacing`; the record keeps every
+address and cite.js attaches them after the draft). Prior art (Gabor,
+Pribram, Hopfield, Kanerva, Plate's HRRs, Nelson's transclusion, Koestler,
+Bateson, event sourcing, RAG / GraphRAG), the path on the record (P159,
+P45, the 08-18 address decision, P170, the three resolutions), and the
+walls that stay. Its numbers — the compression ladder and the
+holograph-reading test — are pending and named there as pending.

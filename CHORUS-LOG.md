@@ -199,3 +199,15 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Chekhov | III.5; IV.5 | app.js noteMouth / lastGround.turnSeq | fixed | a late background call was drawn under the wrong answer and the citation named the wrong mouth; both are stamped with the turn now |
 | Marshall | IV.1; P71 | POLICIES P129, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the drill's failures are in the entry, not only its successes; not-claimed carries one physical machine, no CPU-only run, no model pulls |
 clean: nothing struck.
+
+## 2026-09-07 — P130: Ground, Figure, Pattern — the relative-address experiment and its spec (branch `relative-addresses`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon · Ostrom · Marshall; suites relative 7/7, full green.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | relative.js Field | clean | the field exposes no key and the test asserts it; positions never enter the store |
+| Simon | II.10; II.23 | relative.js nullBand / recallAgainstNull | clean | every verdict is against a band measured on that field for that cue length; the statistic resolves (0/120 random cues called a figure, 24 apart = the 24 deleted) |
+| Ostrom | II.3; II.5 | relative-pattern.js correspond | clean | no address is rewritten; a repair is an act that names the old and the new |
+| Marshall | IV.1; P71 | POLICIES P130, the spec, NEXT-PASSES, CLAUDE.md | upheld — compliant | Generality line present; the spec's every pass carries a null and an exit; not-claimed names the unwired page and the unmeasured constants |
+clean: nothing struck.

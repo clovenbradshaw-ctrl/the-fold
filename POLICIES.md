@@ -12312,3 +12312,121 @@ Three ids for one being. **Every row is marked `inferred`**, because a reconstru
 **Cost, stated because it decides where this can run.** A whole-book read is ~115 s and 5.4 GB, and **exceeds Node's default heap** — the committed driver dies with a mark-compact failure on a full book. Each `projectHypergraph` is a full replay from entry 0 (0.7/6.9/8.0/13.7 s at four cursors). This is an offline reading, not a turn organ, and is not called from `loops`.
 
 **Generality:** universal for the three findings, specimen-scoped for the numbers. That survival is vacuous on any upsert-only structure is a property of upsert-only structures; that a reconstruction must be marked as one holds anywhere a record is discarded; that levels should come from the caller's cursors and units from the perceiver's projection is what makes the level material-agnostic at all. The 32-of-32, the 20/12 split, the two recovered merges and the 115 s are one book, one prefix, one machine — and the committed reference JSON for this driver is dated Aug 25 and reproduces different node counts against current `native/`, so it should be treated as stale rather than authoritative.
+
+## P157 — The incremental views were never reachable (2026-09-06)
+
+**The prompt.** *"Something is wrong if it takes that much."* A 3,051-sentence read of War and Peace took 40.1 s.
+
+**Two defects, one shape: a chainView that could hit, feeding a pass that walked everything anyway.** `revision.js` built `[...(fold?.graphEntries ?? []), ...currentGraphEntries]` — a fresh array literal — so the discourse view's delta walk broke on its first step and the from-scratch path ran on every sentence: **3,392 calls, zero memo hits, zero walk hits, 37,274,742 elements scanned.** One screen above it, `descriptorHypothesesWith` passed the fold's own array and hit 3,391 of 3,392. `projectDiscourseReferentsWith(foldEntries, extraEntries)` is that shape applied. Downstream, `projectDiscourseReferents` walked every occurrence ever seen (10.7M visits per read, producing one referent in the whole novel) and `hypothesesFrom` walked every surface group per encounter; both are pure functions of what they walk, so both are memoised — the projection on its state, each hypothesis on its group array (array identity already carries "changed": an untouched group is the same array).
+
+**Measured** (War and Peace prefixes, output byte-identical): 3,051 sentences 40.1 s → 21.3 s, 13.1 → 6.97 ms/sentence.
+
+**The rule.** A cache is measured by its hit rate, never assumed to have one. The incremental path here was never refused — it was never reachable, and every correctness check passed while it was unreachable. eoreader7 commit d0e2e49.
+
+**Generality:** universal for the rule; specimen-scoped for the numbers.
+
+## P158 — Seal, do not copy: the clone was undoing the freeze it defended (2026-09-06)
+
+**The prompt.** *"What are we doing that is taking up so much memory? I think it must be wasted and could be compressed."*
+
+**It was measurable and it was structural.** graphEntries serialized to 10.6 MB and gzipped to 554 KB — **19.3× compressible**. Every entry constructor in the tree returns `Object.freeze({...})`; `clone` was `structuredClone`, which returned a fresh **unfrozen** deep copy. On a 60 KB read, **0 of 6,307 fold entries were frozen**, and 3,370 `provenance` objects held **8 distinct values** — 3,362 duplicate objects that could have been one shared reference. The clone existed to stop a caller mutating what it handed over, and it was defending against mutation of objects that were immutable until the clone destroyed their immutability.
+
+**The change.** `clone = seal`: one pass that deep-freezes (WeakSet for cycles; an already-frozen value returned untouched, so the common case is one `isFrozen` check). Sub-objects shared between entries stay shared. 21.3 s → 17.0 s. eoreader7 commit 07adb6d.
+
+**Generality:** universal — a guard that defeats the invariant it guards is a defect class, not a tuning.
+
+## P159 — The record is not the state; the fold is a projection of the log (2026-09-06)
+
+**The prompt.** *"OH we shouldn't be storing almost any of this, it should be projections from the log"* — *"objects DON'T exist until they are queried and get spun up on demand, similar to how real memory works but with an immutable log"* — *"remember NUL is an instance of non transformation."*
+
+**Measured first** (`native/docs/THE-LOG-IS-THE-MEMORY.md`): reconstructed from the log alone the fold came back **byte-identical, 15,235 entries in 101 ms**. Of a 14.2 MB fold after 1,707 sentences: graphEntries 46.4% (derivable), transformationObjects 26.9% (**verbatim** the log's DeltaFold operations), witnessed 22.1% (**verbatim** the log's Observation@1 entries, identical and in order), everything else 4.6%. **95.4% of the fold is the log or derivable from it.**
+
+**Step 0 — a gate that survives a representation change.** `read-cost.mjs --identity` hashes the log and the projection's nodes and links at four cursors; `--trace --against` hashes graphEntries per step and names the first diverging step. Built before any edit, because a change to how the fold spells itself must be told apart from a change to the reading.
+
+**Step 1 — operations were written to both the record and the state.** 2,006 EOOperation@1 entries (27% of graphEntries) sat in the state as a second copy of the record. NUL is the sharpest case: `eoOperation` and `applyDelta` both refuse a NUL carrying a mutating payload — "NUL records no transformation" — and `graphable` admitted it into graphEntries anyway, a non-transformation materialised into an accumulation of transformations. Removed exactly the acts: 7,307 − 2,006 = 5,301 = actual.
+
+**Step 2 — `witnessed` is not accumulated.** 3.2 MB kept so that a count could be taken (the only two readers asked for `.length`); the count comes from the log; the field stays present-but-empty.
+
+**Measured, 3,051 sentences across the session:** 40.1 s → 6.27 s, 13.1 → 2.05 ms/sentence, nodes/links byte-identical at all four cursors. **The scale verdict had lied:** it reported a worse growth ratio (6.6× → 11.4×) while every absolute fell, because the ratio's denominator had itself got 4.7× faster — it now reports shape **and** cost, never a ratio alone.
+
+**Retired on the user's decision** (*"kill all 6.1 stuff now"*): seven pure-parity conformance files that asserted the native kernel matches the frozen legacy engine; `native-boundary` and `text-boundary` kept, since they enforce independence. Five tests still import legacy modules as live implementations — dependencies to port, not contracts to delete. eoreader7 commits 109f73b, a98709d, 11e7e23.
+
+**Generality:** universal for the principle and the gate; specimen-scoped for the shares and the timings.
+
+## P160 — A paradigm's address reaches what fed it (2026-09-06)
+
+**The prompt.** *"A paradigm has a single address that is linked to all the things that fed it."* And, on the direction: *"how does the human mind do it?"* — birth, not every feeder ever.
+
+**Measured against that sentence, the system failed it three ways.** `ref:auto:french` reached 1 thing (itself) and 0 bytes; an EOIdentityAlternative reached 2 with 1 dangling; an operation reached 7 with 4 dangling. Fifteen EOMention@1 entries pointed **at** the referent, each with real byte anchors; the referent pointed at none of them. The links ran only upward, so going down from a referent meant scanning the whole log — and the reverse index prototyped for it (id → log positions, 0.66 MB, 10% of the fold) was **a substitute for links that should exist**, and was not shipped.
+
+**The fix is where the information already is.** At the instant a referent is admitted, the observation that produced it is in hand and its mentions already name it. `inputs` was a declared field left empty while `outputs` was filled — a lineage half-written in the direction that cannot be walked. Both are now recorded: the operation carries `inputs`, the referent carries `fedBy`. Measured on all 38 referents: mean reached 1 → 3, dangling 0, terminating in bytes **0/38 → 38/38**. Same defect shape as P156's discarded `merges`: information that exists at creation, thrown away, reconstructed downstream by inference. **Grep for declared-but-unfilled fields.**
+
+**A witness is a citation, not an edge.** Following `witness`/`encounterRef` made hop-2 expansion reach **87% of the log** from any seed; `lineage` excludes them by name. eoreader7 commit a7b3718.
+
+**Generality:** universal.
+
+## P161 — No view from nowhere, on the way out (2026-09-06)
+
+**The prompt.** *"There's no view from nowhere and a retrieval always has scoping based on what the person is really asking."*
+
+**The defect this fixes was committed the day before, in the same session.** `dmdWindow` requires a conclusion and says so in its own error. One was supplied, buried in a code comment, and the result reported as *"the measured reach of Prince Andrew is 41 mentions"* — as though reach were a property of Prince Andrew. It is a property of (Prince Andrew, that conclusion, that cursor); change the question and the number changes; nothing in the result could catch it because nothing in the result said what had been asked.
+
+**`retrieval-frame.js`** declares what a retrieval stands on: `asking` in the person's own words (never paraphrased — the paraphrase is already an interpretation, and a frame records interpretations rather than performing them), `conclusion` (what a difference must make a difference **to**), `atSeq` (identity is retrieval-time: the same question at 25% and 100% is two retrievals), and organs/priors/absent. Mirroring `notes.js` rather than inventing: an **absent** frame is reported by name and never invented (a refusal that breaks every existing caller is not a wall); a **declared** frame missing `asking` or `conclusion` is refused. `say(value, result)` renders a number with what it is a measurement of, or the gap. eoreader7 commit 5d8e4d5.
+
+**Generality:** universal.
+
+## P162 — Every score carries its frame (2026-09-07)
+
+**The handoff plan's first item.** Four times in one session the measuring instrument was wrong — a grounding scorer marking a correct answer 0% for being written in English; `s.touched` read where the field is `touchedGraphObjects`; a mutation test reporting MISSED because its replacement never applied; a scale verdict reporting a worse ratio while every absolute fell. Each produced a confident, plausible number, and the common shape was a number with no frame.
+
+**The change.** `scoreRecall`, `scoreMemory`, `scoreInjection`, `scoreReasoning` — the scorers behind "recall 33/33 vs 2/13" — each return their verdict with a `RetrievalFrame@1`: the probe's question in its own words, the conclusion the scorer actually checks, the turn as the cursor. Additive: verdict fields unchanged, the eight existing scorer tests pass untouched. **And every mutation test must assert its mutation applied.** eoreader7 commit 1a9a360.
+
+**Generality:** universal.
+
+## P163 — II.11 ratcheted for eoreader7 (2026-09-07)
+
+the-fold has carried the earned-constant ratchet since P146; eoreader7 had none, and the same defect class — a constant with no giver and no measurement — was found four times in one afternoon, twice by the person who had just written the rule. `tests/earned-constants.test.js` scans `kernel/`, `adapters/text/`, `organs/` and fails on any **new** exported numeric constant whose attached comment names neither a measurement nor a giver. Disclosed baseline: 10 unaccounted of 18, all in `organs/`; five decide something about the material (`WITNESS_FLOOR`, `MIN_RUN`, `MIN_SURFACES_PER_VERB`, `GRAMMAR_MIN_SHARE`, `MIN_QUOTE_WORDS`) and print on every run. **The baseline was generated from the scanner, not typed:** a first draft guessed five names that did not exist, and the "may not name constants that no longer exist" test is what would have caught it. Control included (II.10): a planted `MYSTERY_FLOOR` is caught. eoreader7 commit 27f8d6f.
+
+**Generality:** universal.
+
+## P164 — The observation is the record; its children are the state (2026-09-07)
+
+`applyObservation` added the Observation@1 object **itself** to graphEntries beside its own hyperedges and graphEntries — the parent, carrying copies of its children, in the same array as the children. Measured: **6,603 of 10,261 objects nested inside Observations (64%) were also top-level entries** — a 2.7 MB containment copy of a 6.6 MB fold. Same defect as P159 step 1. Verified before the change that nothing reads an Observation@1 from graphEntries (the graph index takes observations from the step; `revision.js` reads them off the observation it is handed). Measured, 60 KB: graphEntries 5,301 → 4,462 (exactly the 839 observations), heap 152 → 113 MB, nodes/links byte-identical at all four cursors. eoreader7 commit 90affd5.
+
+**Generality:** universal for the rule; specimen-scoped for the counts.
+
+## P165 — The reassignment record reaches the log, and it shows the clustering oscillates (2026-09-07)
+
+**The merge branch was not the mechanism.** `discoverReferents`' `merges.push` fires only when one surface's tokens span two already-established clusters' full token sets; assignment runs longest-first, so it fired **0 times on 120 KB** of War and Peace, and a synthetic fixture built to trigger it clustered without merging. What produces P156's "three ids for one being" is **reassignment across refreshes**: a fragment clears its sentence floor and gets an id; a later refresh clusters the fuller name first, the fragment corefers and is reassigned, and the old id is orphaned in the fold. The old `cache.refs` is in hand inside `refresh()`, so a surface whose id changed is recorded there — where it was decided — as `EOReferentMerge@1`, basis "reassigned on refresh", witnessed by the surface that moved, landed once. The folded referent is never deleted (the fold is upsert-only; cursor scrubbing replays the past); it is marked. `projectHypergraph` carries `merges` additively; the node shape the identity gate hashes is untouched. the-fold's `cursor.js::supersessions` now prefers the record (`inferred: false`) and infers only for uncovered dormant nodes — guard G14.
+
+**The finding the record makes visible.** The projection's header had claimed since it was written that scrubbing the cursor *shows* a merge; it never could, because the record was discarded. Now it does, and what it shows is instability: `vasili → prince_vasili` at 575, back at 625; `helene ↔ princess_helene` at 700/725; `pierre, monsieur → monsieur_pierre`; `emperor → emperor_alexander`. `assignmentOrder`'s tiebreaks (sentences, then mentions) shift as counts accrue. Breaking the tie — last wins, longest wins — would be a hand rule wearing a verdict; the test asserts an acyclic chain resolves to the fuller name and a cycle is **reported**, both legs witnessed at different encounters. Handed forward, not fixed. eoreader7 commit 0bcb90d; the-fold b628acf.
+
+**Generality:** universal for "record it where it was decided, and a cycle is a fact to report"; specimen-scoped for which names oscillate.
+
+## P166 — The tip is extended in place; transience is declared by the chain's owner; the log is what is immutable (2026-09-07)
+
+**The handoff plan's last item** — *"the biggest remaining win and the riskiest change"*, with the standing warning that a performance regression is invisible to every correctness check in both trees.
+
+**What the copy was.** `upsertManyById` did `const next = [...list]` on every call — one whole-array copy per observation per array, ~20.5M slots on a 240 KB read — and the delta record pointed **backward** (`childArray → { prev, … }`), so the tip held every intermediate array alive through a WeakMap value. The O(n²) was resident memory, not only copy time. **Measured on the old code: a full book (3.3 MB) dies at an 8 GB heap after 300 s; 1 MB dies the same way.** The design already said the truth out loud — `POSITIONS`'s own comment read *"linear chain: steal, extend, hand to the child"*: the index was transient, only the array was still being copied.
+
+**The change** (eoreader7 `kernel/fold.js`, `kernel/reading.js`). An array `upsertManyById` created is **owned** and extended in place; a foreign or frozen array is copied once and the copy becomes owned. The delta record points **forward** — each owned array has a stream of `{appended, updated, next}` nodes, the array holds only the newest, a view holds the node it last consumed, and old nodes are collected from the front as views catch up. `transformationHistoryRefs`, copied whole per step too, gets the same treatment. `chainView` folds forward from where it stood; a copy starts a new stream and recomputes from scratch (copies are rare now, and a from-scratch compute costs the same order as the copy that caused it — no state is carried across arrays and no path exists to get wrong).
+
+**Transience is declared by the caller that owns the chain, never inferred from the array.** The first cut extended in place unconditionally and `tests/identity-revision.test.js` caught it: that test holds `fold1`, applies a delta to get `fold2`, and reads `fold1` afterwards — *"the earlier Fold still remembers the earlier reading"* — which is a legitimate use of a pure function and passed on the old code. `applyObservation` and `applyDelta` are public and stay **pure by default**; the reader's own linear chain and `reconstruct` pass `{ transient: true }`, because they are the two places that never read a superseded fold (the reader drops `beforeFold` each step; `deriveRelease` reads only `obligations`, which stay copy-on-write through `upsertById` and must — before/after is its whole question). Same standing as `carry` (P95) and `minShare`: declared, never defaulted.
+
+**A superseded turn's fold is that turn's fold.** With shared tips, `turns[i].fold` would otherwise show the final arrays for every `i`. It is now an accessor: the live tip while it is the tip, and `reconstruct(log.slice(0, at))` once superseded — the log's projection at that seq (P159), reconstructed on demand, never retained. Pinned by reading twelve turns' folds immediately and again after the read: identical, and not the tip's.
+
+**Gates, all on the final code:** `--identity` at 60 KB, every hash unchanged (the header's `logHash` was stale since P165 put the merge record in the log — re-verified from a clean HEAD worktree and corrected with provenance); `--trace --against` byte-identical at **every one of 123 sampled steps at 240 KB and 120 at 480 KB**, against baselines captured from the old code in a worktree of HEAD. Native suite 680/681 (the one non-pass is the standing BECOMING TODO); the-fold 1864/1868 with the one failure the known load-flaky matrix-pool test.
+
+**Measured, old and new back-to-back under the same load** (the P145 arm was running its model beside both; timings are contended, the heap column is per-process):
+
+| sentences | old s | new s | old heap MB | new heap MB |
+|---|---|---|---|---|
+| 926 | 1.56 | 3.9 | 160 | 77 |
+| 1,707 | 8.27 | 3.45 | 413 | 173 |
+| 3,051 | 33.35 | 33.28 | 1,482 | 421 |
+
+**The copy was the memory term, not the time term.** Heap 3.5× lower at 3,051 sentences; read time unchanged. Twenty million slot copies are cheap in V8; twenty million *retained* slots are what killed a full book. The remaining super-linear time is elsewhere (the per-refresh re-clustering in `discoverReferents`, the neighbourhood walks) and is stated rather than glossed — P157's rule again: the number that mattered was measured, not the one the story predicted.
+
+**Structural tests, not timings** (`tests/fold-transient.test.js`, 8): array identity held across 500 steps; a schema view returned the *same* array after a step (a from-scratch compute would be a new one — the measured hit P157 demands); a counted compute across a copy; the default is pure; the frozen-tip fallback; the superseded-turn accessor.
+
+**Generality:** universal for the three rules — transience declared by the chain's owner, the record pointing forward so the tip retains nothing, a superseded state read as the log's projection; specimen-scoped for the table.

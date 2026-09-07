@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel } from "./model-routing.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel , isPinnedModel} from "./model-routing.js";
 
 const OFFERED = [...MODEL_PICKER];
 const SELECTED = MODEL_PICKER[MODEL_PICKER.length - 1];
@@ -68,4 +68,14 @@ test("resolveNamedModel degrades to the fastest offered rung when the named mode
 
 test("resolveNamedModel with nothing offered either falls back to MODEL_PICKER's own fastest rung, never throws", () => {
   assert.equal(resolveNamedModel(S1_MODEL, { available: new Set(), offered: [] }), MODEL_PICKER[0]);
+});
+
+test("a room mouth is pinned: the person chose a machine, so every kind goes there, and a pinned name is never the 'fast' rung for anyone else", () => {
+  const pinned = "room:@worker:server qwen2.5-coder:1.5b";
+  assert.equal(isPinnedModel(pinned), true);
+  assert.equal(isPinnedModel("gemma2:2b"), false);
+  assert.equal(isPinnedModel("room:not-an-id"), false);
+  assert.equal(isPinnedModel(null), false);
+  for (const kind of Object.values(ROUTE_KINDS)) assert.equal(routeModel(kind, { offered: ["gemma2:2b", pinned], selected: pinned }), pinned, kind);
+  assert.equal(routeModel(ROUTE_KINDS.FLAT, { offered: [pinned, "gemma2:2b"], selected: "gemma2:2b" }), "gemma2:2b", "a pinned name is skipped when picking the fast local rung");
 });

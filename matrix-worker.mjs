@@ -17,11 +17,12 @@
 // are kept in ~/.the-fold/matrix-worker.json (mode 600) so a restart needs
 // no password; delete the file to forget. Nothing is written anywhere else.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import os from "node:os";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import readline from "node:readline";
 import { FoldMatrix, MatrixError } from "./matrix-client.js";
-import { parseShareLink } from "./matrix.js";
+import { parseShareLink, deviceContent, deviceLine } from "./matrix.js";
 
 const OLLAMA = process.env.OLLAMA_HOST?.startsWith("http") ? process.env.OLLAMA_HOST : "http://localhost:11434";
 const args = process.argv.slice(2);
@@ -51,6 +52,31 @@ async function ollamaModels() {
   if (!r.ok) throw new Error(`Ollama answered ${r.status} on ${OLLAMA}`);
   return ((await r.json()).models ?? []).map((m) => m.name);
 }
+/**
+ * Whether the work is actually on a GPU, read from Ollama's own account of
+ * what it has loaded (`size_vram` above zero), not from the presence of a
+ * card. Null until something has been loaded — unmeasured, never guessed;
+ * the first answered job settles it.
+ */
+async function gpuInUse() {
+  try {
+    const r = await fetch(`${OLLAMA}/api/ps`);
+    if (!r.ok) return null;
+    const loaded = (await r.json()).models ?? [];
+    if (!loaded.length) return null;
+    return loaded.some((m) => (m.size_vram ?? 0) > 0);
+  } catch { return null; }
+}
+/** What this machine is, in the terms that decide what should run here. */
+async function describeMachine() {
+  return deviceContent({
+    runtime: `Ollama on ${OLLAMA.replace(/^https?:\/\//, "")}`,
+    os: os.platform(), arch: os.arch(),
+    cores: os.cpus()?.length ?? null,
+    memGB: Math.round(os.totalmem() / 1024 ** 3),
+    gpu: await gpuInUse(),
+  });
+}
 /** The local mouth: one Ollama chat call, no stream, with what it measured. */
 async function complete({ model, messages, options }) {
   const started = Date.now();
@@ -61,7 +87,7 @@ async function complete({ model, messages, options }) {
   const r = await fetch(`${OLLAMA}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`Ollama answered ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const j = await r.json();
-  return { text: j.message?.content ?? "", model, usage: { promptTokens: j.prompt_eval_count ?? 0, outTokens: j.eval_count ?? 0 }, device: { home: "terminal", label: `${process.platform} ${process.arch} · Ollama`, ms: Date.now() - started } };
+  return { text: j.message?.content ?? "", model, usage: { promptTokens: j.prompt_eval_count ?? 0, outTokens: j.eval_count ?? 0 }, ms: Date.now() - started };
 }
 
 const secretsLog = (kind, fields) => console.log(`  ${new Date().toISOString()} ${kind} ${JSON.stringify(fields)}`);
@@ -81,16 +107,28 @@ try {
   if (!joined.joined) { console.error(`cannot join ${shared.room}: ${joined.gap}`); process.exit(1); }
   if (joined.awaiting) { console.error(`joined, but no member granted this key yet: ${joined.gaps.join("; ")}`); process.exit(1); }
   console.log(`room ${shared.name ? `"${shared.name}" ` : ""}${shared.room}: ${joined.entries.length} preserved entr${joined.entries.length === 1 ? "y" : "ies"} readable here`);
-  const models = opt("--models")?.split(",").map((s) => s.trim()).filter(Boolean) ?? (await ollamaModels());
+  const here = await ollamaModels();
+  const models = opt("--models")?.split(",").map((s) => s.trim()).filter(Boolean) ?? here;
   if (!models.length) { console.error("Ollama offers no models here — pull one first"); process.exit(1); }
+  const missing = models.filter((m) => !here.includes(m));
+  if (missing.length) console.log(`  note: ${missing.join(", ")} is not pulled here; Ollama will refuse those jobs, and the asker is told why`);
+  const spare = here.filter((m) => !models.includes(m));
+  let device = await describeMachine();
+  console.log(`this machine: ${deviceLine(device)}${spare.length ? `\nspare models any member can ask this machine to take up: ${spare.join(", ")}` : ""}`);
   const controller = new AbortController();
   const stop = () => { console.log("\nwithdrawing the offer…"); controller.abort(); };
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
-  console.log(`serving ${models.join(", ")} from ${OLLAMA} — members pick "room:${fm.session.user_id} <model>"; ctrl-c withdraws`);
+  console.log(`serving ${models.join(", ")} — members pick "room:${fm.session.user_id} <model>"; ctrl-c withdraws`);
   // While this worker is up it also grants the bound invites this account
   // issued, so someone opening a link does not wait on a browser tab.
   void fm.watchInvites(shared.room, { signal: controller.signal, onGrant: (g) => { for (const x of g.granted) console.log(`  granted the chat key to ${x.user} (key ${x.fingerprint})`); } });
-  const r = await fm.serve(shared.room, { complete, models, home: "terminal", signal: controller.signal, onJob: ({ from, model, messages }) => console.log(`  job from ${from}: ${model}, ${messages} message(s)`) });
+  const r = await fm.serve(shared.room, {
+    complete: async (job) => { const out = await complete(job); if (device.gpu === null) { const gpu = await gpuInUse(); if (gpu !== null) { device = { ...device, gpu }; console.log(`  measured: this machine is running the model on ${gpu ? "the GPU" : "the CPU"}`); } } return { ...out, device }; },
+    models, available: spare, device, home: "terminal", signal: controller.signal,
+    onJob: ({ from, model, messages }) => console.log(`  job from ${from}: ${model}, ${messages} message(s)`),
+    onTakeUp: ({ model, by }) => console.log(`  taking up ${model}, asked by ${by} — now serving it too`),
+    canTakeUp: async (model) => ((await ollamaModels()).includes(model) ? null : "this machine does not have that model pulled"),
+  });
   console.log(`served ${r.served} job(s)`);
 } catch (e) {
   console.error(e instanceof MatrixError ? `matrix: ${e.message}` : e?.stack ?? e);

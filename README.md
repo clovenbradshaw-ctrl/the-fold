@@ -231,8 +231,17 @@ everything.
 /matrix rotate · remove @who   a new key epoch; removal takes the seat and rotates
 /matrix lock · unlock      seal what this browser keeps under a passphrase
 /serve                     answer the room's sealed prompts with this machine's models
-/pool                      the devices offering a mouth, and what each has answered
+/pool                      the devices offering a mouth, what each machine is, what it answered
+/pool want @who <model>    ask a machine to take up a model it has spare
 ```
+
+Each machine says what it is — the runtime, CPU or GPU, cores, memory — and
+what it could serve but is not; a member can ask it to take up one of those,
+and it either does or refuses with a reason. Work goes to the shortest
+expected wait, measured from what each machine's answers have actually taken,
+not from a count of jobs. Every answer carries the model and the machine that
+produced each of its calls, and a sentence in the model's own voice is cited
+to that same mouth (POLICIES.md P129).
 
 **Prefer `/share @who:server`.** That link carries no key: it works only for
 that account, signed in as themselves, once, and the key is handed over only

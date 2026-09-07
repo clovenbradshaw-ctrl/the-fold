@@ -24,6 +24,7 @@ import {
   generateInviteSecret, INVITE_TTL_MS, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault,
   paths, homeserverBase, loginBody, createRoomBody, memberKeyContent, chatKeyContent, chainContent,
   seal, open, newJobId, mouthContent, jobContent, answerContent, pickMouth, syncFilter, encryptBytes, decryptBytes,
+  deviceContent, deviceLine, wantContent, wantsFor,
   buildShareLink, parseShareLink, SecretSet, forRecord,
 } from "./matrix.js";
 
@@ -31,6 +32,9 @@ const encoder = new TextEncoder();
 const FETCH_CONCURRENCY = 6;
 /** Blocks walked past the manifest before a chain is called partial. */
 const MAX_WALK = 100_000;
+/** How often a serving machine re-reads room state when the sync sends no
+ * deltas — a backstop, not the path: an ask is never lost, only late. */
+const WANT_BACKSTOP_MS = 10_000;
 
 export class MatrixError extends Error {
   constructor(message, { status = 0, errcode = null } = {}) { super(message); this.name = "MatrixError"; this.status = status; this.errcode = errcode; }
@@ -516,18 +520,51 @@ export class FoldMatrix {
   workerStats(roomId, user) { const pool = this.poolOf(roomId); return (pool.workers[user] ??= { sent: 0, answered: 0, failed: 0, ms: [], tokens: 0, device: null, model: null }); }
   noteOffers(roomId, stateEvents) {
     const pool = this.poolOf(roomId);
+    pool.machines ??= {};
     for (const ev of stateEvents.filter((e) => e.type === TYPES.mouth)) {
+      const c = ev.content ?? {};
       pool.offers = pool.offers.filter((o) => o.user !== ev.state_key);
-      if (Array.isArray(ev.content?.models) && ev.content.models.length) pool.offers.push({ user: ev.state_key, models: ev.content.models, home: ev.content.home ?? null, since: ev.content.since ?? 0 });
+      pool.machines[ev.state_key] = { available: c.available ?? [], device: c.device ?? null, refused: c.refused ?? [], home: c.home ?? null, serving: Array.isArray(c.models) ? c.models : [] };
+      if (Array.isArray(c.models) && c.models.length) pool.offers.push({ user: ev.state_key, models: c.models, home: c.home ?? null, since: c.since ?? 0, available: c.available ?? [], device: c.device ?? null });
     }
+    pool.wants = stateEvents.filter((e) => e.type === TYPES.want);
     return pool.offers;
   }
-  /** Say what this machine can answer for the room. `models: []` withdraws. */
-  async offerMouth(roomId, { models = [], home = null } = {}) {
+  /**
+   * Say what this machine serves, what else it could serve, what it is, and
+   * what it has refused to take up. `models: []` withdraws the offer.
+   */
+  async offerMouth(roomId, { models = [], available = [], device = null, refused = [], home = null } = {}) {
     const h = this.http(); const me = this.data.session.user_id;
-    await h.putState(roomId, TYPES.mouth, me, mouthContent({ models, home }));
-    this.record(models.length ? "matrix-mouth-offer" : "matrix-mouth-withdraw", { room: roomId, models: models.length, home });
-    return { models, home };
+    await h.putState(roomId, TYPES.mouth, me, mouthContent({ models, available, device, refused, home }));
+    this.record(models.length ? "matrix-mouth-offer" : "matrix-mouth-withdraw", { room: roomId, models: models.length, available: available.length, home, device: device ? deviceLine(device) : null });
+    return { models, available, device, home };
+  }
+  /**
+   * Ask a machine in the room to take up a model. It takes it up when the
+   * model is one it says it has available, and refuses with a reason
+   * otherwise — the asker sees either in the pool. Coordination, not command:
+   * the machine's own serve loop decides, on its own hardware.
+   */
+  async want(roomId, user, model) {
+    const h = this.http(); const me = this.data.session.user_id;
+    const state = await h.allState(roomId);
+    this.noteOffers(roomId, state);
+    const mine = state.find((e) => e.type === TYPES.want && e.state_key === me)?.content?.wants ?? [];
+    const wants = [...mine.filter((w) => !(w.to === user && w.model === model)), { to: user, model, at: Date.now() }];
+    await h.putState(roomId, TYPES.want, me, wantContent(wants));
+    const machine = this.poolOf(roomId).machines?.[user];
+    this.record("matrix-want", { room: roomId, of: user, model });
+    return { of: user, model, available: !!machine?.available?.includes(model), serving: !!machine?.serving?.includes(model), device: machine?.device ? deviceLine(machine.device) : null };
+  }
+  /** Withdraw one ask (or all of them for a machine). */
+  async unwant(roomId, user, model = null) {
+    const h = this.http(); const me = this.data.session.user_id;
+    const mine = (await h.getState(roomId, TYPES.want, me))?.wants ?? [];
+    const wants = mine.filter((w) => !(w.to === user && (model === null || w.model === model)));
+    await h.putState(roomId, TYPES.want, me, wantContent(wants));
+    this.record("matrix-unwant", { room: roomId, of: user, model });
+    return { of: user, model, left: wants.length };
   }
   /** Who offers a mouth in a room, off its state — refreshed, not remembered. */
   async mouths(roomId) { const state = await this.http().allState(roomId); return this.noteOffers(roomId, state); }
@@ -560,9 +597,19 @@ export class FoldMatrix {
     // The pick and the count are one synchronous step, so concurrent asks
     // see each other's jobs in flight and spread across the pool.
     const inflight = Object.fromEntries(Object.entries(pool.workers).map(([u, w]) => [u, w.sent - w.answered - w.failed]));
-    const worker = to ? { user: to } : pickMouth(pool.offers, { model, inflight });
+    const meanMs = Object.fromEntries(Object.entries(pool.workers).filter(([, w]) => w.ms.length).map(([u, w]) => [u, w.ms.reduce((a, b) => a + b, 0) / w.ms.length]));
+    const worker = to ? { user: to } : pickMouth(pool.offers, { model, inflight, meanMs });
     if (!worker) throw new MatrixError(pool.offers.length ? `no offered mouth has ${model}` : "nobody in this room offers a mouth — /serve on a machine that has one");
     const stats = this.workerStats(roomId, worker.user); stats.sent++;
+    // How long to wait: what the caller allowed, or — when this requester has
+    // timed this machine before — the queue it is joining plus one more answer,
+    // whichever is longer. A worker answers one job at a time, so a queue is
+    // real waiting, and a deadline shorter than the queue reports "no answer"
+    // for a machine that is working (measured 2026-09-06: two jobs on a 90s
+    // model timed out at 180s while the machine was mid-answer).
+    const mean = meanMs[worker.user] ?? null;
+    const expected = mean ? mean * ((inflight[worker.user] ?? 0) + 1) : null;
+    const deadline = expected && expected > timeoutMs ? Math.round(expected + mean) : timeoutMs;
     const id = newJobId(); this.sentJobs.add(id);
     const first = await h.sync({ filter, timeout: 0 });
     let since = first.next_batch;
@@ -571,11 +618,11 @@ export class FoldMatrix {
     const started = Date.now();
     await h.send(roomId, EVENTS.job, jobContent({ to: worker.user, id, ...sealed }));
     this.record("matrix-ask", { room: roomId, to: worker.user, bytes: sealed.env?.length ?? sealed.bytes ?? 0, viaMedia: !!sealed.mxc });
-    while (Date.now() - started < timeoutMs) {
+    while (Date.now() - started < deadline) {
       if (signal?.aborted) { stats.failed++; throw new MatrixError("cancelled"); }
       onWait?.({ worker: worker.user, ms: Date.now() - started });
       let res;
-      try { res = await h.sync({ since, filter, timeout: Math.max(1000, Math.min(30_000, timeoutMs - (Date.now() - started))), signal }); }
+      try { res = await h.sync({ since, filter, timeout: Math.max(1000, Math.min(30_000, deadline - (Date.now() - started))), signal }); }
       catch (e) { if (e.errcode === "ABORTED") { stats.failed++; throw new MatrixError("cancelled"); } throw e; }
       since = res.next_batch;
       for (const ev of res.rooms?.join?.[roomId]?.timeline?.events ?? []) {
@@ -589,8 +636,17 @@ export class FoldMatrix {
       }
     }
     stats.failed++;
-    this.record("matrix-ask-timeout", { room: roomId, to: worker.user, ms: Date.now() - started });
-    throw new MatrixError(`no answer from ${worker.user} in ${Math.round(timeoutMs / 1000)}s — its page or worker may be closed`);
+    // Still offering a mouth, or gone? The room's own state answers it, so the
+    // gap says which rather than guessing at the reason.
+    let stillThere = false;
+    try { stillThere = (await this.mouths(roomId)).some((o) => o.user === worker.user); } catch { /* the state read failed too */ }
+    this.record("matrix-ask-timeout", { room: roomId, to: worker.user, ms: Date.now() - started, stillOffering: stillThere });
+    throw new MatrixError(
+      `no answer from ${worker.user} in ${Math.round((Date.now() - started) / 1000)}s` +
+      (stillThere
+        ? ` — it is still offering a mouth, so it is most likely still working through its queue${mean ? ` (its answers have taken ${Math.round(mean / 1000)}s each)` : ""}; ask again, or pick another machine`
+        : " — it is no longer offering a mouth: its page or worker has closed"),
+    );
   }
   /**
    * Serve the room from this machine: offer the models, then answer every
@@ -599,18 +655,43 @@ export class FoldMatrix {
    * options})` is the local mouth — Ollama or the in-tab rung — and returns
    * `{text, usage, device}`; a throw becomes a typed gap in the answer.
    */
-  async serve(roomId, { complete, models = [], home = null, signal = null, onJob = null } = {}) {
+  async serve(roomId, { complete, models = [], available = [], device = null, home = null, signal = null, onJob = null, onTakeUp = null, canTakeUp = null } = {}) {
     const key = await this.keyFor(roomId); if (!key) throw new MatrixError("no key for this room");
     const h = this.http(); const me = this.data.session.user_id;
-    await this.offerMouth(roomId, { models, home });
+    let serving = [...models]; let spare = available.filter((m) => !serving.includes(m)); const refused = [];
+    await this.offerMouth(roomId, { models: serving, available: spare, device, refused, home });
     const filter = syncFilter(roomId);
     let since = (await h.sync({ filter, timeout: 0 })).next_batch;
     const answered = new Set(); let served = 0;
+    let lastWantRead = Date.now();
+    try { this.noteOffers(roomId, await h.allState(roomId)); } catch { /* the loop's backstop will try again */ }
     try {
       while (!signal?.aborted) {
         let res; try { res = await h.sync({ since, filter, timeout: 30_000, signal }); } catch (e) { if (signal?.aborted || e.errcode === "ABORTED") break; await new Promise((r) => setTimeout(r, 2000)); continue; }
         since = res.next_batch;
         if (this.pendingInvites(roomId).length) { try { await this.grantPending(roomId); } catch { /* next pass */ } }
+        // What the room is asking this machine to take up. A model it says it
+        // has spare is taken up and offered; anything else is refused WITH a
+        // reason, in the offer itself, so the asker reads it in the pool.
+        // State deltas arrive in the sync; a homeserver that sends none is
+        // backstopped by re-reading the room's state every WANT_BACKSTOP_MS,
+        // so an ask is never lost, only late.
+        const delta = res.rooms?.join?.[roomId]?.state?.events ?? [];
+        for (const ev of delta) if (ev.type === TYPES.want) { const w = this.poolOf(roomId); w.wants = [...(w.wants ?? []).filter((x) => x.state_key !== ev.state_key), ev]; }
+        if (Date.now() - lastWantRead > WANT_BACKSTOP_MS) { lastWantRead = Date.now(); try { this.noteOffers(roomId, await h.allState(roomId)); } catch { /* the next pass tries again */ } }
+        const asked = wantsFor(this.poolOf(roomId).wants ?? [], me, { serving });
+        if (asked.length) {
+          let changed = false;
+          for (const w of asked) {
+            if (refused.some((r) => r.model === w.model)) continue;
+            const why = spare.includes(w.model) ? (canTakeUp ? await canTakeUp(w.model) : null) : "this machine does not have that model";
+            if (why) { refused.push({ model: w.model, why, by: w.by }); changed = true; continue; }
+            serving = [...serving, w.model]; spare = spare.filter((m) => m !== w.model); changed = true;
+            onTakeUp?.({ model: w.model, by: w.by });
+            this.record("matrix-take-up", { room: roomId, model: w.model, by: w.by });
+          }
+          if (changed) await this.offerMouth(roomId, { models: serving, available: spare, device, refused, home });
+        }
         const events = res.rooms?.join?.[roomId]?.timeline?.events ?? [];
         for (const ev of events) if (ev.type === EVENTS.answer && ev.sender === me) answered.add(ev.content?.job);
         for (const ev of events) {
@@ -620,9 +701,16 @@ export class FoldMatrix {
           try {
             const job = await this.unsealFrom(key, ev.content);
             if (job.kind !== "complete") throw new MatrixError(`a job of kind ${job.kind} — this worker answers only complete`);
-            onJob?.({ from: ev.sender, id: job.id, model: job.model, messages: job.messages?.length ?? 0 });
-            const out = await complete({ model: job.model, messages: job.messages, options: job.options ?? null });
-            reply = { id: job.id, text: out.text ?? "", usage: out.usage ?? null, model: out.model ?? job.model, device: out.device ?? { home }, ms: Date.now() - started };
+            onJob?.({ from: ev.sender, id: job.id, model: job.model ?? serving[0] ?? null, messages: job.messages?.length ?? 0 });
+            // A job may name no model — "whatever this machine offers" is a
+            // legitimate ask, and the worker is the one that knows. Falling
+            // back to the first offered model keeps that from reaching the
+            // runtime as a null (measured 2026-09-06: six such jobs each came
+            // back as a typed gap carrying Ollama's "model is required").
+            const model = job.model ?? serving[0] ?? null;
+            if (!model) throw new MatrixError("this worker offers no model to answer with");
+            const out = await complete({ model, messages: job.messages, options: job.options ?? null });
+            reply = { id: job.id, text: out.text ?? "", usage: out.usage ?? null, model: out.model ?? model, device: out.device ?? { home }, ms: Date.now() - started };
           } catch (e) { reply = { id: ev.content.id, gap: e?.message ?? String(e), ms: Date.now() - started }; }
           const sealed = await this.sealFor(key, reply);
           await h.send(roomId, EVENTS.answer, answerContent({ job: ev.content.id, ...sealed }));
@@ -631,7 +719,7 @@ export class FoldMatrix {
         }
       }
     } finally {
-      try { await this.offerMouth(roomId, { models: [], home }); } catch { /* the token may be gone; the offer ages out with the page */ }
+      try { await this.offerMouth(roomId, { models: [], available: spare, device, home }); } catch { /* the token may be gone; the offer ages out with the page */ }
     }
     return { served };
   }
@@ -643,9 +731,10 @@ export class FoldMatrix {
       const w = pool.workers[o.user] ?? { sent: 0, answered: 0, failed: 0, ms: [], tokens: 0, device: null, model: null };
       const meanMs = w.ms.length ? Math.round(w.ms.reduce((a, b) => a + b, 0) / w.ms.length) : null;
       const totalMs = w.ms.reduce((a, b) => a + b, 0);
-      return { user: o.user, models: o.models, home: o.home, since: o.since, sent: w.sent, answered: w.answered, failed: w.failed, inflight: w.sent - w.answered - w.failed, meanMs, tokPerSec: w.tokens && totalMs ? Math.round((w.tokens / totalMs) * 1000) : null, device: w.device };
+      const m = pool.machines?.[o.user] ?? {};
+      return { user: o.user, models: o.models, home: o.home, since: o.since, available: m.available ?? [], device: o.device ?? m.device ?? w.device ?? null, refused: m.refused ?? [], sent: w.sent, answered: w.answered, failed: w.failed, inflight: w.sent - w.answered - w.failed, meanMs, tokPerSec: w.tokens && totalMs ? Math.round((w.tokens / totalMs) * 1000) : null, answeredBy: w.device };
     });
-    for (const [user, w] of Object.entries(pool.workers)) if (!workers.some((x) => x.user === user)) workers.push({ user, models: [], home: null, since: 0, withdrawn: true, sent: w.sent, answered: w.answered, failed: w.failed, inflight: w.sent - w.answered - w.failed, meanMs: w.ms.length ? Math.round(w.ms.reduce((a, b) => a + b, 0) / w.ms.length) : null, tokPerSec: null, device: w.device });
+    for (const [user, w] of Object.entries(pool.workers)) if (!workers.some((x) => x.user === user)) workers.push({ user, models: [], home: pool.machines?.[user]?.home ?? null, since: 0, withdrawn: true, available: pool.machines?.[user]?.available ?? [], device: pool.machines?.[user]?.device ?? w.device ?? null, refused: pool.machines?.[user]?.refused ?? [], sent: w.sent, answered: w.answered, failed: w.failed, inflight: w.sent - w.answered - w.failed, meanMs: w.ms.length ? Math.round(w.ms.reduce((a, b) => a + b, 0) / w.ms.length) : null, tokPerSec: null, answeredBy: w.device });
     return { room: roomId, offers: pool.offers.length, workers };
   }
 }

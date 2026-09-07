@@ -24,6 +24,33 @@ import { SecretSet, decryptBytes, decodeBlock, byteEntropy, generateChatKey, unb
 const enc = new TextEncoder(); const dec = new TextDecoder();
 /** Random bytes of any length (getRandomValues caps one call at 64 KiB). */
 const randomBytes = (n) => { const out = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(out.subarray(i, Math.min(n, i + 65536))); return out; };
+/** The entropy null's false-positive rate, per sealed blob checked: a budget
+ * with a name (P9), not a judgment about the material. It fixes how many
+ * random draws `randomBand` may make; the draws follow from the rate, never
+ * the other way around. At 1e-4 per check this file's three checks spend one
+ * spurious failure in ~3,300 runs; the sample min/max of 100 draws it
+ * replaces spent one in ~17 (2/101 per blob — the 2026-09-07 flake). */
+const NULL_FALSE_POSITIVE = 1e-4;
+/** Place a blob's byte entropy `e` against random bytes of its own length —
+ * the band random occupies, with an EXACTLY stated false-positive rate. If
+ * the blob is random it is exchangeable with the draws, so the chance it is
+ * the strict min or max among N draws and itself is 2/(N+1): a distribution-
+ * free fact, not a fitted one. Draws come in doubling batches and stop as
+ * soon as `e` sits inside the band, because inside a subset's band is inside
+ * the whole band; only a blob outside (a leak, or a 1-in-(N+1) fluke) pays
+ * for every draw. `fpr` is the rate at which the returned verdict is a
+ * false `inside: false`. */
+const randomBand = (e, len) => {
+  const N = Math.ceil(2 / NULL_FALSE_POSITIVE) - 1;
+  let lo = Infinity, hi = -Infinity, n = 0;
+  for (let batch = Math.min(100, N); n < N; batch = Math.min(batch * 2, N - n)) {
+    for (let d = 0; d < batch; d++, n++) { const h = byteEntropy(randomBytes(len)); if (h < lo) lo = h; if (h > hi) hi = h; }
+    if (e >= lo && e <= hi) break;
+  }
+  return { lo, hi, draws: n, inside: e >= lo && e <= hi, fpr: 2 / (N + 1) };
+};
+/** Plaintext the length of a blob: the positive control's material. */
+const proseOf = (len) => { const src = enc.encode(JSON.stringify([...TURNS, ...MORE])); const out = new Uint8Array(len); for (let i = 0; i < len; i++) out[i] = src[i % src.length]; return out; };
 const mapStorage = () => { let v = null; return { get: () => (v ? JSON.parse(v) : null), set: (o) => { v = JSON.stringify(o); }, raw: () => v }; };
 const PW = { alice: "alice-throwaway-pw-9f1c2b", bob: "bob-throwaway-pw-4e7d8a", mallory: "mallory-throwaway-pw-1122", carol: "carol-throwaway-pw-5566" };
 const TURNS = [
@@ -151,13 +178,16 @@ test("check 3 — by the function: with everything the operator holds, every blo
   for (const w of wrapped) for (const k of candidates) await assert.rejects(() => decryptBytes(k, unb64(w.content.blob)));
 });
 
-test("the entropy null, measured per blob: each block sits in the band random bytes of its own length occupy", () => {
+test("the entropy null, measured per blob with a stated false-positive rate: each block sits in the band random bytes of its own length occupy; plaintext of that length does not (positive control)", () => {
+  let checked = 0;
   for (const m of hs.store.media.values()) {
-    let lo = 8, hi = 0;
-    for (let d = 0; d < 100; d++) { const h = byteEntropy(randomBytes(m.bytes.length)); lo = Math.min(lo, h); hi = Math.max(hi, h); }
     const e = byteEntropy(m.bytes);
-    assert.ok(e >= lo && e <= hi, `${m.bytes.length} bytes: ${e.toFixed(3)} in [${lo.toFixed(3)}, ${hi.toFixed(3)}]`);
+    const b = randomBand(e, m.bytes.length);
+    assert.ok(b.inside, `${m.bytes.length} bytes: ${e.toFixed(3)} outside [${b.lo.toFixed(3)}, ${b.hi.toFixed(3)}] after ${b.draws} random draws of that length — a random blob lands here once in ${Math.round(1 / b.fpr)}`);
+    assert.ok(byteEntropy(proseOf(m.bytes.length)) < b.lo, "the band that admits the ciphertext refuses plaintext of the same length");
+    checked++;
   }
+  assert.ok(checked >= 2, `the two blocks the flow pushed (${checked})`);
 });
 
 test("the record discipline: every line the flow recorded is pointer-shaped and carries no secret and no turn; a leaking line refuses (positive control)", () => {
@@ -231,12 +261,15 @@ test("a homeserver that is down or wrong is a typed error, never a hang or a sil
 const PROMPT = "PROMPT-CANARY-77aa: who was Secretary of State?";
 const REPLY = "REPLY-CANARY-88bb: William Seward, from March 1861.";
 const echoMouth = (label) => async ({ model, messages }) => ({ text: `${REPLY} [${label} answered ${messages.at(-1).content.length} chars with ${model}]`, usage: { outTokens: 12, promptTokens: 30 }, model, device: { home: "terminal", label } });
+/** Poll `cond` until it holds, within a stated wall-clock bound; running out is a named failure, never a hang or a fixed sleep. */
+const awaitUntil = async (cond, what, { ms = 10_000, every = 5 } = {}) => { const t0 = Date.now(); while (!(await cond())) { if (Date.now() - t0 > ms) throw new Error(`${what}: not within ${ms}ms`); await new Promise((r) => setTimeout(r, every)); } };
 
 test("the room as a mouth: alice serves her machine's models; bob's prompt goes to her sealed, her answer comes back sealed; the homeserver saw an address, an id, a seal and a size", async () => {
   const ac = new AbortController();
   const serving = alice.serve(room, { complete: echoMouth("alice-mac"), models: ["gemma2:2b", "qwen2.5-coder:1.5b"], home: "terminal", signal: ac.signal });
   try {
-  await new Promise((r) => setTimeout(r, 50));
+  // the offer lands after serve's own key read; wait for it on the room's state, bounded, not for a fixed 50ms that loses under load
+  await awaitUntil(async () => (await bob.mouths(room)).length === 1, "alice's offer on the room's state");
   const offers = await bob.mouths(room);
   assert.deepEqual(offers.map((o) => o.user), ["@alice:fake.test"]);
   assert.deepEqual(offers[0].models, ["gemma2:2b", "qwen2.5-coder:1.5b"]);
@@ -246,7 +279,7 @@ test("the room as a mouth: alice serves her machine's models; bob's prompt goes 
   assert.equal(a.device.label, "alice-mac");
   assert.ok(a.ms >= 0);
   const pool = bob.pool(room);
-  assert.equal(pool.workers[0].answered, 1); assert.equal(pool.workers[0].inflight, 0); assert.equal(pool.workers[0].device.label, "alice-mac");
+  assert.equal(pool.workers[0].answered, 1); assert.equal(pool.workers[0].inflight, 0); assert.equal(pool.workers[0].answeredBy.label, "alice-mac");
   // what the server holds of it
   const jobs = hs.dump().timeline.filter((e) => e.type === EVENTS.job); const answers = hs.dump().timeline.filter((e) => e.type === EVENTS.answer);
   assert.equal(jobs.length, 1); assert.equal(answers.length, 1);
@@ -254,7 +287,7 @@ test("the room as a mouth: alice serves her machine's models; bob's prompt goes 
   assert.deepEqual(Object.keys(answers[0].content).sort(), ["env", "job", "v"]);
   assert.equal(jobs[0].content.to, "@alice:fake.test");
   const mouth = hs.dump().rooms.find((x) => x.id === room).state.find((e) => e.type === TYPES.mouth && e.state_key === "@alice:fake.test");
-  assert.deepEqual(Object.keys(mouth.content).sort(), ["home", "models", "since", "v"]);
+  assert.deepEqual(Object.keys(mouth.content).filter((k) => !["available", "device", "refused"].includes(k)).sort(), ["home", "models", "since", "v"]);
   const secrets = new SecretSet().add("the prompt", PROMPT).add("the reply", REPLY).add("chat key", alice.keyOf(room));
   for (const l of hs.log) { assert.deepEqual(secrets.leaks(l.body), [], `${l.method} ${l.path}`); assert.deepEqual(secrets.leaks(l.path), []); }
   assert.deepEqual(secrets.leaks(hs.everything()), [], "nor on the operator's disk");
@@ -265,19 +298,106 @@ test("the room as a mouth: alice serves her machine's models; bob's prompt goes 
   assert.deepEqual((await bob.mouths(room)), [], "the offer is withdrawn when serving stops");
 });
 
+test("a job that names no model is answered with the worker's first offered model — 'whatever this machine has' is a real ask, and the worker is what knows", async () => {
+  const ac = new AbortController();
+  const seen = [];
+  const s = alice.serve(room, { complete: async ({ model, messages }) => { seen.push(model); return { text: `answered with ${model}`, usage: { outTokens: 3 }, model }; }, models: ["gemma2:2b", "phi3:mini"], home: "terminal", signal: ac.signal });
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    await bob.mouths(room);
+    const a = await bob.ask(room, { messages: [{ role: "user", content: "no model named" }] }, { timeoutMs: 10_000 });
+    assert.deepEqual(seen, ["gemma2:2b"], "the first model this worker offers");
+    assert.equal(a.model, "gemma2:2b");
+    assert.match(a.text, /answered with gemma2:2b/);
+  } finally { ac.abort(); await s; }
+});
+
+test("coordinating which model runs where: a machine says what it serves, what it has spare and what it is (CPU or GPU); a member asks it to take up a spare model and it does; an ask for a model it does not have is refused with a reason, in the pool", async () => {
+  const ac = new AbortController();
+  const device = { runtime: "Ollama", os: "linux", arch: "x64", cores: 16, memGB: 64, gpu: false };
+  const took = [];
+  const s = alice.serve(room, { complete: async ({ model }) => ({ text: `answered with ${model}`, usage: { outTokens: 3 }, model, device }), models: ["gemma2:2b"], available: ["qwen3:4b", "phi3:mini"], device, home: "terminal", signal: ac.signal, onTakeUp: (t) => took.push(t.model) });
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    await bob.mouths(room);
+    const seen = bob.pool(room).workers.find((w) => w.user === "@alice:fake.test");
+    assert.deepEqual(seen.models, ["gemma2:2b"]);
+    assert.deepEqual(seen.available, ["qwen3:4b", "phi3:mini"], "what it could serve but is not");
+    assert.equal(seen.device.gpu, false, "a CPU-only machine says so");
+    assert.equal(seen.device.cores, 16);
+    // ask for a spare model: it is taken up and offered
+    const w = await bob.want(room, "@alice:fake.test", "qwen3:4b");
+    assert.deepEqual([w.available, w.serving], [true, false]);
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline && !(await bob.mouths(room)).some((o) => o.models.includes("qwen3:4b"))) await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(took, ["qwen3:4b"]);
+    const now = bob.pool(room).workers.find((x) => x.user === "@alice:fake.test");
+    assert.deepEqual(now.models, ["gemma2:2b", "qwen3:4b"]);
+    assert.deepEqual(now.available, ["phi3:mini"], "no longer spare once it is served");
+    const a = await bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "qwen3:4b" }, { timeoutMs: 10_000 });
+    assert.match(a.text, /answered with qwen3:4b/);
+    // ask for a model it does not have: refused, with the reason, in the pool
+    await bob.want(room, "@alice:fake.test", "llama3:70b");
+    const d2 = Date.now() + 8000;
+    while (Date.now() < d2 && !(bob.pool(room).workers.find((x) => x.user === "@alice:fake.test")?.refused ?? []).length) { await bob.mouths(room); await new Promise((r) => setTimeout(r, 200)); }
+    const refused = bob.pool(room).workers.find((x) => x.user === "@alice:fake.test").refused;
+    assert.deepEqual(refused.map((r) => [r.model, r.why]), [["llama3:70b", "this machine does not have that model"]]);
+    await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "llama3:70b" }, { timeoutMs: 2000 }), /no offered mouth has llama3:70b/);
+    await bob.unwant(room, "@alice:fake.test");
+  } finally { ac.abort(); await s; }
+});
+
+test("a machine may decline a model it has — its own hardware, its own call — and the reason travels", async () => {
+  const ac = new AbortController();
+  const s = alice.serve(room, { complete: async ({ model }) => ({ text: "ok", model }), models: ["gemma2:2b"], available: ["llama3:70b"], device: { runtime: "Ollama", cores: 4, memGB: 8, gpu: false }, home: "terminal", signal: ac.signal, canTakeUp: async (model) => (model === "llama3:70b" ? "70B on 8 GB and no GPU would swap for hours" : null) });
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    await bob.mouths(room);
+    await bob.want(room, "@alice:fake.test", "llama3:70b");
+    const d = Date.now() + 8000;
+    while (Date.now() < d && !(bob.pool(room).workers.find((x) => x.user === "@alice:fake.test")?.refused ?? []).length) { await bob.mouths(room); await new Promise((r) => setTimeout(r, 200)); }
+    const w = bob.pool(room).workers.find((x) => x.user === "@alice:fake.test");
+    assert.deepEqual(w.refused.map((r) => r.why), ["70B on 8 GB and no GPU would swap for hours"]);
+    assert.ok(!w.models.includes("llama3:70b"));
+    await bob.unwant(room, "@alice:fake.test");
+  } finally { ac.abort(); await s; }
+});
+
+test("a machine that is offering but slow is reported as busy, not gone, and the deadline stretches to the queue it measured", async () => {
+  const ac = new AbortController();
+  let hold = true;
+  const s = alice.serve(room, { complete: async ({ model }) => { while (hold) await new Promise((r) => setTimeout(r, 20)); return { text: "at last", model }; }, models: ["slowpoke"], home: "terminal", signal: ac.signal });
+  try {
+    await new Promise((r) => setTimeout(r, 60));
+    await bob.mouths(room);
+    await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "slowpoke" }, { timeoutMs: 1200 }), /still offering a mouth, so it is most likely still working through its queue/);
+  } finally { hold = false; ac.abort(); await s; }
+});
+
 test("a pool: two machines serve; four concurrent asks spread across them by in-flight count; a prompt too big for an event rides the media store sealed; the pool surface counts it all", async () => {
   const carol = poolCarol = new FoldMatrix({ storage: mapStorage(), record: recordInto("carol") });
   await carol.login(hs.base, "carol", PW.carol);
   const carolLink = (await alice.share(room, { invite: "@carol:fake.test", mode: "open", pageHref: "https://example.github.io/the-fold/" })).link;
   assert.equal((await carol.joinFromLink(carolLink)).joined, true);
   const ac = new AbortController();
-  const s1 = alice.serve(room, { complete: echoMouth("alice-mac"), models: ["gemma2:2b"], home: "terminal", signal: ac.signal });
-  const s2 = carol.serve(room, { complete: echoMouth("carol-pc"), models: ["gemma2:2b"], home: "extension", signal: ac.signal });
+  // Both mouths hold every answer behind one gate, so all four picks are made
+  // against the same in-flight state: each earlier pick counted, none answered.
+  // Without the gate the split is a scheduling fact, not a rule: when one
+  // answer lands before a later pick, that mouth is idle again and the
+  // least-loaded rule, correctly, sends it the next job — seen as 3/1 under
+  // machine load with every counter consistent. The pick itself is atomic with
+  // its count (matrix-client.js ask); what varies is when each ask reaches it.
+  let openGate; const gate = new Promise((r) => { openGate = r; });
+  const gated = (label) => { const echo = echoMouth(label); return async (job) => { await gate; return echo(job); }; };
+  const s1 = alice.serve(room, { complete: gated("alice-mac"), models: ["gemma2:2b"], home: "terminal", signal: ac.signal });
+  const s2 = carol.serve(room, { complete: gated("carol-pc"), models: ["gemma2:2b"], home: "extension", signal: ac.signal });
   try {
-  await new Promise((r) => setTimeout(r, 50));
-  await bob.mouths(room);
+  await awaitUntil(async () => (await bob.mouths(room)).length === 2, "both offers on the room's state");
   const big = "B".repeat(70 * 1024) + " PROMPT-CANARY-big";
-  const asks = await Promise.all([0, 1, 2, 3].map((i) => bob.ask(room, { messages: [{ role: "user", content: i === 3 ? big : `${PROMPT} #${i}` }], model: "gemma2:2b" }, { timeoutMs: 10_000 })));
+  const asking = Promise.all([0, 1, 2, 3].map((i) => bob.ask(room, { messages: [{ role: "user", content: i === 3 ? big : `${PROMPT} #${i}` }], model: "gemma2:2b" }, { timeoutMs: 10_000 })));
+  await awaitUntil(() => bob.pool(room).workers.reduce((n, w) => n + w.inflight, 0) === 4, "four jobs picked and in flight");
+  openGate();
+  const asks = await asking;
   const by = asks.map((a) => a.by).sort();
   assert.deepEqual(by, ["@alice:fake.test", "@alice:fake.test", "@carol:fake.test", "@carol:fake.test"], "two each: the least-loaded mouth takes each next job");
   assert.ok(asks[3].text.includes(`answered ${big.length} chars`), "the big prompt arrived whole");
@@ -286,25 +406,31 @@ test("a pool: two machines serve; four concurrent asks spread across them by in-
   assert.equal(viaMedia.length, 1, "one job rode the media store");
   assert.deepEqual(Object.keys(viaMedia[0].content).sort(), ["bytes", "id", "mxc", "sha256", "to", "v"]);
   const blob = hs.store.media.get(viaMedia[0].content.mxc).bytes;
-  let lo = 8; for (let d = 0; d < 50; d++) lo = Math.min(lo, byteEntropy(randomBytes(blob.length)));
-  assert.ok(byteEntropy(blob) >= lo, "the sealed prompt blob sits in the random band");
+  const e = byteEntropy(blob); const band = randomBand(e, blob.length);
+  assert.ok(band.inside, `the sealed prompt blob sits in the random band: ${blob.length} bytes, ${e.toFixed(4)} outside [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}] after ${band.draws} draws (once in ${Math.round(1 / band.fpr)} for a random blob)`);
   assert.deepEqual(new SecretSet().add("big", big).leaks(hs.everything()), []);
   const pool = bob.pool(room);
   assert.equal(pool.offers, 2);
-  // counts accumulate over the session: alice answered one job in the test before this one
-  for (const w of pool.workers) { assert.equal(w.answered, w.sent); assert.equal(w.inflight, 0); assert.equal(w.failed, 0); assert.ok(w.meanMs >= 0); }
-  assert.equal(pool.workers.reduce((n, w) => n + w.answered, 0), 5, "one from the mouth test, four from this one");
-  assert.deepEqual(pool.workers.map((w) => w.device.label).sort(), ["alice-mac", "carol-pc"]);
-  } finally { ac.abort(); await s1; await s2; }
+  // The counters accumulate across this file's tests (one job was deliberately
+  // left hanging in the busy-not-gone test), so the claim is the shape: every
+  // job is accounted for, nothing is still in flight, and both machines worked.
+  for (const w of pool.workers) {
+    assert.equal(w.answered + w.failed, w.sent, `${w.user} accounts for every job it was sent`);
+    assert.equal(w.inflight, 0);
+    assert.ok(w.answered >= 2, `${w.user} answered ${w.answered}`);
+    assert.ok(w.meanMs >= 0);
+  }
+  assert.deepEqual(pool.workers.map((w) => w.answeredBy.label).sort(), ["alice-mac", "carol-pc"]);
+  } finally { openGate(); ac.abort(); await s1; await s2; }
 });
 
-test("a mouth that is gone is a typed gap that counts against it; a model nobody offers is a typed gap; a room with no mouths says so", async () => {
-  await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], to: "@nobody:fake.test" }, { timeoutMs: 400 }), /no answer from @nobody:fake.test in 0s/);
+test("a mouth that is gone is a typed gap that counts against it, and the gap says gone rather than busy; a model nobody offers is a typed gap; a room with no mouths says so", async () => {
+  await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], to: "@nobody:fake.test" }, { timeoutMs: 400 }), /no answer from @nobody:fake.test in \d+s — it is no longer offering a mouth/);
   assert.equal(bob.pool(room).workers.find((w) => w.user === "@nobody:fake.test").failed, 1);
   await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "gemma2:2b" }), /nobody in this room offers a mouth/);
   const ac = new AbortController();
   const s = alice.serve(room, { complete: echoMouth("alice-mac"), models: ["gemma2:2b"], home: "terminal", signal: ac.signal });
-  await new Promise((r) => setTimeout(r, 50));
+  await awaitUntil(async () => (await bob.mouths(room)).length === 1, "alice's offer on the room's state");
   try { await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "llama3" }), /no offered mouth has llama3/); }
   finally { ac.abort(); await s; }
 });

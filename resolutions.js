@@ -37,7 +37,8 @@ import { referentsOf } from "./dialogue.js";
 import { strikeAddresses } from "./firewall.js";
 
 const DEPTHS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24]); // a ladder, structural; the shallowest depth that reproduces the reach wins
-export const DECLARED_LINES = 5; // the ledger block's own HYPERLEXICON_LEDGER_LINES, reused as the declared fallback when no measurement organ is injected
+// Received, not chosen here: its giver is the ledger block's own HYPERLEXICON_LEDGER_LINES (holon.js), reused as the declared fallback when no measurement organ is injected.
+export const DECLARED_LINES = 5;
 export const RECURRENCE_FLOOR = 2; // binding's structural minimum (P58): one arrival has no recurrence to test
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

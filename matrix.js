@@ -46,6 +46,7 @@ export const TYPES = Object.freeze({
   chatKey: `${NS}.chat_key`,
   chain: `${NS}.chain`,
   mouth: `${NS}.mouth`,
+  want: `${NS}.want`,
 });
 /** Timeline events: the room as a mouth. A job is a sealed prompt addressed
  * to one member who offered to answer; an answer is the sealed reply. */
@@ -234,28 +235,80 @@ export const chainContent = ({ head, idx, count, manifest, base, updated_at = ne
 export async function seal(chatKey, obj) { return b64(await encryptBytes(chatKey, encoder.encode(JSON.stringify(obj)))); }
 export async function open(chatKey, envB64) { return JSON.parse(decoder.decode(await decryptBytes(chatKey, unb64(envB64)))); }
 export const newJobId = () => b64url(randomBytes(12));
-/** What a member offers: the models a mouth on their machine can serve, and
- * which home it runs from. `models: []` withdraws the offer. */
-export const mouthContent = ({ models = [], home = null, since = Date.now() } = {}) => ({ v: 1, models, home, since });
+/**
+ * What a member offers: the models a mouth on their machine SERVES, the ones
+ * it could serve but is not (`available`), what the machine actually is
+ * (`device` — measured, never assumed), and what it refused to take up and
+ * why. `models: []` withdraws the offer. This is how a room coordinates which
+ * model runs where: a member sees a machine has a model available, asks for
+ * it (`wantContent`), and that machine takes it up or says why it cannot.
+ */
+export const mouthContent = ({ models = [], available = [], device = null, refused = [], home = null, since = Date.now() } = {}) => ({
+  v: 1, models, since, home,
+  ...(available.length ? { available } : {}),
+  ...(device ? { device } : {}),
+  ...(refused.length ? { refused } : {}),
+});
+/**
+ * What a machine is, in the terms that decide whether it should run a model:
+ * the runtime that will answer, the processor it runs on, how many cores and
+ * how much memory it has, and whether a GPU is doing the work — `gpu: null`
+ * where nothing has been measured yet, never a guess. A CPU-only machine is
+ * a first-class mouth: it says so, and the picker's measured latency does the
+ * rest.
+ */
+export const deviceContent = ({ runtime = null, os = null, arch = null, cores = null, memGB = null, gpu = null, note = null } = {}) => ({ runtime, os, arch, cores, memGB, gpu, ...(note ? { note } : {}) });
+/** How a machine reads in one line, for a table or a picker row. */
+export function deviceLine(device) {
+  if (!device) return "device unknown";
+  const bits = [device.runtime, device.gpu === true ? "GPU" : device.gpu === false ? "CPU only" : "CPU/GPU unmeasured", device.cores ? `${device.cores} cores` : null, device.memGB ? `${device.memGB} GB` : null, [device.os, device.arch].filter(Boolean).join(" ") || null, device.note].filter(Boolean);
+  return bits.join(" · ");
+}
+/** One member asking machines to take up models: state_key is the asker. */
+export const wantContent = (wants = []) => ({ v: 1, wants: wants.map((w) => ({ to: w.to, model: w.model, at: w.at ?? Date.now() })) });
+/** The models `user` is being asked to take up that it is not serving yet. */
+export function wantsFor(wantEvents, user, { serving = [] } = {}) {
+  const out = new Map();
+  for (const ev of wantEvents ?? []) for (const w of ev?.content?.wants ?? []) {
+    if (w?.to !== user || !w?.model || serving.includes(w.model)) continue;
+    const prior = out.get(w.model);
+    if (!prior || (w.at ?? 0) > prior.at) out.set(w.model, { model: w.model, by: ev.state_key ?? null, at: w.at ?? 0 });
+  }
+  return [...out.values()];
+}
 /** A job event: addressed, sealed, sized. The model asked for sits inside the seal. */
 export const jobContent = ({ to, id, env = null, mxc = null, sha256 = null, bytes = null }) => (env ? { v: 1, to, id, env, bytes: env.length } : { v: 1, to, id, mxc, sha256, bytes });
 /** An answer event: the job it answers, sealed inline or by pointer. */
 export const answerContent = ({ job, env = null, mxc = null, sha256 = null }) => (env ? { v: 1, job, env } : { v: 1, job, mxc, sha256 });
 /**
  * Which offered mouth takes the next job: one that has the model asked for
- * (any, when none is asked), the fewest jobs in flight, the earliest offer on
- * a tie. `inflight` is what THIS requester has sent and not yet seen
- * answered, per member — counted, never guessed.
+ * (any, when none is asked), then the SHORTEST EXPECTED WAIT — how many jobs
+ * this requester already has in flight there, times how long that machine's
+ * answers have actually taken — earliest offer on a tie.
+ *
+ * Both numbers are measured, never assumed: `inflight` is what this requester
+ * sent and has not seen answered, `meanMs` what it timed. A machine nobody
+ * has timed yet is scored at the mean of those that have been (1 when none
+ * have), so an unmeasured mouth is tried rather than starved or preferred.
+ *
+ * Counting jobs alone is not enough, and the drill of 2026-09-06 is why: two
+ * machines, one serving a model six times slower, took three jobs each — and
+ * the slow one's queue outlived the requester's patience while the fast one
+ * sat idle. A worker answers one job at a time (one runtime, one GPU), so a
+ * queue is real waiting.
  */
-export function pickMouth(offers, { model = null, inflight = {} } = {}) {
+export function pickMouth(offers, { model = null, inflight = {}, meanMs = {} } = {}) {
   const able = offers.filter((o) => Array.isArray(o.models) && o.models.length && (!model || o.models.includes(model)));
   if (!able.length) return null;
-  return able.slice().sort((a, b) => (inflight[a.user] ?? 0) - (inflight[b.user] ?? 0) || (a.since ?? 0) - (b.since ?? 0))[0];
+  const timed = able.map((o) => meanMs[o.user]).filter((v) => Number.isFinite(v) && v > 0);
+  const typical = timed.length ? timed.reduce((a, b) => a + b, 0) / timed.length : 1;
+  const wait = (o) => (inflight[o.user] ?? 0) * (Number.isFinite(meanMs[o.user]) && meanMs[o.user] > 0 ? meanMs[o.user] : typical);
+  return able.slice().sort((a, b) => wait(a) - wait(b) || (a.since ?? 0) - (b.since ?? 0))[0];
 }
 /** The sync filter for one room's jobs channel: this room only, our events,
  * no presence, no account data, no receipts. */
 export const syncFilter = (roomId) => ({
-  room: { rooms: [roomId], timeline: { types: [EVENTS.job, EVENTS.answer], limit: 50 }, state: { types: [TYPES.mouth] }, ephemeral: { types: [] }, account_data: { types: [] } },
+  room: { rooms: [roomId], timeline: { types: [EVENTS.job, EVENTS.answer], limit: 50 }, state: { types: [TYPES.mouth, TYPES.want] }, ephemeral: { types: [] }, account_data: { types: [] } },
   presence: { types: [] }, account_data: { types: [] },
 });
 

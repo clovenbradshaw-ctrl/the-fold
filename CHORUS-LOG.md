@@ -187,6 +187,41 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Marshall | IV.1; P71 | POLICIES P120, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the magic-key warning is in the product, not only the docs; not-claimed carries the open link, takeover, fingerprint discipline and the unlocked tab |
 clean: nothing struck.
 
+## 2026-09-06 — P129: the pool coordinates models, machines say what they are, turns declare their mouths (branch `pool-coordination`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon · Ostrom · Chekhov · Marshall; suites matrix 39/39, full 1720 pass.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | matrix.js pickMouth | fixed | ranking by job count alone sent three jobs to a machine six times slower and timed two out; expected wait is measured, and an unmeasured machine is scored at what the measured ones take |
+| Simon | P10 | matrix-worker.mjs describeMachine | clean | GPU is read from the runtime's own loaded-model report, null until something is loaded — unmeasured, never assumed |
+| Ostrom | II.9 | serve/canTakeUp | upheld | a machine takes up what the room asks only if it has it, and may decline on its own hardware; the reason travels to the asker |
+| Chekhov | III.5; IV.5 | app.js noteMouth / lastGround.turnSeq | fixed | a late background call was drawn under the wrong answer and the citation named the wrong mouth; both are stamped with the turn now |
+| Marshall | IV.1; P71 | POLICIES P129, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the drill's failures are in the entry, not only its successes; not-claimed carries one physical machine, no CPU-only run, no model pulls |
+clean: nothing struck.
+
+## 2026-09-07 — P130: Ground, Figure, Pattern — the relative-address experiment and its spec (branch `relative-addresses`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Dijkstra · Simon · Ostrom · Marshall; suites relative 7/7, full green.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Dijkstra | III.3 | relative.js Field | clean | the field exposes no key and the test asserts it; positions never enter the store |
+| Simon | II.10; II.23 | relative.js nullBand / recallAgainstNull | clean | every verdict is against a band measured on that field for that cue length; the statistic resolves (0/120 random cues called a figure, 24 apart = the 24 deleted) |
+| Ostrom | II.3; II.5 | relative-pattern.js correspond | clean | no address is rewritten; a repair is an act that names the old and the new |
+| Marshall | IV.1; P71 | POLICIES P130, the spec, NEXT-PASSES, CLAUDE.md | upheld — compliant | Generality line present; the spec's every pass carries a null and an exit; not-claimed names the unwired page and the unmeasured constants |
+clean: nothing struck.
+
+## 2026-09-07 — P131: prediction as author (branch `prediction-author`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; routed Marshall · Simon; suites unchanged (docs only).
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Marshall | IV.1; P71 | POLICIES P131, spec §2 A1–A4, §4 Passes 40–42, §7 | upheld — compliant | the earlier "separate program" is corrected in the entry itself, not silently; every new pass carries a null and an exit; nothing is claimed built |
+| Simon | II.10; II.23 | spec Pass 40/41 nulls | clean | the expectation is measured against a shuffled record and the diff against a random expectation, so a composition that is noise, or a diff that cannot resolve, stops its pass |
+clean: nothing struck.
+
 ## 2026-09-07 — GFP Pass 32: the organs seated (branch `ground-ladder-p115`)
 
 Constitution: `../eo-constitution/CONSTITUTION.md` + FOLD-CONSTITUTION + POLICIES.md. Lenses in-session over `relative.js`, `relative-pattern.js` (brought from main unchanged), `relative-seat.test.mjs` (new), eoreader7 `native/organs/capacities.js` (three rows).
@@ -215,3 +250,14 @@ chorus-fast: staged scope, 10 files; 18 affected test files, 287 cases; the one 
 | Marshall | IV.4 | POLICIES.md P170, CLAUDE.md pointer | upheld | every claim cites a test or a live row; the 25-turn comparison is named as not yet measured, not implied |
 
 deferred-with-reason: none. false-positive-on-review: none.
+
+## 2026-09-07 — Merge `ground-ladder-p115` into main after PR #141's squash: 15 conflicts, P129–P131 → P173–P175, P172, two constants accounted (branch `ground-ladder-p115` → main, scope origin/main..HEAD)
+
+fast: 82 files · 51 affected test files, 568 cases pass · full `npm test` on the merged tree 1869 tests, 1859 pass, 9 skipped, 0 fail (siblings linked beside the worktree: `../eoreader7` at its paired merge, `../eoreader6`, `../live_priors`; the eoreader6.1 submodule carries 161 uncommitted lines — `INTERROGATIVE_PRONOUNS` in the engine's priors.js — that main already required before this merge) · law: WARN pre-existing duplicate headers P19 P115 P116 P117; WARN cited-not-written P0 P148 P151 P154 P171 (P171 is `resolutions.js`'s, entry forthcoming from its session).
+| Marshall | IV.1; P169 | POLICIES.md P169 resolution line; P173–P175 headers at the tail | fixed | the collision P169 recorded is resolved by renumbering the branch's side (48 references, ten files; main's numbers stand); no P129–P131 duplicate remains; the record of a fact is not a rule and needs no new test |
+| Marshall | P71 | POLICIES.md P172 | upheld | carries its Generality line; P119's "over 100 draws" amended to point at it |
+| Feynman | II.11 | relative.js:37 `SDR_BITS`, resolutions.js:41 `DECLARED_LINES` | fixed | both name their giver — set by hand as a structural width; received from holon.js's `HYPERLEXICON_LEDGER_LINES` — and II.11 passes; `DECLARED_LINES` is a literal copy of a function-local const it cannot import, noted |
+| Diaconis | P172 | matrix-client.test.mjs `randomBand` | upheld | exact order-statistic rate; measured 2.02% / 0.22% against 2% / 0.2% stated |
+| Alexander | II.10 | app.js (main's three PRs re-applied over the branch's), matrix-client.test.mjs pool test (#145's assertions with the gate kept) | upheld | the composition is proven by the suite, not by the clean apply |
+| Simon/Chekhov | — | the 71 commits' new modules | noted | reviewed at their own commits (entries above); the merge adds no module |
+clean: Dijkstra, Holmes, Pearl, Ostrom, Frankfurt — nothing in the merge's own hunks.

@@ -47,6 +47,7 @@ import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
+import { mouthFacing } from "./firewall.js";
 import { referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
@@ -2800,7 +2801,7 @@ export async function runPart({
     if (!addressed.all && passages.length && !mechanical) {
       const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(referentIndex, id));
       const names = addressed.missingNames;
-      const snips = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map((x) => String(x?.text ?? x)).filter((x) => missingSurfaces.some((sf) => dfold(x).includes(dfold(sf)))).slice(0, 2).map((x) => `- ${x.trim()} [${p.ref}]`)).slice(0, 6);
+      const snips = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map((x) => String(x?.text ?? x)).filter((x) => missingSurfaces.some((sf) => dfold(x).includes(dfold(sf)))).slice(0, 2).map((x) => `- ${x.trim()}`)).slice(0, 6); // no address reaches the mouth
       const facts = `The question asks about ${names.join(", ")}.${snips.length ? `\nWhat the sources say about ${names.join(", ")}:\n${snips.join("\n")}` : `\nThe retrieved passages do not mention ${names.join(", ")}.`}`;
       let again = "";
       try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
@@ -3188,6 +3189,8 @@ export async function runHolonicTask({
   hyperlexiconVoids = [],
   classifyConnector = null,
 }) {
+  // THE MOUTH'S DOOR: no address reaches the model, whatever any renderer wrote (firewall.js::mouthFacing) — the record keeps every address, cite.js attaches them after the draft.
+  if (typeof call === "function") { const rawCall = call; call = (messages, opts) => rawCall(mouthFacing(messages), opts); }
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
   // ── ANSWERED BEFORE THE MODEL (P129) ──────────────────────────────────

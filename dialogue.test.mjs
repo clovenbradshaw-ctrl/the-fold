@@ -123,7 +123,7 @@ test("the expectation before the draft: the reader's bound claims whose ends res
   const exp = expectationFrom(PASSAGES, "What does the book say about Razumihin?", read, index);
   assert.equal(exp.basis, "referent");
   assert.deepEqual(exp.claims.map((c) => c.label), ["brought"], "only the claim whose end resolves to Razumihin");
-  assert.match(expectationFacts(exp), /Razumihin brought soup \[pg2554\.txt#48673-52190\]/);
+  assert.match(expectationFacts(exp), /Razumihin brought soup$/m, "handed without its address"); assert.equal(exp.claims[0].at, "pg2554.txt#48673-52190", "the record keeps it");
   const err = errorOf(exp, [{ end1: "Razumihin", label: "brought", end2: "soup", verdict: "bound" }, { end1: "Razumihin", label: "is", end2: "kind", verdict: "unheard" }, { end1: "her bed more from the", label: "hurt", end2: "to her feelings than from the blows", verdict: "unbound" }], index);
   assert.equal(err.matched.length, 1); assert.equal(err.novel.length, 1); assert.equal(err.missing.length, 0);
   assert.equal(err.authorship, 0.5);

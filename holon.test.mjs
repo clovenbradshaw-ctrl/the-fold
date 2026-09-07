@@ -1969,7 +1969,7 @@ test("P122: the snips are handed above the material; a drafted year no snip carr
   });
   const draftAsk = sent.find((m) => /Write this part: Light/.test(m.at(-1)?.content ?? ""));
   assert.ok(draftAsk, "the section was drafted");
-  assert.match(draftAsk.at(-1).content, /What the sources say, verbatim, each at its address:\n- \[h\.txt#0-\d+#\d+-\d+\] The harbor light was built in 1841 by Ada Rowe\./, "the snips ride above the material, verbatim, addressed");
+  assert.match(draftAsk.at(-1).content, /What the sources say, verbatim:\n- The harbor light was built in 1841 by Ada Rowe\./, "the snips ride above the material, verbatim, addressed");
   const revise = sent.filter((m) => /These sentences say things the sources you were given do not/.test(m.at(-1)?.content ?? ""));
   assert.equal(revise.length, 1, "one rewrite ask for the flagged sentence");
   assert.match(revise[0].at(-1).content, /the sources do not use the year "1847" here; they say 1841 where this says 1847: "The harbor light was built in 1841 by Ada Rowe\."/, "the ask carries the flag and the contradicting source as plain facts");
@@ -2060,9 +2060,9 @@ test("P125: a plain turn's wrong answer is corrected too — the flagged year is
   // that the INSTRUMENT's block never repeats it back (P126's rule).
   const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
   assert.match(ours, /What these sources say about it:/, "the premise check reached the model as a fact");
-  assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\. \[h\.txt#0-75#0-47\]/, "the source's own words, at its address, positively");
+  assert.match(ours, /- The harbor light was built in 1841 by Ada Rowe\./, "the source's own words, positively"); assert.doesNotMatch(ours, /h\.txt#/, "no address reaches the mouth (firewall.js::mouthFacing)");
   assert.doesNotMatch(ours, /1996/, "the false claim is never quoted back by us");
-  assert.match(first, /What the sources say, verbatim, each at its address:/, "a plain turn stands on snips too");
+  assert.match(first, /What the sources say, verbatim:/, "a plain turn stands on snips too"); assert.doesNotMatch(first, /#\d+-\d+/, "and no address reaches the mouth");
   assert.ok(r.correction, "a plain turn carries its correction");
   assert.equal(r.correction.flagged, 1);
   assert.deepEqual(r.correction.outcomes.map((o) => o.outcome), ["rewritten"]);
@@ -2292,7 +2292,7 @@ test("P133: a quotation with one token swapped is caught as a misquote, the sour
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
   });
   const ours = sent[0].filter((m) => m.role === "system").map((m) => m.content).join("\n");
-  assert.match(ours, /What that passage actually says .*Pierre began/, "the source's own words, positively");
+  assert.match(ours, /What that passage actually says:.*Pierre began/, "the source's own words, positively — without its address (firewall.js::mouthFacing)");
   assert.doesNotMatch(ours.split("What that passage actually says")[1] ?? "", /Lincoln/, "the misquotation is not repeated back in our own block");
   assert.deepEqual(r.misquote.said, ["Lincoln"]);
   assert.deepEqual(r.misquote.shouldBe, ["Pierre"]);

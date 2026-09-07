@@ -113,7 +113,8 @@ test("THE THREE RESOLUTIONS reach the mouth: at level 1 the system message carri
   const r = await runHolonicTask({ task: "Did Porfiry question him more than once?", chunks, transcript, planMode: "flat", resolutions: 1, dmdWindow, conversationIndex: indexFor(chunks), call: capture({ first: `Porfiry questioned Raskolnikov twice. [${refOf("Porfiry questioned")}]` }), ...organs });
   const sys = seen.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n");
   // In THIS fixture every "Razumihin" and "Porfiry" opens a sentence, so the index establishes neither (P94) and the only ground is Raskolnikov — the block says what the material lets it say, never more.
-  assert.match(sys, /Where the conversation stands:\nFor 2 exchanges the conversation has stood on Raskolnikov \[turn:1–2\]\.\nCited on this ground so far: 2 places in novel\.txt\./);
+  assert.match(sys, /Where the conversation stands:\nFor 2 exchanges the conversation has stood on Raskolnikov\.\nCited on this ground so far: 2 places in novel\.txt\./, "handed without addresses");
+  assert.match(r.resolutions[0].text, /^Where the conversation stands/); assert.doesNotMatch(r.resolutions[0].text, /\[turn:/);
   assert.deepEqual(apparatusMentions(r.resolutions[0].text), []);
   assert.equal(r.resolutions[0].index, "conversation");
   const off = [];
@@ -131,7 +132,8 @@ test("COMPRESSION: at level 2 the raw passages leave the prompt and the snips st
   assert.match(lvl0.sys, new RegExp(raw), "level 0 hands the passages");
   const lvl2 = await run({ resolutions: 2 });
   assert.doesNotMatch(lvl2.sys, new RegExp(raw), "level 2 hands no raw passage");
-  assert.match(lvl2.sys, /- \[novel\.txt#167-320#0-36\] Raskolnikov murdered the pawnbroker\./, "the snips stay, verbatim and addressed");
+  assert.match(lvl2.sys, /What the sources say, verbatim:\n(?:- [^\n]*\n)*- Raskolnikov murdered the pawnbroker\./, "the snips stay, verbatim, without addresses");
+  assert.doesNotMatch(lvl2.sys, /novel\.txt#\d+-\d+/, "no address reaches the mouth");
   assert.equal(lvl2.r.resolutions[0].handed, "snips");
   assert.ok(lvl2.sys.length < lvl0.sys.length, `compression: ${lvl2.sys.length} < ${lvl0.sys.length} chars`);
   const forced = await run({ resolutions: 2, material: "passages" });

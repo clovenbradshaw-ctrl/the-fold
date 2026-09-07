@@ -255,7 +255,8 @@ export function expectationFrom(passages = [], question = "", read, index = null
   return { claims, basis, ids: [...qRefs.ids], words: qw, touches, why: claims.length ? `${claims.length} claim(s) the material states about what was asked (by ${basis})` : `the retrieved passages state nothing about what was asked (by ${basis})` };
 }
 /** The expectation as facts for the mouth — positive, addressed, never an instruction. */
-export const expectationFacts = (exp) => exp?.claims?.length ? `What the sources state about this, at their addresses:\n${exp.claims.slice(0, 12).map((c) => `- ${[c.end1, c.label, c.end2].filter(Boolean).join(" ")}${c.polarity === "-" ? " (denied)" : ""} [${c.at ?? c.refs[0] ?? ""}]`).join("\n")}` : "";
+// No address reaches the mouth (the rule since 2026-08-18); the claims keep theirs on the record.
+export const expectationFacts = (exp) => exp?.claims?.length ? `What the sources state about this:\n${exp.claims.slice(0, 12).map((c) => `- ${[c.end1, c.label, c.end2].filter(Boolean).join(" ")}${c.polarity === "-" ? " (denied)" : ""}`).join("\n")}` : "";
 /**
  * errorOf(expectation, answerClaims, index) → matched / novel / missing /
  * contradicted, and the authorship ratio; both sides keyed the same way, and

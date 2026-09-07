@@ -14,7 +14,8 @@ test("snips: the passages' sentences that carry an obligation or a topic term, a
   assert.match(snips[0].text, /created by Chris Carter/);
   assert.ok(snips.every((s) => Number.isInteger(s.start) && s.end > s.start));
   assert.ok(!snips.some((s) => /weather patterns/.test(s.text)), "a sentence carrying nothing asked for is not a snip");
-  assert.match(snipBlock(snips), /^What the sources say, verbatim, each at its address:\n- \[web:en\.wikipedia\.org-0#100-400#\d+-\d+\] /);
+  assert.match(snipBlock(snips), /^What the sources say, verbatim:\n- [^\[]/, "handed without addresses — the rows keep theirs for the check");
+  assert.ok(snips[0].ref && Number.isFinite(snips[0].start), "the snip rows carry their address for the check");
   assert.equal(snipsFor(passages, { obligations: ["Fox"], max: 1 }).length, 1, "the cap holds");
 });
 

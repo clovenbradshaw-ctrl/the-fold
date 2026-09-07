@@ -34,6 +34,7 @@
 // block's material half is recurrence on the ledger, which has a witness
 // count and no such confound.
 import { referentsOf } from "./dialogue.js";
+import { strikeAddresses } from "./firewall.js";
 
 const DEPTHS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24]); // a ladder, structural; the shallowest depth that reproduces the reach wins
 export const DECLARED_LINES = 5; // the ledger block's own HYPERLEXICON_LEDGER_LINES, reused as the declared fallback when no measurement organ is injected
@@ -47,6 +48,7 @@ const idsOfText = (text, index) => referentsOf(text, index).ids;
 const sortedIds = (ids) => [...ids].sort();
 const list = (names) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
 const turnRef = (t) => `[turn:${t}]`;
+// The mouth-facing `text` of every block is struck of addresses (firewall.js::strikeAddresses — one wall, at the mouth's door too); `lines` keep theirs for the record.
 
 /**
  * The shared cut. `rows` are ordered most-relevant-first and each carries
@@ -126,7 +128,7 @@ export function atmosphereBlock({ question = "", transcript = [], index }) {
     const fresh = [...ground.exchanges.at(-1).ids].filter((id) => !earlier.has(id));
     lines.push(fresh.length ? `The last exchange brought ${named(new Set(fresh))} onto this ground.` : "The last exchange brought nothing the ground had not already held.");
   }
-  return { lines, text: `Where the conversation stands:\n${lines.join("\n")}`, ground: { turns: [first, last], ids: sortedIds(ground.ids), cited: cited.length, before: before ? sortedIds(before.ids) : null, grounds: grounds.length }, basis: "grounds segmented on what each question names; a question naming nothing the ground held opens a new one" };
+  return { lines, text: strikeAddresses(`Where the conversation stands:\n${lines.join("\n")}`), ground: { turns: [first, last], ids: sortedIds(ground.ids), cited: cited.length, before: before ? sortedIds(before.ids) : null, grounds: grounds.length }, basis: "grounds segmented on what each question names; a question naming nothing the ground held opens a new one" };
 }
 
 const standingPhrase = (n) => {
@@ -170,7 +172,7 @@ export function lensBlock({ question = "", active, index, notes = [], voids = []
   if (!byRef.size) return { lines: [], text: "", basis: "nothing on the ledger or the record names the active referents", windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window } };
   const lines = [];
   for (const [id, ls] of byRef) { lines.push(`${represent(index, id)}:`); lines.push(...ls); }
-  return { lines, text: `What is said about ${list([...byRef.keys()].map((id) => represent(index, id)))}:\n${lines.join("\n")}`, windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window }, basis: { notes: notesCut.basis, voids: voidsCut.basis, records: recordsCut.basis } };
+  return { lines, text: strikeAddresses(`What is said about ${list([...byRef.keys()].map((id) => represent(index, id)))}:\n${lines.join("\n")}`), windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window }, basis: { notes: notesCut.basis, voids: voidsCut.basis, records: recordsCut.basis } };
 }
 
 /**
@@ -200,7 +202,7 @@ export function paradigmBlock({ active, index, notes = [], dmdWindow = null }) {
     if (top.length) lines.push(`${represent(index, id)} most often stands in «${top.map(([l]) => l).join("», «")}».`);
   }
   if (!lines.length) return { lines: [], text: "", window: cut.window, basis: "nothing recurs at the floor for the active referents" };
-  return { lines, text: `What recurs:\n${lines.join("\n")}`, window: cut.window, basis: cut.basis };
+  return { lines, text: strikeAddresses(`What recurs:\n${lines.join("\n")}`), window: cut.window, basis: cut.basis };
 }
 
 /**

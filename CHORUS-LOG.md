@@ -186,3 +186,15 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier
 | Chekhov | III.5 | lock/unlock | clean | the vault gates every door with a typed "locked"; the suite proves storage holds the vault and nothing else |
 | Marshall | IV.1; P71 | POLICIES P120, README, checklist, CLAUDE.md | upheld — compliant | Generality line present; the magic-key warning is in the product, not only the docs; not-claimed carries the open link, takeover, fingerprint discipline and the unlocked tab |
 clean: nothing struck.
+
+## 2026-09-07 — GFP Pass 32: the organs seated (branch `ground-ladder-p115`)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + FOLD-CONSTITUTION + POLICIES.md. Lenses in-session over `relative.js`, `relative-pattern.js` (brought from main unchanged), `relative-seat.test.mjs` (new), eoreader7 `native/organs/capacities.js` (three rows).
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Marshall | P92 (read CAPACITIES before writing an organ); IV.1 | capacities.js rows; relative-seat.test.mjs | upheld | the cells were proposed in the spec and are CONFIRMED by `cellOf` in a test that runs against `cube.js`, not by hand; the rows name the module each organ actually lives in |
+| Dijkstra | III.4 | relative-pattern.js `drift` → the-fold `record-log.js::resolveAddress` | clean, named | one address resolver, the ledger's own; the modules stay beside it rather than moving to eoreader7 and importing backwards |
+| Diaconis | II.10 | eval/results/…-pass32.txt vs the recorded table | clean | the re-run is diffed line for line against the table the finding rests on; it reproduces to the probe |
+| Feynman | P71 | P169's collision paragraph | disclosed | the branch numbering collision is written where a reader of "P130" will look, not resolved by fiat in a pass about something else |
+clean: nothing struck.

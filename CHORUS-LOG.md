@@ -196,7 +196,7 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + FOLD-CONSTITUTION + POLICIE
 | Marshall | P92 (read CAPACITIES before writing an organ); IV.1 | capacities.js rows; relative-seat.test.mjs | upheld | the cells were proposed in the spec and are CONFIRMED by `cellOf` in a test that runs against `cube.js`, not by hand; the rows name the module each organ actually lives in |
 | Dijkstra | III.4 | relative-pattern.js `drift` → the-fold `record-log.js::resolveAddress` | clean, named | one address resolver, the ledger's own; the modules stay beside it rather than moving to eoreader7 and importing backwards |
 | Diaconis | II.10 | eval/results/…-pass32.txt vs the recorded table | clean | the re-run is diffed line for line against the table the finding rests on; it reproduces to the probe |
-| Feynman | P71 | P169's collision paragraph | disclosed | the branch numbering collision is written where a reader of "P130" will look, not resolved by fiat in a pass about something else |
+| Feynman | P71 | P169's collision paragraph | disclosed | the branch numbering collision is written where a reader of "P174" will look, not resolved by fiat in a pass about something else |
 clean: nothing struck.
 
 ## 2026-09-07 — P170: the conversation's loops, closed over referents (dialogue.js, answerable.js, correction.js, holon.js, app.js's index line)

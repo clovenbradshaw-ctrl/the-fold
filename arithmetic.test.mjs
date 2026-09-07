@@ -176,7 +176,7 @@ test("checkQuantity: the pure door first, byte-identical, then the shapes, then 
   assert.equal(checkQuantity("Who founded the observatory?", { math }), null);
 });
 
-test("P129: ordering and distance are computed, not asked of the mouth — and a question that names no two comparable values is refused", async () => {
+test("P173: ordering and distance are computed, not asked of the mouth — and a question that names no two comparable values is refused", async () => {
   const math = await import("mathjs");
   // The exact probe shapes the long-stream run got right zero times out of ten.
   const years = checkComparison("Which of the two years mentioned is earlier, 1841 or 1996, and how many years apart are they? Give the number.", { math });

@@ -21,7 +21,7 @@
 // So the ladder is not "big model for hard things". It is:
 //
 //   1. If the instrument knows the answer exactly, no model runs at all
-//      (P129 — measured 100% right where it fires).
+//      (P173 — measured 100% right where it fires).
 //   2. If the work is composition — prose, explanation, continuation — the
 //      SMALL model does it, because that is where it does not drift (4%).
 //   3. If the work is holding one question steady over close reading — a
@@ -50,7 +50,7 @@ const COMPOSE_RE = /\b(?:why|explain|describe|summari[sz]e|tell me about|what do
 
 /**
  * workOf(question, { answered }) → WORK
- * `answered` is a truthy answer from the mechanical doors (P129).
+ * `answered` is a truthy answer from the mechanical doors (P173).
  */
 export function workOf(question, { answered = null } = {}) {
   if (answered) return WORK.NONE;

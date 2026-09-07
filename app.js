@@ -993,7 +993,7 @@ const state = {
    * turn; carried on the record and the export.
    */
   depth: (() => { const n = Number(localStorage.getItem("fold-depth")); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1; })(),
-  /** Whether the person has actually moved the slider. Unset, difficulty decides the rung (P130). */
+  /** Whether the person has actually moved the slider. Unset, difficulty decides the rung (P174). */
   depthSet: localStorage.getItem("fold-depth") != null,
 
   /**
@@ -6179,10 +6179,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
       // null when the person has not moved the slider off its default, so
-      // strain decides the rung (P130); a deliberate setting is honoured.
+      // strain decides the rung (P174); a deliberate setting is honoured.
       depth: state.depthSet ? state.depth : null,
       // The arithmetic engine, so ordering and difference are computed rather
-      // than asked of the mouth (P129).
+      // than asked of the mouth (P173).
       math: window.math,
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came

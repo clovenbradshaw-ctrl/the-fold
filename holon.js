@@ -1030,7 +1030,7 @@ export async function runPart({
   // against a different reading without editing the turn. Absent, it is
   // `source.js::retrieve` and every existing caller is byte-identical.
   retrieveWith = null,
-  // The tower (P131/P132): the stream's own coverage history, the engine's
+  // The tower (P175/P132): the stream's own coverage history, the engine's
   // null apparatus, and whether the audit above has licensed the measured cut.
   coverageHistory = [],
   nul = null,
@@ -2061,18 +2061,18 @@ export async function runPart({
   // The snips: a piece stands on its obligations' spans, any other turn on
   // the question's own words. Both are the source's bytes, verbatim, addressed.
   const recalledLine = recalledTurns.length ? transcriptLine(recalledTurns) : "";
-  // REASONING OUTSIDE THE MODEL (P129, arithmetic.js::checkComparison). A
+  // REASONING OUTSIDE THE MODEL (P173, arithmetic.js::checkComparison). A
   // question that asks which of two stated values is earlier or larger, and
   // how far apart they are, is answered by the ENGINE and handed to the mouth
   // as a fact to say — never posed to it as a sum to attempt. Measured (S77):
   // ten such probes, the ordering right twice, the arithmetic right zero
   // times. The values are the question's own; nothing is invented.
-  // S2 IS RECRUITED BY DIFFICULTY, NOT SPENT FLAT (P130). Every signal here
+  // S2 IS RECRUITED BY DIFFICULTY, NOT SPENT FLAT (P174). Every signal here
   // is already paid for by work this turn does anyway; the person's slider is
   // a floor and a ceiling on what strain may take.
   // The cut is measured from the stream where the tower says the measured cut
   // discriminates, and falls back to the declared floor where it does not
-  // (P131/P132). `coverageHistory` and `nul` absent → the floor decides and
+  // (P175/P132). `coverageHistory` and `nul` absent → the floor decides and
   // the reading says so; nothing about this turn changes.
   // P148: the belief is formed inside strainOf, which is where coverage is
   // computed — the cell that makes the belief worth anything. holon threads
@@ -2784,7 +2784,7 @@ export async function runPart({
     const pr = cutProcessTalk(text, { materialText, splitSentences });
     if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
   }
-  // ATTRIBUTE SUBSTITUTION (P130): the answer that quietly answers an easier
+  // ATTRIBUTE SUBSTITUTION (P174): the answer that quietly answers an easier
   // question. Read without a model, from the question's own words against the
   // answer's — measured live, an essay on how language models work returned
   // for "what fills the blank in this passage", with nothing flagging it.
@@ -3133,7 +3133,7 @@ export async function runHolonicTask({
   // budgets) · 2 careful · 3 deep. More passes over the same bounded
   // material, never more context.
   // null means the person expressed no preference and STRAIN decides the rung
-  // (P130); a number is a deliberate ask and is honoured as floor and ceiling.
+  // (P174); a number is a deliberate ask and is honoured as floor and ceiling.
   depth = null,
   // Long-form (P108): a caller writing a PIECE rather than answering a
   // question declares a larger draft budget per part and a plan budget
@@ -3174,7 +3174,7 @@ export async function runHolonicTask({
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
   retrieveWith = null,
-  // The tower's inputs (P131/P132), threaded to every part.
+  // The tower's inputs (P175/P132), threaded to every part.
   coverageHistory = [],
   nul = null,
   useMeasuredCut = false,
@@ -3237,7 +3237,7 @@ export async function runHolonicTask({
   if (typeof call === "function") { const rawCall = call; call = (messages, opts) => rawCall(mouthFacing(messages), opts); }
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
-  // ── ANSWERED BEFORE THE MODEL (P129) ──────────────────────────────────
+  // ── ANSWERED BEFORE THE MODEL (P173) ──────────────────────────────────
   // User, 2026-09-06: "why is the model even doing the generation? how much
   // of this can we do before it gets to the model?" For a class of questions
   // the instrument knows the answer exactly, at an address, and a small mouth

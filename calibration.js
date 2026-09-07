@@ -1,10 +1,10 @@
-// calibration.js — the cut is measured from the stream, not declared (P131).
+// calibration.js — the cut is measured from the stream, not declared (P175).
 //
 // User, 2026-09-06: "can this calibration itself be online learning
 // leveraging all the best mechanics we have like the born rule and the
 // different voids and nuls?"
 //
-// P130 decided strain against `COVERAGE_FLOOR = 0.34`. That number was
+// P174 decided strain against `COVERAGE_FLOOR = 0.34`. That number was
 // declared, and the standing rule in this project is to measure a null
 // instead of setting a constant. Worse, a fixed floor cannot be right across
 // corpora: 0.34 coverage is unremarkable on a marked-up critical edition and

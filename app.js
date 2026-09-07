@@ -271,6 +271,7 @@ import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
 // The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
 import { dmdWindow } from "/engine-v7/kernel/activation.js";
+import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js";
 // The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
 // relation reading admits, corroborated across turns by the same cell the
 // cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
@@ -5007,12 +5008,26 @@ function needsSystem2(question, s1Text) {
 // by their identity; the transcript is read off the raw history with each
 // turn's checked refs from the record store.
 const RESOLUTIONS_LEVEL = 3;
-let conversationIndexCache = { key: null, index: null };
+let conversationIndexCache = { key: null, index: null, book: null };
 function conversationIndexNow() {
   const chunks = liveChunks();
   const key = `${chunks.length}:${chunks[0]?.ref ?? ""}:${chunks[chunks.length - 1]?.ref ?? ""}`;
-  if (conversationIndexCache.key !== key) conversationIndexCache = { key, index: chunks.length ? referentIndexFor(chunks) : null };
+  if (conversationIndexCache.key !== key) {
+    const index = chunks.length ? referentIndexFor(chunks) : null;
+    // THE ADDRESS BOOK (activation-retrieval.js): every sentence an established referent stands in, by referent — a projection of the index, built with it.
+    const book = index ? mentionBook(chunks, index, { splitSentences: engineSentences }) : null;
+    // THE GRAIN OF A SENTENCE IS THE ACT: the same relation reader the turn runs, over the live chunks, built with the book and read once per candidate sentence (activation-retrieval.js, SENTENCE_CEILING).
+    let reader = null; try { reader = index && chunks.length ? relationsFor(chunks, { pool: chunks }) : null; } catch { reader = null; }
+    conversationIndexCache = { key, index, book, reader };
+  }
   return conversationIndexCache.index;
+}
+// RETRIEVAL IS ACTIVATION (THE-HOLOGRAPH.md §6): the question activates referents, hop 0 their sentences, hop 1 what they stand with, cut by the measurement; the term retriever stands in only for a question that resolves to no referent, and the record says so.
+function activationRetrievalNow() {
+  conversationIndexNow();
+  const { index, book, reader } = conversationIndexCache;
+  if (!index || !book) return null;
+  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, read: reader ? (t) => reader.read(t) : null, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow });
 }
 function transcriptNow() {
   const h = state.history ?? [];
@@ -6249,6 +6264,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       chatHistory: state.history.slice(-present),
       discourse: discourseLine,
       resolutions: RESOLUTIONS_LEVEL,
+      retrieveWith: activationRetrievalNow(),
+      mentionBook: conversationIndexCache.book,
       dmdWindow,
       conversationIndex: conversationIndexNow(),
       records: state.summary?.records ?? [],

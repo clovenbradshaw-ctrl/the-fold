@@ -53,7 +53,17 @@ const represent = (index, id) => { try { return index?.represent?.(id) ?? id; } 
  * stop list and no position rule: an answer that opens "Raskolnikov is a
  * former student" has named him, and only the index can say so.
  */
-export const candidatesIn = (text) => [...new Set([...String(text ?? "").matchAll(/(?:^|[^\p{L}])(\p{Lu}[\p{L}\p{N}'’-]*(?:\s+\p{Lu}[\p{L}\p{N}'’-]*){0,2})/gu)].map((m) => m[1].replace(/['’]s$/, "").trim()).filter((n) => n.length > 1))];
+export const candidatesIn = (text) => {
+  const out = new Set();
+  for (const m of String(text ?? "").matchAll(/(?:^|[^\p{L}])(\p{Lu}[\p{L}\p{N}'’-]*(?:\s+\p{Lu}[\p{L}\p{N}'’-]*){0,3})/gu)) {
+    // Every contiguous sub-run is a candidate too: "Later Razumihin" hid
+    // Razumihin from the index otherwise (measured 2026-09-07 — a sentence
+    // opening with a capitalised adverb before a name resolved to nothing).
+    const toks = m[1].trim().split(/\s+/);
+    for (let i = 0; i < toks.length; i++) for (let j = i + 1; j <= Math.min(toks.length, i + 3); j++) { const n = toks.slice(i, j).join(" ").replace(/['’]s$/, ""); if (n.length > 1) out.add(n); }
+  }
+  return [...out];
+};
 /**
  * Candidate names → referent ids through the index; and the names that
  * resolve to nothing. Two evidence bars on purpose: PRESENCE needs only the

@@ -102,7 +102,7 @@ export function exchangesOf(transcript = [], index) {
  * never cut on a novel, because the protagonist is in nearly every answer;
  * the question is where the reader moves, so the question is what segments.
  */
-export function atmosphereBlock({ question = "", transcript = [], index }) {
+export function atmosphereBlock({ question = "", transcript = [], index, prominence = null }) {
   const ex = exchangesOf(transcript, index).filter((e) => e.ids.size);
   if (!ex.length) return { lines: [], text: "", ground: null, basis: "no exchange resolves to a referent yet" };
   const grounds = [];
@@ -113,11 +113,14 @@ export function atmosphereBlock({ question = "", transcript = [], index }) {
     else { cur.exchanges.push(e); for (const id of e.ids) cur.ids.add(id); }
   }
   const ground = grounds.at(-1), before = grounds.length > 1 ? grounds.at(-2) : null;
-  const named = (ids) => list([...ids].slice(0, 3).map((id) => represent(index, id)));
+  // The ground is named by its most PROMINENT referents — by how many of its exchanges carry each, then by the caller's prominence (the mention book's count in the material) — so a one-off surface the index admitted ("God Which") never names a ground a real being stands on. Measured 2026-09-07, live.
+  const inExchanges = (g, id) => g.exchanges.filter((e) => e.ids.has(id)).length;
+  const rank = (g) => [...g.ids].sort((a, b) => inExchanges(g, b) - inExchanges(g, a) || ((typeof prominence === "function" ? prominence(b) : 0) - (typeof prominence === "function" ? prominence(a) : 0)));
+  const named = (g) => list(rank(g).slice(0, 3).map((id) => represent(index, id)));
   const first = ground.exchanges[0].turn, last = ground.exchanges.at(-1).turn;
   const n = ground.exchanges.length;
   const lines = [];
-  lines.push(`For ${n === 1 ? "one exchange" : `${n} exchanges`} the conversation has stood on ${named(ground.ids)} ${n === 1 ? turnRef(first) : `[turn:${first}–${last}]`}${before ? `; it turned there at turn ${first} from ${named(before.ids)}` : ""}.`);
+  lines.push(`For ${n === 1 ? "one exchange" : `${n} exchanges`} the conversation has stood on ${named(ground)} ${n === 1 ? turnRef(first) : `[turn:${first}–${last}]`}${before ? `; it turned there at turn ${first} from ${named(before)}` : ""}.`);
   const cited = [...new Set(ground.exchanges.flatMap((e) => e.refs))];
   if (cited.length) {
     const bySource = new Map(); for (const r of cited) { const s = r.split("#")[0]; bySource.set(s, (bySource.get(s) ?? 0) + 1); }
@@ -126,7 +129,7 @@ export function atmosphereBlock({ question = "", transcript = [], index }) {
   if (n >= 2) {
     const earlier = new Set(ground.exchanges.slice(0, -1).flatMap((e) => [...e.ids]));
     const fresh = [...ground.exchanges.at(-1).ids].filter((id) => !earlier.has(id));
-    lines.push(fresh.length ? `The last exchange brought ${named(new Set(fresh))} onto this ground.` : "The last exchange brought nothing the ground had not already held.");
+    lines.push(fresh.length ? `The last exchange brought ${list(fresh.sort((a, b) => ((typeof prominence === "function" ? prominence(b) : 0) - (typeof prominence === "function" ? prominence(a) : 0))).slice(0, 3).map((id) => represent(index, id)))} onto this ground.` : "The last exchange brought nothing the ground had not already held.");
   }
   return { lines, text: strikeAddresses(`Where the conversation stands:\n${lines.join("\n")}`), ground: { turns: [first, last], ids: sortedIds(ground.ids), cited: cited.length, before: before ? sortedIds(before.ids) : null, grounds: grounds.length }, basis: "grounds segmented on what each question names; a question naming nothing the ground held opens a new one" };
 }
@@ -210,13 +213,13 @@ export function paradigmBlock({ active, index, notes = [], dmdWindow = null }) {
  * level 0: nothing; 1: atmosphere; 2: + lens; 3: + paradigm. Every block is
  * a computed reading with its own basis; `text` is what the mouth is handed.
  */
-export function resolutionBlocks({ level = 0, question = "", transcript = [], index, notes = [], voids = [], records = [], dmdWindow = null }) {
+export function resolutionBlocks({ level = 0, question = "", transcript = [], index, notes = [], voids = [], records = [], dmdWindow = null, prominence = null }) {
   const out = { level, text: "", atmosphere: null, lens: null, paradigm: null, active: null };
   if (!level || !index) return { ...out, basis: !index ? "no conversation index" : "level 0" };
   const active = activeReferents(question, transcript, index);
   out.active = { ids: sortedIds(active.ids), basis: active.basis };
   const blocks = [];
-  if (level >= 1) { out.atmosphere = atmosphereBlock({ question, transcript, index }); if (out.atmosphere.text) blocks.push(out.atmosphere.text); }
+  if (level >= 1) { out.atmosphere = atmosphereBlock({ question, transcript, index, prominence }); if (out.atmosphere.text) blocks.push(out.atmosphere.text); }
   if (level >= 2) { out.lens = lensBlock({ question, active: active.ids, index, notes, voids, records, transcript, dmdWindow }); if (out.lens.text) blocks.push(out.lens.text); }
   if (level >= 3) { out.paradigm = paradigmBlock({ active: active.ids, index, notes, dmdWindow }); if (out.paradigm.text) blocks.push(out.paradigm.text); }
   out.text = blocks.join("\n\n");

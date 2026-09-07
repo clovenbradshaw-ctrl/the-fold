@@ -1016,6 +1016,7 @@ export async function runPart({
   dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
   conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
   records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
+  mentionBook = null, // activation-retrieval.js's address book, when the caller built one: prominence for naming a ground, nothing else
   material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
   // THE ARITHMETIC ENGINE (arithmetic.js's own injection pattern): the page
   // hands the vendored mathjs, a test hands the package. Absent, nothing
@@ -2090,9 +2091,16 @@ export async function runPart({
   snipRounds = spend.snipRounds;
   const comparison = math ? checkComparison(task || question, { math }) : null;
   const comparisonLine = comparison && !comparison.gap ? `Worked out from the numbers in the question: ${comparison.sentence}` : "";
+  // ACTIVATION (activation-retrieval.js): when the pick was an activation over
+  // the reading, the passages ARE sentences chosen and cut by it — they are
+  // handed verbatim as the snips, once, and never doubled as a raw source block.
+  const retrieval = passages?.retrieval ?? null;
+  const activated = retrieval?.basis === "activation";
   const snipPrefix = piece
     ? (snips.length ? snipBlock(snips) : null)
-    : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
+    : activated
+      ? (passages.length ? snipBlock(passages.map((p) => ({ ref: p.ref, start: 0, end: String(p.text ?? "").length, text: String(p.text ?? "") }))) : null)
+      : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
   // COMPRESSION (P171): a higher holon stands in for the lower material it
   // was computed from — a Lens line for the sentence it was read from, a
   // Paradigm line for every occurrence of a recurring act. So at level 2
@@ -2102,8 +2110,8 @@ export async function runPart({
   // to hand falls back to the passages and says so. Level means what the
   // mouth is handed, and higher means less — measured as a monotone
   // compression ladder, never assumed.
-  const compress = material === "snips" || (material === "auto" && resolutions >= 2);
-  const handed = compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
+  const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
+  const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
   const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
   const draftMaterial = [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
@@ -2114,7 +2122,7 @@ export async function runPart({
   // posture), never as an instruction about the apparatus.
   const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
   // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
-  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids : [], records, dmdWindow }) : null;
+  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids : [], records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
   const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
   const executeMessages = passages.length
     ? flat
@@ -3022,6 +3030,7 @@ export async function runPart({
     passages,
     corrections,
     ...(addressed ? { addressed } : {}),
+    ...(retrieval ? { retrieval } : {}),
     ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
     ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
@@ -3126,6 +3135,7 @@ export async function runHolonicTask({
   dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
   conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
   records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
+  mentionBook = null, // activation-retrieval.js's address book, when the caller built one: prominence for naming a ground, nothing else
   material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
@@ -3341,7 +3351,7 @@ export async function runHolonicTask({
       maxCorrections,
       learnedStore,
       transcript,
-      resolutions, dmdWindow, conversationIndex, records, material,
+      resolutions, dmdWindow, conversationIndex, records, material, mentionBook,
       math,
       makeReferentIndexFor,
       askedDepth: depth,
@@ -3520,6 +3530,7 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     // dialogue.js (2026-09-07): the conversation's loops, aggregated over the parts
+    ...(sections.some((x) => x.retrieval) ? { retrieval: sections.filter((x) => x.retrieval).map((x) => ({ part: x.part?.label ?? null, ...x.retrieval })) } : {}),
     ...(sections.some((x) => x.resolutions) ? { resolutions: sections.filter((x) => x.resolutions).map((x) => ({ part: x.part?.label ?? null, ...x.resolutions })) } : {}),
     ...(sections.some((x) => x.addressed) ? { addressed: sections.filter((x) => x.addressed).map((x) => ({ part: x.part?.label ?? null, ...x.addressed })) } : {}),
     ...(sections.some((x) => x.expectation) ? { expectation: (() => { const xs = sections.filter((x) => x.expectation).map((x) => x.expectation); const auth = xs.map((e) => e.authorship).filter((a) => a != null); return { expected: xs.reduce((a, e) => a + e.expected, 0), matched: xs.reduce((a, e) => a + e.matched.length, 0), novel: xs.reduce((a, e) => a + e.novel.length, 0), missing: xs.reduce((a, e) => a + e.missing.length, 0), contradicted: xs.reduce((a, e) => a + e.contradicted.length, 0), authorship: auth.length ? Number((auth.reduce((a, b) => a + b, 0) / auth.length).toFixed(3)) : null }; })() } : {}),

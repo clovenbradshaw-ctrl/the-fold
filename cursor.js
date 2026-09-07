@@ -118,15 +118,27 @@ export function trace(projections = []) {
  * testimony that exists and is thrown away, and a caller must be able to tell
  * a reconstruction from a witness.
  */
-export function supersessions(traced, firstProjection) {
+export function supersessions(traced, firstProjection, lastProjection = null) {
   if (traced?.gap) return { gap: traced.gap, why: traced.why };
+  // THE RECORD FIRST, INFERENCE ONLY WHERE IT IS SILENT (P165). eoreader7 now
+  // lands EOReferentMerge@1 where a reassignment is decided, and
+  // projectHypergraph carries it as `merges` — testimony with its witness.
+  // Guard G14: a reconstruction is never reported as the record it replaces.
+  // So a row from the record is `inferred: false`, a row from dormancy plus
+  // surface capture stays `inferred: true`, and the record wins wherever both
+  // speak. When the record is on hand the inference below only fills the
+  // dormant nodes it does not mention.
+  const record = Array.isArray(lastProjection?.merges) ? lastProjection.merges : [];
+  const fromRecord = record.flatMap((m) => (m?.folded ?? []).map((f) => ({ folded: f, kept: m.kept, inferred: false, witness: m.witness ?? null,
+    why: `${f} recorded as folded into ${m.kept} at ${m.encounterRef ?? "an unrecorded encounter"}, witnessed by ${JSON.stringify(m.witness ?? "")}` })));
+  const recorded = new Set(fromRecord.map((r) => r.folded));
   const before = new Map((firstProjection?.nodes ?? []).map((n) => [n.id, new Set((n.surfaces ?? []).map(norm))]));
   const grew = traced.nodes.filter((n) => {
     const was = before.get(n.id);
     return was && n.surfaces.map(norm).some((s) => !was.has(s));
   });
   const out = [];
-  for (const d of traced.nodes.filter((n) => n.state === STATES.DORMANT)) {
+  for (const d of traced.nodes.filter((n) => n.state === STATES.DORMANT && !recorded.has(n.id))) {
     const mine = new Set(d.surfaces.map(norm));
     for (const g of grew) {
       if (g.id === d.id) continue;
@@ -135,17 +147,19 @@ export function supersessions(traced, firstProjection) {
         why: `${d.id} stopped arriving while ${g.id} gained surfaces covering it — the footprint of a merge whose record was discarded` }); break; }
     }
   }
-  return { supersessions: out, inferred: true,
-    why: out.length
-      ? `${out.length} merge(s) reconstructed from dormancy plus surface capture; the upstream record (surfaces.js merges) is discarded at recursive.js and this is weaker than it`
-      : "no merge footprint found at these cursors" };
+  const all = [...fromRecord, ...out];
+  const inferredCount = out.length;
+  return { supersessions: all, inferred: inferredCount > 0, fromRecord: fromRecord.length, inferredRows: inferredCount,
+    why: all.length
+      ? `${fromRecord.length} supersession(s) from the record (testimony, with witness)` + (inferredCount ? `; ${inferredCount} reconstructed from dormancy plus surface capture where the record is silent — weaker, and marked inferred` : "")
+      : "no supersession on record and no merge footprint found at these cursors" };
 }
 
 /** The three states, counted — the fold level's finding, in the shape `pattern.js::loops` reports. */
 export function foldLevel(projections = []) {
   const t = trace(projections);
   if (t.gap) return { level: "fold", gap: t.gap, why: t.why };
-  const sup = supersessions(t, projections[0]);
+  const sup = supersessions(t, projections[0], projections[projections.length - 1]);
   const folded = new Set((sup.supersessions ?? []).map((s) => s.folded));
   const rows = t.nodes.map((n) => (folded.has(n.id) ? { ...n, state: STATES.SUPERSEDED } : n));
   const count = (s) => rows.filter((r) => r.state === s).length;

@@ -40,7 +40,12 @@ test("A MERGE IS RECOVERED from dormancy plus surface capture — and marked INF
   assert.equal(s.supersessions[0].folded, "ref:auto:vasili");
   assert.equal(s.supersessions[0].kept, "ref:auto:prince_vasili_kuragin");
   assert.equal(s.supersessions[0].inferred, true, "a reconstruction must never be mistaken for the record it replaces");
-  assert.match(s.why, /discarded/);
+  // This once asserted /discarded/ — that the upstream merge record was thrown
+  // away. P165 landed it, so that sentence is no longer true and the test was
+  // asserting a defect it should have been glad to lose. With no record on
+  // the projection, the reading is still inference, and says so.
+  assert.match(s.why, /reconstructed from dormancy plus surface capture/);
+  assert.match(s.why, /marked inferred/);
 });
 
 test("THE CONTROL: dormancy alone is not a merge", () => {
@@ -92,4 +97,44 @@ test("the fold level reports its own vacuity every time, so no caller can presen
   const f = foldLevel([c1, c2]);
   assert.equal(f.persistenceIsVacuous, true);
   assert.match(f.why, /persistence itself distinguishes nothing/);
+});
+
+// ── P165: the record first, inference only where it is silent ──────────────
+
+test("P165: a supersession ON THE RECORD is testimony — inferred:false, with its witness", () => {
+  const c1 = proj([node("ref:auto:vasili", ["Vasili"], [1, 2]), node("ref:auto:prince_vasili", ["Prince Vasili"], [3])]);
+  const c2 = { ...proj([node("ref:auto:vasili", ["Vasili"], [1, 2]), node("ref:auto:prince_vasili", ["Prince Vasili", "Vasili"], [3, 8])]),
+    merges: [{ id: "merge:575:x", kept: "ref:auto:prince_vasili", folded: ["ref:auto:vasili"], witness: "Vasíli", encounterRef: "encounter:575" }] };
+  const s = supersessions(trace([c1, c2]), c1, c2);
+  const row = s.supersessions.find((x) => x.folded === "ref:auto:vasili");
+  assert.ok(row, "the recorded fold is reported");
+  assert.equal(row.inferred, false, "G14: a record is never reported as a reconstruction");
+  assert.equal(row.witness, "Vasíli");
+  assert.equal(s.fromRecord, 1);
+  assert.equal(s.inferredRows, 0, "the record covered it, so nothing was inferred for it");
+  assert.equal(s.inferred, false);
+});
+
+test("P165: where the record is SILENT, inference still fills in — and stays marked inferred", () => {
+  // The record names one fold; a second dormant node with captured surfaces
+  // is not on it. Inference covers that one only, and says so.
+  const c1 = proj([node("a", ["A"], [1]), node("b", ["B"], [2]), node("k", ["K"], [3])]);
+  const c2 = { ...proj([node("a", ["A"], [1]), node("b", ["B"], [2]), node("k", ["K", "A", "B"], [3, 9, 10])]),
+    merges: [{ id: "merge:1:x", kept: "k", folded: ["a"], witness: "A", encounterRef: "encounter:9" }] };
+  const s = supersessions(trace([c1, c2]), c1, c2);
+  const byFolded = Object.fromEntries(s.supersessions.map((x) => [x.folded, x]));
+  assert.equal(byFolded.a.inferred, false, "a is on the record");
+  assert.equal(byFolded.b?.inferred, true, "b was reconstructed, and says so");
+  assert.equal(s.fromRecord, 1);
+  assert.equal(s.inferredRows, 1);
+  assert.equal(s.inferred, true, "any inferred row makes the whole reading partly inferred");
+});
+
+test("P165: with no record on the projection, behaviour is byte-identical to before — inference alone", () => {
+  const c1 = proj([node("ref:auto:vasili", ["Vasili"], [1, 2]), node("ref:auto:prince_vasili_kuragin", ["Prince Vasili Kuragin"], [3])]);
+  const c2 = proj([node("ref:auto:vasili", ["Vasili"], [1, 2]), node("ref:auto:prince_vasili_kuragin", ["Prince Vasili Kuragin", "Vasili"], [3, 8, 9])]);
+  const s = supersessions(trace([c1, c2]), c1, c2);
+  assert.equal(s.fromRecord, 0);
+  assert.equal(s.supersessions.length, 1);
+  assert.equal(s.supersessions[0].inferred, true);
 });

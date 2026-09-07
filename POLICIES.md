@@ -12427,6 +12427,8 @@ the-fold has carried the earned-constant ratchet since P146; eoreader7 had none,
 
 **The copy was the memory term, not the time term.** Heap 3.5× lower at 3,051 sentences; read time unchanged. Twenty million slot copies are cheap in V8; twenty million *retained* slots are what killed a full book. The remaining super-linear time is elsewhere (the per-refresh re-clustering in `discoverReferents`, the neighbourhood walks) and is stated rather than glossed — P157's rule again: the number that mattered was measured, not the one the story predicted.
 
+**The full book completes on the new code** (`--projection-identity`, 3.3 MB, beside the arm): 34,229 sentences, 98,940 log entries, 286,642 fold entries, heap 3,590 MB, and `reconstruct(log)` hashes identical to the live fold at cursor 100% (`6fcb505f24492f60`) — the projection is exact at this scale. It took 9,801 s: 286 ms/sentence against ~11 at 3,051 under the same load. **The time term is the next problem, and it is not the copy.**
+
 **Structural tests, not timings** (`tests/fold-transient.test.js`, 8): array identity held across 500 steps; a schema view returned the *same* array after a step (a from-scratch compute would be a new one — the measured hit P157 demands); a counted compute across a copy; the default is pure; the frozen-tip fallback; the superseded-turn accessor.
 
 **Generality:** universal for the three rules — transience declared by the chain's owner, the record pointing forward so the tip retains nothing, a superseded state read as the log's projection; specimen-scoped for the table.

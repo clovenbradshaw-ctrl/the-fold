@@ -12487,3 +12487,31 @@ Beside them: the refresh's `individuating`/`diaNorm` per *pair* memoised per cal
 **What remains, at 480 KB (25 s).** Anchoring's `observe`/`recall` 24% (the memory organ's posting walk); the refresh's re-clustering 18% — every surface pair, every 25 sentences; making it incremental would change *which* surfaces oscillate (P165) and is a reading change, a decision, not a fix; `extractRelations` 15% (the matcher itself over a growing alternation; restricting the alternation to the sentence's own tokens is exact only if Unicode case folding is, which is unproven). The full book: 9,801 s on the P166 code; the run on the mid-ladder commit swapped and was stopped, unmeasured; 627 s on the final commit, reading identical.
 
 **Generality:** universal for the method and the rules; specimen-scoped for every number in the ladder.
+
+## P168 — An address is given at birth and kept: the referent's id no longer follows the founder's spelling (2026-09-07)
+
+**The prompt.** *"Read our broader goals, experiment and decide and implement."* The goals: SEED — *identity by consequence, never by appearance*; P1 — identity is retrieval-time; P160, in the user's words — *"a paradigm has a single address that is linked to all the things that fed it."*
+
+**The defect, measured before anything was built.** Every refresh re-clusters from scratch and mints a cluster's id from whichever member founds it that time (`ref:auto:<founder's slug>`). The founder is decided by the assignment order's tie-breaks — sentences, then mentions — which shift as counts accrue, so a being's *address* flips between refreshes. P165 recorded the flips as testimony and named the tie-break as the cause. On 480 KB of War and Peace under that rule: **31** reassignment records, none witnessed; **4** beings whose address oscillates (vasili ↔ prince_vasili, helene ↔ princess_helene, hippolyte ↔ prince_hippolyte, horse ↔ horse_guards); **25** superseded addresses still carrying mentions — one being's mentions split across ids, the residue P156 had to reconstruct by inference. The founder's spelling is appearance; the id is an address.
+
+**The rule.** `discoverReferents(surfaces, { prior })` runs the clustering *exactly as before* — the partition of surfaces into clusters is byte-identical, and a test pins that refresh by refresh on 120 KB of real material with a rename asserted to have actually occurred — and then renames each cluster to the earliest-born prior address among its members. No prior member: a birth, keeping its minted id (suffixed with its birth seq only if that id already names a live being). Two clusters claiming one address: a split, kept by the cluster holding more of its bearers, the moved surfaces surfacing as reassignments. One cluster holding two prior addresses: a merge of two beings, on record with the cluster's maximal surface as its witness. The perceiver carries `born` across refreshes; `addresses: "birth"` is the default, `"founder"` keeps the old reading reproducible.
+
+**Measured, the same 480 KB read under both rules:**
+
+| | founder | birth |
+|---|---|---|
+| beings whose address oscillates | 4 | **0** |
+| superseded addresses still carrying mentions | 25 | **1** |
+| merge / reassignment records | 31, none witnessed | 7: 4 witnessed merges, 3 reassignments |
+| referent objects in the fold | 170 | 153 |
+| live referents | 145 | 152 |
+| partition of surfaces into beings | — | identical |
+| read | 16.1 s | 14.2 s |
+
+At the 60 KB identity cursor the projection has **33 nodes instead of 38, with the same 166 links** — the five were second addresses of the same beings. Cast recall cannot move under a rename (the partition is the same); what moves is that a being's mentions, edges and merges accumulate at one address.
+
+**This is a deliberate reading change, and the record says so.** The 60 KB identity hashes and the 240 KB / 480 KB trace baselines moved by design and were regenerated from this commit, with the old values kept beside them in `read-cost.mjs`'s header. P165's test that pinned the oscillation now pins it under `addresses: "founder"` and pins its absence under the default — its own text said it should be retired that way when the clustering was stabilised. A the-fold test that pinned P156's "three ids for one being" as a finding is a test of the defect and is updated with the finding recorded.
+
+**What this did not do.** It did not make the re-clustering incremental (the refresh still re-runs the full assignment, 18% of a 480 KB read); an incremental version would change *decisions* — a fragment that new evidence would make ambiguous stays placed — and that is a second reading change to measure on its own. The `horse ↔ horse_guards` pair is a fence question, not an address question, and stays.
+
+**Generality:** universal for the rule (an address is a birth, not a spelling; a rename is not a re-clustering) and for the method (measure the defect, prove the partition invariant, then decide); specimen-scoped for the counts.

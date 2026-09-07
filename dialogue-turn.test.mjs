@@ -120,3 +120,21 @@ test("THE THREE RESOLUTIONS reach the mouth: at level 1 the system message carri
   await runHolonicTask({ task: "Did Porfiry question him more than once?", chunks, transcript, planMode: "flat", resolutions: 0, call: async (m) => { off.push(m); return "Porfiry questioned Raskolnikov twice."; }, ...organs });
   assert.doesNotMatch(off.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n"), /Where the conversation stands/);
 });
+
+test("COMPRESSION: at level 2 the raw passages leave the prompt and the snips stay; at level 0 the passages are handed; material: \"passages\" forces the additive control; what was handed is on the record", async () => {
+  const { dmdWindow } = await import("../eoreader7/native/kernel/activation.js");
+  const transcript = [{ turn: 1, question: "What does the book say about Porfiry?", answer: "Porfiry questioned Raskolnikov twice.", refs: [refOf("Porfiry questioned")] }];
+  const sysOf = (seen) => seen.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n");
+  const run = async (opts) => { const seen = []; const r = await runHolonicTask({ task: "What does the book say about Raskolnikov?", chunks, transcript, planMode: "flat", dmdWindow, conversationIndex: indexFor(chunks), call: async (m) => { seen.push(m); return `Raskolnikov murdered the pawnbroker. [${refOf("murdered the pawnbroker")}]`; }, ...organs, ...opts }); return { r, sys: sysOf(seen) }; };
+  const raw = "Svidrigailov confessed to Dounia in the street"; // a sentence of the passage that no snip about Raskolnikov carries
+  const lvl0 = await run({ resolutions: 0 });
+  assert.match(lvl0.sys, new RegExp(raw), "level 0 hands the passages");
+  const lvl2 = await run({ resolutions: 2 });
+  assert.doesNotMatch(lvl2.sys, new RegExp(raw), "level 2 hands no raw passage");
+  assert.match(lvl2.sys, /- \[novel\.txt#167-320#0-36\] Raskolnikov murdered the pawnbroker\./, "the snips stay, verbatim and addressed");
+  assert.equal(lvl2.r.resolutions[0].handed, "snips");
+  assert.ok(lvl2.sys.length < lvl0.sys.length, `compression: ${lvl2.sys.length} < ${lvl0.sys.length} chars`);
+  const forced = await run({ resolutions: 2, material: "passages" });
+  assert.match(forced.sys, new RegExp(raw), "the additive control keeps the passages");
+  assert.equal(forced.r.resolutions[0].handed, "passages");
+});

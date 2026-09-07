@@ -1015,6 +1015,7 @@ export async function runPart({
   dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
   conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
   records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
+  material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
   // THE ARITHMETIC ENGINE (arithmetic.js's own injection pattern): the page
   // hands the vendored mathjs, a test hands the package. Absent, nothing
   // below computes and the turn is byte-identical to before.
@@ -2091,9 +2092,19 @@ export async function runPart({
   const snipPrefix = piece
     ? (snips.length ? snipBlock(snips) : null)
     : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
-  const draftMaterial = factBlock
-    ? [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock.text, ledgerBlock, spanBlock ?? dedupedSourceBlock].filter(Boolean).join("\n\n")
-    : [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, ledgerBlock, dedupedSourceBlock].filter(Boolean).join("\n\n");
+  // COMPRESSION (P171): a higher holon stands in for the lower material it
+  // was computed from — a Lens line for the sentence it was read from, a
+  // Paradigm line for every occurrence of a recurring act. So at level 2
+  // and above the raw passages LEAVE the prompt: the blocks replace them and
+  // the snips stay as the Field-level ground (verbatim, addressed, what the
+  // walls check against). Handed is recorded; a turn with nothing verbatim
+  // to hand falls back to the passages and says so. Level means what the
+  // mouth is handed, and higher means less — measured as a monotone
+  // compression ladder, never assumed.
+  const compress = material === "snips" || (material === "auto" && resolutions >= 2);
+  const handed = compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
+  const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
+  const draftMaterial = [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -3010,7 +3021,7 @@ export async function runPart({
     passages,
     corrections,
     ...(addressed ? { addressed } : {}),
-    ...(resolution ? { resolutions: { level: resolution.level, active: resolution.active, index: conversationIndex ? "conversation" : "part", atmosphere: resolution.atmosphere?.lines?.length ?? 0, lens: resolution.lens?.lines?.length ?? 0, paradigm: resolution.paradigm?.lines?.length ?? 0, windows: resolution.lens?.windows ?? null, text: resolution.text } } : {}),
+    ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
     ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
     ...(position ? { position: position.verdict } : {}),
@@ -3114,6 +3125,7 @@ export async function runHolonicTask({
   dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
   conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
   records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
+  material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
   retrieveWith = null,
@@ -3326,7 +3338,7 @@ export async function runHolonicTask({
       maxCorrections,
       learnedStore,
       transcript,
-      resolutions, dmdWindow, conversationIndex, records,
+      resolutions, dmdWindow, conversationIndex, records, material,
       math,
       makeReferentIndexFor,
       askedDepth: depth,

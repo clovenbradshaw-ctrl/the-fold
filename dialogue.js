@@ -42,6 +42,15 @@
 //                                measured on what the question's referents reach.
 import { namesIn } from "./ground-ladder.js";
 import { claimKey } from "./answer-record.js";
+import { tokenize } from "./source.js";
+
+// THE TRIGGERS' LANGUAGE IS DECLARED (READING-SPEC S39, S7): the restatement,
+// trailing-check and anaphor patterns below are `lang/en`. A question in
+// another declared language gets a typed gap, never an accidental non-match
+// read as "no restatement".
+export const TRIGGER_LANGUAGE = "en";
+export const TRIGGER_LANGUAGE_META = Object.freeze({ giver: "lang/en", scope: "question-side speech acts: restatement, trailing check, pronoun and passage anaphors" });
+export const triggerGap = (language) => (language && language !== TRIGGER_LANGUAGE ? { type: "no_trigger_prior_for_language", language, detail: `the question-side triggers are declared for ${TRIGGER_LANGUAGE} only` } : null);
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const ids = (index, name) => { try { const r = index?.resolve?.(name); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
@@ -74,6 +83,13 @@ export const candidatesIn = (text) => {
  */
 export function referentsOf(text, index) {
   const t = String(text ?? "");
+  // THE READING'S OWN INDEX RESOLVES WITHOUT CASE (reading-log.js::readingIndexFromLog): every token run of the text is resolved against the referents' own surfaces under the session's fold — a Hebrew question and an English one go through the same line, and no capitalised-run scan is consulted. The scan below is the CAST path (a text presence index) and stands only until the page runs the reader.
+  if (typeof index?.resolveIn === "function") {
+    const all = index.resolveIn(t);
+    const names = [...new Set(namesIn(t).map((n) => n.replace(/['’]s$/u, "")))];
+    const unresolved = names.filter((n) => !(index.resolve(n)?.size));
+    return { names, ids: all, resolved: [...all].map((id) => ({ name: index.represent(id), ids: [id] })), unresolved, indexed: true, basis: "resolveIn" };
+  }
   // A possessive is the name plus a marker ("Lebeziatnikov's" names Lebeziatnikov) — measured live 2026-09-07: the marker reached the index unstripped and the name read as unestablished beside its own resolved form.
   const names = [...new Set(namesIn(t).map((n) => n.replace(/['’]s$/u, "")))];
   const all = new Set(); const resolved = []; const unresolved = [];
@@ -123,15 +139,16 @@ export function addressedBy(answer, qRefs, index) {
  * an absence claim, never identity (P31's shape: a string can refuse a
  * claim, it cannot make one). Only `absent` earns the line.
  */
-export function absenceOf(qRefs, passages = []) {
+export function absenceOf(qRefs, passages = [], { vocabulary = null } = {}) {
   const names = qRefs?.unresolved ?? [];
   if (!names.length) return { absent: [], unestablished: [], line: "" };
-  const bytes = passages.map((p) => fold(p?.text ?? "")).join("\n");
+  // The second bar is TOKENS under the session's one fold (source.js::tokenize — P7.1), over the material's own vocabulary when the caller holds one (the reading index's, built from every chunk), else over the passages handed. A name's tokens all present → unestablished; any token the material never carries → absent.
+  const vocab = vocabulary instanceof Set ? vocabulary : new Set(passages.flatMap((p) => tokenize(String(p?.text ?? ""))));
   const absent = [], unestablished = [];
-  for (const n of names) (bytes.includes(fold(n)) ? unestablished : absent).push(n);
+  for (const n of names) { const toks = tokenize(n); (toks.length && toks.every((t) => vocab.has(t)) ? unestablished : absent).push(n); }
   return { absent, unestablished, line: absent.length ? `The loaded sources establish no referent named ${absent.map((n) => `"${n}"`).join(", ")}.` : "" };
 }
-export const absenceLine = (qRefs, passages = []) => absenceOf(qRefs, passages).line;
+export const absenceLine = (qRefs, passages = [], opts = {}) => absenceOf(qRefs, passages, opts).line;
 
 // The reader's speech acts, question-side, lang/en, minimal. Widened 2026-09-07 from the wired run's own phrasings: "Did the book say that X?", "Is THIS what the book says?", "Do you agree with this interpretation?" — five reflect turns in 25 and no position, because each missed the trigger by a word.
 const RESTATEMENT_RE = /\b(?:so,?\s+(?:you(?:'re| are)\s+(?:saying|telling me)|if I (?:follow|understand)(?: you)?|in other words|basically|then)|if I (?:follow|understand)(?: you)?|you(?:'re| are) saying(?: that)?|is (?:that|this) (?:really |actually )?what (?:the (?:book|text|source|novel)|it) says|did (?:the (?:book|text|source|novel)|it) (?:really |actually )?say that|am I right that|do I have that right|so it(?:'s| is))\b[:,]?\s*/i;
@@ -146,7 +163,8 @@ const enough = (t) => t.split(/\s+/).filter(Boolean).length >= 3; // the claim's
  * it — measured 2026-09-07: the reader's reflect turns end this way and had
  * no position until the second shape was read.
  */
-export function restatementOf(question) {
+export function restatementOf(question, { language = TRIGGER_LANGUAGE } = {}) {
+  if (triggerGap(language)) return null; // a typed gap is the caller's to record (holon.js does); this organ never guesses a foreign restatement
   const q = String(question ?? "").replace(/\s+/g, " ").trim();
   const m = RESTATEMENT_RE.exec(q);
   if (m) {

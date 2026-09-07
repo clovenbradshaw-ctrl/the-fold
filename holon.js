@@ -1006,6 +1006,7 @@ export async function runPart({
   // question are handed to the model as facts before it drafts, so a mistake
   // made once is not made again. Empty (every existing caller) changes nothing.
   learnedStore = [],
+  language = "en", // the question's declared language for dialogue.js's question-side triggers (S39): another language is a typed gap on the record, never a silent non-match
   learnedSince = null, // dialogue.js::ownedRows — corrections learned at or after this timestamp are THIS conversation's own, and the record owns them on the answer
   // THE CONVERSATION'S OWN RECORD (P128, transcript.js): [{turn, question,
   // answer}] oldest first. A question ABOUT what was said retrieves from it,
@@ -2811,14 +2812,18 @@ export async function runPart({
   // drafts — awareness that changes what the mouth is given, not a line the
   // reader sees (user, 2026-09-07: "awareness in a way that makes future
   // mistakes less likely").
-  const absence = qRefs ? absenceOf(qRefs, chunks.length ? chunks : passages) : { absent: [], unestablished: [], line: "" };
+  const absence = qRefs ? absenceOf(qRefs, chunks.length ? chunks : passages, { vocabulary: conversationIndex?.vocabulary ?? null }) : { absent: [], unestablished: [], line: "" };
   const absent = absence.line;
   const voidsDeclared = [];
   if (absence.absent.length && hyperlexicon?.declareVoid && beliefNotes) {
     const sourcesRead = [...new Set((chunks.length ? chunks : passages).map((c) => c?.source ?? String(c?.ref ?? "").split("#")[0]).filter(Boolean))];
     for (const name of absence.absent) {
       try {
-        const r = hyperlexicon.declareVoid(beliefNotes, { end1: name, label: "appears", end2: null, scope: { sources: sourcesRead, read: (chunks.length ? chunks : passages).length, total: (chunks.length ? chunks : passages).length }, because: `asked about and not found in the material (${sourcesRead.length} source${sourcesRead.length === 1 ? "" : "s"}, all read)` });
+        // Scope = how far the READ got (S70/S71): the admission cursor when the caller reports one, else the loaded extent. The bytes were scanned whole; the reading may not have finished, and the void says which.
+        const unread = Array.isArray(hyperlexiconUnread) && hyperlexiconUnread.length ? hyperlexiconUnread[0] : null;
+        const extent = (chunks.length ? chunks : passages).length;
+        const scope = { sources: sourcesRead, read: unread ? Number(unread.read) || 0 : extent, total: unread ? Number(unread.total) || extent : extent };
+        const r = hyperlexicon.declareVoid(beliefNotes, { end1: name, label: "appears", end2: null, scope, because: `asked about and not found in the material's vocabulary (${sourcesRead.length} source${sourcesRead.length === 1 ? "" : "s"}; ${scope.read} of ${scope.total} parts read${scope.read >= scope.total ? ", all of it" : " so far"})` });
         if (r?.log) beliefNotes = r.log;
         voidsDeclared.push({ name, refused: r?.refused?.type ?? null });
       } catch (e) { voidsDeclared.push({ name, refused: `threw: ${e?.message ?? e}` }); }
@@ -3156,6 +3161,7 @@ export async function runHolonicTask({
   // in the chain's own shape. Handed down to every part, and what each part
   // learns comes back out on `learned` for the caller to append and persist.
   learnedStore = [],
+  language = "en", // the question's declared language for dialogue.js's question-side triggers (S39): another language is a typed gap on the record, never a silent non-match
   learnedSince = null, // dialogue.js::ownedRows — corrections learned at or after this timestamp are THIS conversation's own, and the record owns them on the answer
   // The conversation's own record (P128), threaded to every part.
   transcript = [],
@@ -3377,7 +3383,7 @@ export async function runHolonicTask({
       foldedRefs: seenRefs,
       passagesPerPart,
       maxCorrections,
-      learnedStore, learnedSince,
+      learnedStore, learnedSince, language,
       transcript,
       resolutions, dmdWindow, conversationIndex, records, material, mentionBook,
       math,

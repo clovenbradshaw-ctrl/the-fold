@@ -1,10 +1,11 @@
 # Ground, Figure, Pattern — the addressed, the addressless, and the meta
 
 A spec to develop, fully, what the relative-address experiment found on
-2026-09-07. Status at writing: the experiment is measured and its two pure
-modules and seven tests are on `main`; nothing is wired into the page. The
-passes below take it from an experiment to an organ, in the order the
-measurements justify, each with its own null and its own exit.
+2026-09-07, and — added the same day — to turn the meta part from an
+auditor into an author. Status at writing: the experiment is measured and
+its two pure modules and seven tests are on `main`; nothing is wired into
+the page. The passes below take it from an experiment to an organ, in the
+order the measurements justify, each with its own null and its own exit.
 
 The system has three parts, and they are the three grains.
 
@@ -90,6 +91,10 @@ address it minted if any. It is appended, never applied in place.
 - **P2.** *Moved* is never reported as *gone*, and *gone* is never papered over. `apart` is a typed gap on the record, and in the deletion run it named exactly the deleted probes and nothing else. That property is the exit test of Pass 34.
 - **P3.** The meta part never replaces a retrieval path silently. Where the figure is used to find material for a turn (Pass 35) it is one witness among the others, its disagreements typed, its contribution scored prequentially — the same discipline every witness already lives under.
 - **P4.** Text in the field's store has the record's own status: local, in the browser's private file system, and sealed under the chat key when it travels to a room (Pass 39). Nothing in the field is ever sent in the clear.
+- **A1.** The expectation for a turn is composed only from the record, the sources, the priors and the voids — never from the model. The model is the mouth; the ledger is the author.
+- **A2.** The expectation is on the record *before* the draft, as a `propose` at grain Figure with `operator_basis: derived`, resting on the addresses and priors it was built from. The diff is taken against something written down, never against something remembered.
+- **A3.** The self tier stays open. A claim the mouth adds that the expectation did not hold is never suppressed: it is cited as the model's own until a witness binds it, and it is the only channel through which novelty enters short of material arriving. Error is how the author learns.
+- **A4.** Precision is the tier, never a chosen weight. Error against a bound expectation is a strong signal; error against a self-tier expectation is expected and cheap. No number is set by hand.
 
 ## 3. Cells and the registry
 
@@ -261,6 +266,79 @@ browser above the band.
 *Not claimed.* That the field replaces the chain. The chain is the room's
 ground; the field is its figure.
 
+### Pass 40 — the expectation before the draft
+
+The turn today runs question, retrieval, draft, witnesses, ladder, surprise:
+the expectation is computed after the draft and used to grade it. This pass
+runs the same organs in the other order, so that prediction authors and the
+mouth renders.
+
+*Build.* `expect(question)`: the referent index names the passages the
+question's words reach; derivation contributes its products with what they
+rest on; the priors contribute their claims, provenance and toggle state;
+the void brief contributes what is absent and the scope it was absent in.
+The result is a structured expected answer — `{ claims: [{ text, at,
+tier, restsOn }], voids, shape }` — appended to the record first (A2), then
+rendered into the prompt's ground block in place of bare passages. Where
+the preflight already generates ground on nothing, it runs first and feeds
+the same composer. Where the mechanical turn can render the expectation
+without a model, it does, and the mouth is not called.
+*Measure.* Per turn: the expectation's size, its tiers, its cost, and how
+often it is empty. Per stream: how the size grows as reading accumulates.
+*Null.* An expectation composed from a *shuffled* record — the same entries
+under random adjacency and order — run through Pass 41's diff on the same
+answers. The true expectation must produce fewer novel claims than the
+shuffled one, or the composition is noise and the pass stops.
+*Exit.* Every grounded turn carries an expectation on the record before its
+draft, and the null resolves.
+*Not claimed.* Better answers yet. Only that the ledger now speaks first.
+
+### Pass 41 — the diff as the error signal
+
+*Build.* `error(expectation, answer)`: each claim in the answer is
+*matched* (expected and said), *novel* (said, not expected), or
+*contradicted* (said against an expectation — a dispute on the record); each
+expected claim unsaid is *missing* (the mouth dropped something grounded,
+reported as such). Novel claims are scored against a null — what an answer
+of that length matches in the record by chance — and carry the tier of
+whatever they land on. The witnesses spend their budget on novel and
+contradicted claims only; matched claims at a bound tier cost nothing to
+check, because the expectation already carried their addresses. A void the
+answer fills is a novel claim at self tier by construction: the void-not-fed
+failure becomes a diff line before any witness runs.
+*Measure.* Per turn: the four counts; witness calls spent, against the calls
+the same turn spends today; the answer's ground tiers, scored prequentially
+against today's. Over a long stream: all of it by turn index.
+*Null.* A random expectation — claims sampled from the record at the same
+size — on the same answers. The diff must resolve (II.23): the true
+expectation must yield fewer novel and more matched claims than the random
+one, or the diff is not measuring what it claims to.
+*Exit.* Witness calls fall while ground tiers do not fall, over at least one
+long stream; every diff is on the record as an `evidence` entry resting on
+the expectation and the answer.
+*Not claimed.* That fewer calls means a cheaper turn overall — composing
+the expectation has a cost, measured in Pass 40 and added here.
+
+### Pass 42 — the error updates the record, and the authorship ratio
+
+*Build.* A novel claim a witness binds becomes a ledger entry as it does
+today; a confirmed surprise updates the learned priors, which already exist;
+a claim that keeps matching raises its prior's precision; a void a bound
+claim fills is re-zeroed at the door, as it is today. And one new number on
+the record per turn: the *authorship ratio* — the share of the answer's
+claims the expectation authored against the share the mouth added.
+*Measure.* The ratio over the long-stream fixtures, by turn index, per
+stream. As reading accumulates the record should author more of each
+answer. If the ratio does not rise, the reading is not becoming knowledge,
+and the number says so.
+*Null.* The ratio under a shuffled record, and under no reading at all (the
+priors alone). A rise that the shuffled record also shows is not learning.
+*Exit.* The ratio is on the record for every turn and rises beyond the null
+on at least one long stream — or does not, and that is the finding, written
+down.
+*Not claimed.* Anything about the model. Its weights do not change; what
+learns is the record.
+
 ## 5. Shapes
 
 A field store row (no positions):
@@ -289,13 +367,21 @@ Gap types, all typed, none silent: `address_malformed`, `source_absent`,
 - Binding measured against random binding and kept or dropped on that (37).
 - The meta part scored on its own repairs (38).
 - The room's ground repaired by the room's figure with no readable byte leaving (39).
+- The expectation on the record before every grounded draft, beating a shuffled record (40).
+- The diff as the error signal: witnesses spend only on error, tiers hold, every diff recorded (41).
+- The error updating the record, and an authorship ratio that rises beyond the null, or is shown not to (42).
 
 ## 7. Not in scope, and said
 
-Prediction as author (letting the record produce an expected answer before
-the model speaks, and scoring the model against it) is the deeper
-brain-likeness the earlier assessment named; it is a separate program and
-touches the void work, not this one. A global workspace among the witnesses,
-and consolidation of episodes into schemas, likewise. The model's weights do
-not change anywhere in this spec: the addressless mouth stays as it is, and
-what becomes addressless is memory.
+Prediction as author was first written here as a separate program. That
+was wrong, and the correction is Passes 40–42: every organ it needs — the
+referent index, derivation, the priors, the void brief, the preflight,
+prequential scoring, the ladder's tiers as precision — already exists, and
+what was missing was the order of the turn and one feedback path. It is a
+reordering of this program, not another one.
+
+Still out: a global workspace among the witnesses (Pass 41 lets them spend
+on error, which is a step toward competition but not a broadcast), and
+consolidation of episodes into schemas. The model's weights do not change
+anywhere in this spec: the addressless mouth stays as it is; what becomes
+addressless is memory, and what learns is the record.

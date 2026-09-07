@@ -1424,7 +1424,9 @@ export async function runPart({
     // find, said with its scope — how many sources, how far read — as an
     // open gap the first arrival cancels. The mouth relays a declared void;
     // it never declares one (THE-NULL-STATES, law 6).
-    const voidRows = Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids.filter((v) => v && v.subject && v.verb).map((v) => ({ ...v, object: v.object ?? "?" })) : [];
+    // The caller's voids when it hands some (app.js's voidsNow); otherwise the LEDGER's own declared voids — a void the turn itself declared last time reaches the mouth this time (P105, closed for callers that hand none, 2026-09-07).
+    const voidSource = Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []);
+    const voidRows = Array.isArray(voidSource) ? voidSource.filter((v) => v && v.subject && v.verb).map((v) => ({ ...v, object: v.object ?? "?" })) : [];
     const voids = voidRows.length
       ? proposeCandidates(voidRows, String(question ?? ""), { limit: voidRows.length, featuresOfSource: questionFeatures })
           .sort((a, b) => b.shared - a.shared)
@@ -2123,7 +2125,7 @@ export async function runPart({
   // posture), never as an instruction about the apparatus.
   const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
   // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
-  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) ? hyperlexiconVoids : [], records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
+  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
   const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
   const executeMessages = passages.length
     ? flat
@@ -2801,8 +2803,27 @@ export async function runPart({
   const bound = referentIndex ? bindAnaphora(task || question, lastTurn, referentIndex) : null;
   const qRefs = bound ? { ...bound.own, ids: new Set([...bound.own.ids, ...(bound.own.ids.size ? [] : bound.ids.slice(0, 1))]) } : null;
   let addressed = referentIndex ? null : { gap: "no_referent_index", detail: "the turn was handed no makeReferentIndexFor; the address check needs the material's own referents" };
-  const absence = qRefs ? absenceOf(qRefs, passages) : { absent: [], unestablished: [], line: "" };
+  // The absence veto runs over the WHOLE loaded material, never the three
+  // passages in front of the turn: a name a rare paragraph carries is
+  // unestablished, not absent. And an absent name is DECLARED A VOID on the
+  // ledger (P105's organ) with the material as its scope, so the next turn
+  // that names it is handed "looked for and not found so far" before it
+  // drafts — awareness that changes what the mouth is given, not a line the
+  // reader sees (user, 2026-09-07: "awareness in a way that makes future
+  // mistakes less likely").
+  const absence = qRefs ? absenceOf(qRefs, chunks.length ? chunks : passages) : { absent: [], unestablished: [], line: "" };
   const absent = absence.line;
+  const voidsDeclared = [];
+  if (absence.absent.length && hyperlexicon?.declareVoid && beliefNotes) {
+    const sourcesRead = [...new Set((chunks.length ? chunks : passages).map((c) => c?.source ?? String(c?.ref ?? "").split("#")[0]).filter(Boolean))];
+    for (const name of absence.absent) {
+      try {
+        const r = hyperlexicon.declareVoid(beliefNotes, { end1: name, label: "appears", end2: null, scope: { sources: sourcesRead, read: (chunks.length ? chunks : passages).length, total: (chunks.length ? chunks : passages).length }, because: `asked about and not found in the material (${sourcesRead.length} source${sourcesRead.length === 1 ? "" : "s"}, all read)` });
+        if (r?.log) beliefNotes = r.log;
+        voidsDeclared.push({ name, refused: r?.refused?.type ?? null });
+      } catch (e) { voidsDeclared.push({ name, refused: `threw: ${e?.message ?? e}` }); }
+    }
+  }
   if (qRefs?.ids.size && String(text ?? "").trim()) {
     // Recorded on every draft — a mechanical one (verbatim quotes shipped as
     // quotes) included; only the RE-ASK needs a mouth that drafted.
@@ -3023,8 +3044,8 @@ export async function runPart({
   if (position) text = `${position.text}\n\n${text}`.trim();
   if (absent) text = `${text}\n\n${absent}`.trim();
   // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
+  // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
   const owned = ownedRows(learnedRows, { since: learnedSince });
-  if (owned.length) text = `${text}\n\n${ownedLine(owned)}`;
   if (selfRows.length) text = `${text}\n\n${contradictionLine(selfRows)}`;
   onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
@@ -3034,7 +3055,8 @@ export async function runPart({
     passages,
     corrections,
     ...(addressed ? { addressed } : {}),
-    ...(owned.length ? { owned: owned.map((e) => ({ claimed: e.claimed, corrected: e.corrected, ts: e.ts ?? null })) } : {}),
+    ...(owned.length ? { owned: owned.map((e) => ({ claimed: e.claimed, corrected: e.corrected, ts: e.ts ?? null, line: ownedLine([e]) })) } : {}),
+    ...(voidsDeclared.length ? { voidsDeclared } : {}),
     ...(retrieval ? { retrieval } : {}),
     ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
@@ -3536,6 +3558,7 @@ export async function runHolonicTask({
     ...(sections.some((x) => x.repeatedKnownFalse?.length) ? { repeatedKnownFalse: sections.flatMap((x) => x.repeatedKnownFalse ?? []) } : {}),
     ...(sections.some((x) => x.recalledTurns?.length) ? { recalledTurns: [...new Set(sections.flatMap((x) => x.recalledTurns ?? []))] } : {}),
     // dialogue.js (2026-09-07): the conversation's loops, aggregated over the parts
+    ...(sections.some((x) => x.voidsDeclared) ? { voidsDeclared: sections.flatMap((x) => x.voidsDeclared ?? []) } : {}),
     ...(sections.some((x) => x.owned) ? { owned: sections.flatMap((x) => x.owned ?? []) } : {}),
     ...(sections.some((x) => x.retrieval) ? { retrieval: sections.filter((x) => x.retrieval).map((x) => ({ part: x.part?.label ?? null, ...x.retrieval })) } : {}),
     ...(sections.some((x) => x.resolutions) ? { resolutions: sections.filter((x) => x.resolutions).map((x) => ({ part: x.part?.label ?? null, ...x.resolutions })) } : {}),

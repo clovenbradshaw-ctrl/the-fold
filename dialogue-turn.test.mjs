@@ -140,3 +140,22 @@ test("COMPRESSION: at level 2 the raw passages leave the prompt and the snips st
   assert.match(forced.sys, new RegExp(raw), "the additive control keeps the passages");
   assert.equal(forced.r.resolutions[0].handed, "passages");
 });
+
+test("AWARENESS THAT CHANGES THE NEXT TURN: a name the whole material lacks is declared a VOID on the ledger, and a later turn naming it is handed 'looked for and not found so far' before it drafts; the owning line is on the record, not on the answer", async () => {
+  const TL = await import("../eoreader7/native/kernel/task-log.js");
+  const cube = await import("../eoreader7/native/kernel/cube.js");
+  const { makeHyperlexicon } = await import("../eoreader7/native/organs/hyperlexicon.js");
+  const hl = makeHyperlexicon({ createTaskLog: TL.createTaskLog, append: TL.append, projectTasks: TL.projectTasks, ENTRY_KINDS: TL.ENTRY_KINDS, OPERATOR_BASIS: TL.OPERATOR_BASIS, GRAINS: cube.GRAINS, cellOf: cube.cellOf });
+  const seen = [];
+  const first = await runHolonicTask({ task: "What does the book say about Marmeladov?", chunks, planMode: "flat", hyperlexicon: hl, hyperlexiconLog: hl.createHyperlexicon(), call: async (m) => { seen.push(m); return "The novel is about guilt."; }, ...organs });
+  assert.equal(first.addressed[0].resolvedOn, "absence");
+  assert.deepEqual(first.voidsDeclared.map((v) => [v.name, v.refused]), [["Marmeladov", null]], "the absence is declared a void on the ledger");
+  const voids = hl.foldVoids ? hl.foldVoids(first.hyperlexiconLog) : null;
+  if (voids) assert.ok(voids.some((v) => /marmeladov/i.test(v.subject ?? v.end1 ?? "")), "the ledger holds the void");
+  const again = [];
+  const second = await runHolonicTask({ task: "Tell me more about Marmeladov.", chunks, planMode: "flat", hyperlexicon: hl, hyperlexiconLog: first.hyperlexiconLog, hyperlexiconVoids: voids ?? [], call: async (m) => { again.push(m); return "The sources here do not mention Marmeladov."; }, ...organs });
+  const sys = again.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n");
+  assert.match(sys, /looked for and not found so far/i, "the next turn is handed the void before it drafts");
+  assert.match(sys, /Marmeladov/);
+  assert.doesNotMatch(String(second.output), /Earlier in this conversation an answer held/, "no owning line on the answer");
+});

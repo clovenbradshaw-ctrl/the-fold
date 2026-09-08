@@ -272,13 +272,15 @@ import { narrateVoid, noSlotLine } from "./void-narration.js";
 // void's narrated paragraphs and the run log as the turn's face. The ledger
 // is a kernel task log like the hyperlexicon and the grid, persisted the
 // same way; the cards are its projection at a (conversation, turn).
-import { makeLoops, foldLoops, cardsFor, lineFor, stateWord, trailLine, loopId, loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings, subjectOf, loopsFromQuestion, closingsFromDraft, readerNotesFor, turnAtSeq } from "./loops.js";
+import { makeLoops, foldLoops, cardsFor, lineFor, stateWord, trailLine, eotFor, eotStep, loopId, loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings, subjectOf, loopsFromQuestion, closingsFromDraft, readerNotesFor, turnAtSeq } from "./loops.js";
 import { declaredForm as declaredFormOf, declaredGenre } from "./shape.js";
 // The holograph (holograph.js): the conversation as the record holds it,
 // drawn — the whole, its referents, their loops and gaps; a referent
 // re-expands to everything that holds it. `namesIn` is ground-ladder.js's
 // own names organ, the same one dialogue.js resolves candidates with.
-import { holographOf, rowsFor, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
+import { holographOf, rowsFor, flattenRows, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
+import { run as runQuery, say as sayQuery } from "./eoql.js";
+import { graphOf, place as placeGraph, draw as drawGraph } from "./holograph-graph.js";
 import { namesIn } from "./ground-ladder.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
@@ -890,7 +892,8 @@ function renderLoopCards(el, { turn, convo }) {
   d.className = "loops-fold";
   d.open = wasOpen;
   const sm = document.createElement("summary");
-  sm.textContent = `loops · ${bits.join(" · ")}`;
+  // In the notation the line is the arrows and their counts, nothing else.
+  sm.textContent = viewMode === "eot" ? Object.entries(LOOP_MARKS).filter(([st]) => tally[st]).map(([st, g]) => `${g}${tally[st]}`).join(" ") || "∅" : `loops · ${bits.join(" · ")}`;
   d.append(sm);
   // Closed cards fold to one line each; open, contested and refused ones
   // stand at full height. The order is the chain's, never "most
@@ -899,13 +902,14 @@ function renderLoopCards(el, { turn, convo }) {
   if (standing.length) {
     const p = document.createElement("p");
     p.className = "loops-standing";
-    p.textContent = `${standing.length} loop${standing.length === 1 ? "" : "s"} still open from earlier turns`;
+    p.textContent = viewMode === "eot" ? `⇒${standing.length} ⟵ ${[...new Set(standing.map((l) => l.turn))].sort((a, b) => a - b).map((t) => `t${t}`).join(" ")}` : `${standing.length} loop${standing.length === 1 ? "" : "s"} still open from earlier turns`;
     d.append(p);
   }
   el.append(d);
 }
 
-const LOOP_MARKS = Object.freeze({ open: "○", closed: "●", refused: "⊘", contested: "◐", waived: "–" });
+// A loop's mark is its ARROW (loops.js LOOP_GLYPHS): ○ and ● belong to SIG and INS.
+const LOOP_MARKS = Object.freeze({ open: "⇒", closed: "⇐", refused: "⇏", contested: "⇔", waived: "–" });
 /**
  * One card. Its head is one line — the mark, what the loop asks, and (for a
  * closed loop) what closed it, right there; the state word only when it is
@@ -920,37 +924,49 @@ function loopCard(c, { expanded = false } = {}) {
   const head = document.createElement("div");
   head.className = "loop-head";
   head.title = "press for this loop's trail, a note, or reopen";
-  const mark = document.createElement("span");
-  mark.className = "loop-mark";
-  mark.textContent = LOOP_MARKS[c.state] ?? "○";
-  const ask = document.createElement("span");
-  ask.className = "loop-ask";
-  ask.textContent = c.asks;
-  head.append(mark, ask);
-  const line = lineFor(c);
-  if (c.state === "closed" || c.state === "waived") {
-    const inl = document.createElement("span");
-    inl.className = "loop-inline";
-    inl.textContent = ` — ${line.replace(/\.$/, "")}`;
-    head.append(inl);
-  }
-  const bits = [];
-  if (c.state !== "closed") bits.push(stateWord(c));
-  else if (c.ring > 1) bits.push(`round ${c.ring}`);
-  if (c.carried) bits.push(c.convo != null && c.convo !== convoNow() ? "from another conversation" : `from turn ${c.turn}`);
-  if (c.authored === "model") bits.push("the model's own part");
-  if (bits.length) {
-    const st = document.createElement("span");
-    st.className = "loop-state";
-    st.textContent = bits.join(" · ");
-    head.append(st);
+  const eot = viewMode === "eot";
+  if (eot) {
+    // The notation: one line — glyph, arrow, value. The sentence is one
+    // hover away (a refusal's reason lives there), never on the face.
+    const line = document.createElement("span");
+    line.className = "loop-eot";
+    line.textContent = eotFor(c);
+    line.title = `${c.asks} — ${lineFor(c)}`;
+    head.append(line);
+    if (c.carried) { const st = document.createElement("span"); st.className = "loop-state"; st.textContent = `← t${c.turn}`; head.append(st); }
+  } else {
+    const mark = document.createElement("span");
+    mark.className = "loop-mark";
+    mark.textContent = LOOP_MARKS[c.state] ?? "⇒";
+    const ask = document.createElement("span");
+    ask.className = "loop-ask";
+    ask.textContent = c.asks;
+    head.append(mark, ask);
+    const line = lineFor(c);
+    if (c.state === "closed" || c.state === "waived") {
+      const inl = document.createElement("span");
+      inl.className = "loop-inline";
+      inl.textContent = ` — ${line.replace(/\.$/, "")}`;
+      head.append(inl);
+    }
+    const bits = [];
+    if (c.state !== "closed") bits.push(stateWord(c));
+    else if (c.ring > 1) bits.push(`round ${c.ring}`);
+    if (c.carried) bits.push(c.convo != null && c.convo !== convoNow() ? "from another conversation" : `from turn ${c.turn}`);
+    if (c.authored === "model") bits.push("the model's own part");
+    if (bits.length) {
+      const st = document.createElement("span");
+      st.className = "loop-state";
+      st.textContent = bits.join(" · ");
+      head.append(st);
+    }
   }
   head.addEventListener("click", () => card.classList.toggle("expanded"));
   card.append(head);
-  if (c.state !== "closed" && c.state !== "waived") {
+  if (!eot && c.state !== "closed" && c.state !== "waived") {
     const ln = document.createElement("div");
     ln.className = "loop-line";
-    ln.textContent = line;
+    ln.textContent = lineFor(c);
     card.append(ln);
   }
   const more = document.createElement("div");
@@ -967,7 +983,7 @@ function loopCard(c, { expanded = false } = {}) {
     const row = document.createElement("div");
     row.className = `loop-step${h.prompt ? " reader" : ""}`;
     const sameTurn = h.turn != null && h.turn === lastTurn;
-    row.textContent = trailLine(h, { showTurn: !sameTurn });
+    row.textContent = viewMode === "eot" ? eotStep(h) : trailLine(h, { showTurn: !sameTurn });
     lastTurn = h.turn ?? lastTurn;
     trail.append(row);
   }
@@ -1099,26 +1115,76 @@ function holographModel() {
 // The rows a person has drilled open, by row key — kept across redraws so
 // the cursor and the turn's own landings never fold what was opened.
 const holographOpen = new Set();
+// VISUAL vs TEXT (user, 2026-09-08: "we do want a mode that is visual vs
+// text — we are losing so much to verbiage; why don't we put it essentially
+// in EOT?"). One setting for the cards and the holograph, kept across
+// reloads: "eot" says every loop in the notation (glyph, cell, name, value),
+// "text" in sentences. Neither is stored on a loop — both are projections.
+// The notation is the default (user, 2026-09-08, on the cards: "do EOT in
+// here too"); text is one press away, and the choice is kept.
+let viewMode = (() => { try { return localStorage.getItem("fold-view-mode") === "text" ? "text" : "eot"; } catch { return "eot"; } })();
+function setViewMode(mode) {
+  viewMode = mode === "eot" ? "eot" : "text";
+  try { localStorage.setItem("fold-view-mode", viewMode); } catch { /* a private window keeps it for the session */ }
+  document.body.classList.toggle("view-eot", viewMode === "eot");
+  for (const b of document.querySelectorAll(".view-toggle")) b.textContent = viewMode === "eot" ? "text" : "eot";
+  for (const el of document.querySelectorAll(".loops")) if (el.dataset.turn) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
+  renderHolograph();
+}
+document.body.classList.toggle("view-eot", viewMode === "eot");
+// THE HOLOGRAPH'S OWN MODE — a GRAPH or ROWS (user, 2026-09-08: "no, visual
+// SHOULD be like a visual graph"). Kept apart from the notation (`viewMode`,
+// eot or text), which decides how a node or a row is labelled in either.
+// The query is held for the session, never stored; positions are kept
+// across redraws so a referent stays where it was when the rung changes.
+let holographMode = (() => { try { return localStorage.getItem("fold-holograph-mode") === "rows" ? "rows" : "graph"; } catch { return "graph"; } })();
+let holographQuery = "";
 function renderHolograph({ pick = holographPick, level = holographLevel } = {}) {
   const host = $("holograph-rows");
   if (!host) return;
   holographLevel = HOLOGRAPH_LEVELS.some((l) => l.key === level) ? level : "link";
   const levels = $("holograph-levels");
   if (levels && !levels.children.length) {
-    // A vertical ladder reads top-down: the highest rung first. The rung's
-    // plain reading rides its title; the rung's name is the only canon shown.
+    // A vertical ladder reads top-down: the highest rung first. Each rung by
+    // its REAL NAME — the terrain (user, 2026-09-08: "let's just use the real
+    // names of the terrains", after asking for a plain one and seeing both).
+    // The plain name and the rung's reading ride the hover, so the ladder
+    // stays a ladder and nothing is lost.
     for (const l of [...HOLOGRAPH_LEVELS].reverse()) {
       const b = document.createElement("button");
-      b.type = "button"; b.className = "seg"; b.dataset.level = l.key; b.textContent = l.key; b.title = l.reads;
+      b.type = "button"; b.className = "seg"; b.dataset.level = l.key; b.title = `${l.name} — ${l.reads}`;
+      b.textContent = l.key;
       b.addEventListener("click", () => renderHolograph({ level: l.key }));
       levels.append(b);
     }
   }
   for (const b of levels?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.level === holographLevel);
+  const modes = $("holograph-mode");
+  if (modes && !modes.children.length) {
+    for (const [m, label, title] of [["graph", "visual", "a graph: what stands at this rung as nodes, tied by what they hold — press a node to drill it"], ["rows", "text", "rows that drill"]]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "seg"; b.dataset.hmode = m; b.textContent = label; b.title = title;
+      b.addEventListener("click", () => { holographMode = m; try { localStorage.setItem("fold-holograph-mode", m); } catch { /* kept for the session */ } renderHolograph(); });
+      modes.append(b);
+    }
+  }
+  for (const b of modes?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.hmode === holographMode);
+  document.body.classList.toggle("view-eot", viewMode === "eot");
   const cursor = $("holograph-cursor");
   if (cursor && !cursor.dataset.wired) {
     cursor.dataset.wired = "1";
     cursor.addEventListener("input", () => { holographCursorPinned = Number(cursor.value) < Number(cursor.max); renderHolograph(); });
+  }
+  // THE QUERY BAR (user, 2026-09-08: "search for terms, filter, enter EOT
+  // commands to essentially SQL what we want to see"): a bare word scans, an
+  // operator's glyph or keyword begins an act (eoql.js). Live as it is typed;
+  // Escape clears it.
+  const q = $("holograph-query");
+  if (q && !q.dataset.wired) {
+    q.dataset.wired = "1";
+    let pending = null;
+    q.addEventListener("input", () => { holographQuery = q.value; clearTimeout(pending); pending = setTimeout(() => renderHolograph(), 120); });
+    q.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); holographQuery = q.value; renderHolograph(); } else if (ev.key === "Escape") { q.value = ""; holographQuery = ""; renderHolograph(); } });
   }
   const model = holographModel();
   const { max, atSeq } = holographAt();
@@ -1129,7 +1195,51 @@ function renderHolograph({ pick = holographPick, level = holographLevel } = {}) 
   const placesOf = (r) => { const needle = fold(r.name); if (needle.length < 3) return []; return liveChunks().filter((c) => fold(c.text).includes(needle)).slice(0, 12).map((c) => ({ ref: c.ref, text: c.text })); };
   holographPick = pick;
   if (pick && typeof pick === "string") { const r = model.referents.find((x) => fold(x.name) === fold(pick) || fold(x.name).includes(fold(pick))); if (r) holographOpen.add(r.key); }
-  host.replaceChildren(rowsList(rowsFor(model, holographLevel, { placesOf }), 0));
+  const rows = rowsFor(model, holographLevel, { placesOf, mode: viewMode });
+  const note = $("holograph-query-note");
+  let shown = rows, flat = false;
+  const qText = holographQuery.trim();
+  if (qText) {
+    // A query runs over every row of the rung with its parts (depth 2), so a
+    // loop under a referent is found by its own words.
+    const res = runQuery(qText, flattenRows(rows, { depth: 2 }));
+    if (res.refused) { if (note) note.textContent = `⇏ ${res.refused.detail}`; shown = []; }
+    else { if (note) note.textContent = `${sayQuery({ acts: res.acts })} ⇒ ×${res.rows.length}`; shown = res.rows; flat = true; }
+  } else if (note) note.textContent = "";
+  host.replaceChildren(holographMode === "graph" ? graphView(host, shown, { flat }) : rowsList(shown, 0));
+}
+// How many nodes a rung may draw before it stops opening parts nobody asked
+// it to open. Declared (P9), not measured: past this the picture is a mist
+// and the list mode is the honest face.
+const GRAPH_AUTO_NODES = 60;
+/**
+ * The rows drawn as a graph: the rung's own rows, their parts beside them
+ * where a row stands open — and, while the rung is small enough to draw,
+ * ONE level of parts for every row, because a rung of referents alone has
+ * no ties to draw and reads as a scatter (measured live, 2026-09-08). What
+ * is added is exactly what a press would open in the list; nothing is
+ * inferred, and past the budget only what was actually opened is drawn.
+ */
+function graphView(host, rows, { flat = false } = {}) {
+  const partsOf = (r) => { try { return r.drill() ?? []; } catch { return []; } };
+  const openFlat = (list, depth, parent, out, auto) => { for (const r of list ?? []) { out.push({ ...r, depth, parent }); const opened = holographOpen.has(r.key); if (typeof r.drill === "function" && (opened || (auto && depth === 0))) openFlat(partsOf(r), depth + 1, r.key, out, opened && auto); } return out; };
+  const auto = !flat && rows.reduce((n, r) => n + 1 + (typeof r.drill === "function" ? partsOf(r).length : 0), 0) <= GRAPH_AUTO_NODES;
+  const list = (flat ? rows : openFlat(rows, 0, null, [], auto)).filter((r) => r.kind !== "empty");
+  const wrap = document.createElement("div");
+  wrap.className = "hg-graph-wrap";
+  if (!list.length) { const e = document.createElement("div"); e.className = "hg-row hg-empty"; e.textContent = viewMode === "eot" ? "∅" : "nothing here"; wrap.append(e); return wrap; }
+  const g = graphOf(list, { open: holographOpen });
+  const width = Math.max(300, host.clientWidth || 600);
+  // A line per node, tall enough for a node's two lines of text and air; the
+  // frame grows downward with the rows and the pane scrolls. Nothing is
+  // rescaled to fit, so nothing is ever too small to read.
+  const placed = placeGraph(g, { width, rowHeight: 30, indent: 16 });
+  wrap.append(drawGraph(document, g, placed, { onPick: (row) => {
+    if (row.at && !String(row.at).startsWith("turn:") && typeof row.drill !== "function") { reopen(row.at); return; }
+    if (holographOpen.has(row.key)) holographOpen.delete(row.key); else holographOpen.add(row.key);
+    renderHolograph();
+  } }));
+  return wrap;
 }
 /** One list of rows; a row with parts is a press that opens them beneath it; a row with an address is a door to the bytes. */
 function rowsList(rows, depth) {
@@ -1164,7 +1274,7 @@ function rowsList(rows, depth) {
     }
     ul.append(li);
   }
-  if (!rows.length) { const li = document.createElement("li"); li.className = "hg-row hg-empty"; li.textContent = "nothing here"; ul.append(li); }
+  if (!rows.length) { const li = document.createElement("li"); li.className = "hg-row hg-empty"; li.textContent = viewMode === "eot" ? "∅" : "nothing here"; ul.append(li); }
   return ul;
 }
 function holographTurn(argstr, typed) {
@@ -7279,6 +7389,7 @@ function addMessage(role, text) {
       ? `<div class="turn-meta">` +
         `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary><p></p></details>` +
         `<button type="button" class="ground-toggle" hidden title="show where each sentence stands — the ground chips, hidden unless asked">ground</button>` +
+        `<button type="button" class="view-toggle" title="the loops in sentences (text) or in the notation (eot) — one setting for every turn and the holograph">${viewMode === "eot" ? "text" : "eot"}</button>` +
         `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
@@ -7286,6 +7397,7 @@ function addMessage(role, text) {
     const on = el.classList.toggle("show-ground");
     ev.currentTarget.textContent = on ? "hide ground" : "ground";
   });
+  el.querySelector(".view-toggle")?.addEventListener("click", () => setViewMode(viewMode === "eot" ? "text" : "eot"));
   if (role === "user" && /^\//.test(text)) {
     const body = el.querySelector(".body");
     const span = document.createElement("span");
@@ -11468,6 +11580,24 @@ function showView(name) {
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
   tab.onclick = () => showView(tab.dataset.pane);
+
+// THE PANEL AT FULL WIDTH (user, 2026-09-08). One class on <body>; the
+// conversation column keeps its own tabs as a rail (index.html carries the
+// rules) so a conversation is still selectable while a panel has the width.
+// Kept across reloads, like every other view preference on this page.
+let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
+function setPanelWide(on) {
+  panelWide = !!on;
+  try { localStorage.setItem("fold-panel-wide", panelWide ? "1" : "0"); } catch { /* a private window keeps it for the session */ }
+  document.body.classList.toggle("panel-wide", panelWide);
+  const b = $("panel-wide");
+  if (b) { b.setAttribute("aria-pressed", String(panelWide)); b.textContent = panelWide ? "⤡" : "⤢"; b.title = panelWide ? "give the conversation its column back" : "give this panel the full width — the conversations stay as a rail on the left"; }
+  // The drawing is measured against the pane it is drawn in, so a width
+  // change is a redraw, not a reflow (holograph-graph.js::place).
+  if (document.body.dataset.view === "holograph") renderHolograph();
+}
+$("panel-wide")?.addEventListener("click", () => setPanelWide(!panelWide));
+setPanelWide(panelWide);
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
 // the panels are already beside it, so start on the reading itself

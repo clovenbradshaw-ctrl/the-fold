@@ -44,7 +44,7 @@
 // is plain words; the rung's name is the only canon on screen, by the
 // user's own ask. Data → rows, both pure; the page draws the rows.
 
-import { lineFor, stateWord, trailLine } from "./loops.js";
+import { lineFor, stateWord, trailLine, eotFor, eotStep, witnessShort, witnessLine, LOOP_GLYPHS, OP_GLYPHS, SOURCE_GLYPHS } from "./loops.js";
 
 const foldText = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/’/g, "'").replace(/'s\b/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
@@ -76,16 +76,21 @@ export function turnsOf(history = []) {
  * plain reading rides each rung so a reader who never met the canon still
  * knows what the picture shows.
  */
+// Each rung carries a PLAIN NAME beside its terrain (user, 2026-09-08:
+// "atmosphere needs some sort of plain language name") — the name is what
+// the ladder shows, the terrain rides beneath it as the one word of canon
+// the user asked to keep. The name says what the rows ARE at that rung,
+// not what the terrain means.
 export const LEVELS = Object.freeze([
-  Object.freeze({ key: "void", domain: "existence", reads: "what is still empty — the loops each turn opened and has not closed, and the gaps declared on the record" }),
-  Object.freeze({ key: "entity", domain: "existence", reads: "who and what is there — the referents the questions asked about and the answers named" }),
-  Object.freeze({ key: "kind", domain: "existence", reads: "what kinds of thing are in play — asked about, named by an answer, or declared a gap" }),
-  Object.freeze({ key: "field", domain: "structure", reads: "the extent — every turn's spans: the sentences it said and the places in the material it stood on" }),
-  Object.freeze({ key: "link", domain: "structure", reads: "what binds question to record — the loops on each referent, and what closed them" }),
-  Object.freeze({ key: "network", domain: "structure", reads: "how the referents compose — which of them share a turn" }),
-  Object.freeze({ key: "atmosphere", domain: "interpretation", reads: "where each referent stands — open, closed, could not close, gaps — in one line" }),
-  Object.freeze({ key: "lens", domain: "interpretation", reads: "what is said about each referent — the line its latest closed loop left" }),
-  Object.freeze({ key: "paradigm", domain: "interpretation", reads: "what recurs — referents met on more than one turn, loops that went round again" }),
+  Object.freeze({ key: "void", name: "gaps", domain: "existence", reads: "what is still empty — the loops each turn opened and has not closed, and the gaps declared on the record" }),
+  Object.freeze({ key: "entity", name: "things", domain: "existence", reads: "who and what is there — the referents the questions asked about and the answers named" }),
+  Object.freeze({ key: "kind", name: "kinds", domain: "existence", reads: "what kinds of thing are in play — asked about, named by an answer, or declared a gap" }),
+  Object.freeze({ key: "field", name: "material", domain: "structure", reads: "the extent — every turn's spans: the sentences it said and the places in the material it stood on" }),
+  Object.freeze({ key: "link", name: "loops", domain: "structure", reads: "what binds question to record — the loops on each referent, and what closed them" }),
+  Object.freeze({ key: "network", name: "company", domain: "structure", reads: "how the referents compose — which of them share a turn" }),
+  Object.freeze({ key: "atmosphere", name: "standing", domain: "interpretation", reads: "where each referent stands — open, closed, could not close, gaps — in one line" }),
+  Object.freeze({ key: "lens", name: "said of", domain: "interpretation", reads: "what is said about each referent — the line its latest closed loop left" }),
+  Object.freeze({ key: "paradigm", name: "recurring", domain: "interpretation", reads: "what recurs — referents met on more than one turn, loops that went round again" }),
 ]);
 
 const sentencesOf = (text, splitSentences) => {
@@ -219,19 +224,48 @@ export function expandReferent(model, name) {
 
 
 /** A row of the holograph: what it is (`kind`), its words (`title`, `meta`, `line`), the address it can re-expand to (`at`), and its parts (`drill`, lazily). */
-const row = (o) => Object.freeze({ kind: "row", meta: null, line: null, at: null, state: null, drill: null, ...o });
-const turnRow = (t, { convo = null } = {}) => row({ kind: "turn", key: `turn:${t.n}`, title: `turn ${t.n}`, meta: t.asked.length > 80 ? `${t.asked.slice(0, 77)}…` : t.asked, line: t.answer ? (t.answer.length > 160 ? `${t.answer.slice(0, 157)}…` : t.answer) : "no answer yet", drill: () => t.spans.map((sp) => row({ kind: "span", key: sp.at, title: sp.text, at: sp.at })).concat(t.refs.map((ref) => row({ kind: "place", key: `${t.n}:${ref}`, title: ref, meta: "a place in the material this answer stood on", at: ref }))) });
-const loopRow = (l) => row({ kind: "loop", key: l.id, title: l.asks, meta: stateWord(l), line: lineFor(l), state: l.state, drill: () => l.history.map((h, i) => row({ kind: "step", key: `${l.id}#${i}`, title: trailLine(h, { showTurn: true }) })) });
-const placeRows = (r, places) => (places ?? []).filter((c) => c).map((c) => row({ kind: "place", key: `${r.key}:${c.ref}`, title: c.ref, meta: c.text ? (c.text.length > 120 ? `${c.text.slice(0, 117)}…` : c.text) : null, at: c.ref }));
-const referentRow = (r, model, { placesOf = null } = {}) => row({
+// A row carries, beside what it shows, the FIELDS a query may select on
+// (`data`, read by eoql.js — kind, state, turn, counts) and the keys of the
+// rows it is tied to (`links`, read by the graph). Neither is shown.
+const row = (o) => Object.freeze({ kind: "row", meta: null, line: null, at: null, state: null, drill: null, data: null, links: null, ...o });
+/** Every row of a rung with its drill opened to `depth`, flat, each row knowing its depth and parent. */
+export function flattenRows(rows, { depth = 2 } = {}) {
+  const out = [];
+  const walk = (list, d, parent) => { for (const r of list ?? []) { out.push(Object.freeze({ ...r, depth: d, parent })); if (d < depth && typeof r.drill === "function") { let kids = []; try { kids = r.drill() ?? []; } catch { kids = []; } walk(kids, d + 1, r.key); } } };
+  walk(rows, 0, null);
+  return out;
+}
+const clip = (t, n) => { const x = String(t ?? "").trim(); return x.length > n ? `${x.slice(0, n - 1)}…` : x; };
+// MODE: "text" says rows in sentences; "eot" says them in the notation —
+// glyph, cell, name, value — and nothing else (user, 2026-09-08: "we are
+// losing so much to verbiage"). Both are projections of one model.
+const turnRow = (t, { mode = "text" } = {}) => row({ kind: "turn", key: `turn:${t.n}`, title: mode === "eot" ? `t${t.n}` : `turn ${t.n}`, meta: mode === "eot" ? `${t.spans.length}⁝${t.refs.length ? ` ${t.refs.length}#` : ""} ${clip(t.asked, 48)}` : clip(t.asked, 80), line: mode === "eot" ? null : (t.answer ? clip(t.answer, 160) : "no answer yet"), data: { turn: t.n, spans: t.spans.length, places: t.refs.length, asked: t.asked }, drill: () => t.spans.map((sp) => row({ kind: "span", key: sp.at, title: mode === "eot" ? `${sp.at.replace(/^turn:/, "t")} ${clip(sp.text, 60)}` : sp.text, at: sp.at, data: { turn: t.n, text: sp.text } })).concat(t.refs.map((ref) => row({ kind: "place", key: `${t.n}:${ref}`, title: ref, meta: mode === "eot" ? null : "a place in the material this answer stood on", at: ref, data: { turn: t.n } }))) });
+const loopRow = (l, { mode = "text" } = {}) => row({ kind: "loop", key: l.id, title: mode === "eot" ? eotFor(l) : l.asks, meta: mode === "eot" ? null : stateWord(l), line: mode === "eot" ? null : lineFor(l), state: l.state, data: { turn: l.turn, state: l.state, op: OP_GLYPHS[l.cell] ?? l.cell, ring: l.ring, asks: l.asks, kind: l.kind, value: witnessShort(l.witness) || null, text: lineFor(l) }, drill: () => l.history.map((h, i) => row({ kind: "step", key: `${l.id}#${i}`, title: mode === "eot" ? eotStep(h) : trailLine(h, { showTurn: true }), data: { turn: h.turn, act: h.act, text: trailLine(h, { showTurn: true }) } })) });
+const placeRows = (r, places) => (places ?? []).filter((c) => c).map((c) => row({ kind: "place", key: `${r.key}:${c.ref}`, title: c.ref, meta: c.text ? (c.text.length > 120 ? `${c.text.slice(0, 117)}…` : c.text) : null, at: c.ref, data: { text: c.text ?? "" } }));
+/** The empty row of a rung: a sentence in text, `∅` in the notation. */
+const emptyRow = (key, text, mode) => row({ kind: "empty", key, title: mode === "eot" ? "∅" : text });
+/** A gap declared on the record, as a row. */
+const gapRow = (v, mode, text) => row({ kind: "gap", key: v.id, title: `${v.subject} —${v.verb}→ ?`, meta: mode === "eot" ? `∅ ⟵ ${SOURCE_GLYPHS.record}` : text, state: "open", data: { state: "open", subject: v.subject, label: v.verb } });
+/** The loops of a referent as glyph counts: ●3 ○1 ⊘1 — the state of it at a glance. */
+const glyphCounts = (loops) => { const c = {}; for (const l of loops) c[l.state] = (c[l.state] ?? 0) + 1; return Object.entries(LOOP_GLYPHS).filter(([st]) => c[st]).map(([st, g]) => `${g}${c[st]}`).join(" "); };
+const tList = (ns) => ns.map((n) => `t${n}`).join(" ");
+const referentRow = (r, model, { placesOf = null, mode = "text" } = {}) => row({
   kind: "referent", key: r.key, title: r.name,
-  meta: [r.declared ? "declared by a question, not yet met by the reading" : null, r.asked.length ? `asked about on turn${r.asked.length === 1 ? "" : "s"} ${r.asked.join(", ")}` : null, r.said.length ? `named in the answer on turn${r.said.length === 1 ? "" : "s"} ${r.said.join(", ")}` : null, r.mentions ? `met ${r.mentions} time${r.mentions === 1 ? "" : "s"} by the reading` : null].filter(Boolean).join(" · ") || null,
-  line: r.loops.length || r.voids.length ? [r.loops.length ? `${r.loops.length} loop${r.loops.length === 1 ? "" : "s"}` : null, r.voids.length ? `${r.voids.length} gap${r.voids.length === 1 ? "" : "s"} on the record` : null].filter(Boolean).join(" · ") : null,
+  data: { name: r.name, declared: !!r.declared, asked: r.asked, said: r.said, turns: [...new Set([...r.asked, ...r.said])].sort((a, b) => a - b), mentions: r.mentions ?? 0, loops: r.loops.length, gaps: r.voids.length, open: r.loops.filter((l) => l.state === "open" || l.state === "contested").length },
+  // What this referent is tied to, by key: its loops, its gaps, and the
+  // turns that asked about it or named it. The graph draws these as edges;
+  // the list draws them as parts. Neither is a new finding — they are the
+  // same ties `drill` already opens.
+  links: [...r.loops.map((l) => l.id), ...r.voids.map((v) => v.id), ...new Set([...r.asked, ...r.said])].map((x) => (typeof x === "number" ? `turn:${x}` : x)),
+  meta: mode === "eot"
+    ? [r.declared ? "◌" : null, r.asked.length ? `? ${tList(r.asked)}` : null, r.said.length ? `≡ ${tList(r.said)}` : null, r.mentions ? `×${r.mentions}` : null, glyphCounts(r.loops) || null, r.voids.length ? `∅${r.voids.length}` : null].filter(Boolean).join("  ") || null
+    : [r.declared ? "declared by a question, not yet met by the reading" : null, r.asked.length ? `asked about on turn${r.asked.length === 1 ? "" : "s"} ${r.asked.join(", ")}` : null, r.said.length ? `named in the answer on turn${r.said.length === 1 ? "" : "s"} ${r.said.join(", ")}` : null, r.mentions ? `met ${r.mentions} time${r.mentions === 1 ? "" : "s"} by the reading` : null].filter(Boolean).join(" · ") || null,
+  line: mode === "eot" ? null : (r.loops.length || r.voids.length ? [r.loops.length ? `${r.loops.length} loop${r.loops.length === 1 ? "" : "s"}` : null, r.voids.length ? `${r.voids.length} gap${r.voids.length === 1 ? "" : "s"} on the record` : null].filter(Boolean).join(" · ") : null),
   drill: () => [
-    ...r.loops.map(loopRow),
-    ...r.voids.map((v) => row({ kind: "gap", key: v.id, title: `${v.subject} — ${v.verb} → ?`, meta: "declared a gap on the record; the first arrival that fills it closes it", state: "open" })),
-    ...r.notes.map((n, i) => row({ kind: "note", key: `${r.key}:note:${i}`, title: `you added: “${n.note}”`, meta: `on ${n.asks}${n.turn != null ? ` · turn ${n.turn}` : ""}` })),
-    ...model.turns.filter((t) => r.asked.includes(t.n) || r.said.includes(t.n)).map((t) => turnRow(t)),
+    ...r.loops.map((l) => loopRow(l, { mode })),
+    ...r.voids.map((v) => gapRow(v, mode, "declared a gap on the record; the first arrival that fills it closes it")),
+    ...r.notes.map((n, i) => row({ kind: "note", key: `${r.key}:note:${i}`, title: mode === "eot" ? `✎ ${n.note}` : `you added: “${n.note}”`, meta: mode === "eot" ? (n.turn != null ? `t${n.turn}` : null) : `on ${n.asks}${n.turn != null ? ` · turn ${n.turn}` : ""}`, data: { turn: n.turn, text: n.note } })),
+    ...model.turns.filter((t) => r.asked.includes(t.n) || r.said.includes(t.n)).map((t) => turnRow(t, { mode })),
     ...placeRows(r, typeof placesOf === "function" ? placesOf(r) : []),
   ],
 });
@@ -241,36 +275,43 @@ const referentRow = (r, model, { placesOf = null } = {}) => row({
  * is the caller's: the passages in the material that hold a referent
  * ({ref, text}), each a door to the bytes.
  */
-export function rowsFor(model, level, { placesOf = null } = {}) {
+export function rowsFor(model, level, { placesOf = null, mode = "text" } = {}) {
   const key = (t) => (model.convo != null ? `${model.convo}:${t}` : String(t));
   const allLoops = [...model.referents.flatMap((r) => r.loops), ...model.whole.loops].filter((l, j, arr) => arr.findIndex((x) => x.id === l.id) === j);
-  const ref = (r) => referentRow(r, model, { placesOf });
+  const ref = (r) => referentRow(r, model, { placesOf, mode });
+  const lr = (l) => loopRow(l, { mode });
+  const tr = (t) => turnRow(t, { mode });
+  const eot = mode === "eot";
   switch (level) {
     case "void": {
       const rows = model.turns.map((t) => {
         const open = allLoops.filter((l) => (l.touched ?? []).includes(key(t.n)) && (l.state === "open" || l.state === "contested"));
-        return row({ kind: "turn", key: `turn:${t.n}`, title: `turn ${t.n} — ${t.asked.length > 70 ? `${t.asked.slice(0, 67)}…` : t.asked}`, meta: open.length ? `${open.length} still open` : "nothing still open", state: open.length ? "open" : "closed", drill: open.length ? () => open.map(loopRow) : null });
+        return row({ kind: "turn", key: `turn:${t.n}`, title: eot ? `t${t.n} ${clip(t.asked, 48)}` : `turn ${t.n} — ${clip(t.asked, 70)}`, meta: eot ? `⇒${open.length}` : (open.length ? `${open.length} still open` : "nothing still open"), state: open.length ? "open" : "closed", data: { turn: t.n, open: open.length, asked: t.asked }, drill: open.length ? () => open.map(lr) : null });
       });
-      const gaps = model.voids.map((v) => row({ kind: "gap", key: v.id, title: `${v.subject} — ${v.verb} → ?`, meta: "a gap declared on the record", state: "open" }));
-      return rows.length || gaps.length ? [...rows, ...gaps] : [row({ kind: "empty", key: "empty", title: "nothing yet" })];
+      const gaps = model.voids.map((v) => gapRow(v, mode, "a gap declared on the record"));
+      return rows.length || gaps.length ? [...rows, ...gaps] : [emptyRow("empty", "nothing yet", mode)];
     }
     case "entity":
-      return model.referents.length ? model.referents.map(ref) : [row({ kind: "empty", key: "empty", title: "no one is here yet — ask about something, or attach material" })];
+      return model.referents.length ? model.referents.map(ref) : [emptyRow("empty", "no one is here yet — ask about something, or attach material", mode)];
     case "kind": {
-      const kindOf = (r) => (r.declared ? "declared by a question" : r.voids.length ? "a gap on the record" : r.asked.length ? "asked about" : "named by an answer");
+      // A kind by how the referent came to be here — in the notation the
+      // glyph of where it came from: ◌ declared by a question, ∅ a gap on the
+      // record, ? asked about, ≡ named by an answer.
+      const KINDS = [["declared", "◌", "declared by a question"], ["gap", "∅", "a gap on the record"], ["asked", "?", "asked about"], ["said", "≡", "named by an answer"]];
+      const kindOf = (r) => (r.declared ? "declared" : r.voids.length ? "gap" : r.asked.length ? "asked" : "said");
       const groups = new Map();
       for (const r of model.referents) { const k = kindOf(r); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
-      return groups.size ? [...groups.entries()].map(([k, rs]) => row({ kind: "group", key: `kind:${k}`, title: k, meta: `${rs.length}`, drill: () => rs.map(ref) })) : [row({ kind: "empty", key: "empty", title: "nothing yet" })];
+      return groups.size ? KINDS.filter(([k]) => groups.has(k)).map(([k, g, text]) => { const rs = groups.get(k); return row({ kind: "group", key: `kind:${k}`, title: eot ? g : text, meta: eot ? `×${rs.length}` : `${rs.length}`, data: { kind: k, count: rs.length }, links: rs.map((r) => r.key), drill: () => rs.map(ref) }); }) : [emptyRow("empty", "nothing yet", mode)];
     }
     case "field": {
-      const srcs = model.sources.map((src) => row({ kind: "source", key: `src:${src.name}`, title: src.name, meta: `${src.bytes.toLocaleString()} bytes${src.total ? ` · ${src.read} of ${src.total} parts read` : " · not read yet"}`, drill: () => { const cited = model.records.flatMap((rc) => rc.refs.filter((x) => String(x).startsWith(`${src.name}#`)).map((x) => ({ ref: x, turn: rc.turn }))); return cited.length ? cited.map((c) => row({ kind: "place", key: `${src.name}:${c.ref}`, title: c.ref, meta: `cited on turn ${c.turn}`, at: c.ref })) : [row({ kind: "empty", key: `${src.name}:none`, title: "no answer has cited into it yet" })]; } }));
-      const turns = model.turns.map((t) => turnRow(t));
-      return srcs.length || turns.length ? [...srcs, ...turns] : [row({ kind: "empty", key: "empty", title: "nothing attached and nothing said yet" })];
+      const srcs = model.sources.map((src) => row({ kind: "source", key: `src:${src.name}`, title: src.name, meta: eot ? `${src.bytes.toLocaleString()}B ${src.total ? `${src.read}/${src.total}` : "∅⁝"}` : `${src.bytes.toLocaleString()} bytes${src.total ? ` · ${src.read} of ${src.total} parts read` : " · not read yet"}`, data: { name: src.name, bytes: src.bytes, read: src.read, total: src.total }, drill: () => { const cited = model.records.flatMap((rc) => rc.refs.filter((x) => String(x).startsWith(`${src.name}#`)).map((x) => ({ ref: x, turn: rc.turn }))); return cited.length ? cited.map((c) => row({ kind: "place", key: `${src.name}:${c.ref}`, title: c.ref, meta: eot ? `t${c.turn}` : `cited on turn ${c.turn}`, at: c.ref, data: { turn: c.turn } })) : [emptyRow(`${src.name}:none`, "no answer has cited into it yet", mode)]; } }));
+      const turns = model.turns.map(tr);
+      return srcs.length || turns.length ? [...srcs, ...turns] : [emptyRow("empty", "nothing attached and nothing said yet", mode)];
     }
     case "link": {
-      const rows = model.referents.filter((r) => r.loops.length || r.voids.length).map((r) => row({ kind: "referent", key: r.key, title: r.name, meta: `${r.loops.length} loop${r.loops.length === 1 ? "" : "s"}${r.voids.length ? ` · ${r.voids.length} gap${r.voids.length === 1 ? "" : "s"}` : ""}`, drill: () => [...r.loops.map(loopRow), ...r.voids.map((v) => row({ kind: "gap", key: v.id, title: `${v.subject} — ${v.verb} → ?`, meta: "a gap on the record", state: "open" }))] }));
-      if (model.whole.loops.length) rows.push(row({ kind: "whole", key: "whole", title: "this conversation as a whole", meta: `${model.whole.loops.length} loop${model.whole.loops.length === 1 ? "" : "s"} on no one referent`, drill: () => model.whole.loops.map(loopRow) }));
-      return rows.length ? rows : [row({ kind: "empty", key: "empty", title: "no loops yet" })];
+      const rows = model.referents.filter((r) => r.loops.length || r.voids.length).map((r) => row({ kind: "referent", key: r.key, title: r.name, meta: eot ? [glyphCounts(r.loops), r.voids.length ? `∅${r.voids.length}` : null].filter(Boolean).join(" ") : `${r.loops.length} loop${r.loops.length === 1 ? "" : "s"}${r.voids.length ? ` · ${r.voids.length} gap${r.voids.length === 1 ? "" : "s"}` : ""}`, data: ref(r).data, links: [...r.loops.map((l) => l.id), ...r.voids.map((v) => v.id)], drill: () => [...r.loops.map(lr), ...r.voids.map((v) => gapRow(v, mode, "a gap on the record"))] }));
+      if (model.whole.loops.length) rows.push(row({ kind: "whole", key: "whole", title: eot ? "⊙" : "this conversation as a whole", meta: eot ? glyphCounts(model.whole.loops) : `${model.whole.loops.length} loop${model.whole.loops.length === 1 ? "" : "s"} on no one referent`, data: { loops: model.whole.loops.length }, links: model.whole.loops.map((l) => l.id), drill: () => model.whole.loops.map(lr) }));
+      return rows.length ? rows : [emptyRow("empty", "no loops yet", mode)];
     }
     case "network": {
       const turnsOfRef = (r) => new Set([...r.asked, ...r.said]);
@@ -278,24 +319,27 @@ export function rowsFor(model, level, { placesOf = null } = {}) {
       for (let i = 0; i < model.referents.length; i += 1) for (let j = i + 1; j < model.referents.length; j += 1) {
         const a = model.referents[i], b = model.referents[j];
         const shared = [...turnsOfRef(a)].filter((t) => turnsOfRef(b).has(t));
-        if (shared.length) pairs.push(row({ kind: "pair", key: `${a.key}&${b.key}`, title: `${a.name} & ${b.name}`, meta: `share turn${shared.length === 1 ? "" : "s"} ${shared.join(", ")}`, drill: () => model.turns.filter((t) => shared.includes(t.n)).map((t) => turnRow(t)) }));
+        if (shared.length) pairs.push(row({ kind: "pair", key: `${a.key}&${b.key}`, title: eot ? `${a.name} ⇄ ${b.name}` : `${a.name} & ${b.name}`, meta: eot ? tList(shared) : `share turn${shared.length === 1 ? "" : "s"} ${shared.join(", ")}`, data: { a: a.name, b: b.name, turns: shared, shared: shared.length }, links: [a.key, b.key], drill: () => model.turns.filter((t) => shared.includes(t.n)).map(tr) }));
       }
-      return pairs.length ? pairs : [row({ kind: "empty", key: "empty", title: model.referents.length > 1 ? "no two of them share a turn yet" : "not enough here to share a turn" })];
+      return pairs.length ? pairs : [emptyRow("empty", model.referents.length > 1 ? "no two of them share a turn yet" : "not enough here to share a turn", mode)];
     }
     case "atmosphere": {
       const st = standingLines(model);
-      return [row({ kind: "whole", key: "whole", title: "this conversation", meta: st.whole, drill: model.whole.loops.length ? () => model.whole.loops.map(loopRow) : null }), ...st.referents.map((x) => { const r = model.referents.find((rr) => rr.name === x.name); return row({ kind: "referent", key: r.key, title: r.name, meta: x.line, drill: r.loops.length ? () => r.loops.map(loopRow) : null }); })];
+      return [row({ kind: "whole", key: "whole", title: eot ? "⊙" : "this conversation", meta: eot ? glyphCounts(model.whole.loops) || "∅" : st.whole, data: { loops: model.whole.loops.length, text: st.whole }, links: model.whole.loops.map((l) => l.id), drill: model.whole.loops.length ? () => model.whole.loops.map(lr) : null }), ...st.referents.map((x) => { const r = model.referents.find((rr) => rr.name === x.name); return row({ kind: "referent", key: r.key, title: r.name, meta: eot ? [glyphCounts(r.loops), r.voids.length ? `∅${r.voids.length}` : null].filter(Boolean).join(" ") || "∅" : x.line, data: { ...ref(r).data, text: x.line }, links: r.loops.map((l) => l.id), drill: r.loops.length ? () => r.loops.map(lr) : null }); })];
     }
     case "lens":
-      return model.referents.length ? model.referents.map((r) => { const closed = [...r.loops].filter((l) => l.state === "closed").sort((p, q) => (q.closedAt ?? 0) - (p.closedAt ?? 0)); const latest = closed[0] ?? null; return row({ kind: "referent", key: r.key, title: r.name, meta: latest ? latest.asks : r.loops.length ? `${r.loops.length} loop${r.loops.length === 1 ? "" : "s"}, none closed yet` : "nothing said of it yet", line: latest ? lineFor(latest) : null, drill: closed.length ? () => closed.map(loopRow) : null }); }) : [row({ kind: "empty", key: "empty", title: "nothing said of anyone yet" })];
+      // What is said of each: the latest closed loop's VALUE on the row (never
+      // its sentence twice — measured live, the sentence repeated under itself);
+      // the loops beneath say the rest.
+      return model.referents.length ? model.referents.map((r) => { const closed = [...r.loops].filter((l) => l.state === "closed").sort((p, q) => (q.closedAt ?? 0) - (p.closedAt ?? 0)); const latest = closed[0] ?? null; return row({ kind: "referent", key: r.key, title: r.name, meta: latest ? (eot ? `${OP_GLYPHS[latest.cell] ?? latest.cell} ⇐ ${witnessShort(latest.witness) || clip(latest.line, 40)}` : `${latest.asks}: ${clip(witnessLine(latest.witness), 60) || clip(latest.line, 60)}`) : (eot ? (r.loops.length ? `⇒${r.loops.length}` : "∅") : (r.loops.length ? `${r.loops.length} loop${r.loops.length === 1 ? "" : "s"}, none closed yet` : "nothing said of it yet")), data: { ...ref(r).data, value: latest ? witnessShort(latest.witness) || null : null, text: latest ? lineFor(latest) : null }, links: closed.map((l) => l.id), drill: closed.length ? () => closed.map(lr) : null }); }) : [emptyRow("empty", "nothing said of anyone yet", mode)];
     case "paradigm": {
       const P = paradigmsOf(model);
       const rows = [
-        ...P.referents.map((r) => row({ kind: "referent", key: r.key, title: r.name, meta: `on ${new Set([...r.asked, ...r.said]).size} turns`, drill: () => ref(r).drill() })),
-        ...P.again.map((l) => row({ kind: "loop", key: l.id, title: l.asks, meta: `went round ${l.ring} times`, line: lineFor(l), state: l.state, drill: loopRow(l).drill })),
-        ...P.kinds.map((k) => row({ kind: "kind", key: `kind:${k.kind}`, title: `a "${k.kind}" loop keeps opening`, meta: `on ${k.turns} turns` })),
+        ...P.referents.map((r) => row({ kind: "referent", key: r.key, title: r.name, meta: eot ? `↻ ${tList([...new Set([...r.asked, ...r.said])].sort((a, b) => a - b))}` : `on ${new Set([...r.asked, ...r.said]).size} turns`, data: ref(r).data, links: [...new Set([...r.asked, ...r.said])].map((n) => `turn:${n}`), drill: () => ref(r).drill() })),
+        ...P.again.map((l) => row({ kind: "loop", key: l.id, title: eot ? eotFor(l) : l.asks, meta: eot ? null : `went round ${l.ring} times`, line: eot ? null : lineFor(l), state: l.state, data: lr(l).data, drill: lr(l).drill })),
+        ...P.kinds.map((k) => row({ kind: "kind", key: `kind:${k.kind}`, title: eot ? `↻ ${k.kind} ×${k.turns}` : `a "${k.kind}" loop keeps opening`, meta: eot ? null : `on ${k.turns} turns`, data: { kind: k.kind, turns: k.turns } })),
       ];
-      return rows.length ? rows : [row({ kind: "empty", key: "empty", title: "nothing recurs yet — one turn has no pattern to show" })];
+      return rows.length ? rows : [emptyRow("empty", "nothing recurs yet — one turn has no pattern to show", mode)];
     }
     default:
       return [];

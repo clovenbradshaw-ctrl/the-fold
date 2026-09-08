@@ -22,7 +22,7 @@ import { namesIn } from "./ground-ladder.js";
 import {
   makeLoops, foldLoops, cardsFor, orderLoops, lineFor, stateWord, loopId, voidKey,
   loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings,
-  subjectOf, loopsFromQuestion, closingsFromDraft,
+  subjectOf, loopsFromQuestion, closingsFromDraft, eotFor, eotStep, witnessShort, ACT_OPS, LOOP_GLYPHS, OP_GLYPHS, SOURCE_GLYPHS,
   BACKSTAGE, BACKSTAGE_WORDS, CELL_ASKS, ACTS, STATES,
 } from "./loops.js";
 
@@ -352,7 +352,7 @@ test("the question's own loops: a poem about batman opens its form (verse, in li
   const by = Object.fromEntries(foldLoops(r.log).map((l) => [l.kind, l]));
   assert.equal(by.form.state, "open"); assert.match(by.form.closesOn, /a poem, in lines/);
   assert.equal(by.subject.state, "open"); assert.match(by.subject.closesOn, /names batman/);
-  assert.equal(by.ground.state, "closed"); assert.match(lineFor(by.ground), /the model's own voice, marked as such — from nothing attached/);
+  assert.equal(by.ground.state, "closed"); assert.match(lineFor(by.ground), /the model's own voice — from nothing attached/);
   // The draft closes them: a poem in lines that names Batman.
   const poem = "The cowl hides a city's fright,\nA shadowed vigil, day and night.\n\nBatman walks the streets, a silent vow,\nTo vanquish evil, fight for the now.";
   const r2 = loops.landAll(r.log, closingsFromDraft(poem, { genre: declaredGenre(task), form: declaredForm(task), subject: subjectOf(task, { isAdposition: isAdp }), scope: "c1t1", turn: 1, convo: 1 }));
@@ -410,6 +410,48 @@ test("a flat turn makes no plan card: its one part is 'the draft', and with noth
   assert.equal(part.asks, "the draft");
   assert.equal(part.evidence.length, 0, "nothing-retrieved is not evidence when nothing was attached");
   assert.equal(part.state, "closed"); assert.match(lineFor(part), /nothing attached to check it against/);
+});
+
+// ── the notation ────────────────────────────────────────────────────────────
+
+test("eotFor says a loop as glyphs and values only — operator, arrow, witness — never an ask phrase, a grain word or a sentence; eotStep an act by its operator; neither is stored, both fold from the same entries", () => {
+  let log = ok(loops.open(fresh(), OPEN({ id: "loop:e", cell: "SIG", asks: "about whom or what", turn: 1, meta: { subject: { phrase: "batman", words: ["batman"] } } })));
+  let l = foldLoops(log)[0];
+  // Open on a subject: what the question gave, and where it came from.
+  assert.equal(eotFor(l), "○ ⇒ batman ⟵ ?");
+  log = ok(loops.evidence(log, "loop:e", { note: "batman — from the question's own words", turn: 1 }));
+  log = ok(loops.close(log, "loop:e", { witness: { value: "batman", source: "the discourse — asked about batman" }, turn: 1 }));
+  l = foldLoops(log)[0];
+  assert.equal(eotFor(l), "○ ⇐ batman ⟵ ≡", "closed: the value and the discourse's glyph, the mirror of the open line");
+  log = ok(loops.reopen(log, "loop:e", { trigger: "the reader adds: make it about Robin", turn: 2, by: "person" }));
+  l = foldLoops(log)[0];
+  assert.equal(eotFor(l), "○ ↻2 ⇒ batman ⟵ ?");
+  const steps = l.history.map(eotStep);
+  assert.deepEqual(steps.map((x) => x.split(" ")[1]), ["∅", "○", "⊨", "⊛"], `each act by its operator's own glyph: ${steps}`);
+  assert.equal(steps[0], "t1 ∅"); assert.equal(steps[1], "t1 ○", "a mechanical note is prose and stays in the text mode");
+  assert.equal(steps[2], "t1 ⊨ ⇐ batman ⟵ ≡");
+  assert.equal(steps[3], "t2 ⊛ ↻ ✎", "a reopening by the reader's own hand is marked, its sentence is not shown");
+  assert.ok(Object.keys(ACT_OPS).length === ACTS.length && ACTS.every((a) => ACT_OPS[a]), "every act has an operator");
+  assert.deepEqual(OP_GLYPHS, { NUL: "∅", SIG: "○", INS: "●", SEG: "｜", CON: "⋈", SYN: "△", DEF: "⊢", EVA: "⊨", REC: "⊛" }, "the received glyphs, eoreader5's ledger table (CON ⋈; eopm's ⤫ disclosed as the divergence)");
+  assert.ok(STATES.every((st) => LOOP_GLYPHS[st]) && !Object.values(LOOP_GLYPHS).some((g) => Object.values(OP_GLYPHS).includes(g)), "a state's mark is never an operator's glyph");
+  // A refusal is a bare arrow (its reason is a sentence — text mode's); a contest names its witnesses and their values.
+  let r = ok(loops.open(fresh(), OPEN({ id: "loop:r", cell: "DEF", asks: "in what form" })));
+  r = ok(loops.refuse(r, "loop:r", { reason: "a poem, in lines: 1 paragraph of prose, no stanza reads as verse", turn: 1 }));
+  assert.equal(eotFor(foldLoops(r)[0]), "⊢ ⇏");
+  assert.match(lineFor(foldLoops(r)[0]), /Could not close: a poem, in lines/, "the reason is still there, in the text mode");
+  let c = ok(loops.open(fresh(), OPEN({ id: "loop:c", cell: "EVA", asks: "how wide it is" })));
+  c = ok(loops.contest(c, "loop:c", { sides: [{ witness: "a.txt", says: "1861" }, { witness: "b.txt", says: "1865" }], turn: 1 }));
+  assert.equal(eotFor(foldLoops(c)[0]), "⊨ ⇔ a.txt 1861 | b.txt 1865");
+  // THE WALL: no plain text in the notation (user, 2026-09-08: "dont put the plain text, just the proper glyphs").
+  const PLAIN = /\b(Figure|Ground|Pattern|about whom|in what form|what this stands on|spent|ask|fetch|addr|record|unread|checked)\b/;
+  for (const x of [eotFor(l), eotFor(foldLoops(r)[0]), eotFor(foldLoops(c)[0]), ...steps]) assert.ok(!PLAIN.test(x), `plain text in the notation: ${x}`);
+  // A witness's count carries its unit as a glyph; addresses as a count of #; a form's close carries the form's name as its value.
+  assert.equal(witnessShort({ count: 3, unit: "source" }), "3▤");
+  assert.equal(witnessShort({ count: 2, unit: "part" }), "2¶");
+  assert.equal(witnessShort({ addresses: ["a#1-2", "a#3-4"] }), "2#");
+  assert.equal(witnessShort({ addresses: [] }), "#∅");
+  assert.equal(witnessShort({ value: "the model's own voice", source: "nothing attached" }), "the model's own voice ⟵ ∅");
+  assert.deepEqual(Object.keys(SOURCE_GLYPHS), ["question", "discourse", "material", "record", "nothing"], "declared, not received — and said so");
 });
 
 // ── the wall: canon stays backstage ─────────────────────────────────────────

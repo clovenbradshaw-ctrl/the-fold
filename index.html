@@ -497,15 +497,56 @@
       }
       .ground-toggle:hover { color: var(--accent); }
       .ground-toggle[hidden] { display: none; }
+      .view-toggle { margin-left: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--mono); }
+      .view-toggle:hover { color: var(--accent); }
+      .msg:not(:has(.loops:not([hidden]))) .view-toggle { display: none; }
       /* THE HOLOGRAPH PANE (holograph.js): rows at a rung, drilled open into
          their parts. Two axes: the rung ladder VERTICAL beside the rows
          (bottom to top), the cursor HORIZONTAL beneath (time). Same accent
          grammar as the cards: open is the accent, refused the warning. */
       .holograph-body { display: flex; gap: 12px; align-items: flex-start; margin: 6px 0 4px; }
-      .holograph-levels { display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft); border-radius: 6px; padding: 3px; flex: none; position: sticky; top: 0; }
-      .holograph-levels .seg { text-align: left; padding: 5px 9px; }
+      .holograph-side { display: flex; flex-direction: column; gap: 8px; flex: none; position: sticky; top: 0; }
+      .holograph-levels, .holograph-mode { display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft); border-radius: 6px; padding: 3px; }
+      /* EOT — the notation reads in the mono face, the way every act line on this page already does. */
+      .view-eot .hg-title, .view-eot .hg-meta, .view-eot .loop-eot, .view-eot .loop-step, .view-eot .loops-fold > summary { font-family: var(--mono); }
+      .loop-eot { color: var(--ink); font-size: 12.5px; letter-spacing: 0.01em; }
+      .loop.closed .loop-eot, .loop.waived .loop-eot { color: var(--muted); }
+      .loop.refused .loop-eot { color: var(--warn); }
+      .view-eot .hg-row { margin-bottom: 2px; }
+      .view-eot .hg-line { display: none; }
+      /* The rung ladder is a ladder, not a menu: the terrain's own name, small
+         (user, 2026-09-08: "smaller vertical tabs"). Its plain reading is on
+         the hover, where an explanation nobody needs twice belongs. */
+      .holograph-levels .seg { text-align: left; padding: 3px 8px; font-size: 11px; line-height: 1.5; letter-spacing: 0.01em; }
+      /* The query bar — the notation in the mono face, the result count beside it. */
+      .holograph-query { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+      .holograph-query input { flex: 1; min-width: 160px; font-family: var(--mono); font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+      .holograph-query input:focus { outline: none; border-color: var(--accent); }
+      .holograph-query-note { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+      /* THE GRAPH (holograph-graph.js): nodes are rows, edges the ties they carry; a pressed node drills. */
+      .hg-graph-wrap { width: 100%; }
+      .hg-graph { width: 100%; height: auto; display: block; }
+      .hg-graph .hg-edge { stroke: var(--line); stroke-width: 1.1; fill: none; }
+      .hg-graph .hg-edge-part { stroke-dasharray: 2 3; }
+      .hg-graph .hg-edge-label { font-size: 9.5px; fill: var(--muted); }
+      .hg-graph .hg-node circle { fill: var(--panel); stroke: var(--muted); stroke-width: 1.4; }
+      .hg-graph .hg-node.hg-state-open circle, .hg-graph .hg-node.hg-gap circle, .hg-graph .hg-node.hg-whole circle { stroke: var(--accent); }
+      .hg-graph .hg-node.hg-state-refused circle { stroke: var(--warn); }
+      .hg-graph .hg-node.hg-state-contested circle { stroke: var(--think); }
+      .hg-graph .hg-node.hg-state-closed circle, .hg-graph .hg-node.hg-state-waived circle { opacity: 0.75; }
+      .hg-graph .hg-node.drillable { cursor: pointer; }
+      .hg-graph .hg-node .hg-ring { fill: none; stroke: var(--accent); stroke-width: 0.9; opacity: 0.7; }
+      .hg-graph .hg-node.hit circle { fill: var(--accent-soft); stroke-width: 2.2; }
+      .hg-graph .hg-node:hover circle, .hg-graph .hg-node:focus circle { stroke-width: 2.4; outline: none; }
+      /* A HALO, so an arc passing behind a word never cuts it: the stroke is
+         the pane's own ground and `paint-order: stroke` puts the fill last,
+         which keeps the letter shapes true. The cartographers' technique. */
+      .hg-graph text { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+      .hg-graph .hg-label { font-size: 11px; fill: var(--ink); }
+      .hg-graph .hg-sub { font-size: 9.5px; fill: var(--muted); }
+      .view-eot .hg-graph .hg-label, .view-eot .hg-graph .hg-sub, .view-eot .hg-graph .hg-edge-label { font-family: var(--mono); }
       .holograph-host { flex: 1; min-width: 0; }
-      .holograph-cursor { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-size: 11.5px; color: var(--muted); }
+      .holograph-cursor { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; font-size: 11.5px; color: var(--muted); }
       .holograph-cursor input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
       .holograph-cursor-label { white-space: nowrap; font-family: var(--mono); font-size: 11px; }
       .hg-rows { list-style: none; margin: 0; padding: 0; }
@@ -1371,6 +1412,44 @@
       }
       .threads .thread-close:hover:not(:disabled) { color: var(--warn); }
       .threads .thread-close:disabled { opacity: 0.35; cursor: default; }
+
+      /* THE PANEL, FULL WIDTH (user, 2026-09-08: "we need the right panel to
+         be able to be expanded to full screen and the left panel to be
+         collapsed into just vertical tabs we can select from"). Nothing is
+         unmounted — the conversation is still there, still live, still the
+         thing every panel is about; its column narrows to a rail of its own
+         conversation tabs, turned on their side, so a conversation can still
+         be chosen while a panel has the width. Choosing one does NOT restore
+         the column: picking a conversation while reading its holograph is
+         the whole point of the rail. The ⤢ control restores it. */
+      body.panel-wide main { grid-template-columns: 46px minmax(0, 1fr); }
+      body.panel-wide #col-chat > *:not(.threads) { display: none; }
+      body.panel-wide #col-chat .threads {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        height: 100%;
+        padding: 10px 4px;
+        gap: 6px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border-bottom: none;
+        border-right: 1px solid var(--line);
+      }
+      body.panel-wide #col-chat .thread-tab {
+        max-width: none;
+        writing-mode: vertical-rl;
+        border-radius: 0 7px 7px 0;
+        border-bottom: none;
+        border-left: 2px solid transparent;
+        padding: 4px 0;
+        max-height: 26ch;
+      }
+      body.panel-wide #col-chat .thread-tab[aria-current="true"] { border-bottom-color: transparent; border-left-color: var(--accent); }
+      body.panel-wide #col-chat .thread-title { writing-mode: inherit; border-radius: 0; padding: 8px 5px; max-width: none; max-height: 22ch; }
+      body.panel-wide #col-chat .thread-close { writing-mode: horizontal-tb; border-radius: 0; padding: 4px 5px; align-self: center; }
+      body.panel-wide #col-chat .threads .new { writing-mode: horizontal-tb; padding: 2px 0; }
+      .panel-wide-toggle { margin-left: auto; }
       .threads .new {
         color: var(--accent);
         font-size: 15px;
@@ -2219,6 +2298,9 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <button role="tab" data-pane="holograph" aria-selected="false" title="The holograph — this conversation as the record holds it: what it is about, the loops on each referent, the gaps; press a referent to expand what holds it">Holograph</button>
           <button role="tab" data-pane="github" aria-selected="false" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
+          <!-- Give this panel the whole width; the conversation stays live in
+               a rail of its own tabs on the left, still selectable. -->
+          <button type="button" id="panel-wide" class="term-toggle panel-wide-toggle" aria-pressed="false" title="give this panel the full width — the conversations stay as a rail on the left">⤢</button>
         </nav>
         <div class="scroll">
           <div class="pane" id="pane-builds">
@@ -2257,14 +2339,25 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
 
           <div class="pane" id="pane-holograph">
             <h2>Holograph</h2>
-            <div class="holograph-body">
-              <div class="holograph-levels" id="holograph-levels" role="tablist" aria-label="the rung — the nine terrains, bottom to top, each standing in for the one below it"></div>
-              <div id="holograph-rows" class="holograph-host"></div>
-            </div>
-            <label class="holograph-cursor" title="the cursor — the horizontal axis: the holograph as of any act on the record; drag it back to see the conversation as it stood then">
+            <label class="holograph-cursor" title="the cursor — the holograph as of any act on the record; drag it back to see the conversation as it stood then">
               <input type="range" id="holograph-cursor" min="0" max="0" value="0" step="1" aria-label="cursor — as of which act on the record" />
               <span id="holograph-cursor-label" class="holograph-cursor-label"></span>
             </label>
+            <!-- THE QUERY BAR (eoql.js): a bare word scans; an operator's glyph or
+                 keyword begins an act — ∅ scan · ｜ field=value · ⊨ ⇐ (by arrow)
+                 · ⋈ name (follow links) · ⊛ field (group) · △ (count) · ⊢ N
+                 (first N / order). Acts chain with → or just follow. -->
+            <div class="holograph-query">
+              <input id="holograph-query" spellcheck="false" autocomplete="off" placeholder="∅ word · ｜ state=open · ⊨ ⇐ · ⋈ name · ⊛ kind · △ · ⊢ 5" aria-label="query — a word to search, a field to filter, or an EOT command over the rows; Escape clears" />
+              <span id="holograph-query-note" class="holograph-query-note"></span>
+            </div>
+            <div class="holograph-body">
+              <div class="holograph-side">
+                <div class="holograph-levels" id="holograph-levels" role="tablist" aria-label="the rung — the nine terrains, bottom to top, each standing in for the one below it"></div>
+                <div class="holograph-mode" id="holograph-mode" role="tablist" aria-label="visual (the notation) or text (sentences)"></div>
+              </div>
+              <div id="holograph-rows" class="holograph-host"></div>
+            </div>
           </div>
           <div class="pane" id="pane-log">
             <div class="log-bar">

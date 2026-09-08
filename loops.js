@@ -355,7 +355,10 @@ export function foldLoops(log, { atSeq = null } = {}) {
       case "reopen":
         l.previous.push({ state: l.state, witness: l.witness, line: l.line, reason: l.reason, waiver: l.waiver, seq: l.closedAt, turn: l.closedTurn });
         l.state = "open"; l.ring += 1; l.trigger = e.trigger ?? null; l.witness = null; l.line = null; l.reason = null; l.sides = null; l.waiver = null; l.closedAt = null; l.closedTurn = null; l.closedKey = null;
-        h.trigger = e.trigger ?? null; if (e.cascadedFrom) h.cascadedFrom = e.cascadedFrom;
+        // WHO reopened it is already on the entry; the trail carries it too,
+        // so a reopening by the reader's own hand is distinguishable from a
+        // cascade the chain performed (the notation marks it ✎).
+        h.trigger = e.trigger ?? null; if (e.by) h.by = e.by; if (e.cascadedFrom) h.cascadedFrom = e.cascadedFrom;
         break;
       default:
         break;
@@ -436,6 +439,117 @@ export function trailLine(h, { showTurn = true } = {}) {
     case "waive": return `${when}Set aside by ${h.by ?? "someone"} — ${h.because ?? ""}.`;
     case "reopen": return `${when}Reopened — ${h.trigger ?? ""}.`;
     default: return `${when}${h.act}`;
+  }
+}
+
+// ── EOT: the compact form (user, 2026-09-08: "we are losing so much to
+// verbiage. why don't we put it essentially in EOT?") ──────────────────────
+//
+// The same loop, said in the notation the record already speaks — the
+// operator's glyph, the state as an arrow, the witness as its own value —
+// and NOTHING ELSE (user, 2026-09-08: "dont put the plain text, just the
+// proper glyphs"): no ask phrase, no grain word, no sentence. The sentences
+// (`lineFor`, `trailLine`) are the TEXT mode. Both are projections of one
+// loop and can never disagree, because neither is stored.
+/**
+ * THE OPERATORS' OWN GLYPHS — received, not drawn here (user, 2026-09-08:
+ * "get the correct glyphs"). Giver: eoreader5's ledger operators
+ * (`packages/engine/ledger/operators.js`, vendored in eochat; ported from
+ * eoreader4.2), the canon's own per CLAUDE.md. DISCLOSED DIVERGENCE: eopm
+ * (`eopm/src/operators.js`, its README and BUILDING.md) prints the same
+ * nine except CON, which it draws ⤫; the ledger lineage's ⋈ is kept here.
+ * No received glyph exists for a GRAIN anywhere in the canon (checked the
+ * same day across eopm, eoreader5, NPJ), so the notation says no grain.
+ */
+export const OP_GLYPHS = Object.freeze({ NUL: "∅", SIG: "○", INS: "●", SEG: "｜", CON: "⋈", SYN: "△", DEF: "⊢", EVA: "⊨", REC: "⊛" });
+/** A loop's STATE is its arrow, never a circle — ○ and ● belong to SIG and INS. ⇒ still owed, ⇐ closed on a witness, ⇏ could not close, ⇔ two witnesses disagree, – set aside. */
+export const LOOP_GLYPHS = Object.freeze({ open: "⇒", closed: "⇐", refused: "⇏", contested: "⇔", waived: "–" });
+/**
+ * WHERE A WITNESS CAME FROM, and WHAT A COUNT COUNTS — DECLARED here, not
+ * received: the canon has no glyph for "the question" or "an attached
+ * source". ? the question's own words, ≡ the discourse (the answer's own
+ * words), ▤ the material, ⊞ the record, ∅ nothing attached; ¶ a part,
+ * • a point, ◇ a name, ⁝ a sentence, # an address, ✎ the reader's own hand,
+ * ⇣ a fetch. `⟵` reads "from".
+ */
+export const SOURCE_GLYPHS = Object.freeze({ question: "?", discourse: "≡", material: "▤", record: "⊞", nothing: "∅" });
+export const UNIT_GLYPHS = Object.freeze({ source: "▤", part: "¶", point: "•", name: "◇", sentence: "⁝", address: "#", ask: "?", fetch: "⇣" });
+/**
+ * Each act of a loop, typed by the operator it performs — a DECLARED reading
+ * of this ledger's own acts (the cube classifies moves, P58), not the
+ * cube's derivation: to open is to zero a space (NUL), an arrival marks it
+ * (SIG), spend instantiates a call (INS), a round again cuts and retries
+ * (SEG), a contest binds two witnesses that disagree (CON), a close judges
+ * (EVA), a refusal judges too (EVA, struck), a waiver defines it out (DEF),
+ * a reopening re-zeroes (REC).
+ */
+export const ACT_OPS = Object.freeze({ open: "NUL", evidence: "SIG", spend: "INS", again: "SEG", contest: "CON", close: "EVA", refuse: "EVA", waive: "DEF", reopen: "REC" });
+const clipTo = (t, n) => { const x = String(t ?? "").trim(); return x.length > n ? `${x.slice(0, n - 1)}…` : x; };
+/** The source of a witness as its glyph; an unknown source is clipped, never guessed. */
+export const sourceGlyph = (src) => { const x = String(src ?? ""); if (/question/.test(x)) return SOURCE_GLYPHS.question; if (/discourse|the answer/.test(x)) return SOURCE_GLYPHS.discourse; if (/material/.test(x)) return SOURCE_GLYPHS.material; if (/nothing attached/.test(x)) return SOURCE_GLYPHS.nothing; if (/record/.test(x)) return SOURCE_GLYPHS.record; return clipTo(x, 16); };
+/**
+ * A witness, as its own value in the notation: the shortest thing that
+ * names what closed the loop — a value with its source glyph, fillers with
+ * their spans, a count with its unit glyph (`3▤`, `2¶`), addresses as `N#`
+ * (`#∅` when the check found none), a verdict. A witness that carries only
+ * a sentence gives that sentence clipped — the last resort, never the first.
+ */
+export function witnessShort(w) {
+  if (!w || typeof w !== "object") return "";
+  if (w.value != null) return `${clipTo(w.value, 40)}${w.source ? ` ⟵ ${sourceGlyph(w.source)}` : ""}${w.count != null ? ` ×${w.count}` : ""}`;
+  if (Array.isArray(w.fillers) && w.fillers.length) return w.fillers.map((f) => (typeof f === "string" ? f : `${f.filler ?? f.value}${f.span ? ` ${spanText(f.span)}` : ""}`)).join(" | ");
+  if (w.filler) return `${w.filler}${w.span ? ` ${spanText(w.span)}` : ""}${w.source ? ` ⟵ ${sourceGlyph(w.source)}` : ""}`;
+  if (Array.isArray(w.addresses)) return w.addresses.length ? `${w.addresses.length}#` : "#∅";
+  if (w.count != null) return `${w.count}${UNIT_GLYPHS[w.unit] ?? ""}`;
+  if (w.verdict) return clipTo(w.verdict, 32);
+  if (w.line) return clipTo(w.line, 48);
+  return "";
+}
+/**
+ * eotFor(loop) → one line in the notation: the operator's glyph, the ring
+ * count when it went round, the arrow, and the VALUE — what closed it, who
+ * disagrees, who set it aside. An open loop on a subject says what the
+ * question gave (`○ ⇒ batman ⟵ ?`), the mirror of what the discourse gave
+ * when it closed (`○ ⇐ batman ⟵ ≡`). A refusal is a bare `⇏` — its reason
+ * is a sentence, and belongs to the text mode (and to the card's hover).
+ */
+export function eotFor(loop) {
+  if (!loop) return "";
+  const op = OP_GLYPHS[loop.cell] ?? loop.cell;
+  const ring = loop.ring > 1 ? ` ↻${loop.ring}` : "";
+  switch (loop.state) {
+    case "closed": return `${op}${ring} ⇐${witnessShort(loop.witness) ? ` ${witnessShort(loop.witness)}` : ""}`;
+    case "refused": return `${op}${ring} ⇏`;
+    case "contested": return `${op}${ring} ⇔ ${(loop.sides ?? []).map((x) => `${x.witness ?? "?"} ${clipTo(x.says, 20)}`).join(" | ")}`;
+    case "waived": return `${op}${ring} – ${loop.waiver?.by ?? "?"}`;
+    default: {
+      const latest = loop.evidence.length ? loop.evidence[loop.evidence.length - 1] : null;
+      const given = loop.meta?.subject?.phrase ? ` ${clipTo(loop.meta.subject.phrase, 40)} ⟵ ${SOURCE_GLYPHS.question}` : "";
+      const sofar = latest?.prompt ? ` ✎` : latest?.addresses?.length ? ` ${latest.addresses.length}#` : "";
+      return `${op}${ring} ⇒${given}${sofar}`;
+    }
+  }
+}
+/**
+ * eotStep(h) → one act of the trail in the notation: the turn, the act's
+ * operator, the arrow or count, the value. Prose on an act (a mechanical
+ * note, a trigger's sentence, a reason) stays in the text mode; what the
+ * reader typed with their own hand is a value and is shown, marked ✎.
+ */
+export function eotStep(h) {
+  const t = h.turn != null ? `t${h.turn} ` : "";
+  const op = OP_GLYPHS[ACT_OPS[h.act]] ?? h.act;
+  switch (h.act) {
+    case "open": return `${t}${op}`;
+    case "evidence": return `${t}${op}${h.prompt ? ` ✎ ${clipTo(h.note ?? "", 40)}` : ""}${h.addresses?.length ? ` ${h.addresses.length}#` : ""}`;
+    case "spend": return `${t}${op}${h.asks ? ` ${h.asks}${UNIT_GLYPHS.ask}` : ""}${h.fetches ? ` ${h.fetches}${UNIT_GLYPHS.fetch}` : ""}`;
+    case "again": return `${t}${op} ↻`;
+    case "close": return `${t}${op} ⇐${witnessShort(h.witness) ? ` ${witnessShort(h.witness)}` : h.line ? ` ${clipTo(h.line, 40)}` : ""}`;
+    case "refuse": return `${t}${op} ⇏`;
+    case "contest": return `${t}${op} ⇔ ${(h.sides ?? []).map((x) => x.witness ?? "?").join(" | ")}`;
+    case "waive": return `${t}${op} – ${h.by ?? "?"}`;
+    case "reopen": return `${t}${op} ↻${h.by === "person" ? " ✎" : ""}`;
+    default: return `${t}${op}`;
   }
 }
 
@@ -630,7 +744,7 @@ export function loopsFromQuestion(task, { genre = null, form = null, subject = n
   const gid = loopId("ground", scope);
   acts.push({ act: "open", id: gid, kind: "ground", cell: "INS", asks: "what this stands on", closesOn: hasMaterial ? "the attached material" : webOn ? "a source attached, or a page the search finds" : "a source attached, or the web switch turned on", by, group, turn, convo });
   if (hasMaterial) acts.push({ act: "close", id: gid, witness: { count: sourceNames.length, unit: "source", line: `${sourceNames.length} attached source${sourceNames.length === 1 ? "" : "s"}${sourceNames.length ? `: ${sourceNames.slice(0, 6).join(", ")}${sourceNames.length > 6 ? `, and ${sourceNames.length - 6} more` : ""}` : ""}` }, turn, convo, by });
-  else if (genre) acts.push({ act: "close", id: gid, witness: { value: "the model's own voice, marked as such", source: "nothing attached" }, turn, convo, by });
+  else if (genre) acts.push({ act: "close", id: gid, witness: { value: "the model's own voice", source: "nothing attached" }, turn, convo, by });
   return acts;
 }
 
@@ -650,7 +764,10 @@ export function closingsFromDraft(text, { genre = null, form = null, subject = n
     if (genre) { const g = checkGenre(t, genre); if (!g.examined) held.push(`${genre.reads}: ${g.detail}`); else (g.ok ? held : failed).push(`${genre.reads}: ${g.detail}`); }
     if (declared) { const f = checkForm(draftText(t), form); for (const k of f.examined ?? []) { const fl = (f.failures ?? []).find((x) => x.kind === k); (fl ? failed : held).push(fl ? `${FORM_WORDS[k]?.(form.form[k]) ?? k}: ${fl.detail}` : FORM_WORDS[k]?.(form.form[k]) ?? k); } }
     if (failed.length) acts.push({ act: "refuse", id, reason: `${failed.join("; ")}${held.length ? ` (held: ${held.join("; ")})` : ""}`, turn, convo, by: "the form check" });
-    else acts.push({ act: "close", id, witness: { line: held.join("; ") || "the form held" }, turn, convo, by: "the form check" });
+    // The witness carries the form's NAME as its value (the notation shows
+    // `⊢ ⇐ verse`, never the check's sentence) and the check's own words as
+    // the line the text mode reads.
+    else acts.push({ act: "close", id, witness: { value: [genre?.kind ?? null, ...Object.keys(form?.form ?? {})].filter(Boolean).join(" ") || "form", source: "the answer names it", line: held.join("; ") || "the form held" }, turn, convo, by: "the form check" });
   }
   if (subject?.words?.length) {
     const id = subjectLoopIdFor(convoScope, subject);

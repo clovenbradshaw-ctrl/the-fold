@@ -16,7 +16,7 @@ import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eo
 import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";
 import { declaredForm, declaredGenre } from "./shape.js";
 import { makeLoops, foldLoops, subjectOf, loopsFromQuestion, closingsFromDraft } from "./loops.js";
-import { holographOf, rowsFor, expandReferent, turnsOf, LEVELS } from "./holograph.js";
+import { holographOf, rowsFor, flattenRows, expandReferent, turnsOf, LEVELS } from "./holograph.js";
 
 const loops = makeLoops({ taskLog, cellOf });
 const isAdp = (w) => ["about", "on", "of", "for"].includes(w);
@@ -120,7 +120,35 @@ test("the rungs: nine, bottom to top; each rung's rows are plain words that dril
   assert.ok(para.some((r) => /gotham/i.test(r.title) && /on 2 turns/.test(r.meta)) && para.some((r) => /went round 2 times/.test(r.meta ?? "")), `what recurs: ${para.map((r) => `${r.title} ${r.meta}`)}`);
   // no canon in the rows' own words but the rung names; nothing in a row is a cell or a stance
   for (const level of LEVELS.map((l) => l.key)) for (const r of rowsFor(m, level, { placesOf: places })) for (const text of [r.title, r.meta ?? "", r.line ?? ""]) assert.ok(!/\b(NUL|SIG|INS|SEG|CON|SYN|DEF|EVA|REC)\b|·[A-Z]/.test(text), `notation in ${level}: ${text}`);
+  // the eot mode: the same rows in the notation — no sentence, the cell and glyph on every loop, the counts as glyphs
+  for (const level of LEVELS.map((l) => l.key)) {
+    const rows = rowsFor(m, level, { placesOf: places, mode: "eot" });
+    for (const r of rows) { assert.equal(r.line, null, `${level}: no second line in the notation (${r.title})`); assert.ok(!/ — from the discourse: /.test(r.title + (r.meta ?? "")), `${level}: no sentence in the notation`); }
+  }
+  const eotLink = rowsFor(m, "link", { mode: "eot" });
+  const eb = eotLink.find((r) => /batman/i.test(r.title));
+  assert.match(eb.meta, /⇐\d/, "a referent's loops as arrow counts");
+  const el = eb.drill().find((r) => r.kind === "loop");
+  assert.equal(el.title, "○ ⇐ batman ⟵ ≡");
+  assert.ok(el.drill().every((r) => /^t\d+ (∅|○|●|｜|⋈|△|⊢|⊨|⊛)/.test(r.title)), `the trail by the operators' glyphs: ${el.drill().map((r) => r.title)}`);
+  assert.equal(rowsFor(m, "lens", { mode: "eot" }).find((r) => /batman/i.test(r.title)).meta, "○ ⇐ batman ⟵ ≡");
+  assert.match(rowsFor(m, "field", { mode: "eot" })[0].meta, /^1,000B 5\/10$/);
+  // THE WALL, in the notation: no row says "record", "unread", "cited", "nothing" — a glyph or a value, only.
+  const PLAIN = /\b(record|unread|cited|nothing|declared|Figure|Ground|Pattern)\b/;
+  for (const level of LEVELS.map((l) => l.key)) for (const r of rowsFor(m, level, { placesOf: places, mode: "eot" })) for (const text of [r.title, r.meta ?? ""]) assert.ok(!PLAIN.test(text), `plain text in the notation at ${level}: ${text}`);
+  // Every rung has a plain name beside its terrain, and the name is not the terrain.
+  for (const l of LEVELS) assert.ok(l.name && l.name !== l.key && !/\b(void|entity|kind|field|link|network|atmosphere|lens|paradigm)\b/i.test(l.name), `${l.key} needs a plain name: ${l.name}`);
+  // Rows carry the fields a query reads and the keys a graph ties; the rung flattens with its parts.
+  assert.equal(eb.data.name, "batman"); assert.ok(eb.data.loops >= 1);
+  assert.ok(Array.isArray(eb.links) && eb.links.includes(el.key), "a referent's row is tied to its loops by key");
+  const flat = flattenRows(eotLink, { depth: 2 });
+  assert.ok(flat.some((r) => r.key === el.key && r.depth === 1 && r.parent === eb.key), "a loop under a referent knows its depth and parent");
+  const pairs = rowsFor(m, "network", { mode: "eot" });
+  assert.ok(pairs.every((r) => r.kind !== "pair" || (r.links.length === 2 && r.data.a && r.data.b)), "a pair row ties its two referents");
+  // and in text mode the lens rung no longer repeats a sentence under itself
+  const lensText = rowsFor(m, "lens").find((r) => /batman/i.test(r.title));
+  assert.equal(lensText.line, null); assert.match(lensText.meta, /^about whom or what: batman — from the discourse/, "the text mode keeps sentences; the glyphs belong to the notation");
   // an empty conversation says so at every rung
   const empty = holographOf({ history: [], loops: [], convo: "k9" });
-  for (const level of LEVELS.map((l) => l.key)) { const rows = rowsFor(empty, level); assert.ok(rows.length >= 1 && rows.every((r) => r.title), `${level} says something on an empty conversation`); }
+  for (const level of LEVELS.map((l) => l.key)) { const rows = rowsFor(empty, level); assert.ok(rows.length >= 1 && rows.every((r) => r.title), `${level} says something on an empty conversation`); assert.ok(rowsFor(empty, level, { mode: "eot" }).every((r) => r.title === "∅" || r.kind !== "empty"), `${level}: an empty rung is ∅ in the notation`); }
 });

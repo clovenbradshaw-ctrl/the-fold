@@ -18,6 +18,13 @@ import {
   GITHUB_SKILLS_PREFIX,
   GITHUB_HISTORY_PREFIX,
   buildDeviceCodeBody,
+  prBranchName,
+  prTitleFor,
+  buildCreateRefBody,
+  buildCreatePullBody,
+  decodeCreatePull,
+  decodeRepoInfo,
+  decodeRef,
   buildAccessTokenBody,
   parseDeviceCodeResponse,
   parseAccessTokenResponse,
@@ -154,4 +161,44 @@ test("mergeHistoryPull imports only slugs not already held locally", () => {
   const remote = [{ path: ".the-fold/history/build-1.json" }, { path: ".the-fold/history/build-2.json" }];
   const { toImport } = mergeHistoryPull(["build-1"], remote);
   assert.deepEqual(toImport.map((e) => e.slug), ["build-2"]);
+});
+
+// ── branch + pull request (the PR flow, 2026-09-08) ──────────────────────────
+// A push opens a PR instead of committing to a branch, so these pin the
+// shapes that flow needs — and, load-bearing, the ref-name rules git itself
+// enforces. The leading-dot case is a REGRESSION: this repo's own sync paths
+// begin ".the-fold/...", and the first cut slugified that straight through to
+// "the-fold/.the-fold-..." — a ref GitHub refuses, because no path component
+// may begin with a dot.
+test("prBranchName produces a ref git will accept, from paths this repo actually pushes", () => {
+  const valid = (b) =>
+    !b.includes("..") &&
+    b.split("/").every((c) => c && !c.startsWith(".") && !c.endsWith(".") && !c.endsWith(".lock"));
+  for (const p of [".the-fold/ping-test.md", ".the-fold/skills/abc.json", "README.md", "a/../b", "x..y.lock", "...", ""]) {
+    assert.equal(valid(prBranchName(p, 1757345000000)), true, `invalid ref from ${JSON.stringify(p)}`);
+  }
+});
+
+test("prBranchName is deterministic given a clock, and unique across two", () => {
+  assert.equal(prBranchName("a.md", 1), prBranchName("a.md", 1));
+  assert.notEqual(prBranchName("a.md", 1), prBranchName("a.md", 2));
+});
+
+test("buildContentsWriteBody carries the branch only when given — the direct-write shape is unchanged", () => {
+  assert.equal("branch" in buildContentsWriteBody({ content: "x", message: "m" }), false);
+  assert.equal(buildContentsWriteBody({ content: "x", message: "m", branch: "b" }).branch, "b");
+});
+
+test("createRef and pulls bodies match the APIs they are posted to", () => {
+  assert.deepEqual(buildCreateRefBody({ branch: "the-fold/x-1", sha: "abc" }), { ref: "refs/heads/the-fold/x-1", sha: "abc" });
+  assert.deepEqual(buildCreatePullBody({ title: "t", head: "h", base: "main" }), { title: "t", head: "h", base: "main", body: "" });
+  assert.equal(decodeCreatePull({ number: 7, html_url: "https://x/pull/7", state: "open" }).number, 7);
+  assert.equal(decodeRepoInfo({ default_branch: "main" }).defaultBranch, "main");
+  assert.equal(decodeRef({ object: { sha: "s" } }).exists, true);
+  assert.equal(decodeRef({}).exists, false);
+});
+
+test("prTitleFor says one file by name and many by count", () => {
+  assert.match(prTitleFor(["a.md"]), /a\.md/);
+  assert.match(prTitleFor(["a", "b", "c"]), /3 files/);
 });

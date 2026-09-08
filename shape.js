@@ -369,6 +369,90 @@ export function checkForm(text, { form = {}, unexamined = [] } = {}) {
 }
 
 /** One line for a retry — the result, never the reasoning (the model is the mouth). */
+// ── THE DECLARED GENRE: what KIND of thing the task asks for (2026-09-08)
+//
+// User, watching "write a poem about batman" come back as three pipeline
+// cards: "it's not creating the question properly." The question's own first
+// loop is its FORM — a poem is verse, in lines; an essay is prose; a list is
+// a list — and `declaredForm` above reads only the counted constraints. A
+// task that names its genre has declared its form as surely as one that
+// says "four lines". The class below is RECEIVED (the ordinary English
+// genre nouns, `lang/en`; the same standing shape.js's own form words and
+// FORM_UNEXAMINED already hold), and it is read off the task's words: no
+// genre is inferred from a task that names none.
+//
+// The check is mechanical (L5): a verse genre holds when some stanza of the
+// draft reads as verse under render.js's own rule (every line but the last
+// closes on punctuation — one implementation, reused, not a second reading
+// of what a line is); prose holds when the draft has a paragraph and no
+// stanza reads as verse; a list when a list block is present; a table when
+// a pipe-table is present; code when a fence is present. Rhyme and metre
+// stay `unexamined` exactly as FORM_UNEXAMINED already says.
+import { parseBlocks, readsAsVerse } from "./render.js";
+
+export const GENRES = Object.freeze({
+  verse: Object.freeze(["poem", "poems", "sonnet", "haiku", "limerick", "verse", "song", "lyric", "lyrics", "ballad", "ode", "rhyme"]),
+  prose: Object.freeze(["essay", "story", "short story", "tale", "letter", "email", "memo", "summary", "paragraph", "report", "speech", "article", "blog post", "biography"]),
+  list: Object.freeze(["list", "bullet points", "bullets", "checklist", "outline", "steps"]),
+  table: Object.freeze(["table", "spreadsheet", "grid"]),
+  code: Object.freeze(["code", "script", "program", "function", "widget", "snippet"]),
+});
+export const GENRES_META = Object.freeze({ giver: "lang/en", scope: "the ordinary English genre nouns a task names its form with; read off the task's words, never inferred" });
+const GENRE_WORDS = Object.freeze({
+  verse: "a poem, in lines",
+  prose: "prose, in paragraphs",
+  list: "a list",
+  table: "a table",
+  code: "code, in a fenced block",
+});
+
+/** declaredGenre(task) → { kind, word, reads } or null — the genre the task names in its own words, the first named wins. */
+export function declaredGenre(task) {
+  const t = String(task ?? "").toLowerCase();
+  let best = null;
+  for (const [kind, words] of Object.entries(GENRES)) {
+    for (const w of words) {
+      const m = new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}s?\\b`).exec(t);
+      if (m && (!best || m.index < best.index)) best = { kind, word: w, index: m.index };
+    }
+  }
+  return best ? { kind: best.kind, word: best.word, reads: GENRE_WORDS[best.kind] } : null;
+}
+
+/** checkGenre(text, genre) → { ok, detail, examined } — computed from the draft's own structure, never asked. */
+export function checkGenre(text, genre) {
+  const t = draftText(text);
+  if (!genre?.kind) return { ok: false, examined: false, detail: "no genre declared" };
+  const blocks = parseBlocks(t);
+  const paras = blocks.filter((b) => b.type === "para");
+  const stanzas = paras.filter((b) => readsAsVerse(b.lines));
+  switch (genre.kind) {
+    case "verse": {
+      const lines = paras.reduce((n, b) => n + b.lines.length, 0);
+      return stanzas.length ? { ok: true, examined: true, detail: `${lines} line${lines === 1 ? "" : "s"} in ${paras.length} stanza${paras.length === 1 ? "" : "s"}` } : { ok: false, examined: true, detail: paras.length ? `${paras.length} paragraph${paras.length === 1 ? "" : "s"} of prose, no stanza reads as verse` : "no lines at all" };
+    }
+    case "prose": {
+      const proseParas = paras.length - stanzas.length;
+      return proseParas > 0 ? { ok: true, examined: true, detail: `${proseParas} paragraph${proseParas === 1 ? "" : "s"}` } : { ok: false, examined: true, detail: stanzas.length ? "every block reads as verse" : "no paragraph" };
+    }
+    case "list": {
+      const lists = blocks.filter((b) => b.type === "list");
+      const items = lists.reduce((n, b) => n + b.items.length, 0);
+      return lists.length ? { ok: true, examined: true, detail: `${items} item${items === 1 ? "" : "s"}` } : { ok: false, examined: true, detail: "no list block" };
+    }
+    case "table": {
+      const rows = t.split("\n").filter((l) => /^\s*\|.*\|\s*$/.test(l)).length;
+      return rows >= 2 ? { ok: true, examined: true, detail: `a table of ${rows} rows` } : { ok: false, examined: true, detail: "no table" };
+    }
+    case "code": {
+      const fences = (String(text ?? "").match(/```/g) ?? []).length;
+      return fences >= 2 ? { ok: true, examined: true, detail: `${Math.floor(fences / 2)} fenced block${fences >= 4 ? "s" : ""}` } : { ok: false, examined: true, detail: "no fenced code" };
+    }
+    default:
+      return { ok: false, examined: false, detail: `genre ${genre.kind} has no check` };
+  }
+}
+
 export function formLine(f) {
   if (!f) return "";
   if (!f.examined.length) return "form: nothing examined";

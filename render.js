@@ -151,9 +151,26 @@ export function parseBlocks(text) {
       para.push(lines[i]);
       i++;
     }
-    blocks.push({ type: "para", lines: para });
+    blocks.push({ type: "para", lines: para, verse: readsAsVerse(para) });
   }
   return blocks;
+}
+
+/**
+ * VERSE KEEPS ITS LINES (2026-09-08, user: "format this better", on a poem
+ * whose six lines had been joined into one paragraph). CommonMark's soft
+ * break is right for prose an author wrapped at a column — those wraps land
+ * mid-phrase ("and a workbench / is a speaker", the pinned case). A poem's
+ * lines end where the poet ended them, and the tell is structural, not a
+ * width: every line but the last closes on a punctuation mark. A wrapped
+ * paragraph whose every wrap happens to land on punctuation would read as
+ * verse too — a declared cost, rarer than a poem, and a hard break in prose
+ * costs a line, where a soft break in verse costs the poem.
+ */
+const LINE_END_PUNCT = /[,.;:!?\u2014\u2013\u2026-]["'\u201d\u2019)]?\s*$/;
+export function readsAsVerse(lines) {
+  if (!Array.isArray(lines) || lines.length < 2) return false;
+  return lines.slice(0, -1).every((l) => LINE_END_PUNCT.test(l));
 }
 
 // ── DOM projection ──────────────────────────────────────────────────────────
@@ -225,9 +242,11 @@ export function renderBlocksInto(container, text, decorateInline) {
       // at a column width; honoring every wrap as a hard break shatters the
       // paragraph (measured on SEED-SPEAKER.md: "and a workbench / is a
       // speaker"). CommonMark's rule: soft break renders as a space.
+      // …unless the block reads as verse (`readsAsVerse`): then the newlines
+      // are the author's own and appendInline renders each as <br>.
       const para = doc.createElement("div");
-      para.className = "para";
-      appendInline(doc, para, block.lines.join(" "), decorateInline);
+      para.className = block.verse ? "para verse" : "para";
+      appendInline(doc, para, block.lines.join(block.verse ? "\n" : " "), decorateInline);
       container.appendChild(para);
     }
   }

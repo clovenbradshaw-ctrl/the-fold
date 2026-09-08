@@ -7701,3 +7701,28 @@ Bateson, event sourcing, RAG / GraphRAG), the path on the record (P159,
 P45, the 08-18 address decision, P170, the three resolutions), and the
 walls that stay. Its numbers — the compression ladder and the
 holograph-reading test — are pending and named there as pending.
+
+
+## Loops, and the holograph drawn (added 2026-09-08) — pointer
+
+POLICIES.md **P176** is the law. A turn's face is its LOOPS: `loops.js` on
+the kernel task log (persisted as `records/loops.jsonl`, replayed on boot),
+each opened with what would close it, closed only by a witness, reopened
+with a trigger — the cascade by the chain, the ring count, the earlier
+closure kept. The cards (`cardsFor`) are a projection at a (conversation,
+turn) behind one collapsed line; no cell name reaches a card. The
+question's own shape opens the first loops (form — `shape.js::declaredGenre`
++ `declaredForm`; subject — `subjectOf` through the part-of-speech organ;
+ground), the brief the void's nine, the progress callback the parts, the
+result rows P170's loops; the subject closes FROM THE DISCOURSE with its
+basis disclosed. A note in a card is the reader's evidence and reaches the
+mouth as `readerNotes`. Ground chips and marks show only on the turn's
+"ground" control, only in checking mode. `holograph.js` is the record as
+ROWS that drill (no picture — refused on sight) at a CURSOR (the loop
+ledger's seq) and a RUNG (the nine terrains, a vertical ladder beside the
+rows), on the concept level: referents are the index's beings (built with
+the organ's derived floor) or declared ends, never capitalised runs; a
+row's words carry their own meaning and nothing explains the rung. Do not re-derive: the `turn` a loop files under is fixed
+at the turn's start (the summary's count moves mid-turn); a conversation's
+key is minted at birth, not its index; a closed loop re-named on the same
+turn is a no-op, on a later turn "asked again".

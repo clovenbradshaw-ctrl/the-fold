@@ -7,7 +7,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseBlocks, parseInline, renderBlocksInto } from "./render.js";
+import { parseBlocks, parseInline, renderBlocksInto, readsAsVerse } from "./render.js";
 
 // ── parseBlocks ─────────────────────────────────────────────────────────────
 
@@ -143,6 +143,19 @@ test("renderBlocksInto builds the block tree and routes every inline run through
   // The bold run is wrapped in a <strong> the renderer created.
   const para = container.children[1];
   assert.ok(para.children.some((c) => c.tagName === "strong"));
+});
+
+test("a paragraph that reads as verse keeps its lines — every line but the last ends on punctuation — and the wrapped-prose case stays soft", () => {
+  const poem = "The cowl hides a city's fright,\nA shadowed vigil, day and night.\nHe walks the streets, a silent vow,\nTo vanquish evil, fight for the now.";
+  assert.equal(readsAsVerse(poem.split("\n")), true);
+  assert.equal(readsAsVerse("and a workbench\nis a speaker, since every cell\nis a claim.".split("\n")), false, "a wrap that lands mid-phrase is prose");
+  assert.equal(readsAsVerse(["one line only."]), false);
+  const doc = stubDoc();
+  const container = doc.createElement("div");
+  renderBlocksInto(container, poem, (chunk) => [{ text: chunk, appendChild() {} }]);
+  const para = container.children[0];
+  assert.ok(para.className.includes("verse"));
+  assert.equal(para.children.filter((c) => c.tagName === "br").length, 3, "three hard breaks between four lines");
 });
 
 test("a paragraph's single newlines are soft breaks — joined with spaces, never <br>", () => {

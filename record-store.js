@@ -10,13 +10,20 @@
 // and says so.
 
 const RECORDS_DIR = "records";
-let _root = null;
+// The PROMISE is cached, not the resolved handle — the same TOCTOU race,
+// and the same fix, as reading-store.js's getRoot (see that file's note):
+// several concurrent first-writers must share one in-flight directory
+// creation, not each race their own.
+let _rootPromise = null;
 
 async function getRoot() {
-  if (_root) return _root;
-  const top = await navigator.storage.getDirectory();
-  _root = await top.getDirectoryHandle(RECORDS_DIR, { create: true });
-  return _root;
+  if (!_rootPromise) {
+    _rootPromise = (async () => {
+      const top = await navigator.storage.getDirectory();
+      return top.getDirectoryHandle(RECORDS_DIR, { create: true });
+    })();
+  }
+  return _rootPromise;
 }
 
 const fileOf = (name) => `${String(name).replace(/[/\\:*?"<>|\x00-\x1f]/g, "_")}.jsonl`;
@@ -61,5 +68,5 @@ export async function appendRecord(name, lines) {
 export async function clearRecords() {
   const top = await navigator.storage.getDirectory();
   try { await top.removeEntry(RECORDS_DIR, { recursive: true }); } catch {}
-  _root = null;
+  _rootPromise = null;
 }

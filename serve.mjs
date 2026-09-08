@@ -59,6 +59,13 @@ const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // rather than an untangling. Used, never copied — the same discipline
 // /engine and /nul already hold.
 const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
+// eoreader7's own repo root, one level above /native — its canonical API
+// shim (kernel.js: "export * from './native/kernel/index.js'") lives here,
+// not under native/, and a the-fold module importing "../eoreader7/kernel.js"
+// (the-fold's own test files already do — reading-log.test.mjs et al.) 404'd
+// in the browser until this mount existed: /eoreader7/native/ was routed,
+// bare /eoreader7/ was not. Found 2026-09-08 wiring reading-worker.mjs.
+const EOREADER7_ROOT = resolve(ROOT, "..", "eoreader7");
 // Boot check (2026-09-05): a missing mount used to surface as every engine
 // import 404ing behind a blank page. Name the path and the repair here.
 for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/legacy-eoreader6.1/packages/engine", ENGINE], ["../eoreader7/legacy-eoreader6.1/nul", NUL]]) {
@@ -245,6 +252,37 @@ const readJsonBody = async (req, res, limit = 64 * 1024) => {
 createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
+
+  // GET /api/manifest — item 1 of the 2026-09-08 product review ("unknown
+  // running revision — needs verification: identify the localhost app
+  // commit, reader commit, configuration"). Read-only, no user input, two
+  // fixed argv `git rev-parse` calls (never a shell string — the same
+  // discipline /api/run's own build spawns already hold), loopback only.
+  // The page's own /reading command folds this into what it already
+  // discloses about the reading assembly and priors in use.
+  if (req.method === "GET" && rel === "/api/manifest") {
+    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
+    const git = (args, cwd) => new Promise((resolveGit) => {
+      const child = spawn("git", args, { cwd, stdio: ["ignore", "pipe", "ignore"] });
+      let out = "";
+      child.stdout.on("data", (d) => { out += d; });
+      child.on("error", () => resolveGit(null));
+      child.on("close", (code) => resolveGit(code === 0 ? out.trim() : null));
+    });
+    (async () => {
+      const [foldCommit, foldBranch, eoreader7Commit] = await Promise.all([
+        git(["rev-parse", "HEAD"], ROOT),
+        git(["rev-parse", "--abbrev-ref", "HEAD"], ROOT),
+        git(["rev-parse", "HEAD"], resolve(ROOT, "..", "eoreader7")),
+      ]);
+      json(res, 200, {
+        theFold: { commit: foldCommit, branch: foldBranch },
+        eoreader7: { commit: eoreader7Commit },
+        servedAt: new Date().toISOString(),
+      });
+    })();
+    return;
+  }
 
   // POST /api/run — run build code as a throwaway process. Loopback only,
   // JSON in, JSON out, nothing written to this repo, every attempt on the
@@ -575,6 +613,13 @@ createServer((req, res) => {
   // the seam's own Phase-0 re-exports of "../../../the-fold/x.js" resolve
   // to "/the-fold/x.js" — this directory. Two aliases, no new roots.
   if (rel.startsWith("/eoreader7/native/")) file = join(ENGINE_V7, rel.slice("/eoreader7/native/".length));
+  else if (rel.startsWith("/eoreader7/")) {
+    file = join(EOREADER7_ROOT, rel.slice("/eoreader7/".length));
+    if (!file.startsWith(EOREADER7_ROOT)) {
+      res.writeHead(403).end("no");
+      return;
+    }
+  }
   if (rel.startsWith("/the-fold/")) file = join(ROOT, rel.slice("/the-fold/".length));
   if (rel.startsWith("/engine-v7/")) {
     file = join(ENGINE_V7, rel.slice("/engine-v7/".length));

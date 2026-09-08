@@ -1654,6 +1654,25 @@
       .switch:has(input:checked) .ph { color: var(--accent); }
       .switch:has(input:disabled) { opacity: 0.45; }
       .switch .ph { color: var(--muted); }
+      /* Three states, cycled — an icon, not a growing/shrinking word (same
+         reasoning as the theme toggle's own comment: a fixed-width control
+         beside others in the row must not change the row's width when
+         pressed). The fill level reads the state: empty ring, half, full. */
+      .switch-cycle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 0;
+        color: var(--muted);
+        cursor: pointer;
+        border: 0;
+        border-left: 1px solid var(--line);
+        background: transparent;
+        padding: 6px 9px;
+      }
+      .switch-cycle:hover { background: var(--accent-soft); }
+      .switch-cycle[data-mode="background"],
+      .switch-cycle[data-mode="foreground"] { color: var(--accent); }
       /* The add-material menu: three doors, named, no taxonomy to learn. */
       #attach-menu { width: min(380px, 92vw); }
       #attach-menu .sheet-body button {
@@ -2330,11 +2349,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <input type="checkbox" id="use-web" checked />
               <span class="track" aria-hidden="true"></span>
             </label>
-            <label class="switch" title="Ranke — chase notes read off a fetched page to the sources that page cites (any outbound link) or quotes without a source. Off by default: each run is fetches and searches. Explicit: /ranke <maxFetches> [maxSearches].">
-              <span class="switch-label">primary</span>
-              <input type="checkbox" id="use-ranke" />
-              <span class="track" aria-hidden="true"></span>
-            </label>
+            <button type="button" class="switch-cycle" id="priors-mode" title="Priors"></button>
             <button type="submit" class="primary" id="send" disabled>Send</button>
           </div>
         </form>

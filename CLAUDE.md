@@ -8,10 +8,10 @@ made under that canon, each with its evidence and its enforcing test — are in
 | document | what it governs | path |
 |---|---|---|
 | `CONSTITUTION.md` | what an organ may do, what is legacy, what an amendment costs | `../eo-constitution/` |
-| `LAWS.md` | eoWebLLM's laws, L1–L7 — each one a mistake made twice | `../eoWebLLM/LAWS.md` |
-| `READING-POLICY.md` | **canonical for how reading works** — P0–P6 | `../eoreader6/` |
-| `CUBE.md`, `12-nine-terrains…md` | the nine terrains as a *representation* standard | `../eoreader6/` |
-| `SEED.md` | perceive only by difference from a ground you rebuild | `../eoreader6/` |
+| `LAWS.md` | eoWebLLM's laws, L1–L8 — each one a mistake made twice | `../eoWebLLM/LAWS.md` |
+| `READING-POLICY.md` | **canonical for how reading works** — P0–P7 | `../eoreader7/` (eoreader7 mounts this via a symlink into its `legacy-eoreader6.1` submodule) |
+| `CUBE.md`, `12-nine-terrains…md` | the nine terrains as a *representation* standard | `../eoreader7/` |
+| `SEED.md` | perceive only by difference from a ground you rebuild | `../eoreader7/` |
 
 The rest of this file is the mapping: which law binds which file here, where
 this repo already complies, and where it knowingly does not. It exists so the
@@ -7702,10 +7702,13 @@ P45, the 08-18 address decision, P170, the three resolutions), and the
 walls that stay. Its numbers — the compression ladder and the
 holograph-reading test — are pending and named there as pending.
 
+## The page reads with the constitutional assembly (added 2026-09-08) — pointer
+
+POLICIES.md **P176**. The page's own holograph used to run on `cast.js::makeReferentIndex` (the presence index, P38) while eval read with the constitutional assembly — P171's own disclosed "owed step". `reading-worker.mjs` (a Worker) now runs the SAME assembly (`READING_ASSEMBLY = "causalTextPerceiver+reviseTextFold@refresh25"`) eval names, persisted through `reading-store.js` (OPFS) and projected by `reading-client.js` (the same `reading-log.js` projection eval uses). `currentIndexAndBook()` (app.js) prefers it only once every live source is FULLY covered — a cache's mere key-presence is not completeness, checked against `READING_CONSTITUTIONAL`'s own chunk-unit progress, a different unit than the cache's log-row `lengths`. `/reading` discloses which basis decided a turn's identity, in plain language. Also fixed the same pass: three OPFS stores (`reading-store.js`, `sources-store.js`, `record-store.js`) cached a resolved directory handle rather than the in-flight promise (a TOCTOU race among concurrent first-writers); `reading-store.js`'s own `appendReading`/`saveCursor`, fired unawaited from a worker's progress handler, had no per-source serialization at all (two ticks for one fast source could open two writable streams on one file) — fixed with a per-name write queue, proven against a fake OPFS by deliberate A/B (`reading-store.test.mjs`: fails, reproducing the live symptom, with the queue bypassed). Priors also gained a third composer state (off/background/foreground) wiring `claims.js`'s own designed-but-never-fed `priors` ledger tier to the live `/api/priors/check` endpoint for the first time, and a bounded, resumable foreground source-sync (`PRIORS_FOREGROUND_SYNC_BATCH`) after an early attempt tried to attach an entire 3,166-document corpus in one blocking loop.
 
 ## Loops, and the holograph drawn (added 2026-09-08) — pointer
 
-POLICIES.md **P176** is the law. A turn's face is its LOOPS: `loops.js` on
+POLICIES.md **P177** is the law (renumbered from P176 on merge — a concurrent PR landed its own P176 first, above; the number moved, nothing about the policy did). A turn's face is its LOOPS: `loops.js` on
 the kernel task log (persisted as `records/loops.jsonl`, replayed on boot),
 each opened with what would close it, closed only by a witness, reopened
 with a trigger — the cascade by the chain, the ring count, the earlier
@@ -7726,3 +7729,22 @@ row's words carry their own meaning and nothing explains the rung. Do not re-der
 at the turn's start (the summary's count moves mid-turn); a conversation's
 key is minted at birth, not its index; a closed loop re-named on the same
 turn is a no-op, on a later turn "asked again".
+
+**Amended 2026-09-08 (P177's own amendment).** The notation says GLYPHS AND
+VALUES ONLY — no ask phrase, no grain word, no sentence (`○ ⇐ batman ⟵ ≡`);
+the glyphs are eoreader5's received ledger table, with eopm's divergent CON
+(⤫ vs ⋈) disclosed, and no received grain glyph exists anywhere in canon,
+which is why the notation carries none. `eoql.js` is the query bar: prefix
+EOQL over the rung's rows by keyword or glyph, eopm's own `eoTrace` reading
+of the nine as query steps, INS refused by name (a query selects, it never
+instantiates). `holograph-graph.js` draws the visual mode as a LAYERED DAG —
+Sugiyama's layering, median crossing reduction, pills that carry their own
+words (explore.js's Network grammar, with its wheel-zoom, drag-pan and
+lit/far focus) — after a force layout was built, measured and removed on the
+user's own diagnosis that the physics was doing the reading's work. Either
+column folds from a control at its own outer end. And the holograph's index
+is built over the conversation's turns and the passages the record CITED,
+never the corpus: attaching War and Peace froze the page, because the index
+ran `discoverReferents` over 3.3MB synchronously on every redraw — a book
+nobody has read into a turn is not on the record yet (P67).
+

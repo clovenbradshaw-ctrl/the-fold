@@ -33,15 +33,13 @@
 // (saw/wrote 0.744 vs the synonym pair looked/gazed 0.585). The Pattern
 // block's material half is recurrence on the ledger, which has a witness
 // count and no such confound.
-import { referentsOf } from "./dialogue.js";
+import { referentsOf, fold } from "./dialogue.js";
 import { strikeAddresses } from "./firewall.js";
 
 const DEPTHS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24]); // a ladder, structural; the shallowest depth that reproduces the reach wins
-// Received, not chosen here: its giver is the ledger block's own HYPERLEXICON_LEDGER_LINES (holon.js), reused as the declared fallback when no measurement organ is injected.
-export const DECLARED_LINES = 5;
+export const DECLARED_LINES = 5; // giver: the ledger block's own HYPERLEXICON_LEDGER_LINES (holon.js), reused as the declared fallback when no measurement organ is injected
 export const RECURRENCE_FLOOR = 2; // binding's structural minimum (P58): one arrival has no recurrence to test
 
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const resolveIds = (index, name) => { try { const r = index?.resolve?.(String(name ?? "")); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
 const represent = (index, id) => { try { return index?.represent?.(id) ?? id; } catch { return id; } };
 const addressOf = (w) => String(typeof w === "string" ? w : (w?.at ?? w?.ref ?? "")).split("~")[0];
@@ -82,7 +80,13 @@ export function dmdCut(rows, active, { dmdWindow = null, declared = DECLARED_LIN
   const keysOf = typeof reachOf === "function" ? reachOf : (r) => [...r.ids].filter((id) => active.has(id));
   const derive = (obs) => sortedIds(new Set(obs.flatMap((r) => keysOf(r))));
   let w;
-  try { w = dmdWindow(relevant, derive, { candidates, restrict: (obs, depth) => obs.slice(0, depth), equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) }); } catch { w = null; }
+  let measurementThrew = false;
+  try { w = dmdWindow(relevant, derive, { candidates, restrict: (obs, depth) => obs.slice(0, depth), equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) }); }
+  catch { measurementThrew = true; }
+  if (measurementThrew) {
+    const window = Math.min(declared, relevant.length);
+    return { rows: relevant.slice(0, window), window, basis: "declared: measurement organ threw — no measured cut", ceiling: false, gap: "measurement_threw" };
+  }
   if (w?.window) return { rows: relevant.slice(0, w.window), window: w.window, basis: w.basis ?? "measured", ceiling: false, gap: null };
   // No rung below the set reproduced its reach. A set no larger than the
   // declared lines is handed whole (every row is its own difference and the

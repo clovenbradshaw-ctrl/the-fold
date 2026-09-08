@@ -52,7 +52,13 @@ export const TRIGGER_LANGUAGE = "en";
 export const TRIGGER_LANGUAGE_META = Object.freeze({ giver: "lang/en", scope: "question-side speech acts: restatement, trailing check, pronoun and passage anaphors" });
 export const triggerGap = (language) => (language && language !== TRIGGER_LANGUAGE ? { type: "no_trigger_prior_for_language", language, detail: `the question-side triggers are declared for ${TRIGGER_LANGUAGE} only` } : null);
 
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// THE ONE FOLD, BY IMPORT (P7.1: "the same one, by import, never by local
+// reimplementation" — the failure this guards against is a retrieval organ
+// and a grounding check disagreeing about what a word is, so a found passage
+// fails the check that should confirm it). resolutions.js, activation-
+// retrieval.js and holon.js's act-key fold all import this rather than
+// redefining it; a fourth copy is exactly the shape P7.1 was written for.
+export const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const ids = (index, name) => { try { const r = index?.resolve?.(name); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
 const represent = (index, id) => { try { return index?.represent?.(id) ?? id; } catch { return id; } };
 
@@ -245,7 +251,10 @@ export function historyWindow(history = [], question = "", { dmdWindow, index = 
     return [...hit].sort();
   };
   if (typeof dmdWindow !== "function") { const d = Math.min(exchanges.length, 4); return { messages: exchanges.slice(-d).flat(), depth: d, why: "dmdWindow not injected — a declared fallback of 4 exchanges", basis: qids.size ? "referent" : "surface" }; }
-  const w = dmdWindow(exchanges, reach, { candidates: candidates.filter((c) => c <= exchanges.length).concat(exchanges.length), restrict: (obs, depth) => obs.slice(Math.max(0, obs.length - depth)) });
+  const declared = candidates.filter((c) => c <= exchanges.length);
+  const w = declared.length
+    ? dmdWindow(exchanges, reach, { candidates: declared, restrict: (obs, depth) => obs.slice(Math.max(0, obs.length - depth)) })
+    : { window: null, gap: "reach_exceeds_candidates", basis: "no declared history depth reaches the whole conversation" };
   const depth = Math.max(1, Math.min(exchanges.length, w?.window ?? exchanges.length));
   return { messages: exchanges.slice(-depth).flat(), depth, why: w?.basis ?? "measured", basis: qids.size ? "referent" : "surface", measured: w };
 }

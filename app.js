@@ -1081,24 +1081,9 @@ function loopCard(c, { expanded = false } = {}) {
     trail.append(row);
   }
   more.append(trail);
-  // A NOTE INTO THIS LOOP (user direction, 2026-09-08: "add a prompt or
-  // similar injected into particular loops"): the reader's own words, landed
-  // on the loop as its evidence and handed to the mouth on the next turn
-  // while the loop stands open. On a closed loop the note is the trigger
-  // that reopens it.
-  const noteRow = document.createElement("form");
-  noteRow.className = "loop-note";
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = c.state === "open" || c.state === "contested" ? "a note for this loop — carried to the next answer" : "a note that reopens this loop";
-  input.setAttribute("aria-label", `a note for the loop: ${c.asks}`);
-  const add = document.createElement("button");
-  add.type = "submit";
-  add.className = "linkish";
-  add.textContent = "add";
-  noteRow.append(input, add);
-  noteRow.addEventListener("submit", (ev) => { ev.preventDefault(); const t = input.value.trim(); if (t) noteLoopFromCard(c.id, t); });
-  more.append(noteRow);
+  // The per-loop note box was REMOVED (user direction, 2026-09-08). A card
+  // is a reading of what the turn did; a text input on every loop turned it
+  // into a form to fill in, and buried the trail it exists to show.
   // A closed, refused or set-aside loop can be reopened by the person — a
   // REC with its trigger on the record, never a deletion; a fill loop that
   // stood on a declared void re-declares it, so the next turn is told the
@@ -1427,20 +1412,6 @@ function holographTurn(argstr, typed) {
   return usageTurn(typed, `the holograph is open in the panel${name ? `, opened on “${name}”` : ""} — ${m.referents.length ? `about ${about.join(", ")}${m.referents.length > 8 ? ", …" : ""}` : "nothing established yet"}${bits.length ? ` · loops: ${bits.join(" · ")}` : ""}${m.voids.length ? ` · ${m.voids.length} gap${m.voids.length === 1 ? "" : "s"} on the record` : ""}. \`/holograph <name>\` opens one referent's rows.`, { what: "holograph" });
 }
 
-function noteLoopFromCard(id, text) {
-  const turn = state.summary.turnCount + 1;
-  const convo = convoNow();
-  const before = foldLoops(loopLogNow()).find((l) => l.id === id);
-  if (!before) return;
-  const acts = [];
-  if (before.state !== "open" && before.state !== "contested") acts.push({ act: "reopen", id, trigger: `the reader adds: ${text}`, turn, convo, by: "person" });
-  acts.push({ act: "evidence", id, note: text, by: "person", prompt: true, turn, convo });
-  const r = landLoops(acts);
-  if (r.turnedAway.length) { $("status").textContent = `note not landed: ${r.turnedAway[0].detail ?? r.turnedAway[0].type}`; return; }
-  logAct("loop-noted", { loop: id, reopened: before.state !== "open" && before.state !== "contested" });
-  redrawLoopsHolding(id);
-  $("status").textContent = `noted on "${before.asks}" — carried to the next answer`;
-}
 function reopenLoopFromCard(id, card) {
   const turn = state.summary.turnCount + 1;
   const convo = convoNow();
@@ -6556,6 +6527,22 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const convoScope = `c${convoNo}`;
   if (!opts.longForm) {
     try {
+      // What a gap the check opens would close ON, in the material's own
+      // words: the beings the INDEX resolves out of the question (P170 —
+      // identity is the index's, never a string's) and the question's own
+      // content words under the received stopword class. Computed here
+      // because loops.js is pure and reads no index; it owns the phrasing,
+      // this owns the organs.
+      const loopAbout = (() => {
+        try {
+          const idx = conversationIndexNow();
+          const names = [];
+          if (idx?.resolve) for (const id of idx.resolve(task) ?? []) { const n = idx.represent?.(id); if (n && !names.includes(n)) names.push(n); }
+          const terms = String(task).split(/[^\p{L}\p{N}'’-]+/u).filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+          const owned = new Set(names.flatMap((n) => n.toLowerCase().split(/\s+/)));
+          return { names, terms: terms.filter((t) => !owned.has(t.toLowerCase())) };
+        } catch { return null; }
+      })();
       landTurnLoops(loopsFromQuestion(task, { genre: questionGenre, form: questionForm, subject: questionSubject, hasMaterial: live.length > 0, sourceNames: liveSources().map((s) => s.name), webOn: Boolean(state.webProof), scope: loopScope, convoScope, turn: turnNo, convo: convoNo }));
     } catch (e) { console.warn("loops (question):", e?.message ?? e); }
   }
@@ -7305,7 +7292,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         if (phase === "planned") plannedParts = info.parts ?? null;
         try {
           const groundState = foldLoops(loopLogNow()).find((l) => l.id === loopId("ground", loopScope))?.state ?? null;
-          landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState }));
+          landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState, about: loopAbout }));
         }
         catch (e) { console.warn("loops (progress):", e?.message ?? e); }
         if (phase === "plan") {

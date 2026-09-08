@@ -810,7 +810,33 @@ const groupOf = (scope) => `turn:${scope}`;
  * through, read into loops instead of into log lines. `scope` identifies
  * the turn (e.g. "c1t4"); `planned` is "model" when the plan is the model's.
  */
-export function loopsFromProgress(phase, part, info = {}, { scope, turn = null, convo = null, planned = "model", parts = null, hasMaterial = true, groundState = null } = {}) {
+/**
+ * What would close a gap the check opened, said in the MATERIAL's own words.
+ * P177's rule for these cards is that no cell name reaches one, so this
+ * names the being the index resolved and the question's own terms — never a
+ * slot, an anchor or an operator (which is what borrowing whatWouldSettle's
+ * «rel» under «anchor» here would have put on the card, and what P55's
+ * firewall exists to keep out of reader-facing text). The register is the
+ * one the `unbacked` loop beside it already sets: plain, concrete, and it
+ * says what would settle it rather than what the machinery just did.
+ *
+ * `about` is the CALLER'S — loops.js reads no index and no closed class, so
+ * the names arrive resolved (P170: identity is the index's, never a
+ * string's) and the terms arrive already stripped of the received stopword
+ * class. Absent it, the line is byte-identical to the one this loop has
+ * always carried.
+ */
+function gapClosesOn(about) {
+  const names = (about?.names ?? []).filter(Boolean).slice(0, 3);
+  const terms = (about?.terms ?? []).filter(Boolean).slice(0, 3);
+  const quoted = terms.map((t) => `“${t}”`);
+  if (names.length && terms.length) return `a passage naming ${listOut(names)} beside ${listOut(quoted)}`;
+  if (names.length) return `a passage naming ${listOut(names)} that answers it`;
+  if (terms.length) return `a passage carrying ${listOut(quoted)}`;
+  return "material that covers it";
+}
+
+export function loopsFromProgress(phase, part, info = {}, { scope, turn = null, convo = null, planned = "model", parts = null, hasMaterial = true, groundState = null, about = null } = {}) {
   const group = groupOf(scope);
   const acts = [];
   const done = (xs) => (convo != null ? xs.map((a) => ({ ...a, convo })) : xs);
@@ -865,7 +891,7 @@ export function loopsFromProgress(phase, part, info = {}, { scope, turn = null, 
       for (const g of open) {
         const text = String(g?.text ?? g?.detail ?? g?.question ?? g ?? "").trim();
         if (!text) continue;
-        acts.push({ act: "open", id: loopId("gap", scope, text.slice(0, 80)), kind: "gap", cell: "SEG", asks: text.length > 120 ? `${text.slice(0, 117)}…` : text, closesOn: "material that covers it", by: "the check", group, turn, part: part?.label ?? null });
+        acts.push({ act: "open", id: loopId("gap", scope, text.slice(0, 80)), kind: "gap", cell: "SEG", asks: text.length > 120 ? `${text.slice(0, 117)}…` : text, closesOn: gapClosesOn(about), by: "the check", group, turn, part: part?.label ?? null });
       }
       break;
     }

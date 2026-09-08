@@ -477,3 +477,18 @@ test("no card authored by this module carries the canon's notation — cells, te
   }
   for (const v of Object.values(CELL_ASKS)) assert.ok(!BACKSTAGE_WORDS.test(v));
 });
+
+test("a gap says what would close it in the material's own words — the index's being and the question's own terms, never a slot name (P177: no cell name reaches a card)", () => {
+  const info = { refs: [], unsupported: [], open: [{ text: "Was Prince Andrew's wound fatal, and how do we know?" }] };
+  const withIndex = loopsFromProgress("checked", { label: "p1" }, info, { scope: "s", turn: 1, hasMaterial: true, about: { names: ["Prince Andrew"], terms: ["wound", "fatal"] } });
+  const gap = withIndex.find((a) => a.kind === "gap");
+  assert.match(gap.closesOn, /Prince Andrew/, "the being the index resolved is named");
+  assert.match(gap.closesOn, /wound/, "the question's own terms are named");
+  // the apparatus stays off the card: no slot, anchor, operator or cell name
+  for (const term of ["anchor", "slot", "rel»", "SEG", "CON", "SYN", "EVA", "void", "cell"]) {
+    assert.ok(!gap.closesOn.includes(term), `apparatus term leaked onto the card: ${term}`);
+  }
+  // and with no index handed in, the line is byte-identical to what it was
+  const without = loopsFromProgress("checked", { label: "p1" }, info, { scope: "s", turn: 1, hasMaterial: true });
+  assert.equal(without.find((a) => a.kind === "gap").closesOn, "material that covers it");
+});

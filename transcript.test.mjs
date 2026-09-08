@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAboutConversation, quotedAsk, recallTurns, asPassage, isTranscriptPassage, transcriptLine, RECALL_TURNS } from "./transcript.js";
+import { isAboutConversation, quotedAsk, recallTurns, asPassage, isTranscriptPassage, transcriptLine, turnRef, RECALL_TURNS } from "./transcript.js";
 
 const transcript = [
   { turn: 1, question: "What does the file say about Ada Rowe?", answer: "The harbor light was built in 1841 by Ada Rowe." },
@@ -38,4 +38,54 @@ test("a prior turn is addressed by its turn, marked as transcript, and labelled 
   assert.match(line, /^Turns 1, 2 of this conversation, quoted from the record\./);
   assert.match(line, /what was said, which is not the same as what the sources establish/);
   assert.equal(transcriptLine([{ ref: "h.txt#0-40" }]), "");
+});
+
+// ── the workspace: turns from another conversation in the same workspace ─────
+
+test("a turn from another conversation is addressed by that conversation, says so in its own text, and never collides with a turn of ours", () => {
+  const mine = asPassage(transcript[1]);
+  const theirs = asPassage({ turn: 2, chat: 3, chatTitle: "The harbor survey", question: "What about the tide?", answer: "Two tides a day, per the survey." });
+  // The same turn NUMBER in two conversations: one address each, and they differ.
+  assert.equal(mine.ref, "turn:2");
+  assert.equal(theirs.ref, "turn:3.2");
+  assert.notEqual(mine.ref, theirs.ref, "an address that named both would name neither");
+  assert.equal(theirs.source, theirs.ref, "the source is the address, as it is for our own turns");
+  assert.ok(isTranscriptPassage(theirs), "still a transcript passage, still never material");
+  assert.equal(theirs.turn, 2, "the turn number stays the conversation's own");
+  assert.equal(theirs.chat, 3);
+  // The mouth reads text, not refs: a foreign turn that did not name itself
+  // would read as something this conversation said.
+  assert.match(theirs.text, /^In "The harbor survey", earlier in this workspace:\nYou were asked: What about the tide\?/);
+  assert.doesNotMatch(mine.text, /workspace/, "our own turns are not announced as somebody else's");
+  assert.equal(turnRef({ turn: 4 }), "turn:4");
+  assert.equal(turnRef({ turn: 4, chat: 2 }), "turn:2.4");
+});
+
+test("the line naming the passages names each conversation it reached, and an unnamed one is not given a name", () => {
+  const line = transcriptLine([
+    asPassage(transcript[0]),
+    asPassage({ turn: 5, chat: 2, chatTitle: "The harbor survey", question: "q", answer: "a" }),
+    asPassage({ turn: 6, chat: 2, chatTitle: "The harbor survey", question: "q", answer: "a" }),
+    asPassage({ turn: 1, chat: 4, question: "q", answer: "a" }),
+  ]);
+  assert.match(line, /^Turn 1 of this conversation; turns 5, 6 of "The harbor survey", another conversation in this workspace; turn 1 of another conversation in this workspace, quoted from the record\./);
+  assert.match(line, /what was said, which is not the same as what the sources establish/);
+  // The single-conversation phrasing is untouched: a workspace of one reads
+  // exactly as it read before there were workspaces.
+  assert.match(transcriptLine([asPassage(transcript[0])]), /^Turn 1 of this conversation, quoted from the record\./);
+});
+
+test("recall is unchanged by where a turn came from: relevance decides, and the cap still caps", () => {
+  const workspace = [
+    ...transcript,
+    { turn: 1, chat: 2, chatTitle: "The harbor survey", question: "Who signed off the harbor light survey?", answer: "Ada Rowe signed the harbor light survey." },
+  ];
+  const got = recallTurns("What did you say about Ada Rowe and the harbor light?", workspace);
+  assert.ok(got.some((p) => p.ref === "turn:2.1"), "a relevant turn from another conversation is reachable");
+  assert.ok(got.length <= RECALL_TURNS, "the workspace makes more turns reachable, never a bigger handful");
+  // The control that matters: a workspace does not lower the bar. A turn
+  // sharing nothing with the question is still not handed over, whichever
+  // conversation it sits in.
+  const off = recallTurns("What did you say about turbines and gearboxes?", workspace);
+  assert.equal(off.length, 0, "nothing in common, nothing handed over — from any conversation");
 });

@@ -79,14 +79,32 @@ export function recallTurns(question, transcript = [], { max = RECALL_TURNS } = 
     .map(({ t }) => asPassage(t));
 }
 
+/**
+ * The address of a prior turn. `turn:12` is this conversation's twelfth turn;
+ * `turn:3.12` is the twelfth turn of conversation 3 in the same workspace.
+ *
+ * A workspace's conversations share what was said (the person asked for
+ * exactly that), so a bare turn number stopped being unique the moment more
+ * than one conversation could be recalled from — and an address that names
+ * two different turns is an address that lies (P137). The conversation's own
+ * number leads, because that is the order the person sees in the strip.
+ */
+export const turnRef = (t) => (Number.isFinite(t?.chat) ? `turn:${t.chat}.${t.turn}` : `turn:${t.turn}`);
+
 /** A prior turn as an addressed passage. The address is the turn, not a byte range in a file. */
 export function asPassage(t) {
-  const text = `You were asked: ${String(t.question ?? "").trim()}\nYou answered: ${String(t.answer ?? "").trim()}`;
+  // A turn from ANOTHER conversation says so in its own first line: the mouth
+  // reads the text, not the ref, and "you answered this" about a conversation
+  // the person is not in reads as a claim about this one unless it is named.
+  const from = Number.isFinite(t?.chat) && t.chatTitle ? `In "${String(t.chatTitle).trim()}", earlier in this workspace:\n` : "";
+  const text = `${from}You were asked: ${String(t.question ?? "").trim()}\nYou answered: ${String(t.answer ?? "").trim()}`;
+  const ref = turnRef(t);
   return {
-    ref: `turn:${t.turn}`,
-    source: `turn:${t.turn}`,
+    ref,
+    source: ref,
     kind: "transcript",
     turn: t.turn,
+    ...(Number.isFinite(t?.chat) ? { chat: t.chat, chatTitle: t.chatTitle ?? null } : {}),
     start: 0,
     end: text.length,
     text,
@@ -101,7 +119,21 @@ export const isTranscriptPassage = (p) => String(p?.ref ?? "").startsWith("turn:
  * record of what was said and not as material about the world.
  */
 export function transcriptLine(passages = []) {
-  const turns = passages.filter(isTranscriptPassage).map((p) => p.turn).filter((n) => Number.isFinite(n));
-  if (!turns.length) return "";
-  return `Turn${turns.length === 1 ? "" : "s"} ${turns.sort((a, b) => a - b).join(", ")} of this conversation, quoted from the record. This is what was said, which is not the same as what the sources establish.`;
+  const rows = passages.filter(isTranscriptPassage).filter((p) => Number.isFinite(p.turn));
+  if (!rows.length) return "";
+  const here = rows.filter((p) => !Number.isFinite(p.chat));
+  const elsewhere = rows.filter((p) => Number.isFinite(p.chat));
+  const nums = (list) => list.map((p) => p.turn).sort((a, b) => a - b).join(", ");
+  const parts = [];
+  if (here.length) parts.push(`Turn${here.length === 1 ? "" : "s"} ${nums(here)} of this conversation`);
+  // Named, not numbered: the conversation's own title is what the person can
+  // recognise, and a bare "conversation 3" is an address for the record, not
+  // a sentence for a reader.
+  for (const title of [...new Set(elsewhere.map((p) => p.chatTitle).filter(Boolean))]) {
+    const of = elsewhere.filter((p) => p.chatTitle === title);
+    parts.push(`turn${of.length === 1 ? "" : "s"} ${nums(of)} of "${String(title).trim()}", another conversation in this workspace`);
+  }
+  const unnamed = elsewhere.filter((p) => !p.chatTitle);
+  if (unnamed.length) parts.push(`turn${unnamed.length === 1 ? "" : "s"} ${nums(unnamed)} of another conversation in this workspace`);
+  return `${parts.join("; ")}, quoted from the record. This is what was said, which is not the same as what the sources establish.`;
 }

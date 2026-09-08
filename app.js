@@ -1019,6 +1019,16 @@ const state = {
    */
   convos: [],
   active: 0,
+  /**
+   * Workspaces. The material, the folds, the conversations and the room all
+   * belong to one; the active one's fields are held directly on `state` and
+   * written back on every switch, the same way a conversation's are, so no
+   * turn has to reach through two indices to find out where it is.
+   */
+  workspaces: [],
+  workspaceIndex: 0,
+  /** Whether THIS conversation is cut off from the rest of its workspace. */
+  isolated: false,
 
   summary: emptySummary(),
   /** The raw transcript. Kept only so the page can show what it is NOT sending. */
@@ -1168,7 +1178,158 @@ const PER_CONVO = [
   "aperture",
   "heldFolds",
   "regime",
+  // Whether this chat is cut off from the rest of its workspace. Default
+  // false: a workspace's conversations know what the others found, which is
+  // the whole reason a workspace is a thing. See PER_WORKSPACE below.
+  "isolated",
 ];
+
+// ── workspaces ───────────────────────────────────────────────────────────────
+//
+// A workspace is the container the material was always implicitly in. The
+// comment on `sources` above already says half of it — material is
+// deliberately NOT per conversation, because asking about one corpus from two
+// angles is the normal case — and never said what material IS per. This is
+// what it is per.
+//
+// Three levels, each holding what only it can hold:
+//   the app        the model, the theme, the homeserver session, and the
+//                  reading ledgers (hyperlexicon, grid, declarations,
+//                  metacognition, skills) — one instrument's reading,
+//                  whatever it was reading for, persisted as one record
+//   a workspace    the material, the folds, the conversations, and the room
+//   a conversation its own fold, history, record, meter, aperture
+//
+// WHAT THE CONVERSATIONS SHARE. A workspace's conversations know what was
+// said in the others: a question pointing back at what was said retrieves
+// across the whole workspace (transcript.js, P128), each prior turn addressed
+// by its conversation (`turn:3.12`) so no address names two turns. It is
+// RETRIEVAL, never a bigger window — the recency window is untouched and
+// nothing is stuffed into a prompt because it happens to sit in the same
+// workspace (READING-POLICY P1: never enlarge the window to fix a recall
+// failure). A chat switched to isolated retrieves from its own turns alone.
+//
+// PERMISSIONS, and there are exactly two states. A workspace is PRIVATE to
+// this browser until it is given a room (P119): nothing has left it, and
+// nobody else can read it. Given a room it is SHARED with that room's
+// members, every one of them at full power (`users_default` 100 — a room of
+// equals, by design), and what the homeserver itself can see is SERVER_SEES
+// and no more. There is no third state and no per-member grade; saying that
+// plainly is the whole of the model, and the room sheet says it in words.
+const PER_WORKSPACE = [
+  "convos",
+  "active",
+  // The material, and everything addressed into it.
+  "sources",
+  "citedMaterial",
+  "provenance",
+  "muted",
+  "chunks",
+  "media",
+  "pageFaces",
+  // What the turns built. `builds`' own note says a fold belongs to the
+  // instrument rather than to one conversation — true, and this is the
+  // instrument's scope: the folds made from THIS material.
+  "builds",
+  // The room this workspace is preserved to and shared through.
+  "matrixRoom",
+];
+
+let workspaceSeq = 0;
+/** An empty workspace: every per-workspace field at the shape `state` starts with. */
+function newWorkspace(name) {
+  workspaceSeq += 1;
+  return {
+    id: workspaceSeq,
+    name: name || (workspaceSeq === 1 ? "Workspace" : `Workspace ${workspaceSeq}`),
+    convos: [],
+    active: 0,
+    sources: {},
+    citedMaterial: {},
+    provenance: {},
+    muted: new Set(),
+    chunks: [],
+    media: {},
+    pageFaces: {},
+    builds: [],
+    matrixRoom: null,
+  };
+}
+
+const activeWorkspace = () => state.workspaces[state.workspaceIndex] ?? null;
+
+/** Write the live fields back into the objects that own them, innermost first. */
+function stowWorkspace() {
+  const convo = state.convos[state.active];
+  if (convo) for (const k of PER_CONVO) convo[k] = state[k];
+  const ws = activeWorkspace();
+  if (ws) for (const k of PER_WORKSPACE) ws[k] = state[k];
+}
+
+function switchWorkspace(index) {
+  // Same guard as switchConvo, for the same reason and more of it: a turn in
+  // flight writes its fold, record and history into whatever is active when
+  // its awaits resolve, and a workspace switch moves the material out from
+  // under it as well.
+  if (state.busy || index === state.workspaceIndex || !state.workspaces[index]) return;
+  stowWorkspace();
+  const from = state.convos[state.active];
+  from?.el.classList.remove("on");
+  state.workspaceIndex = index;
+  const ws = state.workspaces[index];
+  for (const k of PER_WORKSPACE) state[k] = ws[k];
+  const to = state.convos[state.active];
+  if (to) {
+    for (const k of PER_CONVO) state[k] = to[k];
+    to.el.classList.add("on");
+  }
+  renderThreads();
+  renderBuilds();
+  renderSources?.();
+  renderWorkspaceChip();
+  // The room is the workspace's, so the header's room chip moves with it: a
+  // workspace with no room must not wear the last one's colour.
+  renderRoomChip();
+  showView("chat");
+  $("input").focus();
+}
+
+function addWorkspace(name) {
+  if (state.busy) return null;
+  stowWorkspace();
+  state.convos[state.active]?.el.classList.remove("on");
+  const ws = newWorkspace(name);
+  state.workspaces.push(ws);
+  state.workspaceIndex = state.workspaces.length - 1;
+  for (const k of PER_WORKSPACE) state[k] = ws[k];
+  // The conversation is created INSIDE the new workspace, so its number is
+  // that workspace's own — `turn:1.4` means the fourth turn of the first
+  // conversation of whichever workspace you are in, and the address never
+  // has to reach outside it.
+  state.convos.push(newConvo());
+  state.active = 0;
+  const first = state.convos[0];
+  for (const k of PER_CONVO) state[k] = first[k];
+  first.el.classList.add("on");
+  renderThreads();
+  renderBuilds();
+  renderSources?.();
+  renderWorkspaceChip();
+  // The room is the workspace's, so the header's room chip moves with it: a
+  // workspace with no room must not wear the last one's colour.
+  renderRoomChip();
+  showView("chat");
+  $("input").focus();
+  return ws;
+}
+
+function renameWorkspace(name) {
+  const ws = activeWorkspace();
+  const trimmed = String(name ?? "").trim();
+  if (!ws || !trimmed) return;
+  ws.name = trimmed.slice(0, 60);
+  renderWorkspaceChip();
+}
 
 function newConvo() {
   const el = document.createElement("div");
@@ -1187,6 +1348,9 @@ function newConvo() {
     aperture: apertureMeter.create(),
     heldFolds: 0,
     regime: 0,
+    // Off by default: a new chat in a workspace starts knowing what the
+    // workspace knows. Isolating one is an act, the way muting a source is.
+    isolated: false,
   };
 }
 
@@ -1291,6 +1455,9 @@ function renderThreads() {
   add.title = "New conversation — same material, its own fold";
   add.onclick = addConvo;
   bar.append(add);
+  // The workspace switch governs a question against the OTHER conversations,
+  // so it appears and disappears with them.
+  renderWorkspaceSwitch();
 }
 
 // ── model ────────────────────────────────────────────────────────────────────
@@ -2035,6 +2202,588 @@ function renderPool() {
   }
   $("pool-this").textContent = roomServing ? `this machine is serving: ${roomServing.models.join(", ")} · ${roomServing.served} answered so far` : `this machine is not serving${localModels().length ? ` — it could offer ${localModels().join(", ")}` : " — it has no model to offer"}`;
   const btn = $("pool-serve"); btn.textContent = roomServing ? "Stop serving" : "Serve from this machine"; btn.classList.toggle("on", !!roomServing); btn.disabled = !room || !foldMatrix.status().signedIn;
+  renderRoomChip();
+}
+
+/**
+ * Resources — everything this instrument is connected to, in one place.
+ *
+ * The routes discipline (P118) said this in a status chip and a `/routes`
+ * printout: what the page can reach is PROBED at boot and never inferred
+ * from where the page is. This is that, given a surface, and widened past
+ * routes to every other thing the instrument reaches — the room, the web,
+ * an account, the material.
+ *
+ * THREE STATES, never two. Reachable, not reachable, and NOT ASKED — a row
+ * nobody probed says so in those words rather than wearing the same mark as
+ * one that was asked and answered nothing. Absence of a probe is a fact
+ * about this page, never about the thing.
+ */
+/**
+ * The inventory, as DATA. Every row is a plain object so the pane can filter,
+ * sort and count without knowing what any row is — which is what makes three
+ * machines and three hundred the same code path. `state` is one of three and
+ * only three: "on" reachable, "off" asked and not reachable, "unasked"
+ * nobody probed. Absence of a probe is a fact about this page, never about
+ * the thing.
+ */
+function resourceRows() {
+  const rows = [];
+  const add = (group, row) => { rows.push({ group, metric: null, act: null, ...row }); };
+  const probes = state.routeProbes ?? null;
+  const seen = (p) => (probes == null || p == null ? "unasked" : p.ok ? "on" : "off");
+
+  // ── mouths: this machine's, this tab's, and every machine in the room ────
+  const local = state.offeredModels.filter((m) => !isRoomModel(m));
+  add("mouths", {
+    name: "Ollama",
+    state: seen(probes?.ollama),
+    detail: probes == null ? "not probed yet — press re-probe"
+      : probes.ollama?.ok ? `on this machine · ${local.join(", ") || "no picker rung"}`
+        : (probes.ollama?.detail ?? "no answer on :11434"),
+    metric: probes?.ollama?.ok ? `${local.length} model${local.length === 1 ? "" : "s"}` : null,
+  });
+  // webgpuBlocker returns the blocker as a STRING, or null when there is
+  // none — null means available, and only a missing probe means unasked.
+  add("mouths", {
+    name: "this tab",
+    state: probes == null ? "unasked" : probes.webgpu ? "off" : "on",
+    detail: probes == null ? "not probed yet"
+      : probes.webgpu ? `WebGPU unavailable — ${probes.webgpu}`
+        : `WebGPU${probes.weights ? ` · weights from ${probes.weights.route}` : ""} — answers with no server at all`,
+  });
+  if (state.matrixRoom && !resourceMachines().length) {
+    add("mouths", { name: "the room", state: "off", detail: "a room is open; nobody is offering a machine yet", act: { label: "invite", run: () => { showView("chat"); renderRoomSheet(); $("room").showModal(); $("room-who").focus(); } } });
+  }
+
+  // ── servers ──────────────────────────────────────────────────────────────
+  add("servers", {
+    name: "this page's API",
+    state: seen(probes?.api),
+    detail: probes == null ? "not probed yet"
+      : probes.api?.ok ? `serve.mjs at ${probes.api.base} — /run and URL transcription`
+        : `${probes.api?.base ?? location.origin}: ${probes.api?.detail ?? "no answer"} — a static home has no API, and that is not a fault`,
+  });
+  add("servers", {
+    name: "explore server",
+    state: seen(probes?.explore),
+    detail: probes == null ? "not probed yet"
+      : probes.explore?.ok ? `${probes.explore.base} — web, priors, the record, the entity seek`
+        : `${probes.explore?.base ?? EXPLORE_BASE}: ${probes.explore?.detail ?? "no answer"}`,
+  });
+  add("servers", {
+    name: "this home",
+    state: state.routeWhere ? "on" : "unasked",
+    detail: state.routeWhere ? `${state.routeWhere.home ?? "unknown"} · ${location.origin}` : "not probed yet",
+  });
+
+  // ── the room ─────────────────────────────────────────────────────────────
+  const st = foldMatrix.status();
+  add("room", {
+    name: "homeserver",
+    state: st.locked ? "unasked" : st.signedIn ? "on" : "off",
+    detail: st.locked ? "sealed — unlock to see"
+      : st.signedIn ? `${st.user} on ${st.hs}` : "not signed in — nothing has left this browser",
+    metric: st.signedIn ? `${st.traffic.requests} req` : null,
+    act: { label: st.signedIn ? "room" : "sign in", run: () => { showView("chat"); renderRoomSheet(); $("room").showModal(); } },
+  });
+  add("room", {
+    name: "this workspace",
+    state: state.matrixRoom ? "on" : "off",
+    detail: state.matrixRoom ? `${roomLabel(state.matrixRoom)} — shared` : `${activeWorkspace()?.name ?? "this workspace"} is private to this browser`,
+    act: state.matrixRoom ? { label: "members", run: () => { showView("chat"); guardedSend("/matrix members"); } } : null,
+  });
+  add("room", {
+    name: "answering for it",
+    state: roomServing ? "on" : "off",
+    detail: roomServing ? `${roomServing.models.join(", ")} from this machine` : "this machine is not answering for the room",
+    metric: roomServing ? `${roomServing.served} done` : null,
+    act: state.matrixRoom ? { label: roomServing ? "stop" : "start", run: () => { showView("chat"); guardedSend(roomServing ? "/serve stop" : "/serve"); } } : null,
+  });
+
+  // ── the world ────────────────────────────────────────────────────────────
+  add("world", {
+    name: "web search",
+    state: state.webProof ? "on" : "off",
+    detail: state.webProof ? "a flagged claim is taken to the web through the recorded egress" : "nothing is searched unless you click a claim",
+    act: { label: state.webProof ? "off" : "on", run: () => { $("use-web").click(); renderResources(); } },
+  });
+  add("world", {
+    name: "primary sources",
+    state: state.ranke ? "on" : "off",
+    detail: state.ranke ? "a page's own citations are chased (Ranke)" : "/ranke runs it once, on demand",
+    act: { label: state.ranke ? "off" : "on", run: () => { $("use-ranke").click(); renderResources(); } },
+  });
+  add("world", {
+    name: "public gateways",
+    state: "unasked",
+    detail: "tried only when a direct fetch is refused; the open ones are folded off the record",
+    act: { label: "probe", run: () => { showView("chat"); guardedSend("/gateways probe"); } },
+  });
+
+  // ── what is loaded, and who is connected ────────────────────────────────
+  const sources = Object.keys(state.sources ?? {}).length;
+  add("kept", {
+    name: "material",
+    state: sources ? "on" : "off",
+    detail: sources ? `in ${activeWorkspace()?.name ?? "this workspace"}` : "nothing attached to this workspace yet",
+    metric: sources ? `${sources} src` : null,
+    act: { label: "reading", run: () => showView("explore") },
+  });
+  let gh = null;
+  try { gh = JSON.parse(localStorage.getItem("fold-github") ?? "null"); } catch { gh = null; }
+  add("kept", {
+    name: "GitHub",
+    state: gh?.token ? "on" : "off",
+    detail: gh?.token ? `connected${gh.repo ? ` · ${gh.repo}` : ""}` : "not connected — every crossing is a button, never automatic",
+    act: { label: "open", run: () => showView("github") },
+  });
+  add("kept", {
+    name: "the record",
+    state: "on",
+    detail: "append-only in this browser's private file system; the ledgers replay at boot",
+    act: { label: "log", run: () => showView("log") },
+  });
+  return rows;
+}
+
+/**
+ * Every machine offering a mouth through the room, flattened for the table.
+ * Kept apart from `resourceRows` because these are the rows that MULTIPLY —
+ * one per member's machine — and the two need different shapes: a row here
+ * is columns, a row there is a sentence.
+ */
+function resourceMachines() {
+  if (!state.matrixRoom) return [];
+  const pool = foldMatrix.pool(state.matrixRoom);
+  return pool.workers.map((w) => ({
+    name: w.user,
+    state: w.withdrawn ? "off" : "on",
+    models: w.models ?? [],
+    home: w.home ?? null,
+    inflight: w.inflight ?? 0,
+    answered: w.answered ?? 0,
+    failed: w.failed ?? 0,
+    meanMs: w.meanMs ?? null,
+    tokPerSec: w.tokPerSec ?? null,
+    device: w.device?.label ? `${w.device.label}${w.device.webgpu ? " · GPU" : ""}` : null,
+  }));
+}
+
+const RESOURCE_GROUPS = [
+  ["mouths", "mouths"],
+  ["servers", "servers"],
+  ["room", "the room"],
+  ["world", "the world"],
+  ["kept", "loaded"],
+];
+const RESOURCE_STATE_ORDER = { off: 0, unasked: 1, on: 2 };
+/** Which column the machines table is sorted by, and which way. */
+let resourceSort = { key: "speed", dir: "asc" };
+/** A tile the person pressed, filtering the pane to one group. */
+let resourceFocus = null;
+
+const stateDot = (st) => Object.assign(document.createElement("span"), { className: "res-dot" });
+
+/**
+ * The machines answering for the room, as a real table.
+ *
+ * This is the part that has to survive a hundred rows, so it is the part
+ * that gets COLUMNS: a name, what it offers, where it is, what it is doing
+ * now and how fast it has actually been. Sorting is by clicking a heading,
+ * because at that size the question is never "what is the list" but "which
+ * of these is idle / slow / gone".
+ */
+function machinesTable(rows) {
+  const table = document.createElement("table");
+  table.className = "res-table";
+  const cols = [
+    { key: "name", label: "machine" },
+    { key: "models", label: "models" },
+    { key: "home", label: "home" },
+    { key: "inflight", label: "in flight", num: true },
+    { key: "answered", label: "answered", num: true },
+    { key: "speed", label: "speed", num: true },
+    { key: "device", label: "device" },
+  ];
+  const head = table.createTHead().insertRow();
+  for (const c of cols) {
+    const th = document.createElement("th");
+    th.textContent = c.label;
+    if (resourceSort.key === c.key) th.setAttribute("aria-sort", resourceSort.dir === "asc" ? "ascending" : "descending");
+    th.onclick = () => {
+      resourceSort = resourceSort.key === c.key ? { key: c.key, dir: resourceSort.dir === "asc" ? "desc" : "asc" } : { key: c.key, dir: "asc" };
+      renderResources();
+    };
+    head.append(th);
+  }
+  // An unmeasured machine sorts LAST on speed rather than sorting as if it
+  // were instant — an absent measurement is not a fast one (P41's shape).
+  const val = (r, key) => ({
+    name: r.name, models: r.models.join(", "), home: r.home ?? "", device: r.device ?? "",
+    inflight: r.inflight, answered: r.answered, speed: r.meanMs ?? Infinity,
+  })[key];
+  const sorted = [...rows].sort((a, b) => {
+    const x = val(a, resourceSort.key); const y = val(b, resourceSort.key);
+    const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+    return resourceSort.dir === "asc" ? c : -c;
+  });
+  const body = table.createTBody();
+  for (const r of sorted) {
+    const tr = body.insertRow();
+    if (r.state !== "on") tr.className = "off";
+    const name = tr.insertCell();
+    const dot = stateDot(r.state); dot.dataset.state = r.state;
+    name.append(dot, document.createTextNode(` ${r.name}`));
+    tr.insertCell().textContent = r.models.join(", ") || "—";
+    tr.insertCell().textContent = r.home ?? "—";
+    const inflight = tr.insertCell(); inflight.className = "num"; inflight.textContent = r.inflight ?? 0;
+    const answered = tr.insertCell(); answered.className = "num"; answered.textContent = r.answered ?? 0;
+    const speed = tr.insertCell(); speed.className = "num";
+    speed.textContent = r.tokPerSec != null ? `${r.tokPerSec} tok/s` : r.meanMs != null ? `${(r.meanMs / 1000).toFixed(1)}s` : "—";
+    tr.insertCell().textContent = r.device ?? "—";
+  }
+  return table;
+}
+
+function renderResources() {
+  const body = $("res-body"); if (!body) return;
+  const q = ($("res-filter")?.value ?? "").trim().toLowerCase();
+  const all = resourceRows();
+  const machines = resourceMachines();
+  const match = (text) => !q || String(text).toLowerCase().includes(q);
+  const rows = all.filter((r) => (!resourceFocus || r.group === resourceFocus) && match(`${r.name} ${r.detail} ${r.metric ?? ""} ${r.state}`));
+  const shownMachines = (!resourceFocus || resourceFocus === "mouths")
+    ? machines.filter((m) => match(`${m.name} ${m.models.join(" ")} ${m.home ?? ""} ${m.device ?? ""} ${m.state}`))
+    : [];
+
+  // ── the tiles: one roll-up per group, and pressing one focuses the pane ──
+  const tiles = $("res-tiles");
+  tiles.textContent = "";
+  for (const [key, label] of RESOURCE_GROUPS) {
+    const of = all.filter((r) => r.group === key);
+    const count = of.length + (key === "mouths" ? machines.length : 0);
+    const up = of.filter((r) => r.state === "on").length + (key === "mouths" ? machines.filter((m) => m.state === "on").length : 0);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "res-tile";
+    b.setAttribute("aria-pressed", String(resourceFocus === key));
+    b.dataset.alarm = up === 0 && count > 0 ? "yes" : "no";
+    b.append(Object.assign(document.createElement("span"), { className: "res-tile-n", textContent: `${up}/${count}` }));
+    b.append(Object.assign(document.createElement("span"), { className: "res-tile-k", textContent: label }));
+    b.title = `${label} — ${RESOURCE_TILE_NOTE[key](of, machines)}. ${up} of ${count} reachable. Press to show only these.`;
+    b.onclick = () => { resourceFocus = resourceFocus === key ? null : key; renderResources(); };
+    tiles.append(b);
+  }
+
+  body.textContent = "";
+  // ── the machines, first, because they are the part that scales ──────────
+  if (shownMachines.length) {
+    const sec = document.createElement("section");
+    sec.className = "res-sec";
+    sec.append(Object.assign(document.createElement("h3"), { textContent: `machines in the room — ${shownMachines.filter((m) => m.state === "on").length} of ${shownMachines.length} offering` }));
+    // The columns are the point, so they are never allowed to wrap — the
+    // table scrolls inside its own box instead, exactly as every other wide
+    // table in this page does.
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    wrap.append(machinesTable(shownMachines));
+    sec.append(wrap);
+    body.append(sec);
+  }
+  // ── everything else: one tight row each ─────────────────────────────────
+  for (const [key, label] of RESOURCE_GROUPS) {
+    const inGroup = rows.filter((r) => r.group === key);
+    if (!inGroup.length) continue;
+    const sec = document.createElement("section");
+    sec.className = "res-sec";
+    sec.append(Object.assign(document.createElement("h3"), { textContent: label }));
+    for (const r of inGroup) {
+      const row = document.createElement("div");
+      row.className = "res-row";
+      row.dataset.state = r.state;
+      row.append(stateDot(r.state));
+      row.append(Object.assign(document.createElement("span"), { className: "res-name", textContent: r.name, title: r.name }));
+      row.append(Object.assign(document.createElement("span"), { className: "res-detail", textContent: r.detail, title: r.detail }));
+      if (r.metric) row.append(Object.assign(document.createElement("span"), { className: "res-metric", textContent: r.metric }));
+      if (r.act) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "res-do"; b.textContent = r.act.label; b.onclick = r.act.run;
+        row.append(b);
+      }
+      sec.append(row);
+    }
+    body.append(sec);
+  }
+  if (!rows.length && !shownMachines.length) {
+    body.append(Object.assign(document.createElement("p"), { className: "res-empty", textContent: q ? `nothing matches "${q}".` : "nothing to show — press re-probe." }));
+  }
+}
+
+/** The one line under each tile's number: what that group is, in this state. */
+const RESOURCE_TILE_NOTE = {
+  mouths: (of, machines) => (machines.length ? `${machines.length} in the room` : "here, in-tab, or in the room"),
+  servers: () => "what serves and answers this page",
+  room: () => "who this workspace is shared with",
+  world: () => "what may be read beyond this machine",
+  kept: () => "material, accounts, the record",
+};
+
+/**
+ * The workspace, declared in the header (P177). Two things, and no more: what
+ * this workspace is called, and who can read it. The second is not a settings
+ * panel — a room is a room of equals and there is nothing to grade — so it
+ * states the two states there are and hands every ACT to the room's own
+ * sheet, rather than growing a second set of doors that would drift from it.
+ */
+/**
+ * The OTHER attachment, read for disclosure only (github-pane.js owns this
+ * store; this is a read of the same localStorage key, never a write).
+ *
+ * Two attachments make two accounts of one system, and they are opposite in
+ * what they expose: the room seals what it holds, a repo publishes it in the
+ * clear. An access chip that knew only about the room would call a workspace
+ * "private" while its folds sat in a public repo — true about the room, and
+ * a lie about the workspace. `savedTo` is only written once data has really
+ * gone, so this reports what left, not what was merely selected.
+ */
+function githubAttachment() {
+  try {
+    const s = JSON.parse(localStorage.getItem("fold-github") ?? "{}");
+    return s?.savedTo?.fullName ? s.savedTo : null;
+  } catch {
+    return null;
+  }
+}
+
+function workspaceAccess() {
+  const ws = activeWorkspace();
+  const room = ws?.matrixRoom ?? null;
+  const gh = githubAttachment();
+  // A public repo is the loudest fact about a workspace's reach, so it is
+  // what the chip says, whatever else is also true.
+  if (gh?.visibility === "public") {
+    return {
+      access: "public",
+      word: "public",
+      line: `Folds from here are saved in ${gh.fullName}, which is a PUBLIC repository — anyone on the internet can read them.`,
+      detail: `That includes the reading behind each fold: the exact words quoted out of whatever it read. ${room ? `Chats are separately sealed into ${roomLabel(room)}; the repo is not sealed.` : "Chats are not shared — this is about what was saved to GitHub."} Saving somewhere private is a change of destination in the GitHub tab, but what is already pushed stays in that repo's history.`,
+    };
+  }
+  if (!room && gh) {
+    return {
+      access: "shared",
+      word: "saved",
+      line: `Chats stay in this browser; folds from here are saved in ${gh.fullName} (private).`,
+      detail: "You, anyone you share that repo with, and GitHub itself can read what was saved. It is not sealed the way a room is — a repo is meant to be read.",
+    };
+  }
+  if (!room) {
+    return {
+      access: "private",
+      word: "private",
+      line: "Private to this browser. Nothing in this workspace has left it, and nobody else can read it.",
+      detail: "Giving it a room is what shares it — the room sheet, beside the appearance toggle, is where that happens.",
+    };
+  }
+  const st = foldMatrix.status();
+  return {
+    access: "shared",
+    word: "shared",
+    line: `Shared through ${roomLabel(room)}${st.signedIn ? `, as ${st.user}` : ""}.${gh ? ` Folds are also saved in ${gh.fullName} (${gh.visibility}).` : ""}`,
+    // Full power is the room's own design (P119), and a workspace that is
+    // shared at all is shared at full power — saying it plainly is the model.
+    detail: "Every member holds full power in that room — invite, rename, remove — because it is a room of equals. What the homeserver itself can see is a pointer, a public key, a wrapped key or ciphertext; never a turn.",
+  };
+}
+
+// github-pane.js announces a save; the chip's word may change because of it.
+window.addEventListener("fold:attachments-changed", () => {
+  renderWorkspaceChip();
+  if (!$("workspace-sheet")?.open) return;
+  renderWorkspaceSheet();
+});
+
+function renderWorkspaceChip() {
+  const chip = $("workspace-chip"); if (!chip) return;
+  const ws = activeWorkspace();
+  const a = workspaceAccess();
+  $("workspace-name").textContent = ws?.name ?? "Workspace";
+  const mark = $("workspace-access");
+  mark.textContent = a.word;
+  mark.dataset.access = a.access;
+  chip.title = `${ws?.name ?? "Workspace"} — ${a.line} ${state.convos.length} conversation${state.convos.length === 1 ? "" : "s"}, ${Object.keys(state.sources ?? {}).length} source${Object.keys(state.sources ?? {}).length === 1 ? "" : "s"}, ${state.builds.length} fold${state.builds.length === 1 ? "" : "s"}.`;
+}
+
+function renderWorkspaceSheet() {
+  const ws = activeWorkspace(); if (!ws) return;
+  const a = workspaceAccess();
+  $("ws-name").value = ws.name;
+  const sources = Object.keys(state.sources ?? {}).length;
+  const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+  $("ws-holds").textContent = `Holds ${n(state.convos.length, "conversation", "conversations")}, ${n(sources, "source", "sources")} and ${n(state.builds.length, "fold", "folds")}. The reading ledger is the instrument's own and spans every workspace.`;
+  $("ws-access").textContent = a.line;
+  $("ws-access-detail").textContent = a.detail;
+
+  const others = state.convos.length - 1;
+  $("ws-reach").textContent = others > 0
+    ? `A question asked here can reach what was said in ${n(others, "other conversation", "other conversations")} of this workspace${state.isolated ? " — but the workspace switch is off, so the next question is answered from this chat alone." : "."}`
+    : "This is the only conversation in the workspace, so there is nothing else to reach yet.";
+
+  const list = $("ws-list");
+  list.textContent = "";
+  state.workspaces.forEach((w, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.disabled = i === state.workspaceIndex || state.busy;
+    const name = document.createElement("span");
+    name.textContent = w.name;
+    const meta = document.createElement("small");
+    const c = i === state.workspaceIndex ? state.convos : w.convos;
+    const src = Object.keys((i === state.workspaceIndex ? state.sources : w.sources) ?? {}).length;
+    meta.textContent = `${c.length} chat${c.length === 1 ? "" : "s"} · ${src} source${src === 1 ? "" : "s"} · ${w.matrixRoom ? "shared" : "private"}`;
+    name.append(document.createTextNode(" "), meta);
+    b.append(name);
+    if (i === state.workspaceIndex) b.append(Object.assign(document.createElement("span"), { className: "here", textContent: "here" }));
+    b.onclick = () => { $("workspace").close(); switchWorkspace(i); };
+    li.append(b);
+    list.append(li);
+  });
+  $("ws-new").disabled = state.busy;
+}
+
+/**
+ * The room, as a surface (P177) — the header chip beside the theme toggle,
+ * and the sheet it opens.
+ *
+ * Every door here already existed and was reachable only by typing. The
+ * sheet does NOT re-implement one: each row sends the door it names through
+ * `guardedSend`, so the act and its answer land on the transcript exactly as
+ * a typed one does. A button that quietly did the thing without leaving a
+ * line would be an act off the record, which this instrument does not have.
+ */
+function renderRoomChip() {
+  const btn = $("room-toggle"); if (!btn) return;
+  const st = foldMatrix.status();
+  const inRoom = !!state.matrixRoom;
+  btn.dataset.state = !st.signedIn || st.locked ? "out" : inRoom ? "room" : "in";
+  btn.dataset.serving = roomServing ? "yes" : "no";
+  btn.title = st.locked
+    ? "The room — this browser's keys are sealed; press to unlock"
+    : !st.signedIn
+      ? "The room — preserve, share and answer chats through a homeserver you name. Not signed in."
+      : inRoom
+        ? `The room — ${roomLabel(state.matrixRoom)}${roomServing ? `, and this machine is answering for it (${roomServing.served} so far)` : ""}`
+        : `The room — signed in as ${st.user}; this chat has no room yet`;
+}
+
+/** One row of the room sheet: what it does, and the door it sends. */
+function roomDoor(label, why, cmd, { on = false, disabled = false, run = null } = {}) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.disabled = disabled;
+  if (on) b.className = "on";
+  const wrap = document.createElement("span");
+  wrap.textContent = label;
+  wrap.append(Object.assign(document.createElement("small"), { textContent: why }));
+  b.append(wrap);
+  b.onclick = () => {
+    $("room").close();
+    if (run) run();
+    else guardedSend(cmd);
+  };
+  return b;
+}
+
+function renderRoomSheet() {
+  const st = foldMatrix.status();
+  const room = state.matrixRoom;
+  const busy = state.busy;
+  // ONE line of where this browser stands, and the disclosure folded behind
+  // its own summary. Every fact that used to sit here is still reachable —
+  // the traffic count, the models being served, the vault's state — from
+  // "Everything, on the record", which prints the lot. A sheet whose first
+  // screen is eight lines of state is a sheet nobody reads to the bottom.
+  const status = $("room-status");
+  status.textContent = "";
+  const line = (text, cls = "") => { const li = document.createElement("li"); li.textContent = text; if (cls) li.className = cls; status.append(li); return li; };
+  if (st.locked) line("Sealed — unlock to use any of this.", "gap");
+  else if (!st.signedIn) line("Not signed in. Nothing has left this browser.");
+  else line(`${st.user} on ${st.hs}${room ? ` · ${roomLabel(room)}` : " · no room yet"}${roomServing ? ` · answering for the room (${roomServing.served})` : ""}`, "now");
+  // The disclosure is not optional and it is not the first thing either: it
+  // is five lines of what an operator holds, folded behind its own summary so
+  // the doors are not pushed off the sheet by a paragraph nobody re-reads.
+  const li = document.createElement("li");
+  const det = document.createElement("details");
+  det.append(Object.assign(document.createElement("summary"), { textContent: "what that server can see, and no more" }));
+  const ul = document.createElement("ul");
+  for (const l of SERVER_SEES) ul.append(Object.assign(document.createElement("li"), { textContent: l }));
+  det.append(ul);
+  li.append(det);
+  status.append(li);
+
+  const doors = $("room-doors");
+  doors.textContent = "";
+  if (st.locked || !st.signedIn) {
+    // Nothing here yet: the one act available is the button above, and a row
+    // repeating it would be the same decision offered twice.
+  } else {
+    // One short line each. What a door does at length is what the door's own
+    // answer says when it runs — this list is for choosing, not for reading.
+    doors.append(roomDoor("Keep this chat", room ? "seal its new turns into the room" : "make a private room and seal this chat into it", "/preserve", { disabled: busy }));
+    doors.append(roomDoor("Who is in the room", "members, and whether their keys are proved", "/matrix members", { disabled: busy || !room }));
+    doors.append(roomDoor("Pooled devices", "machines answering here, and what each has done", null, { run: () => { renderPool(); $("pool").showModal(); if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch(() => {}); } }));
+    doors.append(roomServing
+      ? roomDoor("Stop answering for the room", `${roomServing.served} answered so far`, "/serve stop", { on: true, disabled: busy })
+      : roomDoor("Answer from this machine", "let members use this machine's models, sealed", "/serve", { disabled: busy || !room }));
+    doors.append(roomDoor("Link anyone can use", "whoever holds it reads everything, forever", "/share open", { disabled: busy }));
+    doors.append(st.vaulted
+      ? roomDoor("Stop sealing this browser", "back to plain storage, on the passphrase", "/matrix unlock off", { disabled: busy })
+      : roomDoor("Seal this browser", "keys under a passphrase, asked for on every load", "/matrix lock", { disabled: busy }));
+    doors.append(roomDoor("Sign out", "keys stay here; the token is invalidated", "/matrix logout", { disabled: busy }));
+  }
+
+  // Inviting, written as the steps it actually is. The three states differ in
+  // what the person's NEXT act is, so each says only that — a field that
+  // silently does nothing because a step upstream is missing is the shape
+  // this sheet exists to remove.
+  const who = $("room-who"); const go = $("room-share-go");
+  const steps = $("room-steps"); const note = $("room-invite-note");
+  const bold = (text) => Object.assign(document.createElement("b"), { textContent: text });
+  const start = $("room-start");
+  const signup = $("room-signup");
+  // The address field and the one-button first step are the same block in two
+  // states, never both at once: before an account there is nothing to type.
+  const ready = st.signedIn && !st.locked;
+  $("room-share").hidden = !ready;
+  start.hidden = ready;
+  steps.textContent = "";
+  if (st.locked) {
+    steps.append(document.createTextNode("Unlock this browser first."));
+    note.textContent = "";
+    signup.hidden = true;
+    start.textContent = "Unlock";
+    start.disabled = busy;
+  } else if (!st.signedIn) {
+    // matrix.org is named as the easy first account, by user direction
+    // (2026-09-08) — a person with no Matrix account at all had nowhere to
+    // start, and "any server you trust" is not an answer to "which one". It
+    // stays a SUGGESTION, not a route: the link is one the person follows,
+    // this page still sends nothing there, and the sign-in field takes
+    // whatever server is typed.
+    steps.append(document.createTextNode("Sign in with a Matrix account — on "), bold("matrix.org"), document.createTextNode(" or any other server."));
+    note.textContent = "";
+    signup.hidden = false;
+    start.textContent = "Sign in";
+    start.disabled = busy;
+  } else {
+    steps.append(document.createTextNode("Their address, like "), bold("@sam:matrix.org"), document.createTextNode(". They can be on any server — it does not have to be yours."));
+    signup.hidden = true;
+    note.textContent = "You get back a link that works for them alone, once, for seven days. Send it to them however you like.";
+    go.disabled = busy || !/^@[^:]+:.+$/.test(who.value.trim());
+  }
+  $("room-more").disabled = busy;
 }
 
 /**
@@ -3572,6 +4321,12 @@ function releaseBusy() {
   $("send").disabled = false;
   $("input").focus();
   drainQueue();
+  // A room door is sent like any other turn, so the two header chips that
+  // say where this browser stands — with its homeserver, and with the
+  // workspace whose room that becomes — are refreshed where every turn ends,
+  // not inside each door, which would miss the typed ones.
+  renderRoomChip();
+  renderWorkspaceChip();
 }
 
 /**
@@ -5060,17 +5815,53 @@ function activationRetrievalNow() {
   if (!index || !book) return null;
   return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
-function transcriptNow() {
-  const h = state.history ?? [];
+/** The turns of one conversation, paired and numbered as that conversation counts them. */
+function turnRowsOf(history, records, { chat = null, chatTitle = null } = {}) {
+  const h = history ?? [];
   const rows = [];
   let turn = 0;
   for (let i = 0; i + 1 < h.length; i += 1) {
     if (h[i]?.role !== "user" || h[i + 1]?.role !== "assistant") continue;
     turn += 1;
-    const rec = (state.summary?.records ?? []).find((r) => r.turn === turn);
-    rows.push({ turn, question: String(h[i].content ?? ""), answer: String(h[i + 1].content ?? ""), refs: rec?.refs ?? [] });
+    const rec = (records ?? []).find((r) => r.turn === turn);
+    rows.push({
+      turn,
+      question: String(h[i].content ?? ""),
+      answer: String(h[i + 1].content ?? ""),
+      refs: rec?.refs ?? [],
+      ...(chat == null ? {} : { chat, chatTitle }),
+    });
     i += 1;
   }
+  return rows;
+}
+
+/**
+ * What a question about the conversation may retrieve from (P128), scoped to
+ * the WORKSPACE (this chat's own turns first, then every other conversation
+ * in the same workspace, each row carrying the conversation it came from so
+ * its address cannot be mistaken for one of ours).
+ *
+ * This is retrieval, not context: `recallTurns` still hands back at most
+ * RECALL_TURNS rows and still hands back NOTHING when a question shares no
+ * content word with any of them. A workspace makes more turns REACHABLE; it
+ * does not make any prompt bigger, and the recency window is untouched.
+ *
+ * A chat marked `isolated` sees only its own turns — the same act as muting
+ * a source, one level up: nothing is deleted, and switching it back is one
+ * click with nothing lost.
+ */
+function transcriptNow() {
+  const mine = turnRowsOf(state.history, state.summary?.records);
+  if (state.isolated) return mine;
+  const rows = [...mine];
+  state.convos.forEach((c, i) => {
+    if (i === state.active) return;
+    // A conversation that isolated ITSELF is not withholding from the
+    // workspace — the switch says "answer this one on its own", never "keep
+    // what I found from the others". One-directional, and deliberately so.
+    rows.push(...turnRowsOf(c.history, c.summary?.records, { chat: i + 1, chatTitle: convoTitle(c) }));
+  });
   return rows;
 }
 
@@ -8448,7 +9239,7 @@ function persistBuilds() {
         ? { n: b.n, turn: b.turn, kind: "database", entries: b.storeLog.entries }
         : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null },
     );
-    localStorage.setItem(BUILDS_KEY, JSON.stringify({ id: conv?.id, builds: data }));
+    localStorage.setItem(buildsKey(), JSON.stringify({ id: conv?.id, builds: data }));
   } catch (e) {
     // Not worth a crash, but never silent either: from here on a reload
     // would lose builds, and that has to be visible somewhere.
@@ -8458,7 +9249,7 @@ function persistBuilds() {
 
 function restoreBuilds() {
   try {
-    const raw = localStorage.getItem(BUILDS_KEY);
+    const raw = localStorage.getItem(buildsKey());
     if (!raw) return;
     const { builds } = JSON.parse(raw);
     if (!Array.isArray(builds)) return;
@@ -10907,6 +11698,7 @@ function showView(name) {
   for (const p of document.querySelectorAll(".pane"))
     p.classList.toggle("on", p.id === `pane-${name}`);
   if (name === "terminal") $("term-in").focus();
+  if (name === "resources") renderResources();
   if (name === "editor") editorLayout();
 }
 
@@ -11123,6 +11915,8 @@ for (const [btn, dlg] of [
   ["model-menu-x", "model-menu"],
   ["matrix-login-x", "matrix-login"],
   ["pool-x", "pool"],
+  ["room-x", "room"],
+  ["workspace-x", "workspace"],
   ["attach-menu-x", "attach-menu"],
   ["picker-x", "picker"],
   ["paste-x", "paste"],
@@ -11216,6 +12010,57 @@ $("matrix-login-form").addEventListener("submit", (e) => {
   void sheetAct(mode, hs, user, secret);
 });
 $("model-menu-pool").onclick = () => { settingsDialog.close(); renderPool(); $("pool").showModal(); if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch(() => {}); };
+
+// ── the workspace, from the header ───────────────────────────────────────────
+$("workspace-chip").onclick = () => { renderWorkspaceSheet(); $("workspace").showModal(); };
+// The name is committed as it is typed: a workspace's name is a label, not a
+// form to submit, and a sheet that needed an OK button to keep it would be
+// one more thing to forget.
+$("ws-name").oninput = () => renameWorkspace($("ws-name").value);
+// The workspace switch is the composer's, beside the other two, because it
+// governs the QUESTION about to be asked and not the chat: one click from
+// every question, in sight while the question is being typed. It shows only
+// once there is another conversation for it to govern, so `renderThreads`
+// re-reads it whenever the strip changes.
+function renderWorkspaceSwitch() {
+  const sw = $("workspace-switch"); if (!sw) return;
+  sw.hidden = state.convos.length < 2;
+  $("use-workspace").checked = !state.isolated;
+}
+$("use-workspace").onchange = () => {
+  state.isolated = !$("use-workspace").checked;
+  const convo = state.convos[state.active];
+  if (convo) convo.isolated = state.isolated;
+  logAct("workspace-reach", { chat: state.active + 1, reaches: !state.isolated });
+  $("status").textContent = state.isolated
+    ? "this question will be answered from this chat alone"
+    : "this question can reach the workspace's other conversations";
+};
+$("ws-new").onclick = () => { $("workspace").close(); addWorkspace(); };
+$("res-filter").oninput = () => renderResources();
+$("res-refresh").onclick = async () => {
+  const b = $("res-refresh"); b.disabled = true; b.textContent = "probing…";
+  try { await probeRoutes(); } finally { b.disabled = false; b.textContent = "re-probe"; renderResources(); }
+};
+$("ws-invite").onclick = () => { $("workspace").close(); renderRoomSheet(); $("room").showModal(); $("room-who").focus(); };
+
+// ── the room, from the header ────────────────────────────────────────────────
+$("room-toggle").onclick = () => { renderRoomSheet(); $("room").showModal(); };
+$("room-who").oninput = () => { $("room-share-go").disabled = state.busy || !/^@[^:]+:.+$/.test($("room-who").value.trim()); };
+// The first step, whichever it is: unlock, or sign in.
+$("room-start").onclick = () => {
+  const st = foldMatrix.status();
+  $("room").close();
+  openMatrixSheet(st.locked ? "unlock" : "login");
+};
+$("room-share-go").onclick = () => {
+  const who = $("room-who").value.trim();
+  if (!/^@[^:]+:.+$/.test(who)) return; // the button is disabled, but a keyboard can still reach it
+  $("room-who").value = "";
+  $("room").close();
+  guardedSend(`/share ${who}`);
+};
+$("room-more").onclick = () => { $("room").close(); guardedSend("/matrix"); };
 $("pool-refresh").onclick = () => { if (state.matrixRoom) foldMatrix.mouths(state.matrixRoom).then(renderPool).catch((e) => { $("pool-sub").textContent = matrixGap(e); }); };
 $("pool-serve").onclick = async () => {
   try { if (roomServing) { roomServing.controller.abort(); roomServing = null; } else await startServing(state.matrixRoom); }
@@ -11251,6 +12096,11 @@ async function probeRoutes() {
   }
   probes.weights = webllmClient.weightsRoute ? { route: webllmClient.weightsRoute.route, base: webllmClient.weightsRoute.base } : null;
   state.routes = describeRoutes({ where, probes });
+  // describeRoutes returns the PHRASING ({summary, lines, gaps}); the probe
+  // answers themselves are what a surface needs to say "reachable", "not
+  // reachable" and "never asked" apart, so they are kept as they came back.
+  state.routeProbes = probes;
+  state.routeWhere = where;
   // Said once, on the status chip the page already keeps (the composer's
   // status line is the turn loop's and is hidden between turns); the full
   // table is /routes.

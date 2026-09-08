@@ -29,7 +29,7 @@
 // PURE: no model, no I/O, no engine of its own (the arithmetic engine and the
 // sentence splitter are injected, this repo's standing pattern).
 import { checkComparison } from "./arithmetic.js";
-import { quotedAsk } from "./transcript.js";
+import { quotedAsk, turnRef } from "./transcript.js";
 
 /** A blank as the probes and people write one: three or more underscores, or a bracketed ellipsis. */
 const BLANK_RE = /_{3,}|\[\s*\.\.\.\s*\]|\.\.\.\.+/;
@@ -95,7 +95,15 @@ export function priorAnswer(question, transcript = []) {
   const t = hits[0];
   const said = squash(t.answer);
   if (!said) return null;
-  return { turn: t.turn, text: `On turn ${t.turn} you were asked "${squash(t.question)}" and the answer given was: ${said}` };
+  // Where the turn came from another conversation in the workspace, the
+  // sentence says so — the door answers exactly, and "on turn 3" would name
+  // a turn of THIS conversation that the person can go and read.
+  const where = Number.isFinite(t.chat) ? ` of "${String(t.chatTitle ?? `conversation ${t.chat}`).trim()}"` : "";
+  return {
+    turn: t.turn,
+    ...(Number.isFinite(t.chat) ? { chat: t.chat, chatTitle: t.chatTitle ?? null } : {}),
+    text: `On turn ${t.turn}${where} you were asked "${squash(t.question)}" and the answer given was: ${said}`,
+  };
 }
 
 /** whichPassage(question, passages) → the addresses actually retrieved, when that IS the question. */
@@ -182,7 +190,7 @@ export function answerBeforeTheModel({ question, passages = [], transcript = [],
   const cloze = clozeAnswer(question, passages);
   if (cloze) return { kind: "cloze", text: cloze.text, addresses: [cloze.ref].filter(Boolean), why: "the material carries the filling verbatim between the quoted words" };
   const prior = priorAnswer(question, transcript);
-  if (prior) return { kind: "prior-answer", text: prior.text, addresses: [`turn:${prior.turn}`], why: "the record holds what was said" };
+  if (prior) return { kind: "prior-answer", text: prior.text, addresses: [turnRef(prior)], why: "the record holds what was said" };
   const which = whichPassage(question, passages);
   if (which) return { kind: "which-passage", text: which.text, addresses: which.refs, why: "the question asks for the address, which retrieval already knows" };
   return null;

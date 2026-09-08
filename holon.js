@@ -1083,6 +1083,13 @@ export async function runPart({
   // and 2, both ahead of any drafting). A caller with no void passes null
   // and every branch below is byte-identical to before this existed.
   answerShape = null,
+  // The reader's own notes on particular loops (loops.js, 2026-09-08: "add a
+  // prompt or similar injected into particular loops"), already phrased by
+  // the caller in the reader's own words ("The reader adds, about the form:
+  // make it rhyme."). Task-wide and flat only, like answerShape: a fact the
+  // mouth is handed, never an instruction stacked on the prompt. null →
+  // byte-identical to before.
+  readerNotes = null,
   // S1's own answer text, or null when there was no fast pass (or the S2
   // gate never fired). Flat only, reaching both the chat branches and the
   // flat material branch (unlike searchedVoid, S1's answer stays relevant
@@ -1966,6 +1973,7 @@ export async function runPart({
   // with a phrase in its prompt rather than using it. A size it can simply
   // aim at is information; a length limit is one more rule to satisfy.
   const shapeSuffix = answerShape ? ` ${answerShape}` : "";
+  const notesSuffix = flat && readerNotes ? ` ${readerNotes}` : "";
   // Phase 2's own material, for the INITIAL draft prompt only — `sourceBlock`
   // itself stays untouched everywhere else in this function (succession-box
   // parsing at parseSuccessionBoxes below reads raw material text and must
@@ -2133,7 +2141,7 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + notesSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -2144,12 +2152,12 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${notesSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${ledgerSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${notesSuffix}${priorPassSuffix}${ledgerSuffix}` },
           { role: "user", content: `${task}${chatContext}` },
         ];
   onProgress?.("execute", part, {
@@ -3204,6 +3212,8 @@ export async function runHolonicTask({
   // for the identical reason searchedVoid is: the void is declared once per
   // TURN, before any part runs. null → byte-identical to before.
   answerShape = null,
+  // The reader's notes on particular loops (see runPart's own parameter).
+  readerNotes = null,
   // S1's own answer, task-wide for the identical reason searchedVoid is —
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
@@ -3419,6 +3429,7 @@ export async function runHolonicTask({
       flat: planMode === "flat",
       searchedVoid,
       answerShape,
+      readerNotes,
       priorPass,
       onProgress,
       grid,

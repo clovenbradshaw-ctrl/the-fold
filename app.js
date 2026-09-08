@@ -273,6 +273,21 @@ import { briefFor, observedFillers } from "./void-brief.js";
 // filed as a receipt afterward (void-narration.js's own header carries the
 // full account of what was wrong with the receipt).
 import { narrateVoid, noSlotLine } from "./void-narration.js";
+// The loops a turn owes (loops.js): each opened with what would close it,
+// closed by a witness, reopened with a trigger — the cards that replaced the
+// void's narrated paragraphs and the run log as the turn's face. The ledger
+// is a kernel task log like the hyperlexicon and the grid, persisted the
+// same way; the cards are its projection at a (conversation, turn).
+import { makeLoops, foldLoops, cardsFor, lineFor, stateWord, trailLine, eotFor, eotStep, loopId, loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings, subjectOf, loopsFromQuestion, closingsFromDraft, readerNotesFor, turnAtSeq } from "./loops.js";
+import { declaredForm as declaredFormOf, declaredGenre } from "./shape.js";
+// The holograph (holograph.js): the conversation as the record holds it,
+// drawn — the whole, its referents, their loops and gaps; a referent
+// re-expands to everything that holds it. `namesIn` is ground-ladder.js's
+// own names organ, the same one dialogue.js resolves candidates with.
+import { holographOf, rowsFor, flattenRows, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
+import { run as runQuery, say as sayQuery } from "./eoql.js";
+import { graphOf, place as placeGraph, draw as drawGraph } from "./holograph-graph.js";
+import { namesIn } from "./ground-ladder.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
 // The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
@@ -335,6 +350,8 @@ import { makeStore } from "./store.js";
 const buildLog = makeBuildLog(nativeTaskLog);
 const store = makeStore(nativeTaskLog);
 const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
+// The loop ledger's organ — the same native task log, the cube's own cellOf.
+const loopsFor = makeLoops({ taskLog: nativeTaskLog, cellOf });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
 const metaLedger = makeMetacognition(nativeTaskLog);
 
@@ -357,7 +374,7 @@ function syncRecords() {
   // is how it was found (P99). The log itself is read at run time too, so a
   // job appends whatever the app holds by then, never a stale snapshot.
   const job = async () => {
-    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations]]) {
+    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations], ["loops", () => state.loopLog]]) {
       const log = get();
       if (!log || !Array.isArray(log.entries)) continue;
       const lines = serializeRecord(log, RECORDS[name]);
@@ -485,7 +502,7 @@ function refreshConstitutionalIndex() {
 async function restoreRecords() {
   const bundle = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append };
   const restored = {};
-  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null]]) {
+  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null], ["loops", state.loopLog?.admits ?? null]]) {
     const lines = await loadRecord(name);
     if (!lines.length) continue;
     const r = replayRecord(lines, { ...bundle, admits });
@@ -865,15 +882,537 @@ function declareVoidOnLedger(brief, { because = null } = {}) {
   const anchor = brief.declaration?.cells?.find((c) => c.field === "anchor")?.declared ?? null;
   const label = brief.headPhrase ?? null;
   if (!anchor || !label) return null;
+  return declareVoidFor(anchor, label, { because });
+}
+/** The void's scope right now: which sources, how far read, the ledger's cursor — the denominator every void carries (P105). */
+function voidScopeNow() {
   const sources = liveSources().map((s) => s.name);
   let read = 0, total = 0;
   for (const [name, r] of READING.entries()) { if (!sources.includes(name)) continue; read += Number(r.cursor ?? 0); total += Number(r.total ?? 0); }
-  const scope = { sources, read, total, cursor: state.hyperlexiconLog.nextSeq };
+  return { sources, read, total, cursor: state.hyperlexiconLog?.nextSeq ?? 0 };
+}
+/** Declare (or re-declare) a void by its ends. A re-declaration after a filling opens it again — a new event on the record, the old filling kept in its timeline. */
+function declareVoidFor(anchor, label, { because = null } = {}) {
+  if (!state.hyperlexiconLog || !hyperlexiconFor.declareVoid || !anchor || !label) return null;
+  const scope = voidScopeNow();
   const r = hyperlexiconFor.declareVoid(state.hyperlexiconLog, { end1: anchor, label, end2: null, scope, because });
   if (r.refused) return { refused: r.refused, anchor, label };
   state.hyperlexiconLog = r.log;
   syncRecords();
   return { id: r.id, anchor, label, scope, redeclared: Boolean(r.redeclared) };
+}
+
+// ── the loops, landed and drawn ─────────────────────────────────────────────
+//
+// User direction (2026-09-08): a message's turn shows the LOOPS that have to
+// close for the answer — as cards — and a loop closes and can spiral. The
+// ledger is `state.loopLog` (loops.js on the kernel task log); nothing here
+// decides a loop's state, it lands the acts the adapters read off what the
+// turn already computed and draws the projection. A refusal from the ledger
+// is a console line, never a broken turn (P57: turnedAway is returned, and
+// here it is at least seen).
+const loopLogNow = () => state.loopLog ?? loopsFor.createLoopLog();
+function landLoops(acts) {
+  if (!acts?.length) return { landed: [], turnedAway: [] };
+  const r = loopsFor.landAll(loopLogNow(), acts);
+  state.loopLog = r.log;
+  if (r.turnedAway.length) console.warn("loops: turned away", r.turnedAway);
+  syncRecords();
+  return r;
+}
+const convoNow = () => state.convos[state.active]?.key ?? String(state.convos[state.active]?.id ?? 1);
+
+/** The cards of one (conversation, turn), drawn into `el` from the projection. Idempotent: a redraw replaces the children. */
+function renderLoopCards(el, { turn, convo }) {
+  const { cards, standing } = cardsFor(foldLoops(loopLogNow()), { turn, convo });
+  // DISCLOSEABLE, NOT OPEN BY DEFAULT (user direction, 2026-09-08). The
+  // cards sit behind one line that says where the loops stand and ticks
+  // as the turn runs; a reader who opened it keeps it open across redraws.
+  const wasOpen = el.querySelector("details.loops-fold")?.open ?? false;
+  const expanded = new Set([...el.querySelectorAll(".loop.expanded")].map((c) => c.dataset.loop));
+  el.replaceChildren();
+  el.dataset.turn = String(turn);
+  el.dataset.convo = String(convo);
+  el.dataset.loops = cards.map((c) => c.id).join("\n");
+  if (!cards.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const tally = {};
+  for (const c of cards) tally[c.state] = (tally[c.state] ?? 0) + 1;
+  const bits = [];
+  if (tally.open) bits.push(`${tally.open} open`);
+  if (tally.contested) bits.push(`${tally.contested} contested`);
+  if (tally.refused) bits.push(`${tally.refused} could not close`);
+  if (tally.closed) bits.push(`${tally.closed} closed`);
+  if (tally.waived) bits.push(`${tally.waived} set aside`);
+  const d = document.createElement("details");
+  d.className = "loops-fold";
+  d.open = wasOpen;
+  const sm = document.createElement("summary");
+  // In the notation the line is the arrows and their counts, nothing else.
+  sm.textContent = viewMode === "eot" ? Object.entries(LOOP_MARKS).filter(([st]) => tally[st]).map(([st, g]) => `${g}${tally[st]}`).join(" ") || "∅" : `loops · ${bits.join(" · ")}`;
+  d.append(sm);
+  // Closed cards fold to one line each; open, contested and refused ones
+  // stand at full height. The order is the chain's, never "most
+  // interesting first" (FOLD-CONSTITUTION III.1).
+  for (const c of cards) d.append(loopCard(c, { expanded: expanded.has(c.id) }));
+  if (standing.length) {
+    const p = document.createElement("p");
+    p.className = "loops-standing";
+    p.textContent = viewMode === "eot" ? `⇒${standing.length} ⟵ ${[...new Set(standing.map((l) => l.turn))].sort((a, b) => a - b).map((t) => `t${t}`).join(" ")}` : `${standing.length} loop${standing.length === 1 ? "" : "s"} still open from earlier turns`;
+    d.append(p);
+  }
+  el.append(d);
+}
+
+// A loop's mark is its ARROW (loops.js LOOP_GLYPHS): ○ and ● belong to SIG and INS.
+const LOOP_MARKS = Object.freeze({ open: "⇒", closed: "⇐", refused: "⇏", contested: "⇔", waived: "–" });
+/**
+ * One card. Its head is one line — the mark, what the loop asks, and (for a
+ * closed loop) what closed it, right there; the state word only when it is
+ * not simply closed. Everything else — the trail (every act on the record),
+ * a note box, reopen — is behind a click on the head (`expanded`), so the
+ * stack reads as a list of questions, not a wall of controls.
+ */
+function loopCard(c, { expanded = false } = {}) {
+  const card = document.createElement("div");
+  card.className = `loop ${c.state}${c.ring > 1 ? " again" : ""}${c.carried ? " carried" : ""}${c.authored === "model" ? " model-authored" : ""}${expanded ? " expanded" : ""}`;
+  card.dataset.loop = c.id;
+  const head = document.createElement("div");
+  head.className = "loop-head";
+  head.title = "press for this loop's trail, a note, or reopen";
+  const eot = viewMode === "eot";
+  if (eot) {
+    // The notation: one line — glyph, arrow, value. The sentence is one
+    // hover away (a refusal's reason lives there), never on the face.
+    const line = document.createElement("span");
+    line.className = "loop-eot";
+    line.textContent = eotFor(c);
+    line.title = `${c.asks} — ${lineFor(c)}`;
+    head.append(line);
+    if (c.carried) { const st = document.createElement("span"); st.className = "loop-state"; st.textContent = `← t${c.turn}`; head.append(st); }
+  } else {
+    const mark = document.createElement("span");
+    mark.className = "loop-mark";
+    mark.textContent = LOOP_MARKS[c.state] ?? "⇒";
+    const ask = document.createElement("span");
+    ask.className = "loop-ask";
+    ask.textContent = c.asks;
+    head.append(mark, ask);
+    const line = lineFor(c);
+    if (c.state === "closed" || c.state === "waived") {
+      const inl = document.createElement("span");
+      inl.className = "loop-inline";
+      inl.textContent = ` — ${line.replace(/\.$/, "")}`;
+      head.append(inl);
+    }
+    const bits = [];
+    if (c.state !== "closed") bits.push(stateWord(c));
+    else if (c.ring > 1) bits.push(`round ${c.ring}`);
+    if (c.carried) bits.push(c.convo != null && c.convo !== convoNow() ? "from another conversation" : `from turn ${c.turn}`);
+    if (c.authored === "model") bits.push("the model's own part");
+    if (bits.length) {
+      const st = document.createElement("span");
+      st.className = "loop-state";
+      st.textContent = bits.join(" · ");
+      head.append(st);
+    }
+  }
+  head.addEventListener("click", () => card.classList.toggle("expanded"));
+  card.append(head);
+  if (!eot && c.state !== "closed" && c.state !== "waived") {
+    const ln = document.createElement("div");
+    ln.className = "loop-line";
+    ln.textContent = lineFor(c);
+    card.append(ln);
+  }
+  const more = document.createElement("div");
+  more.className = "loop-more";
+  // The trail: every act on this loop, in order — the record's own
+  // timeline, not a paraphrase of it.
+  const trail = document.createElement("div");
+  trail.className = "loop-trail";
+  // The turn number is stated once per RUN of steps on the same turn, not
+  // repeated on every line — a card that opened, drafted, and closed on
+  // turn 1 reads as one paragraph headed "turn 1", not three "turn 1"s.
+  let lastTurn = null;
+  for (const h of c.history) {
+    const row = document.createElement("div");
+    row.className = `loop-step${h.prompt ? " reader" : ""}`;
+    const sameTurn = h.turn != null && h.turn === lastTurn;
+    row.textContent = viewMode === "eot" ? eotStep(h) : trailLine(h, { showTurn: !sameTurn });
+    lastTurn = h.turn ?? lastTurn;
+    trail.append(row);
+  }
+  more.append(trail);
+  // A NOTE INTO THIS LOOP (user direction, 2026-09-08: "add a prompt or
+  // similar injected into particular loops"): the reader's own words, landed
+  // on the loop as its evidence and handed to the mouth on the next turn
+  // while the loop stands open. On a closed loop the note is the trigger
+  // that reopens it.
+  const noteRow = document.createElement("form");
+  noteRow.className = "loop-note";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = c.state === "open" || c.state === "contested" ? "a note for this loop — carried to the next answer" : "a note that reopens this loop";
+  input.setAttribute("aria-label", `a note for the loop: ${c.asks}`);
+  const add = document.createElement("button");
+  add.type = "submit";
+  add.className = "linkish";
+  add.textContent = "add";
+  noteRow.append(input, add);
+  noteRow.addEventListener("submit", (ev) => { ev.preventDefault(); const t = input.value.trim(); if (t) noteLoopFromCard(c.id, t); });
+  more.append(noteRow);
+  // A closed, refused or set-aside loop can be reopened by the person — a
+  // REC with its trigger on the record, never a deletion; a fill loop that
+  // stood on a declared void re-declares it, so the next turn is told the
+  // gap is open again and the next arrival can fill it.
+  if (c.state === "closed" || c.state === "refused" || c.state === "waived") {
+    const acts = document.createElement("div");
+    acts.className = "loop-acts";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "linkish";
+    b.textContent = "reopen";
+    b.title = "open this loop again — the earlier closure stays in its trail; the record carries the reopening with its reason";
+    b.addEventListener("click", () => reopenLoopFromCard(c.id, card));
+    acts.append(b);
+    more.append(acts);
+  }
+  card.append(more);
+  return card;
+}
+/** Redraw every card set on screen that holds this loop, at its own (conversation, turn). */
+function redrawLoopsHolding(id) {
+  for (const el of document.querySelectorAll(".loops")) {
+    if ((el.dataset.loops ?? "").split("\n").includes(id)) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
+  }
+}
+// ── the holograph pane ──────────────────────────────────────────────────────
+//
+// Drawn from the record, never from the model: this conversation's turns
+// (state.history), its loops (the ledger, this conversation's), the live
+// gaps (voidsNow). Redrawn when the pane is on and something landed; a
+// press on a referent expands it below the drawing. `/holograph [name]`
+// opens the pane and, with a name, expands that part.
+// ALWAYS WITH A CURSOR AND A LEVEL (user, 2026-09-08: "it needs holon
+// levels and a cursor, always"). The cursor is the loop ledger's own act
+// sequence — the same clock the cards fold on — and the holograph at a
+// cursor is the fold of the record AS OF that act (P159), the turns cut to
+// the one the act belongs to; the level is the rung of the ladder the
+// drawing stands at (holograph.js::LEVELS), each standing in for the one
+// below. The cursor follows the head until the person moves it; the
+// "now" state is dragging it back to the end.
+let holographPick = null;
+let holographLevel = "loops";
+let holographCursorPinned = false;
+function holographAt() {
+  const log = loopLogNow();
+  const cursor = $("holograph-cursor");
+  const max = log.nextSeq;
+  if (cursor) {
+    cursor.max = String(max);
+    if (!holographCursorPinned) cursor.value = String(max);
+  }
+  const at = cursor && holographCursorPinned ? Number(cursor.value) : max;
+  return { log, max, atSeq: at >= max ? null : at };
+}
+// THE HOLOGRAPH'S INDEX — the beings the reading established over the
+// conversation's own words AND the attached material, built with the
+// organ's own DERIVED recurrence floor (`discoverReferents(surfaces, {})`,
+// P38's rule: the citation-presence floor `minSentences: 0` that cast.js's
+// index rightly uses is the wrong floor for "who is there"), resolving a
+// name the way cast.js does (namesCorefer, then coverage). Cached by what
+// it was built over; a novel's cast is built once per material, not per
+// redraw.
+let holographIndexCache = { key: null, index: null };
+// WHAT THE INDEX IS BUILT OVER, and why it is not the corpus (measured live,
+// 2026-09-08: War and Peace attached, 3.3MB, and the page froze — this index
+// ran `discoverReferents` over every chunk of the book, synchronously, on
+// every redraw of the holograph).
+//
+// The bound is not a budget bolted on to make it fast. The holograph draws
+// THE RECORD, and a book nobody has read into a turn is not on the record
+// yet — P67's rule, that absence of a reading is a fact about the reader and
+// never about the document, said in the one place it costs something. So the
+// index is built over the conversation's own turns and over the passages the
+// record actually CITED, and over nothing else; an attached, unread book
+// contributes no beings until a turn reads some of it, at which point the
+// passages that turn stood on join. `CITED_PASSAGE_CAP` is declared (P9), and
+// what it left out is said out loud rather than silently dropped.
+const CITED_PASSAGE_CAP = 400;
+function citedPassages() {
+  const wanted = new Set((state.summary?.records ?? []).flatMap((r) => r.refs ?? []));
+  if (!wanted.size) return { passages: [], of: 0 };
+  const chunks = liveChunks();
+  const hit = chunks.filter((c) => wanted.has(c.ref));
+  return { passages: hit.slice(0, CITED_PASSAGE_CAP), of: hit.length };
+}
+function holographIndex(turns) {
+  const cited = citedPassages();
+  const key = `${turns.length}:${(state.history ?? []).length}:${cited.of}:${cited.passages[0]?.ref ?? ""}:${cited.passages[cited.passages.length - 1]?.ref ?? ""}`;
+  if (holographIndexCache.key === key) return holographIndexCache.index;
+  const passages = [...turns.flatMap((t) => [{ ref: `turn:${t.n}:q`, text: t.asked }, { ref: `turn:${t.n}:a`, text: t.answer }]), ...cited.passages.map((c) => ({ ref: c.ref, text: c.blanked ?? c.text ?? "" }))];
+  const text = passages.map((p) => p.text).filter(Boolean).join("\n\n");
+  let index = null;
+  if (text.trim()) {
+    try {
+      const events = discoverReferents(extractSurfaces(engineSentences(text), {}), {}).events ?? [];
+      const best = new Map();
+      for (const e of events) { const prev = best.get(e.referent_id); if (!prev || e.surface.length > prev.length) best.set(e.referent_id, e.surface); }
+      const MIN_STEM = 4;
+      const covers = (a, b) => a === b || (Math.min(a.length, b.length) >= MIN_STEM && (a.startsWith(b) || b.startsWith(a)));
+      const resolve = (name) => {
+        const ids = new Set();
+        const parts = diaNorm(name).split(/\s+/).filter((t) => t.length > 2);
+        if (!parts.length) return ids;
+        for (const e of events) {
+          if (!namesCorefer(name, e.surface)) continue;
+          const st = diaNorm(e.surface).split(/\s+/);
+          if (parts.every((p) => st.some((x) => covers(x, p)))) ids.add(e.referent_id);
+        }
+        return ids;
+      };
+      index = { events, referents: new Set(best.keys()), resolve, represent: (id) => best.get(id) ?? null };
+    } catch (e) { console.warn("holograph index:", e?.message ?? e); index = null; }
+  }
+  holographIndexCache = { key, index };
+  return index;
+}
+function holographModel() {
+  const convo = convoNow();
+  const { log, atSeq } = holographAt();
+  const loops = foldLoops(log, { atSeq }).filter((l) => l.convo === convo);
+  // The gaps as the loops at this cursor stand on them — one clock, never the
+  // ledger's head read against an earlier act.
+  const voids = loops.filter((l) => l.voidId && (l.state === "open" || l.state === "contested")).map((l) => ({ id: l.voidId, subject: l.meta?.anchor ?? (/"([^"]+)"/.exec(l.asks ?? "")?.[1] ?? l.asks), verb: l.meta?.label ?? "appears", object: null }));
+  const throughTurn = atSeq == null ? null : turnAtSeq(log, atSeq, { convo });
+  const turns = turnsOf(state.history).filter((t) => throughTurn == null || t.n <= throughTurn);
+  const sources = liveSources().map((src) => { const r = READING.get(src.name); return { name: src.name, bytes: state.sources[src.name]?.length ?? 0, read: r?.cursor ?? 0, total: r?.total ?? 0 }; });
+  return holographOf({ history: state.history, loops, voids, namesIn, index: holographIndex(turns), sources, convo, throughTurn, records: state.summary?.records ?? [], splitSentences: engineSentences });
+}
+// The rows a person has drilled open, by row key — kept across redraws so
+// the cursor and the turn's own landings never fold what was opened.
+const holographOpen = new Set();
+// VISUAL vs TEXT (user, 2026-09-08: "we do want a mode that is visual vs
+// text — we are losing so much to verbiage; why don't we put it essentially
+// in EOT?"). One setting for the cards and the holograph, kept across
+// reloads: "eot" says every loop in the notation (glyph, cell, name, value),
+// "text" in sentences. Neither is stored on a loop — both are projections.
+// The notation is the default (user, 2026-09-08, on the cards: "do EOT in
+// here too"); text is one press away, and the choice is kept.
+let viewMode = (() => { try { return localStorage.getItem("fold-view-mode") === "text" ? "text" : "eot"; } catch { return "eot"; } })();
+function setViewMode(mode) {
+  viewMode = mode === "eot" ? "eot" : "text";
+  try { localStorage.setItem("fold-view-mode", viewMode); } catch { /* a private window keeps it for the session */ }
+  document.body.classList.toggle("view-eot", viewMode === "eot");
+  for (const b of document.querySelectorAll(".view-toggle")) b.textContent = viewMode === "eot" ? "text" : "eot";
+  for (const el of document.querySelectorAll(".loops")) if (el.dataset.turn) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
+  renderHolograph();
+}
+document.body.classList.toggle("view-eot", viewMode === "eot");
+// THE HOLOGRAPH'S OWN MODE — a GRAPH or ROWS (user, 2026-09-08: "no, visual
+// SHOULD be like a visual graph"). Kept apart from the notation (`viewMode`,
+// eot or text), which decides how a node or a row is labelled in either.
+// The query is held for the session, never stored; positions are kept
+// across redraws so a referent stays where it was when the rung changes.
+let holographMode = (() => { try { return localStorage.getItem("fold-holograph-mode") === "rows" ? "rows" : "graph"; } catch { return "graph"; } })();
+let holographQuery = "";
+function renderHolograph({ pick = holographPick, level = holographLevel } = {}) {
+  const host = $("holograph-rows");
+  if (!host) return;
+  holographLevel = HOLOGRAPH_LEVELS.some((l) => l.key === level) ? level : "link";
+  const levels = $("holograph-levels");
+  if (levels && !levels.children.length) {
+    // A vertical ladder reads top-down: the highest rung first. Each rung by
+    // its REAL NAME — the terrain (user, 2026-09-08: "let's just use the real
+    // names of the terrains", after asking for a plain one and seeing both).
+    // The plain name and the rung's reading ride the hover, so the ladder
+    // stays a ladder and nothing is lost.
+    for (const l of [...HOLOGRAPH_LEVELS].reverse()) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "seg"; b.dataset.level = l.key; b.title = `${l.name} — ${l.reads}`;
+      b.textContent = l.key;
+      b.addEventListener("click", () => renderHolograph({ level: l.key }));
+      levels.append(b);
+    }
+  }
+  for (const b of levels?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.level === holographLevel);
+  const modes = $("holograph-mode");
+  if (modes && !modes.children.length) {
+    for (const [m, label, title] of [["graph", "visual", "a graph: what stands at this rung as nodes, tied by what they hold — press a node to drill it"], ["rows", "text", "rows that drill"]]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "seg"; b.dataset.hmode = m; b.textContent = label; b.title = title;
+      b.addEventListener("click", () => { holographMode = m; try { localStorage.setItem("fold-holograph-mode", m); } catch { /* kept for the session */ } renderHolograph(); });
+      modes.append(b);
+    }
+  }
+  for (const b of modes?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.hmode === holographMode);
+  document.body.classList.toggle("view-eot", viewMode === "eot");
+  const cursor = $("holograph-cursor");
+  if (cursor && !cursor.dataset.wired) {
+    cursor.dataset.wired = "1";
+    cursor.addEventListener("input", () => { holographCursorPinned = Number(cursor.value) < Number(cursor.max); renderHolograph(); });
+  }
+  // THE QUERY BAR (user, 2026-09-08: "search for terms, filter, enter EOT
+  // commands to essentially SQL what we want to see"): a bare word scans, an
+  // operator's glyph or keyword begins an act (eoql.js). Live as it is typed;
+  // Escape clears it.
+  const q = $("holograph-query");
+  if (q && !q.dataset.wired) {
+    q.dataset.wired = "1";
+    let pending = null;
+    q.addEventListener("input", () => { holographQuery = q.value; clearTimeout(pending); pending = setTimeout(() => renderHolograph(), 120); });
+    q.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); holographQuery = q.value; renderHolograph(); } else if (ev.key === "Escape") { q.value = ""; holographQuery = ""; renderHolograph(); } });
+  }
+  const model = holographModel();
+  const { max, atSeq } = holographAt();
+  const label = $("holograph-cursor-label");
+  if (label) label.textContent = max ? `as of act ${atSeq ?? max} of ${max}${model.throughTurn != null ? ` · turn ${model.throughTurn}` : " · now"}` : "no acts yet";
+  // The places in the material that hold a referent — each a door to the bytes.
+  const fold = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  // The places in the material that hold a referent. The scan stops at the
+  // first PLACES_SHOWN it finds rather than folding every chunk of a corpus:
+  // on War and Peace that walk was 11,000 chunks per referent per redraw.
+  const PLACES_SHOWN = 12;
+  const placesOf = (r) => {
+    const needle = fold(r.name);
+    if (needle.length < 3) return [];
+    const out = [];
+    for (const c of liveChunks()) {
+      if (fold(c.text).includes(needle)) out.push({ ref: c.ref, text: c.text });
+      if (out.length >= PLACES_SHOWN) break;
+    }
+    return out;
+  };
+  holographPick = pick;
+  if (pick && typeof pick === "string") { const r = model.referents.find((x) => fold(x.name) === fold(pick) || fold(x.name).includes(fold(pick))); if (r) holographOpen.add(r.key); }
+  const rows = rowsFor(model, holographLevel, { placesOf, mode: viewMode });
+  const note = $("holograph-query-note");
+  let shown = rows, flat = false;
+  const qText = holographQuery.trim();
+  if (qText) {
+    // A query runs over every row of the rung with its parts (depth 2), so a
+    // loop under a referent is found by its own words.
+    const res = runQuery(qText, flattenRows(rows, { depth: 2 }));
+    if (res.refused) { if (note) note.textContent = `⇏ ${res.refused.detail}`; shown = []; }
+    else { if (note) note.textContent = `${sayQuery({ acts: res.acts })} ⇒ ×${res.rows.length}`; shown = res.rows; flat = true; }
+  } else if (note) note.textContent = "";
+  host.replaceChildren(holographMode === "graph" ? graphView(host, shown, { flat }) : rowsList(shown, 0));
+}
+// How many nodes a rung may draw before it stops opening parts nobody asked
+// it to open. Declared (P9), not measured: past this the picture is a mist
+// and the list mode is the honest face.
+const GRAPH_AUTO_NODES = 60;
+/**
+ * The rows drawn as a graph: the rung's own rows, their parts beside them
+ * where a row stands open — and, while the rung is small enough to draw,
+ * ONE level of parts for every row, because a rung of referents alone has
+ * no ties to draw and reads as a scatter (measured live, 2026-09-08). What
+ * is added is exactly what a press would open in the list; nothing is
+ * inferred, and past the budget only what was actually opened is drawn.
+ */
+function graphView(host, rows, { flat = false } = {}) {
+  const partsOf = (r) => { try { return r.drill() ?? []; } catch { return []; } };
+  const openFlat = (list, depth, parent, out, auto) => { for (const r of list ?? []) { out.push({ ...r, depth, parent }); const opened = holographOpen.has(r.key); if (typeof r.drill === "function" && (opened || (auto && depth === 0))) openFlat(partsOf(r), depth + 1, r.key, out, opened && auto); } return out; };
+  const auto = !flat && rows.reduce((n, r) => n + 1 + (typeof r.drill === "function" ? partsOf(r).length : 0), 0) <= GRAPH_AUTO_NODES;
+  const list = (flat ? rows : openFlat(rows, 0, null, [], auto)).filter((r) => r.kind !== "empty");
+  const wrap = document.createElement("div");
+  wrap.className = "hg-graph-wrap";
+  if (!list.length) { const e = document.createElement("div"); e.className = "hg-row hg-empty"; e.textContent = viewMode === "eot" ? "∅" : "nothing here"; wrap.append(e); return wrap; }
+  const g = graphOf(list, { open: holographOpen });
+  const width = Math.max(300, host.clientWidth || 600);
+  // A line per node, tall enough for a node's two lines of text and air; the
+  // frame grows downward with the rows and the pane scrolls. Nothing is
+  // rescaled to fit, so nothing is ever too small to read.
+  const placed = placeGraph(g, { width, layerHeight: 62, fontSize: 11 });
+  wrap.append(drawGraph(document, g, placed, { onPick: (row) => {
+    if (row.at && !String(row.at).startsWith("turn:") && typeof row.drill !== "function") { reopen(row.at); return; }
+    if (holographOpen.has(row.key)) holographOpen.delete(row.key); else holographOpen.add(row.key);
+    renderHolograph();
+  } }));
+  return wrap;
+}
+/** One list of rows; a row with parts is a press that opens them beneath it; a row with an address is a door to the bytes. */
+function rowsList(rows, depth) {
+  const ul = document.createElement("ul");
+  ul.className = `hg-rows depth-${depth}`;
+  for (const r of rows) {
+    const li = document.createElement("li");
+    li.className = `hg-row hg-${r.kind}${r.state ? ` hg-state-${r.state}` : ""}${r.drill ? " drillable" : ""}${holographOpen.has(r.key) ? " open" : ""}`;
+    li.dataset.key = r.key;
+    const head = document.createElement(r.drill ? "button" : "div");
+    if (r.drill) { head.type = "button"; head.setAttribute("aria-expanded", String(holographOpen.has(r.key))); }
+    head.className = "hg-head";
+    const title = document.createElement("span");
+    title.className = "hg-title";
+    title.textContent = r.title;
+    head.append(title);
+    if (r.meta) { const m = document.createElement("span"); m.className = "hg-meta"; m.textContent = r.meta; head.append(m); }
+    li.append(head);
+    if (r.line) { const ln = document.createElement("div"); ln.className = "hg-line"; ln.textContent = r.line; li.append(ln); }
+    if (r.at && !String(r.at).startsWith("turn:")) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "ref attached"; b.textContent = chipText(r.at); b.title = `${r.at} — press to read the bytes`;
+      b.onclick = () => reopen(r.at);
+      li.append(b);
+    }
+    if (r.drill) {
+      head.addEventListener("click", () => {
+        if (holographOpen.has(r.key)) holographOpen.delete(r.key); else holographOpen.add(r.key);
+        renderHolograph();
+      });
+      if (holographOpen.has(r.key)) li.append(rowsList(r.drill() ?? [], depth + 1));
+    }
+    ul.append(li);
+  }
+  if (!rows.length) { const li = document.createElement("li"); li.className = "hg-row hg-empty"; li.textContent = viewMode === "eot" ? "∅" : "nothing here"; ul.append(li); }
+  return ul;
+}
+function holographTurn(argstr, typed) {
+  const name = String(argstr ?? "").trim();
+  showView("holograph");
+  renderHolograph({ pick: name || null });
+  const m = holographModel();
+  const about = m.referents.slice(0, 8).map((r) => r.name);
+  const st = {};
+  for (const l of foldLoops(loopLogNow()).filter((l) => l.convo === convoNow())) st[l.state] = (st[l.state] ?? 0) + 1;
+  const bits = [st.open ? `${st.open} open` : null, st.contested ? `${st.contested} contested` : null, st.refused ? `${st.refused} could not close` : null, st.closed ? `${st.closed} closed` : null].filter(Boolean);
+  return usageTurn(typed, `the holograph is open in the panel${name ? `, opened on “${name}”` : ""} — ${m.referents.length ? `about ${about.join(", ")}${m.referents.length > 8 ? ", …" : ""}` : "nothing established yet"}${bits.length ? ` · loops: ${bits.join(" · ")}` : ""}${m.voids.length ? ` · ${m.voids.length} gap${m.voids.length === 1 ? "" : "s"} on the record` : ""}. \`/holograph <name>\` opens one referent's rows.`, { what: "holograph" });
+}
+
+function noteLoopFromCard(id, text) {
+  const turn = state.summary.turnCount + 1;
+  const convo = convoNow();
+  const before = foldLoops(loopLogNow()).find((l) => l.id === id);
+  if (!before) return;
+  const acts = [];
+  if (before.state !== "open" && before.state !== "contested") acts.push({ act: "reopen", id, trigger: `the reader adds: ${text}`, turn, convo, by: "person" });
+  acts.push({ act: "evidence", id, note: text, by: "person", prompt: true, turn, convo });
+  const r = landLoops(acts);
+  if (r.turnedAway.length) { $("status").textContent = `note not landed: ${r.turnedAway[0].detail ?? r.turnedAway[0].type}`; return; }
+  logAct("loop-noted", { loop: id, reopened: before.state !== "open" && before.state !== "contested" });
+  redrawLoopsHolding(id);
+  $("status").textContent = `noted on "${before.asks}" — carried to the next answer`;
+}
+function reopenLoopFromCard(id, card) {
+  const turn = state.summary.turnCount + 1;
+  const convo = convoNow();
+  const before = foldLoops(loopLogNow()).find((l) => l.id === id);
+  if (!before) return;
+  const r = landLoops([{ act: "reopen", id, trigger: "reopened by the reader", turn, convo, by: "person" }]);
+  if (r.turnedAway.length) { $("status").textContent = `not reopened: ${r.turnedAway[0].detail ?? r.turnedAway[0].type}`; return; }
+  // A fill loop stood on a declared void: declare it again so the ledger
+  // block tells the next turn the gap is open, and the next arrival fills it.
+  if (before.kind === "fill" && before.meta?.anchor && before.meta?.label) {
+    const v = declareVoidFor(before.meta.anchor, before.meta.label, { because: "reopened by the reader" });
+    if (v?.id) landLoops([{ act: "evidence", id, note: `declared again as a gap on the record — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read`, voidId: v.id, turn, convo }]);
+    else if (v?.refused) landLoops([{ act: "evidence", id, note: `not declared again as a gap: ${v.refused.type === "not_empty" ? "the record already holds something for it" : v.refused.detail ?? v.refused.type}`, turn, convo }]);
+  }
+  logAct("loop-reopened", { loop: id, cascaded: r.landed.find((x) => x.id === id)?.cascaded ?? [] });
+  // Redraw every card set on screen that holds this loop, at its own (conversation, turn).
+  redrawLoopsHolding(id);
+  const after = foldLoops(loopLogNow()).find((l) => l.id === id);
+  $("status").textContent = `reopened: ${after?.asks ?? id}${r.landed.find((x) => x.id === id)?.cascaded?.length ? ` (and ${r.landed.find((x) => x.id === id).cascaded.length} that stood on it)` : ""}`;
 }
 
 // NO VIEW FROM NOWHERE (eoreader7 kernel/notes.js; POLICIES.md P80). The
@@ -1173,6 +1712,14 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  /**
+   * The loop ledger (loops.js): app-wide like `hyperlexiconLog` — a loop's
+   * id is content-addressed (the same question asked in another
+   * conversation reaches the same loop), and every touch is stamped with
+   * its conversation and turn so the cards of one never show in another.
+   * Persisted as `records/loops.jsonl` and replayed on boot like the rest.
+   */
+  loopLog: null,
   huntUrls: {},
   lastPiece: null,
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
@@ -1265,6 +1812,12 @@ function newConvo() {
   $("chat").append(el);
   return {
     id: state.convos.length + 1,
+    // The loop ledger's key for this conversation: unique across reloads,
+    // where `id` restarts at 1 — a restored ledger already holds
+    // "conversation 1, turn 1", and a new page's first turn must not land
+    // on it (measured live 2026-09-08: the old turn's cards came back as
+    // "round 2").
+    key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     el,
     summary: emptySummary(),
     history: [],
@@ -1380,6 +1933,18 @@ function renderThreads() {
   add.title = "New conversation — same material, its own fold";
   add.onclick = addConvo;
   bar.append(add);
+  // The conversation's own fold control, at the end of the conversation's own
+  // bar (user, 2026-09-08: "the left collapse is on the right weirdly"). It is
+  // rebuilt with the bar, so it survives every redraw of the tabs.
+  const fold = document.createElement("button");
+  fold.type = "button";
+  fold.id = "chat-collapse";
+  fold.className = "fold-side";
+  fold.setAttribute("aria-pressed", String(panelWide));
+  fold.textContent = panelWide ? "›" : "‹";
+  fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
+  fold.onclick = () => setPanelWide(!panelWide);
+  bar.append(fold);
 }
 
 // ── model ────────────────────────────────────────────────────────────────────
@@ -2378,12 +2943,14 @@ function mustTurn(argstr, typed) {
     }
     if (r.refused) return usageTurn(typed, `refused (${r.refused}): ${r.detail}`);
     state.obligations = r.ledger;
+    landLoops(loopsFromObligations(obligationStandings(r.ledger), { turn: state.summary.turnCount + 1, convo: convoNow(), only: [id] }));
     mirrorTermRecord("obligation-mark", { id, standing: kind, via: "chat" });
     return usageTurn(typed, render(r.ledger));
   }
   const admitted = admitObligations(arg);
   if (admitted.refused) return usageTurn(typed, `refused (${admitted.refused}): ${admitted.detail}`);
   state.obligations = admitted.ledger;
+  landLoops(loopsFromObligations(obligationStandings(admitted.ledger), { turn: state.summary.turnCount + 1, convo: convoNow() }));
   mirrorTermRecord("obligation-admit", { clauses: admitted.ledger.clauses.length, via: "chat" });
   return usageTurn(typed, render(admitted.ledger));
 }
@@ -3898,6 +4465,8 @@ async function send(question) {
   if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
   const concedeCmd = question.match(/^\/concede(!?)(?:\s+|$)(.*)$/s);
   if (concedeCmd) return concedeTurn(concedeCmd[2] ?? "", question, { perform: concedeCmd[1] === "!" });
+  const holographCmd = question.match(/^\/holograph\b\s*(.*)$/s);
+  if (holographCmd) return holographTurn(holographCmd[1] ?? "", question);
   const voidCmd = question.match(/^\/void(!?)(?:\s+|$)(.*)$/s);
   if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
   const essayCmd = question.match(/^\/essay\b\s*(.*)$/s);
@@ -4052,7 +4621,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -5515,10 +6084,24 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // Where the ledger stood when this turn began (Pass 29 / P109): a void
   // filled at or after this seq is a re-zero of the ground THIS turn moved.
   const turnStartSeq = state.hyperlexiconLog?.nextSeq ?? 0;
+  // The turn's identity for the loop ledger, fixed HERE: the summary's
+  // turnCount advances during the turn (refreshSummary), so a later moment
+  // reading it again would file its loops under the next turn.
+  const turnNo = state.summary.turnCount + 1;
+  const convoNo = convoNow();
+  const loopScope = `c${convoNo}t${turnNo}`;
   if (!opts.skipUserMessage) addMessage("user", typed);
   const node = addMessage("assistant", "");
   if (opts.label) node.querySelector(".who").textContent = opts.label;
   const body = node.querySelector(".body");
+  // The loops, above the body: the cards live beside the answer, not inside
+  // it, so `renderAnswer`'s own clearing of the body never takes them.
+  const loopsEl = document.createElement("div");
+  loopsEl.className = "loops";
+  loopsEl.hidden = true;
+  body.before(loopsEl);
+  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); };
+  const landTurnLoops = (acts) => { const r = landLoops(acts); drawLoops(); return r; };
 
   // Already logged once by twoPassTurn's own S1 leg when this is S2 — the
   // "asked" act is one event per question, not one per pass over it.
@@ -5730,11 +6313,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         // instrument insisting on its own inapplicability.
         if (voidDigest === null) {
           voidDigest = "no-slot";
-          think(noSlotLine());
+          reasoning.push(noSlotLine());
         }
         return;
       }
       voidBrief = b;
+      // The cards: the void's nine cells and its fill loop, from the brief —
+      // what used to be narrated as paragraphs, now landed as loops.
+      landTurnLoops(loopsFromBrief(b, { phase, turn: turnNo, convo: convoNo }));
       const said = narrateVoid(b, { phase, previous: voidDigest });
       // Once material is in hand and the slot is still empty, the void is
       // an EVENT on the record (Pass 23 / P105): declared with its scope,
@@ -5764,25 +6350,52 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             const f = b.fillers[0];
             const by = String(f?.filler ?? f?.name ?? f ?? "").trim();
             const rz = hyperlexiconFor.rezeroVoid(state.hyperlexiconLog, open.id, { by: by || "a filler the reader found", witness: f?.ref ?? f?.witness ?? null });
-            if (!rz.refused) { state.hyperlexiconLog = rz.log; syncRecords(); think(`Filled: "${open.verb}" of ${open.subject} — ${by || "a filler"} arrived; the gap declared earlier is cancelled on the record.`); }
+            if (!rz.refused) {
+              state.hyperlexiconLog = rz.log; syncRecords();
+              landTurnLoops(closingsFromFillings(foldLoops(loopLogNow()), [{ void: open.id, by: by || "a filler the reader found", witness: f?.ref ?? f?.witness ?? null }], { turn: turnNo, convo: convoNo }));
+            }
           }
         }
         if (empty) {
           voidDeclaredThisTurn = true;
           const v = declareVoidOnLedger(b, { because: b.standing?.reason ?? null });
-          if (v?.id) think(`On the record: nothing read so far fills "${v.label}" of ${v.anchor} — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read${v.redeclared ? " (declared again)" : ""}. The first arrival that fills it will cancel this.`);
-          else if (v?.refused) think(`Not declared as a gap: ${v.refused.type === "not_empty" ? `the record already holds something for "${v.label}" of ${v.anchor}` : v.refused.detail ?? v.refused.type}.`);
+          // The fill loop now stands on the declared void: its id rides the
+          // loop, so a filling on any later turn closes this card (P105's
+          // specimen, filled six turns later).
+          const fillId = fillLoopIdFor(b);
+          if (v?.id && fillId) landTurnLoops([{ act: "evidence", id: fillId, note: `declared as a gap on the record — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read${v.redeclared ? " (declared again)" : ""}; the first arrival that fills it will close this`, voidId: v.id, turn: turnNo, convo: convoNo }]);
+          else if (v?.refused && fillId) landTurnLoops([{ act: "evidence", id: fillId, note: `not declared as a gap: ${v.refused.type === "not_empty" ? "the record already holds something for it" : v.refused.detail ?? v.refused.type}`, turn: turnNo, convo: convoNo }]);
         }
       }
       if (!said) return;
       voidDigest = said.digest;
-      think(said.text);
+      // The paragraphs stay on the record (`reasoning`) and are no longer
+      // drawn: the cards are the turn's face now (user direction, 2026-09-08).
+      reasoning.push(said.text);
     } catch (e) {
       voidBrief = { error: String(e?.message ?? e) };
       think(`I could not work out what shape an answer here would need: ${e?.message ?? e}`);
     }
   };
   narrateTheVoid([], "question");
+  // THE QUESTION'S OWN SHAPE (loops.js::loopsFromQuestion): what form it
+  // asks for, what it is about, and what the answer stands on — read off
+  // the question's own words before any organ runs. A slot-shaped question
+  // (voidBrief set just above) carries its subject in the void's own cells,
+  // so no second subject loop is opened for it.
+  const questionGenre = opts.longForm ? null : declaredGenre(task);
+  const questionForm = opts.longForm ? null : declaredFormOf(task);
+  const questionSubject = voidBrief || opts.longForm ? null : subjectOf(task, { isAdposition });
+  const convoScope = `c${convoNo}`;
+  if (!opts.longForm) {
+    try {
+      landTurnLoops(loopsFromQuestion(task, { genre: questionGenre, form: questionForm, subject: questionSubject, hasMaterial: live.length > 0, sourceNames: liveSources().map((s) => s.name), webOn: Boolean(state.webProof), scope: loopScope, convoScope, turn: turnNo, convo: convoNo }));
+    } catch (e) { console.warn("loops (question):", e?.message ?? e); }
+  }
+  // The reader's own notes on this conversation's open loops, handed to the
+  // mouth as facts in the reader's words (loops.js::readerNotesFor).
+  const readerNotes = readerNotesFor(foldLoops(loopLogNow()), { convo: convoNo });
+  if (readerNotes) show(`carrying your notes: ${readerNotes}`);
 
   // A message can point at an address as directly as at a build's own
   // bytes (widget.js's own lesson, applied here): an explicit http(s) URL
@@ -5892,6 +6505,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
   let lastDraftPaint = 0;
   let lastThinkPaint = 0;
+  // The plan's parts, kept from the `planned` event so a later part event
+  // can be matched to its loop by id or label.
+  let plannedParts = null;
 
   // The reach of the present, under the standing regime: calm is fold.js's
   // declared RECENCY_WINDOW untouched; a startled reader's present
@@ -6514,7 +7130,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       ...(opts.planMaxTokens ? { planMaxTokens: opts.planMaxTokens } : {}),
       ...(opts.piece ? { piece: { ...opts.piece, model: turnModel } } : {}),
       ...(planFacts ? { planFacts } : {}),
+      readerNotes,
       onProgress: (phase, part, info) => {
+        // Every progress event lands as loop acts first (loops.js's own
+        // reading of the same callback): the plan, each part's research,
+        // draft, correction rounds, and its check.
+        if (phase === "planned") plannedParts = info.parts ?? null;
+        try {
+          const groundState = foldLoops(loopLogNow()).find((l) => l.id === loopId("ground", loopScope))?.state ?? null;
+          landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState }));
+        }
+        catch (e) { console.warn("loops (progress):", e?.message ?? e); }
         if (phase === "plan") {
           setPhase("planning");
           show("planning…");
@@ -6605,6 +7231,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // and otherwise the SAME log object handed in, updated or not; only
     // overwrite when a real state came back, so a turn that landed nothing
     // never clobbers what `/act`/the terminal already hold.
+    // The loops the run's own sections carry (P170's: premise, address,
+    // position, the witness, the absent names, a misquote, the door).
+    try { landTurnLoops(loopsFromResult(result, { scope: loopScope, turn: turnNo, convo: convoNo })); }
+    catch (e) { console.warn("loops (result):", e?.message ?? e); }
+    // The form and the subject close (or refuse) on the draft itself.
+    try { if (!opts.longForm) landTurnLoops(closingsFromDraft(result.output ?? "", { genre: questionGenre, form: questionForm, subject: questionSubject, scope: loopScope, convoScope, turn: turnNo, convo: convoNo, namesIn })); }
+    catch (e) { console.warn("loops (draft):", e?.message ?? e); }
     if (result.gridLog) state.gridLog = result.gridLog;
     // Same discipline: only a real, updated ledger overwrites — a checking-
     // off turn (`result.hyperlexiconLog` null) never clobbers what an
@@ -6770,6 +7403,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const filledThisTurn = state.grounded && state.hyperlexiconLog && hyperlexiconFor.fillingsSince ? hyperlexiconFor.fillingsSince(state.hyperlexiconLog, turnStartSeq) : [];
   if (filledThisTurn.length) {
     logAct("rezeroed", { voids: filledThisTurn.map((f) => f.void), by: filledThisTurn.map((f) => f.by) });
+    // A void filled this turn closes the fill loop standing on it — whichever turn opened it.
+    try { landTurnLoops(closingsFromFillings(foldLoops(loopLogNow()), filledThisTurn, { turn: turnNo, convo: convoNo })); }
+    catch (e) { console.warn("loops (fillings):", e?.message ?? e); }
     forceRefresh = true;
     forceBecause = `${filledThisTurn.length} void(s) filled this turn (REC·Ground)`;
   }
@@ -6840,6 +7476,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
   renderFold(node, { sent: sentCalls, record: answerRec });
+  drawLoops();
   if (opts.longForm) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
     const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
@@ -6934,10 +7571,17 @@ function addMessage(role, text) {
     `<div class="who"></div><div class="body"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
-        `<details class="fold"><summary>thinking</summary><p></p></details>` +
+        `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary><p></p></details>` +
+        `<button type="button" class="ground-toggle" hidden title="show where each sentence stands — the ground chips, hidden unless asked">ground</button>` +
+        `<button type="button" class="view-toggle" title="the loops in sentences (text) or in the notation (eot) — one setting for every turn and the holograph">${viewMode === "eot" ? "text" : "eot"}</button>` +
         `</div>`
       : "");
   el.querySelector(".who").textContent = role === "user" ? "you" : "model";
+  el.querySelector(".ground-toggle")?.addEventListener("click", (ev) => {
+    const on = el.classList.toggle("show-ground");
+    ev.currentTarget.textContent = on ? "hide ground" : "ground";
+  });
+  el.querySelector(".view-toggle")?.addEventListener("click", () => setViewMode(viewMode === "eot" ? "text" : "eot"));
   if (role === "user" && /^\//.test(text)) {
     const body = el.querySelector(".body");
     const span = document.createElement("span");
@@ -6959,6 +7603,7 @@ function addMessage(role, text) {
  * model output is content, not code this app has agreed to run.
  */
 function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, task = null) {
+  groundRunKey = null;
   // The operator's own words for this turn — what the widget router reads.
   // Flat (single-part) turns pass only `instruction`; holonic turns pass a
   // separate `task` (the plan's own words differ from the operator's), so
@@ -7046,6 +7691,17 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // header) — what is withheld is the drawing, never the finding.
   const buildTurn = landedThisTurn.some((b) => b.type === "code");
   if (buildTurn) body.closest(".msg")?.classList.add("build-turn");
+  // The "ground" toggle appears only in checking mode (user, 2026-09-08:
+  // "that should not happen when checking is off") — with checking off,
+  // classifySentences still marks every sentence "model" ground by default
+  // (nothing was ever checked to say otherwise), and offering to reveal
+  // that would read as a finding when none was made. And only when there
+  // is something to show: a chip, a mark, or a badge actually drawn.
+  const gt = body.closest(".msg")?.querySelector(".ground-toggle");
+  if (gt) {
+    const hasMarks = Boolean(body.querySelector(".ground-chip, .sent[data-ground='model'], .sent.claims, .edge-badge"));
+    gt.hidden = !state.grounded || !hasMarks;
+  }
   // A tally of the turn's epistemic state — how much of what was just said
   // stands on the material, how much on the model, how much stands on
   // nothing — used to be drawn into the "thinking" box here (one reading of
@@ -7370,6 +8026,18 @@ function refNodes(text, known) {
  * stripe, whichever ground it stands on. All of it read off checks the turn
  * already ran — this function draws, it does not measure.
  */
+// ONE GROUND CHIP PER RUN (2026-09-08, user: "format this better" — a
+// six-line poem wore six identical "◎ gemma2:2b" chips, one per sentence,
+// and a poem in lines is one inline chunk per line, so the run has to be
+// remembered ACROSS chunks). The same rule the address chips already hold
+// ("one chip per RUN of sentences standing on the same address"):
+// consecutive sentences on the same ground tier with the same addresses
+// share one chip, drawn on the first of them. Every sentence still carries
+// its own tier in its data attribute; only the drawing is once per run.
+// Reset at the start of every renderAnswer. And the chips are DRAWN BUT NOT
+// SHOWN unless the reader asks (the turn's "ground" toggle, user direction
+// 2026-09-08: "lose those grounding chips unless someone explicitly asks").
+let groundRunKey = null;
 function taggedProse(text, offered, classified = []) {
   const known = new Set(offered.map((p) => p.ref ?? p));
   const out = [];
@@ -7410,12 +8078,18 @@ function taggedProse(text, offered, classified = []) {
       const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
       const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
       sent.dataset.groundTier = g.tier;
-      const gc = document.createElement("button");
-      gc.className = `ground-chip tier-${g.tier}`;
-      gc.textContent = `◎ ${groundLine(g)}`;
-      gc.title = `${g.detail}${g.addresses?.length ? ` — ${g.addresses.join(", ")}` : ""}. Press to search the material.`;
-      gc.onclick = () => groundHunt(entry.text);
-      sent.append(gc);
+      const groundKey = `${g.tier}|${(g.addresses ?? []).join(",")}`;
+      if (groundKey !== groundRunKey) {
+        const gc = document.createElement("button");
+        gc.className = `ground-chip tier-${g.tier}`;
+        gc.textContent = `◎ ${groundLine(g)}`;
+        gc.title = `${g.detail}${g.addresses?.length ? ` — ${g.addresses.join(", ")}` : ""}. Press to search the material.`;
+        gc.onclick = () => groundHunt(entry.text);
+        sent.append(gc);
+      }
+      groundRunKey = groundKey;
+    } else {
+      groundRunKey = null;
     }
 
     // Where this app attached the address itself, say so in the tag. A
@@ -10689,6 +11363,7 @@ $("not-served")?.remove();
       if (restored.grid) state.gridLog = restored.grid;
       if (restored.meta) state.metaLedger = restored.meta;
       if (restored.declarations) state.declarations = restored.declarations;
+      if (restored.loops) state.loopLog = restored.loops;
       const n = Object.keys(restored).length;
       if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
     } catch (e) { console.warn("record restore:", e?.message ?? e); }
@@ -11196,10 +11871,45 @@ function showView(name) {
     p.classList.toggle("on", p.id === `pane-${name}`);
   if (name === "terminal") $("term-in").focus();
   if (name === "editor") editorLayout();
+  if (name === "holograph") renderHolograph();
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
-  tab.onclick = () => showView(tab.dataset.pane);
+  // A tab pressed while the panel is collapsed OPENS it on that pane: a tab
+  // that selects a thing nobody can see is not a tab.
+  tab.onclick = () => { if (panelCollapsed && tab.dataset.pane !== "chat") setPanelCollapsed(false); showView(tab.dataset.pane); };
+
+// THE PANEL AT FULL WIDTH (user, 2026-09-08). One class on <body>; the
+// conversation column keeps its own tabs as a rail (index.html carries the
+// rules) so a conversation is still selectable while a panel has the width.
+// Kept across reloads, like every other view preference on this page.
+// Either side may give the other the width, and the two states are exclusive
+// by construction — a column cannot be both collapsed and expanded.
+let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
+let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
+function setPanelWide(on) {
+  panelWide = !!on;
+  if (panelWide) panelCollapsed = false;
+  try { localStorage.setItem("fold-panel-wide", panelWide ? "1" : "0"); localStorage.setItem("fold-panel-collapsed", panelCollapsed ? "1" : "0"); } catch { /* a private window keeps it for the session */ }
+  document.body.classList.toggle("panel-wide", panelWide);
+  document.body.classList.toggle("panel-collapsed", panelCollapsed);
+  // Each chevron points the way its own column will go, and reverses when it
+  // is folded — the control that folded it is the control that opens it.
+  const b = $("chat-collapse");
+  if (b) { b.setAttribute("aria-pressed", String(panelWide)); b.textContent = panelWide ? "›" : "‹"; b.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again"; }
+  const c = $("panel-collapse");
+  if (c) { c.setAttribute("aria-pressed", String(panelCollapsed)); c.textContent = panelCollapsed ? "‹" : "›"; c.title = panelCollapsed ? "open this panel again" : "fold this panel away — its tabs stay on the right, and pressing one opens it again"; }
+  // The drawing is measured against the pane it is drawn in, so a width
+  // change is a redraw, not a reflow (holograph-graph.js::place).
+  if (document.body.dataset.view === "holograph") renderHolograph();
+}
+function setPanelCollapsed(on) {
+  panelCollapsed = !!on;
+  if (panelCollapsed) panelWide = false;
+  setPanelWide(panelWide);
+}
+$("panel-collapse")?.addEventListener("click", () => setPanelCollapsed(!panelCollapsed));
+setPanelWide(panelWide);
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
 // the panels are already beside it, so start on the reading itself

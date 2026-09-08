@@ -36,6 +36,7 @@ const isMention = (e) => e?.schema === "EOMention@1";
 const isReferent = (e) => e?.schema === "EOReferent@1";
 const isOccurrence = (e) => e?.schema === "EOReferentOccurrence@1";
 const isMerge = (e) => e?.schema === "EOReferentMerge@1";
+const isReassignment = (e) => e?.schema === "EOReferentReassignment@1";
 
 /**
  * Fold the log once: referents by id (surfaces unioned), encounters in
@@ -48,7 +49,7 @@ const isMerge = (e) => e?.schema === "EOReferentMerge@1";
  * has no referents yet: that is the reader's own state, reported as such.
  */
 export function foldReading(entries = [], { reconstruct = null, diaNorm = null, namesCorefer = null, surfaceIndex = null, surfacesIn = null } = {}) {
-  const referents = new Map(); const encounters = new Map(); const mentions = []; const occurrences = [];
+  const referents = new Map(); const encounters = new Map(); const mentions = []; const occurrences = []; const reassignments = [];
   let order = 0;
   let graph = [];
   if (typeof reconstruct === "function") { try { graph = reconstruct(entries)?.graphEntries ?? []; } catch { graph = []; } }
@@ -56,6 +57,7 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
   const merges = [];
   for (const e of [...(entries ?? []), ...graph]) {
     if (isMerge(e)) { merges.push(e); continue; }
+    if (isReassignment(e)) { reassignments.push(e); continue; }
     if (isReferent(e)) {
       const r = referents.get(e.id) ?? { id: e.id, surfaces: new Set(), provenance: [], fedBy: new Set() };
       for (const s of e.surfaces ?? []) r.surfaces.add(String(s));
@@ -129,6 +131,15 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
   const foldKey = (t) => (typeof diaNorm === "function" ? diaNorm(String(t ?? "")) : String(t ?? "")).toLowerCase().replace(/\s+/g, " ").trim();
   const surfaceIds = new Map();
   for (const r of referents.values()) for (const s of r.surfaces) { const k = foldKey(s); if (!surfaceIds.has(k)) surfaceIds.set(k, new Set()); surfaceIds.get(k).add(r.id); }
+   // A reassignment changes which live address a surface resolves to; it does
+   // not establish that the old and new beings are one. Keep the old referent
+   // in the fold for historical addresses, but route fresh surface lookup to
+   // the address the reader most recently assigned.
+  for (const r of reassignments) {
+    const k = foldKey(r.surface);
+    if (!k || !referents.has(r.to)) continue;
+    surfaceIds.set(k, new Set([r.to]));
+  }
   const memo = new Map();
   const idsOfSurface = (surface) => {
     const k = foldKey(surface); if (!k) return new Set();
@@ -163,7 +174,7 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
       for (const sf of present) { const ids = idsOfSurface(sf); if (ids.size === 1) { const id = [...ids][0]; if (!enc.ids.has(id)) { enc.ids.add(id); located += 1; } } else if (ids.size > 1) ambiguous += 1; }
     }
   }
-  return { referents, encounters: [...encounters.values()].sort((a, b) => a.order - b.order), mentions, occurrences: occurrences.length, ambiguous, unresolved, fed, located, identity: { beings: referents.size, fragments: canon.size, mergedByRecord, mergedByContainment, ambiguousForms } };
+  return { referents, encounters: [...encounters.values()].sort((a, b) => a.order - b.order), mentions, occurrences: occurrences.length, ambiguous, unresolved, fed, located, reassignments, identity: { beings: referents.size, fragments: canon.size, mergedByRecord, mergedByContainment, reassignments: reassignments.length, ambiguousForms } };
 }
 const encounterKey = (e) => e?.anchor && Number.isFinite(Number(e.anchor.start)) ? `${e.source}#${e.anchor.start}-${e.anchor.end}` : `${e.source}:${e.sequencePosition}`;
 
@@ -175,7 +186,7 @@ const encounterKey = (e) => e?.anchor && Number.isFinite(Number(e.anchor.start))
  */
 export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, reconstruct = null, surfaceIndex = null, surfacesIn = null } = {}) {
   if (typeof diaNorm !== "function") throw new TypeError("readingIndexFromLog: diaNorm (the session's fold) is injected");
-  const { referents, encounters, mentions } = foldReading(entries, { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn });
+  const { referents, encounters, mentions, reassignments } = foldReading(entries, { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn });
   const norm = (t) => diaNorm(String(t ?? "")).toLowerCase().trim();
   const bySurface = new Map(); const byFirst = new Map(); let longest = 1;
   for (const r of referents.values()) for (const s of r.surfaces) {
@@ -183,6 +194,10 @@ export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, recon
     if (!bySurface.has(n)) bySurface.set(n, new Set()); bySurface.get(n).add(r.id);
     const toks = n.split(/\s+/); longest = Math.max(longest, toks.length);
     if (!byFirst.has(toks[0])) byFirst.set(toks[0], new Set()); byFirst.get(toks[0]).add(r.id);
+  }
+  for (const r of reassignments) {
+    const k = norm(r.surface);
+    if (k && referents.has(r.to)) bySurface.set(k, new Set([r.to]));
   }
   // MAXIMAL MUNCH. A run of tokens resolves by its LONGEST registered
   // surface, and the tokens that surface consumed are not resolved again as

@@ -118,6 +118,16 @@ test("the history window is measured by dmdWindow on what the question's REFEREN
   assert.equal(historyWindow([], "x", { dmdWindow, index }).depth, 0);
 });
 
+test("history measurement never receives the whole history as a candidate rung", () => {
+  const history = Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: `turn ${i}` }));
+  let candidates = null;
+  historyWindow(history, "what happened in turn 7?", {
+    index: { resolveIn: () => new Set(), resolve: () => new Set() },
+    dmdWindow: (_observations, _derive, opts) => { candidates = opts.candidates; return { window: 1, basis: "test" }; },
+  });
+  assert.deepEqual(candidates, [1, 2, 3, 4]);
+});
+
 test("the expectation before the draft: the reader's bound claims whose ends resolve to the question's referents; the diff names matched, novel, missing, contradicted, and the authorship ratio", () => {
   const read = (text) => ({ claims: text.includes("soup") ? [{ end1: "Razumihin", label: "brought", end2: "soup", verdict: "bound" }, { end1: "Porfiry Petrovich", label: "questioned", end2: "Raskolnikov", verdict: "bound" }] : [{ end1: "Rodion Raskolnikov", label: "murdered", end2: "the old woman", verdict: "bound" }] });
   const exp = expectationFrom(PASSAGES, "What does the book say about Razumihin?", read, index);

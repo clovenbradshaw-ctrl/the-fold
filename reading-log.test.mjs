@@ -53,32 +53,26 @@ test("the reader's log holds encounters, mentions and referents; the projection 
 test("identity is the reading's: two spellings resolve to ONE referent with a birth address; resolveIn is caseless — a lowercase question resolves the same being", () => {
   assert.ok(id("Raskolnikov"), "Raskolnikov is a referent of the reading");
   assert.equal(id("Rodion Raskolnikov"), id("Raskolnikov"), "the two spellings are one being");
-  assert.ok(id("Porfiry"), "Porfiry is a referent"); assert.equal(id("Porfiry Petrovich"), id("Porfiry"));
-  assert.ok(index.resolveIn("what does the book say about raskolnikov and porfiry?").has(id("Raskolnikov")), "no case anywhere");
+  assert.ok(id("Porfiry")); assert.equal(id("Porfiry Petrovich"), id("Porfiry"));
+  assert.ok(index.resolveIn("what does the book say about raskolnikov and porfiry?").has(id("Raskolnikov")));
   assert.ok(index.resolveIn("what does the book say about raskolnikov and porfiry?").has(id("Porfiry")));
   assert.equal(index.resolveIn("the weather turned cold").size, 0);
-  assert.ok(index.vocabulary.has("weather") && index.vocabulary.has("razumihin"), "the vocabulary is the material's own tokens");
-  assert.equal(index.caseless, true);
-  const r = referentsOf("So what about RASKOLNIKOV?", index);
-  assert.ok(r.ids.has(id("Raskolnikov")), "dialogue.referentsOf goes through resolveIn when the index offers it");
+  assert.ok(index.vocabulary.has("weather") && index.vocabulary.has("razumihin")); assert.equal(index.caseless, true);
+  assert.ok(referentsOf("So what about RASKOLNIKOV?", index).ids.has(id("Raskolnikov")));
 });
 
 test("the address book is a projection of the log: rows read back from the file, byId maps a referent to its encounters, and activation hands the Porfiry sentences from it", () => {
   for (const s of book.sentences) assert.equal(TEXT.slice(s.start, s.end), s.text, `reads back: ${s.ref}`);
-  assert.deepEqual(book.gaps, []);
-  assert.ok(book.byId.get(id("Porfiry")).length >= 3, "Porfiry stands in three encounters");
+  assert.deepEqual(book.gaps, []); assert.ok(book.byId.get(id("Porfiry")).length >= 3);
   const r = activate({ question: "What does the book say about Porfiry?", index, book, dmdWindow });
   assert.equal(r.basis, "activation"); assert.deepEqual(r.active, [id("Porfiry")]);
-  assert.ok(r.passages.every((p) => TEXT.slice(p.start, p.end) === p.text));
-  assert.ok(r.passages.some((p) => /Porfiry/.test(p.text)));
-  assert.ok(r.hop1.includes(id("Raskolnikov")));
+  assert.ok(r.passages.every((p) => TEXT.slice(p.start, p.end) === p.text)); assert.ok(r.passages.some((p) => /Porfiry/.test(p.text))); assert.ok(r.hop1.includes(id("Raskolnikov")));
 });
 
 test("S24 control — a caseless script: the reader establishes no referent and the projection says so; activation falls back to surface with the reason, never a plausible wrong thing", async () => {
   const heb = chunkSource("heb.txt", "רסקולניקוב הלך לראות את פורפירי פטרוביץ'. רזומיחין הביא מרק. פורפירי פטרוביץ' חקר את רסקולניקוב פעמיים.").map((c) => ({ ...c, source: "heb.txt", kind: "prose" }));
   const rd = makeReader(); await stepChunks(rd, heb, { textEncounters, budgetMs: 0 });
-  const hlog = rd.getLog();
-  const hindex = readingIndexFromLog(hlog, ORG); const hbook = mentionBookFromLog(hlog, ORG);
+  const hlog = rd.getLog(); const hindex = readingIndexFromLog(hlog, ORG); const hbook = mentionBookFromLog(hlog, ORG);
   assert.equal(hindex.referents.size, 0, "a case-based surface organ cannot fire on Hebrew and establishes nothing (S24/S36)");
   const r = activate({ question: "מה הספר אומר על פורפירי?", index: hindex, book: hbook, dmdWindow });
   assert.equal(r.basis, "surface"); assert.match(r.why, /no referent/);
@@ -86,30 +80,19 @@ test("S24 control — a caseless script: the reader establishes no referent and 
 
 test("one being, many addresses: the reader's recorded merges fold its fragments; a partial form joins the ONE fuller being its own coreference organ places it in; a form inside two beings stays its own (S17's ambiguous bare form)", () => {
   const ref = (id, surfaces) => ({ schema: "EOReferent@1", id, surfaces, provenance: [], fedBy: [] });
-  const log = [
-    ref("ref:auto:pyotr", ["Pyotr", "Pyotr Petrovitch"]),
-    ref("ref:auto:pyotr_petrovitch:78", ["Pyotr Petrovitch"]),
-    ref("ref:auto:mr_luzhin", ["Pyotr Petrovitch Luzhin", "Mr Luzhin", "Pyotr Petrovitch", "Luzhin"]),
-    ref("ref:auto:luzhin", ["Luzhin"]),
-    ref("ref:auto:porfiry", ["Porfiry", "Porfiry Petrovitch"]),
-    ref("ref:auto:petrovitch", ["Petrovitch"]),
-    ref("ref:auto:raskolnikov", ["Raskolnikov"]),
-    ref("ref:auto:rodion", ["Rodion", "Rodion Romanovitch", "Rodion Romanovitch Raskolnikov"]),
-    { schema: "EOReferentMerge@1", id: "merge:3250:pp78:pyotr", kept: "ref:auto:pyotr_petrovitch:78", folded: ["ref:auto:pyotr"], witness: "Pyotr Petrovitch" },
-    { schema: "EOReferentMerge@1", id: "merge:11075:luzhin:pyotr", kept: "ref:auto:mr_luzhin", folded: ["ref:auto:pyotr"], witness: "Pyotr Petrovitch Luzhin" },
-  ];
-  const f = foldReading(log, { diaNorm, namesCorefer });
-  assert.equal(f.identity.fragments, 8);
-  assert.equal(f.identity.mergedByRecord, 2, "both recorded merges applied — transitively one class through «pyotr»");
-  const luzhin = f.referents.get("ref:auto:mr_luzhin");
-  assert.ok(luzhin, "the face is the member with the most surfaces");
-  assert.deepEqual([...luzhin.members].sort(), ["ref:auto:luzhin", "ref:auto:mr_luzhin", "ref:auto:pyotr", "ref:auto:pyotr_petrovitch:78"], "«Luzhin» joins by containment in exactly one fuller being; the two merged fragments by record");
-  assert.ok(f.referents.has("ref:auto:petrovitch"), "«Petrovitch» sits inside Luzhin's AND Porfiry's surfaces — ambiguous, stays its own");
-  assert.ok(f.identity.ambiguousForms >= 1);
-  assert.ok(f.referents.has("ref:auto:rodion") && !f.referents.has("ref:auto:raskolnikov"), "«Raskolnikov» joins «Rodion Romanovitch Raskolnikov» by the reader's own coreference");
-  assert.equal(f.referents.size, 4, "eight addresses, four beings: Luzhin, Porfiry, Petrovitch (ambiguous), Raskolnikov");
-  const idx = readingIndexFromLog(log, { diaNorm, namesCorefer });
-  assert.deepEqual([...idx.resolve("Pyotr Petrovitch")], ["ref:auto:mr_luzhin"], "one being, however it is spelled on the log");
-  assert.deepEqual([...idx.resolve("Petrovitch")], ["ref:auto:petrovitch"]);
-  assert.deepEqual([...idx.resolve("Rodya Pyotr Petrovitch")], ["ref:auto:mr_luzhin"], "maximal munch: «Pyotr Petrovitch» consumed, «Petrovitch» never re-resolved to Porfiry; «Rodya» is not on this log");
+  const log = [ref("ref:auto:pyotr", ["Pyotr", "Pyotr Petrovitch"]), ref("ref:auto:pyotr_petrovitch:78", ["Pyotr Petrovitch"]), ref("ref:auto:mr_luzhin", ["Pyotr Petrovitch Luzhin", "Mr Luzhin", "Pyotr Petrovitch", "Luzhin"]), ref("ref:auto:luzhin", ["Luzhin"]), ref("ref:auto:porfiry", ["Porfiry", "Porfiry Petrovitch"]), ref("ref:auto:petrovitch", ["Petrovitch"]), ref("ref:auto:raskolnikov", ["Raskolnikov"]), ref("ref:auto:rodion", ["Rodion", "Rodion Romanovitch", "Rodion Romanovitch Raskolnikov"]), { schema: "EOReferentMerge@1", id: "merge:3250:pp78:pyotr", kept: "ref:auto:pyotr_petrovitch:78", folded: ["ref:auto:pyotr"], witness: "Pyotr Petrovitch" }, { schema: "EOReferentMerge@1", id: "merge:11075:luzhin:pyotr", kept: "ref:auto:mr_luzhin", folded: ["ref:auto:pyotr"], witness: "Pyotr Petrovitch Luzhin" }];
+  const f = foldReading(log, { diaNorm, namesCorefer }); assert.equal(f.identity.fragments, 8); assert.equal(f.identity.mergedByRecord, 2);
+  const luzhin = f.referents.get("ref:auto:mr_luzhin"); assert.ok(luzhin); assert.deepEqual([...luzhin.members].sort(), ["ref:auto:luzhin", "ref:auto:mr_luzhin", "ref:auto:pyotr", "ref:auto:pyotr_petrovitch:78"]);
+  assert.ok(f.referents.has("ref:auto:petrovitch")); assert.ok(f.identity.ambiguousForms >= 1); assert.ok(f.referents.has("ref:auto:rodion") && !f.referents.has("ref:auto:raskolnikov")); assert.equal(f.referents.size, 4);
+  const idx = readingIndexFromLog(log, { diaNorm, namesCorefer }); assert.deepEqual([...idx.resolve("Pyotr Petrovitch")], ["ref:auto:mr_luzhin"]); assert.deepEqual([...idx.resolve("Petrovitch")], ["ref:auto:petrovitch"]); assert.deepEqual([...idx.resolve("Rodya Pyotr Petrovitch")], ["ref:auto:mr_luzhin"]);
+});
+
+test("a refresh reassignment changes surface routing without unioning live beings", () => {
+  const entries = [{ schema: "EOReferent@1", id: "old", surfaces: ["Sonia"] }, { schema: "EOReferent@1", id: "new", surfaces: ["Sofya Semyonovna"] }, { schema: "EOReferentReassignment@1", id: "ra", from: "old", to: "new", surface: "Sonia" }];
+  const folded = foldReading(entries, { diaNorm: (s) => s }); assert.deepEqual([...folded.referents.keys()].sort(), ["new", "old"]); assert.equal(folded.identity.reassignments, 1); assert.deepEqual([...readingIndexFromLog(entries, { diaNorm: (s) => s }).resolve("Sonia")], ["new"]);
+});
+
+test("only EOReferentMerge unions identities", () => {
+  const entries = [{ schema: "EOReferent@1", id: "a", surfaces: ["A"] }, { schema: "EOReferent@1", id: "b", surfaces: ["B"] }, { schema: "EOReferentMerge@1", id: "m", kept: "a", folded: ["b"], witness: "A and B" }];
+  const folded = foldReading(entries, { diaNorm: (s) => s }); assert.deepEqual([...folded.referents.keys()], ["a"]); assert.equal(folded.identity.mergedByRecord, 1);
 });

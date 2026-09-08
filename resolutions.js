@@ -81,7 +81,13 @@ export function dmdCut(rows, active, { dmdWindow = null, declared = DECLARED_LIN
   const keysOf = typeof reachOf === "function" ? reachOf : (r) => [...r.ids].filter((id) => active.has(id));
   const derive = (obs) => sortedIds(new Set(obs.flatMap((r) => keysOf(r))));
   let w;
-  try { w = dmdWindow(relevant, derive, { candidates, restrict: (obs, depth) => obs.slice(0, depth), equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) }); } catch { w = null; }
+  let measurementThrew = false;
+  try { w = dmdWindow(relevant, derive, { candidates, restrict: (obs, depth) => obs.slice(0, depth), equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) }); }
+  catch { measurementThrew = true; }
+  if (measurementThrew) {
+    const window = Math.min(declared, relevant.length);
+    return { rows: relevant.slice(0, window), window, basis: "declared: measurement organ threw — no measured cut", ceiling: false, gap: "measurement_threw" };
+  }
   if (w?.window) return { rows: relevant.slice(0, w.window), window: w.window, basis: w.basis ?? "measured", ceiling: false, gap: null };
   // No rung below the set reproduced its reach. A set no larger than the
   // declared lines is handed whole (every row is its own difference and the

@@ -126,11 +126,12 @@ export function decodeContentsGet(data) {
   return { exists: true, isDirectory: false, sha: data.sha, text };
 }
 
-export function buildContentsWriteBody({ content, sha, message }) {
+export function buildContentsWriteBody({ content, sha, message, branch }) {
   return {
     message: message || "the-fold: write via GitHub organ",
     content: base64EncodeUtf8(content),
     ...(sha ? { sha } : {}),
+    ...(branch ? { branch } : {}),
   };
 }
 
@@ -141,6 +142,91 @@ export function decodeContentsWrite(data) {
 /** Whether a write attempt should retry with a fresh sha (a stale sha lost the race). */
 export function shouldRetryConflict(attempt, maxRetries = MAX_CONFLICT_RETRIES) {
   return attempt < maxRetries;
+}
+
+// ── branch + pull request ────────────────────────────────────────────────────
+// A push never lands on a branch directly (user direction, 2026-09-08): it
+// opens a PR instead, so every write this instrument makes is something a
+// person reviews and merges on GitHub's own page, not something that just
+// appears. The shapes below are the Git Data API + Pulls API calls that
+// need — repo info (for the default branch), a ref read (the branch's head
+// sha) and create, and the PR itself. Contents API writes then target that
+// new branch via buildContentsWriteBody's own `branch` field, above.
+
+export function repoUrl({ owner, repo }) {
+  return `${GITHUB_API}/repos/${owner}/${repo}`;
+}
+
+export function decodeRepoInfo(data) {
+  return { defaultBranch: data?.default_branch ?? null, private: Boolean(data?.private) };
+}
+
+export function refUrl({ owner, repo, branch }) {
+  return `${GITHUB_API}/repos/${owner}/${repo}/git/ref/${encodeURIComponent(`heads/${branch}`)}`;
+}
+
+/** A GET ref response -> {exists, sha}, mirroring decodeContentsGet's 404-safe shape. */
+export function decodeRef(data) {
+  const sha = data?.object?.sha;
+  return sha ? { exists: true, sha } : { exists: false };
+}
+
+export function createRefUrl({ owner, repo }) {
+  return `${GITHUB_API}/repos/${owner}/${repo}/git/refs`;
+}
+
+export function buildCreateRefBody({ branch, sha }) {
+  return { ref: `refs/heads/${branch}`, sha };
+}
+
+export function pullsUrl({ owner, repo }) {
+  return `${GITHUB_API}/repos/${owner}/${repo}/pulls`;
+}
+
+export function buildCreatePullBody({ title, head, base, body }) {
+  return { title, head, base, body: body || "" };
+}
+
+export function decodeCreatePull(data) {
+  return { number: data?.number ?? null, htmlUrl: data?.html_url ?? null, state: data?.state ?? null };
+}
+
+const BRANCH_SAFE_RE = /[^a-zA-Z0-9._-]+/g;
+
+/** A branch name for one push, derived from the path it touches plus a
+ * millisecond timestamp — collision-avoiding by construction (no retry loop
+ * needed for the ordinary case), and readable enough on GitHub's own branch
+ * list to say what it is without opening it. Pure/deterministic given `now`,
+ * so it is testable without a clock mock.
+ *
+ * git-check-ref-format's own rules are what the trimming below is for, and
+ * they are not cosmetic: a path component may not BEGIN with a dot, may not
+ * contain "..", and may not end with a dot or ".lock" — and this repo's own
+ * sync paths start with exactly that (".the-fold/..."), so the naive slug
+ * produced a ref GitHub refuses outright. Caught before shipping, pinned
+ * below by the leading-dot case. */
+export function prBranchName(path, now = Date.now()) {
+  const slug = String(path ?? "file")
+    .replace(BRANCH_SAFE_RE, "-")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[.\-]+|[.\-]+$/g, "")
+    .replace(/\.lock$/i, "lock")
+    .slice(-60)
+    .replace(/^[.\-]+|[.\-]+$/g, "") || "file";
+  return `the-fold/${slug}-${now.toString(36)}`;
+}
+
+/** The PR title/body for one push — declared here once so github-pane.js's
+ * three write sites (one file, skills sync, history sync) describe
+ * themselves the same way rather than three hand-written strings drifting. */
+export function prTitleFor(paths) {
+  const list = Array.isArray(paths) ? paths : [paths];
+  if (list.length === 1) return `the-fold: update ${list[0]}`;
+  return `the-fold: update ${list.length} files`;
+}
+export function prBodyFor(paths) {
+  const list = Array.isArray(paths) ? paths : [paths];
+  return `Opened by the-fold's GitHub pane.\n\nFiles:\n${list.map((p) => `- \`${p}\``).join("\n")}\n`;
 }
 
 // ── pull merges: what to import that is not already held locally ───────────

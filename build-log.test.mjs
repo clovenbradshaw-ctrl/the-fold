@@ -142,6 +142,41 @@ test("retract keeps the entries and empties the live fold", () => {
   assert.equal(buildLog.foldBuild(log, before - 1).code, "print(2)");
 });
 
+test("a single retract on a re-zeroed build falls back to the earlier ground instead of emptying it — measured live, not assumed", () => {
+  // Grounds are independent threads (no `supersedes` back to the ground
+  // before them — rezeroBuild's own header). retractBuild only ever kills
+  // the CURRENT one, so on a build that has been judged at least once,
+  // one retraction reveals the ground underneath rather than clearing the
+  // list — the defect a browser session found live, driving the real page,
+  // that this pins.
+  let log = sampleLog();
+  log = buildLog.rezeroBuild(log, { code: "print(3)", trigger: "it's broken" });
+  assert.equal(buildLog.groundCount(log), 2);
+  log = buildLog.retractBuild(log);
+  const fallback = buildLog.foldBuild(log);
+  assert.notEqual(fallback, null);
+  assert.equal(fallback.ground, 1);
+  assert.equal(fallback.code, "print(2)");
+});
+
+test("retractAllGrounds empties a re-zeroed build completely, and the past stays addressable", () => {
+  let log = sampleLog();
+  log = buildLog.rezeroBuild(log, { code: "print(3)", trigger: "it's broken" });
+  const beforeSeq = log.nextSeq - 1;
+  log = buildLog.retractAllGrounds(log);
+  assert.equal(buildLog.foldBuild(log), null);
+  // Both grounds' history is still on the log, not erased.
+  assert.equal(buildLog.foldBuild(log, beforeSeq).code, "print(3)");
+});
+
+test("retractAllGrounds on a build that never re-zeroed matches plain retractBuild", () => {
+  let log = sampleLog();
+  const bound = buildLog.groundCount(log);
+  assert.equal(bound, 1);
+  log = buildLog.retractAllGrounds(log);
+  assert.equal(buildLog.foldBuild(log), null);
+});
+
 test("exportAt: code downloads as the version at the cursor, named by its address", () => {
   const log = sampleLog();
   const at0 = buildLog.exportAt(log, 0);

@@ -2631,7 +2631,24 @@ async function codePieceTurn(cp, typed) {
   const share = modelShare(modelChars, code.length);
   say(`done: fold ${n} · ${sk.names.length} function(s) + ${helpers} helper(s) the model reached for, ${refusals} refused · final run ${final.summary ?? final.skipped} · the model wrote ${modelChars} of ${code.length} chars (${Math.round((share ?? 0) * 100)}%); the instrument wrote the rest · ${fixes} fix(es)`);
   mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: sk.names.length, helpers, refusals, fixes, finalOk: final.ok ?? null, modelChars, totalChars: code.length, modelShare: share, witnessed, via: "chat" });
-  state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
+  // The build narration is generated here, in the fold's own turn — it does
+  // not enter state.history (resent to the model on every later turn) until
+  // sent: a multi-paragraph build log is not something a later turn needs
+  // in its context by default, and consent to add it is a click, the same
+  // posture the Folds panel's own ▶ run already holds for execution.
+  const sendChip = document.createElement("button");
+  sendChip.type = "button";
+  sendChip.className = "build-chip send-to-chat";
+  sendChip.innerHTML = `<span aria-hidden="true">→</span> `;
+  sendChip.append(document.createTextNode("send to chat"));
+  sendChip.onclick = () => {
+    if (sendChip.disabled) return;
+    state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
+    sendChip.disabled = true;
+    sendChip.textContent = "sent to chat";
+    mirrorTermRecord("codepiece-sent-to-chat", { fold: n, via: "chat" });
+  };
+  body.append(sendChip);
   renderFold(node, { sent: sentCalls });
   renderThreads();
   $("status").textContent = readyLine();
@@ -4382,13 +4399,28 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   }
   body.textContent = "";
 
-  // The model's prose, kept visible as its own voice — but never a router.
-  for (const s of parseSegments(answer)) {
-    if (s.type !== "prose") continue;
-    const p = document.createElement("p");
-    p.className = "prose";
-    p.textContent = s.text;
-    body.append(p);
+  // The ops/patch path's own reply is not prose — it is the raw {find, add}
+  // JSON the grammar held it to (PATCH_SCHEMA), with no fence around it for
+  // parseSegments to see, so it fell into the prose bucket and rendered as
+  // an unstyled paragraph: a JSON object read as broken formatting, not as
+  // the mechanical edit it is. Shown as code instead, same box the Folds
+  // panel's own run output already uses. The mechanical literalSwap path
+  // never reaches here (its `answer` is "", `parseSegments` returns nothing
+  // for either branch).
+  if (landedPatch && !landedPatch.mechanical && answer) {
+    const pre = document.createElement("pre");
+    pre.className = "run-console";
+    pre.textContent = answer;
+    body.append(pre);
+  } else {
+    // The model's prose, kept visible as its own voice — but never a router.
+    for (const s of parseSegments(answer)) {
+      if (s.type !== "prose") continue;
+      const p = document.createElement("p");
+      p.className = "prose";
+      p.textContent = s.text;
+      body.append(p);
+    }
   }
 
   let note;
@@ -8136,6 +8168,28 @@ function buildCard(entry, highlight) {
   wide.onclick = () => openFoldViewer(entry);
   from.append(wide);
 
+  // Retraction, not erasure (build-log.js's own vocabulary): the fold
+  // leaves this list — foldRow returns null once nothing live remains —
+  // but every entry stays on its log, so nothing here loses history. One
+  // click, no confirm dialog, the same posture ↩ restore already holds a
+  // few lines up for the identical reason: a reversible, append-only act
+  // that costs nothing to get back from does not need a second gate. (An
+  // arm-then-confirm on the button itself was tried first and measured
+  // unreliable: this list re-renders from many unrelated call sites —
+  // any one of them between the two clicks rebuilds this button fresh
+  // and silently disarms it, which is worse than no confirmation at all.)
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "build-run";
+  del.textContent = "✕ delete";
+  del.title = "Retract this fold from the list. Every entry stays on its log — nothing here is erased.";
+  del.onclick = () => {
+    entry.log = buildLog.retractAllGrounds(entry.log);
+    persistBuilds();
+    renderBuilds();
+  };
+  from.append(del);
+
   // The cursor: one position per log entry, labelled mechanically from the
   // entry itself. Same semantics as the graph's reading cursor — scrubbing
   // shows the build AS OF that point; nothing is recomputed or invented.
@@ -8166,24 +8220,21 @@ function buildCard(entry, highlight) {
     wrap.append(row);
   }
 
-  wrap.append(
-    artifactNode(shown.seg, shown.caption, shown.code, {
-      // Consent at the SHOWN cursor: scrub the slider to a version from
-      // before the run and the frame locks again — the projection of the
-      // log at that point had no consent in it yet.
-      scripts: !!shown.lastRun,
-    }),
-  );
+  // The run's own output is what a person hits ▶ to see happen — it goes
+  // ABOVE the code that produced it, so it is the first thing visible
+  // after a run rather than something scrolled past to find (2026-09-08,
+  // user direction). Built first, appended first; the code that produced
+  // it follows, unchanged in every other respect.
   const lastRun = shown.lastRun;
+  let out = null;
   if (entry.running || lastRun) {
     const data = lastRun?.data ?? {};
     if (entry.running) {
-      const out = document.createElement("pre");
+      out = document.createElement("pre");
       out.className = "run-console";
       out.textContent = "running…";
-      wrap.append(out);
     } else if (!data.rendered) {
-      const out = document.createElement("pre");
+      out = document.createElement("pre");
       out.className = "run-console";
       if (!lastRun.ok) {
         out.classList.add("bad");
@@ -8199,9 +8250,17 @@ function buildCard(entry, highlight) {
         out.classList.toggle("bad", !!data.stderr);
         out.title = `exit ${data.code} · ${data.durationMs}ms${data.timedOut ? " · timed out" : ""}`;
       }
-      wrap.append(out);
     }
   }
+  if (out) wrap.append(out);
+  wrap.append(
+    artifactNode(shown.seg, shown.caption, shown.code, {
+      // Consent at the SHOWN cursor: scrub the slider to a version from
+      // before the run and the frame locks again — the projection of the
+      // log at that point had no consent in it yet.
+      scripts: !!shown.lastRun,
+    }),
+  );
   return wrap;
 }
 

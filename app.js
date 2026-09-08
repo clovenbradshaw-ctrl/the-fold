@@ -1201,6 +1201,16 @@ const holographOpen = new Set();
 // The notation is the default (user, 2026-09-08, on the cards: "do EOT in
 // here too"); text is one press away, and the choice is kept.
 let viewMode = (() => { try { return localStorage.getItem("fold-view-mode") === "text" ? "text" : "eot"; } catch { return "eot"; } })();
+// WHICH COLUMN IS FOLDED — declared HERE, beside the other view preferences,
+// and not beside the functions that use it: `renderThreads` builds the
+// conversation's own fold control and runs during boot, long before the
+// bottom of this file is reached, so a declaration down there left the whole
+// boot in the temporal dead zone (measured live, 2026-09-08 — the page came
+// up with no file handler wired and nothing said why). Either side may give
+// the other the width; the two are exclusive by construction, since a column
+// cannot be both folded and expanded.
+let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
+let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";
   try { localStorage.setItem("fold-view-mode", viewMode); } catch { /* a private window keeps it for the session */ }
@@ -11883,10 +11893,6 @@ for (const tab of document.querySelectorAll('[role="tab"]'))
 // conversation column keeps its own tabs as a rail (index.html carries the
 // rules) so a conversation is still selectable while a panel has the width.
 // Kept across reloads, like every other view preference on this page.
-// Either side may give the other the width, and the two states are exclusive
-// by construction — a column cannot be both collapsed and expanded.
-let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
-let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
 function setPanelWide(on) {
   panelWide = !!on;
   if (panelWide) panelCollapsed = false;

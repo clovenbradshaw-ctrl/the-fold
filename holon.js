@@ -2122,10 +2122,35 @@ export async function runPart({
   // to hand falls back to the passages and says so. Level means what the
   // mouth is handed, and higher means less — measured as a monotone
   // compression ladder, never assumed.
+  // WHAT THE MATERIAL IS, as against what a passage of it happens to say
+  // (P46's own organ, `source.js::declaredIdentity` — the file's own title
+  // page, with a named giver and a byte address). It rides EVERY path,
+  // because it is a property of the source and not of whichever passage
+  // retrieval returned: `buildSourceBlock` already carried it, but the
+  // compressed path below sets `rawSource` to null, so on a snips turn it
+  // was computed, addressed, and thrown away.
+  //
+  // Measured live (2026-09-08), which is why this exists: War and Peace
+  // attached, asked "what's this book about?" — the question's one content
+  // word is "book", so retrieval returned chapters about Prince Bolkonsky's
+  // EXERCISE BOOK, and the mouth, holding sentences about a book and a table
+  // and no title, answered "a man named Caesar and his commentary on his
+  // military campaigns". The engine had "War and Peace, by graf Leo Tolstoy"
+  // in hand the whole time. A fact, never an instruction (P55); no address,
+  // because the mouth never sees one.
+  const declaredLine = (() => {
+    const bySource = new Map();
+    for (const p of passages ?? []) {
+      const d = p?.identity?.declared;
+      if (!d?.title || bySource.has(p.source)) continue;
+      bySource.set(p.source, `${d.title}${d.author ? `, by ${d.author}` : ""}`);
+    }
+    return bySource.size ? `What this material is, by its own title page: ${[...bySource.values()].join("; ")}.` : "";
+  })();
   const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
   const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
   const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
-  const draftMaterial = [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
+  const draftMaterial = [comparisonLine, declaredLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger

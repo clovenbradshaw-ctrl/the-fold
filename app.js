@@ -396,6 +396,19 @@ function syncRecords() {
 // cursor (passages admitted under this recipe) persists in the source's own
 // index row; a reload resumes from it, and a reader whose recipe changed
 // reads again under its own witness string (a second instrument, P68).
+// HOW MUCH OF A SOURCE THE READER SEES AT ONCE, IN CHARACTERS. Declared (P9),
+// measured rather than guessed, and in characters because that is the unit
+// the cost is in: building the relation reader is superlinear in the TEXT of
+// its pool — 86 KB (500 short passages) 584ms, 340 KB 4.9s, and the whole of
+// War and Peace 161.7 SECONDS in one synchronous call, which is exactly how
+// long the page sat frozen with nothing to show (measured live, 2026-09-08).
+// A passage COUNT was tried first and was the wrong unit: the same book cut
+// on its own chapter headings gives passages 21x larger, so 500 of those is
+// 1.58 MB and froze the page just as badly. At 120 KB the build is well under
+// a second, so the read proceeds in slices the page paints between and the
+// status line can count them. The cost is disclosed in read-on-arrival.js: a
+// verb attested only outside a window is not in that window's vocabulary.
+const READ_WINDOW_CHARS = 120_000;
 const READING = new Map(); // name → { cursor, total, recipe, running }
 const READING_CONSTITUTIONAL = new Map(); // name → { cursor, total, running } — chunks admitted into the constitutional reader (reading-client.js), independent of READING's relation-reading cursor
 const yieldMacrotask = (() => {
@@ -439,10 +452,15 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
       // 44-passage read into a crawl the first time this ran live. Message
       // events are not clamped, and the page still repaints between them.
       yieldFn: yieldMacrotask,
+      windowChars: READ_WINDOW_CHARS,
       onProgress: (p) => {
+        if (p.read === 1) console.info(`read on arrival: ${name} — first passage read`);
         READING.set(name, { cursor: p.read, total: p.total, recipe, running: p.read < p.total });
         if (p.read - lastSync >= 25 || p.read === p.total) { lastSync = p.read; syncRecords(); updateSourceMeta(name, { readCursor: p.read, readRecipe: recipe }); }
-        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = `reading ${name} · ${p.read}/${p.total}`;
+        // A long read SAYS it is working, and how far it has got — a book is
+        // shown in progress, never as a frozen page (user, 2026-09-08:
+        // "rather to show it in progress than frozen or just wait").
+        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = p.read === p.total ? `read ${name} · ${p.total} passages` : `reading ${name} · ${p.read} of ${p.total} passages`;
       },
     });
     READING.set(name, { cursor: r.cursor, total: passages.length, recipe, running: false });
@@ -463,9 +481,20 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
   // ~200s/MB, P171) never delays the relation ledger a question is
   // actually answered from today.
   if (!isCodeSource(name) && passages.length && state.sources[name]) {
+    // The constitutional read's own progress handler runs on the MAIN thread
+    // even though the reading itself is in a worker, and `refreshConstitutional
+    // Index` reprojects the log each time — so it is timed here, separately
+    // from the relation read, rather than assumed cheap.
+    let ctick = 0, cms = 0;
     readConstitutionally(name, passages, {
       budgetMs: 250,
-      onProgress: (p) => { READING_CONSTITUTIONAL.set(name, { cursor: p.read, total: p.total, running: p.read < p.total }); refreshConstitutionalIndex(); },
+      onProgress: (p) => {
+        READING_CONSTITUTIONAL.set(name, { cursor: p.read, total: p.total, running: p.read < p.total });
+        const t = Date.now();
+        refreshConstitutionalIndex();
+        cms += Date.now() - t;
+        if (++ctick % 10 === 0) console.info(`constitutional read: ${name} — ${p.read}/${p.total}, ${cms}ms in the index projection over ${ctick} ticks`);
+      },
     }).then((r) => {
       READING_CONSTITUTIONAL.set(name, { cursor: r.cursor, total: passages.length, running: false });
       if (!r.done || r.cursor > 0) refreshConstitutionalIndex();
@@ -10720,6 +10749,22 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
+// ATTACHING SAYS WHAT IT IS DOING (user, 2026-09-08: "have it disclose the
+// process, so we get feedback", after a 3.3MB book left the page frozen with
+// nothing on screen). Each stage of the attach names itself before it runs
+// and times itself after; the timings go to the console so a slow stage can
+// be found rather than guessed at, and the stage NAME goes to the status
+// line, which is what a person actually sees. A stage that takes no
+// measurable time still says its name — a reader learning where the time
+// goes is worth more than a line that only appears when things are bad.
+function attachStage(name, label, fn) {
+  $("status").textContent = label;
+  const t = Date.now();
+  const out = fn();
+  const ms = Date.now() - t;
+  console.info(`attach ${name}: ${label} — ${ms}ms`);
+  return out;
+}
 function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
@@ -10734,7 +10779,8 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // the ONE choke-point every attachment/paste/upload/library pull already
   // passes through, so this needs no per-caller change to reach any of
   // them (identifyMaterial, source.js).
-  const identity = identifyMaterial(name, text);
+  const big = text.length > 200_000;
+  const identity = big ? attachStage(name, `${name} — reading what kind of thing it is…`, () => identifyMaterial(name, text)) : identifyMaterial(name, text);
   // blankFurniture was already wired into `relationsFor` (above) on the
   // belief that it protected every reader of this text — measured
   // 2026-09-04 (rashomon-contrast-RESULTS.md) that it did not protect the
@@ -10747,21 +10793,30 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // the boundaries the recognizer heard, and those are better than any count
   // — a pause is the speaker's own. Passages handed in are used as given,
   // with their time addresses intact.
-  state.chunks = state.chunks
-    .filter((c) => c.source !== name)
-    .concat(passages?.length
-      ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
-      : chunkSource(name, text, {
-          boundaries: discoverBoundaries(text), identity,
-          blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
-        }));
-  renderSources();
+  const cut = () => (passages?.length
+    ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
+    : chunkSource(name, text, {
+        boundaries: discoverBoundaries(text), identity,
+        blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+      }));
+  const cutChunks = big ? attachStage(name, `${name} — cutting it into passages…`, cut) : cut();
+  state.chunks = state.chunks.filter((c) => c.source !== name).concat(cutChunks);
+  if (big) attachStage(name, `${name} — ${cutChunks.length.toLocaleString()} passages`, renderSources);
+  else renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.
-  if (!fromBoot) persistSource(name, text, { passages: countFor(name) });
+  if (!fromBoot) { const tp = Date.now(); Promise.resolve(persistSource(name, text, { passages: countFor(name) })).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); }); }
   // Read it now (Pass 18, P99) — a book attached is a book read, before any
   // question. Boot resumes from the saved cursor instead (below).
-  if (!fromBoot) readSourceOnArrival(name);
+  // The read is the long one, and it reports its own progress passage by
+  // passage (readSourceOnArrival). Handing it a macrotask first lets the
+  // count above actually paint before the reading starts — a status line
+  // written and then immediately buried under a second of work is a line
+  // nobody sees.
+  if (!fromBoot) {
+    if (big) { $("status").textContent = `${name} — starting to read ${cutChunks.length.toLocaleString()} passages…`; setTimeout(() => readSourceOnArrival(name), 0); }
+    else readSourceOnArrival(name);
+  }
 }
 
 /**

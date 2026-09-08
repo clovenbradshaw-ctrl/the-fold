@@ -67,7 +67,7 @@ export function admitPassages(hyperlexicon, ledger, passages, { read, witnessFor
 export async function readOnArrival({
   name, passages, relationsFor, hyperlexicon, ledger = null, ledgerRef = null,
   frame = null, recipe = null, classifyConnector = null,
-  cursor = 0, yieldEvery = 1, onProgress = null,
+  cursor = 0, yieldEvery = 1, onProgress = null, windowChars = 0,
   yieldFn = () => new Promise((r) => setTimeout(r)), now = () => Date.now(),
 } = {}) {
   if (!Array.isArray(passages)) throw new TypeError("readOnArrival: passages is the source's own ordered chunk list");
@@ -75,8 +75,56 @@ export async function readOnArrival({
   if (!Number.isInteger(cursor) || cursor < 0) throw new TypeError("readOnArrival: cursor is a non-negative integer — how many passages were already admitted under this recipe");
   const t0 = now();
   const start = Math.min(cursor, passages.length);
-  if (start >= passages.length) return { log: ledger, cursor: passages.length, read: 0, heard: 0, turnedAway: [], ms: 0, recipe, pool: { passages: passages.length }, resumed: cursor > 0 };
-  const rel = relationsFor(passages, { pool: passages });
+  if (start >= passages.length) return { log: ledger, cursor: passages.length, read: 0, heard: 0, turnedAway: [], ms: 0, recipe, pool: { passages: passages.length, windowChars: 0, windows: 0 }, resumed: cursor > 0 };
+  // THE READER IS BUILT PER WINDOW, NOT PER BOOK (measured live, 2026-09-08:
+  // War and Peace, 11,132 passages — `relationsFor` over the whole source is
+  // ONE SYNCHRONOUS CALL that took 161.7 seconds, before a single passage was
+  // read and before the first yield, so the page was frozen solid the whole
+  // time and could not even say it was working). The cost is superlinear in
+  // the pool: 100 passages 183ms, 500 584ms, 2,000 4.9s, 11,132 161.7s.
+  //
+  // THE WINDOW IS MEASURED IN CHARACTERS, NOT PASSAGES, because characters are
+  // what the cost is in. A count is the wrong unit and the difference is not
+  // academic: the same book cut on its own chapter headings gives 1,051
+  // passages of ~3,600 characters, so a 500-PASSAGE window is 1.58 MB of text
+  // and froze the page exactly as the unwindowed version did (measured live,
+  // 2026-09-08). The same book cut without headings gives 11,132 passages of
+  // ~172 characters, where 500 is 86 KB and builds in 584ms. One number
+  // cannot serve both; the text length can.
+  //
+  // What this COSTS, said plainly rather than buried: the relation vocabulary
+  // is discovered over a window of the source instead of over all of it, so a
+  // verb attested only far outside a window is not in that window's
+  // vocabulary (P58 — a vocabulary gap degrades, it does not floor). What it
+  // buys is that a book is read at all, in slices the page can paint between,
+  // with progress the reader can see. `windowChars: 0` keeps the old
+  // whole-source pool exactly, which is what every existing caller and test
+  // still gets by omission.
+  const budget = Number.isFinite(windowChars) && windowChars > 0 ? windowChars : 0;
+  // The windows, computed once: each runs until it would exceed the budget,
+  // and a single passage larger than the whole budget is its own window
+  // rather than being skipped.
+  const windows = [];
+  if (budget) {
+    let s = 0, chars = 0;
+    for (let i = 0; i < passages.length; i += 1) {
+      const len = String(passages[i]?.text ?? "").length;
+      if (i > s && chars + len > budget) { windows.push([s, i]); s = i; chars = 0; }
+      chars += len;
+    }
+    windows.push([s, passages.length]);
+  } else windows.push([0, passages.length]);
+  let windowStart = -1;
+  let rel = null;
+  const readerFor = (i) => {
+    const w = windows.find(([a, b]) => i >= a && i < b) ?? windows[windows.length - 1];
+    if (w[0] !== windowStart) {
+      const pool = passages.slice(w[0], w[1]);
+      rel = relationsFor(pool, { pool });
+      windowStart = w[0];
+    }
+    return rel;
+  };
   const witnessFor = (p) => (p?.ref ? (recipe ? `${p.ref}~${recipe}` : p.ref) : null);
   // `ledgerRef` ({get, set}): each passage builds on the ledger OF THE MOMENT
   // and writes it back, so a chat turn that lands between two passages is
@@ -87,7 +135,7 @@ export async function readOnArrival({
   const turnedAway = [];
   for (let i = start; i < passages.length; i += 1) {
     if (ledgerRef) log = ledgerRef.get();
-    const r = admitPassages(hyperlexicon, log, [passages[i]], { read: rel.read, witnessFor, classifyConnector, frame });
+    const r = admitPassages(hyperlexicon, log, [passages[i]], { read: readerFor(i).read, witnessFor, classifyConnector, frame });
     log = r.log;
     if (ledgerRef && log) ledgerRef.set(log);
     heard += r.heard;
@@ -95,7 +143,7 @@ export async function readOnArrival({
     if (onProgress) onProgress({ name, read: i + 1, total: passages.length, heard, log });
     if ((i + 1 - start) % yieldEvery === 0 && i + 1 < passages.length) await yieldFn();
   }
-  return { log, cursor: passages.length, read: passages.length - start, heard, turnedAway, ms: now() - t0, recipe, pool: { passages: passages.length }, resumed: start > 0 };
+  return { log, cursor: passages.length, read: passages.length - start, heard, turnedAway, ms: now() - t0, recipe, pool: { passages: passages.length, windowChars: budget, windows: windows.length }, resumed: start > 0 };
 }
 
 /** The typed unread extent of a source, for a question asked mid-read. */

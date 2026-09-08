@@ -2382,3 +2382,33 @@ test("P137: a finding leaves the part and binds the later cells — the section 
   assert.doesNotMatch(r.output, /^## .*Lincoln/m, "no section heading ships the cut name");
   assert.doesNotMatch(r.output, /Lincoln/, "and neither does anything the later cells assembled");
 });
+
+test("what the material IS rides every path: a source's own title page reaches the mouth even when the passages are compressed to snips", async () => {
+  // Measured live, 2026-09-08: War and Peace attached, "what's this book
+  // about?" retrieved chapters about a prince's EXERCISE BOOK (the question's
+  // one content word is "book") and the mouth answered "a man named Caesar
+  // and his commentary on his military campaigns". The engine had the title
+  // page in hand throughout; the compressed path dropped it.
+  const declared = { title: "War and Peace", author: "graf Leo Tolstoy", giver: "the source file's own declared header", ref: "wp.txt#0-856" };
+  // Real chunks from the real chunker, so they carry the term index retrieval
+  // reads — and the identity every chunking path threads onto every chunk.
+  const body = "The princess bent over the exercise book on the table, and the prince pushed the book away.\n\nHe took the exercise book containing lessons in geometry written by himself and drew up a chair with his foot.";
+  const wp = chunkSource("wp.txt", body, { identity: { kind: "prose", certainty: "default", declared } });
+  const sent = [];
+  const call = async (messages) => { sent.push(messages); return "It is Tolstoy's novel."; };
+  await runHolonicTask({
+    task: "what's this book about?", call, chunks: wp, planMode: "flat", material: "snips", maxCorrections: 0,
+  });
+  const system = sent.flat().find((m) => m.role === "system")?.content ?? "";
+  assert.match(system, /What this material is, by its own title page: War and Peace, by graf Leo Tolstoy\./);
+  // A fact, not an instruction (P55), and no address — the mouth never sees one.
+  assert.ok(!/wp\.txt#/.test(system), "no address reaches the mouth");
+  // And the same turn with material carrying no title page says nothing at all.
+  sent.length = 0;
+  await runHolonicTask({
+    task: "what's this book about?", call, planMode: "flat", material: "snips", maxCorrections: 0,
+    chunks: wp.map((c) => ({ ...c, identity: { kind: "prose" } })),
+  });
+  const bare = sent.flat().find((m) => m.role === "system")?.content ?? "";
+  assert.ok(!/title page/.test(bare), "material with no declared identity claims none");
+});

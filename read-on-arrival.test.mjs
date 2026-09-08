@@ -113,3 +113,41 @@ test("an exhausted cursor reads nothing and says so; the unread extent is typed 
   assert.equal(u.unread, ps.length - 1);
   await assert.rejects(() => readOnArrival({ name: "n", passages: null, relationsFor, hyperlexicon: hl }), /passages/);
 });
+
+test("the reader is built PER WINDOW, measured in CHARACTERS, so a book is read in slices the page can paint between", async () => {
+  const ps = passages();
+  // A counting factory: how many times the reader was built, and over how
+  // large a pool each time. This is the property that froze the page — one
+  // build over 11,132 passages took 161.7 seconds before the first yield
+  // (measured live on War and Peace, 2026-09-08).
+  let builds = [];
+  const counting = (pool, opts) => { builds.push((opts?.pool ?? pool).length); return relationsFor(pool, opts); };
+  const whole = await readOnArrival({ name: "n", passages: ps, relationsFor: counting, hyperlexicon: hl, frame: FRAME, recipe: "r1", yieldFn: noYield });
+  assert.deepEqual(builds, [ps.length], "omitted, the pool is the whole source — every existing caller unchanged");
+  assert.equal(whole.pool.windows, 1);
+
+  // A budget smaller than one passage still reads every passage: a passage
+  // larger than the whole budget is its own window, never skipped.
+  builds = [];
+  const tiny = await readOnArrival({ name: "n", passages: ps, relationsFor: counting, hyperlexicon: hl, frame: FRAME, recipe: "r1", yieldFn: noYield, windowChars: 1 });
+  assert.equal(builds.length, ps.length, "one build per window, not one for the book");
+  assert.ok(builds.every((n) => n === 1), `each build sees only its window: ${builds}`);
+  assert.equal(tiny.pool.windows, ps.length);
+  assert.equal(tiny.read, ps.length, "every passage is still read");
+  assert.equal(tiny.cursor, ps.length);
+
+  // A budget that fits two passages makes windows of two, and the count of
+  // windows is on the result rather than left to be inferred.
+  const twoChars = String(ps[0].text).length + String(ps[1].text).length;
+  builds = [];
+  const paired = await readOnArrival({ name: "n", passages: ps, relationsFor: counting, hyperlexicon: hl, frame: FRAME, recipe: "r1", yieldFn: noYield, windowChars: twoChars });
+  assert.ok(builds.every((n) => n <= 2) && builds.some((n) => n === 2), `windows hold what the budget fits: ${builds}`);
+  assert.equal(paired.read, ps.length);
+
+  // Resuming mid-window rebuilds the reader for the window the cursor lands
+  // in, and reads the rest.
+  builds = [];
+  const resumed = await readOnArrival({ name: "n", passages: ps, relationsFor: counting, hyperlexicon: hl, frame: FRAME, recipe: "r1", yieldFn: noYield, windowChars: twoChars, cursor: 1 });
+  assert.equal(resumed.read, ps.length - 1);
+  assert.ok(builds.length >= 1 && builds.every((n) => n <= 2), `windows stay bounded on resume: ${builds}`);
+});

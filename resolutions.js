@@ -37,8 +37,7 @@ import { referentsOf } from "./dialogue.js";
 import { strikeAddresses } from "./firewall.js";
 
 const DEPTHS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24]); // a ladder, structural; the shallowest depth that reproduces the reach wins
-// Received, not chosen here: its giver is the ledger block's own HYPERLEXICON_LEDGER_LINES (holon.js), reused as the declared fallback when no measurement organ is injected.
-export const DECLARED_LINES = 5;
+export const DECLARED_LINES = 5; // the ledger block's own HYPERLEXICON_LEDGER_LINES, reused as the declared fallback when no measurement organ is injected
 export const RECURRENCE_FLOOR = 2; // binding's structural minimum (P58): one arrival has no recurrence to test
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -66,15 +65,36 @@ const turnRef = (t) => `[turn:${t}]`;
  */
 export function dmdCut(rows, active, { dmdWindow = null, declared = DECLARED_LINES, reachOf = null } = {}) {
   const relevant = rows.filter((r) => [...(r.ids ?? [])].some((id) => active.has(id)));
-  if (!relevant.length) return { rows: [], window: 0, basis: "nothing carries an active referent" };
-  if (typeof dmdWindow !== "function") return { rows: relevant.slice(0, declared), window: Math.min(declared, relevant.length), basis: `declared: no measurement organ injected — ${declared} lines` };
-  const candidates = [...new Set([...DEPTHS.filter((d) => d < relevant.length), relevant.length])].sort((a, b) => a - b);
+  if (!relevant.length) return { rows: [], window: 0, basis: "nothing carries an active referent", ceiling: false };
+  if (typeof dmdWindow !== "function") return { rows: relevant.slice(0, declared), window: Math.min(declared, relevant.length), basis: `declared: no measurement organ injected — ${declared} lines`, ceiling: false };
+  // THE WHOLE SET IS NEVER A CANDIDATE. Measured 2026-09-07: with
+  // `relevant.length` among the depths, a set whose every row carries a
+  // distinct act "converged" at itself — the tautology handed 94 Lens lines
+  // about one referent and the sentence window rode its ceiling on every
+  // question. Only the ladder's rungs below the set are tried; when none
+  // reproduces the whole set's reach the kernel says so
+  // (`reach_exceeds_candidates`) and the ladder's TOP is handed as the
+  // declared budget (P9), named a ceiling on the record — never a
+  // measurement. A set no larger than the declared lines is handed whole.
+  const candidates = DEPTHS.filter((d) => d < relevant.length);
+  if (!candidates.length) return { rows: relevant, window: relevant.length, basis: "whole set: one row", ceiling: false };
   const keysOf = typeof reachOf === "function" ? reachOf : (r) => [...r.ids].filter((id) => active.has(id));
   const derive = (obs) => sortedIds(new Set(obs.flatMap((r) => keysOf(r))));
   let w;
-  try { w = dmdWindow(relevant, derive, { candidates, restrict: (obs, depth) => obs.slice(0, depth), equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) }); } catch { w = null; }
-  const depth = w?.window ?? relevant.length;
-  return { rows: relevant.slice(0, depth), window: depth, basis: w?.basis ?? "measured", gap: w?.gap ?? null };
+  let measurementThrew = false;
+  try { w = dmdWindow(relevant, derive, { candidates, restrict: (obs, depth) => obs.slice(0, depth), equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) }); }
+  catch { measurementThrew = true; }
+  if (measurementThrew) {
+    const window = Math.min(declared, relevant.length);
+    return { rows: relevant.slice(0, window), window, basis: "declared: measurement organ threw — no measured cut", ceiling: false, gap: "measurement_threw" };
+  }
+  if (w?.window) return { rows: relevant.slice(0, w.window), window: w.window, basis: w.basis ?? "measured", ceiling: false, gap: null };
+  // No rung below the set reproduced its reach. A set no larger than the
+  // declared lines is handed whole (every row is its own difference and the
+  // budget covers it); a larger one is cut at the ladder's top and says so.
+  if (relevant.length <= declared) return { rows: relevant, window: relevant.length, basis: `whole set: ${relevant.length} rows within the declared lines — no depth below reproduced their reach`, ceiling: false, gap: w?.gap ?? null };
+  const top = candidates.at(-1);
+  return { rows: relevant.slice(0, top), window: top, basis: `ceiling: no depth up to ${top} reproduced the reach of all ${relevant.length} rows — the ladder's top handed as the declared budget`, ceiling: true, gap: w?.gap ?? "reach_exceeds_candidates", of: relevant.length };
 }
 
 /** The referents in play: the question's own; when it names none, the last answer's (anaphora). */
@@ -149,17 +169,39 @@ const noteIds = (n, index) => new Set([...resolveIds(index, n.subject ?? n.end1)
 const noteLine = (n) => `${n.subject ?? n.end1} — ${n.verb ?? n.label}→ ${n.object ?? n.end2}`;
 
 /**
+ * THE LENS'S OWN CUT, shared. Notes whose ends resolve to the active
+ * referents, ranked by how many active referents they carry, then by
+ * co-activation (the other end is a referent the question or the last
+ * answer also names), then by standing, then by recurrence — and cut at
+ * the act grain. activation-retrieval.js calls this SAME function so the
+ * sentences it hands at a resolution that carries the Lens are the ones
+ * that ground the Lens's shown acts (THE-HOLOGRAPH §6: a higher holon
+ * replaces the material it was computed from) — one ranking, one cut,
+ * never two lists that drift. `acts` is the set of `id|label` keys shown.
+ */
+export function lensCut({ active, index, notes = [], dmdWindow = null, question = "", transcript = [] }) {
+  if (!active?.size) return { rows: [], window: 0, basis: "no active referent", acts: new Set(), ceiling: false };
+  const last = transcript?.length ? transcript[transcript.length - 1] : null;
+  const co = new Set([...idsOfText(question, index), ...idsOfText(last?.answer ?? "", index)].filter((id) => !active.has(id)));
+  const rows = (notes ?? []).map((n) => ({ n, ids: noteIds(n, index), sources: Number.isFinite(n.sources) ? n.sources : 0, seen: (n.witnesses ?? []).length }))
+    .filter((r) => r.ids.size)
+    .sort((a, b) => [...b.ids].filter((id) => active.has(id)).length - [...a.ids].filter((id) => active.has(id)).length
+      || [...b.ids].filter((id) => co.has(id)).length - [...a.ids].filter((id) => co.has(id)).length
+      || b.sources - a.sources || b.seen - a.seen);
+  const act = (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `${id}|${fold(r.n?.verb ?? r.n?.label)}`);
+  const cut = dmdCut(rows, active, { dmdWindow, reachOf: act });
+  return { ...cut, act, acts: new Set(cut.rows.flatMap(act)), coactive: sortedIds(co) };
+}
+
+/**
  * LENS. Notes whose ends resolve to the active referents, with standing,
  * addresses and disputes; the declared voids on them; the conversation's
  * own checked turns that name them. Each list cut by the measurement.
  */
 export function lensBlock({ question = "", active, index, notes = [], voids = [], records = [], transcript = [], dmdWindow = null }) {
   if (!active?.size) return { lines: [], text: "", basis: "no active referent" };
-  const rows = (notes ?? []).map((n) => ({ n, ids: noteIds(n, index), sources: Number.isFinite(n.sources) ? n.sources : 0 }))
-    .filter((r) => r.ids.size)
-    .sort((a, b) => [...b.ids].filter((id) => active.has(id)).length - [...a.ids].filter((id) => active.has(id)).length || b.sources - a.sources);
+  const notesCut = lensCut({ active, index, notes, dmdWindow, question, transcript });
   const act = (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `${id}|${fold(r.n?.verb ?? r.n?.label ?? r.v?.verb ?? r.v?.label)}`);
-  const notesCut = dmdCut(rows, active, { dmdWindow, reachOf: act });
   const voidRows = (voids ?? []).filter((v) => v && (v.subject ?? v.end1)).map((v) => ({ v, ids: new Set([...resolveIds(index, v.subject ?? v.end1), ...resolveIds(index, v.object ?? v.end2)]) }));
   const voidsCut = dmdCut(voidRows, active, { dmdWindow, reachOf: act });
   const recordRows = [...(records ?? []).map((r) => ({ turn: r.turn, text: r.gist ?? "", refs: (r.refs ?? []).map(addressOf) })), ...(transcript ?? []).map((t) => ({ turn: t.turn, text: String(t.answer ?? "").split(/(?<=[.!?])\s+/)[0] ?? "", refs: (t.refs ?? []).map(addressOf) }))]
@@ -173,10 +215,10 @@ export function lensBlock({ question = "", active, index, notes = [], voids = []
   for (const r of notesCut.rows) { const id = [...r.ids].find((x) => active.has(x)); const addr = addressesOf(r.n); add(id, `- ${noteLine(r.n)}${addr.length ? ` [${addr.join(", ")}]` : ""} (${standingPhrase(r.n)})`); }
   for (const r of voidsCut.rows) { const id = [...r.ids].find((x) => active.has(x)); const sc = r.v.scope ?? {}; const over = Array.isArray(sc.sources) && sc.sources.length ? `looked for in ${sc.sources.length} source${sc.sources.length === 1 ? "" : "s"}` : "looked for in what was read"; add(id, `- looked for and not found so far: ${r.v.subject ?? r.v.end1} — ${r.v.verb ?? r.v.label}→ ${r.v.object ?? r.v.end2 ?? "?"} (${over}; an open gap, not a finding that it is false)`); }
   for (const r of recordsCut.rows) { const id = [...r.ids].find((x) => active.has(x)); add(id, `- earlier in this conversation ${turnRef(r.turn)}: ${r.text}${r.refs.length ? ` [${r.refs.slice(0, 2).join(", ")}]` : ""}`); }
-  if (!byRef.size) return { lines: [], text: "", basis: "nothing on the ledger or the record names the active referents", windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window } };
+  if (!byRef.size) return { lines: [], text: "", basis: "nothing on the ledger or the record names the active referents", windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window }, cuts: { notes: { window: notesCut.window, basis: notesCut.basis, ceiling: notesCut.ceiling, of: notesCut.of ?? null } } };
   const lines = [];
   for (const [id, ls] of byRef) { lines.push(`${represent(index, id)}:`); lines.push(...ls); }
-  return { lines, text: strikeAddresses(`What is said about ${list([...byRef.keys()].map((id) => represent(index, id)))}:\n${lines.join("\n")}`), windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window }, basis: { notes: notesCut.basis, voids: voidsCut.basis, records: recordsCut.basis } };
+  return { lines, text: strikeAddresses(`What is said about ${list([...byRef.keys()].map((id) => represent(index, id)))}:\n${lines.join("\n")}`), windows: { notes: notesCut.window, voids: voidsCut.window, records: recordsCut.window }, cuts: { notes: { window: notesCut.window, basis: notesCut.basis, ceiling: notesCut.ceiling === true, of: notesCut.of ?? null } }, basis: { notes: notesCut.basis, voids: voidsCut.basis, records: recordsCut.basis } };
 }
 
 /**

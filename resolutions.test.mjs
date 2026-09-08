@@ -110,6 +110,14 @@ test("THE CUT is measured, never a count: with the organ the window is the shall
   assert.equal(dmdCut([{ ids: new Set(["nobody"]) }], active, { dmdWindow }).window, 0);
 });
 
+test("a measurement organ that throws is an unmeasured declared cut, never a ceiling", () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ ids: new Set([id("Porfiry")]), n: i }));
+  const out = dmdCut(rows, new Set([id("Porfiry")]), { dmdWindow: () => { throw new Error("organ unavailable"); } });
+  assert.equal(out.ceiling, false);
+  assert.equal(out.gap, "measurement_threw");
+  assert.match(out.basis, /organ threw/);
+});
+
 test("resolutionBlocks: level 0 is nothing, 1 the atmosphere, 2 adds the lens, 3 adds the paradigm; the whole text is firewall-clean and carries no apparatus word", () => {
   const base = { question: "What does the book say about Porfiry?", transcript: TRANSCRIPT, index, notes: NOTES, voids: VOIDS, records: RECORDS, dmdWindow };
   assert.equal(resolutionBlocks({ level: 0, ...base }).text, "");

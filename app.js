@@ -1069,11 +1069,33 @@ function holographAt() {
 // it was built over; a novel's cast is built once per material, not per
 // redraw.
 let holographIndexCache = { key: null, index: null };
-function holographIndex(turns) {
+// WHAT THE INDEX IS BUILT OVER, and why it is not the corpus (measured live,
+// 2026-09-08: War and Peace attached, 3.3MB, and the page froze — this index
+// ran `discoverReferents` over every chunk of the book, synchronously, on
+// every redraw of the holograph).
+//
+// The bound is not a budget bolted on to make it fast. The holograph draws
+// THE RECORD, and a book nobody has read into a turn is not on the record
+// yet — P67's rule, that absence of a reading is a fact about the reader and
+// never about the document, said in the one place it costs something. So the
+// index is built over the conversation's own turns and over the passages the
+// record actually CITED, and over nothing else; an attached, unread book
+// contributes no beings until a turn reads some of it, at which point the
+// passages that turn stood on join. `CITED_PASSAGE_CAP` is declared (P9), and
+// what it left out is said out loud rather than silently dropped.
+const CITED_PASSAGE_CAP = 400;
+function citedPassages() {
+  const wanted = new Set((state.summary?.records ?? []).flatMap((r) => r.refs ?? []));
+  if (!wanted.size) return { passages: [], of: 0 };
   const chunks = liveChunks();
-  const key = `${turns.length}:${(state.history ?? []).length}:${chunks.length}:${chunks[0]?.ref ?? ""}:${chunks[chunks.length - 1]?.ref ?? ""}`;
+  const hit = chunks.filter((c) => wanted.has(c.ref));
+  return { passages: hit.slice(0, CITED_PASSAGE_CAP), of: hit.length };
+}
+function holographIndex(turns) {
+  const cited = citedPassages();
+  const key = `${turns.length}:${(state.history ?? []).length}:${cited.of}:${cited.passages[0]?.ref ?? ""}:${cited.passages[cited.passages.length - 1]?.ref ?? ""}`;
   if (holographIndexCache.key === key) return holographIndexCache.index;
-  const passages = [...turns.flatMap((t) => [{ ref: `turn:${t.n}:q`, text: t.asked }, { ref: `turn:${t.n}:a`, text: t.answer }]), ...chunks.map((c) => ({ ref: c.ref, text: c.blanked ?? c.text ?? "" }))];
+  const passages = [...turns.flatMap((t) => [{ ref: `turn:${t.n}:q`, text: t.asked }, { ref: `turn:${t.n}:a`, text: t.answer }]), ...cited.passages.map((c) => ({ ref: c.ref, text: c.blanked ?? c.text ?? "" }))];
   const text = passages.map((p) => p.text).filter(Boolean).join("\n\n");
   let index = null;
   if (text.trim()) {
@@ -1192,7 +1214,20 @@ function renderHolograph({ pick = holographPick, level = holographLevel } = {}) 
   if (label) label.textContent = max ? `as of act ${atSeq ?? max} of ${max}${model.throughTurn != null ? ` · turn ${model.throughTurn}` : " · now"}` : "no acts yet";
   // The places in the material that hold a referent — each a door to the bytes.
   const fold = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  const placesOf = (r) => { const needle = fold(r.name); if (needle.length < 3) return []; return liveChunks().filter((c) => fold(c.text).includes(needle)).slice(0, 12).map((c) => ({ ref: c.ref, text: c.text })); };
+  // The places in the material that hold a referent. The scan stops at the
+  // first PLACES_SHOWN it finds rather than folding every chunk of a corpus:
+  // on War and Peace that walk was 11,000 chunks per referent per redraw.
+  const PLACES_SHOWN = 12;
+  const placesOf = (r) => {
+    const needle = fold(r.name);
+    if (needle.length < 3) return [];
+    const out = [];
+    for (const c of liveChunks()) {
+      if (fold(c.text).includes(needle)) out.push({ ref: c.ref, text: c.text });
+      if (out.length >= PLACES_SHOWN) break;
+    }
+    return out;
+  };
   holographPick = pick;
   if (pick && typeof pick === "string") { const r = model.referents.find((x) => fold(x.name) === fold(pick) || fold(x.name).includes(fold(pick))); if (r) holographOpen.add(r.key); }
   const rows = rowsFor(model, holographLevel, { placesOf, mode: viewMode });
@@ -1233,7 +1268,7 @@ function graphView(host, rows, { flat = false } = {}) {
   // A line per node, tall enough for a node's two lines of text and air; the
   // frame grows downward with the rows and the pane scrolls. Nothing is
   // rescaled to fit, so nothing is ever too small to read.
-  const placed = placeGraph(g, { width, rowHeight: 30, indent: 16 });
+  const placed = placeGraph(g, { width, layerHeight: 62, fontSize: 11 });
   wrap.append(drawGraph(document, g, placed, { onPick: (row) => {
     if (row.at && !String(row.at).startsWith("turn:") && typeof row.drill !== "function") { reopen(row.at); return; }
     if (holographOpen.has(row.key)) holographOpen.delete(row.key); else holographOpen.add(row.key);
@@ -1837,6 +1872,18 @@ function renderThreads() {
   add.title = "New conversation — same material, its own fold";
   add.onclick = addConvo;
   bar.append(add);
+  // The conversation's own fold control, at the end of the conversation's own
+  // bar (user, 2026-09-08: "the left collapse is on the right weirdly"). It is
+  // rebuilt with the bar, so it survives every redraw of the tabs.
+  const fold = document.createElement("button");
+  fold.type = "button";
+  fold.id = "chat-collapse";
+  fold.className = "fold-side";
+  fold.setAttribute("aria-pressed", String(panelWide));
+  fold.textContent = panelWide ? "›" : "‹";
+  fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
+  fold.onclick = () => setPanelWide(!panelWide);
+  bar.append(fold);
 }
 
 // ── model ────────────────────────────────────────────────────────────────────
@@ -11579,24 +11626,40 @@ function showView(name) {
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
-  tab.onclick = () => showView(tab.dataset.pane);
+  // A tab pressed while the panel is collapsed OPENS it on that pane: a tab
+  // that selects a thing nobody can see is not a tab.
+  tab.onclick = () => { if (panelCollapsed && tab.dataset.pane !== "chat") setPanelCollapsed(false); showView(tab.dataset.pane); };
 
 // THE PANEL AT FULL WIDTH (user, 2026-09-08). One class on <body>; the
 // conversation column keeps its own tabs as a rail (index.html carries the
 // rules) so a conversation is still selectable while a panel has the width.
 // Kept across reloads, like every other view preference on this page.
+// Either side may give the other the width, and the two states are exclusive
+// by construction — a column cannot be both collapsed and expanded.
 let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
+let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
 function setPanelWide(on) {
   panelWide = !!on;
-  try { localStorage.setItem("fold-panel-wide", panelWide ? "1" : "0"); } catch { /* a private window keeps it for the session */ }
+  if (panelWide) panelCollapsed = false;
+  try { localStorage.setItem("fold-panel-wide", panelWide ? "1" : "0"); localStorage.setItem("fold-panel-collapsed", panelCollapsed ? "1" : "0"); } catch { /* a private window keeps it for the session */ }
   document.body.classList.toggle("panel-wide", panelWide);
-  const b = $("panel-wide");
-  if (b) { b.setAttribute("aria-pressed", String(panelWide)); b.textContent = panelWide ? "⤡" : "⤢"; b.title = panelWide ? "give the conversation its column back" : "give this panel the full width — the conversations stay as a rail on the left"; }
+  document.body.classList.toggle("panel-collapsed", panelCollapsed);
+  // Each chevron points the way its own column will go, and reverses when it
+  // is folded — the control that folded it is the control that opens it.
+  const b = $("chat-collapse");
+  if (b) { b.setAttribute("aria-pressed", String(panelWide)); b.textContent = panelWide ? "›" : "‹"; b.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again"; }
+  const c = $("panel-collapse");
+  if (c) { c.setAttribute("aria-pressed", String(panelCollapsed)); c.textContent = panelCollapsed ? "‹" : "›"; c.title = panelCollapsed ? "open this panel again" : "fold this panel away — its tabs stay on the right, and pressing one opens it again"; }
   // The drawing is measured against the pane it is drawn in, so a width
   // change is a redraw, not a reflow (holograph-graph.js::place).
   if (document.body.dataset.view === "holograph") renderHolograph();
 }
-$("panel-wide")?.addEventListener("click", () => setPanelWide(!panelWide));
+function setPanelCollapsed(on) {
+  panelCollapsed = !!on;
+  if (panelCollapsed) panelWide = false;
+  setPanelWide(panelWide);
+}
+$("panel-collapse")?.addEventListener("click", () => setPanelCollapsed(!panelCollapsed));
 setPanelWide(panelWide);
 
 // Narrow, the first thing to see is the conversation and the composer; wide,

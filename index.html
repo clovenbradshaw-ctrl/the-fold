@@ -523,26 +523,31 @@
       .holograph-query input { flex: 1; min-width: 160px; font-family: var(--mono); font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
       .holograph-query input:focus { outline: none; border-color: var(--accent); }
       .holograph-query-note { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
-      /* THE GRAPH (holograph-graph.js): nodes are rows, edges the ties they carry; a pressed node drills. */
-      .hg-graph-wrap { width: 100%; }
-      .hg-graph { width: 100%; height: auto; display: block; }
+      /* THE GRAPH (holograph-graph.js): the WORD IS THE MARK — a node is a pill
+         carrying its own text, on its own line, indented by what it is part of;
+         ties are arcs. The same visual grammar explore.js's Network surface has
+         carried since 2026-08-16 (.gnode there), not a second costume for it. */
+      .hg-graph-wrap { width: 100%; overflow: hidden; }
+      .hg-graph { width: 100%; height: auto; display: block; touch-action: none; }
       .hg-graph .hg-edge { stroke: var(--line); stroke-width: 1.1; fill: none; }
       .hg-graph .hg-edge-part { stroke-dasharray: 2 3; }
       .hg-graph .hg-edge-label { font-size: 9.5px; fill: var(--muted); }
-      .hg-graph .hg-node circle { fill: var(--panel); stroke: var(--muted); stroke-width: 1.4; }
-      .hg-graph .hg-node.hg-state-open circle, .hg-graph .hg-node.hg-gap circle, .hg-graph .hg-node.hg-whole circle { stroke: var(--accent); }
-      .hg-graph .hg-node.hg-state-refused circle { stroke: var(--warn); }
-      .hg-graph .hg-node.hg-state-contested circle { stroke: var(--think); }
-      .hg-graph .hg-node.hg-state-closed circle, .hg-graph .hg-node.hg-state-waived circle { opacity: 0.75; }
+      .hg-graph .hg-pill { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+      .hg-graph .hg-node.hg-state-open .hg-pill, .hg-graph .hg-node.hg-gap .hg-pill, .hg-graph .hg-node.hg-whole .hg-pill { stroke: var(--accent); }
+      .hg-graph .hg-node.hg-state-refused .hg-pill { stroke: var(--warn); }
+      .hg-graph .hg-node.hg-state-contested .hg-pill { stroke: var(--think); }
+      .hg-graph .hg-node.hg-state-closed .hg-pill, .hg-graph .hg-node.hg-state-waived .hg-pill { stroke: var(--muted); opacity: 0.8; }
       .hg-graph .hg-node.drillable { cursor: pointer; }
-      .hg-graph .hg-node .hg-ring { fill: none; stroke: var(--accent); stroke-width: 0.9; opacity: 0.7; }
-      .hg-graph .hg-node.hit circle { fill: var(--accent-soft); stroke-width: 2.2; }
-      .hg-graph .hg-node:hover circle, .hg-graph .hg-node:focus circle { stroke-width: 2.4; outline: none; }
+      .hg-graph .hg-node:hover .hg-pill, .hg-graph .hg-node:focus .hg-pill { stroke: var(--accent); stroke-width: 2; outline: none; }
+      .hg-graph .hg-ring { stroke: var(--accent); stroke-width: 1; opacity: 0.55; }
+      /* A query's hits are lit and the rest dimmed — explore.js's own .lit/.far. */
+      .hg-graph .hg-node.lit .hg-pill { stroke: var(--accent); stroke-width: 2; fill: var(--accent-soft); }
+      .hg-graph .hg-node.far { opacity: 0.24; }
       /* A HALO, so an arc passing behind a word never cuts it: the stroke is
          the pane's own ground and `paint-order: stroke` puts the fill last,
          which keeps the letter shapes true. The cartographers' technique. */
       .hg-graph text { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
-      .hg-graph .hg-label { font-size: 11px; fill: var(--ink); }
+      .hg-graph .hg-label { fill: var(--ink); }
       .hg-graph .hg-sub { font-size: 9.5px; fill: var(--muted); }
       .view-eot .hg-graph .hg-label, .view-eot .hg-graph .hg-sub, .view-eot .hg-graph .hg-edge-label { font-family: var(--mono); }
       .holograph-host { flex: 1; min-width: 0; }
@@ -1424,11 +1429,14 @@
          the whole point of the rail. The ⤢ control restores it. */
       body.panel-wide main { grid-template-columns: 46px minmax(0, 1fr); }
       body.panel-wide #col-chat > *:not(.threads) { display: none; }
+      body.panel-wide #col-chat { display: flex; flex-direction: column; min-height: 0; }
+      body.panel-wide #col-chat .fold-side { margin: 0 0 6px; writing-mode: horizontal-tb; align-self: center; }
       body.panel-wide #col-chat .threads {
         flex-direction: column;
         align-items: stretch;
         justify-content: flex-start;
-        height: 100%;
+        flex: 1;
+        min-height: 0;
         padding: 10px 4px;
         gap: 6px;
         overflow-x: hidden;
@@ -1449,7 +1457,52 @@
       body.panel-wide #col-chat .thread-title { writing-mode: inherit; border-radius: 0; padding: 8px 5px; max-width: none; max-height: 22ch; }
       body.panel-wide #col-chat .thread-close { writing-mode: horizontal-tb; border-radius: 0; padding: 4px 5px; align-self: center; }
       body.panel-wide #col-chat .threads .new { writing-mode: horizontal-tb; padding: 2px 0; }
-      .panel-wide-toggle { margin-left: auto; }
+      /* One control per side, at the outer end of that side's own tab bar:
+         the chevron points the way the column will go. */
+      .fold-side {
+        margin-left: auto;
+        flex: none;
+        border: none;
+        background: none;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1;
+        padding: 5px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .fold-side:hover { color: var(--accent); background: var(--accent-soft); }
+      .threads .fold-side { align-self: center; }
+
+      /* AND THE PANEL COLLAPSES TOO (user, 2026-09-08: "lets allow the right
+         panel to also be collapsed") — the mirror of the rail on the left, so
+         either side can give the other the width. Its tabs stay, turned on
+         their side; pressing one opens the panel on that pane, because a tab
+         that selects an invisible thing is not a tab. */
+      body.panel-collapsed main { grid-template-columns: minmax(0, 1fr) 38px; }
+      body.panel-collapsed #col-panel > .scroll, body.panel-collapsed #col-panel > .term { display: none; }
+      body.panel-collapsed #col-panel { display: flex; flex-direction: column; min-height: 0; }
+      body.panel-collapsed #col-panel .tabs {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        flex: 1;
+        min-height: 0;
+        padding: 8px 2px;
+        overflow-y: auto;
+        border-bottom: none;
+      }
+      body.panel-collapsed #col-panel .tabs [role="tab"] {
+        writing-mode: vertical-rl;
+        max-height: 16ch;
+        padding: 6px 3px;
+        border-bottom: none;
+        border-left: 2px solid transparent;
+        border-radius: 0 6px 6px 0;
+      }
+      body.panel-collapsed #col-panel .tabs [role="tab"][aria-selected="true"] { border-left-color: var(--accent); background: var(--accent-soft); }
+      body.panel-collapsed #col-panel .tabs .term-toggle { writing-mode: horizontal-tb; padding: 5px 0; }
+      body.panel-collapsed .panel-wide-toggle { display: none; }
       .threads .new {
         color: var(--accent);
         font-size: 15px;
@@ -2227,6 +2280,11 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
 
     <main>
       <section class="col" id="col-chat">
+        <!-- EACH SIDE'S CONTROL LIVES ON THAT SIDE (user, 2026-09-08: "the
+             left collapse is on the right weirdly"). This one folds the
+             conversation away and opens it again; it sits at the end of the
+             conversation's own tab bar, and stays put when the column is a
+             rail so the way back is where the way in was. -->
         <nav class="threads" id="threads" aria-label="Conversations"></nav>
         <div class="scroll" id="chat"></div>
         <!-- Everything that decides what the next question is asked WITH sits
@@ -2300,7 +2358,8 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
           <!-- Give this panel the whole width; the conversation stays live in
                a rail of its own tabs on the left, still selectable. -->
-          <button type="button" id="panel-wide" class="term-toggle panel-wide-toggle" aria-pressed="false" title="give this panel the full width — the conversations stay as a rail on the left">⤢</button>
+          <!-- The panel's own control, at the end of the panel's own bar. -->
+          <button type="button" id="panel-collapse" class="fold-side" aria-pressed="false" title="fold this panel away — its tabs stay on the right, and pressing one opens it again">›</button>
         </nav>
         <div class="scroll">
           <div class="pane" id="pane-builds">

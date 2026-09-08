@@ -32,22 +32,42 @@ test("rows become nodes in their own order and their ties edges — one edge per
   assert.equal(pairs.edges.length, 1); assert.equal(pairs.edges[0].label, "t1");
 });
 
-test("the placement is the record's own order and depth — one line each, never a simulation, never rescaled to fit", () => {
+test("the placement is a LAYERED drawing: a node sits below everything it depends on, crossings are swept down, and nothing is rescaled to fit", () => {
   const g = graphOf(rows);
-  const p = place(g, { width: 300, rowHeight: 30, indent: 16, left: 14, top: 18 });
-  assert.deepEqual([...p.positions.values()].map((q) => q.y), [18, 48, 78, 108, 138], "y is the row's order, nothing else");
-  assert.deepEqual([...p.positions.values()].map((q) => q.x), [14, 30, 14, 30, 14], "x is the row's depth, nothing else");
-  // No two nodes share a line, so no two labels can collide — the property
-  // the force layout could not hold (measured live, 2026-09-08: six nodes,
-  // two clusters 323px apart, 13px between neighbours, labels overlapping).
-  const ys = [...p.positions.values()].map((q) => q.y);
-  assert.equal(new Set(ys).size, ys.length);
+  const p = place(g, { width: 300, layerHeight: 60, top: 20 });
+  // 1 — LAYER. A referent is a source; its loop and its gap hang below it.
+  assert.equal(p.positions.get("r:batman").y, 20, "a source sits in the first layer");
+  assert.equal(p.positions.get("r:gotham").y, 20);
+  assert.equal(p.positions.get("whole").y, 20);
+  assert.equal(p.positions.get("loop:s1").y, 80, "a thing sits below what it depends on");
+  assert.equal(p.positions.get("gap:1").y, 80);
+  assert.equal(p.layers.length, 2);
+  assert.deepEqual(p.layers[0].sort(), ["r:batman", "r:gotham", "whole"]);
+  // A cycle is broken rather than trusted, and named.
+  // (A two-node cycle cannot arise — graphOf keeps one edge per pair — so the
+  // guard is tested on a three-node one, which can.)
+  const cyc = place(graphOf([
+    R({ key: "a", kind: "loop", title: "a", links: ["b"] }),
+    R({ key: "b", kind: "loop", title: "b", links: ["c"] }),
+    R({ key: "c", kind: "loop", title: "c", links: ["a"] }),
+  ]), { width: 300 });
+  assert.ok(cyc.broken.length >= 1, "an edge climbing back into the path is skipped and said so");
+  assert.ok([...cyc.positions.values()].every((q) => Number.isFinite(q.x) && Number.isFinite(q.y)));
+  // 2 — ORDER. The median heuristic sweeps a crossing out: b's only parent is
+  // the SECOND source, a's the first, so the drawing puts them in that order.
+  const crossed = place(graphOf([
+    R({ key: "s1", kind: "referent", title: "s1", links: ["c2"] }),
+    R({ key: "s2", kind: "referent", title: "s2", links: ["c1"] }),
+    R({ key: "c1", kind: "loop", title: "c1" }),
+    R({ key: "c2", kind: "loop", title: "c2" }),
+  ]), { width: 400 });
+  assert.ok(crossed.positions.get("c2").x < crossed.positions.get("c1").x, "the child of the left parent is drawn left");
+  // 3 — PLACE. Pills never overlap inside a layer, and the word is the mark.
+  const row = p.layers[0].map((k) => p.boxes.get(k)).sort((a, b) => a.x - b.x);
+  for (let i = 1; i < row.length; i += 1) assert.ok(row[i].x >= row[i - 1].x + row[i - 1].w, `pills apart: ${JSON.stringify(row)}`);
+  assert.ok(p.boxes.get("loop:s1").w > p.boxes.get("whole").w, "a longer name is a wider pill");
   assert.deepEqual([...place(g, { width: 300 }).positions], [...place(g, { width: 300 }).positions], "two drawings of the same rows are identical");
-  // The frame grows with the rows rather than the rows shrinking to the frame.
-  assert.ok(place(g, { width: 300, rowHeight: 30 }).height < place(graphOf([...rows, R({ key: "x", kind: "loop", title: "x" })]), { width: 300, rowHeight: 30 }).height);
-  // A label's room is what the pane has left after the node's own indent.
-  assert.ok(p.labelChars.get("r:batman") > p.labelChars.get("loop:s1"), "an indented node has less room, and is told so");
-  assert.ok(place(g, { width: 900 }).labelChars.get("r:batman") > p.labelChars.get("r:batman"), "a wider pane is more room");
+  assert.ok(place(graphOf([R({ key: "long", kind: "loop", title: "x".repeat(60) })]), { width: 60 }).width > 60, "a long row widens the frame rather than shrinking the type");
 });
 
 /** A stub document: enough of the DOM for the drawing to be inspected. */
@@ -67,18 +87,34 @@ test("the drawing puts every node's words on its own line, marks its state, draw
   assert.equal(svg.attrs.viewBox, `0 0 ${p.width} ${p.height}`, "the frame is the placement's own, not a fit");
   const nodes = all(svg, "g").filter((x) => /\bhg-node\b/.test(x.attrs.class));
   assert.deepEqual(nodes.map((n) => all(n, "text")[0].textContent), ["batman", "○ ⇐ batman ⟵ ≡", "Gotham", "Gotham —mayor→ ?", "⊙"]);
-  for (const n of nodes) assert.ok(Number(all(n, "text")[0].attrs.x) > 0, "words to the right of the mark, always — no other node shares this line to run into");
+  // The word sits INSIDE its own pill, centred — the mark and the label are
+  // one thing, so they cannot be placed apart or drift from each other.
+  for (const n of nodes) {
+    const pill = all(n, "rect").find((r) => r.attrs.class === "hg-pill");
+    const t = all(n, "text")[0];
+    assert.equal(t.attrs["text-anchor"], "middle");
+    const cx = Number(pill.attrs.x) + Number(pill.attrs.width) / 2;
+    assert.ok(Math.abs(Number(t.attrs.x) - cx) < 0.2, "the word is centred in its pill");
+  }
   const paths = all(svg, "path");
   assert.equal(paths.length, g.edges.length, "one path per tie");
-  // One elbow: the gap under its referent. The loop's own part edge yielded
-  // to the referent's labelled tie in graphOf, as the dedupe rule says.
-  assert.equal(paths.filter((x) => /hg-edge-part/.test(x.attrs.class)).length, 1, "a part is an elbow");
-  assert.match(paths.find((x) => !/hg-edge-part/.test(x.attrs.class)).attrs.d, /^M .* C /, "any other tie is an arc");
+  // Every edge is a curve, and every edge between layers reads DOWNWARD:
+  // it leaves the lower rim of the node above and lands on the upper rim of
+  // the node below, which is what makes the layering legible as a direction.
+  for (const e of g.edges) {
+    const a = p.positions.get(e.from), b = p.positions.get(e.to);
+    const hi = Math.min(a.y, b.y), lo = Math.max(a.y, b.y);
+    const path = paths.find((x) => x.attrs.d.startsWith(`M ${a.y <= b.y ? a.x : b.x} `) || x.attrs.d.includes(` ${lo - (p.boxes.get(a.y <= b.y ? e.to : e.from).h) / 2}`));
+    assert.ok(path, `an edge is drawn for ${e.from}→${e.to}`);
+    assert.match(path.attrs.d, /^M .* C /, "as a curve");
+    const ys = [...path.attrs.d.matchAll(/-?\d+(?:\.\d+)?/g)].map(Number).filter((_, i) => i % 2 === 1);
+    assert.ok(Math.min(...ys) >= hi - 40 && Math.max(...ys) <= lo + 40, "the curve stays between the two layers");
+  }
   const closed = nodes.find((n) => n.attrs["data-key"] === "loop:s1");
   assert.match(closed.attrs.class, /hg-state-closed/); assert.equal(closed.attrs.role, undefined, "a node with no parts is not a button");
   const gotham = nodes.find((n) => n.attrs["data-key"] === "r:gotham");
   assert.equal(gotham.attrs.role, "button"); assert.equal(gotham.attrs["aria-expanded"], "true");
-  assert.ok(all(gotham, "circle").some((c) => c.attrs.class === "hg-ring"), "an open node wears a ring");
+  assert.ok(all(gotham, "rect").some((c) => c.attrs.class === "hg-ring"), "an open node wears a ring");
   gotham.listeners.click[0]();
   assert.deepEqual(picked, ["r:gotham"]);
   assert.ok(all(nodes[0], "title")[0].textContent.includes("batman"), "the whole of the words rides the node");

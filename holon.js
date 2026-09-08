@@ -48,7 +48,7 @@ import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard,
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
 import { mouthFacing } from "./firewall.js";
-import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
+import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf, fold as dfold } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { checkComparison } from "./arithmetic.js";
@@ -2799,7 +2799,6 @@ export async function runPart({
   // addresses — never an instruction about what not to say. It sits before
   // the snip checks, the guards, the correction round and the inadmissible
   // gate, so a re-asked draft passes every wall the first draft did.
-  const dfold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
   // IDENTITY IS THE READING'S. When the turn is handed the conversation's
   // own index (the constitutional reader's log projected — reading-log.js),

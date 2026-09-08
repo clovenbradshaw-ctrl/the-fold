@@ -153,6 +153,21 @@ const ALLOWANCES = [
     holds: (file, src, at) => /href\s*=\s*["']$/.test(src.slice(Math.max(0, at - 12), at)),
   },
   {
+    host: "github.com",
+    files: ["github-pane.js"],
+    why:
+      "The GitHub pane's three github.com literals are LINKS THE PERSON FOLLOWS — the app " +
+      "installation page, the app's permissions page, and the fine-grained-token page — each " +
+      "assigned to an anchor's href and opened by a click, never fetched. github.js's own " +
+      "allowance cannot cover them: that one is licensed by the file making no request at all, " +
+      "and this file legitimately makes three (it is the browser half of the organ). So the " +
+      "reason checked here is the OCCURRENCE's own context rather than the file's: each must sit " +
+      "in an href assignment, so a literal that became a request would fail this scan. Landed " +
+      "with PR #158's own work; the branch's II.13 test and web.test.mjs's seam test were both " +
+      "red between that merge and this entry.",
+    holds: (file, src, at) => /href\s*[:=]\s*["'`]$/.test(src.slice(Math.max(0, at - 40), at)),
+  },
+  {
     host: null, // hostOf builds an authority from user input; there is no literal to name
     files: ["web.js", "links.js", "github.js", "wikidata.js"],
     why:

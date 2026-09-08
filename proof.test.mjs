@@ -350,13 +350,19 @@ test("seam: the chat page's own files still fetch nothing remote", () => {
   // egress stays in explore-server.mjs, where P13 put it.
   for (const file of ["proof.js", "app.js", "index.html"]) {
     const text = readFileSync(new URL(file, import.meta.url), "utf8");
-    const hosts = [...text.matchAll(/https?:\/\/([^\s"'`/<)]+)/g)].map((m) => m[1]);
-    for (const h of hosts) {
+    const hosts = [...text.matchAll(/https?:\/\/([^\s"'`/<)]+)/g)].map((m) => ({ h: m[1], at: m.index }));
+    for (const { h, at } of hosts) {
+      // A link the person FOLLOWS is not a fetch. Checked by its own context
+      // rather than waived: the occurrence must sit in an href, so a literal
+      // that became a request would fail here exactly as it would in II.13's
+      // scan. (matrix.org: P177's sign-in and invite point someone with no
+      // Matrix account at the place they can make one.)
+      const inHref = /href\s*[:=]\s*["'`]$/.test(text.slice(Math.max(0, at - 40), at));
       assert.ok(
         // www.w3.org appears only inside SVG xmlns attributes — a namespace
         // identifier, never fetched (the same exception II.13's own scan
         // makes in constitution.test.mjs).
-        /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h) || h === "www.w3.org",
+        /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h) || h === "www.w3.org" || (h === "matrix.org" && inHref),
         `${file} names a non-local host: ${h}`,
       );
     }

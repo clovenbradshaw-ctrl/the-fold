@@ -74,6 +74,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity } from "./arithmetic.js";
+import { asksAboutMaterial, materialView, aboutBlock, abbreviate } from "./about.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
 // computed expression as typeset math — mathjs's own toTex(), not a second,
@@ -396,6 +397,19 @@ function syncRecords() {
 // cursor (passages admitted under this recipe) persists in the source's own
 // index row; a reload resumes from it, and a reader whose recipe changed
 // reads again under its own witness string (a second instrument, P68).
+// HOW MUCH OF A SOURCE THE READER SEES AT ONCE, IN CHARACTERS. Declared (P9),
+// measured rather than guessed, and in characters because that is the unit
+// the cost is in: building the relation reader is superlinear in the TEXT of
+// its pool — 86 KB (500 short passages) 584ms, 340 KB 4.9s, and the whole of
+// War and Peace 161.7 SECONDS in one synchronous call, which is exactly how
+// long the page sat frozen with nothing to show (measured live, 2026-09-08).
+// A passage COUNT was tried first and was the wrong unit: the same book cut
+// on its own chapter headings gives passages 21x larger, so 500 of those is
+// 1.58 MB and froze the page just as badly. At 120 KB the build is well under
+// a second, so the read proceeds in slices the page paints between and the
+// status line can count them. The cost is disclosed in read-on-arrival.js: a
+// verb attested only outside a window is not in that window's vocabulary.
+const READ_WINDOW_CHARS = 120_000;
 const READING = new Map(); // name → { cursor, total, recipe, running }
 const READING_CONSTITUTIONAL = new Map(); // name → { cursor, total, running } — chunks admitted into the constitutional reader (reading-client.js), independent of READING's relation-reading cursor
 const yieldMacrotask = (() => {
@@ -407,7 +421,14 @@ const yieldMacrotask = (() => {
 })();
 let readQueue = Promise.resolve();
 function unreadNow() {
-  return [...READING.entries()].filter(([, r]) => !r.skipped).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+  // A source's own reading state may only speak for a source still on the
+  // record — `state.sources[name]` is the one fact that decides that, the
+  // same guard `readSourceOnArrival`'s own loop already reads before every
+  // yield. `removeSource` clears READING directly on removal; this is the
+  // second, independent check at the one place every "still reading" line
+  // is actually built, so a future path that removes a source without
+  // going through `removeSource` cannot leak its stale progress either.
+  return [...READING.entries()].filter(([name, r]) => !r.skipped && state.sources[name]).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
 }
 function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
   // Computed once, synchronously — state.chunks already carries this
@@ -439,10 +460,15 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
       // 44-passage read into a crawl the first time this ran live. Message
       // events are not clamped, and the page still repaints between them.
       yieldFn: yieldMacrotask,
+      windowChars: READ_WINDOW_CHARS,
       onProgress: (p) => {
+        if (p.read === 1) console.info(`read on arrival: ${name} — first passage read`);
         READING.set(name, { cursor: p.read, total: p.total, recipe, running: p.read < p.total });
         if (p.read - lastSync >= 25 || p.read === p.total) { lastSync = p.read; syncRecords(); updateSourceMeta(name, { readCursor: p.read, readRecipe: recipe }); }
-        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = `reading ${name} · ${p.read}/${p.total}`;
+        // A long read SAYS it is working, and how far it has got — a book is
+        // shown in progress, never as a frozen page (user, 2026-09-08:
+        // "rather to show it in progress than frozen or just wait").
+        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = p.read === p.total ? `read ${name} · ${p.total} passages` : `reading ${name} · ${p.read} of ${p.total} passages`;
       },
     });
     READING.set(name, { cursor: r.cursor, total: passages.length, recipe, running: false });
@@ -463,9 +489,20 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
   // ~200s/MB, P171) never delays the relation ledger a question is
   // actually answered from today.
   if (!isCodeSource(name) && passages.length && state.sources[name]) {
+    // The constitutional read's own progress handler runs on the MAIN thread
+    // even though the reading itself is in a worker, and `refreshConstitutional
+    // Index` reprojects the log each time — so it is timed here, separately
+    // from the relation read, rather than assumed cheap.
+    let ctick = 0, cms = 0;
     readConstitutionally(name, passages, {
       budgetMs: 250,
-      onProgress: (p) => { READING_CONSTITUTIONAL.set(name, { cursor: p.read, total: p.total, running: p.read < p.total }); refreshConstitutionalIndex(); },
+      onProgress: (p) => {
+        READING_CONSTITUTIONAL.set(name, { cursor: p.read, total: p.total, running: p.read < p.total });
+        const t = Date.now();
+        refreshConstitutionalIndex();
+        cms += Date.now() - t;
+        if (++ctick % 10 === 0) console.info(`constitutional read: ${name} — ${p.read}/${p.total}, ${cms}ms in the index projection over ${ctick} ticks`);
+      },
     }).then((r) => {
       READING_CONSTITUTIONAL.set(name, { cursor: r.cursor, total: passages.length, running: false });
       if (!r.done || r.cursor > 0) refreshConstitutionalIndex();
@@ -1044,24 +1081,9 @@ function loopCard(c, { expanded = false } = {}) {
     trail.append(row);
   }
   more.append(trail);
-  // A NOTE INTO THIS LOOP (user direction, 2026-09-08: "add a prompt or
-  // similar injected into particular loops"): the reader's own words, landed
-  // on the loop as its evidence and handed to the mouth on the next turn
-  // while the loop stands open. On a closed loop the note is the trigger
-  // that reopens it.
-  const noteRow = document.createElement("form");
-  noteRow.className = "loop-note";
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = c.state === "open" || c.state === "contested" ? "a note for this loop — carried to the next answer" : "a note that reopens this loop";
-  input.setAttribute("aria-label", `a note for the loop: ${c.asks}`);
-  const add = document.createElement("button");
-  add.type = "submit";
-  add.className = "linkish";
-  add.textContent = "add";
-  noteRow.append(input, add);
-  noteRow.addEventListener("submit", (ev) => { ev.preventDefault(); const t = input.value.trim(); if (t) noteLoopFromCard(c.id, t); });
-  more.append(noteRow);
+  // The per-loop note box was REMOVED (user direction, 2026-09-08). A card
+  // is a reading of what the turn did; a text input on every loop turned it
+  // into a form to fill in, and buried the trail it exists to show.
   // A closed, refused or set-aside loop can be reopened by the person — a
   // REC with its trigger on the record, never a deletion; a fill loop that
   // stood on a declared void re-declares it, so the next turn is told the
@@ -1390,20 +1412,6 @@ function holographTurn(argstr, typed) {
   return usageTurn(typed, `the holograph is open in the panel${name ? `, opened on “${name}”` : ""} — ${m.referents.length ? `about ${about.join(", ")}${m.referents.length > 8 ? ", …" : ""}` : "nothing established yet"}${bits.length ? ` · loops: ${bits.join(" · ")}` : ""}${m.voids.length ? ` · ${m.voids.length} gap${m.voids.length === 1 ? "" : "s"} on the record` : ""}. \`/holograph <name>\` opens one referent's rows.`, { what: "holograph" });
 }
 
-function noteLoopFromCard(id, text) {
-  const turn = state.summary.turnCount + 1;
-  const convo = convoNow();
-  const before = foldLoops(loopLogNow()).find((l) => l.id === id);
-  if (!before) return;
-  const acts = [];
-  if (before.state !== "open" && before.state !== "contested") acts.push({ act: "reopen", id, trigger: `the reader adds: ${text}`, turn, convo, by: "person" });
-  acts.push({ act: "evidence", id, note: text, by: "person", prompt: true, turn, convo });
-  const r = landLoops(acts);
-  if (r.turnedAway.length) { $("status").textContent = `note not landed: ${r.turnedAway[0].detail ?? r.turnedAway[0].type}`; return; }
-  logAct("loop-noted", { loop: id, reopened: before.state !== "open" && before.state !== "contested" });
-  redrawLoopsHolding(id);
-  $("status").textContent = `noted on "${before.asks}" — carried to the next answer`;
-}
 function reopenLoopFromCard(id, card) {
   const turn = state.summary.turnCount + 1;
   const convo = convoNow();
@@ -5577,6 +5585,14 @@ async function send(question) {
   const arithmetic = checkQuantity(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
 
+  // ABOUT the material ("what is this?", "what's this book about?", "is it
+  // a book?") is answered from the SITUATION — a view of what is attached,
+  // how large it is, how far it has been read, and an ellipsed sample of
+  // its own words — never from a retrieved passage, which is how "what's
+  // this book about?" once answered "a man named Caesar" (about.js's own
+  // note). One small-model call at most; empty situation is mechanical.
+  if (asksAboutMaterial(question)) return aboutTurn(question);
+
   // Self questions asked in words ("what surprised you most", "how do you
   // think"). Checked AFTER detectTable so a question the app can answer
   // about its material state keeps winning, and gated on the second-person
@@ -6882,6 +6898,117 @@ function turnRowsOf(history, records, { chat = null, chatTitle = null } = {}) {
   return rows;
 }
 
+// ABOUT the material ("what is this?", "is this a book?") is answered from
+// the SITUATION — a view of what is attached, how large it is, how far it
+// has been read, and an ellipsed sample of its own words — never from a
+// retrieved passage, which is how "what's this book about?" once answered
+// "a man named Caesar" (about.js's own note). One small-model call at most;
+// when nothing is attached the door answers mechanically, no call at all.
+async function aboutTurn(question) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  node.querySelector(".who").textContent = state.model;
+  const body = node.querySelector(".body");
+  body.textContent = "…";
+  logAct("asked", { text: question });
+
+  // The SITUATION, not retrieved passages.
+  const ls = liveSources();
+  const sources = Object.fromEntries(ls.map((s) => [s.name, s.text]));
+  const chunks = liveChunks();
+  const media = state.media ?? {};
+  const reading = new Map();
+  for (const [name, r] of READING.entries()) {
+    if (Number.isFinite(r.cursor) && Number.isFinite(r.total)) {
+      reading.set(name, r);
+    }
+  }
+  const rows = materialView({ sources, chunks, reading, media });
+  const digest = abbreviate(chunks);
+  const viewText = aboutBlock(rows, digest);
+  const discourse = discourseLineNow();
+
+  // Nothing is attached: a mechanical answer, no model call at all.
+  if (rows.length === 0) {
+    const answer =
+      "nothing is attached right now — attach a book, a file or a page and I can say what it is.";
+    body.textContent = answer;
+    const sent = [];
+    state.history.push(
+      { role: "user", content: question },
+      { role: "assistant", content: answer },
+    );
+    const turn = state.summary.turnCount + 1;
+    logAct("answered-from-state", { what: "about", rows: 0 });
+    observeExchange(turn, question, answer);
+    const fold = mechanicalFoldLine(question, answer);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { sent });
+    renderThreads();
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return { node, text: answer, sent };
+  }
+
+  // Exactly one small-model call, grounded in the SITUATION view alone. No
+  // history is sent: an about question is answered from what is attached,
+  // never steered by earlier turns.
+  const system = [
+    "You are answering a question about material that is attached and being read, not as if you had read it. Below: what the material says it is, how large it is, how far it has been read, and a sample of its own words taken at even intervals, with the gaps marked with an ellipsis. Answer from that alone; where it does not say, say so. Keep the answer short.",
+    viewText,
+    discourse ? `The conversation so far, in one line: ${discourse}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: question },
+  ];
+  const sent = [{ n: 1, messages }];
+  let text = "";
+  try {
+    const raw = await complete(messages, {
+      model: state.model,
+      onDelta: (partial) => {
+        body.textContent = partial;
+      },
+    });
+    text = stripSelfCitations(raw).text;
+  } catch (e) {
+    text = "";
+    body.textContent = `(about turn failed: ${e?.message ?? e})`;
+  }
+  if (text) {
+    try {
+      body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], [])));
+    } catch {
+      body.textContent = text;
+    }
+  } else if (!body.textContent) {
+    body.textContent = "(no reply)";
+  }
+  const shipped = text || body.textContent;
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: shipped },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "about",
+    rows: rows.length,
+    chars: viewText.length,
+  });
+  observeExchange(turn, question, shipped);
+  const fold = mechanicalFoldLine(question, shipped);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { sent });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+  return { node, text, sent };
+}
 /**
  * What a question about the conversation may retrieve from (P128), scoped to
  * the WORKSPACE (this chat's own turns first, then every other conversation
@@ -7469,6 +7596,22 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const convoScope = `c${convoNo}`;
   if (!opts.longForm) {
     try {
+      // What a gap the check opens would close ON, in the material's own
+      // words: the beings the INDEX resolves out of the question (P170 —
+      // identity is the index's, never a string's) and the question's own
+      // content words under the received stopword class. Computed here
+      // because loops.js is pure and reads no index; it owns the phrasing,
+      // this owns the organs.
+      const loopAbout = (() => {
+        try {
+          const idx = conversationIndexNow();
+          const names = [];
+          if (idx?.resolve) for (const id of idx.resolve(task) ?? []) { const n = idx.represent?.(id); if (n && !names.includes(n)) names.push(n); }
+          const terms = String(task).split(/[^\p{L}\p{N}'’-]+/u).filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+          const owned = new Set(names.flatMap((n) => n.toLowerCase().split(/\s+/)));
+          return { names, terms: terms.filter((t) => !owned.has(t.toLowerCase())) };
+        } catch { return null; }
+      })();
       landTurnLoops(loopsFromQuestion(task, { genre: questionGenre, form: questionForm, subject: questionSubject, hasMaterial: live.length > 0, sourceNames: liveSources().map((s) => s.name), webOn: Boolean(state.webProof), scope: loopScope, convoScope, turn: turnNo, convo: convoNo }));
     } catch (e) { console.warn("loops (question):", e?.message ?? e); }
   }
@@ -8218,7 +8361,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         if (phase === "planned") plannedParts = info.parts ?? null;
         try {
           const groundState = foldLoops(loopLogNow()).find((l) => l.id === loopId("ground", loopScope))?.state ?? null;
-          landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState }));
+          landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState, about: loopAbout }));
         }
         catch (e) { console.warn("loops (progress):", e?.message ?? e); }
         if (phase === "plan") {
@@ -11825,6 +11968,22 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
+// ATTACHING SAYS WHAT IT IS DOING (user, 2026-09-08: "have it disclose the
+// process, so we get feedback", after a 3.3MB book left the page frozen with
+// nothing on screen). Each stage of the attach names itself before it runs
+// and times itself after; the timings go to the console so a slow stage can
+// be found rather than guessed at, and the stage NAME goes to the status
+// line, which is what a person actually sees. A stage that takes no
+// measurable time still says its name — a reader learning where the time
+// goes is worth more than a line that only appears when things are bad.
+function attachStage(name, label, fn) {
+  $("status").textContent = label;
+  const t = Date.now();
+  const out = fn();
+  const ms = Date.now() - t;
+  console.info(`attach ${name}: ${label} — ${ms}ms`);
+  return out;
+}
 function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
@@ -11839,7 +11998,8 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // the ONE choke-point every attachment/paste/upload/library pull already
   // passes through, so this needs no per-caller change to reach any of
   // them (identifyMaterial, source.js).
-  const identity = identifyMaterial(name, text);
+  const big = text.length > 200_000;
+  const identity = big ? attachStage(name, `${name} — reading what kind of thing it is…`, () => identifyMaterial(name, text)) : identifyMaterial(name, text);
   // blankFurniture was already wired into `relationsFor` (above) on the
   // belief that it protected every reader of this text — measured
   // 2026-09-04 (rashomon-contrast-RESULTS.md) that it did not protect the
@@ -11852,21 +12012,30 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // the boundaries the recognizer heard, and those are better than any count
   // — a pause is the speaker's own. Passages handed in are used as given,
   // with their time addresses intact.
-  state.chunks = state.chunks
-    .filter((c) => c.source !== name)
-    .concat(passages?.length
-      ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
-      : chunkSource(name, text, {
-          boundaries: discoverBoundaries(text), identity,
-          blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
-        }));
-  renderSources();
+  const cut = () => (passages?.length
+    ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
+    : chunkSource(name, text, {
+        boundaries: discoverBoundaries(text), identity,
+        blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+      }));
+  const cutChunks = big ? attachStage(name, `${name} — cutting it into passages…`, cut) : cut();
+  state.chunks = state.chunks.filter((c) => c.source !== name).concat(cutChunks);
+  if (big) attachStage(name, `${name} — ${cutChunks.length.toLocaleString()} passages`, renderSources);
+  else renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.
-  if (!fromBoot) persistSource(name, text, { passages: countFor(name) });
+  if (!fromBoot) { const tp = Date.now(); Promise.resolve(persistSource(name, text, { passages: countFor(name) })).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); }); }
   // Read it now (Pass 18, P99) — a book attached is a book read, before any
   // question. Boot resumes from the saved cursor instead (below).
-  if (!fromBoot) readSourceOnArrival(name);
+  // The read is the long one, and it reports its own progress passage by
+  // passage (readSourceOnArrival). Handing it a macrotask first lets the
+  // count above actually paint before the reading starts — a status line
+  // written and then immediately buried under a second of work is a line
+  // nobody sees.
+  if (!fromBoot) {
+    if (big) { $("status").textContent = `${name} — starting to read ${cutChunks.length.toLocaleString()} passages…`; setTimeout(() => readSourceOnArrival(name), 0); }
+    else readSourceOnArrival(name);
+  }
 }
 
 /**
@@ -11895,6 +12064,19 @@ function removeSource(name) {
   delete state.provenance[name];
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
+  // THE READING STATE GOES TOO — measured live, 2026-09-08: a source
+  // removed mid-read left its own entry in READING/READING_CONSTITUTIONAL
+  // (module-level maps `readSourceOnArrival` writes to), and the very next
+  // turn's prompt disclosed "Still reading: war-and-peace.txt — 196 of
+  // 1051 passages" for a source that was no longer attached to anything —
+  // a fact about a PAST source leaking into an unrelated turn about a
+  // completely different one. `readSourceOnArrival`'s own read loop checks
+  // `state.sources[name]` before every yield and stops reading once it is
+  // gone (see its own `if (!passages.length || !state.sources[name]) return`
+  // guard), so no further work happens on a removed source — but nothing
+  // had ever cleared what the loop had ALREADY written before this ran.
+  READING.delete(name);
+  READING_CONSTITUTIONAL.delete(name);
   renderSources();
   // Remove from OPFS.
   unpersistSource(name);

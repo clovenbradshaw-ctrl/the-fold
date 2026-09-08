@@ -67,6 +67,8 @@ import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.j
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
+import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
+import { interpretAsk } from "./about-call.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -2122,10 +2124,56 @@ export async function runPart({
   // to hand falls back to the passages and says so. Level means what the
   // mouth is handed, and higher means less — measured as a monotone
   // compression ladder, never assumed.
+  // WHAT THE MATERIAL IS, as against what a passage of it happens to say
+  // (P46's own organ, `source.js::declaredIdentity` — the file's own title
+  // page, with a named giver and a byte address). It rides EVERY path,
+  // because it is a property of the source and not of whichever passage
+  // retrieval returned: `buildSourceBlock` already carried it, but the
+  // compressed path below sets `rawSource` to null, so on a snips turn it
+  // was computed, addressed, and thrown away.
+  //
+  // Measured live (2026-09-08), which is why this exists: War and Peace
+  // attached, asked "what's this book about?" — the question's one content
+  // word is "book", so retrieval returned chapters about Prince Bolkonsky's
+  // EXERCISE BOOK, and the mouth, holding sentences about a book and a table
+  // and no title, answered "a man named Caesar and his commentary on his
+  // military campaigns". The engine had "War and Peace, by graf Leo Tolstoy"
+  // in hand the whole time. A fact, never an instruction (P55); no address,
+  // because the mouth never sees one.
+  const declaredLine = (() => {
+    const bySource = new Map();
+    for (const p of passages ?? []) {
+      const d = p?.identity?.declared;
+      if (!d?.title || bySource.has(p.source)) continue;
+      bySource.set(p.source, `${d.title}${d.author ? `, by ${d.author}` : ""}`);
+    }
+    return bySource.size ? `What this material is, by its own title page: ${[...bySource.values()].join("; ")}.` : "";
+  })();
+  // WHAT THE ASK IS ACTUALLY FOR (about-call.js), the sharper half of the
+  // same fix. `declaredLine` above is the cheap, always-on half — every
+  // turn gets the title page, for free, and that alone closed the flagship
+  // specimen. This is the paid half, spent only when the FREE mechanical
+  // detector (`about.js::asksAboutMaterial`, P30's own "null before you
+  // spend" law) says the question reads as asking what the material IS: a
+  // small model reads the SITUATION (never the whole material — an ellipsed
+  // sample spread across it, never the front alone) and says in one short
+  // line what kind of thing the person seems to want, so the talker is told
+  // that BEFORE it drafts rather than left to guess from whichever passages
+  // retrieval happened to pick. Gated to a FLAT turn (one part, one
+  // question) — a decomposed task's own parts are not "what is this"
+  // questions in the first place, and this must never compound across them.
+  // A call that throws or a reply that fails the wall (about-call.js's own
+  // `looksLikeAnAnswer`) degrades to nothing added — never to a guess, and
+  // never worse than before this existed.
+  let aboutLine = "";
+  if (flat && chunks?.length && asksAboutMaterial(task || question) && typeof call === "function") {
+    const said = await interpretAsk(task || question, { rows: materialView({ chunks }), digest: abbreviate(chunks), call });
+    if (said) aboutLine = `What they seem to be asking for: ${said}`;
+  }
   const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
   const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
   const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
-  const draftMaterial = [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
+  const draftMaterial = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger

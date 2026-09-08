@@ -7704,7 +7704,7 @@ holograph-reading test — are pending and named there as pending.
 
 ## Workspaces, the room as a button, resources (2026-09-08) — pointer
 
-POLICIES.md **P177** is the law; this is the map. `PER_WORKSPACE` (app.js) is
+POLICIES.md **P178** is the law; this is the map. `PER_WORKSPACE` (app.js) is
 the container `state.sources`' own comment had implied for months and never
 named — material is not per conversation, and this is what it IS per: the
 conversations, the material, the folds and the room, swapped on a switch

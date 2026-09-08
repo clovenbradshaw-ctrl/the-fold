@@ -8,10 +8,10 @@ made under that canon, each with its evidence and its enforcing test — are in
 | document | what it governs | path |
 |---|---|---|
 | `CONSTITUTION.md` | what an organ may do, what is legacy, what an amendment costs | `../eo-constitution/` |
-| `LAWS.md` | eoWebLLM's laws, L1–L7 — each one a mistake made twice | `../eoWebLLM/LAWS.md` |
-| `READING-POLICY.md` | **canonical for how reading works** — P0–P6 | `../eoreader6/` |
-| `CUBE.md`, `12-nine-terrains…md` | the nine terrains as a *representation* standard | `../eoreader6/` |
-| `SEED.md` | perceive only by difference from a ground you rebuild | `../eoreader6/` |
+| `LAWS.md` | eoWebLLM's laws, L1–L8 — each one a mistake made twice | `../eoWebLLM/LAWS.md` |
+| `READING-POLICY.md` | **canonical for how reading works** — P0–P7 | `../eoreader7/` (eoreader7 mounts this via a symlink into its `legacy-eoreader6.1` submodule) |
+| `CUBE.md`, `12-nine-terrains…md` | the nine terrains as a *representation* standard | `../eoreader7/` |
+| `SEED.md` | perceive only by difference from a ground you rebuild | `../eoreader7/` |
 
 The rest of this file is the mapping: which law binds which file here, where
 this repo already complies, and where it knowingly does not. It exists so the

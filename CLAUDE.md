@@ -7702,6 +7702,42 @@ P45, the 08-18 address decision, P170, the three resolutions), and the
 walls that stay. Its numbers — the compression ladder and the
 holograph-reading test — are pending and named there as pending.
 
+## Workspaces, the room as a button, resources (2026-09-08) — pointer
+
+POLICIES.md **P178** is the law; this is the map. `PER_WORKSPACE` (app.js) is
+the container `state.sources`' own comment had implied for months and never
+named — material is not per conversation, and this is what it IS per: the
+conversations, the material, the folds and the room, swapped on a switch
+exactly as `PER_CONVO` already was. The reading ledgers deliberately do NOT
+move with it (one instrument's reading, one record, P98), and `buildsKey()`
+keys the fold store per workspace so a switch cannot silently overwrite the
+other one's folds.
+
+`transcriptNow()` spans the workspace's conversations, and **`transcript.js`'s
+`turnRef` is the one place a prior turn's address is built** — `turn:12` here,
+`turn:3.12` for another conversation — because a bare turn number stopped
+being unique the moment more than one conversation could be recalled from
+(P137). `answerable.js` imports it rather than rebuilding the string. Recall
+is unchanged otherwise: same cap, same relevance floor, nothing handed over
+when nothing is in common. **A workspace makes more turns reachable; it never
+makes a prompt bigger.**
+
+Whether ONE question may reach the others is a composer switch beside
+attachments and web — per question, in sight while it is typed, and only
+present once there is a second conversation to govern. Between workspaces
+there is no switch: that isolation is the definition.
+
+The room (P119/P120) is a header button beside the theme toggle, and its
+sheet leads with inviting. No door in it is re-implemented — each row SENDS
+the door it names, so the act lands on the transcript exactly as a typed one
+does. **matrix.org is named and linked, reversing P119's own no-homeserver
+rule on the same giver's later direction**; `constitution.test.mjs` carries a
+typed II.13 allowance whose reason is checked (it must sit in an `href`).
+
+The Resources pane reports probes in THREE states — reachable, not reachable,
+and not asked — so `probeRoutes` now keeps the probe answers themselves
+(`state.routeProbes`) beside `describeRoutes`' phrasing. An unmeasured machine
+sorts LAST on speed, never as if it were instant.
 ## The page reads with the constitutional assembly (added 2026-09-08) — pointer
 
 POLICIES.md **P176**. The page's own holograph used to run on `cast.js::makeReferentIndex` (the presence index, P38) while eval read with the constitutional assembly — P171's own disclosed "owed step". `reading-worker.mjs` (a Worker) now runs the SAME assembly (`READING_ASSEMBLY = "causalTextPerceiver+reviseTextFold@refresh25"`) eval names, persisted through `reading-store.js` (OPFS) and projected by `reading-client.js` (the same `reading-log.js` projection eval uses). `currentIndexAndBook()` (app.js) prefers it only once every live source is FULLY covered — a cache's mere key-presence is not completeness, checked against `READING_CONSTITUTIONAL`'s own chunk-unit progress, a different unit than the cache's log-row `lengths`. `/reading` discloses which basis decided a turn's identity, in plain language. Also fixed the same pass: three OPFS stores (`reading-store.js`, `sources-store.js`, `record-store.js`) cached a resolved directory handle rather than the in-flight promise (a TOCTOU race among concurrent first-writers); `reading-store.js`'s own `appendReading`/`saveCursor`, fired unawaited from a worker's progress handler, had no per-source serialization at all (two ticks for one fast source could open two writable streams on one file) — fixed with a per-name write queue, proven against a fake OPFS by deliberate A/B (`reading-store.test.mjs`: fails, reproducing the live symptom, with the queue bypassed). Priors also gained a third composer state (off/background/foreground) wiring `claims.js`'s own designed-but-never-fed `priors` ledger tier to the live `/api/priors/check` endpoint for the first time, and a bounded, resumable foreground source-sync (`PRIORS_FOREGROUND_SYNC_BATCH`) after an early attempt tried to attach an entire 3,166-document corpus in one blocking loop.

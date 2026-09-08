@@ -26,3 +26,4 @@ models/*/
 
 # a symlinked node_modules (worktrees) is not a directory, so node_modules/ above misses it
 node_modules
+war-and-peace.txt

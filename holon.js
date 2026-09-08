@@ -48,7 +48,7 @@ import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard,
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
 import { mouthFacing } from "./firewall.js";
-import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
+import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf, fold as dfold } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { checkComparison } from "./arithmetic.js";
@@ -1083,6 +1083,13 @@ export async function runPart({
   // and 2, both ahead of any drafting). A caller with no void passes null
   // and every branch below is byte-identical to before this existed.
   answerShape = null,
+  // The reader's own notes on particular loops (loops.js, 2026-09-08: "add a
+  // prompt or similar injected into particular loops"), already phrased by
+  // the caller in the reader's own words ("The reader adds, about the form:
+  // make it rhyme."). Task-wide and flat only, like answerShape: a fact the
+  // mouth is handed, never an instruction stacked on the prompt. null →
+  // byte-identical to before.
+  readerNotes = null,
   // S1's own answer text, or null when there was no fast pass (or the S2
   // gate never fired). Flat only, reaching both the chat branches and the
   // flat material branch (unlike searchedVoid, S1's answer stays relevant
@@ -1966,6 +1973,7 @@ export async function runPart({
   // with a phrase in its prompt rather than using it. A size it can simply
   // aim at is information; a length limit is one more rule to satisfy.
   const shapeSuffix = answerShape ? ` ${answerShape}` : "";
+  const notesSuffix = flat && readerNotes ? ` ${readerNotes}` : "";
   // Phase 2's own material, for the INITIAL draft prompt only — `sourceBlock`
   // itself stays untouched everywhere else in this function (succession-box
   // parsing at parseSuccessionBoxes below reads raw material text and must
@@ -2133,7 +2141,7 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + notesSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -2144,12 +2152,12 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${notesSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${priorPassSuffix}${ledgerSuffix}` },
+          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${notesSuffix}${priorPassSuffix}${ledgerSuffix}` },
           { role: "user", content: `${task}${chatContext}` },
         ];
   onProgress?.("execute", part, {
@@ -2799,11 +2807,18 @@ export async function runPart({
   // addresses — never an instruction about what not to say. It sits before
   // the snip checks, the guards, the correction round and the inadmissible
   // gate, so a re-asked draft passes every wall the first draft did.
-  const dfold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
-  const bound = referentIndex ? bindAnaphora(task || question, lastTurn, referentIndex) : null;
+  // IDENTITY IS THE READING'S. When the turn is handed the conversation's
+  // own index (the constitutional reader's log projected — reading-log.js),
+  // every decision about who is meant resolves through it; the part's own
+  // cast index over its passages (a presence index, P38) stands in only when
+  // no reading was handed. Measured 2026-09-07: with the cast index here the
+  // address check named `rodya_pyotr_petrovitch` — a capitalised run the
+  // bytes carry once — as an asked-about being the reading never established.
+  const identityIndex = conversationIndex ?? referentIndex;
+  const bound = identityIndex ? bindAnaphora(task || question, lastTurn, identityIndex) : null;
   const qRefs = bound ? { ...bound.own, ids: new Set([...bound.own.ids, ...(bound.own.ids.size ? [] : bound.ids.slice(0, 1))]) } : null;
-  let addressed = referentIndex ? null : { gap: "no_referent_index", detail: "the turn was handed no makeReferentIndexFor; the address check needs the material's own referents" };
+  let addressed = identityIndex ? null : { gap: "no_referent_index", detail: "the turn was handed neither a conversation index nor makeReferentIndexFor; the address check needs the material's own referents" };
   // The absence veto runs over the WHOLE loaded material, never the three
   // passages in front of the turn: a name a rare paragraph carries is
   // unestablished, not absent. And an absent name is DECLARED A VOID on the
@@ -2832,15 +2847,15 @@ export async function runPart({
   if (qRefs?.ids.size && String(text ?? "").trim()) {
     // Recorded on every draft — a mechanical one (verbatim quotes shipped as
     // quotes) included; only the RE-ASK needs a mouth that drafted.
-    addressed = { ...addressedBy(text, qRefs, referentIndex), bound: bound.ids.length ? bound.ids.slice(0, 3) : [], unresolved: qRefs.unresolved, reasked: false, resolvedOn: null };
+    addressed = { ...addressedBy(text, qRefs, identityIndex), bound: bound.ids.length ? bound.ids.slice(0, 3) : [], unresolved: qRefs.unresolved, reasked: false, resolvedOn: null };
     if (!addressed.all && passages.length && !mechanical) {
-      const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(referentIndex, id));
+      const missingSurfaces = addressed.missing.flatMap((id) => surfacesOf(identityIndex, id));
       const names = addressed.missingNames;
       const snips = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map((x) => String(x?.text ?? x)).filter((x) => missingSurfaces.some((sf) => dfold(x).includes(dfold(sf)))).slice(0, 2).map((x) => `- ${x.trim()}`)).slice(0, 6); // no address reaches the mouth
       const facts = `The question asks about ${names.join(", ")}.${snips.length ? `\nWhat the sources say about ${names.join(", ")}:\n${snips.join("\n")}` : `\nThe retrieved passages do not mention ${names.join(", ")}.`}`;
       let again = "";
       try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
-      const a2 = again.trim() ? addressedBy(again, qRefs, referentIndex) : null;
+      const a2 = again.trim() ? addressedBy(again, qRefs, identityIndex) : null;
       if (a2 && a2.named.length > addressed.named.length) { text = again.trim(); check = inspect(text); addressed = { ...addressed, ...a2, reasked: true, resolvedOn: "re-ask" }; }
       else addressed = { ...addressed, reasked: true, resolvedOn: null };
     }
@@ -3063,7 +3078,7 @@ export async function runPart({
     ...(owned.length ? { owned: owned.map((e) => ({ claimed: e.claimed, corrected: e.corrected, ts: e.ts ?? null, line: ownedLine([e]) })) } : {}),
     ...(voidsDeclared.length ? { voidsDeclared } : {}),
     ...(retrieval ? { retrieval } : {}),
-    ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, text: resolution?.text ?? "" } } : {}),
+    ...(resolution || compress ? { resolutions: { level: resolution?.level ?? resolutions, handed, active: resolution?.active ?? null, index: conversationIndex ? "conversation" : "part", atmosphere: resolution?.atmosphere?.lines?.length ?? 0, lens: resolution?.lens?.lines?.length ?? 0, paradigm: resolution?.paradigm?.lines?.length ?? 0, windows: resolution?.lens?.windows ?? null, cuts: resolution?.lens?.cuts ?? null, text: resolution?.text ?? "" } } : {}),
     ...(expectationError ? { expectation: { ...expectationError, why: expectation.why } } : {}),
     ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
     ...(position ? { position: position.verdict } : {}),
@@ -3197,6 +3212,8 @@ export async function runHolonicTask({
   // for the identical reason searchedVoid is: the void is declared once per
   // TURN, before any part runs. null → byte-identical to before.
   answerShape = null,
+  // The reader's notes on particular loops (see runPart's own parameter).
+  readerNotes = null,
   // S1's own answer, task-wide for the identical reason searchedVoid is —
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
@@ -3412,6 +3429,7 @@ export async function runHolonicTask({
       flat: planMode === "flat",
       searchedVoid,
       answerShape,
+      readerNotes,
       priorPass,
       onProgress,
       grid,

@@ -9,14 +9,23 @@
 const SOURCES_DIR = "sources";
 const INDEX_FILE = "index.json";
 
-let _root = null;
+// The PROMISE is cached, not the resolved handle — several sources
+// attaching at once (a foreground priors sync, 2026-09-08) each called
+// this before the first getDirectoryHandle resolved, every one seeing
+// `_root` still null and racing its own concurrent {create:true} on the
+// same not-yet-existing directory (the same bug, and the same fix, as
+// reading-store.js's getRoot — see that file's own note).
+let _rootPromise = null;
 
 async function getRoot() {
-  if (_root) return _root;
-  _root = await navigator.storage.getDirectory();
-  try { _root = await _root.getDirectoryHandle(SOURCES_DIR, { create: true }); }
-  catch { _root = await navigator.storage.getDirectory(); }
-  return _root;
+  if (!_rootPromise) {
+    _rootPromise = (async () => {
+      const top = await navigator.storage.getDirectory();
+      try { return await top.getDirectoryHandle(SOURCES_DIR, { create: true }); }
+      catch { return top; }
+    })();
+  }
+  return _rootPromise;
 }
 
 function sourceFileName(name) {

@@ -38,6 +38,26 @@ const isOccurrence = (e) => e?.schema === "EOReferentOccurrence@1";
 const isMerge = (e) => e?.schema === "EOReferentMerge@1";
 const isReassignment = (e) => e?.schema === "EOReferentReassignment@1";
 
+// foldReading is a union-find plus a coreference containment pass over every
+// referent's surfaces (up to 3 passes) — the expensive step. A turn asks for
+// both faces of it (readingIndexFromLog for identity, mentionBookFromLog for
+// addresses) over the SAME entries array, and re-running the fold for the
+// second face measured 2026-09-08: on a persisted 44,591-entry reading, two
+// folds cost 38 s and 835,340 namesCorefer calls apiece. `entries` arrays are
+// treated as immutable snapshots throughout this codebase (a growing log is
+// concat'd into a NEW array, never mutated in place — conversation.mjs), so a
+// WeakMap keyed on the array identity is exact: it never serves a stale fold
+// for a log that has since grown, because growth always produces a new array.
+const FOLD_MEMO = new WeakMap(); // entries array -> its foldReading(...) result, for one fixed set of organs
+function foldReadingOnce(entries, organs) {
+  if (!Array.isArray(entries)) return foldReading(entries, organs);
+  const hit = FOLD_MEMO.get(entries);
+  if (hit) return hit;
+  const out = foldReading(entries, organs);
+  FOLD_MEMO.set(entries, out);
+  return out;
+}
+
 /**
  * Fold the log once: referents by id (surfaces unioned), encounters in
  * order, mentions per encounter. The reading's entries live in the FOLD —
@@ -186,7 +206,7 @@ const encounterKey = (e) => e?.anchor && Number.isFinite(Number(e.anchor.start))
  */
 export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, reconstruct = null, surfaceIndex = null, surfacesIn = null } = {}) {
   if (typeof diaNorm !== "function") throw new TypeError("readingIndexFromLog: diaNorm (the session's fold) is injected");
-  const { referents, encounters, mentions, reassignments } = foldReading(entries, { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn });
+  const { referents, encounters, mentions, reassignments } = foldReadingOnce(entries, { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn });
   const norm = (t) => diaNorm(String(t ?? "")).toLowerCase().trim();
   const bySurface = new Map(); const byFirst = new Map(); let longest = 1;
   for (const r of referents.values()) for (const s of r.surfaces) {
@@ -219,12 +239,34 @@ export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, recon
     }
     return out;
   };
+  // A name unresolved by an exact surface or a munch falls to a coreference
+  // scan of every referent's every surface — the O(referents × surfaces) term
+  // measured 2026-09-08: a turn asks `resolve` for the same note ends (ledger
+  // subjects/objects, mostly unresolvable descriptors like "the old woman")
+  // over and over across `activate`, `lensCut` and `paradigmBlock`, each ask
+  // repeating the full scan. `resolve` is a pure function of this frozen
+  // index's own referents, so memoizing by the raw name is exact for the
+  // index's lifetime — never shared across a different reading.
+  const resolveMemo = new Map();
   const resolve = (name) => {
-    const n = norm(name); if (!n) return new Set();
-    const exact = bySurface.get(n); if (exact?.size) return new Set(exact);
-    const munched = resolveIn(n); if (munched.size) return munched;
-    const out = new Set();
-    if (typeof namesCorefer === "function") for (const r of referents.values()) for (const s of r.surfaces) { try { if (namesCorefer(String(name), String(s))) { out.add(r.id); break; } } catch {} }
+    const key = String(name ?? "");
+    const hit = resolveMemo.get(key); if (hit) return hit;
+    const n = norm(name);
+    let out;
+    if (!n) out = new Set();
+    else {
+      const exact = bySurface.get(n);
+      if (exact?.size) out = new Set(exact);
+      else {
+        const munched = resolveIn(n);
+        if (munched.size) out = munched;
+        else {
+          out = new Set();
+          if (typeof namesCorefer === "function") for (const r of referents.values()) for (const s of r.surfaces) { try { if (namesCorefer(String(name), String(s))) { out.add(r.id); break; } } catch {} }
+        }
+      }
+    }
+    resolveMemo.set(key, out);
     return out;
   };
   const represent = (id) => { const r = referents.get(id); if (!r) return id; let best = ""; for (const s of r.surfaces) if (s.length > best.length) best = s; return best || id; };
@@ -236,7 +278,7 @@ export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, recon
 
 /** The address book: one row per encounter carrying a mention, in reading order; byId: referent → rows. Same shape activation-retrieval.js reads. */
 export function mentionBookFromLog(entries = [], { reconstruct = null, diaNorm = null, namesCorefer = null, surfaceIndex = null, surfacesIn = null } = {}) {
-  const f = foldReading(entries, { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn });
+  const f = foldReadingOnce(entries, { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn });
   const { encounters } = f;
   const sentences = []; const byId = new Map(); const gaps = [];
   for (const enc of encounters) {

@@ -516,11 +516,19 @@
         white-space: nowrap;
       }
       /* Every sentence stands on a named ground, and the two grounds never
-         render alike (IV.4). Material ground reads plain and carries its
-         address; the model's own voice carries a quiet dotted line; a claim
-         of fact the material does not hold carries the warning stripe. */
-      .sent[data-ground="model"] { border-bottom: 1px dotted var(--muted); }
-      .sent.claims {
+         render alike (IV.4) — that requirement is met by what the record
+         holds, not by what is drawn (P54's own rule, "hidden drawing, never
+         a hidden finding", the same one the build-turn suppression already
+         uses one section below). A turn with nothing attached marks EVERY
+         sentence "the model's own voice" — true, and on a creative ask
+         (2026-09-08, user: "why all the underlining") uninformative in the
+         same way a build's own code labels are: the whole answer is one
+         ground, restating it per sentence is noise, not disclosure. So
+         these render only once the turn's own "ground" control is pressed
+         (`.show-ground`, app.js) — quiet by default, one press away, never
+         gone from the record. */
+      .msg.show-ground .sent[data-ground="model"] { border-bottom: 1px dotted var(--muted); }
+      .msg.show-ground .sent.claims {
         text-decoration: underline wavy var(--warn);
         text-decoration-thickness: 1px;
         text-underline-offset: 3px;
@@ -539,6 +547,8 @@
       .ground-chip.tier-named { border-style: dotted; }
       .ground-chip.tier-self { border-color: #b8b; color: #857; }
       .msg .body.marks-off .ground-chip, body.marks-off .msg .body .ground-chip { display: none; }
+      .msg:not(.show-ground) .ground-chip { display: none; }
+      .msg:not(.show-ground) .edge-badge { display: none; }
       .edge-badge {
         font-family: var(--mono);
         font-size: 10.5px;
@@ -600,6 +610,198 @@
         overflow-wrap: anywhere;
       }
       .reasoning p:last-child { margin-bottom: 0; }
+      /* THE LOOPS (loops.js, 2026-09-08): the turn's face — one card per loop
+         the answer owes, in the chain's order, above the body so the
+         answer's own rendering never clears them, behind ONE line that says
+         where they stand (disclosable, not open by default — user direction).
+         A closed card is one line: what it asked and what closed it. An open
+         one adds what would close it. The trail, a note box and reopen are
+         behind a press on the head. No cell name anywhere in the words. */
+      .loops { margin: 2px 0 10px; max-width: 66ch; }
+      .loops[hidden] { display: none; }
+      .loops-fold > summary {
+        list-style: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        user-select: none;
+      }
+      .loops-fold > summary::-webkit-details-marker { display: none; }
+      .loops-fold > summary::before { content: "▸"; font-size: 9px; transition: transform 0.15s; }
+      .loops-fold[open] > summary::before { transform: rotate(90deg); }
+      .loops-fold > summary:hover { color: var(--accent); }
+      .loops-fold[open] > summary { margin-bottom: 6px; }
+      .loop {
+        border-left: 2px solid var(--line);
+        padding: 2px 0 3px 11px;
+        margin: 0 0 4px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      .loop.open { border-left-color: var(--accent); }
+      .loop.contested { border-left-color: var(--think); }
+      .loop.refused { border-left-color: var(--warn); }
+      .loop.closed, .loop.waived { opacity: 0.8; }
+      .loop-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; cursor: pointer; }
+      .loop-head:hover .loop-ask { color: var(--accent); }
+      .loop-mark { font-size: 11px; color: var(--accent); flex: none; }
+      .loop.closed .loop-mark, .loop.waived .loop-mark { color: var(--muted); }
+      .loop.refused .loop-mark { color: var(--warn); }
+      .loop.contested .loop-mark { color: var(--think); }
+      .loop-ask { color: var(--ink); }
+      .loop-inline { color: var(--muted); }
+      .loop-state {
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-left: auto;
+        flex: none;
+      }
+      .loop.again .loop-state { color: var(--accent); }
+      .loop-line { margin-top: 1px; }
+      .loop-more { display: none; margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--line); }
+      .loop.expanded .loop-more { display: block; }
+      .loop-trail { font-size: 12px; }
+      .loop-step { padding-left: 10px; color: var(--muted); }
+      .loop-step.reader { color: var(--ink); }
+      .loop-step::before { content: "· "; }
+      .loop-note { display: flex; gap: 6px; margin-top: 5px; align-items: center; }
+      .loop-note input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+      .loop-note .linkish, .loop-acts .linkish { font-size: 11.5px; padding: 0; }
+      .loop-acts { margin-top: 3px; }
+      .loops-standing { font-size: 11.5px; color: var(--muted); margin: 2px 0 0; font-style: italic; }
+      .loop.model-authored .loop-ask { font-style: italic; }
+      /* The ground chips are drawn, and shown only when the turn's "ground"
+         toggle is pressed (user direction, 2026-09-08). */
+      .msg:not(.show-ground) .ground-chip { display: none; }
+      .ground-toggle {
+        margin-left: 10px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: none;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+      }
+      .ground-toggle:hover { color: var(--accent); }
+      .ground-toggle[hidden] { display: none; }
+      .view-toggle { margin-left: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--mono); }
+      .view-toggle:hover { color: var(--accent); }
+      .msg:not(:has(.loops:not([hidden]))) .view-toggle { display: none; }
+      /* THE HOLOGRAPH PANE (holograph.js): rows at a rung, drilled open into
+         their parts. Two axes: the rung ladder VERTICAL beside the rows
+         (bottom to top), the cursor HORIZONTAL beneath (time). Same accent
+         grammar as the cards: open is the accent, refused the warning. */
+      .holograph-body { display: flex; gap: 12px; align-items: flex-start; margin: 6px 0 4px; }
+      .holograph-side { display: flex; flex-direction: column; gap: 8px; flex: none; position: sticky; top: 0; }
+      .holograph-levels, .holograph-mode { display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft); border-radius: 6px; padding: 3px; }
+      /* EOT — the notation reads in the mono face, the way every act line on this page already does. */
+      .view-eot .hg-title, .view-eot .hg-meta, .view-eot .loop-eot, .view-eot .loop-step, .view-eot .loops-fold > summary { font-family: var(--mono); }
+      .loop-eot { color: var(--ink); font-size: 12.5px; letter-spacing: 0.01em; }
+      .loop.closed .loop-eot, .loop.waived .loop-eot { color: var(--muted); }
+      .loop.refused .loop-eot { color: var(--warn); }
+      .view-eot .hg-row { margin-bottom: 2px; }
+      .view-eot .hg-line { display: none; }
+      /* The rung ladder is a ladder, not a menu: the terrain's own name, small
+         (user, 2026-09-08: "smaller vertical tabs"). Its plain reading is on
+         the hover, where an explanation nobody needs twice belongs. */
+      .holograph-levels .seg { text-align: left; padding: 3px 8px; font-size: 11px; line-height: 1.5; letter-spacing: 0.01em; }
+      /* The query bar — the notation in the mono face, the result count beside it. */
+      .holograph-query { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+      .holograph-query input { flex: 1; min-width: 160px; font-family: var(--mono); font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+      .holograph-query input:focus { outline: none; border-color: var(--accent); }
+      .holograph-query-note { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+      /* THE GRAPH (holograph-graph.js): the WORD IS THE MARK — a node is a pill
+         carrying its own text, on its own line, indented by what it is part of;
+         ties are arcs. The same visual grammar explore.js's Network surface has
+         carried since 2026-08-16 (.gnode there), not a second costume for it. */
+      .hg-graph-wrap { width: 100%; overflow: hidden; }
+      .hg-graph { width: 100%; height: auto; display: block; touch-action: none; }
+      .hg-graph .hg-edge { stroke: var(--line); stroke-width: 1.1; fill: none; }
+      .hg-graph .hg-edge-part { stroke-dasharray: 2 3; }
+      .hg-graph .hg-edge-label { font-size: 9.5px; fill: var(--muted); }
+      .hg-graph .hg-pill { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+      .hg-graph .hg-node.hg-state-open .hg-pill, .hg-graph .hg-node.hg-gap .hg-pill, .hg-graph .hg-node.hg-whole .hg-pill { stroke: var(--accent); }
+      .hg-graph .hg-node.hg-state-refused .hg-pill { stroke: var(--warn); }
+      .hg-graph .hg-node.hg-state-contested .hg-pill { stroke: var(--think); }
+      .hg-graph .hg-node.hg-state-closed .hg-pill, .hg-graph .hg-node.hg-state-waived .hg-pill { stroke: var(--muted); opacity: 0.8; }
+      .hg-graph .hg-node.drillable { cursor: pointer; }
+      .hg-graph .hg-node:hover .hg-pill, .hg-graph .hg-node:focus .hg-pill { stroke: var(--accent); stroke-width: 2; outline: none; }
+      .hg-graph .hg-ring { stroke: var(--accent); stroke-width: 1; opacity: 0.55; }
+      /* A query's hits are lit and the rest dimmed — explore.js's own .lit/.far. */
+      .hg-graph .hg-node.lit .hg-pill { stroke: var(--accent); stroke-width: 2; fill: var(--accent-soft); }
+      .hg-graph .hg-node.far { opacity: 0.24; }
+      /* A HALO, so an arc passing behind a word never cuts it: the stroke is
+         the pane's own ground and `paint-order: stroke` puts the fill last,
+         which keeps the letter shapes true. The cartographers' technique. */
+      .hg-graph text { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+      .hg-graph .hg-label { fill: var(--ink); }
+      .hg-graph .hg-sub { font-size: 9.5px; fill: var(--muted); }
+      .view-eot .hg-graph .hg-label, .view-eot .hg-graph .hg-sub, .view-eot .hg-graph .hg-edge-label { font-family: var(--mono); }
+      .holograph-host { flex: 1; min-width: 0; }
+      .holograph-cursor { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; font-size: 11.5px; color: var(--muted); }
+      .holograph-cursor input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+      .holograph-cursor-label { white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+      .hg-rows { list-style: none; margin: 0; padding: 0; }
+      .hg-rows.depth-1, .hg-rows.depth-2, .hg-rows.depth-3, .hg-rows.depth-4 { margin: 2px 0 4px 14px; border-left: 2px solid var(--line); padding-left: 10px; }
+      .hg-row { margin: 0 0 4px; font-size: 13px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+      .hg-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font: inherit; background: none; border: 0; padding: 0; text-align: left; color: inherit; width: 100%; }
+      button.hg-head { cursor: pointer; }
+      button.hg-head::before { content: "▸"; font-size: 9px; color: var(--muted); flex: none; transition: transform 0.15s; }
+      .hg-row.open > button.hg-head::before { transform: rotate(90deg); }
+      button.hg-head:hover .hg-title { color: var(--accent); }
+      .hg-title { color: var(--ink); }
+      .hg-row.hg-span .hg-title, .hg-row.hg-step .hg-title { color: var(--muted); font-size: 12.5px; }
+      .hg-meta { font-size: 11.5px; color: var(--muted); }
+      .hg-line { margin: 1px 0 0 16px; font-size: 12.5px; color: var(--muted); }
+      .hg-row.hg-state-open > .hg-head .hg-meta, .hg-row.hg-gap > .hg-head .hg-meta { color: var(--accent); }
+      .hg-row.hg-state-refused > .hg-head .hg-meta { color: var(--warn); }
+      .hg-row.hg-state-contested > .hg-head .hg-meta { color: var(--think); }
+      .hg-row.hg-place .ref.attached { margin-left: 16px; }
+      .hg-row.hg-empty { font-style: italic; }
+      .holograph .hg-mark.hg-ref rect { fill: var(--panel); stroke: var(--accent); stroke-width: 1; }
+      .holograph-cursor input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+      .holograph-cursor-label { white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+      .holograph .hg-sub { fill: var(--muted); font-size: 9.5px; }
+      .holograph .hg-node circle.hg-turn-node { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+      .holograph-host { flex: 1; min-width: 0; }
+      .holograph-host svg { width: 100%; height: auto; display: block; }
+      .holograph .hg-edge { stroke: var(--line); }
+      .holograph .hg-whole circle { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+      .holograph .hg-node circle.hg-asked { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+      .holograph .hg-node circle.hg-said { fill: var(--panel); stroke: var(--muted); stroke-width: 1.2; }
+      .holograph .hg-node { cursor: pointer; }
+      .holograph .hg-node:hover circle, .holograph .hg-node:focus circle { stroke-width: 2.5; outline: none; }
+      .holograph .hg-label { font-size: 11px; fill: var(--ink); font-family: inherit; }
+      .holograph .hg-whole-label, .holograph .hg-omitted { fill: var(--muted); font-size: 10px; }
+      .holograph .hg-mark circle { fill: var(--muted); stroke: none; }
+      .holograph .hg-mark.hg-open circle { fill: var(--accent); }
+      .holograph .hg-mark.hg-refused circle { fill: var(--warn); }
+      .holograph .hg-mark.hg-contested circle { fill: var(--think); }
+      .holograph .hg-mark.hg-closed circle { fill: var(--muted); opacity: 0.7; }
+      .holograph .hg-mark circle.hg-ring { fill: none; stroke: currentColor; stroke-width: 0.9; opacity: 0.8; }
+      .holograph .hg-mark.hg-open { color: var(--accent); }
+      .holograph .hg-mark.hg-closed { color: var(--muted); }
+      .holograph .hg-mark.hg-refused { color: var(--warn); }
+      .holograph .hg-mark.hg-void { fill: none; stroke: var(--muted); stroke-dasharray: 2 2; stroke-width: 1.2; }
+      .holograph-detail { margin-top: 10px; font-size: 13px; line-height: 1.55; max-width: 66ch; }
+      .holograph-detail h3 { font-size: 14px; margin: 0 0 4px; }
+      .holograph-detail .hg-line { margin: 0 0 4px; color: var(--muted); }
+      .holograph-detail .hg-loops { margin: 2px 0 6px; padding-left: 18px; }
+      .holograph-detail .hg-loops li { margin: 0 0 3px; color: var(--muted); }
+      .holograph-detail .hg-loops li.hg-open { color: var(--ink); }
+      .holograph-detail .hg-loops li.hg-refused { color: var(--warn); }
+      .holograph-detail .hg-turn { margin: 6px 0; padding: 4px 10px; border-left: 2px solid var(--line); white-space: pre-wrap; color: var(--muted); font-size: 12.5px; }
       /* Inside the disclosure the panel's own rail is already there, so a
          second one doubles up — the same reset `details.fold details.fold >
          div` already makes for nested panels. */
@@ -1420,6 +1622,92 @@
       }
       .threads .thread-close:hover:not(:disabled) { color: var(--warn); }
       .threads .thread-close:disabled { opacity: 0.35; cursor: default; }
+
+      /* THE PANEL, FULL WIDTH (user, 2026-09-08: "we need the right panel to
+         be able to be expanded to full screen and the left panel to be
+         collapsed into just vertical tabs we can select from"). Nothing is
+         unmounted — the conversation is still there, still live, still the
+         thing every panel is about; its column narrows to a rail of its own
+         conversation tabs, turned on their side, so a conversation can still
+         be chosen while a panel has the width. Choosing one does NOT restore
+         the column: picking a conversation while reading its holograph is
+         the whole point of the rail. The ⤢ control restores it. */
+      body.panel-wide main { grid-template-columns: 46px minmax(0, 1fr); }
+      body.panel-wide #col-chat > *:not(.threads) { display: none; }
+      body.panel-wide #col-chat { display: flex; flex-direction: column; min-height: 0; }
+      body.panel-wide #col-chat .fold-side { margin: 0 0 6px; writing-mode: horizontal-tb; align-self: center; }
+      body.panel-wide #col-chat .threads {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        flex: 1;
+        min-height: 0;
+        padding: 10px 4px;
+        gap: 6px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border-bottom: none;
+        border-right: 1px solid var(--line);
+      }
+      body.panel-wide #col-chat .thread-tab {
+        max-width: none;
+        writing-mode: vertical-rl;
+        border-radius: 0 7px 7px 0;
+        border-bottom: none;
+        border-left: 2px solid transparent;
+        padding: 4px 0;
+        max-height: 26ch;
+      }
+      body.panel-wide #col-chat .thread-tab[aria-current="true"] { border-bottom-color: transparent; border-left-color: var(--accent); }
+      body.panel-wide #col-chat .thread-title { writing-mode: inherit; border-radius: 0; padding: 8px 5px; max-width: none; max-height: 22ch; }
+      body.panel-wide #col-chat .thread-close { writing-mode: horizontal-tb; border-radius: 0; padding: 4px 5px; align-self: center; }
+      body.panel-wide #col-chat .threads .new { writing-mode: horizontal-tb; padding: 2px 0; }
+      /* One control per side, at the outer end of that side's own tab bar:
+         the chevron points the way the column will go. */
+      .fold-side {
+        margin-left: auto;
+        flex: none;
+        border: none;
+        background: none;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1;
+        padding: 5px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .fold-side:hover { color: var(--accent); background: var(--accent-soft); }
+      .threads .fold-side { align-self: center; }
+
+      /* AND THE PANEL COLLAPSES TOO (user, 2026-09-08: "lets allow the right
+         panel to also be collapsed") — the mirror of the rail on the left, so
+         either side can give the other the width. Its tabs stay, turned on
+         their side; pressing one opens the panel on that pane, because a tab
+         that selects an invisible thing is not a tab. */
+      body.panel-collapsed main { grid-template-columns: minmax(0, 1fr) 38px; }
+      body.panel-collapsed #col-panel > .scroll, body.panel-collapsed #col-panel > .term { display: none; }
+      body.panel-collapsed #col-panel { display: flex; flex-direction: column; min-height: 0; }
+      body.panel-collapsed #col-panel .tabs {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        flex: 1;
+        min-height: 0;
+        padding: 8px 2px;
+        overflow-y: auto;
+        border-bottom: none;
+      }
+      body.panel-collapsed #col-panel .tabs [role="tab"] {
+        writing-mode: vertical-rl;
+        max-height: 16ch;
+        padding: 6px 3px;
+        border-bottom: none;
+        border-left: 2px solid transparent;
+        border-radius: 0 6px 6px 0;
+      }
+      body.panel-collapsed #col-panel .tabs [role="tab"][aria-selected="true"] { border-left-color: var(--accent); background: var(--accent-soft); }
+      body.panel-collapsed #col-panel .tabs .term-toggle { writing-mode: horizontal-tb; padding: 5px 0; }
+      body.panel-collapsed .panel-wide-toggle { display: none; }
       .threads .new {
         color: var(--accent);
         font-size: 15px;
@@ -1571,6 +1859,25 @@
       .switch:has(input:checked) .ph { color: var(--accent); }
       .switch:has(input:disabled) { opacity: 0.45; }
       .switch .ph { color: var(--muted); }
+      /* Three states, cycled — an icon, not a growing/shrinking word (same
+         reasoning as the theme toggle's own comment: a fixed-width control
+         beside others in the row must not change the row's width when
+         pressed). The fill level reads the state: empty ring, half, full. */
+      .switch-cycle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 0;
+        color: var(--muted);
+        cursor: pointer;
+        border: 0;
+        border-left: 1px solid var(--line);
+        background: transparent;
+        padding: 6px 9px;
+      }
+      .switch-cycle:hover { background: var(--accent-soft); }
+      .switch-cycle[data-mode="background"],
+      .switch-cycle[data-mode="foreground"] { color: var(--accent); }
       /* The add-material menu: three doors, named, no taxonomy to learn. */
       #attach-menu { width: min(380px, 92vw); }
       #attach-menu .sheet-body button {
@@ -2270,6 +2577,11 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
 
     <main>
       <section class="col" id="col-chat">
+        <!-- EACH SIDE'S CONTROL LIVES ON THAT SIDE (user, 2026-09-08: "the
+             left collapse is on the right weirdly"). This one folds the
+             conversation away and opens it again; it sits at the end of the
+             conversation's own tab bar, and stays put when the column is a
+             rail so the way back is where the way in was. -->
         <nav class="threads" id="threads" aria-label="Conversations"></nav>
         <div class="scroll" id="chat"></div>
         <!-- Everything that decides what the next question is asked WITH sits
@@ -2333,6 +2645,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <input type="checkbox" id="use-workspace" checked />
               <span class="track" aria-hidden="true"></span>
             </label>
+            <button type="button" class="switch-cycle" id="priors-mode" title="Priors"></button>
             <button type="submit" class="primary" id="send" disabled>Send</button>
           </div>
         </form>
@@ -2355,7 +2668,13 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                rather than assumed — the routes discipline (P118) given a
                surface instead of a status chip and a /routes printout. -->
           <button role="tab" data-pane="resources" aria-selected="false" title="What this instrument is connected to right now — mouths, servers, the room, the web, accounts — each probed, never assumed">Resources</button>
+          <button role="tab" data-pane="holograph" aria-selected="false" title="The holograph — this conversation as the record holds it: what it is about, the loops on each referent, the gaps; press a referent to expand what holds it">Holograph</button>
+          <button role="tab" data-pane="github" aria-selected="false" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
+          <!-- Give this panel the whole width; the conversation stays live in
+               a rail of its own tabs on the left, still selectable. -->
+          <!-- The panel's own control, at the end of the panel's own bar. -->
+          <button type="button" id="panel-collapse" class="fold-side" aria-pressed="false" title="fold this panel away — its tabs stay on the right, and pressing one opens it again">›</button>
         </nav>
         <div class="scroll">
           <div class="pane" id="pane-builds">
@@ -2405,6 +2724,28 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <div id="res-body"></div>
           </div>
 
+          <div class="pane" id="pane-holograph">
+            <h2>Holograph</h2>
+            <label class="holograph-cursor" title="the cursor — the holograph as of any act on the record; drag it back to see the conversation as it stood then">
+              <input type="range" id="holograph-cursor" min="0" max="0" value="0" step="1" aria-label="cursor — as of which act on the record" />
+              <span id="holograph-cursor-label" class="holograph-cursor-label"></span>
+            </label>
+            <!-- THE QUERY BAR (eoql.js): a bare word scans; an operator's glyph or
+                 keyword begins an act — ∅ scan · ｜ field=value · ⊨ ⇐ (by arrow)
+                 · ⋈ name (follow links) · ⊛ field (group) · △ (count) · ⊢ N
+                 (first N / order). Acts chain with → or just follow. -->
+            <div class="holograph-query">
+              <input id="holograph-query" spellcheck="false" autocomplete="off" placeholder="∅ word · ｜ state=open · ⊨ ⇐ · ⋈ name · ⊛ kind · △ · ⊢ 5" aria-label="query — a word to search, a field to filter, or an EOT command over the rows; Escape clears" />
+              <span id="holograph-query-note" class="holograph-query-note"></span>
+            </div>
+            <div class="holograph-body">
+              <div class="holograph-side">
+                <div class="holograph-levels" id="holograph-levels" role="tablist" aria-label="the rung — the nine terrains, bottom to top, each standing in for the one below it"></div>
+                <div class="holograph-mode" id="holograph-mode" role="tablist" aria-label="visual (the notation) or text (sentences)"></div>
+              </div>
+              <div id="holograph-rows" class="holograph-host"></div>
+            </div>
+          </div>
           <div class="pane" id="pane-log">
             <div class="log-bar">
               <input id="log-filter" spellcheck="false" placeholder="filter events…" />

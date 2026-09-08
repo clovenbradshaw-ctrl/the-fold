@@ -33,14 +33,13 @@
 // (saw/wrote 0.744 vs the synonym pair looked/gazed 0.585). The Pattern
 // block's material half is recurrence on the ledger, which has a witness
 // count and no such confound.
-import { referentsOf } from "./dialogue.js";
+import { referentsOf, fold } from "./dialogue.js";
 import { strikeAddresses } from "./firewall.js";
 
 const DEPTHS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24]); // a ladder, structural; the shallowest depth that reproduces the reach wins
-export const DECLARED_LINES = 5; // the ledger block's own HYPERLEXICON_LEDGER_LINES, reused as the declared fallback when no measurement organ is injected
+export const DECLARED_LINES = 5; // giver: the ledger block's own HYPERLEXICON_LEDGER_LINES (holon.js), reused as the declared fallback when no measurement organ is injected
 export const RECURRENCE_FLOOR = 2; // binding's structural minimum (P58): one arrival has no recurrence to test
 
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const resolveIds = (index, name) => { try { const r = index?.resolve?.(String(name ?? "")); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
 const represent = (index, id) => { try { return index?.represent?.(id) ?? id; } catch { return id; } };
 const addressOf = (w) => String(typeof w === "string" ? w : (w?.at ?? w?.ref ?? "")).split("~")[0];

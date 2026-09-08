@@ -96,3 +96,39 @@ test("only EOReferentMerge unions identities", () => {
   const entries = [{ schema: "EOReferent@1", id: "a", surfaces: ["A"] }, { schema: "EOReferent@1", id: "b", surfaces: ["B"] }, { schema: "EOReferentMerge@1", id: "m", kept: "a", folded: ["b"], witness: "A and B" }];
   const folded = foldReading(entries, { diaNorm: (s) => s }); assert.deepEqual([...folded.referents.keys()], ["a"]); assert.equal(folded.identity.mergedByRecord, 1);
 });
+
+test("EFFICIENCY: readingIndexFromLog and mentionBookFromLog over the SAME entries array fold once, not twice — counted, not assumed to have a hit rate (P157's rule); a distinct array (the log's own growth) is never served a stale memo", () => {
+  let ncCalls = 0;
+  const countingCorefer = (a, b) => { ncCalls += 1; return namesCorefer(a, b); };
+  const freshLog = reader.getLog(); // getLog() spreads a NEW array every call — this one has never been folded
+  ncCalls = 0;
+  const idx1 = readingIndexFromLog(freshLog, { diaNorm, namesCorefer: countingCorefer });
+  const afterFirst = ncCalls;
+  ncCalls = 0;
+  const book1 = mentionBookFromLog(freshLog, { diaNorm, namesCorefer: countingCorefer });
+  assert.ok(afterFirst > 0, "the first face actually did coreference work");
+  assert.equal(ncCalls, 0, "the second face over the identical array read the memoized fold — zero further coreference calls");
+  assert.equal(idx1.referents.size, book1.referents, "both faces agree — the memo did not change the answer");
+  // A second, content-equal but IDENTITY-DISTINCT array (another getLog() spread — the same shape a grown, concat'd log has) is a cache MISS, not a stale hit.
+  const secondSpread = reader.getLog();
+  assert.notEqual(secondSpread, freshLog, "getLog() never hands back the same array twice");
+  ncCalls = 0;
+  readingIndexFromLog(secondSpread, { diaNorm, namesCorefer: countingCorefer });
+  assert.ok(ncCalls > 0, "a distinct array, even with identical content, is never served a stale memo");
+});
+
+test("EFFICIENCY: resolve() is memoized per index — a name that falls all the way to the coreference scan (no exact surface, no munch) pays that scan once, never on repeat", () => {
+  let ncCalls = 0;
+  const countingCorefer = (a, b) => { ncCalls += 1; return namesCorefer(a, b); };
+  const idx = readingIndexFromLog(reader.getLog(), { diaNorm, namesCorefer: countingCorefer });
+  const NAME = "Nobody This Material Ever Named";
+  ncCalls = 0;
+  const first = idx.resolve(NAME);
+  const costOfFirst = ncCalls;
+  assert.ok(costOfFirst > 0, "an unregistered name with no munch falls to the full coreference scan — real work on the first ask");
+  assert.equal(first.size, 0, "and correctly resolves to nothing");
+  ncCalls = 0;
+  for (let i = 0; i < 50; i++) idx.resolve(NAME);
+  assert.equal(ncCalls, 0, "fifty repeats of the same failed resolve() cost nothing further — the memo caches the miss too");
+  assert.deepEqual([...idx.resolve(NAME)], [...first]);
+});

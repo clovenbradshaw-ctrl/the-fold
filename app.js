@@ -145,6 +145,12 @@ import { updateSourceMeta } from "./sources-store.js";
 // Read when material arrives (Pass 18, P99): the reader loop and the typed
 // unread extent a question asked mid-read is told about.
 import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
+// THE CONSTITUTIONAL READER, off the main thread (2026-09-08 product review,
+// item 2: "the page still runs the presence index at the turn" —
+// THE-HOLOGRAPH §7's disclosed, owed step). Runs beside readOnArrival's own
+// relation-reading loop, over the same chunks; conversationIndexNow() below
+// prefers its index once a source's read has produced one.
+import { readConstitutionally, constitutionalIndexFor, covers as constitutionalCovers, manifest as readingManifest } from "./reading-client.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
@@ -374,6 +380,7 @@ function syncRecords() {
 // index row; a reload resumes from it, and a reader whose recipe changed
 // reads again under its own witness string (a second instrument, P68).
 const READING = new Map(); // name → { cursor, total, recipe, running }
+const READING_CONSTITUTIONAL = new Map(); // name → { cursor, total, running } — chunks admitted into the constitutional reader (reading-client.js), independent of READING's relation-reading cursor
 const yieldMacrotask = (() => {
   if (typeof MessageChannel === "undefined") return () => new Promise((r) => setTimeout(r));
   const ch = new MessageChannel();
@@ -386,9 +393,15 @@ function unreadNow() {
   return [...READING.entries()].filter(([, r]) => !r.skipped).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
 }
 function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
+  // Computed once, synchronously — state.chunks already carries this
+  // source's chunks by the time addSource() calls in here, so both the
+  // relation-reading closure below and the constitutional read beside it
+  // share one binding instead of each re-deriving (or, as before, one of
+  // them reaching for a `passages` that only ever existed inside the
+  // other's async closure).
+  const passages = state.chunks.filter((c) => c.source === name);
   readQueue = readQueue.then(async () => {
     await priorsSettled();
-    const passages = state.chunks.filter((c) => c.source === name);
     if (!passages.length || !state.sources[name]) return;
     // A code file is not prose (P113): retrievable, runnable, scouted for
     // its declarations — never read into the ledger as English. The skip is
@@ -423,7 +436,50 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
     }
     if (state.ready) $("status").textContent = readyLine();
   }).catch((e) => console.warn(`read on arrival: ${name}:`, e?.message ?? e));
+  // THE CONSTITUTIONAL READ runs beside the relation-reading loop above, not
+  // instead of it — the two are different questions the material answers
+  // (bound claims for the ledger; referent identity for the turn's own
+  // loops), and neither blocks the other. Deliberately NOT chained onto
+  // readQueue: the relation loop already serializes per source and the
+  // worker has its own single-flight guard (reading-client.js), so
+  // interleaving costs nothing and a slow constitutional read (measured:
+  // ~200s/MB, P171) never delays the relation ledger a question is
+  // actually answered from today.
+  if (!isCodeSource(name) && passages.length && state.sources[name]) {
+    readConstitutionally(name, passages, {
+      budgetMs: 250,
+      onProgress: (p) => { READING_CONSTITUTIONAL.set(name, { cursor: p.read, total: p.total, running: p.read < p.total }); refreshConstitutionalIndex(); },
+    }).then((r) => {
+      READING_CONSTITUTIONAL.set(name, { cursor: r.cursor, total: passages.length, running: false });
+      if (!r.done || r.cursor > 0) refreshConstitutionalIndex();
+      if (r.cursor && !r.resumed) console.info(`constitutional read: ${name} — ${r.cursor} chunk(s) in ${r.ms} ms (${r.assembly ?? "resumed, no new work"})`);
+    }).catch((e) => console.warn(`constitutional read: ${name}:`, e?.message ?? e));
+  }
   return readQueue;
+}
+// A synchronous cache fed by the async constitutional reads above — the
+// same shape conversationIndexCache already used for the presence index,
+// so conversationIndexNow() can prefer this one without becoming async
+// itself (every one of its callers, down to the turn-building code, reads
+// it synchronously; making it async would touch far more of this file for
+// no benefit the two-cache split doesn't already give — the read is real
+// background work, not free, and a turn must never block on it finishing).
+let constitutionalCache = { key: null, index: null, book: null };
+let constitutionalRefreshChain = Promise.resolve();
+function refreshConstitutionalIndex() {
+  constitutionalRefreshChain = constitutionalRefreshChain.then(async () => {
+    const names = [...new Set(liveChunks().map((c) => c.source))];
+    if (!names.length) return;
+    const { key, index, book, lengths } = await constitutionalIndexFor(names);
+    // `lengths` (name → its persisted log length) is what covers() below
+    // actually checks — dropping it here made covers() see `result.lengths`
+    // as undefined and refuse every request unconditionally, so the
+    // constitutional index could never be preferred no matter how complete
+    // the reading was (found live, 2026-09-08: READING_CONSTITUTIONAL
+    // showed 2/2 while currentIndexAndBook() still fell back to presence).
+    if (index) constitutionalCache = { key, index, book, lengths };
+  }).catch((e) => console.warn("constitutional index refresh:", e?.message ?? e));
+  return constitutionalRefreshChain;
 }
 
 async function restoreRecords() {
@@ -985,14 +1041,19 @@ const state = {
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
   /**
-   * Ranke — the primary-source chase (eoreader7 native/organs/ranke.js).
-   * OFF by default and a switch, not a standing consent: every run is
-   * fetches and searches against the world (user, 2026-09-03: "perhaps we
-   * toggle this one as this could be very burdensome"). On, a grounded turn
-   * that read a citing page chases its new notes under RANKE_AUTO_* budgets;
-   * off, only the explicit door (/ranke <maxFetches> [maxSearches]) runs it.
+   * Priors mode — how live_priors participates once a slice of it is toggled
+   * on (priors-toggles.js's own ledger; unrelated to and untouched by this).
+   * "off": not consulted at all, this turn. "background" (default): the
+   * FREE tier of the grounding ladder (priors.js) — claims are checked
+   * against it, cited if it settles them, same zero-egress posture as
+   * always. "foreground": additionally, every document currently gated on
+   * is attached as a real source (the same read/retrieve path an uploaded
+   * file gets), so it can be drawn on directly, not just checked against.
+   * Replaces the composer's former ranke switch (user, 2026-09-08: "i like
+   * that more than 'primary', let's nix that") — /ranke <maxFetches>
+   * [maxSearches] still runs the primary-source chase explicitly.
    */
-  ranke: localStorage.getItem("fold-ranke") === "on",
+  priorsMode: localStorage.getItem("fold-priors-mode") ?? "background",
   /** web source name → { url, host, rawPath, textPath }: the saved faces a chase can start from (the organ needs the page's own HTML for its links). */
   pageFaces: {},
 
@@ -1809,6 +1870,7 @@ const matrixUsage = [
   "/serve [stop] — answer sealed prompts for the room with this machine's models",
   "/pool — the devices offering a mouth, what each machine is, and what it has answered",
   "/pool want @who:server <model> — ask a machine to take up a model it has spare · /pool drop @who [model]",
+  "/reading — which build is running, which reading assembly and prior, per-source progress, and which reader actually decided the last turn's identity",
 ].join("\n");
 const roomLabel = (id) => { const r = foldMatrix.status().rooms.find((x) => x.id === id); return r?.name ? `${r.name} (${id})` : id; };
 const matrixGap = (e) => (e instanceof MatrixError ? e.message : e?.message ?? String(e));
@@ -2065,6 +2127,45 @@ function poolLines(pool) {
     w.available?.length ? `    spare, ask with /pool want ${w.user} <model>: ${w.available.join(", ")}` : null,
     ...(w.refused ?? []).map((r) => `    refused ${r.model}: ${r.why}`),
   ].filter(Boolean));
+}
+// /reading — item 1 of the 2026-09-08 product review ("every run has a
+// reproducible manifest"). What is actually deciding identity for the next
+// turn, not what the code COULD do: which git commit this tab is running,
+// which reading assembly, which prior it fetched, per-source progress on
+// both readers (the ledger's relation reading and the constitutional one),
+// and whether the LAST turn actually used the constitutional index or fell
+// back to the presence index — the fact `lastIndexBasis` carries and
+// nothing before this command surfaced anywhere.
+async function readingTurn(question) {
+  let build = null;
+  try { build = await (await fetch("/api/manifest")).json(); } catch (e) { build = { error: e?.message ?? String(e) }; }
+  const names = [...new Set(state.chunks.map((c) => c.source))];
+  const rows = names.map((name) => {
+    const rel = READING.get(name); const con = READING_CONSTITUTIONAL.get(name);
+    return `  ${name} · relation reading: ${rel ? (rel.skipped ? `skipped (${rel.skipped})` : `${rel.cursor}/${rel.total}${rel.running ? " …" : ""}`) : "not started"} · constitutional reading: ${con ? `${con.cursor}/${con.total}${con.running ? " …" : ""}` : "not started"}`;
+  });
+  const m = readingManifest();
+  // Plain language leads every line; a code identifier, when one is worth
+  // keeping at all, trails in parentheses as a citation — never the first
+  // thing a line says (EO canon stays backstage in the UI; this command
+  // is a diagnostic FOR a person, not a dump of the state it reads).
+  const lines = [
+    `build: the-fold commit ${build?.theFold?.commit?.slice(0, 12) ?? "unknown"}${build?.theFold?.branch ? `, branch ${build.theFold.branch}` : ""} — eoreader7 commit ${build?.eoreader7?.commit?.slice(0, 12) ?? "unknown"}`,
+    `reading assembly in use: ${m.assembly}`,
+    m.posPriorSource
+      ? `the part-of-speech prior has been fetched, from ${m.posPriorSource}`
+      : "the part-of-speech prior has not been fetched yet — no source has been read this session",
+    `the last turn's identity came from: ${
+      lastIndexBasis
+        ? lastIndexBasis.kind === "constitutional"
+          ? "the constitutional reader — every loaded source is fully read"
+          : `the older reader, because not every source is fully read yet (fallback: ${lastIndexBasis.detail})`
+        : "no turn has built a conversation index yet"
+    }`,
+    names.length ? "sources:" : "no sources loaded",
+    ...rows,
+  ];
+  return usageTurn(question, lines.join("\n"), { what: "reading" });
 }
 async function poolTurn(question, arg = "") {
   try {
@@ -2329,14 +2430,10 @@ function rememberPageFace(name, url, entry) {
 }
 
 // ── /ranke — the primary-source chase, on request ────────────────────────
-// Budgets declared per run (P9). RANKE_AUTO_* are the standing budgets the
-// switch spends per grounded turn: three faces (giver: primary.js
-// PRIMARY_SOURCES_CONSULTED — one perspective is anecdote, three is the
-// smallest count where 2-of-3 can disagree with 3-of-3) and one quote
-// search (a search is the costlier crossing; one per turn keeps the switch
-// from becoming a crawler).
-const RANKE_AUTO_FETCHES = 3;
-const RANKE_AUTO_SEARCHES = 1;
+// Budgets declared per run (P9): the caller — now only the explicit
+// /ranke <maxFetches> [maxSearches] door — names them (the ambient
+// per-grounded-turn auto-chase this once ran under, and its own standing
+// budgets, retired with the composer switch that drove it, 2026-09-08).
 async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null }) {
   const log = state.hyperlexiconLog;
   if (!log) return { refused: "the hyperlexicon is empty — nothing has been heard yet, so there is nothing to chase." };
@@ -3334,10 +3431,20 @@ function pickAudioFile() {
  * documents in each are in play; `/priors on|off <path>` flips a document,
  * a folder, or the whole corpus (blank path). Computed from a server
  * fetch, never generated — a toggle is a fact about a file on disk.
+ * `/priors sync` runs one bounded round of foreground attachment
+ * (PRIORS_FOREGROUND_SYNC_BATCH documents) regardless of the composer's
+ * current priors-mode dial — the explicit door, mirroring /ranke's own
+ * "toggle for the ambient case, command for a declared one" split.
  */
 async function priorsTurn(argstr, typed) {
   const [sub, ...rest] = argstr.trim().split(/\s+/).filter(Boolean);
   try {
+    if (sub === "sync") {
+      const before = new Set(Object.values(state.provenance).map((p) => p?.path).filter(Boolean)).size;
+      await syncForegroundPriors();
+      const after = new Set(Object.values(state.provenance).map((p) => p?.path).filter(Boolean)).size;
+      return usageTurn(typed, after > before ? `attached ${after - before} document(s) — see the status line for what, if anything, remains.` : "nothing new to attach — every enabled document is already a source, or none is enabled (/priors on <path>).");
+    }
     if (sub === "on" || sub === "off") {
       const p = rest.join(" ");
       const body = await (
@@ -3746,6 +3853,7 @@ async function send(question) {
   if (serveCmd) return serveTurn(serveCmd[1]?.trim() ?? "", question);
   const poolCmd = question.match(/^\/pool\b\s*(.*)$/s);
   if (poolCmd) return poolTurn(question, poolCmd[1]?.trim() ?? "");
+  if (/^\/reading\b/.test(question)) return readingTurn(question);
 
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
@@ -5084,8 +5192,44 @@ function needsSystem2(question, s1Text) {
 // turn's checked refs from the record store.
 const RESOLUTIONS_LEVEL = 3;
 let conversationIndexCache = { key: null, index: null, book: null };
-function conversationIndexNow() {
+let lastIndexBasis = null; // disclosed by /manifest (item 1) — which reading actually decided identity for the live turn
+/**
+ * THE CONSTITUTIONAL INDEX, PREFERRED (2026-09-08, item 2). `constitutionalCache`
+ * is fed in the background by readConstitutionally()'s progress callbacks
+ * (readSourceOnArrival, above) — a projection of the SAME reader the eval
+ * driver names (READING_ASSEMBLY), never a scan of capitalised runs (P38).
+ * It is used only when it actually covers every live source's OWN latest
+ * reading (the key check below): a source added since the last refresh, or
+ * one the constitutional reader has not reached yet, falls the WHOLE
+ * conversation index back to the presence index rather than silently
+ * mixing identities decided two different ways — the same all-or-nothing
+ * rule S1/S25 already hold for an assembly. `readingManifest()`'s own
+ * `assembly`/`posPriorSource` name what actually decided it, every time.
+ */
+// ONE decision, read by both conversationIndexNow() (the .index alone, for
+// callers that only resolve names) and activationRetrievalNow() (the
+// matching .book too) — the two must never disagree about which reading
+// decided identity for a turn, which is exactly the bug a second, separate
+// "read conversationIndexCache directly" path had until this function
+// existed: activationRetrievalNow() could read the presence index's book
+// beside conversationIndexNow()'s constitutional index, silently.
+function currentIndexAndBook() {
   const chunks = liveChunks();
+  const names = [...new Set(chunks.map((c) => c.source))];
+  // constitutionalCovers() only proves each live name has SOME entry in the
+  // cache's log-derived lengths — a source still at 0 of N chunks read
+  // would pass that check too. READING_CONSTITUTIONAL carries the actual
+  // chunk-unit progress (the two are different units — log rows per chunk
+  // vary, so one can't stand in for the other); require it here as well,
+  // or a mid-read source silently decides identity on a partial reading.
+  const constitutionallyComplete = names.length > 0 && names.every((n) => {
+    const r = READING_CONSTITUTIONAL.get(n);
+    return r && !r.running && r.total > 0 && r.cursor === r.total;
+  });
+  if (constitutionallyComplete && constitutionalCache.index && constitutionalCovers(constitutionalCache, names)) {
+    lastIndexBasis = { kind: "constitutional", assembly: readingManifest().assembly, posPriorSource: readingManifest().posPriorSource };
+    return { index: constitutionalCache.index, book: constitutionalCache.book };
+  }
   const key = `${chunks.length}:${chunks[0]?.ref ?? ""}:${chunks[chunks.length - 1]?.ref ?? ""}`;
   if (conversationIndexCache.key !== key) {
     const index = chunks.length ? referentIndexFor(chunks) : null;
@@ -5094,12 +5238,13 @@ function conversationIndexNow() {
     // No reader is built here: the acts of a sentence are the ledger's own notes (read at arrival, persisted — P98/P99), projected by span in activation-retrieval.js. Building the reader over a novel here cost 362 s (measured 2026-09-07) and re-did the reading the log already holds.
     conversationIndexCache = { key, index, book };
   }
-  return conversationIndexCache.index;
+  lastIndexBasis = chunks.length ? { kind: "presence", detail: "cast.js::makeReferentIndex, P38" } : null;
+  return conversationIndexCache;
 }
+function conversationIndexNow() { return currentIndexAndBook().index; }
 // RETRIEVAL IS ACTIVATION (THE-HOLOGRAPH.md §6): the question activates referents, hop 0 their sentences, hop 1 what they stand with, cut by the measurement; the term retriever stands in only for a question that resolves to no referent, and the record says so.
 function activationRetrievalNow() {
-  conversationIndexNow();
-  const { index, book } = conversationIndexCache;
+  const { index, book } = currentIndexAndBook();
   if (!index || !book) return null;
   return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
@@ -6468,14 +6613,6 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // passages while this turn ran; both chains started from `ledgerBase`.
     if (result.hyperlexiconLog) state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, result.hyperlexiconLog, ledgerBase, { append: nativeTaskLog.append });
     syncRecords();
-    // Ranke's switch: chase what this turn heard off citing pages, under
-    // the standing budgets, never awaited — the answer is already on screen
-    // and the primary witnesses land on the ledger for the NEXT turn's
-    // ledger block. Fire-and-forget like crownTestimony; a failure is a
-    // console line, never a broken turn.
-    if (state.ranke && state.grounded && result.hyperlexiconLog && Object.keys(state.pageFaces).length) {
-      rankeChase({ maxFetches: RANKE_AUTO_FETCHES, maxSearches: RANKE_AUTO_SEARCHES }).catch((e) => console.warn("ranke:", e?.message ?? e));
-    }
     clearInterval(ticker);
   } catch (err) {
     clearInterval(ticker);
@@ -8989,6 +9126,27 @@ function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = n
     live.className = "proof-query";
     slot.textContent = "";
     slot.append(live);
+    // THE FREE TIER, FIRST (priors.js's own design: "spend the P13 crossing
+    // only on what the library leaves unsettled"). Zero egress, no consent
+    // to spend, so this runs whenever priors mode isn't off — unlike the
+    // web check below, it never needed a toggle of its own. Never made to
+    // gate the web check itself here: state.webProof stays the sole say
+    // over whether that crossing runs, unaffected by what the library
+    // found — priors.js's stated intent names a real next step (skip an
+    // auto web spend once the library alone settles a claim), not this one.
+    if (ledger && state.priorsMode !== "off") {
+      live.textContent = "checking the reference library…";
+      try {
+        const priorsOut = await (
+          await fetch(`${EXPLORE_BASE}/api/priors/check`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ claim: target }),
+          })
+        ).json();
+        if (!priorsOut.error) ledger.note(target, "priors", priorsOut);
+      } catch (e) { console.warn(`priors check: ${key}:`, e?.message ?? e); }
+    }
     const out = await seekProof(target, faces, (step) => {
       live.textContent = step;
     });
@@ -10715,6 +10873,61 @@ async function existingItems() {
   return out;
 }
 
+// A declared budget (P9), not a silent truncation: the ledger's "on" set is
+// the whole corpus's own gate, sized for browsing and checking, not for
+// "attach every one as a chat source" — measured live, 2026-09-08, the
+// corpus this reads against was 3,166 of 3,166 documents on, which a
+// blocking one-at-a-time attach loop would have taken a very long time
+// over and left the Sources panel unusable. PRIORS_DOCS_CONSULTED (12,
+// priors.js) is the sibling budget this mirrors: one deliberately small
+// round, reported, resumable, never a silent cap on what's possible.
+const PRIORS_FOREGROUND_SYNC_BATCH = 12;
+
+/**
+ * FOREGROUND PRIORS (priors-mode toggle, 2026-09-08): documents the ledger
+ * currently gates on are attached as real sources, the same doc-endpoint
+ * path the picker's own row above already uses (one fetch: text and
+ * provenance together) — so "foreground" means what an uploaded file
+ * means: read, retrieved, drawn on directly, not just checked against.
+ *
+ * Bounded and resumable, not exhaustive: at most PRIORS_FOREGROUND_SYNC_BATCH
+ * land per call. "Already attached" is read off state.provenance's own
+ * paths — itself the sidecar this needs, since it already persists across
+ * reloads (sources-store.js) — so a later call (re-toggling foreground, or
+ * `/priors sync`) picks up exactly where the last one stopped, never
+ * re-fetching or re-reading what already landed. Additive only: turning
+ * foreground off, or a document later toggling off in the ledger, does not
+ * retract what is already attached — removing a source stays the same
+ * deliberate act it always was.
+ */
+async function syncForegroundPriors() {
+  const pri = await (await fetch(`${EXPLORE_BASE}/api/priors/enabled`)).json();
+  if (pri.gap) { $("status").textContent = `priors: ${pri.gap.detail}`; return; }
+  const already = new Set(Object.values(state.provenance).map((p) => p?.path).filter(Boolean));
+  const pending = (pri.entries ?? []).filter((e) => !already.has(e.path));
+  if (!pending.length) return;
+  const toAttach = pending.slice(0, PRIORS_FOREGROUND_SYNC_BATCH);
+  let landed = 0;
+  for (const e of toAttach) {
+    try {
+      const doc = await (await fetch(`${EXPLORE_BASE}/api/priors/doc?path=${encodeURIComponent(e.path)}&text=1`)).json();
+      if (doc.error || doc.gap || !doc.text || looksBinary(doc.text)) continue;
+      // Same disambiguation as the picker row: two corpora can hold a file
+      // by the same name, so a genre prefix replaces silent overwrite.
+      let name = e.name;
+      if (state.sources[name] && state.provenance[name]?.path !== doc.path) name = `${doc.path.split("/")[0]}-${name}`;
+      addSource(name, doc.text);
+      if (doc.provenance && state.sources[name]) state.provenance[name] = { line: doc.provenanceLine, fields: doc.provenance, path: doc.path };
+      landed++;
+    } catch (err) { console.warn(`priors: foreground attach ${e.path} failed:`, err?.message ?? err); }
+  }
+  if (landed) renderSources();
+  const remaining = pending.length - toAttach.length;
+  $("status").textContent = landed
+    ? `priors: foreground attached ${landed} document(s) from live_priors${remaining ? ` — ${remaining} more enabled, toggle foreground again (or /priors sync) to continue` : ""}`
+    : `priors: foreground found ${pending.length} enabled document(s) to attach but none could be read`;
+}
+
 async function openPicker() {
   const list = $("picker-list");
   const filter = $("picker-filter");
@@ -10873,10 +11086,46 @@ bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
   state.webProof = v;
   $("status").textContent = v ? "web lookups on" : "web lookups off";
 });
-bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
-  state.ranke = v;
-  $("status").textContent = v ? "primary-source chase on (Ranke)" : "primary-source chase off";
-});
+// ── the priors-mode toggle ───────────────────────────────────────────────────
+//
+// Three states, cycled — same pattern as the theme toggle: the choice lives
+// in localStorage and this button only moves the stamp. What each state
+// actually DOES lives where priors get consulted (the claim-checking
+// cascade, foreground's source-sync below) — this is only the dial.
+{
+  const PRIORS_KEY = "fold-priors-mode";
+  const priorsBtn = $("priors-mode");
+  const PRIORS_TITLE = {
+    off: "Priors: off. live_priors is not consulted this session, whatever is toggled on in the ledger. Click to cycle off → background → foreground.",
+    background: "Priors: background. Whatever live_priors documents are toggled on are checked against your claims and cited if they settle one — zero egress, the free tier of the grounding ladder. Click to cycle to foreground.",
+    foreground: "Priors: foreground. Same checking as background, and documents currently toggled on are also attached as real sources, a bounded batch at a time — read and drawn on directly. Click to cycle to off.",
+  };
+  // Fill level reads the state (empty ring → half → full) rather than a
+  // word, so the button stays icon-sized like its neighbors and never
+  // changes the row's width when pressed (the theme toggle's own reasoning).
+  const PRIORS_ICON = {
+    off: '<circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" stroke-width="20"/>',
+    background: '<circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" stroke-width="20"/><circle cx="128" cy="128" r="42" fill="currentColor"/>',
+    foreground: '<circle cx="128" cy="128" r="98" fill="currentColor"/>',
+  };
+  const priorsLabel = (mode) => {
+    priorsBtn.innerHTML = `<svg class="ph ph-lg" viewBox="0 0 256 256" aria-hidden="true">${PRIORS_ICON[mode]}</svg>`;
+    priorsBtn.title = PRIORS_TITLE[mode];
+    priorsBtn.dataset.mode = mode;
+  };
+  const applyPriorsMode = (mode) => {
+    state.priorsMode = mode;
+    priorsLabel(mode);
+    if (mode === "foreground") syncForegroundPriors().catch((e) => console.warn("priors: foreground sync failed:", e?.message ?? e));
+  };
+  priorsBtn.onclick = () => {
+    const next = { off: "background", background: "foreground", foreground: "off" }[state.priorsMode] ?? "background";
+    try { localStorage.setItem(PRIORS_KEY, next); } catch { /* storage blocked — the stamp below still applies for this page */ }
+    applyPriorsMode(next);
+  };
+  priorsLabel(state.priorsMode);
+  if (state.priorsMode === "foreground") syncForegroundPriors().catch((e) => console.warn("priors: foreground sync failed:", e?.message ?? e));
+}
 
 // Checking, on or off. This is a MODE, not a paint setting: off, the relation
 // tier is never asked for, nothing is drawn into the prose, no tally is

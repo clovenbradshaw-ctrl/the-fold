@@ -732,6 +732,28 @@ export function makeBuildLog(taskLog) {
     return append(log, { kind: ENTRY_KINDS.RETRACT, task_id: cur.task_id });
   }
 
+  /** Retract every ground of a build — "delete this fold" as a reader
+   * means it, not "revert to an earlier ground". A re-zero's new ground
+   * carries no `supersedes` link back to the one before it (the header's
+   * own reasoning: a re-zero concedes a ground, it does not compile a new
+   * whole out of the old one) — so grounds are INDEPENDENT threads to
+   * `projectTasks`, and retracting only the current one falls back to the
+   * previous ground rather than emptying the build. Measured live, not
+   * assumed: a single `retractBuild` on a twice-judged fold left the
+   * earlier ground fully visible again. This repeats the single-ground
+   * retraction against whatever `foldBuild` currently resolves to until
+   * nothing live remains, bounded by the ground count so a defect here
+   * fails loud (an unretracted remainder) rather than looping forever. */
+  function retractAllGrounds(log) {
+    let next = log;
+    const bound = groundCount(log);
+    for (let i = 0; i < bound; i++) {
+      if (!foldBuild(next)) break;
+      next = retractBuild(next);
+    }
+    return next;
+  }
+
   /** One row per entry, for the cursor's own labelling — mechanical, from
    * the entry's kind and payload, never a model's phrasing. */
   function timeline(log) {
@@ -897,6 +919,7 @@ export function makeBuildLog(taskLog) {
     rezeroBuild,
     attachRun,
     retractBuild,
+    retractAllGrounds,
     foldBuild,
     groundCount,
     timeline,

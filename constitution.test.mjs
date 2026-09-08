@@ -141,6 +141,18 @@ const ALLOWANCES = [
       /createElementNS\(\s*["']$/.test(src.slice(Math.max(0, at - 40), at)),
   },
   {
+    host: "matrix.org",
+    files: ["index.html"],
+    why:
+      "P119's amendment (user direction, 2026-09-08): a person with no Matrix account had nowhere " +
+      "to start, so the sign-in sheet and the room's invite block link out to matrix.org's own " +
+      "get-started page — which is also where that page says an account may live on any provider. " +
+      "It is an ANCHOR the person follows in a new tab, never a load edge and never a request: the " +
+      "page itself still names no homeserver in anything it sends, and the sign-in field takes " +
+      "whatever server is typed. Checked, not asserted: the occurrence must sit in an href.",
+    holds: (file, src, at) => /href\s*=\s*["']$/.test(src.slice(Math.max(0, at - 12), at)),
+  },
+  {
     host: null, // hostOf builds an authority from user input; there is no literal to name
     files: ["web.js", "links.js", "github.js", "wikidata.js"],
     why:

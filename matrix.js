@@ -187,6 +187,12 @@ export const paths = Object.freeze({
   invite: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/invite`,
   kick: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/kick`,
   members: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/members`,
+  // Matrix's own presence, which a homeserver may not serve at all (it is
+  // commonly disabled for load). A 404 or a 403 here is a fact about the
+  // SERVER, never about the person — the caller types it as unknown rather
+  // than drawing them offline, the same three-state discipline the routes
+  // pane holds (P177).
+  presence: (user) => `/_matrix/client/v3/presence/${encodeURIComponent(user)}/status`,
   allState: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state`,
   state: (room, type, key = "") => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state/${encodeURIComponent(type)}/${encodeURIComponent(key)}`,
   send: (room, type, txn) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/send/${encodeURIComponent(type)}/${encodeURIComponent(txn)}`,

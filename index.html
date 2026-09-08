@@ -283,6 +283,138 @@
         text-decoration: none;
         cursor: auto;
       }
+      /* Resources: one row per thing this instrument can reach, grouped by
+         what the thing is FOR. The state dot is the whole verdict — reachable,
+         not reachable, or never asked — and the three are never blurred. */
+      /* Resources reads as a console, not a list of sentences: a row of
+         roll-up tiles, then the machines as a real table with sortable
+         columns (the one thing that has to survive a hundred rows), then the
+         singletons as tight two-line rows. Column alignment is what makes a
+         long list scannable; prose is what stops it being one. */
+      #res-filter { flex: 1; min-width: 8rem; }
+      /* A fixed grid rather than a wrapping row: five tiles that reflow into
+         a 2-3 ragged block read as an accident, and the count is what the
+         eye is coming for. */
+      /* A brand mark inside a tab or a row sits on the text's own baseline and
+         takes the text's own colour, so a tab still reads as a tab and a row
+         still reads as a row — never as somebody else's button. */
+      .tab-mark { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+      .res-mark { width: 13px; height: 13px; flex: none; align-self: center; color: var(--muted); }
+      .res-row[data-state="on"] .res-mark { color: var(--ink); }
+      .res-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+      .res-tile {
+        min-width: 0;
+        text-align: left;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: transparent;
+      }
+      .res-tile:hover { border-color: var(--accent); }
+      .res-tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+      .res-tile .res-tile-n { display: block; font-size: 18px; font-variant-numeric: tabular-nums; color: var(--ink); line-height: 1.15; }
+      .res-tile .res-tile-k { display: block; font-size: 11px; color: var(--muted); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* The tile's own sentence is a hover note, never a third line that
+         makes five tiles four different heights. */
+      .res-tile .res-tile-s { display: none; }
+      .res-tile[data-alarm="yes"] .res-tile-n { color: var(--warn); }
+      .res-sec { border-bottom: 1px solid var(--line); }
+      .res-sec > h3 { margin: 0; padding: 12px 16px 6px; font-size: 11.5px; font-family: var(--mono); color: var(--muted); font-weight: 500; }
+      .res-table { width: 100%; min-width: 40rem; border-collapse: collapse; font-size: 12.5px; }
+      .res-table th, .res-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      .res-table th:first-child, .res-table td:first-child { padding-left: 16px; }
+      .res-table th { color: var(--muted); font-weight: 500; font-size: 11.5px; cursor: pointer; user-select: none; }
+      .res-table th:hover { color: var(--accent); }
+      .res-table th[aria-sort] { color: var(--accent); }
+      .res-table th[aria-sort="ascending"]::after { content: " ▲"; font-size: 8px; }
+      .res-table th[aria-sort="descending"]::after { content: " ▼"; font-size: 8px; }
+      .res-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .res-table td.wide { white-space: normal; color: var(--muted); }
+      .res-table tr.off td:not(.num) { color: var(--muted); }
+      /* One dot vocabulary across the pane: filled accent reachable, warn not
+         reachable, hollow never asked — "we did not look" is not "not there". */
+      .res-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--muted); vertical-align: 1px; }
+      [data-state="on"] > .res-dot, td .res-dot[data-state="on"] { background: var(--accent); }
+      [data-state="off"] > .res-dot, td .res-dot[data-state="off"] { background: var(--warn); }
+      [data-state="unasked"] > .res-dot, td .res-dot[data-state="unasked"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+      .res-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 16px; font-size: 13px; }
+      .res-row + .res-row { border-top: 1px solid var(--line); }
+      .res-row .res-name { flex: none; min-width: 9.5rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* One line, always: a row whose detail wraps to twelve lines (a machine
+         offering seven models) turns the list back into prose. The whole
+         string is the row's title, and the pane is for scanning. */
+      .res-row .res-detail { flex: 1; min-width: 0; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .res-row .res-metric { flex: none; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
+      .res-row .res-do, .res-table .res-do { font-size: 11.5px; padding: 2px 7px; }
+      .res-empty { padding: 14px 16px; font-size: 12.5px; color: var(--muted); }
+      /* The workspace chip: a declaration, not a control that shouts. It sits
+         at the wordmark's own baseline, borrows the header's quiet ink, and
+         earns a border only on hover — the name is the point, and the access
+         mark beside it is the smallest true thing about who can read this. */
+      #workspace-chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-left: 12px;
+        padding: 4px 9px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12.5px;
+        min-width: 0;
+      }
+      #workspace-chip:hover { border-color: var(--line); color: var(--ink); }
+      .workspace-name {
+        color: var(--ink);
+        font-weight: 500;
+        max-width: 22ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .workspace-access { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+      .workspace-access::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 5px;
+        border-radius: 999px;
+        vertical-align: 1px;
+        background: var(--muted);
+      }
+      /* Shared is the state worth seeing at a glance, so it is the one that
+         takes the accent — and a ring rather than a dot, because "open to
+         others" is a different shape of fact, not a louder one. */
+      .workspace-access[data-access="shared"] { color: var(--accent); }
+      .workspace-access[data-access="shared"]::before { background: transparent; box-shadow: inset 0 0 0 2px var(--accent); }
+      /* The workspace sheet. */
+      #workspace { width: min(440px, 94vw); }
+      .ws-list { list-style: none; margin: 0; padding: 0; }
+      .ws-list button {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        padding: 10px 16px;
+        font-size: 13.5px;
+      }
+      .ws-list li + li button { border-top: 1px solid var(--line); }
+      .ws-list button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+      .ws-list button:disabled { opacity: 1; cursor: default; color: var(--accent); }
+      .ws-list button small { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+      .ws-list .here { margin-left: auto; color: var(--accent); font-size: 11.5px; }
+      .ws-block { padding: 12px 16px; border-top: 1px solid var(--line); }
+      .ws-block h4 { margin: 0 0 6px; font-size: 12px; font-family: var(--mono); color: var(--muted); font-weight: 500; }
+      .ws-block p { margin: 0 0 6px; font-size: 12.5px; color: var(--ink); }
+      .ws-block p.sub { margin: 0; font-size: 12px; color: var(--muted); }
+      .ws-block .field { margin: 0; }
+      .ws-act { margin-top: 8px; font-size: 12.5px; }
       /* The view preferences, as one object. */
       .icon-group { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
       .icon-group button { border: 0; border-radius: 0; background: transparent; line-height: 0; padding: 6px 9px; }
@@ -291,6 +423,72 @@
       #marks-toggle { color: var(--accent); }
       #marks-toggle[aria-pressed="false"] { color: var(--muted); }
       #theme-toggle { color: var(--muted); }
+      /* Not connected is quiet; connected takes the accent. Two states only —
+         a service either has an account here or it does not, and there is no
+         third thing to say in an icon. */
+      #matrix-toggle, #github-toggle { color: var(--muted); position: relative; }
+      #matrix-toggle[data-state="in"], #github-toggle[data-state="in"] { color: var(--accent); }
+      /* Answering for the room is live work, so it gets the same pulsing dot
+         the model chip uses — one vocabulary for "this is happening now". */
+      #matrix-toggle[data-serving="yes"]::after {
+        content: "";
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 5px;
+        height: 5px;
+        border-radius: 999px;
+        background: var(--accent);
+        animation: chip-pulse 1.4s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #matrix-toggle[data-serving="yes"]::after { animation: none; }
+      }
+      /* Who has access, in the header: a cluster of small avatars with a
+         presence ring each. It is the only place a person appears in this
+         page's chrome, so it is deliberately small and deliberately silent
+         when the workspace is private — there is nobody to show. */
+      #access-cluster {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        margin-left: 8px;
+        padding: 3px 6px 3px 3px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        background: transparent;
+      }
+      #access-cluster[hidden] { display: none; }
+      #access-cluster:hover { border-color: var(--line); }
+      .who {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 600;
+        font-family: var(--mono);
+        color: #fff;
+        box-shadow: 0 0 0 2px var(--bg);
+      }
+      .who + .who { margin-left: -7px; }
+      /* Three presence states and only three, the same discipline the
+         resources pane holds: here now, not here, and NOT KNOWN — a server
+         that will not report presence is not a person who is offline. */
+      .who[data-presence="online"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
+      .who[data-presence="offline"] { opacity: 0.55; }
+      .who[data-presence="unknown"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--line); }
+      .who-more { margin-left: 4px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+      /* The same avatar, listed rather than stacked. */
+      .who-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; font-size: 13px; }
+      .who-row + .who-row { border-top: 1px solid var(--line); }
+      .who-row .who { margin-left: 0; }
+      .who-name { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .who-state { margin-left: auto; font-size: 11.5px; color: var(--muted); text-align: right; white-space: nowrap; }
+      .who-key { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+      .who-key[data-proof="none"] { color: var(--warn); }
       /* The model chip is one identity at a fixed size, and a dot for whether
          it is working — not a status line that re-measures the header. */
       #settings-toggle[data-working="yes"] #settings-label::after {
@@ -1781,6 +1979,53 @@
       .field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; font-size: 13px; color: var(--muted); }
       .field input { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
       .field input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+      /* The room sheet: a status block, then the doors as named rows — the
+         same shape as the add-material menu, because it is the same act
+         (one press, one door, no taxonomy). */
+      #room { width: min(460px, 94vw); }
+      .room-status { list-style: none; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+      .room-status li { margin: 0 0 4px; }
+      .room-status li:last-child { margin-bottom: 0; }
+      .room-status li.now { color: var(--ink); }
+      .room-status li.gap { color: var(--warn); }
+      .room-status details summary { cursor: pointer; }
+      .room-status details ul { margin: 6px 0 0; padding-left: 16px; }
+      .room-status details li { margin: 0 0 3px; }
+      #room-doors button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        padding: 11px 16px;
+        font-size: 13.5px;
+      }
+      #room-doors button + button { border-top: 1px solid var(--line); }
+      #room-doors button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+      #room-doors button:disabled { opacity: 0.45; cursor: default; }
+      #room-doors button small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
+      #room-doors button.on { color: var(--accent); }
+      /* Inviting leads the sheet, so it gets the accent ground rather than
+         sitting in the run of rows: the person came here to do this one
+         thing, and the steps above the field are the instructions. */
+      .room-invite { padding: 12px 16px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--line); }
+      .room-invite h4 { margin: 0 0 6px; font-size: 12px; font-family: var(--mono); color: var(--accent); font-weight: 500; }
+      .room-steps { margin: 0 0 10px; font-size: 12.5px; color: var(--ink); }
+      .room-steps b { font-weight: 600; }
+      .room-share { display: flex; gap: 8px; align-items: flex-end; }
+      /* A display rule beats the UA's [hidden], so every element this sheet
+         hides declares its own — the same explicit pair `.switch[hidden]`
+         already carries a few hundred lines up. */
+      .room-share[hidden] { display: none; }
+      .room-share .field { flex: 1; margin: 0; }
+      .room-invite .pool-note { margin-top: 8px; }
+      #room-start { width: 100%; }
+      .room-signup { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+      .room-signup[hidden] { display: none; }
+      .room-signup a { color: var(--accent); }
       /* The pool: who offers a mouth through the room, and what each one measured. */
       .pool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
       .pool-table th, .pool-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -1876,7 +2121,8 @@
         .threads { padding: 6px 12px 0; }
         .threads .thread-tab { min-height: 42px; }
         header { padding: 8px 12px; }
-        #marks-toggle, #theme-toggle { min-width: 44px; min-height: 40px; }
+        #marks-toggle, #matrix-toggle, #github-toggle, #theme-toggle { min-width: 44px; min-height: 40px; }
+        #access-cluster { min-height: 40px; }
         /* The composer bar in two rows: what you attach and what answers on
            the first, the switches and Send on the second. The one-row rule
            above was written so Send never moves when attachments arrive;
@@ -1976,6 +2222,19 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         </svg>
         <span class="wordmark">the<b>fold</b></span>
       </h1>
+      <!-- Where the work lives, declared quietly beside the mark rather than
+           announced: the material, the folds, the conversations and the room
+           on this page all belong to the workspace named here, and the second
+           half of the chip says who can read it. Two states, no third — a dot
+           for private to this browser, a ring for shared through a room. -->
+      <button id="workspace-chip" type="button" title="This workspace">
+        <span class="workspace-name" id="workspace-name">Workspace</span>
+        <span class="workspace-access" id="workspace-access" data-access="private">private</span>
+      </button>
+      <!-- Who else is in this workspace, and whether they are here now. It
+           appears only when the workspace is actually shared: a cluster of
+           one avatar (yours) would be a widget telling you that you exist. -->
+      <button id="access-cluster" type="button" hidden title="Who has access"></button>
       <span class="spacer"></span>
       <span id="turn-total" class="turn-total" hidden></span>
       <!-- The two view preferences are one object: both change how the page
@@ -1991,6 +2250,18 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
            tally still counts what the marks would have shown. -->
       <button id="marks-toggle" type="button" aria-pressed="true" title="Checking — read every answer against your material and look up what nothing backs. The findings list under &quot;thinking&quot;; they are not drawn over the answer. Off is a plain chatbot: the model answers and nothing is verified.">
         <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
+      </button>
+      <!-- The two accounts this instrument connects to, where accounts live:
+           the top right. Each is one press to sign in when it is not
+           connected, and a jump to its own rows in Resources when it is. The
+           colour is the whole state — muted is not connected, accent is —
+           and the mark is the service's own so it is recognised before it is
+           read. Matrix's mark names the PROTOCOL, never a homeserver. -->
+      <button id="matrix-toggle" type="button" data-state="out" title="Matrix">
+        <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M72,216a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8H64a8,8,0,0,1,0,16H48V208H64A8,8,0,0,1,72,216ZM216,32H192a8,8,0,0,0,0,16h16V208H192a8,8,0,0,0,0,16h24a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32Zm-32,88a32,32,0,0,0-56-21.13,31.93,31.93,0,0,0-40.71-6.15A8,8,0,0,0,72,96v64a8,8,0,0,0,16,0V120a16,16,0,0,1,32,0v40a8,8,0,0,0,16,0V120a16,16,0,0,1,32,0v40a8,8,0,0,0,16,0Z"/></svg>
+      </button>
+      <button id="github-toggle" type="button" data-state="out" title="GitHub">
+        <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></svg>
       </button>
         <button id="theme-toggle" type="button" title="Appearance"></button>
       </span>
@@ -2049,6 +2320,19 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <input type="checkbox" id="use-ranke" />
               <span class="track" aria-hidden="true"></span>
             </label>
+            <!-- Per QUESTION, like the two switches beside it, and for the
+                 same reason: whether this one is answered knowing what the
+                 workspace's other conversations found is decided where the
+                 question is asked, never in a sheet somewhere. It appears
+                 only once there IS another conversation to reach — a lever
+                 over an empty set is furniture, the attachments switch's own
+                 rule. Workspaces themselves never see each other; that is
+                 what a workspace is, not something to switch. -->
+            <label class="switch" id="workspace-switch" hidden title="Whether this question may reach what was said in the workspace's other conversations. Off answers it from this chat alone — nothing is deleted, and the next question can have it back.">
+              <span class="switch-label">workspace</span>
+              <input type="checkbox" id="use-workspace" checked />
+              <span class="track" aria-hidden="true"></span>
+            </label>
             <button type="submit" class="primary" id="send" disabled>Send</button>
           </div>
         </form>
@@ -2067,7 +2351,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <button role="tab" data-pane="explore" aria-selected="true" title="The reading — the source in focus, and everything read from it">Reading</button>
           <button role="tab" data-pane="builds" aria-selected="false">Folds</button>
           <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
-          <button role="tab" data-pane="github" aria-selected="false" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
+          <!-- Everything this instrument is actually connected to, probed
+               rather than assumed — the routes discipline (P118) given a
+               surface instead of a status chip and a /routes printout. -->
+          <button role="tab" data-pane="resources" aria-selected="false" title="What this instrument is connected to right now — mouths, servers, the room, the web, accounts — each probed, never assumed">Resources</button>
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
         </nav>
         <div class="scroll">
@@ -2103,6 +2390,19 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                 <iframe id="editor-preview" sandbox="allow-scripts" hidden title="preview"></iframe>
                 <pre id="editor-console" class="run-console" hidden></pre>
               </div>
+          </div>
+
+          <!-- The resources pane. Every row is a PROBE's answer, so a row
+               that says "not reachable" means this page asked and got
+               nothing — never that it decided not to look. A row nothing was
+               asked about says so in those words rather than reading as off. -->
+          <div class="pane" id="pane-resources">
+            <div class="log-bar">
+              <input id="res-filter" spellcheck="false" placeholder="filter — name, model, machine, state…" />
+              <button type="button" id="res-refresh">re-probe</button>
+            </div>
+            <div class="res-tiles" id="res-tiles"></div>
+            <div id="res-body"></div>
           </div>
 
           <div class="pane" id="pane-log">
@@ -2393,7 +2693,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <div class="sheet-head">
         <div>
           <h3 id="matrix-login-title">Sign in to a homeserver</h3>
-          <p class="sub" id="matrix-login-sub">Any Matrix homeserver you trust — your own, a friend's, a public one. The page names none.</p>
+          <p class="sub" id="matrix-login-sub">New to Matrix? Make a free account at matrix.org and use it here. Any other homeserver works too — your own, a friend's, your work's.</p>
         </div>
         <button type="button" class="sheet-close" id="matrix-login-x" title="close" aria-label="close">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
@@ -2401,15 +2701,121 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       </div>
       <form method="dialog" id="matrix-login-form">
         <div class="sheet-body">
-          <label class="field">homeserver<input id="mx-hs" type="text" autocomplete="url" spellcheck="false" placeholder="the homeserver's address" required /></label>
+          <p class="room-signup" id="mx-signup">No account yet? <a href="https://matrix.org/try-matrix/" target="_blank" rel="noopener noreferrer">Make a free one at matrix.org ↗</a>, then come back and sign in with it.</p>
+          <label class="field">homeserver<input id="mx-hs" type="text" autocomplete="url" spellcheck="false" placeholder="matrix.org" required /></label>
           <label class="field">user name<input id="mx-user" type="text" autocomplete="username" spellcheck="false" placeholder="the name, without the @ and the server" required /></label>
           <label class="field">password<input id="mx-pass" type="password" autocomplete="current-password" required /></label>
-          <p class="pool-note" id="matrix-login-note">What that server will hold of your chats: who is in a room, the size and time of each sealed block, public keys. Never a turn.</p>
+          <p class="pool-note" id="matrix-login-note">That server holds sealed blocks and who is in the room. Never a turn, a prompt or an answer — the key that opens a seal never reaches it.</p>
         </div>
         <div class="sheet-foot">
           <button type="button" id="matrix-login-cancel">Cancel</button>
           <button value="login" class="primary" id="matrix-login-submit">Sign in</button>
         </div>
+      </form>
+    </dialog>
+
+    <!-- The workspace: what is inside it, who can read it, and the one switch
+         that cuts this chat off from the rest of it. The permission block is
+         not a settings panel — there is nothing to grade here, because a room
+         is a room of equals (P119) — so it states the two facts there are and
+         hands the acts to the room's own sheet rather than growing a second
+         set of doors that would drift from it. -->
+    <dialog id="workspace">
+      <div class="sheet-head">
+        <div>
+          <h3>Workspace</h3>
+          <p class="sub">the material, the folds, the conversations and the room on this page all belong to one of these</p>
+        </div>
+        <button type="button" class="sheet-close" id="workspace-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body flush">
+        <div class="ws-block">
+          <label class="field">name<input id="ws-name" type="text" spellcheck="false" autocomplete="off" maxlength="60" /></label>
+          <p class="sub" id="ws-holds"></p>
+        </div>
+        <div class="ws-block">
+          <h4>who has access</h4>
+          <p id="ws-access"></p>
+          <p class="sub" id="ws-access-detail"></p>
+          <!-- The one act this block offers, and it hands off rather than
+               duplicating: inviting lives in the room's sheet, which is where
+               signing in and the link's own warning live too. -->
+        </div>
+        <div id="ws-people"></div>
+        <div class="ws-block" id="ws-invite-block">
+          <div class="room-share">
+            <label class="field">invite by Matrix address<input id="ws-who" type="text" spellcheck="false" autocomplete="off" placeholder="@sam:matrix.org" /></label>
+            <button type="button" id="ws-invite" class="primary" disabled>Invite</button>
+          </div>
+          <p class="sub" id="ws-invite-note"></p>
+        </div>
+        <div class="ws-block">
+          <p class="sub" id="ws-reach"></p>
+        </div>
+        <ul class="ws-list" id="ws-list"></ul>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Close</button>
+        <span class="spacer"></span>
+        <button type="button" id="ws-new">New workspace</button>
+      </form>
+    </dialog>
+
+    <!-- The room, as a surface (P177). Every door here already existed and
+         was typed: /matrix, /preserve, /share, /join, /serve, /pool. The
+         sheet does not re-implement any of them — each row SENDS the door it
+         names, so the act and its answer land on the transcript exactly as
+         they do when typed, and nothing this sheet does is invisible to the
+         record. The status block is read off foldMatrix.status(); the line
+         about what the homeserver can see is matrix.js's own SERVER_SEES,
+         not a paraphrase of it. -->
+    <dialog id="room">
+      <div class="sheet-head">
+        <div>
+          <h3>The room</h3>
+          <p class="sub" id="room-sub">keep this chat, and share it with people — sealed, so the server holds ciphertext and pointers</p>
+        </div>
+        <button type="button" class="sheet-close" id="room-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body flush">
+        <!-- Inviting is why most people open this sheet, so it is the first
+             thing in it and it is written as steps rather than as a field.
+             Sharing names a person by DEFAULT (P120): the link carries no key
+             at all and works only for that one account, once. The open link —
+             the magic key — stays a row further down with its own warning,
+             because a link anyone can use should never be the easy one. -->
+        <div class="room-invite" id="room-invite">
+          <h4>Invite someone</h4>
+          <p class="room-steps" id="room-steps"></p>
+          <!-- The one outbound link in this page, and it is a link the person
+               FOLLOWS, never a request this page makes: matrix.org's own
+               get-started page, which is where an account comes from and
+               which says in its own words that an account can live on any
+               provider. Named by user direction (2026-09-08); II.13 carries
+               a typed allowance for it whose reason — this is an href, in a
+               new tab, and nothing here fetches it — is checked, not waived. -->
+          <p class="room-signup" id="room-signup" hidden>No Matrix account yet? <a href="https://matrix.org/try-matrix/" target="_blank" rel="noopener noreferrer">Make a free one at matrix.org ↗</a></p>
+          <div class="room-share" id="room-share">
+            <label class="field">their Matrix address<input id="room-who" type="text" spellcheck="false" autocomplete="off" placeholder="@sam:matrix.org" /></label>
+            <button type="button" id="room-share-go" class="primary" disabled>Invite</button>
+          </div>
+          <!-- Before there is an account there is nothing to type here, so
+               the field is not shown: the block is one sentence and one
+               button until signing in makes the rest of it mean something. -->
+          <button type="button" id="room-start" class="primary">Sign in</button>
+          <p class="pool-note" id="room-invite-note"></p>
+        </div>
+        <ul class="room-status" id="room-status"></ul>
+        <div id="room-doors"></div>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Close</button>
+        <span class="spacer"></span>
+        <button type="button" id="room-more" title="Prints the full state — every room this browser holds a key for, the traffic sent, and what the homeserver can see — into the conversation, where it stays on the record.">Full status</button>
       </form>
     </dialog>
 

@@ -7689,3 +7689,40 @@ Bateson, event sourcing, RAG / GraphRAG), the path on the record (P159,
 P45, the 08-18 address decision, P170, the three resolutions), and the
 walls that stay. Its numbers — the compression ladder and the
 holograph-reading test — are pending and named there as pending.
+
+## Workspaces, the room as a button, resources (2026-09-08) — pointer
+
+POLICIES.md **P177** is the law; this is the map. `PER_WORKSPACE` (app.js) is
+the container `state.sources`' own comment had implied for months and never
+named — material is not per conversation, and this is what it IS per: the
+conversations, the material, the folds and the room, swapped on a switch
+exactly as `PER_CONVO` already was. The reading ledgers deliberately do NOT
+move with it (one instrument's reading, one record, P98), and `buildsKey()`
+keys the fold store per workspace so a switch cannot silently overwrite the
+other one's folds.
+
+`transcriptNow()` spans the workspace's conversations, and **`transcript.js`'s
+`turnRef` is the one place a prior turn's address is built** — `turn:12` here,
+`turn:3.12` for another conversation — because a bare turn number stopped
+being unique the moment more than one conversation could be recalled from
+(P137). `answerable.js` imports it rather than rebuilding the string. Recall
+is unchanged otherwise: same cap, same relevance floor, nothing handed over
+when nothing is in common. **A workspace makes more turns reachable; it never
+makes a prompt bigger.**
+
+Whether ONE question may reach the others is a composer switch beside
+attachments and web — per question, in sight while it is typed, and only
+present once there is a second conversation to govern. Between workspaces
+there is no switch: that isolation is the definition.
+
+The room (P119/P120) is a header button beside the theme toggle, and its
+sheet leads with inviting. No door in it is re-implemented — each row SENDS
+the door it names, so the act lands on the transcript exactly as a typed one
+does. **matrix.org is named and linked, reversing P119's own no-homeserver
+rule on the same giver's later direction**; `constitution.test.mjs` carries a
+typed II.13 allowance whose reason is checked (it must sit in an `href`).
+
+The Resources pane reports probes in THREE states — reachable, not reachable,
+and not asked — so `probeRoutes` now keeps the probe answers themselves
+(`state.routeProbes`) beside `describeRoutes`' phrasing. An unmeasured machine
+sorts LAST on speed, never as if it were instant.

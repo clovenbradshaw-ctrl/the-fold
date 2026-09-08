@@ -421,7 +421,14 @@ const yieldMacrotask = (() => {
 })();
 let readQueue = Promise.resolve();
 function unreadNow() {
-  return [...READING.entries()].filter(([, r]) => !r.skipped).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+  // A source's own reading state may only speak for a source still on the
+  // record — `state.sources[name]` is the one fact that decides that, the
+  // same guard `readSourceOnArrival`'s own loop already reads before every
+  // yield. `removeSource` clears READING directly on removal; this is the
+  // second, independent check at the one place every "still reading" line
+  // is actually built, so a future path that removes a source without
+  // going through `removeSource` cannot leak its stale progress either.
+  return [...READING.entries()].filter(([name, r]) => !r.skipped && state.sources[name]).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
 }
 function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
   // Computed once, synchronously — state.chunks already carries this
@@ -10966,6 +10973,19 @@ function removeSource(name) {
   delete state.provenance[name];
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
+  // THE READING STATE GOES TOO — measured live, 2026-09-08: a source
+  // removed mid-read left its own entry in READING/READING_CONSTITUTIONAL
+  // (module-level maps `readSourceOnArrival` writes to), and the very next
+  // turn's prompt disclosed "Still reading: war-and-peace.txt — 196 of
+  // 1051 passages" for a source that was no longer attached to anything —
+  // a fact about a PAST source leaking into an unrelated turn about a
+  // completely different one. `readSourceOnArrival`'s own read loop checks
+  // `state.sources[name]` before every yield and stops reading once it is
+  // gone (see its own `if (!passages.length || !state.sources[name]) return`
+  // guard), so no further work happens on a removed source — but nothing
+  // had ever cleared what the loop had ALREADY written before this ran.
+  READING.delete(name);
+  READING_CONSTITUTIONAL.delete(name);
   renderSources();
   // Remove from OPFS.
   unpersistSource(name);

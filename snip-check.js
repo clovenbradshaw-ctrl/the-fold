@@ -25,9 +25,32 @@ import { namesIn } from "./ground-ladder.js";
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const contentWords = (t) => [...wordSet(fold(t))].filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w));
 const YEAR_RE = /\b(1[5-9]\d\d|20\d\d)\b/g;
+/**
+ * A STATED ABSENCE, as one shape — "doesn't say", "does not mention", "no
+ * X", "nothing about Y" — moved here from correction.js's own private
+ * `KEEPS_RE` (2026-08-25, "a stated absence is a finding") and now the ONE
+ * copy both modules read, exported rather than duplicated: correction.js
+ * already imports FROM this file, so this is the acyclic direction.
+ *
+ * WHY IT MATTERS HERE TOO, caught live (2026-09-08): asked whether Prince
+ * Andrew's wound was fatal, gemma2:2b answered honestly — "The passage
+ * doesn't say whether or not Prince Andrew's wound was fatal" — and
+ * `checkSentence` flagged the name "Prince Andrew" in it for having no
+ * company, because the sentence's OTHER words (wound, fatal) never sit
+ * beside the name in any snip. That is true and beside the point: a
+ * sentence of THIS shape is not claiming anything ABOUT Prince Andrew that
+ * needs a snip's company — it is reporting the material's own silence, and
+ * the name is the SUBJECT of that silence, not an assertion resting on it.
+ * The same distinction `cutProcessTalk` already draws for a whole sentence
+ * (kept, never cut, because reporting an absence is a finding) belongs here
+ * too, one level down: an atom inside an absence-shaped sentence is exempt
+ * from the company check that exists to catch a POSITIVE claim standing on
+ * a name with nothing else behind it.
+ */
+export const ABSENCE_RE = /\b(?:do(?:es)?n['’]t|do(?:es)? not|cannot|can['’]t|no|none|nothing|not)\b[^.]{0,60}\b(?:contain|mention|say|state|include|provide|appear|find|specify|indicate|give|exist)/i;
 /** This module's own vocabulary, and the asks built from it. A candidate
  * carrying any of it is describing the checking rather than the material. */
-const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
+const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|never together with what this says about it|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
 export const SNIP_MAX = 40;         // snips a section is handed (P9: declared)
 export const SNIP_WINDOW = 320;     // chars of a passage around a hit, when the passage has no sentence boundary near it
 
@@ -82,12 +105,17 @@ export function atomsOf(sentence) {
  * checkSentence(sentence, snips) → { atoms, flags, contradiction, supported }
  * An atom is SUPPORTED when a snip contains it beside a content word of the
  * sentence (P31's company rule); otherwise it is a flag naming what was
- * looked for and where. A contradiction: a snip that shares ≥ 2 content
- * words with the sentence and carries a year the sentence does not, while
- * the sentence carries a year the snip does not.
+ * looked for and where — UNLESS the sentence itself is a STATED ABSENCE
+ * (`ABSENCE_RE`, above), in which case the company check does not apply at
+ * all: the sentence is reporting silence, not resting a claim on the atom,
+ * and asking it to prove company is a category error, not a check. A
+ * contradiction: a snip that shares ≥ 2 content words with the sentence and
+ * carries a year the sentence does not, while the sentence carries a year
+ * the snip does not.
  */
 export function checkSentence(sentence, snips = []) {
   const atoms = atomsOf(sentence);
+  if (ABSENCE_RE.test(sentence)) return { atoms, flags: [], supported: [], contradiction: null };
   const cw = contentWords(sentence);
   const flags = [];
   const supported = [];
@@ -133,8 +161,25 @@ export function reviseAsk(flagged, snips, { words = null } = {}) {
     // landed. What the model needs is the FACT: which value the sources do not
     // carry, and what they say instead. "Snip" is this instrument's word for
     // its own working, never a fact about the world.
+    // TWO REASONS, TWO DIFFERENT TRUE FACTS — a real bug, caught live
+    // (2026-09-08): asked whether Prince Andrew's wound was fatal, gemma2:2b
+    // answered honestly, "The passage doesn't say whether or not Prince
+    // Andrew's wound was fatal" — and this line told it "the sources do not
+    // use the name 'Prince Andrew' here", which is FALSE: the one snip
+    // handed to the model in the very same message reads "...approached
+    // Prince Andrew." `checkSentence` already tells `absent` (the name is in
+    // no snip at all) apart from `no_company` (the name IS in a snip, just
+    // never beside this sentence's OWN other words — P31's company rule) —
+    // the bug was here, collapsing both into the "do not use" phrasing that
+    // is only ever true of the first. A correction message that asserts
+    // something the snip block sent alongside it contradicts is not a
+    // correction a model can act on sanely; it complied anyway, by echoing
+    // the one sentence it had been shown, which answered nothing.
+    const article = (f) => (f.kind === "name" ? "the name" : f.kind === "year" ? "the year" : "the number");
     const why = [
-      ...r.flags.map((f) => `the sources do not use ${f.kind === "name" ? "the name" : f.kind === "year" ? "the year" : "the number"} "${f.value}" here`),
+      ...r.flags.map((f) => f.reason === "no_company"
+        ? `the sources do use ${article(f)} "${f.value}", but never together with what this says about it`
+        : `the sources do not use ${article(f)} "${f.value}" here`),
       ...(r.contradiction ? [`they say ${r.contradiction.snipYears.join(" and ")} where this says ${r.contradiction.sentenceYears.join(" and ")}: "${r.contradiction.text.replace(/\s+/g, " ").slice(0, 160)}"`] : []),
     ];
     return `- "${r.sentence}" — ${why.join("; ")}`;

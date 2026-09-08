@@ -209,7 +209,7 @@ const REFUSAL_RE = new RegExp([
   String.raw`\b(?:unable to|fails? to|falls? short of)\s+\w+`,
 ].join("|"), "i");
 const SCAFFOLD_RE = /^\s*(?:[*#>\-]|\d+\.)|\*\*|^#{1,6}\s|^\s*$|^[A-Z][a-z]+:\s*$/;
-const APPARATUS_RE = /\b(?:the material confirms exactly|these sentences say things the sources|what the sources say, verbatim|already found to be wrong|about what the question takes|rewrite only those sentences|reply with the rewritten|established here already|this section should say something about|write about \d+ words)\b/i;
+const APPARATUS_RE = /\b(?:the material confirms exactly|these sentences say things the sources|never together with what this says about it|what the sources say, verbatim|already found to be wrong|about what the question takes|rewrite only those sentences|reply with the rewritten|established here already|this section should say something about|write about \d+ words)\b/i;
 
 /** A correction whose replacement is about something else teaches a non
  * sequitur. Compared on FRAMES — the sentences with their atoms and function

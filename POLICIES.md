@@ -767,6 +767,8 @@ extended over term.js and the workers.
 
 ## P19 — A figure is a placement against a nothing, or it is refused
 
+*(Two entries in this ledger are numbered P19 — this is the measuring-door entry on statistical placement; see also "P19 — Priors are gated by a ledger," further below, on live_priors gating. Flagged here rather than renumbered: renumbering risks silently breaking a call site or doc that already cites "P19" meaning one or the other. Added 2026-09-08, pending a full cross-reference sweep.)*
+
 The instrument could draw a file's own rows (P12's tables and charts) and
 could not say whether anything in them was more than the file's own
 arithmetic. So that question got answered elsewhere, by hand, every time
@@ -864,6 +866,8 @@ this door can produce carries a detail a reader can act on.
 ---
 
 ## P19 — Priors are gated by a ledger, and their papers ride every crossing
+
+*(A second, unrelated entry above is also numbered P19 — the measuring-door entry on statistical placement. This one is live_priors gating. Flagged 2026-09-08, not renumbered — see that entry's own note.)*
 
 live_priors — the curated corpus one directory up (2,000+ documents in
 numbered genre folders, each carrying its publisher's own frontmatter) — is
@@ -2991,6 +2995,8 @@ cases, one folded into an existing test, one standalone, plus the
 pre-existing count).
 
 ## P35 — A chorus of nine is a label, not nine agent calls
+
+*(Note 2026-09-08 — "nine" here names System 2's own nine-cell verification grid, not `~/.claude/skills/chorus-lint`'s persona roster, which is a different, eleven-persona thing (its `chorus full` form) that happens to share the word "chorus." The two are easy to conflate when read out of context; they are unrelated mechanisms.)*
 
 **The question, from the user, connecting two existing mechanisms:**
 whether System 2's checking should be "a chorus of 9" — CHORUS-LOG.md's
@@ -11059,7 +11065,9 @@ non-contest cases, unanimous-but-not-conceded, and the leak assay repeated
 at the wire (witnesses, spans and `standingOf` byte-identical across a
 landed contest). 1019/1020 native + conformance, zero regressions.
 
-## P92 — Resolve the move to its cube cell and read the registry BEFORE writing an organ (2026-09-04)
+## P92 — Resolve the move to its cube cell and read the registry BEFORE writing an organ
+
+*(Amended 2026-09-08 — the registry has grown since this entry was written: `organs/capacities.js` now exports 33 typed entries, not 29. The rule below is unchanged; only the count moved.)* (2026-09-04)
 
 **Generality:** not-applicable. This entry is a procedural house rule
 about how an organ is written, not a measured finding about a specimen;
@@ -11450,6 +11458,8 @@ only count change, the same 11 pre-existing failures both times).
 
 ## P115 — Twenty-five "frontier" tasks, claimed or witnessed by organs this instrument already had: a task is an organ's or a witness's, never the mouth's alone (2026-09-05)
 
+*(A second, unrelated entry further below is also numbered P115 — "The ground ladder," about `ground-ladder.js`. This one is Frontier-25 / the launch pass; `native/READING-SPEC.md` S76 and `frontier-25.test.js` cite this one by number. Flagged 2026-09-08, not renumbered — many call sites cite "P115" without saying which.)*
+
 **Generality:** universal for the rule (a task the instrument takes on is either CLAIMED by an organ that computes, reads, or declares its answer with no model, or WITNESSED by an organ whose verdict can fail — a control the reference passes and the wrong answer fails — before any mouth's draft is shipped); specimen-scoped for the twenty-five tasks and the two mouths measured.
 
 **The ask, and the redirect that shaped it.** Twenty-five tasks "you allegedly need a frontier model for" — coding, math, data, reading, creative writing — tested and built into the-fold and eoreader7, on the latest merged main. The first cut wrote five new modules; the user's redirect the same session ("we've done a lot of work already on these capacities so it shouldn't be net new") was right, and the inventory that followed found every capacity already standing: the recorded `/api/run` (P16) and the skill runner's vm sandbox with its admission check (P10) for code; `arithmetic.js` for a number computed never generated; `shape.js`'s form-before-content for constrained writing; the product assay's reader, derivation and contest for questions over material; P105's void for a question the material never answers; the measuring door (P19) for media. The five modules were deleted. What shipped is three organs EXTENDED in place, one perceiver family CROSSED under parity, and one eval that names, per task, the organ that answers it.
@@ -11466,6 +11476,8 @@ only count change, the same 11 pre-existing failures both times).
 **Rules worth keeping.** A task the instrument answers is an organ's before it is a mouth's; a witness that has not been shown to fail is not a witness; a wrong expectation in a fixture is found by the organ, not papered over (the tone's silence starts at frame 40, 2.0 s — the door read it, the fixture said 41).
 
 ## P116 — The in-tab rung is a roster of three, chosen for what their publishers disclose about the training data, mirrored same-origin so a website can serve them; the launch pass: the relay is gone, nothing leaves on page load, a throwing door frees the composer, a slash no door claims is refused, the Explore page boots on every checkout, and the phone layout is a first-class view (2026-09-05)
+
+*(A second, unrelated entry further below is also numbered P116 — "The piece revises itself," about `piece-revise.js`. This one is the in-tab WebLLM rung / launch pass. Flagged 2026-09-08, not renumbered.)*
 
 **Generality:** universal for the rules (a model offered in the page is named with its publisher, licence and what is disclosed about its training data; every byte the page loads is same-origin on localhost and on the site that serves it; a page load reaches no host but its own origin and, when Ollama is present, localhost:11434; a thrown door is a typed line, never a dead composer; a slash the dispatch does not claim is a typed refusal, never a model prompt; every control is reachable by touch at 44px and no affordance is hover-only); specimen-scoped for the three models and the browser presets they were measured in.
 
@@ -11490,6 +11502,8 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 **The phone layout.** Measured at 375×812 and 768×1024. The narrow layout already made the chat one tab among the panels; what was missing was reach: targets under 36px, 15px inputs (an iOS field under 16px zooms the page on focus), a composer bar whose one-row rule squeezed the model's name to nothing, sheets that overran the viewport, a hover-only reveal on the sources' actions, and on the Explore page a 270px rail beside a 105px stage. The phone blocks (`index.html`, `explore/explore.css`, each kept LAST in its sheet so it wins the cascade — the first cut lost to the base rules above it) set 44–48px targets, 16px inputs, a two-row composer bar with the model named, bottom sheets capped at 88dvh that scroll inside themselves, the safe-area inset on the bottom tab bar, the rail as a drawer above the stage, and `hover: none` fallbacks. Behaviour unchanged.
 
 ## P117 — Public gateways as the fall-through when a direct fetch is refused: which ones are open, and what each forwards about the person, are learned off the record, never asserted; the maintainer's proxy stays out of the loop (2026-09-05)
+
+*(A second, unrelated entry further below is also numbered P117 — "A program in the cube's own dependency order," about `code-piece.js`. This one is public gateways / the web fall-through. Flagged 2026-09-08, not renumbered.)*
 
 **Generality:** universal for the rules (a direct fetch refused by its address — a 401/403/407/429/451/503, a bot-challenge shell, a 200 whose readable face is empty, a timeout or reset — may be retried through a public gateway only when the web toggle is on; every try lands on the record with its status and timing; the order gateways are tried in is folded off those lines; the page says which route a page came by and what that gateway saw; a gateway's forwarding of the person's address is measured through an echo, never assumed; no route passes the maintainer); specimen-scoped for the six gateways and the day they were measured.
 
@@ -11553,6 +11567,8 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 
 ## P115 — The ground ladder: every sentence placed on the cube's highest rung, unconsciously, and the model cited by name at the bottom (2026-09-05)
 
+*(A second, unrelated entry above is also numbered P115 — the Frontier-25 entry. This one is "The ground ladder"; `ground-ladder.js`'s own header cites this one. Flagged 2026-09-08, not renumbered.)*
+
 **Generality:** universal for the rules (a sentence's ground is the highest rung of a ladder of terrains that placed it — bound at CON·Figure, witnessed at EVA·Figure, on the record at SYN·Figure, derived at SYN·Pattern, contested at CON·Figure·CONTESTED, its names established at SIG·Ground — and at the bottom the model by name, since a sentence nothing read places is the mouth's own testimony and a witness is cited by its name (P39); a rung that never reached the sentence is said so — a witness not asked is not a refusal; the reader sees plain words and addresses, never a cell; the canon stays backstage). User direction, verbatim: "it's not well cited the essay, make it better, and if the model is saying it itself, cite the model name" and "have it fully leverage the cube unconsciously". Counts from run 6 go in the amendment.
 
 **Files.** `ground-ladder.js` (`groundOf`, `groundLine`, `namesIn`, `TIERS`, `CELL_OF`) + `ground-ladder.test.mjs`; `app.js` (`state.lastGround` — the turn's claims, passages, ledger notes, derived facts, disputes, referent index and model, kept for the ladder; one `◎` ground chip per sentence with its tier, addresses and the model's name); `holon.js` (`PIECE_WITNESS_ASKS = 24` — a piece's section is long and its citations are the deliverable, so the witness is asked about every open sentence up to a declared budget); `index.html` (the chip, quiet, hidden with the marks).
@@ -11561,6 +11577,8 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 
 ## P117 — A program in the cube's own dependency order: the instrument writes the skeleton, the model writes only bodies, the run witnesses every step (2026-09-05)
 
+*(A second, unrelated entry above is also numbered P117 — the public-gateways entry. This one is the program-building entry; `code-piece.js`'s own header cites this one. Flagged 2026-09-08, not renumbered.)*
+
 **Generality:** universal for the rules (the spec's clauses in their own order are the dependency order; the names are read off the clauses — SIG; the skeleton with a pipeline main is born as a build with no model — INS, CON, SYN; the model sees one function region at a time and writes only that function — SEG, the snip; the run after every landing is the witness and prints each step's value so the next snip is told what `previous` IS — EVA; a run naming a failing function is asked once for that function, a run naming an undefined name gets a stub in dependency order and that stub is filled next, a name the traceback itself corrects is renamed at its call sites with no model, an undefined name an imported module carries is qualified after the sandbox is asked which module — REC, mechanical first; a step that returned nothing when a next step consumes it is told so once — DEF, by witness; the model's share of the final code is measured off the code). User direction: "leverage snipping and using the dependency order reasoning of the cube to create as little code manually with the model."
 
 **Live, gemma2:2b, the dice program, four runs in one hour, each finding the next wall.** Run 1: the model's `prints_histogram` called a helper it never defined — the instrument caught it, the fix ask did not. Run 2: the model called `randint` bare and misspelled its own function; the instrument stubbed both as helpers (wrong for the first). Run 3: with the traceback's own did-you-mean rename and the sandbox's module probe, no helpers, no refusals — and every run read "failed" because the per-step witness was on stderr, which the sandbox reads as failure. Run 4: **3 functions, 0 refused, 0 fixes, final run clean; the model wrote 845 of 1,334 chars (63%), the instrument the rest**; the witness showed `counts_face` returned None (it printed instead of returning), which the contract check now catches.
@@ -11568,6 +11586,8 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 **Files.** `code-piece.js` (`namesFor`, `skeletonFor`, `snipFor`, `spliceFunction`, `stepWitnesses`, `stubMissing`, `didYouMean`, `renameCalls`, `qualifyCalls`, `moduleProbe`, `importedModules`, `failingFunction`, `modelRegions`, `modelShare`) + `code-piece.test.mjs` (5); `app.js` (`codePieceTurn` on the organ, `runBuildOnce`, the repair ladder). Residue: the shipped program carries its own `[step …]` witness lines on stdout; the model's bodies are a 2B model's — the pipeline runs, the dice are not always dice.
 
 ## P116 — The piece revises itself: re-cite when a sentence's ground rises, rewrite once when later reading denies it, land only what grounds (2026-09-05)
+
+*(A second, unrelated entry above is also numbered P116 — the in-tab rung / launch pass entry. This one is "The piece revises itself"; `piece-revise.js`'s own header cites this one. Flagged 2026-09-08, not renumbered.)*
 
 **Generality:** universal for the rules (once every section is written, edited and checked, each sentence is read again against the whole piece's material and record; a sentence whose ground rose is re-cited with its address and no model; a sentence a later reading denies — contested on the record — is rewritten once, the mouth handed the later finding as a fact with its address, and the candidate lands only if the ladder places it at a grounded rung, otherwise the original stays wearing its contested mark; asks and rounds are declared, `REVISION_ASKS = 12`, `REVISION_ROUNDS = 2`; every accepted and refused revision is an act on the result and the record). User direction: "make sure that it is all done. recursively that it is able to revise what it writes based on new discoveries from what it's writing but always grounded."
 

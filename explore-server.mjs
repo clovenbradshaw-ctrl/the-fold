@@ -81,6 +81,16 @@ import {
   decodeContentsGet,
   buildContentsWriteBody,
   decodeContentsWrite,
+  GITHUB_API,
+  repoUrl,
+  decodeRepoInfo,
+  refUrl,
+  decodeRef,
+  createRefUrl,
+  buildCreateRefBody,
+  pullsUrl,
+  buildCreatePullBody,
+  decodeCreatePull,
 } from "./github.js";
 import { skillDigest } from "./skills.js";
 // the wheel organ's pure half (P21, amending P18) — the transitive
@@ -2363,6 +2373,45 @@ function mergeRelatingLedger(left, nominations) {
       return send(res, 200, { cleared: victims.length, files: removed.size, bytes, remaining: kept.length });
     }
 
+    // ---- the gh CLI as a credential source. The GitHub App this organ was
+    // built on declares no permissions and is installed nowhere (measured
+    // 2026-09-08), so its token reads public repos and refuses every write —
+    // and asking a person to mint and paste a PAT is exactly the manual
+    // filling-in this pane is trying to stop doing. If `gh` is already logged
+    // in on this machine, that login is a credential the user has ALREADY
+    // established, with scopes they already chose, and this server can use it
+    // directly.
+    //
+    // Three properties make this narrower than it sounds, and they are the
+    // reason it is allowed to exist: the argv is FIXED (no request data ever
+    // reaches the command line — nothing here is interpolated), the token is
+    // never sent to the browser or written to the record (only `login` is),
+    // and the whole thing is reachable only from a loopback-bound server the
+    // user is already running. A request opts in explicitly with
+    // `useGhCli: true`; nothing silently upgrades a request's authority.
+    const ghRun = (args) =>
+      new Promise((resolve) => {
+        let out = "";
+        try {
+          const child = spawn("gh", args, { stdio: ["ignore", "pipe", "ignore"] });
+          child.stdout.on("data", (d) => { out += d; });
+          child.on("error", () => resolve(null));
+          child.on("close", (code) => resolve(code === 0 ? out.trim() : null));
+        } catch {
+          resolve(null);
+        }
+      });
+    const ghCliToken = () => ghRun(["auth", "token"]);
+    const ghCliLogin = async () => {
+      const raw = await ghRun(["api", "user", "--jq", ".login"]);
+      return raw || null;
+    };
+    /** The credential a GitHub request runs under: an explicitly-opted-in gh
+     * CLI login, or the token the caller supplied. Returns null when neither
+     * is available, so a handler can say so rather than calling GitHub
+     * unauthenticated and reporting a confusing 401. */
+    const credentialFor = async (body) => (body?.useGhCli ? await ghCliToken() : body?.token || null);
+
     // ---- the GitHub organ. Device flow from this server straight to
     // github.com (its endpoints have no CORS headers, so a browser cannot
     // call them; a node process on the user's own machine can — no relay,
@@ -2413,7 +2462,8 @@ function mergeRelatingLedger(left, nominations) {
     // the body, never the query string.
     if (req.method === "POST" && p === "/api/github/contents/read") {
       const body = await readJsonBody(req);
-      const { owner, repo, token } = body;
+      const { owner, repo } = body;
+      const token = await credentialFor(body);
       const contentsPath = body.path ?? "";
       if (!owner || !repo || !token) return send(res, 400, { error: "owner, repo, and token are required" });
       try {
@@ -2440,7 +2490,8 @@ function mergeRelatingLedger(left, nominations) {
     // MAX_CONFLICT_RETRIES) stays a client-side loop, not a server-side guess.
     if (req.method === "POST" && p === "/api/github/contents/write") {
       const body = await readJsonBody(req);
-      const { owner, repo, token, content } = body;
+      const { owner, repo, content } = body;
+      const token = await credentialFor(body);
       const contentsPath = body.path;
       if (!owner || !repo || !token || !contentsPath || content == null) {
         return send(res, 400, { error: "owner, repo, path, token, and content are required" });
@@ -2449,7 +2500,13 @@ function mergeRelatingLedger(left, nominations) {
         const r = await fetch(contentsUrl({ owner, repo, path: contentsPath }), {
           method: "PUT",
           headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
-          body: JSON.stringify(buildContentsWriteBody({ content, sha: body.sha, message: body.message })),
+          // `branch` is load-bearing, not optional decoration: without it the
+          // Contents API commits to the repo's DEFAULT branch, which is the
+          // one thing the PR flow exists to prevent. Measured 2026-09-08 —
+          // the pure builder grew this field while this call site did not,
+          // and a test push landed straight on main while the PR it was meant
+          // for failed with "no commits between main and <branch>".
+          body: JSON.stringify(buildContentsWriteBody({ content, sha: body.sha, message: body.message, branch: body.branch })),
         });
         if (r.status === 409) {
           record("github-write", { owner, repo, path: contentsPath, conflict: true });
@@ -2464,6 +2521,269 @@ function mergeRelatingLedger(left, nominations) {
         const decoded = decodeContentsWrite(data);
         record("github-write", { owner, repo, path: contentsPath, ok: true });
         return send(res, 200, { ok: true, sha: decoded.sha });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // ---- the PR flow. A push never lands on a branch directly (user
+    // direction 2026-09-08): the pane creates a branch, writes onto it, and
+    // opens a pull request, so every write is something a person reviews and
+    // merges on GitHub's own page. Each crossing is its own route, mirroring
+    // the contents/read + contents/write split rather than one opaque
+    // do-everything call — a failure names which step failed.
+
+    // ---- sharing. Two people seeing each other's folds is GitHub's own
+    // collaborator model, not a new mechanism this app has to invent: an
+    // invitation the other person accepts, after which their credential
+    // lists the repo like any other and every read path here already works
+    // against it. Read-only ("pull") by default — sharing what you have
+    // read is not the same act as letting someone write it.
+    if (req.method === "POST" && p === "/api/github/share") {
+      const body = await readJsonBody(req);
+      const token = await credentialFor(body);
+      const { owner, repo, username } = body;
+      if (!token || !owner || !repo || !username) return send(res, 400, { error: "owner, repo, username, and a credential are required" });
+      const permission = body.permission === "push" ? "push" : "pull";
+      try {
+        const r = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/collaborators/${encodeURIComponent(username)}`, {
+          method: "PUT",
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
+          body: JSON.stringify({ permission }),
+        });
+        if (!r.ok) {
+          const detail = (await r.text().catch(() => "")).slice(0, 300);
+          record("github-share", { owner, repo, username, ok: false, status: r.status });
+          return send(res, 200, { ok: false, status: r.status, detail });
+        }
+        // 201 carries an invitation; 204 means they already had access.
+        const j = r.status === 204 ? null : await r.json().catch(() => null);
+        record("github-share", { owner, repo, username, ok: true, permission, invited: Boolean(j) });
+        return send(res, 200, { ok: true, invited: Boolean(j), permission, htmlUrl: j?.html_url ?? null });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // who a repo is already shared with, so the pane can show it rather than
+    // asking a person to remember.
+    if (req.method === "POST" && p === "/api/github/shared-with") {
+      const body = await readJsonBody(req);
+      const token = await credentialFor(body);
+      const { owner, repo } = body;
+      if (!token || !owner || !repo) return send(res, 400, { error: "owner, repo, and a credential are required" });
+      try {
+        const h = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" };
+        const r = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/collaborators?per_page=100`, { headers: h });
+        if (!r.ok) return send(res, 200, { ok: false, status: r.status });
+        const people = (await r.json()).map((c) => ({ login: c.login, permission: c.permissions?.push ? "write" : "read" }));
+        const inv = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/invitations?per_page=100`, { headers: h });
+        const pending = inv.ok ? (await inv.json()).map((i) => ({ login: i.invitee?.login, permission: i.permissions })) : [];
+        return send(res, 200, { ok: true, people, pending });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // create the destination when there isn't one. "Save my data to GitHub"
+    // must not turn into "first, go make a repo and come back" — if nothing
+    // suitable exists the app makes one, private by default, and says so.
+    if (req.method === "POST" && p === "/api/github/repo/create") {
+      const body = await readJsonBody(req);
+      const token = await credentialFor(body);
+      const name = String(body.name ?? "").trim();
+      if (!token || !name) return send(res, 400, { error: "token and name are required" });
+      try {
+        const r = await fetch(`${GITHUB_API}/user/repos`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
+          body: JSON.stringify({
+            name,
+            private: body.private !== false,
+            description: body.description ?? "the-fold: skills and fold history, synced from the app",
+            auto_init: true, // a repo with no commits has no branch to open a PR against
+          }),
+        });
+        if (!r.ok) return send(res, 200, { ok: false, status: r.status, detail: (await r.text().catch(() => "")).slice(0, 300) });
+        const j = await r.json();
+        record("github-repo-create", { fullName: j.full_name, private: j.private });
+        return send(res, 200, { ok: true, fullName: j.full_name, owner: j.owner?.login, name: j.name, defaultBranch: j.default_branch });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // is there a gh CLI login on this machine, and as whom? Answers WITHOUT
+    // returning the token — the pane only needs to know the door exists.
+    if (req.method === "POST" && p === "/api/github/gh-cli") {
+      const login = await ghCliLogin();
+      return send(res, 200, { available: Boolean(login), login });
+    }
+
+    // the repos this credential can actually open a PR on — so the pane can
+    // offer a list to pick from instead of asking a person to type an owner
+    // and a repo name they already chose once (user direction 2026-09-08:
+    // "way less person filling out fields"). Sorted by most recently pushed,
+    // which is nearly always the one wanted.
+    if (req.method === "POST" && p === "/api/github/repos") {
+      const body = await readJsonBody(req);
+      const token = await credentialFor(body);
+      if (!token) return send(res, 400, { error: "token is required" });
+      const h = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" };
+      const shape = (x) => ({ fullName: x.full_name, owner: x.owner?.login, name: x.name, private: Boolean(x.private), defaultBranch: x.default_branch });
+      try {
+        // A GitHub App token may only write where the app is INSTALLED, so
+        // for that kind of credential the honest list is the installation's
+        // own repositories — offering everything the person can see would
+        // offer repos every write then 403s on. A PAT has no installations
+        // (that endpoint 403s for it) and falls through to /user/repos.
+        const inst = await fetch(`${GITHUB_API}/user/installations`, { headers: h });
+        if (inst.ok) {
+          const ij = await inst.json();
+          const installations = ij.installations ?? [];
+          const repos = [];
+          for (const i of installations) {
+            const ir = await fetch(`${GITHUB_API}/user/installations/${i.id}/repositories?per_page=100`, { headers: h });
+            if (!ir.ok) continue;
+            const irj = await ir.json();
+            for (const x of irj.repositories ?? []) repos.push(shape(x));
+          }
+          return send(res, 200, { ok: true, kind: "github-app", installations: installations.length, repos });
+        }
+        const r = await fetch(`${GITHUB_API}/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member`, { headers: h });
+        if (!r.ok) return send(res, 200, { ok: false, status: r.status, detail: (await r.text().catch(() => "")).slice(0, 300) });
+        const list = await r.json();
+        const repos = (Array.isArray(list) ? list : []).filter((x) => x?.permissions?.push).map(shape);
+        return send(res, 200, { ok: true, kind: "token", repos });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // repo info: the default branch a PR will target.
+    if (req.method === "POST" && p === "/api/github/repo") {
+      const body = await readJsonBody(req);
+      const { owner, repo } = body;
+      const token = await credentialFor(body);
+      if (!owner || !repo || !token) return send(res, 400, { error: "owner, repo, and token are required" });
+      try {
+        const r = await fetch(repoUrl({ owner, repo }), {
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
+        });
+        if (!r.ok) return send(res, 200, { ok: false, status: r.status, detail: (await r.text().catch(() => "")).slice(0, 300) });
+        const decoded = decodeRepoInfo(await r.json());
+        return send(res, 200, { ok: true, ...decoded });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // a branch's head sha (404-safe, like contents/read).
+    if (req.method === "POST" && p === "/api/github/ref") {
+      const body = await readJsonBody(req);
+      const { owner, repo, branch } = body;
+      const token = await credentialFor(body);
+      if (!owner || !repo || !token || !branch) return send(res, 400, { error: "owner, repo, token, and branch are required" });
+      try {
+        const r = await fetch(refUrl({ owner, repo, branch }), {
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" },
+        });
+        if (r.status === 404) return send(res, 200, { exists: false });
+        if (!r.ok) return send(res, 200, { exists: false, status: r.status, detail: (await r.text().catch(() => "")).slice(0, 300) });
+        return send(res, 200, decodeRef(await r.json()));
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // create the PR's own branch at a named sha.
+    if (req.method === "POST" && p === "/api/github/ref/create") {
+      const body = await readJsonBody(req);
+      const { owner, repo, branch, sha } = body;
+      const token = await credentialFor(body);
+      if (!owner || !repo || !token || !branch || !sha) return send(res, 400, { error: "owner, repo, token, branch, and sha are required" });
+      try {
+        const r = await fetch(createRefUrl({ owner, repo }), {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
+          body: JSON.stringify(buildCreateRefBody({ branch, sha })),
+        });
+        if (!r.ok) {
+          const detail = (await r.text().catch(() => "")).slice(0, 300);
+          record("github-branch", { owner, repo, branch, ok: false, status: r.status });
+          return send(res, 200, { ok: false, status: r.status, detail });
+        }
+        record("github-branch", { owner, repo, branch, ok: true });
+        return send(res, 200, { ok: true, branch });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // open the pull request itself.
+    if (req.method === "POST" && p === "/api/github/pulls/create") {
+      const body = await readJsonBody(req);
+      const { owner, repo, title, head, base } = body;
+      const token = await credentialFor(body);
+      if (!owner || !repo || !token || !title || !head || !base) {
+        return send(res, 400, { error: "owner, repo, token, title, head, and base are required" });
+      }
+      try {
+        const r = await fetch(pullsUrl({ owner, repo }), {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "content-type": "application/json" },
+          body: JSON.stringify(buildCreatePullBody({ title, head, base, body: body.body })),
+        });
+        if (!r.ok) {
+          const detail = (await r.text().catch(() => "")).slice(0, 300);
+          record("github-pull", { owner, repo, head, base, ok: false, status: r.status });
+          return send(res, 200, { ok: false, status: r.status, detail });
+        }
+        const decoded = decodeCreatePull(await r.json());
+        record("github-pull", { owner, repo, head, base, ok: true, number: decoded.number });
+        return send(res, 200, { ok: true, ...decoded });
+      } catch (e) {
+        return send(res, 502, { error: e.message });
+      }
+    }
+
+    // ---- what this credential can actually DO. A 403 on a write is not
+    // self-explaining: a GitHub App token can read a public repo while being
+    // installed nowhere and declaring no permissions (measured 2026-09-08 —
+    // exactly the state that made every push fail), and a PAT can simply be
+    // scoped too narrowly. This route answers it in one call so the pane can
+    // say which of those it is instead of rendering a raw 403 body.
+    if (req.method === "POST" && p === "/api/github/capability") {
+      const body = await readJsonBody(req);
+      const { owner, repo } = body;
+      const token = await credentialFor(body);
+      if (!token) return send(res, 400, { error: "token is required" });
+      const h = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" };
+      const out = { login: null, tokenKind: "unknown", installations: null, repoPermissions: null };
+      try {
+        const u = await fetch(`${GITHUB_API}/user`, { headers: h });
+        out.login = u.ok ? (await u.json()).login ?? null : null;
+        // an App user-to-server token answers this; a PAT 403s it, which is
+        // itself the tell that distinguishes the two.
+        const i = await fetch(`${GITHUB_API}/user/installations`, { headers: h });
+        if (i.ok) {
+          const ij = await i.json();
+          out.tokenKind = "github-app";
+          out.installations = (ij.installations ?? []).map((x) => ({ app: x.app_slug, permissions: x.permissions, repositorySelection: x.repository_selection }));
+        } else if (i.status === 403) {
+          out.tokenKind = "pat";
+        }
+        if (owner && repo) {
+          const r = await fetch(repoUrl({ owner, repo }), { headers: h });
+          if (r.ok) {
+            const rj = await r.json();
+            out.repoPermissions = rj.permissions ?? null;
+            out.defaultBranch = rj.default_branch ?? null;
+          } else {
+            out.repoStatus = r.status;
+          }
+        }
+        return send(res, 200, out);
       } catch (e) {
         return send(res, 502, { error: e.message });
       }

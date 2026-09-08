@@ -681,6 +681,13 @@
         line-height: 1.5;
         white-space: pre-wrap;
         background: #0b0e14;
+        /* Explicit, not inherited: `body`'s own text color is calibrated for
+           a light page background, and against this box's own dark one that
+           read as near-black-on-near-black — genuinely unreadable, found by
+           screenshotting it rather than assumed. Same value artifact.js's
+           own dark code block already uses (`.code-highlight`), so output
+           and code read as one family. */
+        color: #d4d4d4;
         border-top: 1px solid var(--line);
       }
       .run-console.bad { color: var(--warn); }

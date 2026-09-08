@@ -96,3 +96,26 @@ test("the pattern: agree when ground and figure name the same bytes; repaired wh
   const apart = correspond(ground[0].at, ground[0].text, field, { tolstoy: "the text is gone" }, { draws: 60 });
   assert.equal(apart.kind, "apart"); assert.equal(apart.at, null);
 });
+
+test("nullBand and recallAgainstNull thread steps/spread through — a band measured at one hop count is the wrong control for a recall measured at another", () => {
+  const { field } = corpus();
+  // A band measured at more hops is not the same distribution as one
+  // measured at hop 1 — the field's own connectivity keeps mixing chance
+  // cues toward each other as spreading continues, so hi/margin move.
+  const bandHop1 = field.nullBand(8, { draws: 80, steps: 1 });
+  const bandHop4 = field.nullBand(8, { draws: 80, steps: 4 });
+  assert.equal(bandHop1.steps, 1);
+  assert.equal(bandHop4.steps, 4);
+  assert.notDeepEqual(bandHop1, bandHop4, "hop count is a real condition of the band, not cosmetic");
+  // recallAgainstNull with an explicit steps and no band measures its OWN
+  // band at that same steps — never silently falling back to hop 1.
+  const cue = "Prince Andrew rode along the line";
+  const r1 = field.recallAgainstNull(cue, { draws: 80, steps: 1 });
+  const r4 = field.recallAgainstNull(cue, { draws: 80, steps: 4 });
+  assert.equal(r1.band.steps, 1);
+  assert.equal(r4.band.steps, 4);
+  // Omitted, both default to the field's own steps — every existing caller
+  // (this file's own tests above) is byte-identical.
+  const implicit = field.recallAgainstNull(cue, { draws: 80 });
+  assert.equal(implicit.band.steps, field.steps);
+});

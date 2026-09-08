@@ -35,6 +35,7 @@ const isEncounter = (e) => e?.schema === "Encounter@1";
 const isMention = (e) => e?.schema === "EOMention@1";
 const isReferent = (e) => e?.schema === "EOReferent@1";
 const isOccurrence = (e) => e?.schema === "EOReferentOccurrence@1";
+const isMerge = (e) => e?.schema === "EOReferentMerge@1";
 
 /**
  * Fold the log once: referents by id (surfaces unioned), encounters in
@@ -52,7 +53,9 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
   let graph = [];
   if (typeof reconstruct === "function") { try { graph = reconstruct(entries)?.graphEntries ?? []; } catch { graph = []; } }
   else for (const e of entries ?? []) if (e?.schema === "Observation@1") graph.push(...(e.graphEntries ?? []));
+  const merges = [];
   for (const e of [...(entries ?? []), ...graph]) {
+    if (isMerge(e)) { merges.push(e); continue; }
     if (isReferent(e)) {
       const r = referents.get(e.id) ?? { id: e.id, surfaces: new Set(), provenance: [], fedBy: new Set() };
       for (const s of e.surfaces ?? []) r.surfaces.add(String(s));
@@ -65,6 +68,50 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
     } else if (isMention(e)) mentions.push(e);
     else if (isOccurrence(e)) occurrences.push(e);
   }
+  // ONE BEING, MANY ADDRESSES. A reader that gives an address at birth
+  // (S80) and clusters by evidence order (S17) leaves the fragments it
+  // later folded on the log as separate ids: on Crime and Punishment,
+  // «Pyotr», «Pyotr Petrovitch» and «Mr Luzhin» were three, and the reader
+  // RECORDED folding them (EOReferentMerge@1, kept/folded, with the fuller
+  // surface as witness). The projection applies exactly the reader's own
+  // evidence, in two tiers, and never a rule of its own: (1) every recorded
+  // merge, transitively; (2) a fragment whose LONGEST surface the reader's
+  // own coreference organ (`namesCorefer`) places inside a fuller surface of
+  // exactly ONE other being joins it — «Luzhin» inside «Mr Luzhin»,
+  // «Raskolnikov» inside «Rodion Romanovitch Raskolnikov» — while a form
+  // inside two beings' surfaces («Petrovitch», Luzhin's AND Porfiry's) is
+  // S17's ambiguous bare form and stays its own, counted. The fuller side
+  // never absorbs on its own; only the partial side joins. A being's face
+  // is the member with the most surfaces; `members` keeps every address.
+  const parent = new Map([...referents.keys()].map((id) => [id, id]));
+  const find = (id) => { let x = id; while (parent.get(x) !== x) x = parent.get(x); let y = id; while (parent.get(y) !== x) { const n = parent.get(y); parent.set(y, x); y = n; } return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra === rb) return false; parent.set(rb, ra); return true; };
+  let mergedByRecord = 0, mergedByContainment = 0, ambiguousForms = 0;
+  for (const m of merges) { if (!referents.has(m.kept)) continue; for (const f of m.folded ?? []) if (referents.has(f) && union(m.kept, f)) mergedByRecord += 1; }
+  const tokensOf = (t) => String(t ?? "").trim().split(/\s+/).filter(Boolean).length;
+  const longestOf = (r) => { let best = ""; for (const sf of r.surfaces) if (tokensOf(sf) > tokensOf(best) || (tokensOf(sf) === tokensOf(best) && sf.length > best.length)) best = sf; return best; };
+  if (typeof namesCorefer === "function") for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (const r of referents.values()) {
+      const L = longestOf(r); if (!L) continue;
+      const mine = find(r.id); const hosts = new Set();
+      for (const o of referents.values()) { const oc = find(o.id); if (oc === mine || hosts.has(oc)) continue; for (const sf of o.surfaces) { if (tokensOf(sf) <= tokensOf(L)) continue; let co = false; try { co = namesCorefer(String(L), String(sf)) || namesCorefer(String(sf), String(L)); } catch { co = false; } if (co) { hosts.add(oc); break; } } }
+      if (hosts.size === 1) { if (union([...hosts][0], r.id)) { mergedByContainment += 1; changed = true; } }
+      else if (hosts.size > 1 && pass === 0) ambiguousForms += 1;
+    }
+    if (!changed) break;
+  }
+  const classes = new Map();
+  for (const r of referents.values()) { const c = find(r.id); if (!classes.has(c)) classes.set(c, []); classes.get(c).push(r); }
+  const canon = new Map(); const beings = new Map();
+  for (const members of classes.values()) {
+    const face = members.reduce((a, b) => (b.surfaces.size > a.surfaces.size ? b : a), members[0]);
+    const being = { id: face.id, surfaces: new Set(), provenance: [], fedBy: new Set(), members: members.map((m) => m.id) };
+    for (const m of members) { canon.set(m.id, face.id); for (const sf of m.surfaces) being.surfaces.add(sf); being.provenance.push(...m.provenance); for (const f of m.fedBy) being.fedBy.add(f); }
+    beings.set(face.id, being);
+  }
+  const canonOf = (id) => canon.get(id) ?? id;
+  referents.clear(); for (const [id, b] of beings) referents.set(id, b);
   // A mention names its encounter by ref (`encounterRef`) — match on the key the encounter itself carries, else on anchor + source.
   const byRef = new Map(); const bySeq = new Map();
   for (const enc of encounters.values()) { byRef.set(enc.key, enc); if (enc.sequencePosition != null) { byRef.set(`${enc.source}:${enc.sequencePosition}`, enc); bySeq.set(Number(enc.sequencePosition), enc); } }
@@ -73,7 +120,7 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
     return byRef.get(r) ?? (anchor ? byRef.get(`${source}#${anchor.start}-${anchor.end}`) : null) ?? (/:(\d+)$/.test(r) ? bySeq.get(Number(r.match(/:(\d+)$/)[1])) : null) ?? null;
   };
   // EOMention@1 is the reader's own occurrence-level answer (written for a referent already established at the step); it always attaches.
-  for (const m of mentions) { const enc = encounterOf(m.encounterRef, m.anchor, m.source); if (enc && m.referent) enc.ids.add(m.referent); }
+  for (const m of mentions) { const enc = encounterOf(m.encounterRef, m.anchor, m.source); if (enc && m.referent) enc.ids.add(canonOf(m.referent)); }
   // A being's birth records the mentions that FED it (P160's feeder links: `mention:<sequence>:<slug>`) — the sentences it stood in before it was born, which a causal read could not mention at the time. The reader's own record, read off.
   let fed = 0;
   for (const r of referents.values()) for (const f of r.fedBy) { const m = /^mention:(\d+):/.exec(f); if (!m) continue; const enc = bySeq.get(Number(m[1])); if (enc && !enc.ids.has(r.id)) { enc.ids.add(r.id); fed += 1; } }
@@ -116,7 +163,7 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
       for (const sf of present) { const ids = idsOfSurface(sf); if (ids.size === 1) { const id = [...ids][0]; if (!enc.ids.has(id)) { enc.ids.add(id); located += 1; } } else if (ids.size > 1) ambiguous += 1; }
     }
   }
-  return { referents, encounters: [...encounters.values()].sort((a, b) => a.order - b.order), mentions, occurrences: occurrences.length, ambiguous, unresolved, fed, located };
+  return { referents, encounters: [...encounters.values()].sort((a, b) => a.order - b.order), mentions, occurrences: occurrences.length, ambiguous, unresolved, fed, located, identity: { beings: referents.size, fragments: canon.size, mergedByRecord, mergedByContainment, ambiguousForms } };
 }
 const encounterKey = (e) => e?.anchor && Number.isFinite(Number(e.anchor.start)) ? `${e.source}#${e.anchor.start}-${e.anchor.end}` : `${e.source}:${e.sequencePosition}`;
 
@@ -137,25 +184,39 @@ export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, recon
     const toks = n.split(/\s+/); longest = Math.max(longest, toks.length);
     if (!byFirst.has(toks[0])) byFirst.set(toks[0], new Set()); byFirst.get(toks[0]).add(r.id);
   }
-  const resolve = (name) => {
-    const n = norm(name); if (!n) return new Set();
-    const exact = bySurface.get(n); if (exact?.size) return new Set(exact);
-    const out = new Set();
-    if (typeof namesCorefer === "function") for (const r of referents.values()) for (const s of r.surfaces) { try { if (namesCorefer(String(name), String(s))) { out.add(r.id); break; } } catch {} }
-    return out;
-  };
+  // MAXIMAL MUNCH. A run of tokens resolves by its LONGEST registered
+  // surface, and the tokens that surface consumed are not resolved again as
+  // shorter surfaces: "Rodya Pyotr Petrovitch" is «Rodya» + «Pyotr
+  // Petrovitch», never also «Petrovitch» — which is Porfiry Petrovitch's
+  // patronymic too. Measured 2026-09-07 on Crime and Punishment: the
+  // first cut resolved that run to SEVEN referents (Porfiry among them) and
+  // the activation reached 459 sentences at hop 0 and 2,987 at hop 1 —
+  // the window rode its ceiling. Coreference by the injected organ is the
+  // LAST resort, only for a name no registered surface stands in, because
+  // `namesCorefer` shares tokens across every referent and a shared
+  // patronymic is exactly the token it shares.
   const resolveIn = (text) => {
     const toks = norm(text).split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean);
     const out = new Set();
     for (let i = 0; i < toks.length; i++) {
       if (!byFirst.has(toks[i])) continue;
-      for (let j = Math.min(toks.length, i + longest); j > i; j--) { const run = toks.slice(i, j).join(" "); const hit = bySurface.get(run); if (hit?.size) { for (const id of hit) out.add(id); break; } }
+      for (let j = Math.min(toks.length, i + longest); j > i; j--) { const run = toks.slice(i, j).join(" "); const hit = bySurface.get(run); if (hit?.size) { for (const id of hit) out.add(id); i = j - 1; break; } }
     }
+    return out;
+  };
+  const resolve = (name) => {
+    const n = norm(name); if (!n) return new Set();
+    const exact = bySurface.get(n); if (exact?.size) return new Set(exact);
+    const munched = resolveIn(n); if (munched.size) return munched;
+    const out = new Set();
+    if (typeof namesCorefer === "function") for (const r of referents.values()) for (const s of r.surfaces) { try { if (namesCorefer(String(name), String(s))) { out.add(r.id); break; } } catch {} }
     return out;
   };
   const represent = (id) => { const r = referents.get(id); if (!r) return id; let best = ""; for (const s of r.surfaces) if (s.length > best.length) best = s; return best || id; };
   const vocabulary = new Set(); for (const enc of encounters) for (const t of tokenize(enc.text)) vocabulary.add(t);
-  return Object.freeze({ referents: new Set(referents.keys()), resolve, resolveIn, represent, vocabulary, mentions: mentions.length, encounters: encounters.length, caseless: true, basis: "readingIndexFromLog: EOReferent@1 surfaces under the session's fold + namesCorefer; no case, no scan" });
+  // `events` is the face dialogue.js::surfacesOf reads (one row per registered surface, as the cast index keeps them), so the address check's re-ask hands the reader's own surfaces for a missing referent and not nothing.
+  const events = []; for (const r of referents.values()) for (const sf of r.surfaces) events.push({ referent_id: r.id, surface: sf });
+  return Object.freeze({ referents: new Set(referents.keys()), events, resolve, resolveIn, represent, vocabulary, mentions: mentions.length, encounters: encounters.length, caseless: true, basis: "readingIndexFromLog: EOReferent@1 surfaces under the session's fold + namesCorefer; no case, no scan" });
 }
 
 /** The address book: one row per encounter carrying a mention, in reading order; byId: referent → rows. Same shape activation-retrieval.js reads. */

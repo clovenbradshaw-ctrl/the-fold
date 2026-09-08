@@ -31,7 +31,7 @@
 // record keeps the addresses. The chunk survives only as the paragraph the
 // writer chose, an address container, never a retrieval unit.
 import { referentsOf } from "./dialogue.js";
-import { activeReferents, dmdCut } from "./resolutions.js";
+import { activeReferents, dmdCut, lensCut, DECLARED_LINES } from "./resolutions.js";
 
 // THE GRAIN OF A SENTENCE IS THE ACT. Reach by referent alone hands ONE
 // sentence about Porfiry and cuts the next, which says something different
@@ -84,7 +84,7 @@ export function mentionBook(chunks = [], index, { splitSentences } = {}) {
  * activate({ question, transcript, index, book, notes, dmdWindow }) →
  * { passages, basis, active, hop1, window, why }
  */
-export function activate({ question = "", transcript = [], index, book, notes = [], dmdWindow = null, read = null }) {
+export function activate({ question = "", transcript = [], index, book, notes = [], dmdWindow = null, read = null, resolutions = 0 }) {
   if (!index || !book) return { passages: [], basis: "surface", active: [], hop1: [], window: 0, why: !index ? "no referent index" : "no mention book" };
   const act = activeReferents(question, transcript, index);
   const active = act.ids;
@@ -101,10 +101,6 @@ export function activate({ question = "", transcript = [], index, book, notes = 
     for (const id of [...s, ...o]) if (!active.has(id)) hop1.add(id);
   }
   const hop1Sentences = new Set(); for (const id of hop1) for (const i of book.byId.get(id) ?? []) if (!hop0.has(i)) hop1Sentences.add(i);
-  const carries = (row, set) => [...row.ids].filter((id) => set.has(id)).length;
-  const rows0 = [...hop0].map((i) => ({ ...book.sentences[i], hop: 0 })).sort((a, b) => carries(b, active) - carries(a, active) || carries(b, hop1) - carries(a, hop1) || a.order - b.order);
-  const rows1 = [...hop1Sentences].map((i) => ({ ...book.sentences[i], hop: 1 })).sort((a, b) => carries(b, hop1) - carries(a, hop1) || a.order - b.order);
-  const rows = [...rows0.slice(0, SENTENCE_CEILING), ...rows1.slice(0, SENTENCE_CEILING)];
   // THE ACTS OF A SENTENCE ARE ON THE LOG. A note's spans carry the addresses
   // it was read from (`ref#start-end` inside a chunk, or a bare address); a
   // sentence's acts are the labels of the notes whose spans fall inside its
@@ -125,6 +121,35 @@ export function activate({ question = "", transcript = [], index, book, notes = 
       spanRanges.push({ source: m[1].split("#")[0], start, end, keys: ends.map((id) => `${id}|${label}`) });
     }
   }
+  // THE LENS REPLACES THE SENTENCES IT WAS COMPUTED FROM. At a resolution
+  // that hands the Lens (level >= 2), the mouth already holds the acts about
+  // the active referents as notes; the sentences it is handed are the ones
+  // that GROUND those shown acts — one ranking, one cut, the same
+  // `lensCut` the Lens block spends — plus one sentence per active referent
+  // no shown act covers. A sentence whose only reach is a hop-1 referent or
+  // an act the Lens's cut left out adds nothing the Lens does not carry, and
+  // is not handed. Measured before this: at act grain over the whole
+  // ledger every question about a protagonist rode the 48-sentence ceiling
+  // (10k tokens a call) beside a Lens of 94 lines that stated the same acts.
+  // Below level 2 the sentences ARE the acts' only carrier, and the reach is
+  // the full one: active and hop-1 referents and every act on the log.
+  const lens = resolutions >= 2 && (notes ?? []).length ? lensCut({ active, index, notes, dmdWindow, question, transcript }) : null;
+  // Grounding is on the log by definition: the Lens's acts are ledger notes, so a sentence grounds a shown act when that note's span falls inside it — no reader consulted for ranking, ever (the reader below is spent only on the ceiling's candidates, below level 2).
+  const logActsOf = (r) => [...new Set(spanRanges.filter((sp) => sp.source === r.source && sp.start < r.end && sp.end > r.start).flatMap((sp) => sp.keys))];
+  // AT THE CEILING, GROUND THE DECLARED LINES. When the Lens's cut converged,
+  // every shown act is grounded by a sentence. When it did not — the ladder's
+  // top handed as the declared budget — grounding every one of 24 acts hands
+  // 24 sentences beside 24 notes that state them (measured 2026-09-07: 3,114
+  // chars of sentences beside a 1,705-char Lens, no compression at all), so
+  // the sentences ground the top DECLARED_LINES shown acts, the same declared
+  // number the ledger block hands unmeasured, and the record says "ceiling".
+  const lensActs = lens ? (lens.ceiling ? new Set(lens.rows.slice(0, DECLARED_LINES).flatMap(lens.act)) : lens.acts) : new Set();
+  const grounds = (r) => (lensActs.size ? logActsOf(r).filter((k) => lensActs.has(k)) : []);
+  const carries = (row, set) => [...row.ids].filter((id) => set.has(id)).length;
+  // At a resolution that hands the Lens, the candidates are the sentences that GROUND its shown acts first (one sentence often grounds several), then the ones carrying the most active referents; the ceiling then caps what the cut may see.
+  const rows0 = [...hop0].map((i) => ({ ...book.sentences[i], hop: 0 })).sort((a, b) => grounds(b).length - grounds(a).length || carries(b, active) - carries(a, active) || carries(b, hop1) - carries(a, hop1) || a.order - b.order);
+  const rows1 = [...hop1Sentences].map((i) => ({ ...book.sentences[i], hop: 1 })).sort((a, b) => carries(b, hop1) - carries(a, hop1) || a.order - b.order);
+  const rows = [...rows0.slice(0, SENTENCE_CEILING), ...rows1.slice(0, SENTENCE_CEILING)];
   const acts = new Map(); // row order → the acts on the log inside this sentence (or, failing any, what the reader hears — read once per row, never beyond the ceiling)
   const actsOf = (r) => {
     if (acts.has(r.order)) return acts.get(r.order);
@@ -141,10 +166,13 @@ export function activate({ question = "", transcript = [], index, book, notes = 
     } catch { out = []; }
     out = [...new Set(out)]; acts.set(r.order, out); return out;
   };
-  const reachOf = (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `0:${id}`).concat([...r.ids].filter((id) => hop1.has(id)).map((id) => `1:${id}`), actsOf(r));
+  const reachOf = lensActs.size
+    ? (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `0:${id}`).concat(grounds(r))
+    : (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `0:${id}`).concat([...r.ids].filter((id) => hop1.has(id)).map((id) => `1:${id}`), actsOf(r));
   const cut = dmdCut(rows, new Set([...active, ...hop1]), { dmdWindow, reachOf });
   const passages = cut.rows.map((r) => ({ ref: r.ref, source: r.source, chunkRef: r.chunkRef, start: r.start, end: r.end, text: r.text, hop: r.hop, ids: [...r.ids].sort() }));
-  return { passages, basis: "activation", grain: spanRanges.length || typeof read === "function" ? "act" : "referent", actsOnLog: spanRanges.length, ceiling: SENTENCE_CEILING, active: [...active].sort(), activeBasis: act.basis, hop1: [...hop1].sort(), window: cut.window, cutBasis: cut.basis, hop0Count: hop0.size, hop1Count: hop1Sentences.size, why: `${hop0.size} sentence(s) carry the active referent(s), ${hop1Sentences.size} more carry what they stand with; ${cut.window} handed` };
+  const grounded = new Set(cut.rows.flatMap(grounds)).size;
+  return { passages, basis: "activation", grain: spanRanges.length || typeof read === "function" ? "act" : "referent", actsOnLog: spanRanges.length, ceiling: SENTENCE_CEILING, active: [...active].sort(), activeBasis: act.basis, hop1: [...hop1].sort(), window: cut.window, cutBasis: cut.basis, cutCeiling: cut.ceiling === true, lens: lens ? { window: lens.window, acts: lens.acts.size, groundingOf: lensActs.size, grounded, basis: lens.basis, ceiling: lens.ceiling === true } : null, hop0Count: hop0.size, hop1Count: hop1Sentences.size, why: `${hop0.size} sentence(s) carry the active referent(s), ${hop1Sentences.size} more carry what they stand with; ${cut.window} handed${lens ? ` — grounding ${grounded} of the Lens's ${lensActs.size} shown acts` : ""}` };
 }
 
 /**
@@ -155,14 +183,14 @@ export function activate({ question = "", transcript = [], index, book, notes = 
  * array carries `basis`, `active`, `hop1`, `window`, `why` as properties so
  * the turn can record what retrieval did.
  */
-export function makeActivationRetrieval({ index, book, notes = [], transcript = [], dmdWindow = null, fallback = null, read = null } = {}) {
+export function makeActivationRetrieval({ index, book, notes = [], transcript = [], dmdWindow = null, fallback = null, read = null, resolutions = 0 } = {}) {
   const live = (v) => (typeof v === "function" ? v() : v) ?? [];
   return function retrieveByActivation(chunks, question, limit, folded) {
-    const r = activate({ question, transcript: live(transcript), index, book, notes: live(notes), dmdWindow, read });
+    const r = activate({ question, transcript: live(transcript), index, book, notes: live(notes), dmdWindow, read, resolutions });
     let out;
     if (r.passages.length) out = r.passages;
     else { out = typeof fallback === "function" ? [...(fallback(chunks, question, limit, folded) ?? [])] : []; r.basis = "surface"; r.why = `${r.why}; term retrieval stood in`; }
-    Object.defineProperty(out, "retrieval", { value: { basis: r.basis, grain: r.grain ?? null, ceiling: r.ceiling ?? null, active: r.active, activeBasis: r.activeBasis ?? null, hop1: r.hop1, window: r.window, cutBasis: r.cutBasis ?? null, hop0Count: r.hop0Count ?? 0, hop1Count: r.hop1Count ?? 0, why: r.why }, enumerable: false });
+    Object.defineProperty(out, "retrieval", { value: { basis: r.basis, grain: r.grain ?? null, actsOnLog: r.actsOnLog ?? 0, ceiling: r.ceiling ?? null, active: r.active, activeBasis: r.activeBasis ?? null, hop1: r.hop1, window: r.window, cutBasis: r.cutBasis ?? null, cutCeiling: r.cutCeiling ?? false, lens: r.lens ?? null, hop0Count: r.hop0Count ?? 0, hop1Count: r.hop1Count ?? 0, why: r.why }, enumerable: false });
     return out;
   };
 }

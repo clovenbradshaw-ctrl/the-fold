@@ -141,6 +141,33 @@ const ALLOWANCES = [
       /createElementNS\(\s*["']$/.test(src.slice(Math.max(0, at - 40), at)),
   },
   {
+    host: "matrix.org",
+    files: ["index.html"],
+    why:
+      "P119's amendment (user direction, 2026-09-08): a person with no Matrix account had nowhere " +
+      "to start, so the sign-in sheet and the room's invite block link out to matrix.org's own " +
+      "get-started page — which is also where that page says an account may live on any provider. " +
+      "It is an ANCHOR the person follows in a new tab, never a load edge and never a request: the " +
+      "page itself still names no homeserver in anything it sends, and the sign-in field takes " +
+      "whatever server is typed. Checked, not asserted: the occurrence must sit in an href.",
+    holds: (file, src, at) => /href\s*=\s*["']$/.test(src.slice(Math.max(0, at - 12), at)),
+  },
+  {
+    host: "github.com",
+    files: ["github-pane.js"],
+    why:
+      "The GitHub pane's three github.com literals are LINKS THE PERSON FOLLOWS — the app " +
+      "installation page, the app's permissions page, and the fine-grained-token page — each " +
+      "assigned to an anchor's href and opened by a click, never fetched. github.js's own " +
+      "allowance cannot cover them: that one is licensed by the file making no request at all, " +
+      "and this file legitimately makes three (it is the browser half of the organ). So the " +
+      "reason checked here is the OCCURRENCE's own context rather than the file's: each must sit " +
+      "in an href assignment, so a literal that became a request would fail this scan. Landed " +
+      "with PR #158's own work; the branch's II.13 test and web.test.mjs's seam test were both " +
+      "red between that merge and this entry.",
+    holds: (file, src, at) => /href\s*[:=]\s*["'`]$/.test(src.slice(Math.max(0, at - 40), at)),
+  },
+  {
     host: null, // hostOf builds an authority from user input; there is no literal to name
     files: ["web.js", "links.js", "github.js", "wikidata.js"],
     why:

@@ -74,6 +74,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity } from "./arithmetic.js";
+import { asksAboutMaterial, materialView, aboutBlock, abbreviate } from "./about.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
 // computed expression as typeset math — mathjs's own toTex(), not a second,
@@ -4587,6 +4588,14 @@ async function send(question) {
   const arithmetic = checkQuantity(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
 
+  // ABOUT the material ("what is this?", "what's this book about?", "is it
+  // a book?") is answered from the SITUATION — a view of what is attached,
+  // how large it is, how far it has been read, and an ellipsed sample of
+  // its own words — never from a retrieved passage, which is how "what's
+  // this book about?" once answered "a man named Caesar" (about.js's own
+  // note). One small-model call at most; empty situation is mechanical.
+  if (asksAboutMaterial(question)) return aboutTurn(question);
+
   // Self questions asked in words ("what surprised you most", "how do you
   // think"). Checked AFTER detectTable so a question the app can answer
   // about its material state keeps winning, and gated on the second-person
@@ -5868,6 +5877,118 @@ function transcriptNow() {
     i += 1;
   }
   return rows;
+}
+
+// ABOUT the material ("what is this?", "is this a book?") is answered from
+// the SITUATION — a view of what is attached, how large it is, how far it
+// has been read, and an ellipsed sample of its own words — never from a
+// retrieved passage, which is how "what's this book about?" once answered
+// "a man named Caesar" (about.js's own note). One small-model call at most;
+// when nothing is attached the door answers mechanically, no call at all.
+async function aboutTurn(question) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  node.querySelector(".who").textContent = state.model;
+  const body = node.querySelector(".body");
+  body.textContent = "…";
+  logAct("asked", { text: question });
+
+  // The SITUATION, not retrieved passages.
+  const ls = liveSources();
+  const sources = Object.fromEntries(ls.map((s) => [s.name, s.text]));
+  const chunks = liveChunks();
+  const media = state.media ?? {};
+  const reading = new Map();
+  for (const [name, r] of READING.entries()) {
+    if (Number.isFinite(r.cursor) && Number.isFinite(r.total)) {
+      reading.set(name, r);
+    }
+  }
+  const rows = materialView({ sources, chunks, reading, media });
+  const digest = abbreviate(chunks);
+  const viewText = aboutBlock(rows, digest);
+  const discourse = discourseLineNow();
+
+  // Nothing is attached: a mechanical answer, no model call at all.
+  if (rows.length === 0) {
+    const answer =
+      "nothing is attached right now — attach a book, a file or a page and I can say what it is.";
+    body.textContent = answer;
+    const sent = [];
+    state.history.push(
+      { role: "user", content: question },
+      { role: "assistant", content: answer },
+    );
+    const turn = state.summary.turnCount + 1;
+    logAct("answered-from-state", { what: "about", rows: 0 });
+    observeExchange(turn, question, answer);
+    const fold = mechanicalFoldLine(question, answer);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { sent });
+    renderThreads();
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return { node, text: answer, sent };
+  }
+
+  // Exactly one small-model call, grounded in the SITUATION view alone. No
+  // history is sent: an about question is answered from what is attached,
+  // never steered by earlier turns.
+  const system = [
+    "You are answering a question about material that is attached and being read, not as if you had read it. Below: what the material says it is, how large it is, how far it has been read, and a sample of its own words taken at even intervals, with the gaps marked with an ellipsis. Answer from that alone; where it does not say, say so. Keep the answer short.",
+    viewText,
+    discourse ? `The conversation so far, in one line: ${discourse}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: question },
+  ];
+  const sent = [{ n: 1, messages }];
+  let text = "";
+  try {
+    const raw = await complete(messages, {
+      model: state.model,
+      onDelta: (partial) => {
+        body.textContent = partial;
+      },
+    });
+    text = stripSelfCitations(raw).text;
+  } catch (e) {
+    text = "";
+    body.textContent = `(about turn failed: ${e?.message ?? e})`;
+  }
+  if (text) {
+    try {
+      body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], [])));
+    } catch {
+      body.textContent = text;
+    }
+  } else if (!body.textContent) {
+    body.textContent = "(no reply)";
+  }
+  const shipped = text || body.textContent;
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: shipped },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "about",
+    rows: rows.length,
+    chars: viewText.length,
+  });
+  observeExchange(turn, question, shipped);
+  const fold = mechanicalFoldLine(question, shipped);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { sent });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+  return { node, text, sent };
 }
 
 function discourseLineNow() {

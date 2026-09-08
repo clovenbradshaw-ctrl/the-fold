@@ -2682,7 +2682,7 @@ const RESOURCE_TILE_NOTE = {
 };
 
 /**
- * The workspace, declared in the header (P177). Two things, and no more: what
+ * The workspace, declared in the header (P178). Two things, and no more: what
  * this workspace is called, and who can read it. The second is not a settings
  * panel — a room is a room of equals and there is nothing to grade — so it
  * states the two states there are and hands every ACT to the room's own
@@ -2942,7 +2942,7 @@ function renderWorkspaceSheet() {
 }
 
 /**
- * The room, as a surface (P177) — the header chip beside the theme toggle,
+ * The room, as a surface (P178) — the header chip beside the theme toggle,
  * and the sheet it opens.
  *
  * Every door here already existed and was reachable only by typing. The
@@ -2977,7 +2977,7 @@ function renderAccountChips() {
 }
 
 function renderRoomChip() {
-  // The room left the header as a place (P177's amendment): who has access is
+  // The room left the header as a place (P178's amendment): who has access is
   // the workspace chip's and the cluster's, the machinery is in Resources,
   // and the header keeps only the two account marks. This is the one place
   // that refreshes all of them after a room door runs.

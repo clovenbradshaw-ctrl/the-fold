@@ -191,7 +191,7 @@ export const paths = Object.freeze({
   // commonly disabled for load). A 404 or a 403 here is a fact about the
   // SERVER, never about the person — the caller types it as unknown rather
   // than drawing them offline, the same three-state discipline the routes
-  // pane holds (P177).
+  // pane holds (P178).
   presence: (user) => `/_matrix/client/v3/presence/${encodeURIComponent(user)}/status`,
   allState: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state`,
   state: (room, type, key = "") => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state/${encodeURIComponent(type)}/${encodeURIComponent(key)}`,

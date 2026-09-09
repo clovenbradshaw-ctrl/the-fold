@@ -1270,6 +1270,12 @@
       .msg .body .prose:last-child { margin-bottom: 0; }
       .msg .body .prose strong { font-weight: 700; }
       .msg .body .prose em { font-style: italic; }
+      /* The draft, streamed before the correction loop and proof-seeking
+         have had their say — the same "not settled" signal `.thinking`
+         already carries, so a reader never mistakes a still-checkable
+         draft for the locked-in answer (found live, 2026-09-09). Cleared
+         the moment `renderAnswer` draws the real, checked text. */
+      .msg .body .prose.draft-pending { color: var(--muted); }
       .msg .body .prose code {
         font-family: var(--mono);
         font-size: 12px;
@@ -1408,6 +1414,14 @@
         line-height: 1.5;
         color: var(--muted);
       }
+      /* callTreeFor's map of what was prompted (2026-09-09): the turn's own
+         phases (holonicTurn's `phaseLabel`, already computed for the status
+         line — nothing new measured), each call nested under the phase
+         active when it was sent. Monospace so the ├─/└─ connectors — this
+         app's own house glyphs — actually line up; `.fold-note`'s ordinary
+         proportional face would not. */
+      .fold-tree-head { font-family: var(--mono); }
+      .fold-tree-leaf { font-family: var(--mono); margin-left: 1.2em; }
       /* The crown line (crownTestimony): the checked statement itself, in
          prose — the answer's visible grounding, so it reads at answer
          weight, not meter weight. `.bad` marks DISAGREE/CONTRADICTED, the

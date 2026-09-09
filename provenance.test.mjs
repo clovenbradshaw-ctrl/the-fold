@@ -6,10 +6,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { classifySentences, stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
+import { classifySentences, sentenceSpans, stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { chunkSource } from "./source.js";
 import { attribute } from "./cite.js";
 import { checkGrounding } from "./grounding.js";
+import { parseBlocks, renderBlocksInto } from "./render.js";
 
 const TEXT =
   "The Kessington report put the harbor figure at 12% for the spring quarter.\n\n" +
@@ -255,4 +256,128 @@ test("holon.js's own 'incomplete'-mode instruction, copied verbatim into a shipp
   assert.ok(colonForm.removed.some((s) => /confirms exactly:/i.test(s)));
   const realFigure = stripNarrationSentences("The material confirms exactly 79 percent of respondents agreed.", { hasMaterial: true });
   assert.equal(realFigure.removed.length, 0, 'a real figure after "confirms exactly" must never be swept up');
+});
+
+// ── sentenceSpans ────────────────────────────────────────────────────────
+//
+// FOUND LIVE 2026-09-09: two DOM captures of an otherwise identical checking-
+// mode turn, one with the full `.sent`/ground-chip markup, one with NEITHER
+// — plain `<strong>` text and nothing else, despite `state.grounded` and a
+// fresh `state.lastGround` both confirmed. app.js's own render-fragment
+// matcher (`findSentence`, mirrored here — app.js has no test file of its
+// own by this repo's convention, so the fix's essential mechanism is pinned
+// at this pure layer instead) is injected, same as `splitSentences`
+// elsewhere in this codebase (chain-reason.js's own stated convention).
+//
+// app.js used to call this search once PER RENDER FRAGMENT, after
+// render.js's own `renderBlocksInto` had already split a block's raw text
+// at every `**bold**`/`*em*`/`` `code` `` boundary and handed each piece to
+// its `decorateInline` callback separately — render.js's own documented
+// contract ("Inline emphasis... is implemented by SPLITTING the text and
+// routing every piece through decorateInline"), and exactly right for a
+// plain address-only decorator. It was NOT right for a decorator trying to
+// match a WHOLE classified sentence: any inline emphasis anywhere inside a
+// sentence tears it across fragments no single one of which contains the
+// whole sentence, so a per-fragment search finds nothing on ANY of them.
+// `sentenceSpans` is the fix: run once, up front, against a block's whole
+// text (app.js's `renderTaggedBlocks`), before anything downstream is free
+// to fragment it.
+function findSentence(hay, sentence) {
+  // Mirrors app.js's own findSentence (same file, unexported) byte for
+  // byte — this codebase's own convention for a tiny pure helper reused
+  // across files without a cross-module import (see escapeRe, duplicated
+  // the same way in relations-chain.js, shape.js, turn-boundary.js).
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const words = String(sentence).trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const m = hay.match(new RegExp(words.map(escapeRe).join("\\s+")));
+  return m ? { at: m.index, len: m[0].length } : null;
+}
+
+test("sentenceSpans finds every classified sentence, in order, as offsets into the whole text", () => {
+  const answer = "The Kessington report put the figure at 12%. That seems sensible. The audit gave a different number.";
+  const classified = classifySentences(answer, [], []);
+  const spans = sentenceSpans(answer, classified, findSentence);
+  assert.equal(spans.length, 3);
+  assert.deepEqual(
+    spans.map((s) => answer.slice(s.start, s.end)),
+    classified.map((c) => c.text),
+  );
+  // Ascending, non-overlapping, and each span's own `entry` is the SAME
+  // classified row it was found for — nothing re-measured, only located.
+  for (let i = 1; i < spans.length; i++) assert.ok(spans[i].start >= spans[i - 1].end);
+  assert.equal(spans[1].entry, classified[1]);
+});
+
+test("an entry not present in the text is silently absent from the spans, never a throw", () => {
+  const answer = "Only one sentence here.";
+  const classified = [...classifySentences(answer, [], []), { text: "A sentence from somewhere else entirely.", ground: "model", ref: null, absent: [], edges: [] }];
+  const spans = sentenceSpans(answer, classified, findSentence);
+  assert.equal(spans.length, 1);
+  assert.equal(spans[0].entry.text, "Only one sentence here.");
+});
+
+test("REGRESSION (root cause, 2026-09-09): a fragment split at an inline-emphasis boundary can never contain a whole classified sentence — every fragment misses, using the real render.js splitter", () => {
+  // The exact live specimen: "The Berlin Wall fell in 1989. The German
+  // chancellor at the time was Helmut Kohl." with the year and the name
+  // bolded — routine on exactly the figures a checked answer most wants to
+  // mark. Two classified sentences, real markdown, real render.js.
+  const answer = "The Berlin Wall fell in **1989**.  The German chancellor at the time was **Helmut Kohl**.";
+  const classified = classifySentences(answer, [], []);
+  assert.equal(classified.length, 2, "sanity: two sentences, both carrying their own markdown");
+
+  // The OLD, broken wiring: renderBlocksInto's decorateInline is called
+  // once per marker-split fragment, and each fragment is tested for
+  // whether it contains a WHOLE classified sentence — app.js's own former
+  // call site, reproduced exactly (classified.filter((e) =>
+  // findSentence(chunk, e.text))).
+  const seenFragments = [];
+  const matchesPerFragment = [];
+  // node --test has no DOM; a stub document (same shape render.test.mjs's
+  // own stubDoc uses) is all renderBlocksInto's block/wrapper elements need
+  // — decorateInline itself never touches the elements it is handed here.
+  const doc = { createElement(tag) { return { tagName: tag, ownerDocument: doc, appendChild() {} }; } };
+  const container = doc.createElement("div");
+  renderBlocksInto(container, answer, (chunk) => {
+    seenFragments.push(chunk);
+    matchesPerFragment.push(classified.filter((e) => findSentence(chunk, e.text)).length);
+    return [];
+  });
+  assert.ok(seenFragments.length > 1, "the bold markers really did split this into multiple fragments");
+  assert.ok(
+    matchesPerFragment.every((n) => n === 0),
+    "root cause, pinned: with the OLD per-fragment search, NOT ONE fragment contains a whole sentence — zero matches anywhere, which is why zero .sent spans were drawn (not a weak tier — the wrapping code never ran)",
+  );
+
+  // The FIX: sentenceSpans run ONCE against each render.js BLOCK's own
+  // whole text (app.js's renderTaggedBlocks calls taggedProse this way,
+  // never per already-split fragment) finds both sentences, markdown and
+  // all — exactly the composition the live fix uses.
+  const blocks = parseBlocks(answer);
+  assert.equal(blocks.length, 1, "one paragraph block");
+  const spans = sentenceSpans(blocks[0].lines.join(" "), classified, findSentence);
+  assert.equal(spans.length, 2, "fixed: both sentences found once the search runs before any fragment split");
+  assert.deepEqual(
+    spans.map((s) => s.entry.text),
+    classified.map((c) => c.text),
+  );
+});
+
+test("a sentence with no emphasis at all was never broken — the one-fragment case, pinned so it stays working", () => {
+  // Case B from the same live session: no markdown, one sentence, one
+  // fragment — this path already worked and must go on working.
+  const answer = "The Wright brothers first flew on December 17, 1903, at Kitty Hawk, North Carolina.";
+  const classified = classifySentences(answer, [], []);
+  const seenFragments = [];
+  // node --test has no DOM; a stub document (same shape render.test.mjs's
+  // own stubDoc uses) is all renderBlocksInto's block/wrapper elements need
+  // — decorateInline itself never touches the elements it is handed here.
+  const doc = { createElement(tag) { return { tagName: tag, ownerDocument: doc, appendChild() {} }; } };
+  const container = doc.createElement("div");
+  renderBlocksInto(container, answer, (chunk) => {
+    seenFragments.push(chunk);
+    return [];
+  });
+  assert.equal(seenFragments.length, 1, "no emphasis markers, so renderBlocksInto hands it over whole");
+  assert.ok(classified.some((e) => findSentence(seenFragments[0], e.text)), "and the old per-fragment search still found it");
 });

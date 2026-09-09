@@ -20,11 +20,83 @@ test("the ladder places a sentence on its highest rung and names the cell backst
   assert.equal(dv.tier, "derived"); assert.deepEqual(dv.addresses, ["p1", "p2"]);
   const named = groundOf("Amelia Hartley loved comets.", ctx);
   assert.equal(named.tier, "named"); assert.deepEqual(named.names, ["Amelia Hartley"]); assert.deepEqual(named.addresses, ["a.txt#0-60"]);
+  // groundLine() concatenates phrase + address with a bare space (no connecting
+  // word of its own) — the "named" tier's phrase must supply that connector
+  // itself, or the chip reads as a broken sentence fragment glued to a raw
+  // address (measured live 2026-09-09: "names established, claim not
+  // web:search-results#0-2645").
+  assert.equal(groundLine(named), "names established, claim not placed at a.txt#0-60");
+  // A name can resolve to a known referent (resolveName succeeds) while the
+  // PASSAGES HANDED TO THIS SENTENCE never state it (passageHolding finds no
+  // match) — established.length > 0 with every ref null, so addresses is
+  // empty. The phrase must not trail on the bare preposition "at" with
+  // nothing to follow it.
+  const namedNoAddress = groundOf("The Hartley Prize honors astronomers.", ctx);
+  assert.equal(namedNoAddress.tier, "named");
+  assert.deepEqual(namedNoAddress.addresses, [], "the name resolves, but no given passage states it");
+  assert.equal(groundLine(namedNoAddress), "names established, claim not placed", "with no address to append, the phrase must stand alone rather than dangle on a bare preposition");
   const self = groundOf("The show ran nine seasons.", { ...ctx, witness: { witness: "refused" } });
   assert.equal(self.tier, "self"); assert.equal(self.cell, "self:model"); assert.equal(groundLine(self), "gemma2:2b — no source states this");
   const unasked = groundOf("The show ran nine seasons.", { ...ctx, witness: { witness: "skipped", why: "budget" } });
   assert.equal(unasked.tier, "self"); assert.match(unasked.detail, /not asked/); assert.equal(unasked.reached.witness, false, "a rung that never reached the sentence is said so");
   assert.deepEqual(TIERS, ["bound", "witnessed", "recorded", "derived", "contested", "named", "self"]);
+});
+
+test("a witness refusal on THIS sentence outranks the named tier's bare name-match — the stronger, more specific check wins the display (live bug, 2026-09-09)", () => {
+  // "Amelia Hartley loved comets" alone lands "named" (checked above): her
+  // name resolves, nothing placed the claim, and no witness was ever asked
+  // about it. But when a witness WAS asked about this exact sentence and
+  // came back empty, that is strictly more informative than the bare name
+  // match — showing "named, not placed" here reads as a weaker, almost
+  // contradictory answer sitting in front of the real one.
+  const refused = groundOf("Amelia Hartley loved comets.", { ...ctx, witness: { witness: "refused" } });
+  assert.equal(refused.tier, "self");
+  assert.equal(refused.refused, true);
+  assert.match(refused.detail, /witness was asked and no passage states it/);
+  // A witness that DID find a passage still wins outright at tier 2 — this
+  // fix only ever touches the case a witness came back empty, never a case
+  // it came back with an answer.
+  const stated = groundOf("Amelia Hartley loved comets.", { ...ctx, witness: { witness: "states", decider: "Amelia Hartley loved comets." } });
+  assert.equal(stated.tier, "witnessed");
+  // No witness asked at all (null/skipped) still falls through to "named" —
+  // this fix narrows the named tier's reach, it does not remove it.
+  const noWitness = groundOf("Amelia Hartley loved comets.", ctx);
+  assert.equal(noWitness.tier, "named");
+});
+
+test("tier 4 (derived) compares referent identity when the index is available, not bare token containment — recall gained on a differently-worded alias, a false match refused between two distinct referents", () => {
+  // RECALL: a derived fact phrased with a wholly different name for the
+  // SAME referent (zero shared tokens with the sentence) is missed by
+  // pure bag-of-words containment but found once both sides resolve
+  // through the same referent index — the "holograph" comparison this
+  // ladder's own header names, not a string one.
+  const alias = { passages, model: "gemma2:2b", resolveName: (n) => {
+    const s = n.toLowerCase();
+    if (s === "amelia hartley" || s === "doctor reyes") return new Set(["r1"]);
+    return new Set();
+  } };
+  const recall = groundOf("Amelia Hartley discovered the comet.", { ...alias, derived: [{ subject: "Doctor Reyes", verb: "discovered", object: "the comet", premises: ["p1"] }] });
+  assert.equal(recall.tier, "derived", "an alias with no shared tokens still resolves to the same referent as the sentence's own name");
+
+  // PRECISION: a derived fact's subject shares a token (the surname) with
+  // the sentence's own longer name purely by coincidence — the old
+  // bag-of-words subset check would have credited the sentence with a
+  // fact about a DIFFERENT, distinctly-resolved referent.
+  const distinct = { passages, model: "gemma2:2b", resolveName: (n) => {
+    const s = n.toLowerCase();
+    if (s === "amelia jane hartley") return new Set(["r1"]);
+    if (s === "amelia hartley") return new Set(["r2"]);
+    return new Set();
+  } };
+  const precision = groundOf("Amelia Jane Hartley discovered the comet.", { ...distinct, derived: [{ subject: "Amelia Hartley", verb: "discovered", object: "the comet", premises: ["p1"] }] });
+  assert.notEqual(precision.tier, "derived", "the subject's tokens are a literal subset of the sentence's, but they resolve to a DIFFERENT referent — must not be credited as derived");
+
+  // When neither side has a resolvable name (index absent, or the
+  // phrasing has no capitalised name at all), this falls through to the
+  // existing token check exactly as before — nothing that worked
+  // regresses.
+  const noIndex = groundOf("Rowan Vale preceded Owen Blythe.", { passages, model: "gemma2:2b", resolveName: () => new Set(), derived: [{ subject: "Rowan Vale", verb: "preceded", object: "Owen Blythe", premises: ["p1", "p2"] }] });
+  assert.equal(noIndex.tier, "derived", "with no resolvable identity either side, the token check still applies");
 });
 
 test("names in a sentence are capitalised runs, never sentence-initial function words", () => {

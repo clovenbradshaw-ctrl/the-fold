@@ -50,7 +50,13 @@ const YEAR_RE = /\b(1[5-9]\d\d|20\d\d)\b/g;
 export const ABSENCE_RE = /\b(?:do(?:es)?n['’]t|do(?:es)? not|cannot|can['’]t|no|none|nothing|not)\b[^.]{0,60}\b(?:contain|mention|say|state|include|provide|appear|find|specify|indicate|give|exist)/i;
 /** This module's own vocabulary, and the asks built from it. A candidate
  * carrying any of it is describing the checking rather than the material. */
-const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|never together with what this says about it|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
+// Two concurrent sessions independently caught the same 2026-09-08 bug
+// (reviseAsk collapsing `no_company` into the false "do not use" claim, see
+// below) on two different pieces of material and wrote two different, true
+// phrasings of the fix. Both alternations are kept: they are non-competing
+// branches of one OR, and guarding against either phrase being echoed back
+// costs nothing.
+const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|only elsewhere, never together with what this sentence says|never together with what this says about it|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
 export const SNIP_MAX = 40;         // snips a section is handed (P9: declared)
 export const SNIP_WINDOW = 320;     // chars of a passage around a hit, when the passage has no sentence boundary near it
 
@@ -162,19 +168,28 @@ export function reviseAsk(flagged, snips, { words = null } = {}) {
     // carry, and what they say instead. "Snip" is this instrument's word for
     // its own working, never a fact about the world.
     // TWO REASONS, TWO DIFFERENT TRUE FACTS — a real bug, caught live
-    // (2026-09-08): asked whether Prince Andrew's wound was fatal, gemma2:2b
-    // answered honestly, "The passage doesn't say whether or not Prince
-    // Andrew's wound was fatal" — and this line told it "the sources do not
-    // use the name 'Prince Andrew' here", which is FALSE: the one snip
-    // handed to the model in the very same message reads "...approached
-    // Prince Andrew." `checkSentence` already tells `absent` (the name is in
-    // no snip at all) apart from `no_company` (the name IS in a snip, just
-    // never beside this sentence's OWN other words — P31's company rule) —
-    // the bug was here, collapsing both into the "do not use" phrasing that
-    // is only ever true of the first. A correction message that asserts
-    // something the snip block sent alongside it contradicts is not a
-    // correction a model can act on sanely; it complied anyway, by echoing
-    // the one sentence it had been shown, which answered nothing.
+    // independently by two sessions the same day (2026-09-08), on two
+    // different pieces of material. Every flag, whatever its `reason`, was
+    // told to the model as "the sources do not use … here" — true for an
+    // `absent` atom, but FALSE for a `no_company` one, where the atom IS in
+    // a snip, just never beside this sentence's OWN other words (P31's
+    // company rule). First specimen: asked whether Prince Andrew's wound
+    // was fatal, gemma2:2b answered honestly, "The passage doesn't say
+    // whether or not Prince Andrew's wound was fatal" — and this line told
+    // it "the sources do not use the name 'Prince Andrew' here", which is
+    // FALSE: the one snip handed to the model in the very same message
+    // reads "...approached Prince Andrew." Second specimen: a dialogue
+    // whose bytes carry "#Person1#:" verbatim many times — the sources
+    // plainly use the name, and the false "do not use" line still went out,
+    // spending a whole extra rewrite round on a name that was never
+    // missing. `checkSentence` already tells `absent` (the name is in no
+    // snip at all) apart from `no_company` (the name IS in a snip, just
+    // never together with this sentence's own words) — the bug was here,
+    // collapsing both into the "do not use" phrasing that is only ever true
+    // of the first. A correction message that asserts something the snip
+    // block sent alongside it contradicts is not a correction a model can
+    // act on sanely; it complied anyway, by echoing the one sentence it had
+    // been shown, which answered nothing.
     const article = (f) => (f.kind === "name" ? "the name" : f.kind === "year" ? "the year" : "the number");
     const why = [
       ...r.flags.map((f) => f.reason === "no_company"

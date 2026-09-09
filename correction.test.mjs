@@ -75,6 +75,25 @@ test("no passages, no snips or no call is a no-op — every caller without mater
   assert.match(turnSnipBlock(passages, "what does it say about Ada Rowe"), /^What the sources say, verbatim/);
 });
 
+test("the snip needle floor matches retrieval's own — a 3-letter content word that drove retrieval is not dropped from the excerpt (live bug, 2026-09-08)", () => {
+  // Reproduced live: a whole dialogue pasted as one passage (no blank lines,
+  // so chunkSource yields ONE chunk covering the whole file — `retrieved`
+  // legitimately names the whole thing), asked "what time are they meeting
+  // at the gym?" `retrieve()` picks this chunk on "time" AND "gym" (both
+  // clear tokenize's own `t.length > 2` floor). But the snip needles used to
+  // be built with a STRICTER `w.length > 3` floor, so "gym" never became a
+  // needle and the one sentence that actually states the meeting time never
+  // became a snip — the mouth was handed "Person1: What time do you want to
+  // go?" alone for a passage the record called fully retrieved.
+  const dialogue = [{ ref: "pasted.txt#0-200", text:
+    "Person1: What time do you want to go?\n" +
+    "Person2: I don't know, whenever works.\n" +
+    "Person1: How about at 3:30?\n" +
+    "Person2: I'll meet you at the gym at 3:30 then." }];
+  const block = turnSnipBlock(dialogue, "what time are they meeting at the gym?");
+  assert.match(block, /I'll meet you at the gym at 3:30 then\./, "the answer-bearing sentence is a snip, not silently dropped");
+});
+
 test("process narration is cut, but a stated absence and anything carrying the material's own words are kept (P127)", () => {
   const material = "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.";
   const run = (t) => cutProcessTalk(t, { materialText: material, splitSentences });
@@ -88,6 +107,27 @@ test("process narration is cut, but a stated absence and anything carrying the m
   // An answer that is nothing but scaffolding is left whole for the marks to carry.
   const all = run("Let me break this down. Here's a summary of the approach.");
   assert.equal(all.text, "Let me break this down. Here's a summary of the approach.");
+  // REGRESSION (found live, 2026-09-09): the model narrating a research act
+  // it took ("Also looked at: X") is process talk exactly like "Let me
+  // explain" is, but opens on an adverb rather than a first-person pronoun
+  // — the shape `i \w+\b` was built for. Ran through the full grounding
+  // ladder unfixed, it read as a category error (the app checking its own
+  // process-narration for material support).
+  const also = run("The harbor light was built in 1841 by Ada Rowe. Also looked at: en.wikipedia.org was read and speaks of the same things without answering this.");
+  assert.equal(also.text, "The harbor light was built in 1841 by Ada Rowe.");
+  assert.equal(also.cut.length, 1);
+  // REGRESSION (found live, 2026-09-09, the fix above's own first live
+  // outing): "speaks the material's own words" used to fire on a SINGLE
+  // coincidentally shared word, and a real fetched page is long enough
+  // that a plain word like "read" or "same" turns up somewhere in it
+  // almost by chance — the "Also looked at" specimen above survived
+  // unfixed against real Gagarin material this way, one word away from a
+  // clean cut. Two shared words is what the fix now requires.
+  const realMaterial = "In 1961, Yuri Gagarin became the first human to travel into outer space, completing an orbit of the Earth. His spacecraft, Vostok 1, launched from the Baikonur Cosmodrome.";
+  const realRun = (t) => cutProcessTalk(t, { materialText: realMaterial, splitSentences });
+  const gagarin = realRun("Yuri Gagarin flew to space in 1961 and his resting pulse rate during launch was 64 beats per minute. Also looked at: sovietspaceprogram.com, en.wikipedia.org were read and speak of the same things without answering this.");
+  assert.equal(gagarin.cut.length, 1);
+  assert.equal(gagarin.text, "Yuri Gagarin flew to space in 1961 and his resting pulse rate during launch was 64 beats per minute.");
 });
 
 test("P135: a token is scoped to the source it is claimed OF — another source answering for it is how a planted name passed every check (2026-09-06)", () => {

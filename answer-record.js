@@ -148,3 +148,58 @@ export function answerRecordLine(r) {
   const abs = r.absenceTally ? ` · absences ${r.absenceTally.citingVoid + r.absenceTally.citingNone} (${r.absenceTally.citingVoid} cite a declared gap, ${r.absenceTally.citingNone} cite none)` : "";
   return `answer record · ${r.claims.length} claim(s)${bits.length ? ` (${bits.join(", ")})` : ""} · ${r.unsupported.length} unsupported · ${r.unbacked.length} unbacked${abs} · retrieved ${r.retrieved.length} · recipe ${String(r.recipe ?? "none").slice(0, 12)}${r.unread?.length ? ` · still reading ${r.unread.map((u) => `${u.name} ${u.read}/${u.total}`).join(", ")}` : ""}`;
 }
+
+const plural = (n, word, word2 = `${word}s`) => `${n} ${n === 1 ? word : word2}`;
+
+/**
+ * A plain-language reading of the record — what a curious, non-technical
+ * reader wants from "thinking", not what a developer wants from a log.
+ * Every number here is read straight off the record's own fields (never
+ * `frame`, `recipe` or `constitution` — an organ name and two hashes, the
+ * developer's view, not the reader's); no field is invented that the
+ * record does not actually carry (2026-09-08, reversing "vastly simplified"
+ * 2026-08-28 — see CLAUDE.md, "The thinking affordance, vastly simplified").
+ */
+export function answerRecordProse(r) {
+  if (!r) return "";
+  const sentences = [];
+
+  const claims = r.claims?.length ?? 0;
+  const bound = r.tally?.bound ?? 0;
+  const contradicted = r.tally?.contradicted ?? 0;
+  const unclear = Math.max(0, claims - bound - contradicted);
+  if (claims) {
+    const bits = [];
+    if (bound) bits.push(`${bound} backed by what it read`);
+    if (contradicted) bits.push(`${contradicted} contradicted by it`);
+    if (unclear) bits.push(`${unclear} the reading couldn't settle either way`);
+    sentences.push(`It made ${plural(claims, "claim")} about the material${bits.length ? ` — ${bits.join(", ")}` : ""}.`);
+  }
+
+  const unsupported = r.unsupported?.length ?? 0;
+  const unbacked = r.unbacked?.length ?? 0;
+  if (unsupported || unbacked) {
+    const bits = [];
+    if (unsupported) bits.push(`${plural(unsupported, "statement")} the material didn't support`);
+    if (unbacked) bits.push(`${plural(unbacked, "statement")} with nothing to check against`);
+    sentences.push(`It also said ${bits.join(" and ")}.`);
+  }
+
+  const sources = r.sources?.length ?? 0;
+  const retrieved = r.retrieved?.length ?? 0;
+  if (retrieved) sentences.push(`It drew on ${plural(retrieved, "passage")} from ${plural(sources, "source")}.`);
+  else if (sources) sentences.push(`Nothing attached came up for this question, though ${plural(sources, "source")} ${sources === 1 ? "was" : "were"} available.`);
+
+  const stillReading = (r.unread ?? []).filter((u) => (u.total ?? 0) > (u.read ?? 0));
+  if (stillReading.length) sentences.push(`Reading is still going on ${plural(stillReading.length, "source")} (${stillReading.map((u) => `${u.name} ${u.read} of ${u.total}`).join(", ")}).`);
+
+  const citingVoid = r.absenceTally?.citingVoid ?? 0;
+  const citingNone = r.absenceTally?.citingNone ?? 0;
+  const absences = citingVoid + citingNone;
+  if (absences) sentences.push(`It acknowledged ${plural(absences, "spot")} where the material simply doesn't say more.`);
+
+  if (r.voidsOpen) sentences.push(`${plural(r.voidsOpen, "question")} about this ${r.voidsOpen === 1 ? "remains" : "remain"} open.`);
+
+  if (!sentences.length) return "It didn't make any checkable claims this turn.";
+  return sentences.join(" ");
+}

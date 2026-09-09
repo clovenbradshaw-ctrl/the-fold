@@ -81,15 +81,21 @@ import { asksAboutMaterial, materialView, aboutBlock, abbreviate } from "./about
 // hand-typed notion of how the expression looks.
 import katex from "/node_modules/katex/dist/katex.mjs";
 
-import { checkGrounding, unsupportedClaims, extractCheckableAtoms } from "./grounding.js";
+import { checkGrounding, unsupportedClaims, extractCheckableAtoms, extractAtoms } from "./grounding.js";
 
 import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
-import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets } from "./holon.js";
+// The wall at the model's own turn boundary (see turn-boundary.js's own
+// header for the live incident this closes): a streamed answer is cut the
+// instant it leaks a chat-template role marker, since this app cannot rely
+// on every model it might route to carrying its own Modelfile `stop` list.
+import { stripPastTurnBoundary, turnBoundaryIndex } from "./turn-boundary.js";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel, isPinnedModel } from "./model-routing.js";
+import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets, todayLine } from "./holon.js";
 
-import { renderBlocksInto } from "./render.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel } from "./model-routing.js";
+
+import { parseBlocks, renderBlocksInto } from "./render.js";
 
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, runSandboxed } from "./term.js";
 // The in-tab rung (P21's WebLLM rung, wired into the page 2026-09-05 — its
@@ -131,7 +137,7 @@ import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
-import { classifySentences } from "./provenance.js";
+import { classifySentences, sentenceSpans } from "./provenance.js";
 
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
 
@@ -140,7 +146,9 @@ import { persistSource, unpersistSource, loadSources } from "./sources-store.js"
 // holds persist to OPFS as append-only JSONL and replay on boot through the
 // kernel's own `append`, so the accumulated reading no longer ends at reload.
 import { serializeRecord, replayRecord } from "./record-log.js";
-import { appendRecord, loadRecord } from "./record-store.js";
+import { appendRecord, loadRecord, recordLength } from "./record-store.js";
+// GFP Pass 33: the keyless field, derived from the records and the sources — booted with the records, synced beside them, fed by the reader loop and by every record line written (field-store.js registers on record-store's own append).
+import { bootField, syncField, getField } from "./field-store.js";
 import { mergeAppendOnly } from "./record-log.js";
 import { updateSourceMeta } from "./sources-store.js";
 // Read when material arrives (Pass 18, P99): the reader loop and the typed
@@ -161,8 +169,8 @@ import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, m
 import { editLine } from "./piece-edit.js";
 import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
-import { groundOf, groundLine } from "./ground-ladder.js";
-import { answerRecord, answerRecordLine, voidInScope } from "./answer-record.js";
+import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
+import { answerRecord, answerRecordLine, answerRecordProse, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -265,6 +273,11 @@ import { readerFrame as frameOfReader } from "./reader-frame.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
 import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
+// GIVEN's own resolver (priors-toggles.js, P19): "who decided this" is one
+// pure function, imported here rather than re-derived, so the panel can
+// never disagree with the server or the terminal's own `priors` command
+// about which level's declaration is deciding a document's effective state.
+import { effectivePrior, declarationsFrom } from "./priors-toggles.js";
 // Zeroing the space (void-shape.js / void-brief.js): what shape does this
 // question's answer have to fill, and what part of it is still empty. Both
 // take their organs injected — the cube's algebra and web-claim.js's slot
@@ -302,6 +315,14 @@ import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js"
 // second reconciliation.
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
+// The organ's real name is still makeHyperlexicon — organs/hyperlexicon.js's
+// own header (2026-09-02) settled this as the byte-compatible text face of
+// kernel/notes.js, "the API IS BYTE-COMPATIBLE for every existing caller...
+// makeHyperlexicon(taskLog)". A prior pass here assumed a further rename to
+// organs/notes-text.js / makeNotesText that was never carried out anywhere
+// in eoreader7 (checked: no notes-text.js exists, and ~50 other consumers —
+// tests, capacities.js, corroboration.js, derivation.js — all still import
+// makeHyperlexicon) and had broken module loading. Reverted to the real name.
 import { makeHyperlexicon } from "./hyperlexicon.js";
 import { depthLine, DEPTH_NAMES } from "./depth.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
@@ -378,12 +399,33 @@ function syncRecords() {
     for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations], ["loops", () => state.loopLog]]) {
       const log = get();
       if (!log || !Array.isArray(log.entries)) continue;
+      // A second tab or session on this same origin shares this OPFS store
+      // and can append to the SAME file between one sync and the next —
+      // record-store.js's own `appendRecord` seeks to the file's current end
+      // and writes there unconditionally, with no coordination between
+      // writers. Trusting `RECORDS[name]` alone (this tab's own memory of
+      // "what I've already written") let a stale cursor re-derive entries at
+      // seqs another tab had already advanced past, landing two DIFFERENT
+      // sets of bytes at the same seq once both were appended — exactly the
+      // `record_conflict` gap replay reports, and exactly what this repo's
+      // own persisted grid.jsonl carries after two sessions both built on
+      // top of the same nextSeq=4 without knowing about each other. Re-
+      // reading the file's actual length before choosing what is "new"
+      // closes the race at its source: when another writer has moved the
+      // file ahead of what this tab believes, that is real bytes already on
+      // disk, not a number to trust, so the cursor is caught up to match
+      // before a single line is chosen — a log that has nothing beyond that
+      // point simply has nothing left to append this round, rather than
+      // re-appending its own stale, now-conflicting tail.
+      const onDisk = await recordLength(name);
+      if (onDisk > RECORDS[name]) RECORDS[name] = onDisk;
       const lines = serializeRecord(log, RECORDS[name]);
       if (!lines.length) continue;
       const upto = log.nextSeq;
       const r = await appendRecord(name, lines);
       if (r.appended === lines.length) RECORDS[name] = upto;
     }
+    await syncField(); // GFP Pass 33: the field's new rows, beside the records, append-only
   };
   recordSyncChain = recordSyncChain.then(job).catch((e) => console.warn("record sync:", e?.message ?? e));
   return recordSyncChain;
@@ -455,6 +497,7 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
       name, passages, relationsFor, hyperlexicon: hyperlexiconFor,
       ledgerRef: { get: () => state.hyperlexiconLog, set: (log) => { state.hyperlexiconLog = log; } },
       frame, recipe, classifyConnector: state.grounded ? connectorLens : null, cursor,
+      field: getField(), // GFP Pass 33: each passage read enters the keyless field with its ground address
       // A MessageChannel macrotask, not setTimeout: a hidden tab clamps
       // timers to ~1/s (and to 1/min after five minutes), which turned a
       // 44-passage read into a crawl the first time this ran live. Message
@@ -539,14 +582,35 @@ function refreshConstitutionalIndex() {
 async function restoreRecords() {
   const bundle = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append };
   const restored = {};
+  // A gap is collected here, never just console.warn'd and dropped: the
+  // console line reaches nobody who has not opened devtools, so a
+  // record_conflict (or any other typed gap) used to make the rest of that
+  // log permanently unreadable — every future boot re-hits the identical
+  // line, since record-store.js's own append-only rule (FOLD-CONSTITUTION
+  // I.5) forbids rewriting the file to drop the orphaned tail — with the
+  // only trace being a line in the console. The caller (boot, below) is
+  // what actually shows this to the person; this function stays pure I/O
+  // orchestration and hands back what it found.
+  const gaps = [];
   for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null], ["loops", state.loopLog?.admits ?? null]]) {
     const lines = await loadRecord(name);
     if (!lines.length) continue;
     const r = replayRecord(lines, { ...bundle, admits });
-    if (r.gap) console.warn(`record ${name}: ${r.gap.type} — ${r.gap.detail} (${r.replayed} replayed, the rest not read)`);
+    if (r.gap) {
+      const detail = `record ${name}: ${r.gap.type} — ${r.gap.detail} (${r.replayed} replayed, the rest not read)`;
+      console.warn(detail);
+      // `r.gap` first, then the two computed fields, so its own bare `detail`
+      // (e.g. "line 8 carries seq 4…") never shadows the fuller one above —
+      // caught live: reversed, gaps[].detail read the short fragment with no
+      // record name, no gap type, and no replay count.
+      gaps.push({ ...r.gap, name, detail });
+    }
     if (r.replayed) { restored[name] = r.log; RECORDS[name] = r.log.nextSeq; }
   }
-  return restored;
+  // GFP Pass 33: the field is rebuilt from its own store beside the records
+  // (rows without positions; the rebuild is exact — field-of-record.test.mjs).
+  try { await bootField(); } catch (e) { console.warn("field boot:", e?.message ?? e); }
+  return { restored, gaps };
 }
 
 // The widget router (widget.js): does a code-bearing turn point at a build
@@ -569,7 +633,17 @@ import { literalSwap, makeWidgetRouter, scoutSpan } from "./widget.js";
 import { witnessCode, witnessRegressed } from "./witness.js";
 import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.js";
 
-const widgetRouter = makeWidgetRouter(enginePriors);
+// The POS classifier is injected so the router can tell "this app" (a
+// demonstrative DETERMINER, "app" the noun) apart from "fix this" (a bare
+// pronoun) — ANAPHORIC_PRONOUNS's own header names this exact ambiguity
+// and says a consumer must read the surrounding tokens; widget.js's
+// anaphoraTell does that with the same real POS prior classifyWord/
+// dominantClass already read elsewhere in this file, never a second
+// guessed rule. `posPrior` is a closure over `posPriorCache` (declared
+// further down, assigned once the fetch below resolves) — safe: this
+// function is only ever CALLED during a later turn, long after the
+// module has finished loading.
+const widgetRouter = makeWidgetRouter(enginePriors, { classifyWord, dominantClass, posPrior: () => posPriorCache });
 
 // The languages a seed scrub or an ingest can keep as folds — seed.js's own
 // technical vocabulary (extension map), read as a token set. Not a word
@@ -837,6 +911,21 @@ const RELATION_READER_OPTIONS = {
   // unsupported list by relationFindings' own standing rule).
   determiners: new Set([...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS]),
   negationWords: enginePriors.NEGATION_WORDS,
+  // A third closed class, same standing, same reason (POLICIES.md P180): a
+  // first-person subject ("my favorite color", "I painted the wall") names
+  // whoever is SPEAKING, never a stable entity — measured live, gemma2:2b's
+  // own first-person answer bound `bound`, cited to a generic ESL "10
+  // sentences about my favorite color" example page, because both sides'
+  // subjects resolved to the same recurring FORM ("color"/"blue") despite
+  // naming two unrelated speakers. `sameSpeakerRef` is deliberately left
+  // unset here: this reader has no organ yet attesting that a retrieved
+  // passage shares the model's own speaker (the self plane's `self:`
+  // addresses are the natural candidate — named, not wired, since nothing
+  // currently threads a self-plane passage into this reader's `list`), so
+  // every first-person-led claim is `beyond-reach` against retrieved
+  // material, which is the correct, conservative default until that organ
+  // exists.
+  firstPerson: enginePriors.FIRST_PERSON,
   // Scoped to the extractor alone (hypergraph.js's own header says exactly
   // where) — succession.js's completeness gate, retrieval, and what the
   // model is shown all still read the real bytes.
@@ -873,7 +962,30 @@ const RELATION_READER_OPTIONS = {
   // (grammar-lens.js, two organs up in this file's own history) already
   // holds for the same reason.
 };
-const relationsFor = makeRelationReader(RELATION_READER_OPTIONS);
+// A second, BARE reader — the same options minus every received,
+// giver-named prior (posPriorFor, verbForms, oovLexicon, determiners,
+// negationWords, the UniMorph-backed lemmatizer) — built once, beside the
+// full one, so the composer's per-question `usePriors` switch can pick
+// between two REAL reader instances rather than trying to gate organs
+// makeRelationReader already closed over at construction time. Every field
+// dropped here is documented above as "byte-identical when omitted" — this
+// is exactly that omission, not a second, drifting options object.
+const BARE_RELATION_READER_OPTIONS = {
+  ...RELATION_READER_OPTIONS,
+  posPriorFor: undefined,
+  verbForms: undefined,
+  oovLexicon: undefined,
+  determiners: undefined,
+  negationWords: undefined,
+  firstPerson: undefined,
+  createLemmatizer: undefined,
+};
+const relationsWithPriors = makeRelationReader(RELATION_READER_OPTIONS);
+const relationsWithoutPriors = makeRelationReader(BARE_RELATION_READER_OPTIONS);
+// Keeps its name and call shape so no existing call site changes — it just
+// picks which built reader answers, read fresh every call since this is a
+// per-question lever, never a boot-time one.
+const relationsFor = (...args) => (state.usePriors ? relationsWithPriors : relationsWithoutPriors)(...args);
 
 // The typed-note ledger (hyperlexicon.js, P57), built once — the SAME
 // native cube.js `cellOf` two lines above already gives this file, plus
@@ -1460,14 +1572,29 @@ function reopenLoopFromCard(id, card) {
 // identity organ (castFor, built from cast.js) that resolves ends — with
 // noteIdentity named as the deliberate omission it still is.
 const readerFrame = () => frameOfReader({
-  options: RELATION_READER_OPTIONS,
-  priors: {
-    posPrior: posPriorCache ? "POSPrior@1" : null,
-    posGate: posPriorCache ? "on (type-level vocabulary gate over POSPrior@1)" : "off (prior not loaded)",
-    verbForms: unimorphVerbForms.size ? `UniMorph eng verb forms (${unimorphVerbForms.size})` : null,
-    morphology: sameFormOrgan ? "UniMorph morphology prior (sameAct)" : null,
-    connectorLens: connectorLens ? "grammar-lens over POSPrior@1 (asymmetric, P56)" : null,
-  },
+  // Reflects whichever of the two built readers this question actually
+  // used — the frame must never claim organs a withheld-by-choice turn
+  // never ran, the same honesty this file's own `state.grounded` gate on
+  // marks already holds for drawing.
+  options: state.usePriors ? RELATION_READER_OPTIONS : BARE_RELATION_READER_OPTIONS,
+  priors: state.usePriors
+    ? {
+        posPrior: posPriorCache ? "POSPrior@1" : null,
+        posGate: posPriorCache ? "on (type-level vocabulary gate over POSPrior@1)" : "off (prior not loaded)",
+        verbForms: unimorphVerbForms.size ? `UniMorph eng verb forms (${unimorphVerbForms.size})` : null,
+        morphology: sameFormOrgan ? "UniMorph morphology prior (sameAct)" : null,
+        connectorLens: connectorLens ? "grammar-lens over POSPrior@1 (asymmetric, P56)" : null,
+      }
+    : {
+        // Not "not loaded" — loaded, and withheld by the reader's own
+        // per-question switch. A different fact from never having fetched
+        // them, and this frame is the one place that fact is on the record.
+        posPrior: null,
+        posGate: "off (withheld by the priors switch this question)",
+        verbForms: null,
+        morphology: null,
+        connectorLens: null,
+      },
   identity: { ends: "makeCastResolver (cast.js)", noteIdentity: null },
   model: state.model ?? null,
 });
@@ -1635,6 +1762,21 @@ const state = {
   useAttachments: localStorage.getItem("fold-use-attachments") !== "off",
 
   /**
+   * Whether the reader's received linguistic priors (the POS vocabulary
+   * gate, UniMorph verb forms, determiners, negation, the morphology
+   * lemmatizer — RELATION_READER_OPTIONS' own received-and-giver-named
+   * organs) sharpen this question's checking. DEFAULT ON, per a per-question
+   * switch beside `useAttachments`/`isolated` for the identical reason: a
+   * lever a person did not know existed should default to the state that
+   * measurement already showed is better (P41/P42), and stay reachable for
+   * whoever wants to see the material read plainer. Read at the two reader
+   * instances built beside RELATION_READER_OPTIONS, never inside
+   * hypergraph.js — this repo owns the surface, not the organs (the
+   * boundary, above).
+   */
+  usePriors: localStorage.getItem("fold-use-priors") !== "off",
+
+  /**
    * Whether answers are checked at all. On (the default) is what this
    * instrument is for. Off is a plain chatbot — no relation tier asked for,
    * nothing drawn into the prose, no tally, no evidence or grounding panel,
@@ -1759,6 +1901,7 @@ const state = {
    */
   loopLog: null,
   huntUrls: {},
+  lastSearchSpans: [],
   lastPiece: null,
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
@@ -1846,7 +1989,29 @@ const PER_CONVO = [
   // false: a workspace's conversations know what the others found, which is
   // the whole reason a workspace is a thing. See PER_WORKSPACE below.
   "isolated",
+  // Checking mode — was one header icon shared by every open conversation,
+  // so a plain-answers chat and a checked one could not coexist (found
+  // live, 2026-09-09, user direction: "put the grounding toggle as an
+  // option within the specific chat, and scope it to per chat"). Read the
+  // composer switch's own comment in index.html for the UI half; every
+  // site that copies PER_CONVO into `state` must call syncGroundedUI()
+  // right after, or the composer checkbox and body.marks-off show the
+  // conversation just left, not the one now active.
+  "grounded",
 ];
+
+/** Applies state.grounded — the ACTIVE conversation's checking mode, now
+ *  that it is PER_CONVO — to the composer's #use-checking box and to
+ *  body.marks-off, which is a single global class the whole answer surface
+ *  reads (index.html's own "hidden drawing, never a hidden finding" CSS
+ *  scoping comment). Call after any assignment of state.grounded, whether
+ *  that came from the switch's own onchange or from switching to a
+ *  conversation/workspace whose stored value differs. */
+function syncGroundedUI() {
+  document.body.classList.toggle("marks-off", !state.grounded);
+  const box = $("use-checking");
+  if (box) box.checked = state.grounded;
+}
 
 // ── workspaces ───────────────────────────────────────────────────────────────
 //
@@ -1946,6 +2111,7 @@ function switchWorkspace(index) {
   if (to) {
     for (const k of PER_CONVO) state[k] = to[k];
     to.el.classList.add("on");
+    syncGroundedUI();
   }
   renderThreads();
   renderBuilds();
@@ -1975,6 +2141,7 @@ function addWorkspace(name) {
   const first = state.convos[0];
   for (const k of PER_CONVO) state[k] = first[k];
   first.el.classList.add("on");
+  syncGroundedUI();
   renderThreads();
   renderBuilds();
   renderSources?.();
@@ -2021,6 +2188,10 @@ function newConvo() {
     // Off by default: a new chat in a workspace starts knowing what the
     // workspace knows. Isolating one is an act, the way muting a source is.
     isolated: false,
+    // A new conversation starts from the one standing preference — the
+    // last value anyone set anywhere, same as before this was per-convo —
+    // and diverges from there if its own switch is ever touched.
+    grounded: localStorage.getItem("fold-marks") !== "off",
   };
 }
 
@@ -2046,6 +2217,7 @@ function switchConvo(index) {
   const to = state.convos[index];
   for (const k of PER_CONVO) state[k] = to[k];
   to.el.classList.add("on");
+  syncGroundedUI();
   renderThreads();
   renderBuilds();
   showView("chat");
@@ -2076,6 +2248,7 @@ function closeConvo(index) {
     const to = state.convos[state.active];
     for (const k of PER_CONVO) state[k] = to[k];
     to.el.classList.add("on");
+    syncGroundedUI();
     renderBuilds();
     showView("chat");
     $("input").focus();
@@ -2254,8 +2427,12 @@ async function connect() {
  * rather than policed, because the seam's shape is the contract, not the
  * host behind it. Returns `{text, doneReason}` — Ollama's own
  * `done_reason` ("stop" a natural end, "length" the token cap arrived
- * first, absent when the caller cancelled via `onDelta`) — never just a
- * bare string, so a caller can tell "the model finished" from "the cap
+ * first, absent when the caller cancelled via `onDelta`), plus two reasons
+ * this function itself decides: "cancelled" (the caller's own onDelta
+ * chose to stop) and "boundary" (turn-boundary.js caught the model leaking
+ * past its own turn into a fabricated continuation — `text` is already cut
+ * before the leak, never the raw text with the leak still in it) — never
+ * just a bare string, so a caller can tell "the model finished" from "the cap
  * cut it off" without re-deriving that fact by guessing at the text.
  */
 async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature } = {}) {
@@ -2400,6 +2577,27 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
       const delta = chunk.message?.content || "";
       if (!delta) continue;
       out += delta;
+      // THE TURN-BOUNDARY WALL (turn-boundary.js's own header carries the
+      // live incident). Checked on the FULL accumulated `out`, not just
+      // this delta, because Ollama's own chunking can split one marker
+      // ("<|us" then "er|>") across two reads — and checked BEFORE onDelta
+      // so a caller's live-streaming preview never shows the leaked
+      // continuation, not even for one frame. This app cannot audit
+      // whether the model behind `modelName` carries its own Modelfile
+      // `stop` list (S1_MODEL — a model pulled straight from Hugging Face
+      // — carries none at all, measured live), so nothing here waits for
+      // Ollama to have caught this first.
+      const boundaryAt = turnBoundaryIndex(out);
+      if (boundaryAt !== -1) {
+        out = out.slice(0, boundaryAt).trimEnd();
+        try {
+          await reader.cancel();
+        } catch {
+          // already closed — nothing to do
+        }
+        onDelta?.(out);
+        return { text: out, thinking, doneReason: "boundary" };
+      }
       // A caller's onDelta may return `true` to cancel the generation early
       // — predictive error correction: holon.js's runPart checks the
       // completed sentences so far against the offered passages, and a
@@ -4213,7 +4411,7 @@ const CODE_PIECE_FIXES = 1;           // one fix per failing function, named by 
 async function codePieceTurn(cp, typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
-  node.querySelector(".who").textContent = "program";
+  node.querySelector(".role-tag").textContent = "program";
   const body = node.querySelector(".body");
   const lines = [];
   const say = (l) => { lines.push(l); body.textContent = lines.join("\n"); };
@@ -4383,7 +4581,7 @@ function exportTurn(typed) {
   if (!state.lastPiece) return usageTurn(typed, "no piece to export yet — ask for one (\"write me a 20 page essay on …\") and it is exported when it lands; `/export` writes the last one again.");
   addMessage("user", typed);
   const node = addMessage("assistant", "");
-  node.querySelector(".who").textContent = "export";
+  node.querySelector(".role-tag").textContent = "export";
   node.querySelector(".body").textContent = "exporting the last piece…";
   exportLastPiece(node).then((r) => { node.querySelector(".body").textContent = r?.line ?? "export failed"; }).catch((e) => { node.querySelector(".body").textContent = `export failed: ${e?.message ?? e}`; });
   return Promise.resolve();
@@ -5374,7 +5572,19 @@ function guardedSend(question) {
 async function send(question) {
   state.busy = true;
   turnSeq += 1;
-  $("send").disabled = true;
+  // Deliberately NOT `$("send").disabled = true` (found live, QA battery
+  // 2026-09-09): `$("composer").onsubmit` already branches on `state.busy`
+  // to QUEUE a message rather than send it immediately — `state.queue`,
+  // the "queued" tag, `drainQueue()` in `releaseBusy()` below, all real,
+  // wired, working. But a keyboard Enter reaches that branch through
+  // `requestSubmit()` (which does not consult a submit button's own
+  // `disabled` state), while a mouse click on a disabled `#send` never
+  // fires `submit` at all — so the one visible, obvious way to send a
+  // message was silently unable to reach a feature that already worked
+  // for anyone who happened to press Enter instead. The button now stays
+  // clickable through a busy turn; other elements already carry the
+  // "working" signal (the status line's "writing: …", the model chip's
+  // pulsing dot), so this loses no disclosure.
 
   // A task rather than a question. Two doors, per the canon in eochatX's
   // eo-holonic-plan.ts: `/task` is the explicit one, and the mechanical gate
@@ -5627,9 +5837,46 @@ async function send(question) {
   // Checked LAST among the doors, after every typed command and every
   // material detector, so nothing typed and nothing about the material can
   // be hijacked by it: a widget's bytes hold no "report".
+  //
+  // That invariant held for "resolved"/"judgment" (real byte overlap with
+  // the ONE candidate — and see widget.js's own isBareNumeral for the
+  // narrower defect found there: a bare number is never such evidence) but
+  // not for "anaphora", which fires from the message's own grammar alone
+  // and cannot say which of many live builds — including a leftover from a
+  // wholly unrelated, earlier session, since state.builds is the
+  // instrument's, not one conversation's — a pronoun was ever meant to
+  // reach. `hasMaterial` (this turn's own liveSources reading; widget.js
+  // stays pure) is what makes that channel respect the invariant: with
+  // material attached, a bare "it"/"this"/"that" is at least as likely to
+  // point at the material as at a stale build, so it stops counting as
+  // evidence for the build. Measured live: "does that sound like a
+  // healthy diet to you?" — a document question, anaphoric "that" pointing
+  // at the attached diet — was landing on an unrelated leftover Python
+  // build via this exact channel before this gate existed.
+  //
+  // `hasMaterial` alone left a SECOND, plainer false positive open:
+  // ordinary casual chat with NO material attached at all — "hey! how's
+  // it going" (an expletive "it"), "one more random one", "what did I say
+  // my dog's name was again?" — still fires anaphora on grammar alone and
+  // was reaching a leftover build from a wholly different conversation,
+  // because `state.builds` is workspace-wide by design (CLAUDE.md), never
+  // per conversation. `discourse` is this conversation's own recent
+  // history (widget.js stays pure — it never reads state) — the reach of
+  // the present, RECENCY_WINDOW, the same "activation decays" window
+  // READING-POLICY P1 already names — so widget.js's own discourseLocal
+  // check can refuse a candidate this conversation never actually
+  // mentioned. The flagship "make it blue"/"it's broken" case is
+  // untouched: the turn that built the widget pushed the model's own
+  // reply (the code) into this same conversation's history a moment
+  // earlier, so the just-built widget's own bytes are already right there
+  // in scope.
   const pointed = widgetRouter.routeMessage(
     question,
     state.builds.map((b) => ({ n: b.n, ...kindOf(b), text: buildWords(b) })),
+    {
+      hasMaterial: liveSources().length > 0,
+      discourse: state.history.slice(-RECENCY_WINDOW).map((h) => h.content).join("\n"),
+    },
   );
   if (pointed) {
     return foldTurn(pointed.n, question, question, {
@@ -6375,19 +6622,21 @@ async function boundTurn(question, typed) {
   };
   const divA = document.createElement("div");
   divA.className = "prose";
-  renderBlocksInto(divA, free, (chunk) =>
-    taggedProse(chunk, passages, classifySentences(free, freeAttr, freeGrounding.findings).filter((e) => findSentence(chunk, e.text))),
-  );
+  // Same fix as renderAnswer's (renderTaggedBlocks, above): a block's own
+  // text goes to taggedProse whole, never as a marker-split fragment, so a
+  // free draft with any inline emphasis in it still gets its ground marks.
+  renderTaggedBlocks(divA, free, passages, classifySentences(free, freeAttr, freeGrounding.findings));
 
   const divB = document.createElement("div");
   divB.className = "prose";
+  const boundMarks = [];
   if (parsed.degraded) divB.textContent = flat;
   else
     for (const s of parsed.sentences) {
       const p = document.createElement("p");
       p.className = "para";
       p.append(
-        ...taggedProse(s.prose, passages, classifySentences(s.prose, boundAttr, boundGrounding.findings).filter((e) => findSentence(s.prose, e.text))),
+        ...taggedProse(s.prose, passages, classifySentences(s.prose, boundAttr, boundGrounding.findings).filter((e) => findSentence(s.prose, e.text)), boundMarks),
       );
       for (const [val, kind] of [[s.name, "name"], [s.figure, "figure"]]) {
         if (!val) continue;
@@ -6407,6 +6656,7 @@ async function boundTurn(question, typed) {
       }
       divB.append(p);
     }
+  renderMarksStrip(divB, boundMarks);
 
   const compare = document.createElement("p");
   compare.className = "fold-note";
@@ -6646,7 +6896,7 @@ async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRe
         ]),
       },
     ];
-    sentCalls?.push({ n: sentCalls.length + 1, messages });
+    sentCalls?.push({ n: sentCalls.length + 1, messages, phase: "folding the summary" });
     const raw = await complete(messages, {
       effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }),
     });
@@ -6753,14 +7003,41 @@ function dodgedASubstantiveQuestion(question) {
   return q.endsWith("?") && preflightQuery(q, "").length > 0;
 }
 
+// The measurement this function's own docstring asked for before its
+// ceiling could move. Battery-tested 2026-09-08: "hi! how are you doing
+// today" (6 words) and "lol nice ones, thx" (4 words) both fell past the
+// old <=2 ceiling, so twoPassTurn sent them straight to the full grounded
+// pass instead of trying System 1 first. There, with nothing attached,
+// shouldPreflight (proof.js) fired unconditionally on the person's own
+// leftover words ("hi doing" survives CLAIM_STOPWORDS the same way this
+// function's own docstring already names) and fetched whatever unrelated
+// pages a search on that turned up — a grammar site, in the measured
+// case. Those pages became this turn's own `live` passages, and from
+// there the checking ladder read an ordinary reply as a claim standing
+// against real material: "I'm doing great!" picked up a "no source states
+// this" stripe and a "no passage states this" badge, and a follow-up
+// question got cut by the same correction/framing machinery that stands
+// down ONLY when passages.length is zero (holon.js's own "chat path" —
+// see inspect()'s header there) — a speculative fetch had quietly made
+// that zero false, for a turn that was never asking to be checked.
+// Raised from 2 to 6, the length of the worse of the two measured
+// specimens. Safe to raise past the old floor for the reason the removed
+// half of this comment already argued the OTHER way: needsSystem2 (below)
+// still reads S1's own reply for a checkable atom and escalates to the
+// full grounded pass regardless of what tripped this gate, so a genuinely
+// substantive short question slipping under the new ceiling costs one
+// extra fast-pass round trip, never an unchecked wrong answer.
+const CHATTY_MAX_WORDS = 6;
+
 /**
  * TRULY TRIVIAL — the only thing System 1 answers alone (user direction
  * 2026-08-26: "only respond to truly trivial things with system 1").
  *
  * Three structural facts about the utterance itself, no word list: at most
- * two words, no question mark, no digit. That is the shape of chitchat —
- * "hi", "ok", "yes", "thanks", "good morning", "lol nice" — and nothing
- * else reaches System 1 alone.
+ * CHATTY_MAX_WORDS words, no question mark, no digit. That is the shape of
+ * chitchat — "hi", "ok", "yes", "thanks", "good morning", "lol nice ones,
+ * thx", "hi! how are you doing today" — and nothing else reaches System 1
+ * alone.
  *
  * preflightQuery is deliberately NOT the test here, though it was the first
  * thing tried. It answers "what would I look up", which is a different
@@ -6779,14 +7056,16 @@ function dodgedASubstantiveQuestion(question) {
  * negative is a checkable question answered from the model's memory with
  * nothing behind it — the failure this whole line of work exists to close
  * ("who was lincoln's vp?" answered "William R. Hargis", a person who does
- * not exist). Loosen only with a measurement showing the wasted searches
- * cost more than the misses they would reintroduce.
+ * not exist). The word ceiling above is the one knob this asymmetry does
+ * NOT protect on its own (a "?" or a digit still always forces the full
+ * path, unconditionally) — see CHATTY_MAX_WORDS's own comment for why
+ * raising it stays on the safe side of that asymmetry too.
  */
 function triviallyChatty(question) {
   const q = String(question ?? "").trim();
   if (!q) return true;
   if (q.includes("?") || /\d/.test(q)) return false;
-  return q.split(/\s+/).filter(Boolean).length <= 2;
+  return q.split(/\s+/).filter(Boolean).length <= CHATTY_MAX_WORDS;
 }
 
 function needsSystem2(question, s1Text) {
@@ -7055,7 +7334,7 @@ function discourseLineNow() {
 
 async function runFastPass(question, model) {
   const node = addMessage("assistant", "");
-  node.querySelector(".who").textContent = `model`;
+  node.querySelector(".role-tag").textContent = `model`;
   const body = node.querySelector(".body");
   body.textContent = "…";
   const present = presentWindow(state.regime, RECENCY_WINDOW);
@@ -7063,8 +7342,14 @@ async function runFastPass(question, model) {
   // Unconditionally, never gated on whether raw history happens to be
   // present — see discourseLineNow's own header for the measured reason.
   const discourse = discourseLineNow();
+  // The turn's own date, as a bare fact (holon.js::todayLine's own header
+  // carries the full reasoning) — S1 is exactly the voice that answered
+  // "the new iphone" as "the iPhone 15" with no way to know its own
+  // training might be stale, since nothing here had ever told it what
+  // "now" is. Never an instruction, never a hedge asked for — just the date.
+  const systemPrompt = `${S1_SYSTEM_PROMPT} ${todayLine(new Date())}`;
   const messages = [
-    { role: "system", content: discourse ? `${S1_SYSTEM_PROMPT}\n\nThe conversation so far, in one line: ${discourse}` : S1_SYSTEM_PROMPT },
+    { role: "system", content: discourse ? `${systemPrompt}\n\nThe conversation so far, in one line: ${discourse}` : systemPrompt },
     ...history,
     { role: "user", content: question },
   ];
@@ -7084,8 +7369,11 @@ async function runFastPass(question, model) {
   // every sentence is model-ground and wears the dotted underline — a
   // fast-pass answer no longer ships unclassified.
   if (text) {
-    try { body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], []))); }
-    catch { body.textContent = text; }
+    try {
+      const fastMarks = [];
+      body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], []), fastMarks));
+      renderMarksStrip(body, fastMarks);
+    } catch { body.textContent = text; }
   } else body.textContent = "(no reply)";
   return { node, text, sent };
 }
@@ -7097,19 +7385,28 @@ async function runFastPass(question, model) {
 async function twoPassTurn(question) {
   addMessage("user", question);
   logAct("asked", { text: question });
-  // Fixed, task-fit models (model-routing.js), each falling back to the
-  // fastest offered picker rung if not actually pulled — never routeModel's
-  // ordinary FLAT/DEEP split, which routes on TURN KIND (plain vs. deep
-  // work) and has no notion of "which pass" at all.
-  // The two passes are fitted to their jobs from what is on THIS machine —
-  // unless the person has picked a machine in the room, which says where the
-  // work runs. A pin outranks the specialist ladder: choosing another member's
-  // mouth and then watching the turn run locally is exactly the confusion this
-  // avoids (measured 2026-09-06, the pinned turn's own attribution line and
-  // its self-citation disagreed about which model spoke).
+  // REVERTED 2026-09-09 (live QA battery, user direction): both passes are
+  // back to the SAME picker-selected model, not model-routing.js's S1_MODEL/
+  // S2_MODEL specialists. Found live: the composer's model chip read
+  // "gemma2:2b" while an ordinary "Hi!" was answered by
+  // hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF — a model that appears
+  // nowhere in the composer at all — because the 2026-09-01 amendment (see
+  // model-routing.js's own header) made S1/S2 spend the specialist constant
+  // for their job instead of the picker's single choice. The chip is the
+  // one place a person is told who they are talking to (the UX pass above:
+  // "picking a model IS connecting to it... the single source of truth");
+  // a fixed answering model that never appears there breaks that contract
+  // for nearly every ordinary turn (S1 answers alone whenever the gate
+  // stays off — most of plain chat). This is the same "picker is
+  // authoritative" rule isPinnedModel already enforces for a room mouth,
+  // widened to the ordinary local case instead of carving it out as the
+  // one exception. `resolveNamedModel` still guards a stale/unpulled
+  // selection by falling back to the fastest offered rung, so this cannot
+  // name a model that would fail on first use.
   const pinned = isPinnedModel(state.model) ? state.model : null;
-  const s1Model = pinned ?? resolveNamedModel(S1_MODEL, { available: state.availableModels, offered: state.offeredModels });
-  const s2Model = pinned ?? resolveNamedModel(S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
+  const picked = pinned ?? resolveNamedModel(state.model, { available: state.availableModels, offered: state.offeredModels });
+  const s1Model = picked;
+  const s2Model = picked;
 
   // SEARCH BEFORE ANSWERING (user direction 2026-08-26: "let's have it do
   // the searching before it answers, and only respond to truly trivial
@@ -7137,6 +7434,18 @@ async function twoPassTurn(question) {
   // it volunteers something checkable while answering "hi", the grounded
   // pass still runs. The gate only ever adds a pass here.
   if (needsSystem2(question, s1Text)) {
+    // The gate firing means S1's own draft is superseded, not kept beside
+    // its replacement: `node` (S1's assistant bubble, already rendered by
+    // runFastPass above) must not be left standing once S2 renders its own
+    // — real incident, battery-tested 2026-09-08, sending "not much": with
+    // `node` left in the DOM here, S2's holonicTurn call a few lines down
+    // adds its OWN new assistant bubble for the identical question, and the
+    // transcript ends up showing two full, differently-worded replies
+    // stacked for one message. `opts.skipUserMessage` already exists so
+    // holonicTurn does not also duplicate the "you" bubble S1 rendered
+    // first; this is the same fix one level up, for the answer instead of
+    // the question.
+    node.remove();
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,
       priorPass: s1Text,
@@ -7309,7 +7618,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const loopScope = `c${convoNo}t${turnNo}`;
   if (!opts.skipUserMessage) addMessage("user", typed);
   const node = addMessage("assistant", "");
-  if (opts.label) node.querySelector(".who").textContent = opts.label;
+  if (opts.label) node.querySelector(".role-tag").textContent = opts.label;
   const body = node.querySelector(".body");
   // The loops, above the body: the cards live beside the answer, not inside
   // it, so `renderAnswer`'s own clearing of the body never takes them.
@@ -7370,7 +7679,21 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const tickEl = document.createElement("div");
   tickEl.className = "thinking";
   const draftEl = document.createElement("div");
-  draftEl.className = "prose";
+  // `draft-pending` (found live, user direction 2026-09-09: "it needs to be
+  // greyed out before a final answer is locked in") — this element streams
+  // the model's raw draft while it is still subject to the correction loop
+  // (holon.js's bounded correction over unsupported claims) and, before
+  // that, the online proof-seeking pass — real content that can still be
+  // rewritten out from under it. It shares the `.prose` class with the
+  // FINAL, checked answer `renderAnswer` draws once the turn actually
+  // lands, so until now a reader had no visual signal that what they were
+  // reading was provisional: a wrong first draft looked exactly as settled
+  // as the real answer, right up to the moment it silently got replaced.
+  // `draft-pending` mutes it (index.html, same treatment `.thinking`
+  // already uses for "not yet settled") for as long as this element is
+  // live; `renderAnswer`'s own `.prose` node is never given the class, so
+  // the real answer always renders at full weight from the moment it exists.
+  draftEl.className = "prose draft-pending";
   // ONE TRACE, TWO VOICES, IN THE ORDER THEY HAPPENED.
   //
   // The run log is a log — mono, one fact per line, "3 passage(s) retrieved"
@@ -7852,6 +8175,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         });
       }
       for (const pg of preflight.pages ?? []) if (pg?.name && pg.url) state.huntUrls[pg.name] = pg.url;
+      // The combined-snippet digest's own per-result provenance, held for
+      // reopen()'s "web:search-results#a-b" branch (below) to resolve a
+      // span back to the real page it came from — this turn's own hunt
+      // only, matching state.lastGround's own "the latest turn's own"
+      // convention elsewhere in this file.
+      state.lastSearchSpans = preflight.spans ?? [];
       if (preflight.chunks.length) {
         // Long-form UNIONS what was found with what is attached; an ordinary
         // preflight only ever runs with nothing attached, so `live` is empty
@@ -8090,7 +8419,21 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             // answer from a true-but-unmeant one (wikidata.js::coverageOf).
             const best = [...seek.perTerm].sort((a, b) => (b.coverage?.ratio ?? 0) - (a.coverage?.ratio ?? 0))[0];
             if (!best?.bound?.length) {
-              think(`Nobody is on record holding that during any period ${anchorTerm} is recorded for.`);
+              // Was "Nobody is on record holding that during any period X
+              // is recorded for" — an office/tenure template (succession,
+              // "who holds X during a period") applied unconditionally,
+              // even when slotTerm names a fixed, single-valued attribute
+              // with no holders or terms at all. Found live, 2026-09-09:
+              // "What is the capital of Peru?" reached this exact branch
+              // and got a "holding a period" sentence about a geography
+              // fact, a category error — "holding a capital during a
+              // period" presupposes an office this slot was never one.
+              // Nothing upstream can tell an office slot from a fixed
+              // attribute (declaredSlotShape is deliberately a defeasible
+              // proxy with no such distinction — P4/P23's own standing rule
+              // against hand-picked classifiers), so the fix is a
+              // category-neutral withhold that reads correctly either way.
+              think(`Nothing on the public record binds a "${slotTerm}" to ${anchorTerm}.`);
             } else if (!(best.coverage?.ratio > 0)) {
               // Bound, but the terms do not account for the span — so the set
               // is not closed and must not be stated as though it were.
@@ -8232,6 +8575,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 renderFold(node, { fold: foldLine, reasoning });
                 renderThreads();
                 $("status").textContent = readyLine();
+                // This path answers and returns before the try block below
+                // ever reaches its own `clearInterval(ticker)` (success path)
+                // or its catch's (failure path) — the only two places this
+                // function otherwise stops the busy ticker. Missing here, the
+                // 1s `setInterval` created above keeps firing for the rest of
+                // the page's life on every entity-seek turn that answers this
+                // way: harmless to what is on screen (`tickEl` was already
+                // detached from `body` a few lines up) but a genuine leaked
+                // timer nonetheless, and exactly the class of defect that
+                // makes a later turn's OWN busy indicator untrustworthy.
+                clearInterval(ticker);
                 releaseBusy();
                 return;
               }
@@ -8282,7 +8636,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // even by coincidence (a training habit, or text copied verbatim
       // from retrieved material that happens to carry bracket notation).
       call: async (messages, opts) => {
-        sentCalls.push({ n: sentCalls.length + 1, messages });
+        // `phaseLabel` (declared above, updated by every `setPhase()` call
+        // in `onProgress`) is captured here for free — it is already the
+        // exact human phrase this turn's own status line showed while this
+        // call was in flight ("writing the question", "rewriting the
+        // question", …). renderFold's tree (2026-09-09, "a map of how and
+        // what was prompted") groups by this field; nothing new is measured
+        // to produce it.
+        sentCalls.push({ n: sentCalls.length + 1, messages, phase: phaseLabel });
         // autoContinue is safe to pass unconditionally — complete()'s own
         // guard skips it for any json-mode call (the plan ask, notably),
         // so this needs no per-call-kind branching here.
@@ -8297,7 +8658,45 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
       makeRelationReader: state.grounded ? relationsFor : null,
-      witnessSentences: state.grounded ? witnessSentencesFor : null,
+      // FOUND LIVE (2026-09-09): checking on, nothing attached, "What's your
+      // favorite season and why?" — the turn's own void-brief had already
+      // decided, before any draft existed, that this question "does not open
+      // a slot to fill... there is no shape here for me to check an answer
+      // against" (noSlotLine, said via `think()` above the moment `voidDigest`
+      // is set to "no-slot"). The witness tier ran anyway — gated only on
+      // `state.grounded` and `passages.length` in holon.js's `runPart`, with
+      // no notion of whether the QUESTION asked for anything checkable — and
+      // asked about literally every sentence the answer split into
+      // (witness-sentences.js's `endsFor` needs two content words, not a
+      // claim), so a purely subjective answer's fragments ("the crisp air,
+      // the cozy sweaters... it's just perfect") each came back "refused"
+      // and were convicted with a "∅ no passage states this" badge plus a
+      // "gemma2:2b — no source states this" ground chip (taggedProse,
+      // ground-ladder.js's `groundLine` at tier "self"/refused). This is the
+      // same failure CLAUDE.md's two 2026-08-17 amendments already named and
+      // closed for a build turn's own prose and for holon.js's `inspect()`:
+      // "a checking organ may say 'I have nothing to compare this against'
+      // (withhold), or 'I compared it and it failed' (convict). It may never
+      // manufacture the second out of the first." `voidDigest === "no-slot"`
+      // IS that withholding — already decided by this same instrument before
+      // the model ever drafted — so it is reused here rather than a second
+      // mechanism invented to say the same thing twice: a turn whose own
+      // question opens no checkable slot never populates a witness report to
+      // convict its own prose. Scoped to the witness tier alone, not
+      // `makeRelationReader` above: the relation tier only ever flags a real
+      // subject-verb-object claim it extracted, so it never misfired on this
+      // specimen's fragments in the first place (no ⇄/∅ relation badge drew
+      // on any of them) — only the witness tier, which asks about every
+      // sentence unconditionally, needed standing down. A question that DOES
+      // open a slot is untouched; so, disclosed, is a manner/reason question
+      // ("why"/"how") with real material attached — `declaredSlotShape`
+      // (web-claim.js) returns `headPhrase: null` for those BY DESIGN (an
+      // explanation is not a filler), so they read as "no-slot" here too and
+      // lose the witness tier's paraphrase-catching fallback, while the
+      // relation tier's own SVO-level checking — untouched by this gate —
+      // keeps checking whatever claims it can actually extract from a real
+      // explanation.
+      witnessSentences: state.grounded && voidDigest !== "no-slot" ? witnessSentencesFor : null,
       // The link tier (links.js): a cited URL is fetched through the SAME
       // standing web consent proof-seeking already asks for — an automatic
       // crossing the instrument decided to make, not a click the reader
@@ -8346,6 +8745,18 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       records: state.summary?.records ?? [],
       transcript: transcriptNow(),
       searchedVoid,
+      // Whether the person has attached ANY material — the raw source map,
+      // never `live`/`liveChunks()` (this turn's attachments-toggle-and-
+      // mute-filtered view): holon.js's own header (UNRETRIEVED_MATERIAL_
+      // PREFIX) explains the incident that made the distinction necessary —
+      // an attached-but-off-for-this-turn source used to read to the model
+      // exactly like nothing had ever been given.
+      sourcesAttached: Object.keys(state.sources).length > 0,
+      // The turn's own date, a fact the mouth receives (holon.js::todayLine's
+      // own header carries the full reasoning — found live, 2026-09-08,
+      // "the new iphone" answered as "the iPhone 15" with no way for the
+      // model to know its own training might be stale).
+      now: new Date(),
       priorPass: opts.priorPass ?? null,
       // Flow #2's other two knobs (escalation, computed above): identical
       // to holon.js's own defaults whenever the standing did not read
@@ -8800,16 +9211,24 @@ function addMessage(role, text) {
   // (FOLD-CONSTITUTION I.5); it is simply no longer drawn here. The `.fold`
   // CLASS below is left alone deliberately: it is the disclosure's shared
   // styling and renaming it would buy nothing a reader ever sees.
+  // The disclosure sits ABOVE the answer (user direction, 2026-09-08):
+  // "thinking" is what the turn did BEFORE it spoke, so it reads first,
+  // the same chronology this file's own void/reasoning sections already
+  // argue for elsewhere ("the reasoning genuinely preceded the
+  // conclusion... printing the conclusion first would read as having
+  // known it all along"). Collapsed by default either way, so this
+  // costs nothing when nobody opens it.
   el.innerHTML =
-    `<div class="who"></div><div class="body"></div>` +
+    `<div class="role-tag"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
         `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary><p></p></details>` +
         `<button type="button" class="ground-toggle" hidden title="show where each sentence stands — the ground chips, hidden unless asked">ground</button>` +
         `<button type="button" class="view-toggle" title="the loops in sentences (text) or in the notation (eot) — one setting for every turn and the holograph">${viewMode === "eot" ? "text" : "eot"}</button>` +
         `</div>`
-      : "");
-  el.querySelector(".who").textContent = role === "user" ? "you" : "model";
+      : "") +
+    `<div class="body"></div>`;
+  el.querySelector(".role-tag").textContent = role === "user" ? "you" : "model";
   el.querySelector(".ground-toggle")?.addEventListener("click", (ev) => {
     const on = el.classList.toggle("show-ground");
     ev.currentTarget.textContent = on ? "hide ground" : "ground";
@@ -8836,7 +9255,6 @@ function addMessage(role, text) {
  * model output is content, not code this app has agreed to run.
  */
 function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, task = null) {
-  groundRunKey = null;
   // The operator's own words for this turn — what the widget router reads.
   // Flat (single-part) turns pass only `instruction`; holonic turns pass a
   // separate `task` (the plan's own words differ from the operator's), so
@@ -8876,14 +9294,14 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
-      // a browser silently relocates those out of a paragraph. Every inline
-      // run comes back through taggedProse, so the address chips, attribution
-      // tags, and provenance grounds survive the markdown structure.
+      // a browser silently relocates those out of a paragraph. Every block's
+      // OWN text comes back through taggedProse whole (renderTaggedBlocks,
+      // above — never a marker-split fragment), so the address chips,
+      // attribution tags, and provenance grounds survive the markdown
+      // structure regardless of where a `**bold**` span happens to fall.
       const d = document.createElement("div");
       d.className = "prose";
-      renderBlocksInto(d, seg.text, (chunk) =>
-        taggedProse(chunk, offered, classified.filter((e) => findSentence(chunk, e.text))),
-      );
+      renderTaggedBlocks(d, seg.text, offered, classified);
       body.append(d);
       continue;
     }
@@ -9189,6 +9607,22 @@ function chipText(ref) {
   return refLabel(ref) ?? ref;
 }
 
+/**
+ * A "web:search-results#a-b" address, resolved back to the real page it
+ * came from — `{ url, title, host }`, or null when the ref is not this
+ * family, no span was kept, or the offsets fall in the separator between
+ * two snippets. `state.lastSearchSpans` (gatherPreflightMaterial, above)
+ * is this turn's own hunt only, matching every other "lastX" turn-scoped
+ * field in this file.
+ */
+function searchSpanSource(ref) {
+  const m = /^web:search-results#(\d+)-(\d+)$/.exec(String(ref ?? ""));
+  if (!m) return null;
+  const [, start, end] = m.map(Number);
+  const span = (state.lastSearchSpans ?? []).find((s) => start < s.end && end > s.start);
+  return span ? { url: span.url, title: span.title, host: span.host } : null;
+}
+
 /** Bold, italic, and inline code in a run of prose, nothing more. The model
  * writes markdown because it was told to; the reader should see bold as bold.
  * Refs were already split out before this runs (refNodes splits first), and a
@@ -9251,6 +9685,115 @@ function refNodes(text, known) {
 }
 
 /**
+ * Opens the detail a sentence's `.mark-ref` (or the bottom `.marks-strip`'s
+ * own chip) points at — every item this sentence collected, each with its
+ * full detail text (what used to live in a chip's `title` attribute, read
+ * only on hover, easy to miss entirely on a touch device) and, where the
+ * original chip was clickable, the same action reachable from a real
+ * button rather than a click on running prose.
+ */
+function openMarkDetail(entry) {
+  $("mark-detail-title").textContent = entry.tier ? `Ground — ${tierWord(entry.tier)}` : "Marks";
+  $("mark-detail-sentence").textContent = `“${entry.sentence}”`;
+  const body = $("mark-detail-body");
+  body.replaceChildren();
+  for (const item of entry.items) {
+    const div = document.createElement("div");
+    div.className = "mark-detail-item";
+    const label = document.createElement("p");
+    label.className = "mark-detail-label";
+    label.textContent = item.label;
+    div.append(label);
+    if (item.detail) {
+      const p = document.createElement("p");
+      p.className = "mark-detail-text";
+      p.textContent = item.detail;
+      div.append(p);
+    }
+    if (item.addresses?.length) {
+      const addr = document.createElement("p");
+      addr.className = "mark-detail-addr";
+      addr.textContent = item.addresses.join(", ");
+      div.append(addr);
+      // A "web:search-results#a-b" address names bytes, not a page a
+      // reader would recognize — resolved to the real page it came from,
+      // right here, so seeing that doesn't need a second click into
+      // reopen()'s own dialog (found live, 2026-09-09, user direction:
+      // "this needs to disclose more where it really came from").
+      for (const a of item.addresses) {
+        const found = searchSpanSource(a);
+        if (!found) continue;
+        const from = document.createElement("p");
+        from.className = "mark-detail-addr";
+        from.append(`from: ${found.title ?? found.host} (${found.host})`);
+        if (found.url) {
+          from.append(" ");
+          const link = document.createElement("a");
+          link.href = found.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = "↗";
+          link.title = "the page this snippet came from — opens in your own browser, leaves this instrument";
+          from.append(link);
+        }
+        div.append(from);
+      }
+    }
+    if (item.action) {
+      const btn = document.createElement("button");
+      btn.className = "mark-chip";
+      btn.textContent = item.actionLabel ?? "Open";
+      btn.onclick = () => { $("mark-detail").close(); item.action(); };
+      div.append(btn);
+    }
+    body.append(div);
+  }
+  $("mark-detail").showModal();
+}
+
+/** Registers one sentence's collected marks into the shared `marks` list for
+ * this message and returns the small inline button a reader clicks to open
+ * them — the whole footprint left in the reading flow once a mark exists,
+ * everything else moved to the strip at the bottom (found live, 2026-09-09:
+ * a ground-chip/ref/edge-badge trio on nearly every sentence read as prose
+ * interrupted by pill buttons every few words). */
+function markRef(marks, entry) {
+  marks.push(entry);
+  const warn = entry.items.some((i) => i.warn);
+  const m = document.createElement("button");
+  m.className = `mark-ref${entry.tier ? ` tier-${entry.tier}` : ""}${warn ? " warn" : ""}`;
+  m.textContent = String(marks.length);
+  m.title = entry.items.map((i) => i.label).join(" · ");
+  m.onclick = (e) => { e.stopPropagation(); openMarkDetail(entry); };
+  // A resolving web-proof check finds and updates the matching item's own
+  // label/detail by proof key (renderGrounding's onVerdict, elsewhere) —
+  // it needs the live entry object, not just this button's own text (which
+  // is only ever a number now), so the hover title still refreshes without
+  // opening the modal.
+  m._entry = entry;
+  return m;
+}
+
+/** The strip every sentence's `.mark-ref` points into — one row at the
+ * bottom of a message, everything the sentence-level chips used to say,
+ * still all present and still one click away, just not standing in the
+ * reader's way to get to it. A no-op when the message earned no marks. */
+function renderMarksStrip(container, marks) {
+  if (!marks.length) return;
+  const strip = document.createElement("div");
+  strip.className = "marks-strip";
+  marks.forEach((entry, i) => {
+    const warn = entry.items.some((it) => it.warn);
+    const chip = document.createElement("button");
+    chip.className = `mark-chip${warn ? " warn" : ""}`;
+    chip.textContent = `${i + 1} · ${entry.tier ? tierWord(entry.tier) : entry.items[0]?.label ?? "mark"}`;
+    chip.onclick = () => openMarkDetail(entry);
+    strip.append(chip);
+  });
+  container.append(strip);
+}
+
+/**
  * Prose with every sentence standing on its named ground (provenance.js):
  * material-ground sentences read plain and carry their address; model-ground
  * sentences carry a quiet dotted underline — the model's own voice, typed as
@@ -9258,30 +9801,41 @@ function refNodes(text, known) {
  * whose figures or names the material does not hold carries the warning
  * stripe, whichever ground it stands on. All of it read off checks the turn
  * already ran — this function draws, it does not measure.
+ *
+ * `marks` is the shared collector for the whole message (renderTaggedBlocks
+ * passes one array across every block so the strip at the bottom lists
+ * every sentence's marks in reading order): each sentence that earns at
+ * least one mark gets ONE small `.mark-ref` button, never a chip per
+ * finding — the chips themselves render once, in the strip, and again on
+ * demand in the detail modal a click opens.
  */
-// ONE GROUND CHIP PER RUN (2026-09-08, user: "format this better" — a
-// six-line poem wore six identical "◎ gemma2:2b" chips, one per sentence,
-// and a poem in lines is one inline chunk per line, so the run has to be
-// remembered ACROSS chunks). The same rule the address chips already hold
-// ("one chip per RUN of sentences standing on the same address"):
-// consecutive sentences on the same ground tier with the same addresses
-// share one chip, drawn on the first of them. Every sentence still carries
-// its own tier in its data attribute; only the drawing is once per run.
-// Reset at the start of every renderAnswer. And the chips are DRAWN BUT NOT
-// SHOWN unless the reader asks (the turn's "ground" toggle, user direction
-// 2026-09-08: "lose those grounding chips unless someone explicitly asks").
-let groundRunKey = null;
-function taggedProse(text, offered, classified = []) {
+// Merge note (2026-09-09): origin/main's "one ground chip per run" +
+// groundRunKey dedup (2026-09-08) predates and is fully superseded by this
+// branch's own mark-ref/marks-strip redesign, below — the SAME "too many
+// chips" complaint, resolved by moving every mark off the running prose
+// entirely rather than deduping which sentences still carry one inline.
+// Kept HEAD's signature; origin/main's groundRunKey and its inline
+// `.ground-chip` rendering are dropped, not carried forward.
+function taggedProse(text, offered, classified = [], marks = []) {
   const known = new Set(offered.map((p) => p.ref ?? p));
+  const full = String(text);
   const out = [];
-  let rest = String(text);
+  let cursor = 0;
 
-  for (const entry of classified) {
-    const hit = findSentence(rest, entry.text);
-    if (!hit) continue;
-    const { at, len } = hit;
-    if (at > 0) out.push(...refNodes(rest.slice(0, at), known));
-    const matched = rest.slice(at, at + len);
+  // The whole-text search (provenance.js::sentenceSpans, `findSentence`
+  // injected — same convention chain-reason.js already states for
+  // `splitSentences`) runs ONCE, up front, against `full` exactly as
+  // handed in — never against a fragment some caller already split at an
+  // inline-emphasis boundary. That per-fragment ordering was the actual
+  // bug (see sentenceSpans's own header, and renderTaggedBlocks below):
+  // `**1989**` splits a sentence into pieces no single one of which ever
+  // contains the whole sentence, so a search run per fragment finds
+  // nothing on any of them and the sentence ships as plain, unclassified
+  // prose — not even the ladder's bottom "self" rung, because the
+  // wrapping code below never runs at all.
+  for (const { start, end, entry } of sentenceSpans(full, classified, findSentence)) {
+    if (start > cursor) out.push(...refNodes(full.slice(cursor, start), known));
+    const matched = full.slice(start, end);
 
     const sent = document.createElement("span");
     sent.className = `sent${entry.absent.length ? " claims" : ""}`;
@@ -9299,11 +9853,46 @@ function taggedProse(text, offered, classified = []) {
     // the highest rung that placed it and its addresses — or, at the bottom,
     // the model by name: a sentence nothing read places is the mouth's own
     // testimony, and a witness is cited by its name.
-    // The ground context belongs to the turn that measured it. Citing a
-    // previous turn's would name the wrong mouth as the sentence's own
-    // testimony — measured 2026-09-06, an answer from another machine
-    // captioned with the local model of the turn before it.
-    if (state.lastGround && state.lastGround.turnSeq === turnSeq) {
+    //
+    // Two independent bugs closed on this one condition. FOUND LIVE
+    // (2026-09-08): `state.lastGround` is computed unconditionally every
+    // turn (holonicTurn never gates that assignment on `state.grounded`), so
+    // this chip kept drawing — "◎ gemma2:2b" on every sentence — even with
+    // checking switched OFF, straight against the toggle's own title text
+    // ("Off is a plain chatbot: the model answers and nothing is verified")
+    // and the standing rule this file already states for exactly this shape
+    // of bug: hidden drawing, never a hidden finding — the checks still run
+    // and still land on the record either way; only the PAINT is gated here.
+    // Separately: the ground context belongs to the turn that measured it —
+    // citing a previous turn's would name the wrong mouth as the sentence's
+    // own testimony (measured 2026-09-06, an answer from another machine
+    // captioned with the local model of the turn before it), so `turnSeq` is
+    // checked too, not just presence.
+    // Every mark this sentence earns lands here first, and ONLY here — the
+    // sentence itself gets one small numbered `.mark-ref` if this is
+    // non-empty (markRef, below), never a chip per finding. Everything a
+    // chip used to say (the tier line, the void/contradiction detail, the
+    // exact address) is preserved verbatim as an item's `label`/`detail`/
+    // `addresses`; a chip's own `onclick` becomes an item's `action`,
+    // reachable from a real button in the detail modal instead of a click
+    // on running prose.
+    const sentMarks = [];
+    let tier = null;
+
+    // Not every sentence is a claim to check — a preference, a hedge, an
+    // aside asserts nothing checkable, and running it through the ladder
+    // anyway just marks it (found live, 2026-09-09, user direction: "we
+    // need an evaluator of what needs grounding" — the ladder was placing
+    // every sentence, including "why do you like blue", the way a
+    // preference question got a stray "bound" mark off unrelated web
+    // material). `extractAtoms` is grounding.js's own existing answer to
+    // "what in this sentence is checkable" (figures and names); a relation
+    // edge is the other real shape a checkable claim takes. A sentence
+    // with neither gets no ground computed at all — not self tier, not an
+    // underline, nothing — because there is nothing here to hold to a
+    // source in the first place.
+    const checkable = extractAtoms(entry.text).length > 0 || (entry.edges ?? []).length > 0;
+    if (checkable && state.grounded && state.lastGround && state.lastGround.turnSeq === turnSeq) {
       const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
       // The sentence's own edges (classifySentences rides each relation claim
       // onto the sentence that carries its subject and verb) are the claims
@@ -9311,18 +9900,22 @@ function taggedProse(text, offered, classified = []) {
       const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
       const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
       sent.dataset.groundTier = g.tier;
-      const groundKey = `${g.tier}|${(g.addresses ?? []).join(",")}`;
-      if (groundKey !== groundRunKey) {
-        const gc = document.createElement("button");
-        gc.className = `ground-chip tier-${g.tier}`;
-        gc.textContent = `◎ ${groundLine(g)}`;
-        gc.title = `${g.detail}${g.addresses?.length ? ` — ${g.addresses.join(", ")}` : ""}. Press to search the material.`;
-        gc.onclick = () => groundHunt(entry.text);
-        sent.append(gc);
-      }
-      groundRunKey = groundKey;
-    } else {
-      groundRunKey = null;
+      tier = g.tier;
+      sentMarks.push({
+        label: `◎ ${groundLine(g)}`,
+        // Self tier means the model is citing itself — nothing read placed
+        // this sentence, so there is nothing to point at. Said in words
+        // here because the inline mark for this case is an underline, not
+        // a numbered citation (see the sentMarks.length block below); the
+        // explanation has to live where a reader who clicks the underline
+        // actually lands.
+        detail: g.tier === "self"
+          ? `${g.detail} There is nothing to cite here, so this sentence is underlined rather than marked with a numbered citation — the underline means "the model's own voice, unbacked."`
+          : g.detail,
+        addresses: g.addresses,
+        action: () => groundHunt(entry.text),
+        actionLabel: "Search the material",
+      });
     }
 
     // Where this app attached the address itself, say so in the tag. A
@@ -9331,46 +9924,55 @@ function taggedProse(text, offered, classified = []) {
     // Runs of same-address sentences carry ONE chip (showChip; undefined
     // means show, for callers that never set it).
     if (entry.ref && entry.showChip !== false) {
-      const b = document.createElement("button");
-      b.className = "ref attached";
       const label = refLabel(entry.ref);
-      b.textContent = chipText(entry.ref);
-      b.title = label
-        ? `${entry.ref} — attached by this app against a measured null. Press to read the bytes.`
-        : "Attached by this app against a measured null. Press to read the bytes.";
-      b.onclick = () => reopen(entry.ref);
-      sent.append(b);
+      sentMarks.push({
+        label: `${chipText(entry.ref)} — attached`,
+        detail: label
+          ? `${entry.ref} — attached by this app against a measured null.`
+          : "Attached by this app against a measured null.",
+        action: () => reopen(entry.ref),
+        actionLabel: "Read the bytes",
+      });
     }
 
-    // The relation tier's verdicts, in-line: a contradicted or unbound edge
-    // gets a badge on the sentence that states it — the verdict must be
-    // readable WITHOUT clicking anything (measured in the field: ~1% of
-    // readers ever click a citation, so a flag that lives behind a click
-    // does not exist). Bound edges stay quiet here — support is the normal
-    // case, counted in the tally and detailed in the grounding disclosure.
-    // The sentence witness (holon.js → witness-sentences.js) speaks first:
-    // a sentence a passage STATES keeps no ∅ badge from the relation tier
-    // (the paraphrase wall, answered); a sentence the witness was asked
-    // about and REFUSED gets its own badge, whether or not the relation
-    // tier ever extracted a claim from it.
+    // The relation tier's verdicts: a contradicted or unbound edge earns a
+    // mark on the sentence that states it — never silent, only moved off
+    // the running prose. Bound edges stay quiet here — support is the
+    // normal case, counted in the tally and detailed in the grounding
+    // disclosure. The sentence witness (holon.js → witness-sentences.js)
+    // speaks first: a sentence a passage STATES keeps no ∅ mark from the
+    // relation tier (the paraphrase wall, answered); a sentence the witness
+    // was asked about and REFUSED gets its own mark, whether or not the
+    // relation tier ever extracted a claim from it.
+    // `state.lastWitness`, like `state.lastGround` above, is set unconditionally
+    // every turn — gated here for the identical reason.
     const wit = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
-    if (wit?.witness === "refused") {
-      const badge = document.createElement("button");
-      badge.className = "edge-badge unbound witness-refused";
+    if (state.grounded && wit?.witness === "refused") {
       // Every ∅ cites its void (P106): when a gap the reader DECLARED is in
       // scope for this sentence, the mark names it — with its scope — so an
       // honest absence reads differently from the mouth's own "no mention".
       const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "", sameForm: sameFormOrgan });
-      if (gap) {
-        badge.classList.add("cites-void");
-        badge.textContent = `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`;
-        badge.title = `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it. Press to search the material.`;
-      } else {
-        badge.textContent = "∅ no passage states this";
-        badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction — and no declared gap is in scope for it. Press to search the material.`;
-      }
-      badge.onclick = () => groundHunt(entry.text);
-      sent.append(badge);
+      sentMarks.push(gap
+        // gap.id (`void:subject|verb|*`) used to open the detail sentence
+        // raw ("void:yuri gagarin|shoe size|* — declared by the reader
+        // over..."), restating in an internal address format the exact
+        // same thing the label just said in plain words a line above it
+        // (found live, 2026-09-09, same class as the earlier `no-testimony`
+        // leak). It carries real information — it is this gap's own
+        // address — so it moves to `addresses`, the same place every other
+        // item's address lives, rather than opening the sentence.
+        ? { label: `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`, detail: `Declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it.`, addresses: gap.id ? [gap.id] : [], action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true }
+        // wit.why is always the literal witness-sentences.js code
+        // "no-testimony" on a refused row (rowFor's own only refused
+        // case) — phrased plainly here rather than interpolated raw
+        // (found live, 2026-09-09: the modal showed "(no-testimony)"
+        // verbatim, an internal code never meant for a reader). ends
+        // (the two anchor words endsFor picked to search a candidate
+        // passage, carried on every witness row regardless of verdict)
+        // is what actually answers "what was this based on" — the
+        // material it was searched over is one click away via the
+        // action below, never fed back in as prose.
+        : { label: "∅ no passage states this", detail: `The witness was shown the retrieved passages and asked whether any of them states this sentence; none did. Silence from the material, not a contradiction — and no declared gap is in scope for it.${wit.ends?.end1 ? ` Searched for a passage relating "${wit.ends.end1}" and "${wit.ends.end2}".` : ""}`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true });
     }
     // One verdict per sentence: once the witness has spoken (stated or
     // refused), the relation tier's own ∅ is redundant — measured live, a
@@ -9378,50 +9980,155 @@ function taggedProse(text, offered, classified = []) {
     // material", the same silence said twice. A contradiction still draws:
     // that is a different fact, and a stronger one.
     for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || (c.verdict === "unbound" && !wit))) {
-      const badge = document.createElement("button");
-      badge.className = `edge-badge ${c.verdict}`;
-      // The badge names the exact words it means — a blanket "never says
+      // The mark names the exact words it means — a blanket "never says
       // this" on the sentence tars its backed halves too (measured live:
       // the model's gloss "significant battle" flagged a sentence whose
       // 70,000 stood perfectly on the material).
       const disputed = `${c.label} ${c.end2}`.trim();
       const disputedShort = disputed.length > 32 ? `${disputed.slice(0, 29)}…` : disputed;
-      badge.textContent =
-        c.verdict === "contradicted"
-          ? `⇄ material says otherwise: “${disputedShort}”`
-          : `∅ not in the material: “${disputedShort}”`;
-      // The same key proofTargets dedupes on, so a finished web check can
-      // find this badge and COMPOSE with it — "not in the material" and
-      // "stated by 2 of 3 web pages" are one epistemic state, not two
-      // verdicts that never meet (measured live: the web corroborated the
-      // very assertion the badge was still flagging).
-      badge.dataset.proofKey = [c.end1, c.label, c.end2]
-        .flatMap((s) => String(s).split(/\s+/))
-        .filter((w) => w.length > 2)
-        .join(" ")
-        .toLowerCase();
       // c.bound / c.nearest are hypergraph.js's own edgeFace() arrays, so
       // near carries the same neutral arrangement fields as c does.
       const near = c.verdict === "contradicted" ? c.bound?.[0] : c.nearest?.[0];
-      badge.title =
-        `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}: ` +
-        (c.verdict === "contradicted"
-          ? `the material binds this edge with the OPPOSITE polarity.`
-          : `every word is in the material, but the text never binds this edge.`) +
-        (near ? ` It binds: ${near.end1} —${near.label}→ ${near.end2}. Press to read that passage.` : " Press to search the material.");
-      badge.onclick = () => {
-        const ref = near?.refs?.[0];
-        if (ref) reopen(ref);
-        else groundHunt(`${c.end1} ${c.label} ${c.end2}`);
-      };
-      sent.append(badge);
+      sentMarks.push({
+        label: c.verdict === "contradicted" ? `⇄ material says otherwise: “${disputedShort}”` : `∅ not in the material: “${disputedShort}”`,
+        detail:
+          `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}: ` +
+          (c.verdict === "contradicted"
+            ? `the material binds this edge with the OPPOSITE polarity.`
+            : `every word is in the material, but the text never binds this edge.`) +
+          (near ? ` It binds: ${near.end1} —${near.label}→ ${near.end2}.` : ""),
+        // The same key proofTargets dedupes on, so a finished web check can
+        // find this mark and COMPOSE with it — "not in the material" and
+        // "stated by 2 of 3 web pages" are one epistemic state, not two
+        // verdicts that never meet (measured live: the web corroborated the
+        // very assertion the badge was still flagging). Carried on the item
+        // itself now (proofTargets reads the DOM node's dataset elsewhere;
+        // see renderTaggedBlocks/renderAnswer for where this still needs a
+        // real element — dataset is set on the .mark-ref below, not here).
+        proofKey: [c.end1, c.label, c.end2].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2).join(" ").toLowerCase(),
+        action: () => { const ref = near?.refs?.[0]; if (ref) reopen(ref); else groundHunt(`${c.end1} ${c.label} ${c.end2}`); },
+        actionLabel: near ? "Read that passage" : "Search the material",
+        warn: true,
+      });
+    }
+
+    // Self tier, and nothing else flagged on this sentence, means the ONLY
+    // thing to show is the model citing itself — and that is not a
+    // citation: there is no address, no passage, nothing external the
+    // numbered marker would be pointing at. Drawing one anyway reads as
+    // sourcing that never happened (found live, 2026-09-09, user direction:
+    // "if the model is citing itself, don't give it a citation... give it
+    // underline"). So this one case skips markRef entirely — no numbered
+    // mark, no entry in the bottom strip — and underlines the sentence
+    // instead, the same quiet mark this file already draws for model-ground
+    // prose (`.sent[data-ground="model"]`, above). The explanation lives in
+    // the mark detail modal, reachable by clicking the underline — unless
+    // entry.absent/entry.ground==="model" already pointed this sentence's
+    // click at a material search above, which takes precedence and is left
+    // alone rather than silently overridden.
+    if (tier === "self" && sentMarks.length === 1) {
+      sent.classList.add("self-cited");
+      if (!sent.onclick) {
+        sent.onclick = (e) => { e.stopPropagation(); openMarkDetail({ sentence: entry.text, tier, items: sentMarks }); };
+        sent.title = "The model's own voice — nothing here points at a source. Click for detail.";
+      }
+    } else if (sentMarks.length) {
+      const ref = markRef(marks, { sentence: entry.text, tier, items: sentMarks });
+      // proofTargets locates a live-updatable node by walking the DOM for
+      // this exact key (see its own caller) — carried forward from the old
+      // per-badge dataset so an in-flight web check can still find and
+      // update this sentence's mark when it resolves.
+      const proofKey = sentMarks.find((m) => m.proofKey)?.proofKey;
+      if (proofKey) ref.dataset.proofKey = proofKey;
+      sent.append(ref);
     }
     out.push(sent);
-    rest = rest.slice(at + len);
+    cursor = end;
   }
 
-  if (rest) out.push(...refNodes(rest, known));
+  if (cursor < full.length) out.push(...refNodes(full.slice(cursor), known));
   return out;
+}
+
+/**
+ * A "prose" segment's block structure — headings, lists, quotes,
+ * paragraphs (render.js::parseBlocks, unchanged) — with each block's own
+ * text handed to `taggedProse` WHOLE, in one call. Replaces the previous
+ * `renderBlocksInto(container, text, (chunk) => taggedProse(chunk, ...))`
+ * wiring at this file's two checked-answer render sites.
+ *
+ * FOUND LIVE 2026-09-09, two contradictory DOM captures of an otherwise
+ * identical checking-mode turn: one with the full wrapped `.sent`/
+ * ground-chip shape, one with NEITHER — plain markdown-bold `<strong>`
+ * text and nothing else, despite `state.grounded` and a fresh
+ * `state.lastGround` both confirmed. `renderBlocksInto`'s own inline pass
+ * SPLITS a block's text at every `**bold**`/`*em*`/`` `code` `` boundary
+ * before calling its `decorateInline` callback — that is its documented
+ * contract ("Inline emphasis... is implemented by SPLITTING the text and
+ * routing every piece through decorateInline"), and it is exactly right
+ * for a plain address-only decorator. Wiring `taggedProse` in as that same
+ * callback broke its own sentence match: a sentence with emphasis
+ * anywhere inside it — routine on exactly the figures and names a checked
+ * answer most wants to mark ("The Berlin Wall fell in **1989**") — never
+ * arrives at `decorateInline` whole, so `findSentence` (nested inside what
+ * is now `sentenceSpans`) failed on every fragment and the sentence fell
+ * through to plain, unwrapped text: not a weak ladder verdict, the
+ * wrapping code never ran. A sentence with NO emphasis (the Wright
+ * brothers turn) arrived as one unsplit chunk and rendered correctly —
+ * which is why the bug looked intermittent rather than broken outright.
+ *
+ * The fix does not touch render.js (its block/inline contract is a live
+ * boundary agreed with the session that owns it, unrelated to this bug)
+ * or classifySentences (the classification itself was never wrong — this
+ * was purely a rendering-composition defect). `taggedProse` already had
+ * its own complete inline-markdown handling (`refNodes` →
+ * `inlineMarkdown`, above) — bold/italic/code alongside addresses — used
+ * directly by `runFastPass` and `boundTurn`'s bound-half render, neither
+ * of which goes through `renderBlocksInto` and neither of which was ever
+ * broken by this. This function is the correct recomposition: `parseBlocks`
+ * still decides block structure; `taggedProse` decorates each block's
+ * FULL, unsplit text in one call, the same call shape it already had at
+ * those two working sites.
+ */
+function renderTaggedBlocks(container, text, offered, classified) {
+  const doc = container.ownerDocument ?? document;
+  // One shared collector across every block in this container, so the
+  // strip rendered at the end lists every sentence's marks in the order a
+  // reader actually reads them, whichever block each one fell in.
+  const marks = [];
+  for (const block of parseBlocks(text)) {
+    if (block.type === "heading") {
+      const h = doc.createElement(["h3", "h4", "h5"][block.level - 1]);
+      h.append(...taggedProse(block.text, offered, classified, marks));
+      container.appendChild(h);
+    } else if (block.type === "list") {
+      const list = doc.createElement(block.ordered ? "ol" : "ul");
+      for (const item of block.items) {
+        const li = doc.createElement("li");
+        li.append(...taggedProse(item, offered, classified, marks));
+        list.appendChild(li);
+      }
+      container.appendChild(list);
+    } else if (block.type === "quote") {
+      // Hard line breaks preserved (render.js's own reason: "epigraphs and
+      // verse are quoted precisely") — taggedProse decorates one line at a
+      // time here, the only block type where that matters, since it has
+      // no newline-to-<br> handling of its own (it never needed one at its
+      // other two call sites, which both hand it single-line text).
+      const q = doc.createElement("blockquote");
+      block.lines.forEach((line, i) => {
+        if (i) q.appendChild(doc.createElement("br"));
+        q.append(...taggedProse(line, offered, classified, marks));
+      });
+      container.appendChild(q);
+    } else {
+      const para = doc.createElement("div");
+      para.className = "para";
+      para.append(...taggedProse(block.lines.join(" "), offered, classified, marks));
+      container.appendChild(para);
+    }
+  }
+  renderMarksStrip(container, marks);
 }
 
 /** A build's own words, for the router's definite-phrase check: its caption
@@ -10349,7 +11056,7 @@ async function runFromEditor() {
   let outcome = null;
   try {
     if (renderable) {
-      preview.srcdoc = toDocument({ ...fold.seg, code });
+      preview.srcdoc = toDocument({ ...fold.seg, code }, { dark: isDarkNow() });
       preview.hidden = false;
       console.hidden = true;
       outcome = { ok: true, data: { rendered: true } };
@@ -10755,10 +11462,25 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
   // Dropping titles from the joined MATERIAL sidesteps the whole open class
   // at once rather than enumerating it — the snippets alone already carry
   // the facts this digest exists for.
-  const digest = (search.results ?? [])
-    .map((r) => r?.snippet?.trim())
-    .filter(Boolean)
-    .join("\n");
+  // Which byte range of the combined digest came from which actual result
+  // — found live 2026-09-09, user direction: a "web:search-results#0-2593"
+  // address disclosed nothing about where it really came from, because the
+  // digest above was built by a bare join with no per-snippet bookkeeping.
+  // Built the same way the digest itself is (cumulative offset as each
+  // snippet is appended, "\n" separators counted), so a span never claims
+  // bytes it does not own.
+  const snippetSpans = [];
+  let digestCursor = 0;
+  const digestParts = [];
+  for (const r of search.results ?? []) {
+    const snippet = r?.snippet?.trim();
+    if (!snippet) continue;
+    if (digestParts.length) { digestParts.push("\n"); digestCursor += 1; }
+    snippetSpans.push({ start: digestCursor, end: digestCursor + snippet.length, url: r.url, title: r.title ?? null, host: hostOf(r.url) });
+    digestParts.push(snippet);
+    digestCursor += snippet.length;
+  }
+  const digest = digestParts.join("");
   if (digest) chunks.push(...chunkSource("web:search-results", digest));
   // The digest is turn-scoped and was never kept, so a copy-check after the
   // fact could not compare against it (measured 2026-09-05, the essay's
@@ -10847,6 +11569,11 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
   return {
     chunks,
     pages,
+    // The combined-snippet digest's own per-result provenance (above) — a
+    // "web:search-results#a-b" address resolves through this, never
+    // through `pages` (which only ever names FULLY fetched pages, a
+    // disjoint address family: "web:<host>-i#a-b").
+    spans: snippetSpans,
     // The hunt's own record, for the caller's ledger: how many pages were
     // actually read, against what ceiling, and WHY the reading stopped —
     // "settled" (the material converged and said so) or "ceiling" (belief
@@ -11246,8 +11973,9 @@ function renderProofResult(slot, out) {
  * so every line under it keeps running exactly as before — the ledger
  * notes, the proof-seeking `run()` calls this function hands to the
  * automatic background walk at the bottom, and that walk's own `onVerdict`
- * callback (which updates the `.edge-badge` marks live in the ANSWER's own
- * prose, not in this panel) — with nothing left to append it to. This is
+ * callback (which updates the matching `.mark-ref`'s item data live in the
+ * ANSWER's own prose, not in this panel — see markRef/renderMarksStrip,
+ * 2026-09-09) — with nothing left to append it to. This is
  * the same "hidden drawing, never a hidden finding" posture the build-turn
  * gate below already uses, generalized to the whole panel: the checks still
  * run and still land on the append-only record: only the drawing stopped.
@@ -11541,27 +12269,58 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
       // (it reads as confirmation) once a witness has actually read them.
       onVerdict: (out, testimony) => {
         if (out.verdict !== "web-corroborated" && out.verdict !== "web-uncorroborated") return;
-        for (const b of node.querySelectorAll(".edge-badge")) {
+        // The visible chip this composed into was moved off the sentence
+        // and into the marks strip/modal (2026-09-09) — `.edge-badge` no
+        // longer renders inline, so this now finds the sentence's
+        // `.mark-ref` marker and mutates the ACTUAL item object it points
+        // at (carried on the button as `_entry`, markRef above), not just
+        // a DOM node's text. The modal reads `entry.items` live, so
+        // whatever a reader opens after this resolves already shows the
+        // composed result; the marker's own hover title is refreshed too,
+        // so even an unopened marker reflects it without a click.
+        for (const b of node.querySelectorAll(".mark-ref")) {
           if (b.dataset.proofKey !== key) continue;
+          const item = b._entry?.items.find((it) => it.proofKey === key);
+          if (!item) continue;
           const webBit =
             testimony?.verdict === "contradicts"
               ? ` · a reader over ${testimony.host} says otherwise`
               : out.verdict === "web-corroborated"
                 ? ` · web: stated by ${out.stating.length} of ${out.consulted} page(s)`
                 : ` · web: 0 of ${out.consulted} page(s)`;
-          b.textContent = b.textContent.replace(/ · (web:|a reader over).*$/, "") + webBit;
+          item.label = item.label.replace(/ · (web:|a reader over).*$/, "") + webBit;
+          item.detail =
+            (item.detail ?? "") +
+            (testimony?.verdict === "contradicts"
+              ? ` A reader over ${testimony.host} says otherwise: "${testimony.because}"`
+              : ` Web check: ${out.sentence}.`);
           b.classList.toggle("web-backed", out.verdict === "web-corroborated" && testimony?.verdict !== "contradicts");
           b.classList.toggle("witness-contradicted", testimony?.verdict === "contradicts");
-          b.title +=
-            testimony?.verdict === "contradicts"
-              ? ` A reader over ${testimony.host} says otherwise: "${testimony.because}"`
-              : ` Web check: ${out.sentence}.`;
+          b.title = b._entry.items.map((i) => i.label).join(" · ");
         }
       },
     });
     det.classList.add("unbacked");
     stripAdd(det);
-    if (state.webProof && i < PROOF_TARGETS_PER_TURN) autorun.push(run);
+    // Marked "checking" on the sentence's own marker for exactly as long as
+    // this one check is actually in flight (found live, 2026-09-09, user
+    // direction: the automatic walk below runs AFTER the whole answer
+    // already reads as settled -- every marker already showing its tier --
+    // so a mark whose claim was still being checked looked identical to one
+    // already final; "checking claims online" above the composer was the
+    // only sign anything was still happening, disconnected from WHICH
+    // sentence it was about).
+    if (state.webProof && i < PROOF_TARGETS_PER_TURN) {
+      autorun.push(async () => {
+        const marks = [...node.querySelectorAll(".mark-ref")].filter((b) => b.dataset.proofKey === key);
+        marks.forEach((b) => b.classList.add("checking"));
+        try {
+          await run();
+        } finally {
+          marks.forEach((b) => b.classList.remove("checking"));
+        }
+      });
+    }
   });
 
   // Single-source checks fill whatever the per-turn budget has left after
@@ -11715,7 +12474,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     frame.sandbox = scripts ? "allow-scripts" : "";
     if (!scripts && seg.lang === "html")
       frame.title = "Rendered without scripts — press run to let this page execute";
-    frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code });
+    frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code }, { dark: isDarkNow() });
     frame.loading = "lazy";
     // The chat feed's own door onto the SAME consent the Folds panel's ▶
     // run earns — runBuild, unchanged, so there is no second execution
@@ -11739,7 +12498,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
         // sandbox alone does not retroactively apply to already-loaded
         // content — the frame has to reload for the new flags to take
         // effect, so the exact same document is handed to it again.
-        frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code });
+        frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code }, { dark: isDarkNow() });
         run.textContent = ranScripts ? "✓ ran" : "▶ run";
         run.disabled = false;
       };
@@ -11756,18 +12515,128 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
   return art;
 }
 
+/** "A, B" / "A, B, and C" — the plain-English join `describeSentCall` needs
+ * for its own list of what a call actually held; no other caller needs it,
+ * so it stays local rather than becoming a third string-joining helper. */
+function joinWithAnd(items) {
+  if (items.length <= 1) return items.join("");
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+/**
+ * A plain-language reading of one model call's wire payload — the SHAPE of
+ * what was sent (how many messages, what kind, roughly how much), never the
+ * literal prompt text (2026-09-08, reversing "vastly simplified" 2026-08-28;
+ * see CLAUDE.md). Purely structural: role counts and character totals read
+ * straight off `call.messages`, plus one exact, stable marker this app's own
+ * prompt-builders always use verbatim when a discourse line is folded in
+ * ("The conversation so far") — nothing else here is inferred from content,
+ * because a reader is owed the shape of what was sent, not a guess at it.
+ */
+function describeSentCall(call, modelName) {
+  const messages = call?.messages ?? [];
+  const n = messages.length;
+  let system = 0, user = 0, assistant = 0, chars = 0, discourseNoted = false;
+  for (const m of messages) {
+    const role = m?.role;
+    if (role === "system") system++;
+    else if (role === "user") user++;
+    else if (role === "assistant") assistant++;
+    const content = String(m?.content ?? "");
+    chars += content.length;
+    if (content.includes("The conversation so far")) discourseNoted = true;
+  }
+  const lastIsUser = n > 0 && messages[n - 1]?.role === "user";
+  const historyCount = Math.max(0, user - (lastIsUser ? 1 : 0)) + assistant;
+  const bits = [];
+  if (system) bits.push(`${system} background instruction${system === 1 ? "" : "s"}`);
+  if (historyCount) bits.push(`${historyCount} earlier message${historyCount === 1 ? "" : "s"} of this conversation`);
+  if (discourseNoted) bits.push("a one-line note on how things have gone so far");
+  if (lastIsUser) bits.push("the request it was just asked to answer");
+  const said = bits.length ? joinWithAnd(bits) : `${n} message${n === 1 ? "" : "s"}`;
+  return `Sent ${n} message${n === 1 ? "" : "s"} to ${modelName}: ${said} (${chars.toLocaleString()} character${chars === 1 ? "" : "s"} total).`;
+}
+
+/**
+ * "A map of how and what was prompted, with levels of disclosure" (user,
+ * 2026-09-09) — this turn's own calls, grouped by the phase active when
+ * each was sent. This app's own prompting is deliberately non-standard
+ * (it does not just grow one context every turn — a plan, per-part
+ * research/draft/correction, a summary refresh, each a call this repo's
+ * own architecture may skip or repeat), so a flat numbered list read top
+ * to bottom answered "what was sent" but not "why this many calls, in
+ * this shape" — the actual, turn-specific pipeline.
+ *
+ * Nothing new is measured to build this: `phase` (set at the `call:`
+ * closure in `holonicTurn`) is `phaseLabel`, the exact string this turn's
+ * OWN status line already showed while that call was in flight. Level 1
+ * is this tree; level 2 (unchanged, below) is still the verbatim wire
+ * JSON per call — this function only decides how the LIST above it is
+ * grouped, never what the raw disclosure holds.
+ *
+ * Falls back to the old flat one-line-per-call list when no call in
+ * `sent` carries a `.phase` (every turn kind besides `holonicTurn`'s own
+ * — build/piece-edit/widget/measure doors among them — none of which are
+ * touched by this pass), so nothing already working changes shape.
+ */
+function callTreeFor(sent, modelName) {
+  const wrap = document.createElement("div");
+  if (!sent.some((c) => c.phase)) {
+    for (const call of sent) {
+      const p = document.createElement("p");
+      p.className = "fold-note";
+      p.textContent = describeSentCall(call, modelName);
+      wrap.append(p);
+    }
+    return wrap;
+  }
+  // Map preserves insertion order, and calls arrive in the order they were
+  // sent — so groups land in the order the turn actually moved through
+  // them, never re-sorted, even when a later phase revisits an earlier
+  // label (the correction loop can return to "writing X" a second time).
+  const groups = new Map();
+  for (const call of sent) {
+    const key = call.phase ?? "(no phase recorded)";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(call);
+  }
+  const keys = [...groups.keys()];
+  keys.forEach((key, gi) => {
+    const calls = groups.get(key);
+    const head = document.createElement("p");
+    head.className = "fold-note fold-tree-head";
+    const headGlyph = gi === keys.length - 1 ? "└─" : "├─";
+    head.textContent = `${headGlyph} ${key}${calls.length > 1 ? ` (${calls.length} calls)` : ""}`;
+    wrap.append(head);
+    calls.forEach((call, ci) => {
+      const p = document.createElement("p");
+      p.className = "fold-note fold-tree-leaf";
+      const railGlyph = gi === keys.length - 1 ? " " : "│";
+      const leafGlyph = ci === calls.length - 1 ? "└─" : "├─";
+      p.textContent = `${railGlyph}  ${leafGlyph} ${describeSentCall(call, modelName)}`;
+      wrap.append(p);
+    });
+  });
+  return wrap;
+}
+
 /**
  * The whole "thinking" disclosure for one turn, under that turn.
  *
- * Vastly simplified (user direction, 2026-08-28): this used to carry the
- * turn's live narration, the model's own deliberation, the running summary's
- * bookkeeping, the append-only record, a run log, a void declaration, and a
- * nine-cell verification breakdown — eight things stacked under one word.
- * None of that stopped running or landing on the record (FOLD-CONSTITUTION
- * I.5); it stopped being DRAWN here, because the one question this box exists
- * to answer is simpler than all of it: what did the model actually see this
- * turn? `sent` is every messages array this turn actually sent to a model,
- * captured verbatim at the call boundary — this is the whole of it now.
+ * Plain-language by default (user direction, 2026-09-08 — reversing "vastly
+ * simplified", 2026-08-28, on the same standing goal that motivated it: "it
+ * should feel like a normal chat app"). That pass narrowed this box to the
+ * AnswerRecord and the raw per-call wire payloads, both as literal
+ * `JSON.stringify` dumps — genuinely useful to a developer (organ names,
+ * schema versions, recipe hashes, the exact prompt text) and genuinely
+ * meaningless or alarming to an ordinary reader. What changes here is the
+ * DEFAULT VIEW, not the data: `answerRecordProse`/`describeSentCall` read the
+ * identical `record`/`sent` this function always took and say what they mean
+ * in plain sentences, and the raw JSON — every field, unedited — sits one
+ * click deeper under a nested "view raw" disclosure (this repo's own
+ * standing rule elsewhere: hide by default, one more click for detail, never
+ * delete). A turn that spent no model call still says so honestly.
  */
 function renderFold(node, { sent, record = null } = {}) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
@@ -11808,15 +12677,13 @@ function renderFold(node, { sent, record = null } = {}) {
   const out = box.querySelector("p");
   out.textContent = "";
 
-  // The AnswerRecord first (P100): the claims before the prose, verbatim.
+  // THE DEFAULT VIEW: plain sentences, what a curious but non-technical
+  // reader wants — what the turn found, and what was sent to answer it.
   if (record) {
-    const pre = document.createElement("pre");
-    pre.className = "block";
-    const role = document.createElement("span");
-    role.className = "role";
-    role.textContent = answerRecordLine(record);
-    pre.append(role, document.createTextNode("\n" + JSON.stringify(record, null, 2)));
-    out.append(pre);
+    const p = document.createElement("p");
+    p.className = "fold-note";
+    p.textContent = answerRecordProse(record);
+    out.append(p);
   }
 
   if (!sent?.length) {
@@ -11825,23 +12692,43 @@ function renderFold(node, { sent, record = null } = {}) {
     // stating that plainly beats a disclosure that opens onto nothing.
     const p = document.createElement("p");
     p.className = "fold-note";
-    p.textContent = "no model call this turn — answered mechanically, so there is no prompt to show.";
+    p.textContent = "No model call this turn — answered mechanically, so there is no prompt to show.";
     out.append(p);
-    return;
+  } else {
+    const modelName = record?.model ?? state.model ?? "the model";
+    out.append(callTreeFor(sent, modelName));
   }
 
-  // Rendered as raw JSON.stringify, not this app's own pretty-printed
-  // role/content style, because "verbatim" is the whole point — a reader
-  // asking to see the actual wire payload should see exactly that, not a
-  // second-hand restatement of it.
-  for (const call of sent) {
-    const pre = document.createElement("pre");
-    pre.className = "block";
-    const role = document.createElement("span");
-    role.className = "role";
-    role.textContent = `call ${call.n} · ${call.messages.length} message(s)`;
-    pre.append(role, document.createTextNode("\n" + JSON.stringify(call.messages, null, 2)));
-    out.append(pre);
+  // THE DEVELOPER'S VIEW, one click deeper — nothing deleted: the exact
+  // AnswerRecord and the exact wire payloads, verbatim `JSON.stringify`, are
+  // still every one of them here, nested rather than removed.
+  if (record || sent?.length) {
+    const raw = document.createElement("details");
+    raw.className = "fold";
+    raw.innerHTML = "<summary>view raw</summary>";
+    if (record) {
+      const pre = document.createElement("pre");
+      pre.className = "block";
+      const role = document.createElement("span");
+      role.className = "role";
+      role.textContent = answerRecordLine(record);
+      pre.append(role, document.createTextNode("\n" + JSON.stringify(record, null, 2)));
+      raw.append(pre);
+    }
+    // Rendered as raw JSON.stringify, not this app's own pretty-printed
+    // role/content style, because "verbatim" is the whole point — a reader
+    // asking to see the actual wire payload should see exactly that, not a
+    // second-hand restatement of it.
+    for (const call of sent ?? []) {
+      const pre = document.createElement("pre");
+      pre.className = "block";
+      const role = document.createElement("span");
+      role.className = "role";
+      role.textContent = `call ${call.n} · ${call.messages.length} message(s)`;
+      pre.append(role, document.createTextNode("\n" + JSON.stringify(call.messages, null, 2)));
+      raw.append(pre);
+    }
+    out.append(raw);
   }
 }
 
@@ -11873,7 +12760,13 @@ function reopen(ref) {
   const papers = $("reopen-papers");
   if (papers) {
     const prov = state.provenance[String(ref).split("#")[0]];
-    papers.hidden = !prov;
+    // "web:search-results#a-b" carries no `state.provenance` entry — it is
+    // a combined digest of many results, not one identified document — so
+    // its own real page is resolved separately (found live, 2026-09-09,
+    // user direction: "this needs to disclose more where it really came
+    // from" — the address alone named nothing a reader could recognize).
+    const found = !prov ? searchSpanSource(ref) : null;
+    papers.hidden = !prov && !found;
     papers.textContent = "";
     if (prov) {
       papers.append(`papers: ${prov.line}`);
@@ -11885,6 +12778,18 @@ function reopen(ref) {
         a.rel = "noopener noreferrer";
         a.textContent = "↗";
         a.title = "the publisher's official copy — opens in your own browser, leaves this instrument";
+        papers.append(a);
+      }
+    } else if (found) {
+      papers.append(`from this search result: ${found.title ?? found.host} (${found.host})`);
+      if (found.url) {
+        papers.append(" ");
+        const a = document.createElement("a");
+        a.href = found.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = "↗";
+        a.title = "the page this snippet came from — opens in your own browser, leaves this instrument";
         papers.append(a);
       }
     }
@@ -12145,12 +13050,10 @@ function renderAttachStrip() {
     strip.append(pill);
   }
 
-  // The add button and the switch are one control, so the button carries the
-  // count and the switch simply is not there until there is something for it
-  // to govern — a lever over an empty set is furniture that teaches nothing.
-  const label = $("attach-label");
+  // The switch is not there until there is something for it to govern — a
+  // lever over an empty set is furniture that teaches nothing. The count
+  // itself is the pills above; nothing restates it in text any more.
   const sw = $("attach-switch");
-  if (label) label.textContent = names.length ? `${names.length} attached` : "Attach";
   if (sw) sw.hidden = !names.length;
 }
 
@@ -12288,6 +13191,18 @@ function renderSourcesPanel() {
     list.innerHTML = heldOnly
       ? `<div class="sources-empty"><p>Nothing is held right now.</p><p class="sources-empty-sub">Every loaded source is muted — nothing is contributing to retrieval this turn.</p></div>`
       : `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    // Research pages a turn fetched to CHECK an answer (P23's preflight,
+    // proof-seeking, /ranke) are deliberately never written to
+    // state.sources (P23: "turn-scoped, never written to state.sources" —
+    // a fetch's bytes could change under a record's addresses, so nothing
+    // built on them is a standing attachment). That is the right call for
+    // RETRIEVAL, but it meant a reader had no way to see what was actually
+    // read short of clicking one citation address at a time or opening the
+    // ＋ Add picker's own "saved pages" row — found live, 2026-09-09, user
+    // direction: "research-pages disclosure in the tree". This still shows
+    // under "No sources yet" — fetched-and-read is a different fact from
+    // attached, and both can be true at once.
+    if (!heldOnly) renderResearchedSection(list);
     return;
   }
   const search = $("sources-search")?.value?.toLowerCase() ?? "";
@@ -12360,6 +13275,58 @@ function renderSourcesPanel() {
     row.onclick = () => openMediaViewer(name);
     list.append(row);
   }
+  if (!heldOnly) renderResearchedSection(list);
+}
+
+/**
+ * Pages this instrument fetched to CHECK an answer (preflight search,
+ * proof-seeking, /ranke) — read, not attached; see renderSourcesPanel's own
+ * comment on why they stay out of state.sources. Appended under the real
+ * file list (never replacing it), so "what did you attach" and "what did
+ * you actually go read" are two honest, separate questions with two honest
+ * answers, both visible without opening the ＋ Add picker just to find out.
+ * A round trip to explore-server.mjs, so it renders after the synchronous
+ * list above — never blocking it, and a caller who switches views again
+ * before this resolves is simply overwritten by the next render (`token`
+ * below), never stacked.
+ */
+let researchSectionToken = 0;
+async function renderResearchedSection(list) {
+  const token = ++researchSectionToken;
+  let hist;
+  try {
+    hist = await (await fetch(`${EXPLORE_BASE}/api/web/history`)).json();
+  } catch {
+    return; // no explore server reachable — the file list above still stands on its own
+  }
+  if (token !== researchSectionToken || list !== $("sources-list") || state.exploreView === "held") return;
+  const seen = new Set();
+  const entries = [];
+  for (const e of hist.entries ?? []) {
+    if (!e.textPath || seen.has(e.textPath)) continue;
+    seen.add(e.textPath);
+    entries.push(e);
+  }
+  if (!entries.length) return;
+  entries.sort((a, b) => (b.fetchedAt ?? 0) - (a.fetchedAt ?? 0));
+  const heading = document.createElement("div");
+  heading.className = "sources-section-head";
+  heading.textContent = `RESEARCHED — read to check answers, not attached (${entries.length})`;
+  list.append(heading);
+  for (const e of entries.slice(0, 12)) {
+    const host = hostOf(e.finalUrl ?? e.url);
+    const row = document.createElement("div");
+    row.className = "sources-file sources-file-research";
+    row.innerHTML = `
+      <div class="sources-file-icon">web</div>
+      <div class="sources-file-info">
+        <div class="sources-file-name">${esc(e.title || host)}</div>
+        <div class="sources-file-meta">${esc(host)} · ${(e.textChars ?? 0).toLocaleString()} chars${e.challenge ? " · ⚠ challenge page" : ""}</div>
+      </div>`;
+    row.title = "Read during research for a turn, never attached as material — click to open what was actually read.";
+    row.onclick = () => window.open(pageFaceUrl(EXPLORE_BASE, e.textPath), "_blank", "noopener");
+    list.append(row);
+  }
 }
 
 /**
@@ -12368,54 +13335,324 @@ function renderSourcesPanel() {
  * and writes through the SAME POST /api/priors/toggle. One ledger, now
  * four doors instead of three; a flip made here is seen everywhere else,
  * because nothing here keeps its own copy of the toggle state.
+ *
+ * Drill-down: a genre expands (GET /api/tree — rooted at the PROJECT
+ * directory, not the corpus, so every listing call is prefixed with
+ * `priorsData.root`) down through its documents, and a document opens its
+ * papers and full text in place (GET /api/priors/doc?text=1) with a door to
+ * attach it as chat material. effectivePrior/declarationsFrom are
+ * priors-toggles.js's own pure resolver, imported rather than re-derived —
+ * see the top-of-file import — so "who decided this" reads identically here,
+ * on the server, and in the terminal's own `priors` command.
  */
+let priorsData = null;          // last successful GET /api/priors response
+let priorsExpanded = new Set(); // genre/folder paths currently expanded
+let priorsChildren = new Map(); // corpus-relative path -> GET /api/tree response
+let priorsFocus = null;         // last successful GET /api/priors/doc response
+let priorsBusy = null;          // a path mid-toggle/open, so its own control disables
+
 async function renderPriorsPanel() {
   const panel = $("priors-panel");
   if (!panel) return;
-  panel.innerHTML = `<p class="priors-empty">reading the priors ledger…</p>`;
-  let data;
+  if (!priorsData) panel.innerHTML = `<p class="priors-empty">reading the priors ledger…</p>`;
+  if (await reloadPriorsData()) renderPriorsFromData();
+}
+
+async function reloadPriorsData() {
   try {
-    data = await (await fetch(`${EXPLORE_BASE}/api/priors`)).json();
+    priorsData = await (await fetch(`${EXPLORE_BASE}/api/priors`)).json();
+    return true;
   } catch {
-    panel.innerHTML = `<p class="priors-empty">the priors organ needs explore-server.mjs running on :8812 to answer this.</p>`;
-    return;
+    priorsData = null;
+    const panel = $("priors-panel");
+    if (panel) panel.innerHTML = `<p class="priors-empty">the priors organ needs explore-server.mjs running on :8812 to answer this.</p>`;
+    return false;
   }
-  if (data?.gap) {
+}
+
+function renderPriorsFromData() {
+  const panel = $("priors-panel");
+  if (!panel || !priorsData) return;
+  const data = priorsData;
+  if (data.gap) {
     panel.innerHTML = `<p class="priors-empty">${esc(data.gap.detail ?? "no priors corpus found")}</p>`;
     return;
   }
-  if (!data?.categories?.length) {
+  if (!data.categories?.length) {
     panel.innerHTML = `<p class="priors-empty">no priors corpus found.</p>`;
     return;
   }
+  const byPath = declarationsFrom(data.declarations);
   panel.innerHTML = "";
-  const summary = document.createElement("p");
-  summary.className = "priors-empty";
+
+  if (data.ledgerSkipped) panel.append(priorsGapLine(`${data.ledgerSkipped} unreadable ledger line${data.ledgerSkipped === 1 ? "" : "s"} — counted, not folded.`));
+  if (data.truncated) panel.append(priorsGapLine(`the corpus walk stopped at its declared cap of ${data.walkCap.toLocaleString()} entries — counts below are a floor, not a total.`));
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "priors-toolbar";
+  const summary = document.createElement("span");
+  summary.className = "priors-summary";
   summary.textContent = `${data.files.toLocaleString()} documents, ${data.enabledCount.toLocaleString()} in play — every document starts off.`;
-  panel.append(summary);
+  const allOn = document.createElement("button");
+  allOn.type = "button";
+  allOn.textContent = "all on";
+  allOn.title = "turn every document on — one line on the ledger, at the corpus root";
+  allOn.disabled = priorsBusy != null;
+  allOn.onclick = () => togglePriorPath("", true);
+  const allOff = document.createElement("button");
+  allOff.type = "button";
+  allOff.textContent = "all off";
+  allOff.title = "turn every document off — one line on the ledger, at the corpus root";
+  allOff.disabled = priorsBusy != null;
+  allOff.onclick = () => togglePriorPath("", false);
+  toolbar.append(summary, allOn, allOff);
+  panel.append(toolbar);
+
+  if (priorsFocus) panel.append(renderPriorsFocusCard(byPath));
+
+  const tree = document.createElement("div");
+  tree.className = "priors-tree";
   for (const c of data.categories) {
-    const row = document.createElement("div");
-    row.className = "priors-genre";
-    const allOn = c.enabled === c.files && c.files > 0;
-    row.innerHTML = `
-      <span class="priors-genre-name">${esc(c.name)}</span>
-      <span class="priors-genre-count">${c.enabled}/${c.files}</span>
-      <button type="button" class="seg${allOn ? " active" : ""}" data-genre="${esc(c.name)}">${allOn ? "on" : "off"}</button>`;
-    row.querySelector("button").onclick = async (e) => {
-      e.stopPropagation();
-      const btn = e.currentTarget;
-      btn.disabled = true;
-      try {
-        await fetch(`${EXPLORE_BASE}/api/priors/toggle`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ path: c.name, on: !allOn }),
-        });
-      } catch {}
-      renderPriorsPanel();
-    };
-    panel.append(row);
+    const meta = { text: `${c.enabled.toLocaleString()}/${c.files.toLocaleString()} · ${fmtBytes(c.bytes)}`, title: `${c.enabled.toLocaleString()} of ${c.files.toLocaleString()} documents in play · ${fmtBytes(c.bytes)} total` };
+    tree.append(priorsRow(c.name, byPath, meta, 0));
+    if (priorsExpanded.has(c.name)) renderPriorsChildren(tree, c.name, byPath, 1);
   }
+  panel.append(tree);
+}
+
+function priorsGapLine(text) {
+  const p = document.createElement("p");
+  p.className = "priors-gap";
+  p.textContent = text;
+  return p;
+}
+
+/** One row: an expand arrow (folders only), the name, meta, and the toggle
+ * chip at this exact corpus-relative path. */
+function priorsRow(rel, byPath, meta, depth, { isDoc = false } = {}) {
+  const row = document.createElement("div");
+  row.className = `priors-row${isDoc ? " priors-doc" : ""}`;
+  row.style.paddingLeft = `${depth * 18}px`;
+  const arrow = document.createElement("button");
+  arrow.type = "button";
+  arrow.className = "priors-arrow";
+  if (isDoc) {
+    arrow.disabled = true;
+  } else {
+    arrow.textContent = priorsExpanded.has(rel) ? "▾" : "▸";
+    arrow.title = priorsExpanded.has(rel) ? "collapse" : "expand — list what is inside";
+    arrow.onclick = () => togglePriorsExpand(rel);
+  }
+  const name = document.createElement("button");
+  name.type = "button";
+  name.className = "priors-name";
+  name.textContent = rel.split("/").pop() || "(root)";
+  name.title = isDoc ? `${rel} — click to read its papers and text` : rel;
+  name.onclick = isDoc ? () => openPriorDoc(rel) : () => togglePriorsExpand(rel);
+  row.append(arrow, name);
+  if (meta) {
+    const metaEl = document.createElement("span");
+    metaEl.className = "priors-meta";
+    const { text, title } = typeof meta === "string" ? { text: meta, title: meta } : meta;
+    metaEl.textContent = text;
+    metaEl.title = title;
+    row.append(metaEl);
+  }
+  row.append(priorsToggleChip(rel, byPath));
+  return row;
+}
+
+function togglePriorsExpand(rel) {
+  const opening = !priorsExpanded.has(rel);
+  if (opening) priorsExpanded.add(rel); else priorsExpanded.delete(rel);
+  renderPriorsFromData();
+  if (opening && !priorsChildren.has(rel)) loadPriorsChildren(rel);
+}
+
+async function loadPriorsChildren(rel) {
+  if (!priorsData) return;
+  try {
+    const t = await (await fetch(`${EXPLORE_BASE}/api/tree?path=${encodeURIComponent(`${priorsData.root}/${rel}`)}`)).json();
+    priorsChildren.set(rel, t);
+  } catch (e) {
+    priorsChildren.set(rel, { error: e.message, entries: [] });
+  }
+  renderPriorsFromData();
+}
+
+function renderPriorsChildren(tree, rel, byPath, depth) {
+  const t = priorsChildren.get(rel);
+  if (!t) {
+    const row = document.createElement("div");
+    row.className = "priors-row";
+    row.style.paddingLeft = `${depth * 18}px`;
+    row.innerHTML = `<span class="priors-meta">listing…</span>`;
+    tree.append(row);
+    return;
+  }
+  if (t.error) {
+    tree.append(priorsGapLine(t.error));
+    return;
+  }
+  for (const entry of t.entries) {
+    if (entry.name.startsWith(".")) continue; // dotfiles are machinery, not documents
+    const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.dir) {
+      tree.append(priorsRow(childRel, byPath, null, depth));
+      if (priorsExpanded.has(childRel)) renderPriorsChildren(tree, childRel, byPath, depth + 1);
+    } else {
+      tree.append(priorsRow(childRel, byPath, fmtBytes(entry.size), depth, { isDoc: true }));
+    }
+  }
+  if (t.truncated) tree.append(priorsGapLine(`showing ${t.shown} of ${t.total} — the rest beyond the page cap.`));
+}
+
+/** The toggle chip: effective state at this path, and where it came from —
+ * set here (a dot), inherited (named in the tooltip), or the default.
+ * Clicking writes a declaration AT THIS LEVEL, whatever an ancestor says. */
+function priorsToggleChip(rel, byPath) {
+  const eff = effectivePrior(byPath, rel);
+  const setHere = eff.decidedBy === rel;
+  const where = eff.decidedBy == null
+    ? "the default — nothing on the ledger decides it"
+    : setHere ? "set at this level"
+    : `inherited from ${eff.decidedBy === "" ? "the everything toggle" : eff.decidedBy}`;
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = `priors-toggle${eff.on ? " on" : ""}${setHere ? " declared" : ""}`;
+  b.textContent = eff.on ? "on" : "off";
+  b.title = `${eff.on ? "in play" : "off"} — ${where}. Click to turn ${eff.on ? "off" : "on"} at this level.`;
+  b.disabled = priorsBusy != null;
+  b.onclick = (e) => {
+    e.stopPropagation();
+    togglePriorPath(rel, !eff.on);
+  };
+  return b;
+}
+
+async function togglePriorPath(rel, on) {
+  priorsBusy = rel;
+  renderPriorsFromData();
+  try {
+    await fetch(`${EXPLORE_BASE}/api/priors/toggle`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: rel, on }),
+    });
+  } catch {}
+  priorsBusy = null;
+  await reloadPriorsData();
+  renderPriorsFromData();
+}
+
+async function openPriorDoc(rel) {
+  priorsBusy = rel;
+  renderPriorsFromData();
+  try {
+    priorsFocus = await (await fetch(`${EXPLORE_BASE}/api/priors/doc?path=${encodeURIComponent(rel)}&text=1`)).json();
+  } catch (e) {
+    priorsFocus = { path: rel, gap: { silence: "unreachable", detail: e.message } };
+  }
+  priorsBusy = null;
+  renderPriorsFromData();
+}
+
+function renderPriorsFocusCard(byPath) {
+  const f = priorsFocus;
+  const card = document.createElement("div");
+  card.className = "priors-card";
+  const head = document.createElement("div");
+  head.className = "priors-card-head";
+  const nameEl = document.createElement("span");
+  nameEl.className = "name";
+  nameEl.textContent = f.provenance?.title || f.name || f.path;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "✕";
+  close.title = "close";
+  close.onclick = () => { priorsFocus = null; renderPriorsFromData(); };
+  head.append(nameEl, close);
+  card.append(head);
+
+  if (f.gap) {
+    card.append(priorsGapLine(`${f.gap.silence}: ${f.gap.detail}`));
+    return card;
+  }
+
+  if (f.provenance) {
+    const table = document.createElement("div");
+    table.className = "priors-papers";
+    const shown = new Set();
+    for (const [k, v] of Object.entries(f.provenance)) {
+      if (!["url", "publisher", "date", "title", "country", "status"].includes(k)) continue;
+      if (typeof v !== "string" || !v.trim() || shown.has(v)) continue; // an alias repeating another field's value shows once
+      shown.add(v);
+      const row = document.createElement("div");
+      row.className = "priors-paper-row";
+      const kEl = document.createElement("span");
+      kEl.className = "k";
+      kEl.textContent = k;
+      let vEl;
+      if (/^https?:\/\//.test(v)) {
+        vEl = document.createElement("a");
+        vEl.className = "v";
+        vEl.href = v;
+        vEl.target = "_blank";
+        vEl.rel = "noopener noreferrer";
+        vEl.title = "the publisher's official copy — opens in your own browser, leaves this instrument";
+        vEl.textContent = v;
+      } else {
+        vEl = document.createElement("span");
+        vEl.className = "v";
+        vEl.textContent = v;
+      }
+      row.append(kEl, vEl);
+      table.append(row);
+    }
+    card.append(table);
+  } else {
+    card.append(priorsGapLine("no papers — this document carries no frontmatter; its path and the corpus's own SOURCES.md are what vouch for it."));
+  }
+
+  if (typeof f.text === "string") {
+    const textBox = document.createElement("div");
+    textBox.className = "priors-card-text";
+    textBox.textContent = f.text;
+    card.append(textBox);
+  }
+
+  const foot = document.createElement("div");
+  foot.className = "priors-card-foot";
+  foot.append(priorsToggleChip(f.path, byPath));
+  const attach = document.createElement("button");
+  attach.type = "button";
+  attach.className = "primary";
+  attach.textContent = "attach to chat →";
+  attach.title = "copy this document's text in as material — the same crossing an upload makes";
+  attach.disabled = typeof f.text !== "string";
+  attach.onclick = () => attachPriorDoc(f);
+  foot.append(attach);
+  const meta = document.createElement("span");
+  meta.className = "meta";
+  meta.textContent = `${fmtBytes(f.bytes)} · ${f.path}`;
+  foot.append(meta);
+  card.append(foot);
+  return card;
+}
+
+function attachPriorDoc(f) {
+  if (typeof f.text !== "string") return;
+  addSource(f.name, f.text);
+  if (!(f.name in state.sources)) return; // addSource refused it (e.g. a reserved name) — its own status message says why
+  if (f.provenanceLine) {
+    state.provenance[f.name] = {
+      line: f.provenanceLine,
+      fields: f.provenance && typeof f.provenance === "object" ? { ...f.provenance } : {},
+      path: f.path,
+    };
+    renderSources();
+  }
+  $("status").textContent = `attached ${f.name} — ${countFor(f.name).toLocaleString()} passages`;
 }
 
 function esc(s) {
@@ -12665,7 +13902,7 @@ $("not-served")?.remove();
     // The record first, then the reads resume from their saved cursors on
     // top of it (a read that started before the restore would fork the log).
     try {
-      const restored = await restoreRecords();
+      const { restored, gaps } = await restoreRecords();
       if (restored.hyperlexicon) state.hyperlexiconLog = restored.hyperlexicon;
       if (restored.grid) state.gridLog = restored.grid;
       if (restored.meta) state.metaLedger = restored.meta;
@@ -12673,6 +13910,43 @@ $("not-served")?.remove();
       if (restored.loops) state.loopLog = restored.loops;
       const n = Object.keys(restored).length;
       if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
+      // A typed gap is never silent (record-log.js's own stated rule), but
+      // this one WAS, in effect: the console line above reaches nobody who
+      // has not opened devtools, the log never recovers on its own
+      // (append-only — the file is never rewritten to drop what a
+      // conflicting writer left behind, so every future load keeps hitting
+      // the identical conflict), and the one-shot `$("status")` line this
+      // used to end with was overwritten within milliseconds by the very
+      // next lines' own status writes (`readSourceOnArrival`, below, per
+      // saved source) — measured live: a fresh boot against this repo's own
+      // conflicting `grid.jsonl` never once showed it, polled at 50ms
+      // resolution. Two fixes, so it actually reaches someone who never
+      // opens devtools. `state.recordGaps` makes the fact durable rather
+      // than a flash: `readyLine()` reads it, so every later "ready" status
+      // this session already prints keeps saying so until the record is
+      // fixed. And since a person watches the CHAT, not the status line
+      // between turns (`syncChip` deliberately hides anything starting
+      // "ready · " there — routes and model name are the chip's job, not
+      // this paragraph's), the fact itself is also said once, in the chat,
+      // the same way this file already narrates other things nobody asked
+      // for (an auto-granted room key, a stopped serving session — both
+      // `addMessage("assistant", …)` outside any turn). `state.convos[0]`
+      // and `switchConvo(0)` below are synchronous, no-`await` code that
+      // already ran by the time this line is reached — the IIFE around this
+      // whole function yields at its own first `await` (`loadSources()`,
+      // two lines up) and does not resume until a later microtask, by which
+      // point the rest of this script's synchronous body, including the
+      // first conversation's own creation, has already executed.
+      state.recordGaps = gaps.length ? gaps : null;
+      if (gaps.length) {
+        $("status").textContent = `record: ${gaps.map((g) => g.detail).join(" · ")}`;
+        if (state.convos?.length) {
+          addMessage(
+            "assistant",
+            `The reading record could not be fully restored: ${gaps.map((g) => g.detail).join(" · ")} — everything held before that point is intact and in use; what came after it on disk is not recoverable. This usually means the same browser storage was written to by two open sessions at once.`,
+          );
+        }
+      }
     } catch (e) { console.warn("record restore:", e?.message ?? e); }
     for (const { name, meta } of saved) {
       if (state.sources[name]) readSourceOnArrival(name, { savedCursor: meta?.readCursor ?? 0, savedRecipe: meta?.readRecipe ?? null });
@@ -12723,8 +13997,23 @@ $("model").onchange = () => {
   if (state.ready) $("status").textContent = readyLine();
 };
 
-/** The status line: the model, and the depth when it is not the plain rung. */
-function readyLine() { return `ready · ${state.model}${state.depth !== 1 ? ` · depth ${state.depth}` : ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`; }
+/**
+ * The status line: the model, the depth when it is not the plain rung, and —
+ * appended rather than shown once and lost — a standing note when this
+ * session's own record replay hit a typed gap at boot (`state.recordGaps`,
+ * set once in the boot IIFE above). Every "ready" status this file prints
+ * runs through this one function, so baking the note in here is what makes
+ * it durable: the gap survives every later overwrite of `$status` (a turn
+ * finishing, a source's first read landing, the model picker changing) for
+ * the rest of the session, rather than the one-shot line the boot code used
+ * to set directly — which record-store.js's own append-only rule means
+ * nothing here can silently repair, so saying it once and losing it to the
+ * very next status write was, in effect, never saying it at all.
+ */
+function readyLine() {
+  const gapNote = state.recordGaps?.length ? ` · record: ${state.recordGaps.map((g) => g.detail).join(" · ")}` : "";
+  return `ready · ${state.model}${state.depth !== 1 ? ` · depth ${state.depth}` : ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}${gapNote}`;
+}
 /** The slider's legend, in plain words, from the budgets the rung would spend. */
 function renderDepth() {
   const b = depthBudgets(state.depth);
@@ -12772,6 +14061,16 @@ window.addEventListener("message", (e) => {
 // that nobody would guess was there.
 for (const b of document.querySelectorAll(".attach"))
   b.onclick = () => $("attach-menu").showModal();
+// The merged memory menu (2026-09-08): one dialog, in the Attach dialog's
+// own voice, for everything a question may draw on beyond the model. Its
+// own "Add attachment" row closes this sheet before the Attach one rises —
+// the same sheet-closes-before-the-next-one-opens rule attach-sheet-add
+// already follows a few lines down.
+$("memory-open").onclick = () => $("memory-menu").showModal();
+$("memory-add-attachment").onclick = () => {
+  $("memory-menu").close();
+  $("attach-menu").showModal();
+};
 // The sheet's own add door closes the sheet first — two stacked modals would
 // leave the reader closing dialogs like nested parentheses.
 $("attach-sheet-add").onclick = () => {
@@ -13077,6 +14376,21 @@ bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
   state.webProof = v;
   $("status").textContent = v ? "web lookups on" : "web lookups off";
 });
+bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
+  state.ranke = v;
+  $("status").textContent = v ? "primary-source chase on (Ranke)" : "primary-source chase off";
+});
+// #use-priors (below) and #priors-mode (further below) are two DIFFERENT
+// features, not a merge collision to resolve toward one — index.html's own
+// comment beside #priors-mode already disambiguates them: this checkbox
+// gates whether priors are consulted at all (relationsFor, RELATION_READER_
+// OPTIONS), the cycling button beneath it is the off/background/foreground
+// DEPTH of that consultation once it is on. Both sides of this merge are
+// kept.
+bindSwitch("use-priors", "fold-use-priors", () => state.usePriors, (v) => {
+  state.usePriors = v;
+  $("status").textContent = v ? "priors on" : "priors off — plainer reading";
+});
 // ── the priors-mode toggle ───────────────────────────────────────────────────
 //
 // Three states, cycled — same pattern as the theme toggle: the choice lives
@@ -13151,20 +14465,23 @@ bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
 // witness's ∅ — are the product bar's own item (1), and a checked turn
 // paints them unless the person turned marks off. `fold-marks=off` still
 // hides them; nothing else does.
-if (localStorage.getItem("fold-marks") === "off") document.body.classList.add("marks-off");
+// `state.grounded` gates whether a FUTURE turn computes and paints marks at
+// all; `body.marks-off` is the CSS-level switch that hides marks already
+// sitting in the DOM from earlier turns. Both must move together, live,
+// every time — syncGroundedUI() (PER_CONVO, above) is the one place that
+// happens, so boot, the switch's own onchange, and every conversation/
+// workspace switch all go through it rather than three copies of this pair.
+syncGroundedUI();
 {
-  const btn = $("marks-toggle");
-  const apply = (on) => {
-    state.grounded = on;
-    btn.setAttribute("aria-pressed", String(on));
-  };
-  apply(localStorage.getItem("fold-marks") !== "off");
-  btn.onclick = () => {
-    const on = btn.getAttribute("aria-pressed") !== "true";
-    apply(on);
-    localStorage.setItem("fold-marks", on ? "on" : "off");
-    $("status").textContent = on ? "checking on" : "checking off — plain answers";
-  };
+  const box = $("use-checking");
+  if (box) {
+    box.onchange = () => {
+      state.grounded = box.checked;
+      syncGroundedUI();
+      localStorage.setItem("fold-marks", box.checked ? "on" : "off");
+      $("status").textContent = box.checked ? "checking on" : "checking off — plain answers";
+    };
+  }
 }
 
 // ── views ────────────────────────────────────────────────────────────────────
@@ -13304,8 +14621,43 @@ $("folds-view").onclick = () => {
       /* storage blocked — the stamp below still applies for this page */
     }
     applyTheme(next === "system" ? null : next);
+    // Every build preview already on screen carries the OLD theme baked
+    // into its srcdoc (a sandboxed frame can't react to the parent's data-
+    // theme on its own — see isDarkNow's own comment). Redraw them now
+    // rather than leaving them stale until the next unrelated re-render.
+    renderBuilds();
   };
   applyTheme(storedTheme());
+}
+
+/**
+ * The effective theme right now, resolved the same three-state way the
+ * page's own CSS resolves it (an explicit data-theme wins in both
+ * directions; "system" falls through to the OS's own prefers-color-scheme).
+ * Read fresh on every call, never cached — the toggle and the OS can each
+ * change it independently of the other.
+ *
+ * Why this exists at all: model-generated HTML/JS (a build's own widget,
+ * rendered in a sandboxed iframe) carries none of this app's theme
+ * awareness — it is not this app's CSS variables, and a model was never
+ * asked to write code that adapts (the house rule: never instruct a model
+ * to mimic a property in language, compute it mechanically outside it).
+ * The iframe is sandbox="allow-scripts" with no allow-same-origin, so it
+ * is genuinely cross-origin from the parent's own <html data-theme> — it
+ * cannot read this itself. The parent resolves it once, here, and hands
+ * the plain boolean to toDocument (artifact.js), which does the actual
+ * mechanical adaptation (a color-inversion filter, never asking the model
+ * to redraw itself for the occasion).
+ */
+function isDarkNow() {
+  const t = document.documentElement.dataset.theme;
+  if (t === "dark") return true;
+  if (t === "light") return false;
+  try {
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch {
+    return false;
+  }
 }
 
 // ── the editor's controls ────────────────────────────────────────────────────
@@ -13433,7 +14785,7 @@ function syncModelPick() {
 // backdrop (or press Escape, which <dialog> gives natively) and it goes. The
 // ✕ in each sheet's head is the third way, and the only one that is visible:
 // Escape is not discoverable and a backdrop click is a guess.
-for (const id of ["reopen", "model-menu", "fold-view", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer", "matrix-login", "pool", "room", "workspace"]) {
+for (const id of ["reopen", "model-menu", "fold-view", "memory-menu", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer", "mark-detail", "matrix-login", "pool", "room", "workspace"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -13445,12 +14797,14 @@ for (const [btn, dlg] of [
   ["pool-x", "pool"],
   ["room-x", "room"],
   ["workspace-x", "workspace"],
+  ["memory-menu-x", "memory-menu"],
   ["attach-menu-x", "attach-menu"],
   ["picker-x", "picker"],
   ["paste-x", "paste"],
   ["reopen-x", "reopen"],
   ["attach-sheet-x", "attach-sheet"],
   ["source-viewer-x", "source-viewer"],
+  ["mark-detail-x", "mark-detail"],
 ])
   $(btn).onclick = () => $(dlg).close();
 

@@ -16,6 +16,13 @@ const RECORDS_DIR = "records";
 // creation, not each race their own.
 let _rootPromise = null;
 
+// Listeners on the record's own append (GFP Pass 33: the field is admitted
+// from every line written here — field-store.js). A listener is told what
+// was written, after it was written; it cannot change it.
+const appendListeners = new Set();
+export function onAppend(fn) { appendListeners.add(fn); return () => appendListeners.delete(fn); }
+const notifyAppend = (name, lines) => { for (const fn of appendListeners) { try { fn(name, lines); } catch (err) { console.warn("record-store: append listener failed:", err?.message ?? err); } } };
+
 async function getRoot() {
   if (!_rootPromise) {
     _rootPromise = (async () => {
@@ -57,6 +64,7 @@ export async function appendRecord(name, lines) {
     await writable.seek(size);
     await writable.write((size ? "" : "") + lines.join("\n") + "\n");
     await writable.close();
+    notifyAppend(name, lines);
     return { appended: lines.length };
   } catch (err) {
     console.warn(`record-store: append ${name} failed:`, err?.message ?? err);

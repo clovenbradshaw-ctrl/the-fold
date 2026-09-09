@@ -293,8 +293,33 @@ export function esc(s) {
 const CSP_META =
   `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:;">`;
 
-export function toDocument(seg) {
+/**
+ * `dark` is the parent's own resolved theme (app.js's isDarkNow — this
+ * module stays pure, no DOM, so it never reads it itself), for the html
+ * branch only. A model's own markup carries none of this app's theme
+ * awareness — it never saw index.html's CSS variables and was never asked
+ * to write code that adapts (the house rule: never instruct a model to
+ * mimic a property in language, compute it mechanically outside it). A
+ * color-inversion filter is that mechanical adaptation: it never asks the
+ * model to redraw itself for the occasion, and it costs nothing when a
+ * segment happens to already look fine — an unstyled or transparent widget
+ * inverts to itself. Media (an embedded photo or video) is re-inverted back
+ * to normal, so a picture never renders as its own negative; only the flat
+ * UI color a model actually chose gets flipped.
+ *
+ * Left alone on purpose: the svg branch. This app's own mechanically-built
+ * charts (artifact.js's chartFrom) already carry a real theme block
+ * (themeCss/PALETTE, var(--bg) etc.) rather than hardcoded colors, and
+ * inverting on top of that would un-invert an already-correct dark
+ * rendering. A model-authored raw SVG with hardcoded colors has the same
+ * gap this closes for HTML; scoped out for now rather than guessing which
+ * kind of svg a given segment is.
+ */
+export function toDocument(seg, { dark = false } = {}) {
   if (seg.lang === "svg")
     return `<!doctype html><meta charset="utf-8">${CSP_META}<style>html,body{margin:0;height:100%;display:grid;place-items:center;background:transparent}svg{max-width:100%;max-height:100%}</style>${seg.code}`;
-  return `<!doctype html>${CSP_META}${seg.code}`;
+  const darkCss = dark
+    ? `<style>html{filter:invert(1) hue-rotate(180deg)}img,video,picture,canvas{filter:invert(1) hue-rotate(180deg)}</style>`
+    : "";
+  return `<!doctype html>${CSP_META}${darkCss}${seg.code}`;
 }

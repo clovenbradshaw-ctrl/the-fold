@@ -169,6 +169,28 @@ test("every rendered document carries the no-network wall; the content survives 
   assert.ok(html.endsWith("<p>hi</p>"), "the model's markup is appended after the wall, unmodified");
 });
 
+test("toDocument: dark defaults false and is byte-identical to omitting it — no existing caller's output moves", () => {
+  const seg = { lang: "html", code: "<p>hi</p>" };
+  assert.strictEqual(toDocument(seg), toDocument(seg, { dark: false }));
+  assert.strictEqual(toDocument(seg), toDocument(seg));
+});
+
+test("toDocument: dark mode inverts a model-authored html widget's own colors mechanically, never asking the model to write theme-aware CSS", () => {
+  const seg = { lang: "html", code: "<style>body{background:#fff}</style><p>hi</p>" };
+  const lit = toDocument(seg, { dark: false });
+  const dark = toDocument(seg, { dark: true });
+  assert.ok(!lit.includes("invert"), "the light/unset case carries no filter at all");
+  assert.ok(dark.includes("filter:invert(1) hue-rotate(180deg)"), "dark mode inverts the flat UI color mechanically");
+  assert.ok(dark.includes("img,video,picture,canvas"), "media is re-inverted back to normal, not left as its own negative");
+  assert.ok(dark.endsWith(seg.code), "the model's own markup still lands unmodified, after the wall and the theme style");
+});
+
+test("toDocument: svg is untouched by the dark flag — the mechanically-built chart already carries its own real theme block (themeCss/PALETTE) and inverting on top would un-invert an already-correct dark rendering", () => {
+  const seg = { lang: "svg", code: "<svg/>" };
+  assert.strictEqual(toDocument(seg, { dark: true }), toDocument(seg, { dark: false }));
+  assert.ok(!toDocument(seg, { dark: true }).includes("invert"));
+});
+
 test("a chart is built from rows without a model, and every figure is the row's own", () => {
   const seg = chartFrom(
     [

@@ -127,13 +127,13 @@ export function exportPiece({ title = "Untitled", ask = "", model = null, sectio
     const parts = n.spans.map((sp) => (sp.addressOnly || !sp.text
       ? `${sp.ref} — on the record at this address; the passage itself was not in hand to quote${sp.link ? ` [open the source](${sp.link})` : ""}`
       : `“${sp.text.replace(/\s+/g, " ").trim()}” — ${sp.source}${sp.start != null ? ` bytes ${sp.start}–${sp.end} of that passage` : ""}${sp.link ? ` [open at the span](${sp.link})` : ""}`));
-    fn.push(`[^${n.n}]: ${n.kind === "named" ? "names established here, the claim not: " : ""}${parts.join(" · ")}`);
+    fn.push(`[^${n.n}]: ${n.kind === "named" ? "names established here, the claim not placed: " : ""}${parts.join(" · ")}`);
   }
   if (tally.self) fn.push(`[^m]: ${modelName}'s own testimony — nothing read places it.`, `[^r]: ${modelName}'s own testimony — the witness was asked whether any passage states it and none was pointed at.`);
   if (tally.named) fn.push(`[^n]: the names in this sentence resolve to referents the material establishes; the claim itself was not placed.`);
-  const keyLine = `Ground marks: a numbered note is the source's own bytes at the span (offsets count within the addressed passage), linked so the page opens there; a note beginning "names established" places only the names; m is the model's own testimony (${modelName}); r the same, refused by the witness; n names established, claim not.`;
+  const keyLine = `Ground marks: a numbered note is the source's own bytes at the span (offsets count within the addressed passage), linked so the page opens there; a note beginning "names established" places only the names; m is the model's own testimony (${modelName}); r the same, refused by the witness; n names established, claim not placed.`;
   const md = [...mdParts, "---", "", keyLine, "", ...fn, ""].join("\n");
-  const notesHtml = notes.map((n) => `<li id="note-${n.n}">${n.kind === "named" ? "names established here, the claim not: " : ""}${n.spans.map((sp) => `<q>${esc(sp.text)}</q> — <code>${esc(sp.ref)}</code>${sp.link ? ` <a href="${esc(sp.link)}" target="_blank" rel="noopener">open at the span</a>` : ""}`).join(" · ")}</li>`).join("");
+  const notesHtml = notes.map((n) => `<li id="note-${n.n}">${n.kind === "named" ? "names established here, the claim not placed: " : ""}${n.spans.map((sp) => `<q>${esc(sp.text)}</q> — <code>${esc(sp.ref)}</code>${sp.link ? ` <a href="${esc(sp.link)}" target="_blank" rel="noopener">open at the span</a>` : ""}`).join(" · ")}</li>`).join("");
   const templates = [...cited.entries()].map(([ref, id]) => `<template id="${id}" data-ref="${esc(ref)}" data-source="${esc(sourceOf(ref))}"${urls[sourceOf(ref)] ? ` data-url="${esc(urls[sourceOf(ref)])}"` : ""}>${esc(passages.get(ref).text)}</template>`).join("");
   // The snip panel: a click (or Enter) on a sentence opens the cited
   // passage(s) with the span marked; a sentence nothing read places says

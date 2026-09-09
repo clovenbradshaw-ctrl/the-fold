@@ -20,6 +20,28 @@
 // A rung is a finding only when its organ REACHED the sentence (THE-NULL-
 // STATES law 3): a witness that was never asked is not a refusal, and the
 // ladder says which rungs were skipped.
+//
+// THE STANDING RULE BETWEEN ANY TWO RUNGS (user direction, 2026-09-09):
+// the LOW sets the POSSIBILITY for the HIGH; the HIGH sets the PROBABILITY
+// for the LOW. A weaker rung's own mechanism is a floor a stronger rung's
+// verdict may never contradict — tier 4 ("derived") answers "is this
+// referent even the one the sentence names" by asking tier 6's own
+// resolveName before crediting a match, so a stronger claim can never
+// override what a weaker rung has already established as impossible (two
+// distinct, named referents are not quietly folded into one because their
+// surnames share a token). This is a CONSISTENCY constraint, checked here,
+// not a comparison of confidence — it costs nothing to enforce and is
+// applied every time a higher rung reads through a lower one's organ.
+// The reverse — a stronger rung CALIBRATING how much weight the weaker
+// rung's own signal deserves, e.g. how often "named" turns out correct
+// measured against cases where "bound" was also reachable for the same
+// claim — is a real, disclosed, UNMEASURED question. Nothing in this file
+// assigns a numeric probability to any rung; inventing one without a
+// measurement (this repo's own standing rule, generality-gate discipline,
+// applied here) would be worse than leaving it named and open. A rung
+// added later inherits both halves: it must respect every rung already
+// below it as a possibility floor, and its own reliability against the
+// rungs above it is something to measure, never assume.
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const toks = (t) => fold(t).replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(" ").filter((w) => w.length > 2);
 const sourceOf = (w) => String(w ?? "").split("~")[0];
@@ -110,18 +132,73 @@ export function groundOf(sentence, ctx = {}) {
   }
   // 4. derived
   const st = new Set(toks(sentence));
-  const dv = derived.filter((d) => toks(d.subject ?? d.end1).every((w) => st.has(w)) && toks(d.object ?? d.end2).every((w) => st.has(w)) && toks(d.verb ?? d.label).some((w) => st.has(w)));
+  // A derived fact was composed from OTHER sentences, in THEIR wording —
+  // bare token containment only catches a fact restated near-verbatim, and
+  // it is blind to identity: two different people sharing a surname (e.g.
+  // two Bezukhovs) share tokens without being the same referent, so a
+  // bag-of-words check alone can credit a sentence with a derived fact
+  // about someone else entirely. Where the referent index (tier 6's own
+  // `resolveName`) is available and both sides resolve to a NAMED
+  // referent, compare identities the same way tier 6 already does — the
+  // holograph comparison, not a string one. When either side has no
+  // resolvable name (a pronoun, a bare description, or the index absent),
+  // this falls through to the token check exactly as before: refusing to
+  // manufacture a mismatch from an absence is the same discipline this
+  // ladder already holds for withholding vs. convicting.
+  const sideMatches = (text) => {
+    if (typeof resolveName === "function") {
+      const idsHere = new Set();
+      for (const nm of namesIn(text)) { let ids; try { ids = resolveName(nm); } catch { ids = null; } for (const id of ids ?? []) idsHere.add(id); }
+      if (idsHere.size) {
+        const idsSentence = new Set();
+        for (const nm of namesIn(sentence)) { let ids; try { ids = resolveName(nm); } catch { ids = null; } for (const id of ids ?? []) idsSentence.add(id); }
+        if (idsSentence.size) return [...idsHere].some((id) => idsSentence.has(id));
+      }
+    }
+    return toks(text).every((w) => st.has(w));
+  };
+  const dv = derived.filter((d) => sideMatches(d.subject ?? d.end1) && sideMatches(d.object ?? d.end2) && toks(d.verb ?? d.label).some((w) => st.has(w)));
   if (dv.length) return { tier: "derived", cell: CELL_OF.derived, addresses: dv.flatMap((d) => d.premises ?? []), phrase: "derived on the record", detail: `follows from ${dv[0].premises?.length ?? "?"} earlier claim(s), stated by no source`, reached };
-  // 6. named
-  if (typeof resolveName === "function") {
+  // 6. named — skipped when the witness already ran a stronger, more
+  // specific check on THIS sentence and came back empty. "A name here
+  // resolves to a referent the material establishes" is real but weak —
+  // it is true of nearly any sentence that mentions someone real, whether
+  // or not the sentence claims anything about them. "The witness read
+  // every retrieved passage looking for this exact sentence and found
+  // none" is the ladder's own purpose-built check for precisely this
+  // question, already run, already conclusive. Found live 2026-09-09: a
+  // pure absence sentence ("those details are not readily available")
+  // read "named, not placed" — Armstrong's own name resolving — while the
+  // witness's actual, decisive finding (nothing states this) sat one
+  // click deeper and never shaped what the reader saw first, so the two
+  // looked contradictory rather than like the same answer said twice.
+  // Same rule this ladder's own header already states between rungs (a
+  // stronger rung's verdict stands over a weaker rung's mechanism),
+  // pointed at DISPLAY priority between two checks of the same sentence
+  // rather than between two different rungs.
+  if (witness?.witness !== "refused" && typeof resolveName === "function") {
     const names = namesIn(sentence);
     const established = [];
     for (const nm of names) { let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages); established.push({ name: nm, ref }); } }
-    if (established.length) return { tier: "named", cell: CELL_OF.named, addresses: [...new Set(established.map((e) => e.ref).filter(Boolean))], phrase: "names established, claim not", detail: `${established.map((e) => e.name).join(", ")} resolve to referents the material establishes; the claim itself was not placed`, names: established.map((e) => e.name), reached };
+    if (established.length) {
+      const addresses = [...new Set(established.map((e) => e.ref).filter(Boolean))];
+      // `phrase` is a fragment meant to read naturally once groundLine()
+      // appends an address after it (measured 2026-09-09: the chip read
+      // "names established, claim not web:search-results#0-2645" — a raw
+      // address glued onto a dangling "not" with no connecting word). "at"
+      // only completes the fragment when an address actually follows; with
+      // none, "claim not placed" stands alone rather than trailing on a
+      // bare preposition.
+      return { tier: "named", cell: CELL_OF.named, addresses, phrase: addresses.length ? "names established, claim not placed at" : "names established, claim not placed", detail: `${established.map((e) => e.name).join(", ")} resolve to referents the material establishes; the claim itself was not placed`, names: established.map((e) => e.name), reached };
+    }
   }
   // 7. self
   const refused = witness?.witness === "refused";
-  return { tier: "self", cell: CELL_OF.self, addresses: [], phrase: model ? `${model}` : "the model", detail: refused ? "the witness was asked and no passage states it; this is the model's own testimony" : reached.witness ? "no rung placed it; the model's own testimony" : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined", refused, reached };
+  // Trailing periods matter here: app.js's mark detail appends its own
+  // sentence directly after this one with a bare space (found live,
+  // 2026-09-09: "...this is the model's own testimony There is nothing to
+  // cite here..." ran two sentences together with no punctuation between).
+  return { tier: "self", cell: CELL_OF.self, addresses: [], phrase: model ? `${model}` : "the model", detail: refused ? "the witness was asked and no passage states it; this is the model's own testimony." : reached.witness ? "no rung placed it; the model's own testimony." : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined.", refused, reached };
 }
 
 /** The reader's line for a ground, plain words and addresses. */
@@ -129,4 +206,27 @@ export function groundLine(g) {
   if (!g) return "";
   if (g.tier === "self") return `${g.phrase}${g.refused ? " — no source states this" : ""}`;
   return `${g.phrase}${g.addresses?.length ? ` ${g.addresses.slice(0, 3).join(", ")}${g.addresses.length > 3 ? ` (+${g.addresses.length - 3})` : ""}` : ""}`;
+}
+
+// A tier NAME (bound/witnessed/recorded/derived/contested/named/self) is
+// this file's own internal vocabulary — the same rung the CSS classes and
+// the code above key off — and it leaked, unglossed, into two reader-facing
+// spots (the bottom marks strip, the mark detail modal's own title): found
+// live, 2026-09-09, a reader saw a chip that just said "bound" and had no
+// way to know what that meant. `tierWord` is the one place a tier gets a
+// plain phrase for those two spots; `groundLine` above stays the fuller,
+// address-carrying line and is untouched.
+const TIER_WORD = Object.freeze({
+  bound: "confirmed",
+  witnessed: "confirmed by a passage",
+  recorded: "on the record",
+  derived: "derived from other claims",
+  contested: "disputed",
+  named: "named, not placed",
+  self: "the model's own voice",
+});
+
+/** A tier's plain-English word — never the bare tier name. */
+export function tierWord(tier) {
+  return TIER_WORD[tier] ?? tier ?? "";
 }

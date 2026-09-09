@@ -35,7 +35,23 @@ import { CLAIM_STOPWORDS } from "./grounding.js";
 import { namesIn } from "./ground-ladder.js";
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const contentWords = (t) => [...new Set(fold(t).split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w));
+// LENGTH FLOOR MATCHES RETRIEVAL'S OWN (source.js::tokenize: `t.length > 2`),
+// not a copy of snip-check.js's `contentWords` (a DIFFERENT question — does
+// the model's OWN rewrite still talk about the same thing — inherited here
+// unexamined when this file was written). This one decides which of the
+// QUESTION's words are worth searching the material for, and a floor one
+// higher than retrieval's silently throws away exactly the words retrieval
+// itself found relevant. Measured live (2026-09-08): "what time are they
+// meeting at the gym?" retrieved the whole pasted passage on "time" and
+// "gym" (tokenize keeps both), but turnSnipBlock's needles were only
+// ["time", "meeting"] — "gym" fell below the old `> 3` floor — so the one
+// sentence stating the actual meeting time ("I'll meet you at the gym at
+// 3:30 then.") never became a snip, `compress` (holon.js) dropped the raw
+// passages because SOME snip still matched, and the mouth was handed one
+// unrelated line ("What time do you want to go?") for a whole retrieved
+// passage. The whole doc reads "retrieved" in the record because it was —
+// this is a needle too narrow to find its own retrieved sentence again.
+const contentWords = (t) => [...new Set(fold(t).split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w));
 
 /** The phrasings by which a question hands over a claim as already settled —
  * measured off the live run and the ordinary ways people talk. The trigger is
@@ -288,7 +304,20 @@ export async function correctTurn({ text, passages = [], question = "", terms = 
 // So a sentence goes only when it is process narration AND says nothing about
 // the material at all.
 const HEADING_RE = /^\s*(?:#{1,6}\s|\*\*[^*]+\*\*\s*:?\s*$|\d+\.\s*\*\*)/;
-const PROCESS_RE = /^\s*(?:let(?:'|’)?s\b|let me\b|i(?:'|’)?(?:ll|m|d|ve)\b|i \w+\b|we(?:'|’)?(?:ll|re|ve)\b|here(?:'|’)?s\b|this (?:analysis|passage|section|code|snippet|document|text|response|answer|breakdown)\b|the (?:following|passage|snippet|code) (?:is|describes|shows|focuses)\b|to (?:answer|summarize|understand|break)\b|in (?:short|summary|conclusion)\b|first,|next,|finally,|okay|sure|certainly)/i;
+// FOUND LIVE 2026-09-09 (a chip-UX pass surfaced it, not a dedicated hunt):
+// "Also looked at: en.wikipedia.org was read and speaks of the same things
+// without answering this." shipped in a checked answer's own prose, and the
+// grounding ladder — correctly, since nothing upstream told it otherwise —
+// ran the full witness/self-tier apparatus against it as though it were a
+// factual claim, reading as a category error once the reader could actually
+// see the item's full detail (the chip-UX pass, same day, is what made it
+// legible enough to notice). The sentence IS process narration (the model
+// describing its own research act, not the world) — `i \w+\b` already
+// catches "I also looked at..." but this specimen opens with the adverb, no
+// first-person pronoun in sight. Added as its own alternative rather than
+// widening `i \w+\b` to match mid-sentence, which would risk matching real
+// content ("Also, Napoleon invaded Russia in 1812.").
+const PROCESS_RE = /^\s*(?:let(?:'|’)?s\b|let me\b|i(?:'|’)?(?:ll|m|d|ve)\b|i \w+\b|we(?:'|’)?(?:ll|re|ve)\b|here(?:'|’)?s\b|this (?:analysis|passage|section|code|snippet|document|text|response|answer|breakdown)\b|the (?:following|passage|snippet|code) (?:is|describes|shows|focuses)\b|to (?:answer|summarize|understand|break)\b|in (?:short|summary|conclusion)\b|also (?:looked at|checked|consulted|searched|read)\b|first,|next,|finally,|okay|sure|certainly)/i;
 // KEEPS_RE is snip-check.js's own ABSENCE_RE, imported above — the one
 // implementation, shared: moved there 2026-09-08 so that module's atom/
 // company check could exempt an absence sentence the same way this file's
@@ -311,7 +340,19 @@ export function cutProcessTalk(text, { materialText = "", splitSentences }) {
     if (!shape) { kept.push(sent); continue; }
     if (KEEPS_RE.test(sent)) { kept.push(sent); continue; }              // a stated absence is a finding
     if (atomsOfText(sent).length) { kept.push(sent); continue; }          // carries a name, number or date
-    if (contentWords(sent).some((w) => material.has(w))) { kept.push(sent); continue; } // speaks the material's own words
+    // "Speaks the material's own words" was one shared word away from never
+    // cutting a real specimen (found live, 2026-09-09): "Also looked at:
+    // sovietspaceprogram.com, en.wikipedia.org were read and speak of the
+    // same things without answering this" survived because a real fetched
+    // page, hundreds of words long, happened to contain "read" or "same"
+    // somewhere — a coincidence this guard read as "carries the material's
+    // content." A single common word overlapping a long passage is nearly
+    // guaranteed by chance; this project's own company rule (P31: numbers
+    // need company, not bare occurrence) is the same lesson one register
+    // over. Two distinct shared words is a much rarer coincidence and is
+    // still cleared easily by genuine paraphrase (the "tide" specimen
+    // below shares four).
+    if (contentWords(sent).filter((w) => material.has(w)).length >= 2) { kept.push(sent); continue; } // speaks the material's own words
     cut.push(sent);
   }
   if (!cut.length || !kept.length) return { text: String(text ?? ""), cut: kept.length ? cut : [] };

@@ -4947,7 +4947,12 @@ async function factsTurn(argstr, typed) {
     // recomputed: a verdict that came from Wikipedia never counts toward
     // the merge, so it can neither hold a sentence up nor cite it.
     readings = readings.filter((r) => !isWikipediaSource(String(r.who ?? "").split(":")[0]));
-    items.push({ claim, merged: mergeTestimony(readings), order: step });
+    // note.cell rides along for the table view's own "EOT" column (P58's
+    // moves.js: `${operator}·${grain}`, the SAME notation the hyperlexicon
+    // ledger already types every note with — see hyperlexicon-stance
+    // section, CLAUDE.md above) — a real classification of the ACT that
+    // heard this claim, never invented here.
+    items.push({ claim, merged: mergeTestimony(readings), order: step, cell: note.cell ?? null });
   }
   syncRecords();
 
@@ -4987,11 +4992,54 @@ async function factsTurn(argstr, typed) {
     ? `\n\n## References\n\n${citedNames.map((n) => `- ${formatReference(sourceMeta(n), state.citationStyle || DEFAULT_CITATION_STYLE)}`).join("\n")}`
     : "";
   const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*${refsSection}`;
+  // The table view's structured rows — real end1/label/end2 and the
+  // note's own cell, never re-derived by re-parsing the composed prose
+  // (which would be guessing a structure crown.js's own template already
+  // dissolved into a sentence). Stored on the entry itself, not just in
+  // this closure, so a reload (persistBuilds/restoreBuilds, below) keeps
+  // the EOT column real rather than falling back to prose-reparsing.
+  const factsRows = result.sentences.map((s) => {
+    const item = items.find((it) => it.claim === s.claim);
+    // The table's Fact column shows the claim ALONE, without crown's own
+    // "According to X, " lead-in — redundant there since Source is its
+    // own column (user direction, 2026-09-09: "we need to pull out the
+    // 'according to'"). Stripping it by matching the source NAME as a
+    // string was tried first and was wrong: crown.js's own witnessWords()
+    // tokenizes a witness name before rendering it (tokenize() drops
+    // punctuation like "&"/"|"), so "Panama Canal: History, Impact &
+    // Canal Zone | HISTORY" renders as "...Impact Canal Zone HISTORY" —
+    // never byte-identical to the raw source name, so no string
+    // comparison against it can be reliable. renderCrown's own `trace`
+    // (crown.js's real, tested source-of-truth for which token came from
+    // where — the same array checkTraceCoverage verifies) is asked
+    // directly instead: joinCrownTokens re-renders only the tokens
+    // trace-tagged `claim`, from the first one on, mirroring crown.js's
+    // own private joinTypographically byte for byte so the two can never
+    // read differently.
+    const crown = renderCrown(item.merged);
+    const claimStart = crown.trace?.findIndex((t) => t.source?.kind === "claim") ?? -1;
+    const factOnly = claimStart >= 0 ? joinCrownTokens(crown.trace.slice(claimStart).map((t) => t.token)) : s.text;
+    const refs = anchorsFor(s.claim);
+    return {
+      text: s.text,
+      factOnly: factOnly.charAt(0).toUpperCase() + factOnly.slice(1),
+      refs,
+      // The verbatim bytes each citation actually rests on — read back
+      // from the loaded source NOW (not asked of a model, not cached
+      // from generation time — refContext is the SAME reader reopen()
+      // uses), so "verbatim, no paraphrasing" is checkable inline rather
+      // than only after a click (user direction, 2026-09-09: "we need to
+      // see the verbatim span it came from").
+      quotes: refs.map((r) => ({ ref: r, cited: refContext(state.sources, r)?.cited ?? null })),
+      end1: item.claim.end1, label: item.claim.label, end2: item.claim.end2, cell: item?.cell ?? null,
+    };
+  });
 
   let entry = findFactsBuild();
   if (entry) {
     entry.log = buildLog.reviseBuild(entry.log, { code: doc, reason: "facts regenerated" });
     entry.cursor = null;
+    entry.factsRows = factsRows;
     mirrorBuild(entry, entry.log.entries.length - 1);
   } else {
     entry = {
@@ -5002,7 +5050,7 @@ async function factsTurn(argstr, typed) {
         seg: { type: "code", lang: "markdown", code: doc }, caption: FACTS_CAPTION,
         instruction: "composed mechanically from the workspace's hyperlexicon by /facts — no model call",
       }),
-      cursor: null, draft: null,
+      cursor: null, draft: null, factsRows,
     };
     state.builds.push(entry);
     mirrorBuild(entry, 0);
@@ -11345,6 +11393,13 @@ function buildCard(entry, highlight) {
       // before the run and the frame locks again — the projection of the
       // log at that point had no consent in it yet.
       scripts: !!shown.lastRun,
+      // entry — so a /facts document's table view can read entry.factsRows
+      // (real end1/label/end2/cell) instead of falling back to re-parsing
+      // the prose. Omitted here before, this card is the ONE place a
+      // reader actually sees the Folds list, so the EOT column read "—"
+      // for every row regardless of whether factsRows existed (found live,
+      // 2026-09-09, right after building the column).
+      entry,
     }),
   );
   return wrap;
@@ -11364,7 +11419,7 @@ function openFoldViewer(entry) {
   $("fold-view-address").textContent = file?.name ?? "";
   const body = $("fold-view-body");
   body.textContent = "";
-  body.append(artifactNode(shown.seg, shown.caption, shown.code, { scripts: !!shown.lastRun }));
+  body.append(artifactNode(shown.seg, shown.caption, shown.code, { scripts: !!shown.lastRun, entry }));
   $("fold-view").showModal();
 }
 
@@ -11627,7 +11682,11 @@ function persistBuilds() {
     const data = state.builds.map((b) =>
       b.kind === "database"
         ? { n: b.n, turn: b.turn, kind: "database", entries: b.storeLog.entries }
-        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null },
+        // factsRows: the /facts table view's structured rows (real
+        // end1/label/end2/cell) — additive, only ever present on the one
+        // markdown build /facts itself produces; absent on every other
+        // build, so this changes nothing for them.
+        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) },
     );
     localStorage.setItem(buildsKey(), JSON.stringify({ id: conv?.id, builds: data }));
   } catch (e) {
@@ -11672,7 +11731,7 @@ function restoreBuilds() {
               code: b.code,
               lastRun: b.lastRun,
             });
-        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null });
+        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) });
       } catch {
         /* a row that violates the vocabulary does not load silently — this
            build is skipped, the rest are kept */
@@ -12788,19 +12847,31 @@ function factsTableRows(text) {
   return rows;
 }
 
-// crown.js's own SINGLE-standing template (P39/BUILD-4) opens every
-// one-witness sentence with "According to <source>, " — real, correct
-// prose, and pure redundancy in a table that already names the source in
-// its own column. Stripped for the table cell only (never for the prose
-// view, and never for what's exported): the underlying sentence is
-// untouched, this just decides how one cell reads. Matched against the
-// row's own KNOWN source name (the exact string factsTurn/crown.js used),
-// never a generic "first comma" regex — found live, 2026-09-09: a source
-// whose own title contains a comma ("Panama Canal: History, Impact &
-// Canal Zone | HISTORY") made a lazy `/^According to (.+?), /` stop at
-// the title's OWN internal comma, leaking half the source name into the
-// fact text ("Impact & Canal Zone | HISTORY, 000 men...").
-function factCellText(text, sourceName) {
+// crown.js's own private joinTypographically, reimplemented here (never
+// exported there) so factsTurn can re-render JUST the `claim`-tagged
+// tokens of a renderCrown trace — see factsTurn's own comment on why a
+// string-matched strip of "According to <source>, " cannot be reliable
+// (crown.js tokenizes a witness name before rendering it, which is
+// lossy). Token-for-token identical join logic, kept in sync by being
+// this small and this simple, not by import (crown.js's own module
+// boundary stays a pure, standalone render — no new export surface for
+// one display need one caller away).
+const FACTS_NO_SPACE_BEFORE = new Set([".", ",", ":", ";"]);
+function joinCrownTokens(tokens) {
+  let text = "";
+  tokens.forEach((token, i) => {
+    if (i > 0 && !FACTS_NO_SPACE_BEFORE.has(token)) text += " ";
+    text += token;
+  });
+  return text;
+}
+
+// FALLBACK ONLY — a document composed before factsTurn started storing
+// `factOnly` (the trace-derived, reliable strip) on each row. A string
+// match against the source name is known-lossy (see joinCrownTokens'
+// own comment) but an older row has nothing better to try; kept so an
+// old document still reads reasonably rather than not stripping at all.
+function factCellTextFallback(text, sourceName) {
   if (!sourceName) return text;
   const prefix = `According to ${sourceName}, `;
   if (text.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) return text;
@@ -12831,20 +12902,74 @@ function citeBadge(ref, known, numberOf) {
   return el;
 }
 
-/** The table view of a /facts document — one row per composed sentence,
- * its citation(s) as the SAME real, clickable `reopen()` controls the
- * prose view uses (never a plain string — a table cell is not licence to
- * drop the "read these bytes back" affordance). One compact "Cite" column
- * (a short source name plus its numbered marker, matching References),
- * not a full source-name column and a raw byte-span column each wide
- * enough to dominate the row (user direction, 2026-09-09, after the first
- * cut: "make this a real table"). */
-function factsTable(text, known, numberOf) {
-  const rows = factsTableRows(text);
+/**
+ * Switches to the Holograph tab and opens (drills) the named referent
+ * there — the SAME `renderHolograph({ pick })` a referent click inside
+ * the holograph itself already uses. "Pivot": a fact's own subject is a
+ * door into everything else this instrument has heard about it, not a
+ * dead label (user direction, 2026-09-09: "the EOT should be clickable
+ * and pivot things").
+ */
+function pivotToHolograph(name) {
+  if (!name) return;
+  if (panelCollapsed) setPanelCollapsed(false);
+  showView("holograph");
+  renderHolograph({ pick: name });
+}
+
+/**
+ * The "EOT" cell — end1/label/end2 read verbatim off the claim this row
+ * actually composed (P58's own reading of the cube: the arrangement
+ * carries the ends, "verb" is a declared overlay, never re-derived here),
+ * in the same `subject —verb→ object` shape this app's own linkNode()/
+ * linkText() already draw graph edges with (CLAUDE.md, "the UX pass",
+ * "One drawing of a link, everywhere"). Clickable — pivotToHolograph on
+ * the subject — when a real triple is known; a plain, unclickable "—"
+ * when this row came from re-parsing an OLDER document's prose (no
+ * end1/label/end2 was ever stored for it), never a guessed one.
+ */
+function eotCell(row) {
+  const cell = document.createElement("span");
+  cell.className = "facts-table-eot";
+  if (!row.end1 || !row.label) {
+    cell.textContent = "—";
+    cell.title = "this document was composed before the EOT column existed — regenerate with /facts to get one";
+    return cell;
+  }
+  const b = document.createElement("button");
+  b.className = "facts-table-eot-btn";
+  b.title = `${row.cell ? `${row.cell} · ` : ""}pivot the holograph to "${row.end1}"`;
+  const subj = document.createElement("span");
+  subj.className = "facts-table-eot-end";
+  subj.textContent = row.end1;
+  const verb = document.createElement("span");
+  verb.className = "facts-table-eot-verb";
+  verb.textContent = `—${row.label}→`;
+  const obj = document.createElement("span");
+  obj.className = "facts-table-eot-end";
+  obj.textContent = row.end2 ?? "";
+  b.append(subj, document.createTextNode(" "), verb, document.createTextNode(" "), obj);
+  b.onclick = () => pivotToHolograph(row.end1);
+  cell.append(b);
+  return cell;
+}
+
+/** The table view of a /facts document — one row per composed sentence:
+ * Fact prose, its EOT (the structured claim, clickable — pivots the
+ * holograph), Source, and Citation, in that column order (user
+ * direction, 2026-09-09, iterated live: "source | fact prose | EOT |
+ * citation", then "the EOT should be clickable and pivot things", then
+ * "lets put source 3rd actually"). `rows` is EITHER `entry.factsRows`
+ * (real structured data, stored by factsTurn itself — see its own
+ * comment) or, for a document generated before that field existed,
+ * factsTableRows' own re-parse of the prose (text and refs only — the
+ * EOT column degrades to "—" rather than fabricating a triple). */
+const FACTS_TABLE_HEAD = ["#", "Fact", "EOT", "Source", "Quote", "Citation"];
+function factsTable(rows, known, numberOf) {
   const table = document.createElement("table");
   table.className = "facts-table";
   const thead = table.createTHead().insertRow();
-  for (const h of ["#", "Fact", "Cite"]) {
+  for (const h of FACTS_TABLE_HEAD) {
     const th = document.createElement("th");
     th.textContent = h;
     thead.append(th);
@@ -12852,24 +12977,58 @@ function factsTable(text, known, numberOf) {
   const tbody = table.createTBody();
   rows.forEach((row, i) => {
     const tr = tbody.insertRow();
+    // data-label rides every cell, read by the narrow-screen CSS below
+    // (content: attr(data-label)) to draw each cell as a labeled line in
+    // a stacked card instead of a table column — a five-column table has
+    // no honest narrow layout; a card that names its own fields does
+    // (user direction, 2026-09-09, after the horizontal-scroll fix still
+    // read as "still all looks bad").
     tr.insertCell().textContent = String(i + 1);
+    tr.cells[0].dataset.label = FACTS_TABLE_HEAD[0];
     const firstName = row.refs[0]?.split("#")[0] ?? null;
-    tr.insertCell().append(...inlineMarkdown(factCellText(row.text, firstName)));
+    const factText = row.factOnly ?? factCellTextFallback(row.text, firstName);
+    tr.insertCell().append(...inlineMarkdown(factText));
+    tr.cells[1].dataset.label = FACTS_TABLE_HEAD[1];
+    tr.insertCell().append(eotCell(row));
+    tr.cells[2].dataset.label = FACTS_TABLE_HEAD[2];
+    const srcCell = tr.insertCell();
+    srcCell.className = "facts-table-src";
+    srcCell.dataset.label = FACTS_TABLE_HEAD[3];
+    // The verbatim span each citation actually rests on — read back from
+    // the loaded source right now (factsTurn's own `quotes`, or refContext
+    // here directly for an older document that has no factsRows.quotes
+    // stored), shown in the reader's own words, never a model's paraphrase
+    // of them (user direction, 2026-09-09: "we need to see the verbatim
+    // span it came from"). A quote too long to show whole is truncated
+    // with the FULL text still reachable — title attribute, and the same
+    // reopen() a click already opens elsewhere in this document.
+    const quoteCell = tr.insertCell();
+    quoteCell.className = "facts-table-quote";
+    quoteCell.dataset.label = FACTS_TABLE_HEAD[4];
     const citeCell = tr.insertCell();
     citeCell.className = "facts-table-cite";
+    citeCell.dataset.label = FACTS_TABLE_HEAD[5];
     const seen = new Set();
+    const quotesByRef = new Map((row.quotes ?? []).map((q) => [q.ref, q.cited]));
     for (const ref of row.refs) {
       const name = ref.split("#")[0];
-      if (seen.has(name)) continue; // one marker per SOURCE, not per span — matches References' own per-source numbering
+      if (seen.has(name)) continue; // one row per SOURCE, not per span — matches References' own per-source numbering
       seen.add(name);
       const meta = known.has(ref) ? sourceMeta(name) : null;
-      const item = document.createElement("span");
-      item.className = "facts-table-cite-item";
       const nameSpan = document.createElement("span");
-      nameSpan.className = "facts-table-cite-name";
+      nameSpan.className = "facts-table-src-name";
       nameSpan.textContent = meta?.site ?? name;
-      item.append(nameSpan, citeBadge(ref, known, numberOf));
-      citeCell.append(item);
+      srcCell.append(nameSpan);
+      const cited = quotesByRef.has(ref) ? quotesByRef.get(ref) : refContext(state.sources, ref)?.cited ?? null;
+      const q = document.createElement(cited && known.has(ref) ? "button" : "span");
+      q.className = "facts-table-quote-text";
+      q.textContent = cited ? `“${cited}”` : "—";
+      if (cited) {
+        q.title = known.has(ref) ? `${ref} — read these bytes back out of the material` : cited;
+        if (known.has(ref)) q.onclick = () => reopen(ref);
+      }
+      quoteCell.append(q);
+      citeCell.append(citeBadge(ref, known, numberOf));
     }
   });
   const wrap = document.createElement("div");
@@ -13068,13 +13227,15 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
       // multi-column table — widened only while the table view is active.
       doc.classList.toggle("artifact-doc-wide", asTable);
       if (asTable) {
-        // The document's own "# Grounded facts" heading carries no ref, so
-        // factsTableRows would otherwise fold it into the first row's text
-        // (text before the FIRST ref is still "between" text). Everything
-        // after the last ref — the trailing "---" + coverage line — is
-        // already dropped by factsTableRows on its own (nothing after the
-        // final match is ever read into a row).
-        doc.append(factsTable(proseText.replace(/^#[^\n]*\n+/, ""), known, numberOf));
+        // entry.factsRows — real end1/label/end2/cell, stored by factsTurn
+        // itself — wins when present. Its absence (a document composed
+        // before this field existed) falls back to factsTableRows' own
+        // re-parse of the prose (text and refs only; the "# Grounded
+        // facts" heading carries no ref, so it would otherwise fold into
+        // the first row's text — stripped the same way the fallback
+        // always has).
+        const tableRows = entry?.factsRows?.length ? entry.factsRows : factsTableRows(proseText.replace(/^#[^\n]*\n+/, ""));
+        doc.append(factsTable(tableRows, known, numberOf));
       } else if (caption === FACTS_CAPTION) {
         // factsRefNodes, not the generic refNodes: a full-address pill
         // wrapping onto its own line inside a sentence "still looks bad"

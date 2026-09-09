@@ -1205,7 +1205,8 @@
         padding: 4px 0;
       }
       .build-cursor input[type="range"] {
-        flex: 0 1 160px;
+        flex: 1 1 60px;
+        min-width: 0;
         -webkit-appearance: none;
         appearance: none;
         height: 4px;
@@ -1246,6 +1247,15 @@
         color: var(--muted);
         font-family: var(--mono);
         white-space: nowrap;
+        /* A flex item's default min-width is its own content width, which
+           on a narrow pane made this label force the WHOLE row (and the
+           panel around it) into horizontal scroll rather than truncate —
+           found live, 2026-09-09, at mobile width on the facts table's own
+           card. flex:1 1 0 takes only the room the range slider leaves. */
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* A build's append-only log, surfaced git-style: each addendum is a
@@ -1631,18 +1641,78 @@
         padding: 10px 20px 0;
       }
       /* Table view of the facts document — a real, compact table: row
-         number, the fact, and ONE "Cite" column (a short source name plus
-         its numbered marker) — not a source-name column and a raw
-         byte-span column each wide enough to dominate the row. */
+         number, the fact, its EOT (the structured claim — pivots the
+         holograph), a short source name, and its numbered citation. Each
+         its own narrow column rather than one wide cell repeating the
+         full source name inside a byte range. */
       .artifact-doc.artifact-doc-wide { max-width: none; }
-      .facts-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-      .facts-table th, .facts-table td { text-align: left; padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--line); }
-      .facts-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-      .facts-table th:first-child, .facts-table td:first-child { width: 2em; color: var(--muted); }
-      .facts-table th:last-child, .facts-table td:last-child { width: 14em; }
+      /* table-layout: fixed (the first cut) sizes EVERY column from
+         explicit widths alone, INCLUDING on a viewport too narrow to fit
+         them all — the Fact column (the one column with no explicit
+         width) got squeezed to near-zero and wrapped one character per
+         line (found live, 2026-09-09, on a phone-width screen: "table
+         broken"). auto layout + a declared min-width instead: columns
+         size to their content down to that floor, and .table-wrap's own
+         overflow-x:auto (below) takes over — a horizontal scroll on a
+         narrow phone, never a crushed column. */
+      .facts-table { width: 100%; min-width: 46em; border-collapse: collapse; font-size: 14px; }
+      .facts-table th, .facts-table td { text-align: left; padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: break-word; }
+      .facts-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; }
+      .facts-table th:nth-child(1), .facts-table td:nth-child(1) { width: 2em; color: var(--muted); }
+      .facts-table th:nth-child(2), .facts-table td:nth-child(2) { width: 32%; }
+      .facts-table th:nth-child(3), .facts-table td:nth-child(3) { width: 10em; }
+      .facts-table th:nth-child(4), .facts-table td:nth-child(4) { width: 7em; }
+      .facts-table th:nth-child(5), .facts-table td:nth-child(5) { width: 16em; }
+      .facts-table th:nth-child(6), .facts-table td:nth-child(6) { width: 4.5em; }
+      .facts-table-src { display: flex; flex-direction: column; gap: 4px; }
+      .facts-table-src-name { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+      /* The verbatim quote — italic, the material's own words set apart
+         from this app's own prose, truncated on one line on a wide
+         screen (the full text rides `title`, and reopen() on click) but
+         allowed to wrap fully once the mobile card layout takes over
+         (below), where there is no column width to protect. */
+      .facts-table-quote { display: flex; flex-direction: column; gap: 6px; }
+      .facts-table-quote-text {
+        display: block;
+        font: inherit;
+        font-style: italic;
+        font-size: 12.5px;
+        line-height: 1.4;
+        text-align: left;
+        color: var(--ink);
+        background: none;
+        border: none;
+        padding: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+      button.facts-table-quote-text { cursor: pointer; }
+      button.facts-table-quote-text:hover { color: var(--accent); text-decoration: underline; }
       .facts-table-cite { display: flex; flex-direction: column; gap: 4px; }
-      .facts-table-cite-item { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .facts-table-cite-name { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+      /* The EOT cell — subject —verb→ object, the same shape explore.js's
+         own linkNode()/linkText() already draw a graph edge with. A real
+         button (pivotToHolograph), not decoration. */
+      .facts-table-eot-btn {
+        display: block;
+        font: inherit;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 1.4;
+        text-align: left;
+        padding: 2px 4px;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        background: none;
+        color: var(--ink);
+        cursor: pointer;
+        overflow-wrap: break-word;
+      }
+      .facts-table-eot-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+      .facts-table-eot-end { color: var(--accent); }
+      .facts-table-eot-verb { color: var(--muted); }
+      .facts-table-eot { color: var(--muted); font-size: 11.5px; }
       /* A citation marker in running prose or a table cell — "[N]", never
          the full address spelled out: a real paper's inline citation is a
          short number, not its own bibliography entry repeated inline
@@ -1662,6 +1732,55 @@
       }
       .cite-badge:hover { text-decoration: underline; }
       span.cite-badge.bad { color: var(--warn); cursor: help; }
+      /* Under ~640px a five-column table has no honest column layout left
+         to give — even scrolled cleanly within its own box (the fix for
+         the earlier crushed-column bug), five columns of real content
+         read as a cramped strip nobody can use (user direction,
+         2026-09-09, after that fix: "still all looks bad"). Below the
+         breakpoint each row becomes its own labeled card instead: the
+         header row hides, every cell drops its column and gets its own
+         line headed by its own column name (data-label, set once per
+         cell in factsTable() — read here via attr(), never duplicated as
+         a second copy of the header text). */
+      @media (max-width: 640px) {
+        .facts-table-wrap { overflow-x: visible; }
+        .facts-table { min-width: 0; width: 100%; }
+        .facts-table thead { display: none; }
+        .facts-table tbody tr {
+          display: block;
+          border: 1px solid var(--line);
+          border-radius: 10px;
+          padding: 10px 12px;
+          margin-bottom: 10px;
+        }
+        .facts-table tbody td {
+          display: block;
+          width: auto !important;
+          padding: 6px 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .facts-table tbody td:last-child { border-bottom: none; padding-bottom: 0; }
+        .facts-table tbody td:first-child {
+          display: inline-block;
+          font-size: 11px;
+          color: var(--muted);
+          padding: 0 0 6px;
+          border-bottom: none;
+        }
+        .facts-table tbody td:first-child::before { content: "#"; }
+        .facts-table td[data-label]:not(:first-child)::before {
+          content: attr(data-label);
+          display: block;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: var(--muted);
+          margin-bottom: 3px;
+        }
+        .facts-table-src, .facts-table-cite { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+        .facts-table-src-name { white-space: normal; overflow: visible; text-overflow: clip; }
+        .facts-table-quote-text { white-space: normal; overflow: visible; text-overflow: clip; }
+      }
       .artifact-doc h1, .artifact-doc h2, .artifact-doc h3 {
         margin: 1.1em 0 0.4em;
         line-height: 1.3;

@@ -207,6 +207,40 @@ test("a single interrogative sentence never plans, however many facets it names"
   );
 });
 
+test("a framing sentence in front of the question is not WORK either — only a lone trailing interrogative sentence is exempt (live failure, 2026-09-09)", () => {
+  // The live failure this pins: "I'm researching the Panama Canal's
+  // history for a documentary script. Who built the canal, when was it
+  // completed, and why did the earlier French attempt fail?" tripped the
+  // gate (four substantive, multi-sentence clauses), planned four parts —
+  // the model even invented an unasked fourth, "Key Players" — and every
+  // part re-answered the whole compound question from scratch. The
+  // preceding sentence is pure declarative scene-setting (one clause, no
+  // anchor of its own): the question itself is still the single
+  // interrogative sentence the rule above already means to exempt.
+  assert.equal(
+    needsDecomposition(
+      "I'm researching the Panama Canal's history for a documentary script. Who built the canal, when was it completed, and why did the earlier French attempt fail?",
+    ),
+    false,
+  );
+  // A shorter framing lead-in, same shape.
+  assert.equal(
+    needsDecomposition("My name is Jordan. What's the capital of France, and when was it founded?"),
+    false,
+  );
+  // The exemption is for FRAMING only. When the sentence(s) before the
+  // trailing question carry genuine multi-clause work of their own — the
+  // campaigns case above, restated here as the control — decomposition
+  // still fires: the middle sentence alone pins three anchored clauses,
+  // which is real stepped work, not scene-setting.
+  assert.equal(
+    needsDecomposition(
+      "Compare the 1805 and 1812 campaigns. Cite the figures for each army, name the commanding generals, and note the dates of the major battles. Which mattered more?",
+    ),
+    true,
+  );
+});
+
 test("a single-sentence ask plans only on anchors — a comma count is length, not structure", () => {
   // The live browser failure this pins (2026-08-17): one imperative
   // sentence naming facets of ONE artifact hit the clause-count shortcut,
@@ -463,6 +497,56 @@ test("production retries a strayed part that matched nothing, as a supersede", a
   assert.equal(result.sections.length, 1);
   assert.ok(result.refs.length >= 1);
   assert.ok(!result.output.includes("nothing here about that"));
+});
+
+test("a decomposed part whose own retrieval finds nothing still scopes to its own label — never the whole original multi-part task (live failure, 2026-09-09)", async () => {
+  // The live failure this pins: "I'm researching the Panama Canal's
+  // history for a documentary script. Who built the canal, when was it
+  // completed, and why did the earlier French attempt fail?" decomposed
+  // into several labeled parts, and every part re-answered the ENTIRE
+  // original question rather than its own labeled slice — e.g. the
+  // "Completion Timeline" section opened "The Panama Canal was built by
+  // the United States..." Root cause: runPart's own executeMessages
+  // ternary fell through to the bare-chat branches (`content: task`)
+  // whenever a part's OWN retrieval came back with zero passages,
+  // regardless of whether the part was flat or decomposed — discarding
+  // buildExecutePrompt (which scopes to `part.label`/`part.description`
+  // and, with no material, says so honestly) and handing the model the
+  // WHOLE un-decomposed task as its only content instead.
+  //
+  // This part is deliberately NOT "strayed" (retryStrayedRule's own
+  // trigger): its words share real terms with the task ("built", "canal",
+  // "completed", "attempt", "fail"), so the retry rule never fires here —
+  // this pins the executeMessages fallback alone, not the stray-retry path
+  // the test above already covers. The corpus simply has no material on
+  // the canal at all, so this part's own retrieval still comes back empty.
+  const capturedExecutePrompts = [];
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) {
+      return JSON.stringify([
+        { label: "the harbor figure", description: "State the harbor figure the Kessington report gives." },
+        { label: "the earlier attempt", description: "Describe why the earlier attempt to build the canal failed before it was completed." },
+      ]);
+    }
+    if (messages[0]?.content?.startsWith(EXECUTE_SYSTEM_PROMPT)) capturedExecutePrompts.push(promptOf(messages));
+    const refs = offeredRefs(promptOf(messages));
+    return refs.length
+      ? `The report puts the harbor figure at 12% for the spring quarter. [${refs[0]}]`
+      : "There is nothing here about that.";
+  };
+  const task = "Who built the canal, when was it completed, and why did the earlier attempt fail?";
+  await runHolonicTask({ task, chunks, call });
+
+  const starvedPrompt = capturedExecutePrompts.find((p) => p.includes("the earlier attempt"));
+  assert.ok(starvedPrompt, "the starved part's own EXECUTE prompt must have been captured");
+  assert.ok(
+    starvedPrompt.includes("Write this part: the earlier attempt."),
+    "a part with zero passages of its own must still be scoped by buildExecutePrompt to its own label, not fall through to a bare chat prompt",
+  );
+  assert.ok(
+    !starvedPrompt.includes(task),
+    "the starved part's prompt must never carry the whole original multi-part task verbatim",
+  );
 });
 
 test("resumption: the fold rebuilds from the serialized entries alone", async () => {

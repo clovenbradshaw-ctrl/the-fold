@@ -119,6 +119,41 @@ function clausePinsAnchor(clause) {
   return /\b[A-Z][a-z]+\b/.test(rest);
 }
 
+/** The substantive (>= MIN_CLAUSE_WORDS) clauses inside one span of text. Shared by the gate's own clause count and by the framing check below, so both count a clause the same way. */
+function substantiveClauses(text) {
+  return String(text || "")
+    .split(CLAUSE_SPLIT_RE)
+    .map((c) => c.trim())
+    .filter((c) => c.split(/\s+/).filter(Boolean).length >= MIN_CLAUSE_WORDS);
+}
+
+/**
+ * True when `q` is a lone trailing interrogative sentence preceded only by
+ * pure framing — declarative scene-setting that carries no multi-clause work
+ * of its own ("I'm researching X for Y. Who/when/why ...?"). Measured live
+ * (2026-09-09): "I'm researching the Panama Canal's history for a
+ * documentary script. Who built the canal, when was it completed, and why
+ * did the earlier French attempt fail?" is ONE compound question wearing a
+ * one-clause preamble — the multi-sentence check above can't tell that from
+ * genuinely stepped imperative work ("Compare the 1805 and 1812 campaigns.
+ * Cite the figures for each army, name the commanding generals, and note
+ * the dates of the major battles. Which mattered more?"), where the middle
+ * sentence pins three anchored clauses in its own right. The test: every
+ * sentence before the last must fall short of the same
+ * MIN_SUBSTANTIVE_CLAUSES bar the gate already uses for real work, and the
+ * last sentence must itself be the single-interrogative-sentence shape the
+ * gate already exempts.
+ */
+function isFramedSingleQuestion(q) {
+  if (!q.endsWith("?")) return false;
+  const sentences = q.split(SENTENCE_SPLIT_RE).filter(Boolean);
+  const last = sentences[sentences.length - 1] || "";
+  const lead = sentences.slice(0, -1);
+  if (!lead.length) return false;
+  if (!last.endsWith("?") || /[.!?]\s+\S/.test(last)) return false;
+  return lead.every((s) => substantiveClauses(s).length < MIN_SUBSTANTIVE_CLAUSES);
+}
+
 /**
  * True when the question itself has the shape of several dependent parts.
  * Cheap-bails on the first check — a greeting or single-sentence ask never
@@ -141,10 +176,14 @@ export function needsDecomposition(question) {
   // (imperative, multi-sentence, genuinely dependent parts), so a single
   // interrogative sentence never plans.
   if (q.endsWith("?") && !/[.!?]\s+\S/.test(q)) return false;
-  const clauses = q
-    .split(CLAUSE_SPLIT_RE)
-    .map((c) => c.trim())
-    .filter((c) => c.split(/\s+/).filter(Boolean).length >= MIN_CLAUSE_WORDS);
+  // A framing sentence in front of the question ("I'm researching X for Y.
+  // Who ...?") makes the text multi-sentence on its face, but the question
+  // itself is still the single interrogative sentence the rule above means
+  // to exempt — see isFramedSingleQuestion for the measured failure this
+  // pins and why it can't be told apart from genuine stepped work by
+  // sentence count alone.
+  if (isFramedSingleQuestion(q)) return false;
+  const clauses = substantiveClauses(q);
   if (clauses.length < MIN_SUBSTANTIVE_CLAUSES) return false;
   // The clause-count shortcut holds only for MULTI-SENTENCE work — steps
   // stated as steps. Inside one sentence, a comma count is LENGTH, not
@@ -2310,8 +2349,25 @@ export async function runPart({
   // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
   const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
   const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
-  const executeMessages = passages.length
-    ? flat
+  // A DECOMPOSED part (!flat) always builds its prompt from its own label/
+  // description via buildExecutePrompt — even when this part's own
+  // retrieval came back with nothing. buildExecutePrompt already has the
+  // honest branch for that (`"No material matched this part. Say what the
+  // part would need and stop; do not invent content."`), still scoped to
+  // THIS part alone. Before this fix, a part with zero passages fell all
+  // the way through to the bare-chat branches below, which hand the model
+  // `task` — the WHOLE original, un-decomposed question — as its only user
+  // content. Measured live (2026-09-09): a "Who built the canal, when was
+  // it completed, and why did the earlier French attempt fail?" plan, once
+  // a part's own narrower retrieval query missed the fetched material,
+  // answered that part from training knowledge against the FULL compound
+  // question — which is exactly why sections came back re-answering the
+  // entire original ask instead of their own labeled slice. The bare-chat
+  // branches (`task`, no part scoping at all) are for a FLAT turn — a plain
+  // chat question that was never decomposed — where `task` legitimately IS
+  // the whole ask.
+  const executeMessages = flat
+    ? passages.length
       ? [
           {
             role: "system",
@@ -2320,20 +2376,20 @@ export async function runPart({
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
-      : [
-          { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
-          { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
-        ]
-    : chatHistory.length
-      ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${priorPassSuffix}${todaySuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
-          ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
-          { role: "user", content: task },
-        ]
-      : [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
-          { role: "user", content: `${task}${chatContext}` },
-        ];
+      : chatHistory.length
+        ? [
+            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${priorPassSuffix}${todaySuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
+            ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
+            { role: "user", content: task },
+          ]
+        : [
+            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
+            { role: "user", content: `${task}${chatContext}` },
+          ]
+    : [
+        { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
+        { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
+      ];
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.

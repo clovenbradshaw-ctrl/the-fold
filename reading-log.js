@@ -230,12 +230,36 @@ export function readingIndexFromLog(entries = [], { diaNorm, namesCorefer, recon
   // LAST resort, only for a name no registered surface stands in, because
   // `namesCorefer` shares tokens across every referent and a shared
   // patronymic is exactly the token it shares.
+  // A run also resolves when a registered surface is a PREFIX of it and what
+  // remains does not begin with a letter. Measured on 277 real questions
+  // against this book's own reading: without it, "Razumihin's" resolves to
+  // nothing, because the tokenizer keeps the clitic inside the token and
+  // `byFirst` never sees the name. NOTHING HERE KNOWS WHAT 's IS — the rule
+  // consults \p{L} and the index's own registered forms, so it admits a
+  // clitic, a case ending or an enclitic in any script for the same reason,
+  // and refuses Anna/Annapolis for the same reason (the remainder there
+  // begins with a letter). The alternative — stripping English possessives —
+  // is the SAE-shaped rule P76 and S40 already refuse.
+  const startsRegistered = (run) => {
+    for (let k = run.length; k > 0; k--) {
+      const head = run.slice(0, k);
+      const hit = bySurface.get(head);
+      if (!hit?.size) continue;
+      const rest = run.slice(k);
+      if (rest && /^\p{L}/u.test(rest)) continue;
+      return hit;
+    }
+    return null;
+  };
   const resolveIn = (text) => {
     const toks = norm(text).split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean);
     const out = new Set();
     for (let i = 0; i < toks.length; i++) {
-      if (!byFirst.has(toks[i])) continue;
-      for (let j = Math.min(toks.length, i + longest); j > i; j--) { const run = toks.slice(i, j).join(" "); const hit = bySurface.get(run); if (hit?.size) { for (const id of hit) out.add(id); i = j - 1; break; } }
+      for (let j = Math.min(toks.length, i + longest); j > i; j--) {
+        const run = toks.slice(i, j).join(" ");
+        const hit = bySurface.get(run) ?? startsRegistered(run);
+        if (hit?.size) { for (const id of hit) out.add(id); i = j - 1; break; }
+      }
     }
     return out;
   };

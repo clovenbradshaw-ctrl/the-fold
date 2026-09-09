@@ -1043,8 +1043,12 @@ function loopCard(c, { expanded = false } = {}) {
       head.append(inl);
     }
     const bits = [];
-    if (c.state !== "closed") bits.push(stateWord(c));
-    else if (c.ring > 1) bits.push(`round ${c.ring}`);
+    // "open" is already said twice on the face — by the ⇒ mark and by the
+    // bar down the card's left edge — so the word is not said a third time.
+    // Every other state is one a reader cannot infer from the face and is
+    // named: could not close, contested, set aside, and any later round.
+    if (c.state !== "closed" && (c.state !== "open" || c.ring > 1)) bits.push(stateWord(c));
+    else if (c.state === "closed" && c.ring > 1) bits.push(`round ${c.ring}`);
     if (c.carried) bits.push(c.convo != null && c.convo !== convoNow() ? "from another conversation" : `from turn ${c.turn}`);
     if (c.authored === "model") bits.push("the model's own part");
     if (bits.length) {
@@ -1056,14 +1060,20 @@ function loopCard(c, { expanded = false } = {}) {
   }
   head.addEventListener("click", () => card.classList.toggle("expanded"));
   card.append(head);
+  const more = document.createElement("div");
+  more.className = "loop-more";
+  // WHAT WOULD CLOSE IT sits with the trail, not on the face. It is stated
+  // for every open loop (the wall at open() requires one), but the nine
+  // void cells legitimately share one — six identical sentences stacked on
+  // one turn is the boilerplate a reader learns to skip, and a face that
+  // has to be skipped is not a face. One line per loop collapsed; the
+  // condition is the same click away the trail already was.
   if (!eot && c.state !== "closed" && c.state !== "waived") {
     const ln = document.createElement("div");
     ln.className = "loop-line";
     ln.textContent = lineFor(c);
-    card.append(ln);
+    more.append(ln);
   }
-  const more = document.createElement("div");
-  more.className = "loop-more";
   // The trail: every act on this loop, in order — the record's own
   // timeline, not a paraphrase of it.
   const trail = document.createElement("div");

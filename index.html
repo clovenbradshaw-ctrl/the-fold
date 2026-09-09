@@ -1630,15 +1630,38 @@
         color: var(--muted);
         padding: 10px 20px 0;
       }
-      /* Table view of the facts document — a real table (columns for row
-         number, the fact, its source, and its byte span, separately),
-         not the prose measure squeezed into cells. */
+      /* Table view of the facts document — a real, compact table: row
+         number, the fact, and ONE "Cite" column (a short source name plus
+         its numbered marker) — not a source-name column and a raw
+         byte-span column each wide enough to dominate the row. */
       .artifact-doc.artifact-doc-wide { max-width: none; }
       .facts-table { width: 100%; border-collapse: collapse; font-size: 14px; }
       .facts-table th, .facts-table td { text-align: left; padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--line); }
       .facts-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       .facts-table th:first-child, .facts-table td:first-child { width: 2em; color: var(--muted); }
-      .facts-table-src { display: flex; flex-wrap: wrap; gap: 4px; }
+      .facts-table th:last-child, .facts-table td:last-child { width: 14em; }
+      .facts-table-cite { display: flex; flex-direction: column; gap: 4px; }
+      .facts-table-cite-item { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .facts-table-cite-name { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+      /* A citation marker in running prose or a table cell — "[N]", never
+         the full address spelled out: a real paper's inline citation is a
+         short number, not its own bibliography entry repeated inline
+         (user direction, 2026-09-09). Superscript-like without literally
+         using <sup> (which would shrink the click target too far). */
+      .cite-badge {
+        font: inherit;
+        font-size: 0.75em;
+        font-weight: 600;
+        padding: 0 2px;
+        border: none;
+        background: none;
+        color: var(--accent);
+        cursor: pointer;
+        vertical-align: super;
+        line-height: 1;
+      }
+      .cite-badge:hover { text-decoration: underline; }
+      span.cite-badge.bad { color: var(--warn); cursor: help; }
       .artifact-doc h1, .artifact-doc h2, .artifact-doc h3 {
         margin: 1.1em 0 0.4em;
         line-height: 1.3;

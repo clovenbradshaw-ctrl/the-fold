@@ -4229,6 +4229,7 @@ function rememberPageFace(name, url, entry) {
   state.pageFaces[name] = { url, host: hostOf(url), rawPath: entry.rawPath, textPath: entry.textPath ?? null };
 }
 
+
 // ── /ranke — the primary-source chase, on request ────────────────────────
 // Budgets declared per run (P9): the caller — now only the explicit
 // /ranke <maxFetches> [maxSearches] door — names them (the ambient
@@ -8312,12 +8313,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           show(`named source ${hostOf(url)}: fetched, but no readable text`);
           continue;
         }
-        addSource(name, text);
-        rememberPageFace(name, url, f.entry);
-        state.provenance[name] = {
+        const provenance = {
           line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
           fields: { url: f.entry.finalUrl ?? url },
         };
+        const pageFace = f.entry.rawPath ? { url, host: hostOf(url), rawPath: f.entry.rawPath, textPath: f.entry.textPath ?? null } : null;
+        addSource(name, text, { provenance, pageFace });
+        rememberPageFace(name, url, f.entry);
+        state.provenance[name] = provenance;
         show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested${f.entry.via ? ` — via ${f.entry.via.gateway} (the direct fetch was ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       } catch (e) {
         show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
@@ -12790,28 +12793,58 @@ function factsTableRows(text) {
 // prose, and pure redundancy in a table that already names the source in
 // its own column. Stripped for the table cell only (never for the prose
 // view, and never for what's exported): the underlying sentence is
-// untouched, this just decides how one cell reads.
-const FACTS_ATTRIBUTION_RE = /^According to (.+?), (.+)$/s;
-function factCellText(text) {
-  const m = text.match(FACTS_ATTRIBUTION_RE);
-  if (!m) return text;
-  const rest = m[2];
+// untouched, this just decides how one cell reads. Matched against the
+// row's own KNOWN source name (the exact string factsTurn/crown.js used),
+// never a generic "first comma" regex — found live, 2026-09-09: a source
+// whose own title contains a comma ("Panama Canal: History, Impact &
+// Canal Zone | HISTORY") made a lazy `/^According to (.+?), /` stop at
+// the title's OWN internal comma, leaking half the source name into the
+// fact text ("Impact & Canal Zone | HISTORY, 000 men...").
+function factCellText(text, sourceName) {
+  if (!sourceName) return text;
+  const prefix = `According to ${sourceName}, `;
+  if (text.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) return text;
+  const rest = text.slice(prefix.length);
   return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
+ * A citation marker — "[N]", N matching this document's own References
+ * list (numberOf, built in first-citation order, the same order the
+ * References `<ol>` renders in) — never the full source name or byte
+ * range spelled out inline (user direction, 2026-09-09: prose citations
+ * as full-width address pills "still looks bad" — a real paper's inline
+ * citation is a short number, the full account lives in the
+ * bibliography). Still a real control: it opens the exact cited bytes
+ * (reopen), and a ref this turn never actually retrieved renders as a
+ * disabled, differently-styled "[?]" rather than a working-looking link.
+ */
+function citeBadge(ref, known, numberOf) {
+  const name = ref.split("#")[0];
+  const num = numberOf?.get(name);
+  const known_ = known.has(ref);
+  const el = document.createElement(known_ ? "button" : "span");
+  el.className = known_ ? "cite-badge" : "cite-badge bad";
+  el.textContent = num ? `[${num}]` : "[?]";
+  el.title = known_ ? `${ref} — read these bytes back out of the material` : `${ref} — not among the passages retrieved for this turn`;
+  if (known_) el.onclick = () => reopen(ref);
+  return el;
 }
 
 /** The table view of a /facts document — one row per composed sentence,
  * its citation(s) as the SAME real, clickable `reopen()` controls the
  * prose view uses (never a plain string — a table cell is not licence to
- * drop the "read these bytes back" affordance). Source and byte-span are
- * their own columns (user direction, 2026-09-09: "much more of a real
- * table" — the first cut's one wide "Source" column repeated the full
- * source name inside the citation label it was already naming). */
-function factsTable(text, known) {
+ * drop the "read these bytes back" affordance). One compact "Cite" column
+ * (a short source name plus its numbered marker, matching References),
+ * not a full source-name column and a raw byte-span column each wide
+ * enough to dominate the row (user direction, 2026-09-09, after the first
+ * cut: "make this a real table"). */
+function factsTable(text, known, numberOf) {
   const rows = factsTableRows(text);
   const table = document.createElement("table");
   table.className = "facts-table";
   const thead = table.createTHead().insertRow();
-  for (const h of ["#", "Fact", "Source", "Span"]) {
+  for (const h of ["#", "Fact", "Cite"]) {
     const th = document.createElement("th");
     th.textContent = h;
     thead.append(th);
@@ -12820,34 +12853,47 @@ function factsTable(text, known) {
   rows.forEach((row, i) => {
     const tr = tbody.insertRow();
     tr.insertCell().textContent = String(i + 1);
-    tr.insertCell().append(...inlineMarkdown(factCellText(row.text)));
-    const srcCell = tr.insertCell();
-    srcCell.className = "facts-table-src";
-    const spanCell = tr.insertCell();
-    spanCell.className = "facts-table-src";
+    const firstName = row.refs[0]?.split("#")[0] ?? null;
+    tr.insertCell().append(...inlineMarkdown(factCellText(row.text, firstName)));
+    const citeCell = tr.insertCell();
+    citeCell.className = "facts-table-cite";
+    const seen = new Set();
     for (const ref of row.refs) {
       const name = ref.split("#")[0];
-      const span = ref.slice(name.length + 1);
+      if (seen.has(name)) continue; // one marker per SOURCE, not per span — matches References' own per-source numbering
+      seen.add(name);
       const meta = known.has(ref) ? sourceMeta(name) : null;
-      const srcBtn = document.createElement("button");
-      srcBtn.className = "ref";
-      srcBtn.textContent = meta?.title ?? name;
-      srcBtn.title = known.has(ref) ? `${ref} — read these bytes back out of the material` : "not among the passages retrieved for this turn";
-      if (known.has(ref)) srcBtn.onclick = () => reopen(ref);
-      else srcBtn.className = "ref bad";
-      srcCell.append(srcBtn);
-      const spanBtn = document.createElement("button");
-      spanBtn.className = known.has(ref) ? "ref" : "ref bad";
-      spanBtn.textContent = span;
-      spanBtn.title = known.has(ref) ? `${ref} — read these bytes back out of the material` : "not among the passages retrieved for this turn";
-      if (known.has(ref)) spanBtn.onclick = () => reopen(ref);
-      spanCell.append(spanBtn);
+      const item = document.createElement("span");
+      item.className = "facts-table-cite-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "facts-table-cite-name";
+      nameSpan.textContent = meta?.site ?? name;
+      item.append(nameSpan, citeBadge(ref, known, numberOf));
+      citeCell.append(item);
     }
   });
   const wrap = document.createElement("div");
   wrap.className = "table-wrap facts-table-wrap";
   wrap.append(table);
   return wrap;
+}
+
+/** The prose view's own ref renderer — bracketed addresses become compact
+ * `citeBadge` markers ("[N]") rather than refNodes' full-address chip, so
+ * a citation never wraps onto its own line and breaks the sentence it
+ * belongs to. Same trace-verified control underneath (reopen); only the
+ * DRAWING differs from the generic refNodes every other citation in this
+ * app still uses unchanged. */
+function factsRefNodes(text, known, numberOf) {
+  const out = [];
+  let last = 0;
+  for (const m of String(text).matchAll(REF_IN_TEXT)) {
+    if (m.index > last) out.push(...inlineMarkdown(text.slice(last, m.index)));
+    out.push(citeBadge(m[1], known, numberOf));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(...inlineMarkdown(text.slice(last)));
+  return out;
 }
 
 /** One `<table>`, wrapped for horizontal scroll — factored out of
@@ -12989,6 +13035,14 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     // rendering.
     const text = code ?? seg.code;
     const known = new Set([...text.matchAll(REF_IN_TEXT)].map((m) => m[1]));
+    // Cited sources, in FIRST-CITATION order — known's own insertion order,
+    // since `known` was built by walking the text top to bottom. Computed
+    // ONCE, here, so the prose view's inline "[N]" markers, the table
+    // view's "[N]" markers, and the References list below are always the
+    // SAME numbering for the SAME source — a citation can never point at
+    // one number in the text and a different entry in the bibliography.
+    const citedNames = caption === FACTS_CAPTION ? [...new Set([...known].map((r) => r.split("#")[0]))] : [];
+    const numberOf = new Map(citedNames.map((n, i) => [n, i + 1]));
     // factsTurn bakes a "## References" section into the stored/exported
     // markdown (so a downloaded file carries real citations even though
     // nothing renders it live) — the Folds panel already offers a richer,
@@ -13011,7 +13065,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
       doc.replaceChildren();
       const asTable = caption === FACTS_CAPTION && known.size && localStorage.getItem("fold-facts-view") === "table";
       // The prose measure (68ch) reads well for a paragraph and cramps a
-      // four-column table — widened only while the table view is active.
+      // multi-column table — widened only while the table view is active.
       doc.classList.toggle("artifact-doc-wide", asTable);
       if (asTable) {
         // The document's own "# Grounded facts" heading carries no ref, so
@@ -13020,7 +13074,13 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
         // after the last ref — the trailing "---" + coverage line — is
         // already dropped by factsTableRows on its own (nothing after the
         // final match is ever read into a row).
-        doc.append(factsTable(proseText.replace(/^#[^\n]*\n+/, ""), known));
+        doc.append(factsTable(proseText.replace(/^#[^\n]*\n+/, ""), known, numberOf));
+      } else if (caption === FACTS_CAPTION) {
+        // factsRefNodes, not the generic refNodes: a full-address pill
+        // wrapping onto its own line inside a sentence "still looks bad"
+        // (user direction, 2026-09-09) — a numbered "[N]" marker reads
+        // like an actual paper's inline citation instead.
+        renderBlocksInto(doc, proseText, (chunk) => factsRefNodes(chunk, known, numberOf));
       } else {
         renderBlocksInto(doc, proseText, (chunk) => refNodes(chunk, known));
       }
@@ -13057,7 +13117,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     // the facts document carries this; an ordinary markdown build (there
     // is none yet, but the check costs nothing) is left as prose alone.
     if (caption === FACTS_CAPTION && known.size) {
-      const names = [...new Set([...known].map((r) => r.split("#")[0]))];
+      const names = citedNames; // same first-citation order the "[N]" markers above were numbered from
       const refsBox = document.createElement("div");
       refsBox.className = "artifact-refs";
       const head = document.createElement("div");
@@ -13490,7 +13550,7 @@ function attachStage(name, label, fn) {
   console.info(`attach ${name}: ${label} — ${ms}ms`);
   return out;
 }
-function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
+function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null, provenance = null, pageFace = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
   // would make a self address ambiguous about which plane it names — the
@@ -13530,7 +13590,20 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   else renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.
-  if (!fromBoot) { const tp = Date.now(); Promise.resolve(persistSource(name, text, { passages: countFor(name) })).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); }); }
+  // provenance/pageFace ride this SAME write, never a follow-up
+  // updateSourceMeta call: a caller that instead set state.provenance and
+  // then called updateSourceMeta separately raced this write's own
+  // in-flight OPFS read-modify-write and silently lost — measured live,
+  // 2026-09-09, building a real /facts document: References read
+  // correctly right after attaching three real web pages, then reverted
+  // to "[Unpublished material attached to this conversation]" for the
+  // same three pages after one reload, because the follow-up write had
+  // read the index before this one's own write landed.
+  if (!fromBoot) {
+    const tp = Date.now();
+    const meta = { passages: countFor(name), ...(provenance ? { provenance } : {}), ...(pageFace ? { pageFace } : {}) };
+    Promise.resolve(persistSource(name, text, meta)).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); });
+  }
   // Read it now (Pass 18, P99) — a book attached is a book read, before any
   // question. Boot resumes from the saved cursor instead (below).
   // The read is the long one, and it reports its own progress passage by
@@ -14557,8 +14630,17 @@ $("not-served")?.remove();
 (async () => {
   try {
     const saved = await loadSources();
-    for (const { name, text } of saved) {
-      if (!state.sources[name]) addSource(name, text, { fromBoot: true });
+    for (const { name, text, meta } of saved) {
+      if (!state.sources[name]) {
+        addSource(name, text, { fromBoot: true });
+        // A source's real web provenance (title/host/URL, for
+        // sourceMeta()/citation-style.js) lives in the SAME OPFS index row
+        // as its text (addSource's own provenance/pageFace options, above)
+        // so it is restored right alongside the text rather than
+        // reverting to "attached, no author, no date" on every reload.
+        if (meta?.provenance) state.provenance[name] = meta.provenance;
+        if (meta?.pageFace) state.pageFaces[name] = meta.pageFace;
+      }
     }
     // The record first, then the reads resume from their saved cursors on
     // top of it (a read that started before the restore would fork the log).
@@ -14941,6 +15023,7 @@ async function openPicker() {
           let text;
           let name = item.name;
           let prov = null;
+          let pageFace = null;
           if (item.prior) {
             // one crossing: text + papers together, the open recorded with
             // the publisher's own source URL
@@ -14964,14 +15047,17 @@ async function openPicker() {
             // (real title/host/URL/access-date) rather than "attached".
             if (item.from === "saved pages" && item.pageUrl) {
               prov = { line: item.pageTitle ? `${item.pageTitle} — ${item.pageHost}` : item.pageHost, fields: { url: item.pageUrl, title: item.pageTitle ?? undefined } };
-              rememberPageFace(name, item.pageUrl, { rawPath: item.rawPath, textPath: item.textPath ?? null });
+              if (item.rawPath) pageFace = { url: item.pageUrl, host: item.pageHost, rawPath: item.rawPath, textPath: item.textPath ?? null };
             }
           }
           if (looksBinary(text)) {
             $("status").textContent = `${item.name} isn't text — skipped`;
             return;
           }
-          addSource(name, text);
+          // provenance/pageFace ride addSource's OWN persist call — see its
+          // header for why a follow-up write races and silently loses.
+          addSource(name, text, { provenance: prov, pageFace });
+          if (pageFace) rememberPageFace(name, pageFace.url, pageFace);
           if (prov && state.sources[name]) {
             state.provenance[name] = prov;
             renderSources(); // the pill was drawn before its papers landed

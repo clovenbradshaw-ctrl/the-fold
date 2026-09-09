@@ -57,7 +57,7 @@ test("addressed BY IDENTITY: an answer that says 'Rodion' has named Raskolnikov;
   assert.equal(addressedBy("anything", referentsOf("nothing here", index), index), null);
   const abs = referentsOf("What does the book say about Sonia?", index);
   assert.equal(abs.ids.size, 0);
-  assert.match(absenceLine(abs, PASSAGES), /no referent named "Sonia"/);
+  assert.match(absenceLine(abs, PASSAGES), /mentions "Sonia"/);
   assert.equal(absenceLine(q, PASSAGES), "");
   // The second bar: a name the bytes carry but the index never established is UNESTABLISHED, and earns no absence line — the record must not call a named being absent.
   const opener = [{ ref: "x", text: "Marmeladov drank. Marmeladov wept. Marmeladov died in the street." }];

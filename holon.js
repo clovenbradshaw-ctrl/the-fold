@@ -69,7 +69,7 @@ import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
 import { interpretAsk } from "./about-call.js";
-import { getActiveModelLoop, applyModelLoop, captureLastTurn } from "./model-loops.js";
+import { getActiveModelLoop, applyModelLoop, captureLastTurn, joinDraftMaterial } from "./model-loops.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -2194,8 +2194,13 @@ export async function runPart({
     s2Frame, flatExecuteSystemPrompt: FLAT_EXECUTE_SYSTEM_PROMPT, chatSystemPrompt: CHAT_SYSTEM_PROMPT,
     shapeSuffix, notesSuffix, priorPassSuffix, searchedVoidSuffix, chatContext,
   };
-  const modelLoopTuned = applyModelLoop(modelLoopIngredients, getActiveModelLoop());
-  const draftMaterial = [modelLoopTuned.comparisonLine, modelLoopTuned.declaredLine, modelLoopTuned.aboutLine, modelLoopTuned.recalledLine, modelLoopTuned.snipPrefix, modelLoopTuned.premiseBlock, modelLoopTuned.dialogueBlock, modelLoopTuned.learnedBlock, modelLoopTuned.factBlockText, modelLoopTuned.ledgerBlock, modelLoopTuned.rawSource].filter(Boolean).join("\n\n");
+  const activeModelLoop = getActiveModelLoop();
+  const modelLoopTuned = applyModelLoop(modelLoopIngredients, activeModelLoop);
+  // The block ORDER is genuinely user-tunable (model-loops.js's own header
+  // says why: nothing downstream reads a position, only which stages run
+  // and in what sequence is off limits) — joinDraftMaterial permutes per
+  // the active loop's own ingredientOrder, natural order by default.
+  const draftMaterial = joinDraftMaterial(modelLoopTuned, activeModelLoop);
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2229,7 +2234,20 @@ export async function runPart({
           { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${ledgerSuffix}` },
           { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
         ];
-  captureLastTurn(modelLoopIngredients, modelLoopShape);
+  // Pipeline-stage snapshot (v2): what actually ran this part, read off
+  // runPart's own bindings — never a second computation of it. `depth`
+  // itself is not in scope here (runHolonicTask converts it to these
+  // budgets before calling runPart), so it is disclosed as unset rather
+  // than guessed.
+  captureLastTurn(modelLoopIngredients, modelLoopShape, {
+    makeRelationReader: Boolean(makeRelationReader),
+    witnessSentences: Boolean(witnessSentences),
+    checkLink: Boolean(checkLink),
+    resolutions,
+    material,
+    passagesPerPart,
+    maxCorrections,
+  });
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.
@@ -3132,7 +3150,14 @@ export async function runPart({
   const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
   const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
   if (position) text = `${position.text}\n\n${text}`.trim();
-  if (absent) text = `${text}\n\n${absent}`.trim();
+  // The line is a check AGAINST something, so it only means anything when
+  // something was actually given — caught live (user, 2026-09-09): with
+  // nothing attached at all, `absenceOf` was declaring every name in a
+  // plain factual question "absent," which is trivially true of an empty
+  // check and reads as noise, not a finding. The void declaration above
+  // (record-only, per its own comment: "awareness... not a line the reader
+  // sees") is untouched either way — this only gates what reaches the text.
+  if (absent && (chunks.length || passages.length)) text = `${text}\n\n${absent}`.trim();
   // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
   // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
   const owned = ownedRows(learnedRows, { since: learnedSince });

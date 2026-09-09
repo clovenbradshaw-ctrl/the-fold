@@ -85,7 +85,7 @@ export const candidatesIn = (text) => {
  * index to resolve a run (any capitalised run is offered); ABSENCE needs a
  * name the text shows evidence of (ground-ladder.js::namesIn — L2: a
  * sentence-initial capital alone is not evidence of a name), because the
- * record will state that absence and "no referent named Why" is not one.
+ * record will state that absence and "nothing mentions Why" is not one.
  */
 export function referentsOf(text, index) {
   const t = String(text ?? "");
@@ -152,7 +152,10 @@ export function absenceOf(qRefs, passages = [], { vocabulary = null } = {}) {
   const vocab = vocabulary instanceof Set ? vocabulary : new Set(passages.flatMap((p) => tokenize(String(p?.text ?? ""))));
   const absent = [], unestablished = [];
   for (const n of names) { const toks = tokenize(n); (toks.length && toks.every((t) => vocab.has(t)) ? unestablished : absent).push(n); }
-  return { absent, unestablished, line: absent.length ? `The loaded sources establish no referent named ${absent.map((n) => `"${n}"`).join(", ")}.` : "" };
+  // Plain wording (user, 2026-09-09: this line read as jargon —
+  // "referent"/"loaded sources" explain this module's own vocabulary,
+  // never the reader's actual question, "is this in what I gave you").
+  return { absent, unestablished, line: absent.length ? `Nothing you gave me mentions ${absent.map((n) => `"${n}"`).join(", ")}.` : "" };
 }
 export const absenceLine = (qRefs, passages = [], opts = {}) => absenceOf(qRefs, passages, opts).line;
 

@@ -3258,7 +3258,12 @@ function mergeRelatingLedger(left, nominations) {
       const body = await readJsonBody(req);
       if (typeof body.name !== "string" || !body.name.trim()) return send(res, 400, { error: "name (non-empty string) is required" });
       const id = slugForLoopName(body.name);
-      const loop = { id, name: body.name.trim(), nodes: (body.nodes && typeof body.nodes === "object") ? body.nodes : {} };
+      const loop = {
+        id, name: body.name.trim(),
+        nodes: (body.nodes && typeof body.nodes === "object") ? body.nodes : {},
+        pipelineOptions: (body.pipelineOptions && typeof body.pipelineOptions === "object") ? body.pipelineOptions : {},
+        ingredientOrder: Array.isArray(body.ingredientOrder) && body.ingredientOrder.every((k) => typeof k === "string") ? body.ingredientOrder : undefined,
+      };
       writeModelLoop(loop);
       record("model-loop-create", { id, name: loop.name });
       return send(res, 200, { loop, loops: listModelLoops() });
@@ -3270,7 +3275,12 @@ function mergeRelatingLedger(left, nominations) {
       if (typeof id !== "string" || !id) return send(res, 400, { error: "id is required" });
       if (id === DEFAULT_MODEL_LOOP.id) return send(res, 400, { error: "the default model-loop ships from code and cannot be edited here — duplicate it into a new one instead" });
       if (!readModelLoop(id)) return send(res, 404, { error: `no such model-loop: ${id}` });
-      const loop = { id, name: (typeof body.name === "string" && body.name.trim()) || id, nodes: (body.nodes && typeof body.nodes === "object") ? body.nodes : {} };
+      const loop = {
+        id, name: (typeof body.name === "string" && body.name.trim()) || id,
+        nodes: (body.nodes && typeof body.nodes === "object") ? body.nodes : {},
+        pipelineOptions: (body.pipelineOptions && typeof body.pipelineOptions === "object") ? body.pipelineOptions : {},
+        ingredientOrder: Array.isArray(body.ingredientOrder) && body.ingredientOrder.every((k) => typeof k === "string") ? body.ingredientOrder : undefined,
+      };
       writeModelLoop(loop);
       record("model-loop-save", { id, name: loop.name });
       return send(res, 200, { loop, loops: listModelLoops() });

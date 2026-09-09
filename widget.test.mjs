@@ -930,3 +930,29 @@ test("a determiner is read on the MATCHED term's own phrase — introducing neve
   assert.ok(routed.matchedOn.includes("counter"));
   assert.ok(!routed.matchedOn.some((t) => t.startsWith("color")));
 });
+
+test("a markdown build (a composed document, not a widget) is never a routeMessage candidate — word overlap with its own prose is not evidence", () => {
+  // Found live, 2026-09-09: after /facts landed a "Grounded facts"
+  // document about Marie Curie, the very next ordinary follow-up
+  // question ("Quote the exact sentence about what elements Marie Curie
+  // discovered.") routed as an instruction to EDIT that document instead
+  // of reaching the grounded-chat pipeline — resolvesInto's word-overlap
+  // tell is sound for code (a widget's own vocabulary essentially never
+  // overlaps with ordinary conversation) and a near-guaranteed false
+  // positive for prose about the very topic being asked about.
+  const factsDoc = {
+    n: 1, type: "code", lang: "markdown",
+    text: "Grounded facts\n\nAccording to pasted.txt, Curie was the first woman to win a Nobel Prize. According to pasted.txt, Marie Curie was born in Warsaw.",
+  };
+  assert.equal(routeMessage("Quote the exact sentence about what elements Marie Curie discovered.", [factsDoc]), null);
+  assert.equal(routeMessage("How did Marie Curie die, according to what you have?", [factsDoc]), null);
+  // Even a message that would clearly be a judgment/complaint against a
+  // CODE build reads the same way here — the exclusion is on the
+  // candidate's own kind, not on the tell.
+  assert.equal(routeMessage("I don't like the Nobel Prize sentence, fix it", [factsDoc]), null);
+  // An HTML/JS widget beside the markdown doc still routes exactly as
+  // before — the exclusion narrows WHICH builds are candidates, it does
+  // not touch the tells themselves.
+  const widget = { n: 2, type: "code", lang: "html", text: '<button class="counter">0</button>' };
+  assert.equal(routeMessage("I don't like the counter", [factsDoc, widget])?.n, 2);
+});

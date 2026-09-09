@@ -12813,14 +12813,25 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
       head.className = "artifact-refs-head";
       const label = document.createElement("span");
       label.textContent = "References";
-      const styleBtn = document.createElement("button");
-      styleBtn.type = "button";
-      styleBtn.className = "style-cycle";
+      // A real <select>, not a cycle button — found live, 2026-09-09, user
+      // direction "im not seeing the MLA or APA": a single button showing
+      // only the CURRENT style's name (left on "plain" from testing) never
+      // showed the word "APA" or "MLA" anywhere until clicked through to,
+      // so both options were genuinely invisible rather than merely one
+      // click away. A <select> lists every option at once, open or closed.
+      const styleSel = document.createElement("select");
+      styleSel.className = "style-select";
+      styleSel.title = "Citation style. Every field is read from what this instrument actually recorded about the source, never asked of a model.";
+      for (const [key, { label: styleLabel }] of Object.entries(CITATION_STYLES)) {
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = styleLabel;
+        styleSel.append(opt);
+      }
       const list = document.createElement("ol");
       list.className = "artifact-refs-list";
       const renderList = () => {
-        styleBtn.textContent = CITATION_STYLES[state.citationStyle]?.label ?? state.citationStyle;
-        styleBtn.title = "Citation style — click to cycle. Every field is read from what this instrument actually recorded about the source, never asked of a model.";
+        styleSel.value = state.citationStyle;
         list.replaceChildren();
         for (const name of names) {
           const li = document.createElement("li");
@@ -12828,15 +12839,13 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
           list.append(li);
         }
       };
-      const styleKeys = Object.keys(CITATION_STYLES);
-      styleBtn.onclick = () => {
-        const next = styleKeys[(styleKeys.indexOf(state.citationStyle) + 1) % styleKeys.length];
-        state.citationStyle = next;
-        localStorage.setItem("fold-citation-style", next);
+      styleSel.onchange = () => {
+        state.citationStyle = styleSel.value;
+        localStorage.setItem("fold-citation-style", styleSel.value);
         renderList();
       };
       renderList();
-      head.append(label, styleBtn);
+      head.append(label, styleSel);
       refsBox.append(head, list);
       art.append(refsBox);
     }

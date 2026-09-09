@@ -94,7 +94,7 @@ import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask,
 
 import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel } from "./model-routing.js";
 
-import { renderBlocksInto } from "./render.js";
+import { parseBlocks, renderBlocksInto } from "./render.js";
 
 import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, runSandboxed } from "./term.js";
 // The in-tab rung (P21's WebLLM rung, wired into the page 2026-09-05 — its
@@ -136,7 +136,7 @@ import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
 
-import { classifySentences } from "./provenance.js";
+import { classifySentences, sentenceSpans } from "./provenance.js";
 
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
 
@@ -5862,9 +5862,10 @@ async function boundTurn(question, typed) {
   };
   const divA = document.createElement("div");
   divA.className = "prose";
-  renderBlocksInto(divA, free, (chunk) =>
-    taggedProse(chunk, passages, classifySentences(free, freeAttr, freeGrounding.findings).filter((e) => findSentence(chunk, e.text))),
-  );
+  // Same fix as renderAnswer's (renderTaggedBlocks, above): a block's own
+  // text goes to taggedProse whole, never as a marker-split fragment, so a
+  // free draft with any inline emphasis in it still gets its ground marks.
+  renderTaggedBlocks(divA, free, passages, classifySentences(free, freeAttr, freeGrounding.findings));
 
   const divB = document.createElement("div");
   divB.className = "prose";
@@ -6133,7 +6134,7 @@ async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRe
         ]),
       },
     ];
-    sentCalls?.push({ n: sentCalls.length + 1, messages });
+    sentCalls?.push({ n: sentCalls.length + 1, messages, phase: "folding the summary" });
     const raw = await complete(messages, {
       effort: "low", maxTokens: FOLD_MAX_TOKENS, json: FOLD_SCHEMA, model: routeModel(ROUTE_KINDS.SUMMARY, { offered: state.offeredModels, selected: state.model }),
     });
@@ -6751,7 +6752,21 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const tickEl = document.createElement("div");
   tickEl.className = "thinking";
   const draftEl = document.createElement("div");
-  draftEl.className = "prose";
+  // `draft-pending` (found live, user direction 2026-09-09: "it needs to be
+  // greyed out before a final answer is locked in") — this element streams
+  // the model's raw draft while it is still subject to the correction loop
+  // (holon.js's bounded correction over unsupported claims) and, before
+  // that, the online proof-seeking pass — real content that can still be
+  // rewritten out from under it. It shares the `.prose` class with the
+  // FINAL, checked answer `renderAnswer` draws once the turn actually
+  // lands, so until now a reader had no visual signal that what they were
+  // reading was provisional: a wrong first draft looked exactly as settled
+  // as the real answer, right up to the moment it silently got replaced.
+  // `draft-pending` mutes it (index.html, same treatment `.thinking`
+  // already uses for "not yet settled") for as long as this element is
+  // live; `renderAnswer`'s own `.prose` node is never given the class, so
+  // the real answer always renders at full weight from the moment it exists.
+  draftEl.className = "prose draft-pending";
   // ONE TRACE, TWO VOICES, IN THE ORDER THEY HAPPENED.
   //
   // The run log is a log — mono, one fact per line, "3 passage(s) retrieved"
@@ -7625,7 +7640,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // even by coincidence (a training habit, or text copied verbatim
       // from retrieved material that happens to carry bracket notation).
       call: async (messages, opts) => {
-        sentCalls.push({ n: sentCalls.length + 1, messages });
+        // `phaseLabel` (declared above, updated by every `setPhase()` call
+        // in `onProgress`) is captured here for free — it is already the
+        // exact human phrase this turn's own status line showed while this
+        // call was in flight ("writing the question", "rewriting the
+        // question", …). renderFold's tree (2026-09-09, "a map of how and
+        // what was prompted") groups by this field; nothing new is measured
+        // to produce it.
+        sentCalls.push({ n: sentCalls.length + 1, messages, phase: phaseLabel });
         // autoContinue is safe to pass unconditionally — complete()'s own
         // guard skips it for any json-mode call (the plan ask, notably),
         // so this needs no per-call-kind branching here.
@@ -8256,14 +8278,14 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   for (const seg of segments) {
     if (seg.type === "prose") {
       // A flow container, not a <p>: render.js emits headings and lists, and
-      // a browser silently relocates those out of a paragraph. Every inline
-      // run comes back through taggedProse, so the address chips, attribution
-      // tags, and provenance grounds survive the markdown structure.
+      // a browser silently relocates those out of a paragraph. Every block's
+      // OWN text comes back through taggedProse whole (renderTaggedBlocks,
+      // above — never a marker-split fragment), so the address chips,
+      // attribution tags, and provenance grounds survive the markdown
+      // structure regardless of where a `**bold**` span happens to fall.
       const d = document.createElement("div");
       d.className = "prose";
-      renderBlocksInto(d, seg.text, (chunk) =>
-        taggedProse(chunk, offered, classified.filter((e) => findSentence(chunk, e.text))),
-      );
+      renderTaggedBlocks(d, seg.text, offered, classified);
       body.append(d);
       continue;
     }
@@ -8630,15 +8652,24 @@ function refNodes(text, known) {
  */
 function taggedProse(text, offered, classified = []) {
   const known = new Set(offered.map((p) => p.ref ?? p));
+  const full = String(text);
   const out = [];
-  let rest = String(text);
+  let cursor = 0;
 
-  for (const entry of classified) {
-    const hit = findSentence(rest, entry.text);
-    if (!hit) continue;
-    const { at, len } = hit;
-    if (at > 0) out.push(...refNodes(rest.slice(0, at), known));
-    const matched = rest.slice(at, at + len);
+  // The whole-text search (provenance.js::sentenceSpans, `findSentence`
+  // injected — same convention chain-reason.js already states for
+  // `splitSentences`) runs ONCE, up front, against `full` exactly as
+  // handed in — never against a fragment some caller already split at an
+  // inline-emphasis boundary. That per-fragment ordering was the actual
+  // bug (see sentenceSpans's own header, and renderTaggedBlocks below):
+  // `**1989**` splits a sentence into pieces no single one of which ever
+  // contains the whole sentence, so a search run per fragment finds
+  // nothing on any of them and the sentence ships as plain, unclassified
+  // prose — not even the ladder's bottom "self" rung, because the
+  // wrapping code below never runs at all.
+  for (const { start, end, entry } of sentenceSpans(full, classified, findSentence)) {
+    if (start > cursor) out.push(...refNodes(full.slice(cursor, start), known));
+    const matched = full.slice(start, end);
 
     const sent = document.createElement("span");
     sent.className = `sent${entry.absent.length ? " claims" : ""}`;
@@ -8781,11 +8812,87 @@ function taggedProse(text, offered, classified = []) {
       sent.append(badge);
     }
     out.push(sent);
-    rest = rest.slice(at + len);
+    cursor = end;
   }
 
-  if (rest) out.push(...refNodes(rest, known));
+  if (cursor < full.length) out.push(...refNodes(full.slice(cursor), known));
   return out;
+}
+
+/**
+ * A "prose" segment's block structure — headings, lists, quotes,
+ * paragraphs (render.js::parseBlocks, unchanged) — with each block's own
+ * text handed to `taggedProse` WHOLE, in one call. Replaces the previous
+ * `renderBlocksInto(container, text, (chunk) => taggedProse(chunk, ...))`
+ * wiring at this file's two checked-answer render sites.
+ *
+ * FOUND LIVE 2026-09-09, two contradictory DOM captures of an otherwise
+ * identical checking-mode turn: one with the full wrapped `.sent`/
+ * ground-chip shape, one with NEITHER — plain markdown-bold `<strong>`
+ * text and nothing else, despite `state.grounded` and a fresh
+ * `state.lastGround` both confirmed. `renderBlocksInto`'s own inline pass
+ * SPLITS a block's text at every `**bold**`/`*em*`/`` `code` `` boundary
+ * before calling its `decorateInline` callback — that is its documented
+ * contract ("Inline emphasis... is implemented by SPLITTING the text and
+ * routing every piece through decorateInline"), and it is exactly right
+ * for a plain address-only decorator. Wiring `taggedProse` in as that same
+ * callback broke its own sentence match: a sentence with emphasis
+ * anywhere inside it — routine on exactly the figures and names a checked
+ * answer most wants to mark ("The Berlin Wall fell in **1989**") — never
+ * arrives at `decorateInline` whole, so `findSentence` (nested inside what
+ * is now `sentenceSpans`) failed on every fragment and the sentence fell
+ * through to plain, unwrapped text: not a weak ladder verdict, the
+ * wrapping code never ran. A sentence with NO emphasis (the Wright
+ * brothers turn) arrived as one unsplit chunk and rendered correctly —
+ * which is why the bug looked intermittent rather than broken outright.
+ *
+ * The fix does not touch render.js (its block/inline contract is a live
+ * boundary agreed with the session that owns it, unrelated to this bug)
+ * or classifySentences (the classification itself was never wrong — this
+ * was purely a rendering-composition defect). `taggedProse` already had
+ * its own complete inline-markdown handling (`refNodes` →
+ * `inlineMarkdown`, above) — bold/italic/code alongside addresses — used
+ * directly by `runFastPass` and `boundTurn`'s bound-half render, neither
+ * of which goes through `renderBlocksInto` and neither of which was ever
+ * broken by this. This function is the correct recomposition: `parseBlocks`
+ * still decides block structure; `taggedProse` decorates each block's
+ * FULL, unsplit text in one call, the same call shape it already had at
+ * those two working sites.
+ */
+function renderTaggedBlocks(container, text, offered, classified) {
+  const doc = container.ownerDocument ?? document;
+  for (const block of parseBlocks(text)) {
+    if (block.type === "heading") {
+      const h = doc.createElement(["h3", "h4", "h5"][block.level - 1]);
+      h.append(...taggedProse(block.text, offered, classified));
+      container.appendChild(h);
+    } else if (block.type === "list") {
+      const list = doc.createElement(block.ordered ? "ol" : "ul");
+      for (const item of block.items) {
+        const li = doc.createElement("li");
+        li.append(...taggedProse(item, offered, classified));
+        list.appendChild(li);
+      }
+      container.appendChild(list);
+    } else if (block.type === "quote") {
+      // Hard line breaks preserved (render.js's own reason: "epigraphs and
+      // verse are quoted precisely") — taggedProse decorates one line at a
+      // time here, the only block type where that matters, since it has
+      // no newline-to-<br> handling of its own (it never needed one at its
+      // other two call sites, which both hand it single-line text).
+      const q = doc.createElement("blockquote");
+      block.lines.forEach((line, i) => {
+        if (i) q.appendChild(doc.createElement("br"));
+        q.append(...taggedProse(line, offered, classified));
+      });
+      container.appendChild(q);
+    } else {
+      const para = doc.createElement("div");
+      para.className = "para";
+      para.append(...taggedProse(block.lines.join(" "), offered, classified));
+      container.appendChild(para);
+    }
+  }
 }
 
 /** A build's own words, for the router's definite-phrase check: its caption
@@ -11143,6 +11250,69 @@ function describeSentCall(call, modelName) {
 }
 
 /**
+ * "A map of how and what was prompted, with levels of disclosure" (user,
+ * 2026-09-09) — this turn's own calls, grouped by the phase active when
+ * each was sent. This app's own prompting is deliberately non-standard
+ * (it does not just grow one context every turn — a plan, per-part
+ * research/draft/correction, a summary refresh, each a call this repo's
+ * own architecture may skip or repeat), so a flat numbered list read top
+ * to bottom answered "what was sent" but not "why this many calls, in
+ * this shape" — the actual, turn-specific pipeline.
+ *
+ * Nothing new is measured to build this: `phase` (set at the `call:`
+ * closure in `holonicTurn`) is `phaseLabel`, the exact string this turn's
+ * OWN status line already showed while that call was in flight. Level 1
+ * is this tree; level 2 (unchanged, below) is still the verbatim wire
+ * JSON per call — this function only decides how the LIST above it is
+ * grouped, never what the raw disclosure holds.
+ *
+ * Falls back to the old flat one-line-per-call list when no call in
+ * `sent` carries a `.phase` (every turn kind besides `holonicTurn`'s own
+ * — build/piece-edit/widget/measure doors among them — none of which are
+ * touched by this pass), so nothing already working changes shape.
+ */
+function callTreeFor(sent, modelName) {
+  const wrap = document.createElement("div");
+  if (!sent.some((c) => c.phase)) {
+    for (const call of sent) {
+      const p = document.createElement("p");
+      p.className = "fold-note";
+      p.textContent = describeSentCall(call, modelName);
+      wrap.append(p);
+    }
+    return wrap;
+  }
+  // Map preserves insertion order, and calls arrive in the order they were
+  // sent — so groups land in the order the turn actually moved through
+  // them, never re-sorted, even when a later phase revisits an earlier
+  // label (the correction loop can return to "writing X" a second time).
+  const groups = new Map();
+  for (const call of sent) {
+    const key = call.phase ?? "(no phase recorded)";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(call);
+  }
+  const keys = [...groups.keys()];
+  keys.forEach((key, gi) => {
+    const calls = groups.get(key);
+    const head = document.createElement("p");
+    head.className = "fold-note fold-tree-head";
+    const headGlyph = gi === keys.length - 1 ? "└─" : "├─";
+    head.textContent = `${headGlyph} ${key}${calls.length > 1 ? ` (${calls.length} calls)` : ""}`;
+    wrap.append(head);
+    calls.forEach((call, ci) => {
+      const p = document.createElement("p");
+      p.className = "fold-note fold-tree-leaf";
+      const railGlyph = gi === keys.length - 1 ? " " : "│";
+      const leafGlyph = ci === calls.length - 1 ? "└─" : "├─";
+      p.textContent = `${railGlyph}  ${leafGlyph} ${describeSentCall(call, modelName)}`;
+      wrap.append(p);
+    });
+  });
+  return wrap;
+}
+
+/**
  * The whole "thinking" disclosure for one turn, under that turn.
  *
  * Plain-language by default (user direction, 2026-09-08 — reversing "vastly
@@ -11217,12 +11387,7 @@ function renderFold(node, { sent, record = null } = {}) {
     out.append(p);
   } else {
     const modelName = record?.model ?? state.model ?? "the model";
-    for (const call of sent) {
-      const p = document.createElement("p");
-      p.className = "fold-note";
-      p.textContent = describeSentCall(call, modelName);
-      out.append(p);
-    }
+    out.append(callTreeFor(sent, modelName));
   }
 
   // THE DEVELOPER'S VIEW, one click deeper — nothing deleted: the exact

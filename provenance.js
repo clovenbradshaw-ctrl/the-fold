@@ -348,3 +348,47 @@ export function classifySentences(answer, attributions = [], findings = [], rela
     };
   });
 }
+
+/**
+ * Where each classified sentence sits inside `text`, in order, as byte
+ * offsets — `{ start, end, entry }[]`, non-overlapping, ascending.
+ *
+ * FOUND LIVE (2026-09-09): app.js's own renderer used to run this exact
+ * search (`findSentence`, injected here rather than imported — the same
+ * "splitSentences is injected" convention chain-reason.js already states,
+ * since app.js's copy carries no DOM dependency of its own) once PER
+ * RENDER FRAGMENT, after render.js had already split the block's raw text
+ * at every inline-emphasis boundary (`**bold**`, `` `code` ``). A sentence
+ * with emphasis ANYWHERE inside it — routine on exactly the figures and
+ * names a checked answer most wants to mark, e.g. "The Berlin Wall fell
+ * in **1989**." — was then torn across fragments no single one of which
+ * ever contained the sentence's own text, so the search failed on EVERY
+ * fragment and the sentence fell through to plain, unclassified prose:
+ * zero `.sent` markup, zero ground chip, not even the ladder's own
+ * unconditional bottom rung, because the wrapping code never ran at all.
+ * A sentence's identity is its words, never the pieces some later
+ * splitter tore it into — the same lesson `classifySentences`'s own
+ * `carries()` above already draws for relation claims, at render-fragment
+ * scale instead of claim scale.
+ *
+ * The fix is ordering, not a new match rule: run this ONCE against the
+ * text BEFORE anything downstream is free to fragment it (app.js's
+ * `renderTaggedBlocks` calls this per render.js block — a paragraph, one
+ * heading, one list item, all still carrying their own inline emphasis
+ * markup intact — never per already-emphasis-split chunk). Pure: no DOM,
+ * same discipline as every other export here.
+ */
+export function sentenceSpans(text, classified, findSentence) {
+  const spans = [];
+  const full = String(text ?? "");
+  let rest = full;
+  let base = 0;
+  for (const entry of classified) {
+    const hit = findSentence(rest, entry.text);
+    if (!hit) continue;
+    spans.push({ start: base + hit.at, end: base + hit.at + hit.len, entry });
+    base += hit.at + hit.len;
+    rest = rest.slice(hit.at + hit.len);
+  }
+  return spans;
+}

@@ -42,6 +42,28 @@ test("the ladder places a sentence on its highest rung and names the cell backst
   assert.deepEqual(TIERS, ["bound", "witnessed", "recorded", "derived", "contested", "named", "self"]);
 });
 
+test("a witness refusal on THIS sentence outranks the named tier's bare name-match — the stronger, more specific check wins the display (live bug, 2026-09-09)", () => {
+  // "Amelia Hartley loved comets" alone lands "named" (checked above): her
+  // name resolves, nothing placed the claim, and no witness was ever asked
+  // about it. But when a witness WAS asked about this exact sentence and
+  // came back empty, that is strictly more informative than the bare name
+  // match — showing "named, not placed" here reads as a weaker, almost
+  // contradictory answer sitting in front of the real one.
+  const refused = groundOf("Amelia Hartley loved comets.", { ...ctx, witness: { witness: "refused" } });
+  assert.equal(refused.tier, "self");
+  assert.equal(refused.refused, true);
+  assert.match(refused.detail, /witness was asked and no passage states it/);
+  // A witness that DID find a passage still wins outright at tier 2 — this
+  // fix only ever touches the case a witness came back empty, never a case
+  // it came back with an answer.
+  const stated = groundOf("Amelia Hartley loved comets.", { ...ctx, witness: { witness: "states", decider: "Amelia Hartley loved comets." } });
+  assert.equal(stated.tier, "witnessed");
+  // No witness asked at all (null/skipped) still falls through to "named" —
+  // this fix narrows the named tier's reach, it does not remove it.
+  const noWitness = groundOf("Amelia Hartley loved comets.", ctx);
+  assert.equal(noWitness.tier, "named");
+});
+
 test("tier 4 (derived) compares referent identity when the index is available, not bare token containment — recall gained on a differently-worded alias, a false match refused between two distinct referents", () => {
   // RECALL: a derived fact phrased with a wholly different name for the
   // SAME referent (zero shared tokens with the sentence) is missed by

@@ -9810,8 +9810,19 @@ function searchSpanSource(ref) {
  * be, so it is left as a literal character (an honest, if unstyled, "*"
  * where this renderer has no separate list-block pass) rather than pairing
  * with something two sentences later.
+ *
+ * FOUND live the same session, re-verifying the fix above against a fresh
+ * list turn: a model reaching for extra emphasis writes `***Jupiter***`
+ * (bold+italic together, three asterisks each side) — genuinely valid
+ * CommonMark, and the two-alternative pattern above has no branch for it,
+ * so the double-asterisk alternative matched the INNER "**Jupiter**" and
+ * left one stray "*" on each side as literal text (`*<strong>Jupiter</strong>*`
+ * — cosmetic, not the swallowing bug, but still wrong markdown reaching the
+ * page as a literal character). A third alternative, tried before the
+ * double-asterisk one so three consecutive asterisks are not read as
+ * "one bold-open plus a stray", closes it the same structural way.
  */
-const INLINE_MD = /(`[^`\n]+`|\*\*(?!\s)[^*\n]+(?<!\s)\*\*|\*(?!\s)[^*\n]+(?<!\s)\*)/g;
+const INLINE_MD = /(`[^`\n]+`|\*\*\*(?!\s)[^*\n]+(?<!\s)\*\*\*|\*\*(?!\s)[^*\n]+(?<!\s)\*\*|\*(?!\s)[^*\n]+(?<!\s)\*)/g;
 function inlineMarkdown(text) {
   const out = [];
   let last = 0;
@@ -9822,6 +9833,12 @@ function inlineMarkdown(text) {
       const code = document.createElement("code");
       code.textContent = tok.slice(1, -1);
       out.push(code);
+    } else if (tok.startsWith("***")) {
+      const strong = document.createElement("strong");
+      const em = document.createElement("em");
+      em.textContent = tok.slice(3, -3);
+      strong.append(em);
+      out.push(strong);
     } else if (tok.startsWith("**")) {
       const strong = document.createElement("strong");
       strong.textContent = tok.slice(2, -2);

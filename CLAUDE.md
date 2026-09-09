@@ -7784,3 +7784,23 @@ never the corpus: attaching War and Peace froze the page, because the index
 ran `discoverReferents` over 3.3MB synchronously on every redraw — a book
 nobody has read into a turn is not on the record yet (P67).
 
+## First-person deixis: "my"/"I" names the speaker, walled in the relation tier (added 2026-09-09) — pointer
+
+POLICIES.md **P180** is the law; eoreader7's `native/READING-SPEC.md` **S96**
+is the organ-side account. The user's own question named it: "how could this
+possibly be 'confirmed'?" — gemma2:2b's own first-person answer ("My
+favorite color is blue…") bound `bound` against a generic anonymous ESL
+example page saying the identical words about no one in particular. Two
+different authored texts using "my" are never, by default, the same "I" —
+[[referent-model-not-pointers]], deixis edition. `hypergraph.js::judge()`
+gained a wall, checked on the raw subject string before any endpoint
+resolution: a first-person-led subject is refused UNCONDITIONALLY against
+retrieved material unless the caller declares a same-speaker signal for at
+least one source (the self plane's `self:` record — real, tested,
+deliberately unwired, since nothing today threads a self-plane passage into
+this reader's own material). Wired here beside `determiners`/`negationWords`
+(`RELATION_READER_OPTIONS`), on by default — the identical P41/P42 posture,
+a closed class that only ever turns a binding into a typed refusal. Measured
+live: `gemma2:2b`, seed 1, real answer, real reader — `bound` without the
+fix, `beyond-reach` with it.
+
